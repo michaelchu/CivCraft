@@ -1,0 +1,429 @@
+use super::{
+    BASE_TECH_COST, MIN_TECH_COST, PLAYER_COUNT, SCIENCEBOX_PERCENT, TECH_COST_PERCENT, percent_of,
+};
+use crate::rules::Tech;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Terrain {
+    Ocean,
+    Desert,
+    Forest,
+    Grassland,
+    Hills,
+    Mountains,
+    Plains,
+    Swamp,
+    Tundra,
+}
+
+impl Terrain {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Ocean => "Ocean",
+            Self::Desert => "Desert",
+            Self::Forest => "Forest",
+            Self::Grassland => "Grassland",
+            Self::Hills => "Hills",
+            Self::Mountains => "Mountains",
+            Self::Plains => "Plains",
+            Self::Swamp => "Swamp",
+            Self::Tundra => "Tundra",
+        }
+    }
+
+    pub(crate) fn movement_cost(self) -> i32 {
+        match self {
+            Self::Forest | Self::Hills | Self::Swamp => 2,
+            Self::Mountains => 3,
+            _ => 1,
+        }
+    }
+
+    pub(crate) fn defense_bonus(self) -> i32 {
+        match self {
+            Self::Forest | Self::Swamp => 25,
+            Self::Hills => 50,
+            Self::Mountains => 100,
+            _ => 0,
+        }
+    }
+
+    pub(crate) fn base_yields(self) -> (i32, i32, i32) {
+        match self {
+            Self::Ocean => (1, 0, 2),
+            Self::Desert => (0, 1, 0),
+            Self::Forest => (1, 2, 0),
+            Self::Grassland => (2, 0, 0),
+            Self::Hills => (1, 1, 0),
+            Self::Mountains => (0, 1, 0),
+            Self::Plains => (1, 1, 0),
+            Self::Swamp => (1, 0, 0),
+            Self::Tundra => (1, 0, 0),
+        }
+    }
+
+    pub(crate) fn irrigation_bonus(self) -> i32 {
+        match self {
+            Self::Desert | Self::Grassland | Self::Hills | Self::Plains | Self::Swamp => 1,
+            _ => 0,
+        }
+    }
+
+    pub(crate) fn mine_bonus(self) -> i32 {
+        match self {
+            Self::Desert | Self::Tundra => 1,
+            Self::Hills | Self::Mountains => 2,
+            _ => 0,
+        }
+    }
+
+    pub(crate) fn road_trade_bonus(self) -> i32 {
+        match self {
+            Self::Desert | Self::Grassland | Self::Plains | Self::Tundra => 1,
+            _ => 0,
+        }
+    }
+
+    pub(crate) fn road_time(self) -> i32 {
+        if self == Self::Ocean {
+            0
+        } else {
+            self.movement_cost() * 2
+        }
+    }
+
+    pub(crate) fn irrigation_time(self) -> i32 {
+        match self {
+            Self::Desert | Self::Grassland | Self::Plains | Self::Swamp => 5,
+            Self::Hills => 10,
+            _ => 0,
+        }
+    }
+
+    pub(crate) fn mine_time(self) -> i32 {
+        match self {
+            Self::Desert | Self::Tundra => 5,
+            Self::Hills | Self::Mountains => 10,
+            _ => 0,
+        }
+    }
+
+    pub(crate) fn allows_city(self) -> bool {
+        !matches!(self, Self::Ocean | Self::Mountains)
+    }
+
+    pub(crate) fn prefers_mine(self) -> bool {
+        matches!(self, Self::Hills | Self::Mountains | Self::Tundra)
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct Tile {
+    pub(crate) terrain: Terrain,
+    pub(crate) road: bool,
+    pub(crate) irrigation: bool,
+    pub(crate) mine: bool,
+    pub(crate) owner: Option<usize>,
+    pub(crate) seen: bool,
+    pub(crate) visible: bool,
+    pub(crate) known_by: [bool; PLAYER_COUNT],
+}
+
+impl Tile {
+    pub(crate) fn yields(&self) -> (i32, i32, i32) {
+        let (mut food, mut shields, mut trade) = self.terrain.base_yields();
+        if self.irrigation {
+            food += self.terrain.irrigation_bonus();
+        }
+        if self.mine {
+            shields += self.terrain.mine_bonus();
+        }
+        if self.road {
+            trade += self.terrain.road_trade_bonus();
+        }
+        (food, shields, trade)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UnitKind {
+    Settlers,
+    Worker,
+    Diplomat,
+    Explorer,
+    Warrior,
+    Phalanx,
+    Archer,
+    Legion,
+    Horseman,
+    Chariot,
+    Catapult,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct UnitStats {
+    pub(crate) cost: i32,
+    pub(crate) pop_cost: i32,
+    pub(crate) attack: i32,
+    pub(crate) defense: i32,
+    pub(crate) hp: i32,
+    pub(crate) firepower: i32,
+    pub(crate) moves: i32,
+    pub(crate) vision_sq: i32,
+    pub(crate) ignores_terrain: bool,
+    pub(crate) can_work: bool,
+    pub(crate) can_found: bool,
+}
+
+impl UnitKind {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Settlers => "Settlers",
+            Self::Worker => "Workers",
+            Self::Diplomat => "Diplomat",
+            Self::Explorer => "Explorer",
+            Self::Warrior => "Warriors",
+            Self::Phalanx => "Phalanx",
+            Self::Archer => "Archers",
+            Self::Legion => "Legion",
+            Self::Horseman => "Horsemen",
+            Self::Chariot => "Chariot",
+            Self::Catapult => "Catapult",
+        }
+    }
+
+    pub(crate) fn stats(self) -> UnitStats {
+        match self {
+            Self::Settlers => UnitStats {
+                cost: 30,
+                pop_cost: 2,
+                attack: 0,
+                defense: 1,
+                hp: 20,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: true,
+                can_found: true,
+            },
+            Self::Worker => UnitStats {
+                cost: 20,
+                pop_cost: 0,
+                attack: 0,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: true,
+                can_found: false,
+            },
+            Self::Diplomat => UnitStats {
+                cost: 30,
+                pop_cost: 0,
+                attack: 0,
+                defense: 0,
+                hp: 10,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Explorer => UnitStats {
+                cost: 30,
+                pop_cost: 0,
+                attack: 0,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 6,
+                ignores_terrain: true,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Warrior => UnitStats {
+                cost: 10,
+                pop_cost: 0,
+                attack: 1,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Phalanx => UnitStats {
+                cost: 20,
+                pop_cost: 0,
+                attack: 1,
+                defense: 2,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Archer => UnitStats {
+                cost: 20,
+                pop_cost: 0,
+                attack: 3,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Legion => UnitStats {
+                cost: 30,
+                pop_cost: 0,
+                attack: 4,
+                defense: 2,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Chariot => UnitStats {
+                cost: 30,
+                pop_cost: 0,
+                attack: 4,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Catapult => UnitStats {
+                cost: 40,
+                pop_cost: 0,
+                attack: 6,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Horseman => UnitStats {
+                cost: 20,
+                pop_cost: 0,
+                attack: 2,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+        }
+    }
+
+    pub(crate) fn is_military(self) -> bool {
+        self.stats().attack > 0
+    }
+
+    pub(crate) fn can_fortify(self) -> bool {
+        // Every opening unit uses a land class with CanFortify, but these
+        // three unit types carry the ruleset's overriding Cant_Fortify flag.
+        !matches!(self, Self::Settlers | Self::Worker | Self::Explorer)
+    }
+}
+
+impl Tech {
+    pub(crate) fn cost(self) -> i32 {
+        let requirements = self.data().map_or(1, |advance| advance.requirement_count);
+        research_cost(requirements)
+    }
+}
+
+pub(super) fn research_cost(requirements: i32) -> i32 {
+    let base = (BASE_TECH_COST * requirements).max(MIN_TECH_COST);
+    percent_of(percent_of(base, TECH_COST_PERCENT), SCIENCEBOX_PERCENT).max(1)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UnitState {
+    Idle,
+    Fortifying,
+    Fortified,
+    Sentry,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WorkKind {
+    Road,
+    Irrigation,
+    Mine,
+}
+
+impl WorkKind {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Road => "road",
+            Self::Irrigation => "irrigation",
+            Self::Mine => "mine",
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct Unit {
+    pub(crate) id: u32,
+    pub(crate) owner: usize,
+    pub(crate) kind: UnitKind,
+    pub(crate) x: i32,
+    pub(crate) y: i32,
+    pub(crate) hp: i32,
+    pub(crate) moves_left: i32,
+    pub(crate) state: UnitState,
+    pub(crate) moved: bool,
+    pub(crate) automated: bool,
+    pub(crate) work_kind: Option<WorkKind>,
+    pub(crate) work_remaining: i32,
+}
+
+#[derive(Clone)]
+pub(crate) struct City {
+    pub(crate) id: u32,
+    pub(crate) owner: usize,
+    pub(crate) x: i32,
+    pub(crate) y: i32,
+    pub(crate) name: String,
+    pub(crate) size: i32,
+    pub(crate) food: i32,
+    pub(crate) shields: i32,
+    pub(crate) production: UnitKind,
+}
+
+pub(crate) struct Player {
+    pub(crate) name: &'static str,
+    pub(crate) gold: i32,
+    pub(crate) known: Vec<Tech>,
+    pub(crate) researching: Tech,
+    pub(crate) research_goal: Tech,
+    pub(crate) future_techs: i32,
+    pub(crate) research: i32,
+    pub(crate) ai: bool,
+}

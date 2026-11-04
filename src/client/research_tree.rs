@@ -1,4 +1,4 @@
-use crate::research::Tech;
+use crate::rules::Tech;
 use macroquad::prelude::*;
 
 pub(crate) const NODE_SIZE: Vec2 = vec2(205.0, 56.0);
