@@ -412,7 +412,7 @@ impl Game {
                 .iter()
                 .filter(|u| u.x == x && u.y == y)
                 .collect();
-            stack.sort_by_key(|u| u.id != self.selected_unit.unwrap_or(u32::MAX));
+            stack.sort_by_key(|u| (u.transport.is_some(), Some(u.id) != self.selected_unit));
             if let Some(unit) = stack.first() {
                 self.draw_unit(assets, unit, center, stack.len());
             }

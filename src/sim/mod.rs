@@ -7,6 +7,7 @@ pub(crate) use commands::Command;
 use model::research_cost;
 mod model;
 pub(crate) mod topology;
+mod villages;
 
 use crate::rules::Tech;
 pub(crate) use model::*;
@@ -15,6 +16,7 @@ use topology::*;
 
 pub(crate) const PLAYER_COUNT: usize = 6;
 pub(crate) const HUMAN: usize = 0;
+pub(crate) const BARBARIANS: usize = PLAYER_COUNT;
 const PERCENT_SCALE: i32 = 100;
 const CITY_MIN_DISTANCE: i32 = 3;
 pub(crate) const MOVE_FRAGMENTS: i32 = 6;
@@ -173,6 +175,17 @@ impl Simulation {
             });
         }
 
+        players.push(Player {
+            name: "Barbarians",
+            gold: 0,
+            known: Vec::new(),
+            researching: Tech::FUTURE,
+            research_goal: Tech::FUTURE,
+            future_techs: 0,
+            research: 0,
+            ai: true,
+        });
+
         let mut units = Vec::new();
         let mut next_unit_id = 1;
         for owner in 0..PLAYER_COUNT {
@@ -187,6 +200,7 @@ impl Simulation {
                     id: next_unit_id,
                     owner,
                     kind,
+                    transport: None,
                     x: starts[owner].0,
                     y: starts[owner].1,
                     hp: stats.hp,
@@ -294,7 +308,9 @@ impl Simulation {
                     if distance * distance <= radius_sq {
                         let (visible_x, visible_y) = offset_native_by_map(x, y, dx, dy);
                         let idx = Self::idx(visible_x, visible_y);
-                        self.tiles[idx].known_by[owner] = true;
+                        if owner != BARBARIANS {
+                            self.tiles[idx].known_by[owner] = true;
+                        }
                         if owner == HUMAN {
                             self.tiles[idx].visible = true;
                             self.tiles[idx].seen = true;
@@ -318,6 +334,7 @@ impl Simulation {
             id,
             owner,
             kind,
+            transport: None,
             x,
             y,
             hp: stats.hp,
@@ -369,6 +386,7 @@ impl Simulation {
         for owner in 1..PLAYER_COUNT {
             self.run_ai_player(owner);
         }
+        self.run_ai_player(BARBARIANS);
         self.process_cities();
         self.update_activities_and_restore();
         self.turn += 1;
@@ -392,11 +410,13 @@ impl Simulation {
             self.game_over = Some("Your civilization has passed into history.".to_owned());
             return;
         }
-        let rival_survives = self.cities.iter().any(|c| c.owner != HUMAN)
-            || self
-                .units
+        let rival_survives =
+            self.cities
                 .iter()
-                .any(|u| u.owner != HUMAN && u.kind == UnitKind::Settlers);
+                .any(|c| c.owner != HUMAN && c.owner != BARBARIANS)
+                || self.units.iter().any(|u| {
+                    u.owner != HUMAN && u.owner != BARBARIANS && u.kind == UnitKind::Settlers
+                });
         if !rival_survives {
             self.game_over = Some("The world is united beneath your banner.".to_owned());
         }
@@ -511,6 +531,7 @@ mod tests {
                 id: 999,
                 owner: HUMAN,
                 kind: UnitKind::Warrior,
+                transport: None,
                 x: crate::mapgen::generate(42).starts[0].0,
                 y: crate::mapgen::generate(42).starts[0].1,
                 hp: 1,
@@ -551,6 +572,7 @@ mod tests {
             id: 999,
             owner: HUMAN,
             kind: UnitKind::Warrior,
+            transport: None,
             x,
             y,
             hp: 10,
@@ -603,6 +625,7 @@ mod tests {
             id: 1,
             owner: HUMAN,
             kind: UnitKind::Warrior,
+            transport: None,
             x: 0,
             y: 0,
             hp: 10,

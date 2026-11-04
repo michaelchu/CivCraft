@@ -3,6 +3,9 @@ use super::*;
 impl Simulation {
     pub(super) fn movement_cost_for(&self, unit: &Unit, nx: i32, ny: i32) -> Option<i32> {
         let dest = self.tile(nx, ny);
+        if unit.kind.transport_capacity() > 0 {
+            return dest.terrain.is_water().then_some(MOVE_FRAGMENTS);
+        }
         if dest.terrain.is_water() {
             return None;
         }
@@ -86,11 +89,9 @@ impl Simulation {
     pub(super) fn best_defender_id(&self, attacker: &Unit, x: i32, y: i32) -> Option<u32> {
         let mut best = None;
         let mut best_rank = None;
-        for defender in self
-            .units
-            .iter()
-            .filter(|unit| unit.x == x && unit.y == y && unit.owner != attacker.owner)
-        {
+        for defender in self.units.iter().filter(|unit| {
+            unit.x == x && unit.y == y && unit.owner != attacker.owner && unit.transport.is_none()
+        }) {
             let rank = self.defender_rank(attacker, defender, x, y);
             if best_rank.is_none() || best_rank.is_some_and(|current| rank > current) {
                 best = Some(defender.id);
@@ -118,7 +119,7 @@ impl Simulation {
         let defender = self.best_defender_id(&unit, nx, ny);
 
         if let Some(defender_id) = defender {
-            if unit.kind.stats().attack <= 0 {
+            if unit.kind.stats().attack <= 0 || unit.transport.is_some() {
                 return MoveResult::Blocked;
             }
             self.resolve_combat(unit_id, defender_id, nx, ny);
@@ -134,18 +135,21 @@ impl Simulation {
         if let Some(mover) = self.units.iter_mut().find(|u| u.id == unit_id) {
             mover.x = nx;
             mover.y = ny;
+            mover.transport = None;
             mover.moves_left = (mover.moves_left - cost).max(0);
             mover.moved = true;
             mover.state = UnitState::Idle;
         }
-        self.capture_city_if_needed(unit_id, nx, ny);
-        if self.tile(nx, ny).hut {
-            self.tile_mut(nx, ny).hut = false;
-            self.players[unit.owner].gold += 25;
-            if unit.owner == HUMAN {
-                self.add_event("The village gave your expedition 25 gold.");
-            }
+        for passenger in self
+            .units
+            .iter_mut()
+            .filter(|unit| unit.transport == Some(unit_id))
+        {
+            passenger.x = nx;
+            passenger.y = ny;
         }
+        self.capture_city_if_needed(unit_id, nx, ny);
+        self.enter_village(unit_id, nx, ny);
         if unit.owner == HUMAN {
             self.refresh_visibility();
         }
@@ -199,13 +203,15 @@ impl Simulation {
         let attacker_owner = attacker.owner;
         let defender_owner = defender.owner;
         if def_hp <= 0 {
-            self.units.retain(|u| u.id != defender_id);
+            self.units
+                .retain(|u| u.id != defender_id && u.transport != Some(defender_id));
             if att_hp > 0 {
                 if let Some(a) = self.units.iter_mut().find(|u| u.id == attacker_id) {
                     a.x = nx;
                     a.y = ny;
                 }
                 self.capture_city_if_needed(attacker_id, nx, ny);
+                self.enter_village(attacker_id, nx, ny);
             }
             if attacker_owner == HUMAN || defender_owner == HUMAN {
                 self.add_event(format!(
@@ -213,7 +219,8 @@ impl Simulation {
                 ));
             }
         } else if att_hp <= 0 {
-            self.units.retain(|u| u.id != attacker_id);
+            self.units
+                .retain(|u| u.id != attacker_id && u.transport != Some(attacker_id));
             if attacker_owner == HUMAN || defender_owner == HUMAN {
                 self.add_event(format!(
                     "{defender_name} held the tile against {attacker_name}."
@@ -247,7 +254,7 @@ impl Simulation {
             for (dx, dy) in ISOHEX_DIRS {
                 let (nx, ny) = offset_native_by_map(cx, cy, dx, dy);
                 let ni = Self::idx(nx, ny);
-                if previous[ni].is_some() || self.tile(nx, ny).terrain.is_water() {
+                if previous[ni].is_some() || self.movement_cost_for(unit, nx, ny).is_none() {
                     continue;
                 }
                 let enemy_block = self

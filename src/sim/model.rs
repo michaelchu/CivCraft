@@ -235,6 +235,12 @@ pub(crate) enum UnitKind {
     Horseman,
     Chariot,
     Catapult,
+    Musketeers,
+    Knights,
+    Partisan,
+    Cannon,
+    Caravel,
+    Galleon,
 }
 
 #[derive(Clone, Copy)]
@@ -266,6 +272,12 @@ impl UnitKind {
             Self::Horseman => "Horsemen",
             Self::Chariot => "Chariot",
             Self::Catapult => "Catapult",
+            Self::Musketeers => "Musketeers",
+            Self::Knights => "Knights",
+            Self::Galleon => "Galleon",
+            Self::Caravel => "Caravel",
+            Self::Cannon => "Cannon",
+            Self::Partisan => "Partisan",
         }
     }
 
@@ -401,6 +413,84 @@ impl UnitKind {
                 can_work: false,
                 can_found: false,
             },
+            Self::Musketeers => UnitStats {
+                cost: 40,
+                pop_cost: 0,
+                attack: 3,
+                defense: 3,
+                hp: 20,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Knights => UnitStats {
+                cost: 40,
+                pop_cost: 0,
+                attack: 4,
+                defense: 3,
+                hp: 10,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Partisan => UnitStats {
+                cost: 60,
+                pop_cost: 0,
+                attack: 4,
+                defense: 5,
+                hp: 20,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 6,
+                ignores_terrain: true,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Cannon => UnitStats {
+                cost: 50,
+                pop_cost: 0,
+                attack: 8,
+                defense: 1,
+                hp: 20,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Caravel => UnitStats {
+                cost: 30,
+                pop_cost: 0,
+                attack: 0,
+                defense: 2,
+                hp: 10,
+                firepower: 1,
+                moves: 3,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Galleon => UnitStats {
+                cost: 40,
+                pop_cost: 0,
+                attack: 0,
+                defense: 2,
+                hp: 20,
+                firepower: 1,
+                moves: 4,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
             Self::Horseman => UnitStats {
                 cost: 20,
                 pop_cost: 0,
@@ -417,6 +507,23 @@ impl UnitKind {
         }
     }
 
+    pub(crate) fn transport_capacity(self) -> usize {
+        match self {
+            Self::Caravel => 3,
+            Self::Galleon => 4,
+            _ => 0,
+        }
+    }
+
+    pub(crate) fn can_carry(self, kind: Self) -> bool {
+        kind.transport_capacity() == 0
+            && match self {
+                Self::Caravel => !matches!(kind, Self::Cannon | Self::Catapult | Self::Chariot),
+                Self::Galleon => true,
+                _ => false,
+            }
+    }
+
     pub(crate) fn is_military(self) -> bool {
         self.stats().attack > 0
     }
@@ -424,7 +531,8 @@ impl UnitKind {
     pub(crate) fn can_fortify(self) -> bool {
         // Every opening unit uses a land class with CanFortify, but these
         // three unit types carry the ruleset's overriding Cant_Fortify flag.
-        !matches!(self, Self::Settlers | Self::Worker | Self::Explorer)
+        self.transport_capacity() == 0
+            && !matches!(self, Self::Settlers | Self::Worker | Self::Explorer)
     }
 }
 
@@ -470,6 +578,7 @@ pub(crate) struct Unit {
     pub(crate) id: u32,
     pub(crate) owner: usize,
     pub(crate) kind: UnitKind,
+    pub(crate) transport: Option<u32>,
     pub(crate) x: i32,
     pub(crate) y: i32,
     pub(crate) hp: i32,

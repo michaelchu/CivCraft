@@ -379,6 +379,12 @@ fn short_unit_name(kind: UnitKind) -> &'static str {
         UnitKind::Horseman => "Horseman",
         UnitKind::Chariot => "Chariot",
         UnitKind::Catapult => "Catapult",
+        UnitKind::Musketeers => "Musketeers",
+        UnitKind::Knights => "Knights",
+        UnitKind::Partisan => "Partisan",
+        UnitKind::Cannon => "Cannon",
+        UnitKind::Caravel => "Caravel",
+        UnitKind::Galleon => "Galleon",
     }
 }
 

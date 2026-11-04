@@ -26,6 +26,10 @@ impl Tech {
     pub(crate) const AUTOMOBILE: Self = Self(5);
     pub(crate) const ROCKETRY: Self = Self(69);
     pub(crate) const SUPERCONDUCTORS: Self = Self(76);
+    pub(crate) const CHIVALRY: Self = Self(11);
+    pub(crate) const GUNPOWDER: Self = Self(33);
+    pub(crate) const GUERILLA_WARFARE: Self = Self(32);
+    pub(crate) const METALLURGY: Self = Self(49);
     pub(crate) const FUTURE: Self = Self(ADVANCES.len());
 
     pub(crate) fn all() -> impl Iterator<Item = Self> {

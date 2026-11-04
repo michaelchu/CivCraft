@@ -77,25 +77,8 @@ impl Simulation {
             }
             return false;
         }
-        let name = self.city_name(unit.owner);
-        let city_id = self.next_city_id;
-        self.next_city_id += 1;
         self.units.remove(index);
-        self.cities.push(City {
-            id: city_id,
-            owner: unit.owner,
-            x: unit.x,
-            y: unit.y,
-            name: name.clone(),
-            size: 1,
-            food: 0,
-            shields: 0,
-            production: UnitKind::Warrior,
-        });
-        let tile = self.tile_mut(unit.x, unit.y);
-        tile.road = true;
-        tile.owner = Some(unit.owner);
-        self.claim_city_tiles(unit.x, unit.y, unit.owner);
+        let name = self.create_city(unit.owner, unit.x, unit.y);
         if unit.owner == HUMAN {
             self.add_event(format!(
                 "{name} founded. Its people begin training Warriors."
@@ -103,6 +86,26 @@ impl Simulation {
         }
         self.refresh_visibility();
         true
+    }
+
+    pub(super) fn create_city(&mut self, owner: usize, x: i32, y: i32) -> String {
+        let name = self.city_name(owner);
+        let id = self.next_city_id;
+        self.next_city_id += 1;
+        self.cities.push(City {
+            id,
+            owner,
+            x,
+            y,
+            name: name.clone(),
+            size: 1,
+            food: 0,
+            shields: 0,
+            production: UnitKind::Warrior,
+        });
+        self.tile_mut(x, y).road = true;
+        self.claim_city_tiles(x, y, owner);
+        name
     }
 
     pub(super) fn capture_city_if_needed(&mut self, unit_id: u32, x: i32, y: i32) {

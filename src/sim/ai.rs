@@ -74,6 +74,72 @@ impl Simulation {
         self.wander_unit(unit_id);
     }
 
+    fn run_raider_transport(&mut self, boat: &Unit) {
+        let cargo: Vec<_> = self
+            .units
+            .iter()
+            .filter(|unit| unit.transport == Some(boat.id))
+            .map(|unit| unit.id)
+            .collect();
+        if cargo.is_empty() {
+            self.wander_unit(boat.id);
+            return;
+        }
+
+        // Sail toward a reachable coast next to a rival city, then unload
+        // onto a free landing tile using normal movement.
+        let landing = self
+            .cities
+            .iter()
+            .filter(|city| city.owner != boat.owner)
+            .flat_map(|city| {
+                ISOHEX_DIRS
+                    .into_iter()
+                    .map(move |(dx, dy)| offset_native_by_map(city.x, city.y, dx, dy))
+            })
+            .filter(|&(x, y)| !self.tile(x, y).terrain.is_water())
+            .filter(|&(x, y)| {
+                self.units
+                    .iter()
+                    .all(|unit| (unit.x, unit.y) != (x, y) || unit.owner == boat.owner)
+                    && self
+                        .cities
+                        .iter()
+                        .all(|city| (city.x, city.y) != (x, y) || city.owner == boat.owner)
+            })
+            .flat_map(|(lx, ly)| {
+                ISOHEX_DIRS
+                    .into_iter()
+                    .map(move |(dx, dy)| (offset_native_by_map(lx, ly, -dx, -dy), (dx, dy)))
+            })
+            .filter(|&((x, y), _)| self.tile(x, y).terrain.is_water())
+            .filter_map(|((x, y), direction)| {
+                if (x, y) == (boat.x, boat.y) {
+                    return Some((0, x, y, direction));
+                }
+                let path = self.path_to(boat.id, x, y);
+                (!path.is_empty()).then_some((path.len(), x, y, direction))
+            })
+            .min_by_key(|candidate| candidate.0);
+
+        let Some((distance, x, y, (dx, dy))) = landing else {
+            self.wander_unit(boat.id);
+            return;
+        };
+        if distance > 0 {
+            self.goto_unit(boat.id, x, y);
+        }
+        if self
+            .units
+            .iter()
+            .any(|unit| unit.id == boat.id && (unit.x, unit.y) == (x, y))
+        {
+            for id in cargo {
+                self.try_move_unit(id, dx, dy);
+            }
+        }
+    }
+
     pub(super) fn run_ai_player(&mut self, owner: usize) {
         let unit_ids: Vec<u32> = self
             .units
@@ -85,6 +151,13 @@ impl Simulation {
             let Some(unit) = self.units.iter().find(|u| u.id == id).cloned() else {
                 continue;
             };
+            if unit.transport.is_some() {
+                continue;
+            }
+            if unit.kind.transport_capacity() > 0 {
+                self.run_raider_transport(&unit);
+                continue;
+            }
             match unit.kind {
                 UnitKind::Settlers => {
                     if self.can_found_at(unit.x, unit.y)

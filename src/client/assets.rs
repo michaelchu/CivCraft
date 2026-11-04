@@ -160,13 +160,14 @@ impl Assets {
     }
 }
 
-pub(super) const PLAYER_COLORS: [Color; PLAYER_COUNT] = [
+pub(super) const PLAYER_COLORS: [Color; PLAYER_COUNT + 1] = [
     Color::from_rgba(236, 61, 58, 255),
     Color::from_rgba(245, 213, 55, 255),
     Color::from_rgba(56, 207, 226, 255),
     Color::from_rgba(151, 92, 212, 255),
     Color::from_rgba(241, 145, 42, 255),
     Color::from_rgba(225, 77, 171, 255),
+    Color::from_rgba(179, 187, 191, 255),
 ];
 
 impl Terrain {
@@ -217,6 +218,12 @@ pub(super) fn unit_sprite(kind: UnitKind) -> (i32, i32) {
         UnitKind::Legion => (0, 16),
         UnitKind::Chariot => (0, 9),
         UnitKind::Catapult => (0, 7),
+        UnitKind::Musketeers => (0, 19),
+        UnitKind::Knights => (0, 15),
+        UnitKind::Partisan => (1, 16),
+        UnitKind::Cannon => (0, 4),
+        UnitKind::Caravel => (1, 3),
+        UnitKind::Galleon => (1, 15),
         UnitKind::Horseman => (0, 8),
     }
 }
