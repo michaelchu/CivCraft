@@ -676,10 +676,15 @@ impl Simulation {
         let currency = Tech::all().find(|tech| tech.name() == "Currency").unwrap();
         self.players[HUMAN]
             .known
-            .extend([Tech::BRONZE_WORKING, Tech::WARRIOR_CODE]);
+            .extend([Tech::BRONZE_WORKING, currency]);
         self.players[1]
             .known
-            .extend([Tech::BRONZE_WORKING, currency]);
+            .extend([Tech::BRONZE_WORKING, Tech::WARRIOR_CODE]);
+        self.players[1].rates = [40, 60, 0];
+        if let Some(city) = self.cities.iter_mut().find(|city| city.owner == 1) {
+            city.size = 3;
+            city.specialists = [0, 3, 0];
+        }
         self.diplomacy_playtest_tick(13);
     }
 

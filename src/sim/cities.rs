@@ -193,7 +193,16 @@ impl Simulation {
     }
 
     pub(crate) fn city_yields(&self, city: &City) -> (i32, i32, i32) {
-        let center = self.tile(city.x, city.y);
+        self.city_yields_with_tech(city, None)
+    }
+
+    pub(super) fn city_yields_with_tech(
+        &self,
+        city: &City,
+        granted: Option<Tech>,
+    ) -> (i32, i32, i32) {
+        let mut center = self.tile(city.x, city.y).clone();
+        center.railroad |= granted == Some(Tech::RAILROAD);
         let (mut cf, cs, ct) = center.yields();
         if !center.irrigation && !center.mine {
             // City centers receive the terrain's irrigation bonus
@@ -204,7 +213,8 @@ impl Simulation {
         let tile_penalty = matches!(
             government,
             Government::Tribal | Government::Despotism | Government::Anarchy
-        ) && !self.has_tech(city.owner, Tech::RAILROAD)
+        ) && granted != Some(Tech::RAILROAD)
+            && !self.has_tech(city.owner, Tech::RAILROAD)
             && !self.owns_wonder(city.owner, "Pyramids");
         let trade_bonus = matches!(government, Government::Republic | Government::Democracy);
         let adjust = |tile: &Tile, (food, shields, trade): (i32, i32, i32)| {
@@ -212,7 +222,7 @@ impl Simulation {
             let cap = |value| value - i32::from(tile_penalty && value > 2);
             (cap(food), cap(shields), cap(trade))
         };
-        let (mut food, mut shields, mut trade) = adjust(center, (cf.max(1), cs.max(1), ct.max(1)));
+        let (mut food, mut shields, mut trade) = adjust(&center, (cf.max(1), cs.max(1), ct.max(1)));
         let mut candidates = Vec::new();
         for dy in -2..=2 {
             for dx in -2..=2 {
@@ -233,7 +243,7 @@ impl Simulation {
             shields += s;
             trade += t;
         }
-        let (shields, trade) = self.government_output_waste(city, shields, trade);
+        let (shields, trade) = self.government_output_waste(city, shields, trade, granted);
         (food, shields, trade)
     }
 
@@ -338,15 +348,7 @@ impl Simulation {
                 return Production::Building(building);
             }
         }
-        for kind in [
-            UnitKind::Catapult,
-            UnitKind::Chariot,
-            UnitKind::Legion,
-            UnitKind::Archer,
-            UnitKind::Horseman,
-            UnitKind::Phalanx,
-            UnitKind::Warrior,
-        ] {
+        for kind in UnitKind::AI_MILITARY {
             if self.unit_available(owner, kind) {
                 return Production::Unit(kind);
             }

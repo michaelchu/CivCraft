@@ -1,3 +1,4 @@
+mod advisors;
 mod ai;
 mod buildings;
 mod cities;
@@ -309,17 +310,10 @@ impl Simulation {
     }
 
     pub(crate) fn unit_available(&self, owner: usize, kind: UnitKind) -> bool {
-        match kind {
-            UnitKind::Phalanx => self.has_tech(owner, Tech::BRONZE_WORKING),
-            UnitKind::Archer => self.has_tech(owner, Tech::WARRIOR_CODE),
-            UnitKind::Legion => self.has_tech(owner, Tech::IRON_WORKING),
-            UnitKind::Horseman => self.has_tech(owner, Tech::HORSEBACK_RIDING),
-            UnitKind::Chariot => self.has_tech(owner, Tech::THE_WHEEL),
-            UnitKind::Catapult => self.has_tech(owner, Tech::MATHEMATICS),
-            UnitKind::Diplomat => self.has_tech(owner, Tech::ALPHABET),
-            UnitKind::Explorer => false,
-            _ => true,
-        }
+        kind != UnitKind::Explorer
+            && kind
+                .required_tech()
+                .is_none_or(|tech| self.has_tech(owner, tech))
     }
 
     fn refresh_visibility(&mut self) {

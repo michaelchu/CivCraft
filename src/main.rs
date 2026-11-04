@@ -451,15 +451,19 @@ async fn main() {
             {
                 game.perform_action(*action);
             }
-            let paid = offer.terms[0].gold;
+            let paid = offer.terms[1].gold;
             act_passed = offer.pact.is_none()
-                && paid == 23
-                && game.sim.players()[HUMAN].gold == gold - paid
+                && paid > 23
+                && game.sim.players()[HUMAN].gold == gold + paid
                 && game.sim.players()[HUMAN]
                     .known
                     .iter()
+                    .any(|tech| tech.name() == "Warrior Code")
+                && game.sim.players()[1]
+                    .known
+                    .iter()
                     .any(|tech| tech.name() == "Currency");
-            act_detail.push_str(&format!(" Existing allies exchanged Warrior Code for Currency plus {paid} gold after the ally discount: {act_passed}."));
+            act_detail.push_str(&format!(" Allied AI paid Warrior Code plus {paid} gold for Currency, above the 23-gold base difference because it values Marketplace income: {act_passed}."));
         }
         if self_test_path.is_some() && frame == 148 && act_passed {
             if let Some((_, action)) = buttons

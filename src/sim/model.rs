@@ -263,6 +263,29 @@ pub(crate) struct UnitStats {
 }
 
 impl UnitKind {
+    pub(super) const AI_MILITARY: [Self; 7] = [
+        Self::Catapult,
+        Self::Chariot,
+        Self::Legion,
+        Self::Archer,
+        Self::Horseman,
+        Self::Phalanx,
+        Self::Warrior,
+    ];
+
+    pub(super) fn required_tech(self) -> Option<Tech> {
+        match self {
+            Self::Phalanx => Some(Tech::BRONZE_WORKING),
+            Self::Archer => Some(Tech::WARRIOR_CODE),
+            Self::Legion => Some(Tech::IRON_WORKING),
+            Self::Horseman => Some(Tech::HORSEBACK_RIDING),
+            Self::Chariot => Some(Tech::THE_WHEEL),
+            Self::Catapult => Some(Tech::MATHEMATICS),
+            Self::Diplomat => Some(Tech::ALPHABET),
+            _ => None,
+        }
+    }
+
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Settlers => "Settlers",

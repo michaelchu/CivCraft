@@ -1,5 +1,4 @@
 use super::*;
-use crate::rules::Genus;
 
 impl Simulation {
     fn technology_gold_equivalent(&self, buyer: usize, tech: Tech) -> i32 {
@@ -12,52 +11,9 @@ impl Simulation {
             .into_iter()
             .map(|required| self.target_cost(buyer, required))
             .sum();
-        let want = self.trade_tech_want(buyer, tech).max(0) / self.turn.max(1);
+        let want = self.advisor_tech_want(buyer, tech).max(0) / self.turn.max(1);
         // With no holes allowed, all eligible buyers already know the prerequisites.
         (3 * bulbs + want) / 2
-    }
-
-    fn trade_tech_want(&self, buyer: usize, tech: Tech) -> i32 {
-        if !self.players[buyer].ai {
-            return 0;
-        }
-        // Freeciv feeds the pricing formula from its city and military advisors.
-        // Evaluate the city effects CivCraft currently models using the same 14/8 scale.
-        let mut want = 0;
-        for city in self.cities.iter().filter(|city| city.owner == buyer) {
-            let (_, _, trade) = self.city_yields(city);
-            let output_value = |city: &City| {
-                let [science, gold, luxury] = self.city_trade(city, trade);
-                let disorder = self.city_in_disorder(city, luxury);
-                3 * science + 2 * (gold - self.building_upkeep(city)) + luxury
-                    - if disorder { 4 * city.size } else { 0 }
-            };
-            let baseline = output_value(city);
-            let best = Building::all()
-                .filter(|building| {
-                    building.data().genus == Genus::Improvement
-                        && building
-                            .data()
-                            .requirements
-                            .contains(&(crate::rules::Requirement::Tech(tech.0), true))
-                        && self
-                            .building_blocker_with_tech(city, *building, Some(tech))
-                            .is_none()
-                })
-                .map(|building| {
-                    let mut improved = city.clone();
-                    improved.buildings.push(building);
-                    output_value(&improved) - baseline
-                        + 2 * i32::from(
-                            Self::city_size_limit(&improved) > Self::city_size_limit(city)
-                                && city.size >= Self::city_size_limit(city) - 1,
-                        )
-                })
-                .max()
-                .unwrap_or(0);
-            want += best.max(0) * 14 / 8;
-        }
-        want
     }
 
     pub(super) fn tech_sell_price(&self, seller: usize, buyer: usize, tech: Tech) -> Option<i32> {

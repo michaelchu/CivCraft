@@ -109,6 +109,7 @@ impl Simulation {
         city: &City,
         shields: i32,
         trade: i32,
+        granted: Option<Tech>,
     ) -> (i32, i32) {
         let player = &self.players[city.owner];
         let government = player.government;
@@ -123,7 +124,10 @@ impl Simulation {
             })
             .map(|center| self.map_distance(city.x, city.y, center.x, center.y))
             .min();
-        let has_tech = |name| player.known.iter().any(|tech| tech.name() == name);
+        let has_tech = |name| {
+            granted.is_some_and(|tech| tech.name() == name)
+                || player.known.iter().any(|tech| tech.name() == name)
+        };
         let shield_distance =
             if matches!(government, Government::Communism | Government::Federation) {
                 0
