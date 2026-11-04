@@ -101,6 +101,7 @@ impl Simulation {
             y,
             name: name.clone(),
             size: 1,
+            specialists: [0; 3],
             food: 0,
             shields: 0,
             production: Production::Unit(UnitKind::Warrior),
@@ -136,7 +137,11 @@ impl Simulation {
         let old_owner = self.cities[city_index].owner;
         let city_name = self.cities[city_index].name.clone();
         self.cities[city_index].owner = unit.owner;
-        self.cities[city_index].size = (self.cities[city_index].size - 1).max(1);
+        if self.cities[city_index].size > 1 {
+            self.cities[city_index].size -= 1;
+            self.cities[city_index].remove_specialists(1);
+        }
+        self.release_city_support(self.cities[city_index].id);
         self.cities[city_index].food = 0;
         self.cities[city_index].shields = 0;
         self.cities[city_index].production_before_switch = None;
@@ -188,7 +193,7 @@ impl Simulation {
             }
         }
         candidates.sort_by(|a, b| b.0.cmp(&a.0));
-        for (_, (f, s, t)) in candidates.into_iter().take(city.size as usize) {
+        for (_, (f, s, t)) in candidates.into_iter().take(city.tile_workers() as usize) {
             food += f;
             shields += s;
             trade += t;
@@ -323,7 +328,20 @@ impl Simulation {
             let (food_income, shield_income, trade) = self.city_yields(&snapshot);
             let [science, gold, luxury] = self.city_trade(&snapshot, trade);
             let disorder = self.city_in_disorder(&snapshot, luxury);
-            let food_surplus = food_income - snapshot.size * CITIZEN_FOOD_COST;
+            let shields_due = self.city_unit_upkeep(&snapshot).shields;
+            let (shield_surplus, recovered) =
+                self.pay_shield_support(&snapshot, shield_income, shields_due);
+            let support = self.city_unit_upkeep(&snapshot);
+            let food_surplus = food_income - snapshot.size * CITIZEN_FOOD_COST - support.food;
+            let starving_unit = (snapshot.food
+                + if disorder {
+                    food_surplus.min(0)
+                } else {
+                    food_surplus
+                }
+                < 0)
+            .then_some(support.food_unit)
+            .flatten();
             let size_limit = Self::city_size_limit(&snapshot);
             let food_retained = Self::food_retained(&snapshot);
             let can_produce = self.can_produce(&snapshot, snapshot.production);
@@ -349,10 +367,13 @@ impl Simulation {
                     } else {
                         city.food = Self::growth_box(city.size);
                     }
+                } else if city.food < 0 && starving_unit.is_some() {
+                    city.food = percent_of(Self::growth_box(city.size), food_retained);
                 } else if city.food < 0 {
                     starved = true;
                     if city.size > 1 {
                         city.size -= 1;
+                        city.remove_specialists(1);
                         city.food = percent_of(Self::growth_box(city.size), food_retained);
                     } else {
                         destroyed = true;
@@ -361,9 +382,7 @@ impl Simulation {
                     city.food = city.food.max(0);
                 }
                 if !destroyed {
-                    if !disorder {
-                        city.shields += shield_income;
-                    }
+                    city.shields += recovered + if disorder { 0 } else { shield_surplus };
                     if can_produce && !disorder {
                         let pop_cost = match city.production {
                             Production::Unit(kind) => kind.stats().pop_cost,
@@ -378,12 +397,17 @@ impl Simulation {
                         if city.shields >= cost && (pop_cost == 0 || city.size > pop_cost) {
                             city.shields -= cost;
                             city.size -= pop_cost;
+                            city.remove_specialists(pop_cost);
                             finished = Some((city.production, cost));
                         }
                     }
                 }
             }
+            if let Some(unit) = starving_unit {
+                self.remove_unsupported_unit(unit, &snapshot, "food");
+            }
             if destroyed {
+                self.release_city_support(city_id);
                 self.cities.retain(|city| city.id != city_id);
                 self.rebuild_city_ownership();
                 if snapshot.owner == HUMAN {
@@ -409,7 +433,10 @@ impl Simulation {
             if let Some((target, shields)) = finished {
                 match target {
                     Production::Unit(kind) => {
-                        self.spawn_unit(snapshot.owner, kind, snapshot.x, snapshot.y);
+                        let id = self.spawn_unit(snapshot.owner, kind, snapshot.x, snapshot.y);
+                        let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
+                        unit.home_city = Some(city_id);
+                        unit.home_order = id;
                     }
                     Production::Building(building) => {
                         self.finish_building(city_id, snapshot.owner, building, shields)

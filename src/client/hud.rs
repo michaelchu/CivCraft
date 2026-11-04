@@ -302,7 +302,9 @@ impl Game {
         actions.push((close_rect, UiAction::CloseCity));
 
         let (food, shields, trade) = self.sim.city_yields(city);
-        let food_net = food - city.size * 2;
+        let support = self.sim.city_unit_upkeep(city);
+        let food_net = food - city.size * CITIZEN_FOOD_COST - support.food;
+        let shields = (shields - support.shields).max(0);
         let [science, gold, luxury] = self.sim.city_trade(city, trade);
         let upkeep = Simulation::building_upkeep(city);
         let disorder = self.sim.city_in_disorder(city, luxury);
@@ -380,6 +382,31 @@ impl Game {
             1.0,
             Color::from_rgba(105, 102, 86, 255),
         );
+        let specialist_w = (progress_w / 3.0).min(156.0);
+        for (index, label) in ["Scientists", "Taxmen", "Entertainers"]
+            .into_iter()
+            .enumerate()
+        {
+            let x = progress_x + index as f32 * specialist_w;
+            let count = city.specialists[index];
+            for (delta, offset, symbol, enabled) in [
+                (-1, 0.0, "-", count > 0),
+                (1, specialist_w - 24.0, "+", city.tile_workers() > 0),
+            ] {
+                let button = Rect::new(x + offset, rect.y + 82.0, 19.0, 18.0);
+                draw_ui_button(button, symbol, enabled, false);
+                if enabled {
+                    actions.push((button, UiAction::Specialist(city.id, index, delta)));
+                }
+            }
+            draw_text(
+                &format!("{label} {count}"),
+                x + 24.0,
+                rect.y + 96.0,
+                13.0,
+                Color::from_rgba(215, 218, 202, 255),
+            );
+        }
         draw_text(
             "CHOOSE PRODUCTION",
             rect.x + 22.0,
@@ -619,7 +646,10 @@ impl Game {
 
         let garrison_y = rect.y + 395.0;
         draw_text(
-            "GARRISON",
+            &format!(
+                "GARRISON     Unit upkeep  {} food / {} shields",
+                support.food, support.shields
+            ),
             rect.x + 22.0,
             garrison_y,
             18.0,
@@ -743,6 +773,21 @@ impl Game {
                 y + 148.0,
                 17.0,
                 Color::from_rgba(145, 204, 224, 255),
+            );
+            let home = self
+                .sim
+                .cities()
+                .iter()
+                .find(|city| Some(city.id) == unit.home_city);
+            let support = home.map_or("No home city".to_owned(), |city| {
+                format!("Home city: {}", city.name)
+            });
+            draw_text(
+                &support,
+                x,
+                y + 168.0,
+                15.0,
+                Color::from_rgba(177, 177, 164, 255),
             );
             draw_text(
                 "Move: arrows / 2 3 4 6 7 8",
@@ -918,6 +963,9 @@ impl Game {
             }
             if unit.kind.is_military() {
                 entries.push(("Fortify [F]".to_owned(), UiAction::Fortify, true));
+            }
+            if self.sim.home_city_target(unit).is_some() {
+                entries.push(("Set home [H]".to_owned(), UiAction::HomeCity, true));
             }
             entries.push(("Automate [A]".to_owned(), UiAction::Automate, true));
             entries.push(("Wait [Space]".to_owned(), UiAction::Wait, true));

@@ -9,6 +9,14 @@ impl Game {
             UiAction::RaiseRate(index) => {
                 self.sim.apply(Command::RaiseRate(index));
             }
+            UiAction::Specialist(city, index, delta) => {
+                self.sim.apply(Command::Specialist(city, index, delta));
+            }
+            UiAction::HomeCity => {
+                if let Some(id) = self.selected_unit {
+                    self.sim.apply(Command::HomeCity(id));
+                }
+            }
             UiAction::EndTurn => {
                 self.sim.apply(Command::EndTurn);
                 self.select_next_unit();
@@ -131,6 +139,9 @@ impl Game {
         }
         if is_key_pressed(KeyCode::I) {
             self.perform_action(UiAction::Irrigate);
+        }
+        if is_key_pressed(KeyCode::H) {
+            self.perform_action(UiAction::HomeCity);
         }
         if is_key_pressed(KeyCode::M) {
             self.perform_action(UiAction::Mine);

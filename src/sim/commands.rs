@@ -13,6 +13,8 @@ pub(crate) enum Command {
     Produce(u32, Production),
     Research(Tech),
     RaiseRate(usize),
+    Specialist(u32, usize, i32),
+    HomeCity(u32),
     EndTurn,
 }
 
@@ -32,7 +34,8 @@ impl Simulation {
             | Fortify(id)
             | Wait(id)
             | Sentry(id)
-            | Automate(id) => Some(id),
+            | Automate(id)
+            | HomeCity(id) => Some(id),
             _ => None,
         };
         let unit_index = unit_id.and_then(|id| {
@@ -94,6 +97,8 @@ impl Simulation {
                 true
             }
             RaiseRate(index) => self.raise_rate(HUMAN, index),
+            Specialist(id, index, delta) => self.assign_specialist(id, index, delta),
+            HomeCity(_) => self.change_home_city(unit_index.unwrap()),
             Research(goal) => {
                 if self.has_tech(HUMAN, goal) {
                     return false;

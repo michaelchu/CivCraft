@@ -1,6 +1,19 @@
 use super::*;
 
 impl City {
+    pub(crate) fn tile_workers(&self) -> i32 {
+        self.size - self.specialists.iter().sum::<i32>()
+    }
+
+    pub(super) fn remove_specialists(&mut self, mut excess: i32) {
+        // The ruleset removes entertainers first, followed by scientists and taxmen.
+        for index in [2, 0, 1] {
+            let removed = excess.min(self.specialists[index]);
+            self.specialists[index] -= removed;
+            excess -= removed;
+        }
+    }
+
     pub(super) fn has_building(&self, name: &str) -> bool {
         self.buildings
             .iter()
@@ -9,6 +22,25 @@ impl City {
 }
 
 impl Simulation {
+    pub(super) fn assign_specialist(&mut self, city_id: u32, index: usize, delta: i32) -> bool {
+        let Some(city) = self
+            .cities
+            .iter_mut()
+            .find(|city| city.id == city_id && city.owner == HUMAN)
+        else {
+            return false;
+        };
+        if index >= city.specialists.len()
+            || !matches!(delta, -1 | 1)
+            || (delta == 1 && city.tile_workers() == 0)
+            || (delta == -1 && city.specialists[index] == 0)
+        {
+            return false;
+        }
+        city.specialists[index] += delta;
+        true
+    }
+
     pub(super) fn raise_rate(&mut self, owner: usize, index: usize) -> bool {
         let rates = &mut self.players[owner].rates;
         if index >= rates.len() || rates[index] >= 60 {
@@ -24,10 +56,10 @@ impl Simulation {
     }
 
     pub(crate) fn city_trade(&self, city: &City, trade: i32) -> [i32; 3] {
-        Self::split_city_trade(city, trade, self.players[city.owner].rates)
+        self.split_city_trade(city, trade, self.players[city.owner].rates)
     }
 
-    pub(super) fn split_city_trade(city: &City, trade: i32, rates: [i32; 3]) -> [i32; 3] {
+    pub(super) fn split_city_trade(&self, city: &City, trade: i32, rates: [i32; 3]) -> [i32; 3] {
         let scaled = rates.map(|rate| trade * rate);
         let mut output = scaled.map(|value| value / 100);
         let mut order = [0, 1, 2];
@@ -38,6 +70,21 @@ impl Simulation {
             .take((trade - output.iter().sum::<i32>()) as usize)
         {
             output[index] += 1;
+        }
+
+        for (index, wonder) in [
+            "Darwin's Voyage",
+            "A.Smith's Trading Co.",
+            "Shakespeare's Theater",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let improved = self
+                .completed_wonders
+                .iter()
+                .any(|building| building.data().name == wonder);
+            output[index] += city.specialists[index] * (2 + i32::from(improved));
         }
 
         let bonuses = [
@@ -64,9 +111,11 @@ impl Simulation {
             .count() as i32;
         let empire_penalty = (cities - 1).max(0) / 12;
         let base = 4 - empire_penalty;
-        let content = base.clamp(0, city.size);
-        let mut angry = (-base).clamp(0, city.size);
-        let mut unhappy = city.size - content - angry;
+        let workers = city.tile_workers();
+        let specialists = city.size - workers;
+        let content = (base.clamp(0, city.size) - specialists).max(0);
+        let mut angry = (-base).clamp(0, workers);
+        let mut unhappy = workers - content - angry;
         let mut upgrades = luxury / 2;
         let calmed = angry.min(upgrades);
         angry -= calmed;

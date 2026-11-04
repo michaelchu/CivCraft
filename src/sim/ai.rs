@@ -166,7 +166,7 @@ impl Simulation {
                 let rates = [science_rate, tax_rate, luxury_rate];
                 let (mut disorder, mut science, mut gold) = (0, 0, 0);
                 for &(city, trade) in &cities {
-                    let [bulbs, coins, luxury] = Self::split_city_trade(city, trade, rates);
+                    let [bulbs, coins, luxury] = self.split_city_trade(city, trade, rates);
                     if self.city_in_disorder(city, luxury) {
                         disorder += 1;
                     } else {

@@ -9,6 +9,7 @@ pub(crate) use commands::Command;
 use model::research_cost;
 mod model;
 pub(crate) mod topology;
+mod upkeep;
 mod villages;
 
 use crate::rules::{Building, Tech};
@@ -28,7 +29,7 @@ const MIN_TECH_COST: i32 = 10;
 const TECH_COST_PERCENT: i32 = 300;
 const SCIENCEBOX_PERCENT: i32 = 100;
 const FOODBOX_PERCENT: i32 = 100;
-const CITIZEN_FOOD_COST: i32 = 2;
+pub(crate) const CITIZEN_FOOD_COST: i32 = 2;
 const GRANARY_FOOD_INITIAL: [i32; 8] = [20, 20, 20, 20, 20, 30, 30, 40];
 const GRANARY_FOOD_INCREMENT: i32 = 0;
 const CITY_DEFEND_BONUS: i32 = 50;
@@ -207,6 +208,8 @@ impl Simulation {
                     owner,
                     kind,
                     transport: None,
+                    home_city: None,
+                    home_order: 0,
                     x: starts[owner].0,
                     y: starts[owner].1,
                     hp: stats.hp,
@@ -343,6 +346,8 @@ impl Simulation {
             owner,
             kind,
             transport: None,
+            home_city: None,
+            home_order: 0,
             x,
             y,
             hp: stats.hp,
@@ -577,6 +582,8 @@ mod tests {
                 owner: HUMAN,
                 kind: UnitKind::Warrior,
                 transport: None,
+                home_city: None,
+                home_order: 0,
                 x: crate::mapgen::generate(42).starts[0].0,
                 y: crate::mapgen::generate(42).starts[0].1,
                 hp: 1,
@@ -618,6 +625,8 @@ mod tests {
             owner: HUMAN,
             kind: UnitKind::Warrior,
             transport: None,
+            home_city: None,
+            home_order: 0,
             x,
             y,
             hp: 10,
@@ -651,6 +660,7 @@ mod tests {
             production: Production::Unit(UnitKind::Warrior),
             production_before_switch: None,
             buildings: Vec::new(),
+            specialists: [0; 3],
         });
         assert_eq!(game.defense_power(&defender, x, y), 27);
 
@@ -673,6 +683,8 @@ mod tests {
             owner: HUMAN,
             kind: UnitKind::Warrior,
             transport: None,
+            home_city: None,
+            home_order: 0,
             x: 0,
             y: 0,
             hp: 10,

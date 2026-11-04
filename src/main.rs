@@ -163,6 +163,70 @@ async fn main() {
             );
         }
 
+        if self_test_path.is_some() && frame == 55 && act_passed {
+            let city = game
+                .sim
+                .cities()
+                .iter()
+                .find(|city| city.owner == HUMAN)
+                .unwrap();
+            let city_id = city.id;
+            let before = game.sim.city_yields(city);
+            if let Some((_, action)) = buttons.iter().find(
+                |(_, action)| matches!(action, UiAction::Specialist(id, 0, 1) if *id == city_id),
+            ) {
+                game.perform_action(*action);
+            }
+            let city = game
+                .sim
+                .cities()
+                .iter()
+                .find(|city| city.id == city_id)
+                .unwrap();
+            let after = game.sim.city_yields(city);
+            let science = game.sim.city_trade(city, 0)[0];
+            act_passed = city.specialists == [1, 0, 0] && before != after && science == 2;
+            act_detail.push_str(&format!(
+                " Scientist replaced a tile worker and provided {science} science."
+            ));
+        }
+
+        if self_test_path.is_some() && frame == 65 && act_passed {
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::Specialist(_, 0, -1)))
+            {
+                game.perform_action(*action);
+            }
+            let mut verified = false;
+            for _ in 0..12 {
+                let Some(city) = game.sim.cities().iter().find(|city| city.owner == HUMAN) else {
+                    break;
+                };
+                let id = city.id;
+                let support = game.sim.city_unit_upkeep(city);
+                if support.shields == 1 {
+                    let (_, gross, trade) = game.sim.city_yields(city);
+                    let luxury = game.sim.city_trade(city, trade)[2];
+                    let expected = (city.shields + gross - 1) % city.production.cost();
+                    let disorder = game.sim.city_in_disorder(city, luxury);
+                    game.sim.apply(Command::EndTurn);
+                    verified = !disorder
+                        && game
+                            .sim
+                            .cities()
+                            .iter()
+                            .any(|city| city.id == id && city.shields == expected);
+                    break;
+                }
+                game.sim.apply(Command::EndTurn);
+            }
+            act_passed = verified;
+            act_detail.push_str(&format!(
+                " Third supported unit charged one shield on the next turn: {verified}."
+            ));
+        }
+
         buttons = game.draw(&assets);
         frame += 1;
 
