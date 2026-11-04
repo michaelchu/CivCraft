@@ -31,7 +31,6 @@ const fn source_map_linear_scale(requested_tiles: i32) -> i32 {
 pub(super) const MAP_LINEAR_SCALE: i32 = source_map_linear_scale(MAP_TARGET_TILES);
 pub(crate) const MAP_W: i32 = MAP_X_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR;
 pub(crate) const MAP_H: i32 = MAP_Y_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR * MAP_ISO_FACTOR;
-pub(crate) const LAND_TILE_TARGET: usize = (MAP_W * MAP_H * LAND_PERCENT / PERCENT_SCALE) as usize;
 
 // Civ2Civ3 uses isometric hexes: northeast and southwest are the two
 // unavailable directions in Freeciv's eight-direction coordinate system.

@@ -6,6 +6,10 @@ use crate::rules::Tech;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Terrain {
     Ocean,
+    DeepOcean,
+    Lake,
+    Glacier,
+    Jungle,
     Desert,
     Forest,
     Grassland,
@@ -20,6 +24,10 @@ impl Terrain {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Ocean => "Ocean",
+            Self::DeepOcean => "Deep Ocean",
+            Self::Lake => "Lake",
+            Self::Glacier => "Glacier",
+            Self::Jungle => "Jungle",
             Self::Desert => "Desert",
             Self::Forest => "Forest",
             Self::Grassland => "Grassland",
@@ -31,9 +39,13 @@ impl Terrain {
         }
     }
 
+    pub(crate) fn is_water(self) -> bool {
+        matches!(self, Self::Ocean | Self::DeepOcean | Self::Lake)
+    }
+
     pub(crate) fn movement_cost(self) -> i32 {
         match self {
-            Self::Forest | Self::Hills | Self::Swamp => 2,
+            Self::Forest | Self::Hills | Self::Swamp | Self::Jungle | Self::Glacier => 2,
             Self::Mountains => 3,
             _ => 1,
         }
@@ -41,7 +53,7 @@ impl Terrain {
 
     pub(crate) fn defense_bonus(self) -> i32 {
         match self {
-            Self::Forest | Self::Swamp => 25,
+            Self::Forest | Self::Swamp | Self::Jungle => 25,
             Self::Hills => 50,
             Self::Mountains => 100,
             _ => 0,
@@ -50,7 +62,10 @@ impl Terrain {
 
     pub(crate) fn base_yields(self) -> (i32, i32, i32) {
         match self {
-            Self::Ocean => (1, 0, 2),
+            Self::Ocean | Self::DeepOcean => (1, 0, 2),
+            Self::Lake => (2, 0, 2),
+            Self::Glacier => (0, 0, 0),
+            Self::Jungle => (1, 1, 0),
             Self::Desert => (0, 1, 0),
             Self::Forest => (1, 2, 0),
             Self::Grassland => (2, 0, 0),
@@ -85,7 +100,7 @@ impl Terrain {
     }
 
     pub(crate) fn road_time(self) -> i32 {
-        if self == Self::Ocean {
+        if self.is_water() {
             0
         } else {
             self.movement_cost() * 2
@@ -109,7 +124,7 @@ impl Terrain {
     }
 
     pub(crate) fn allows_city(self) -> bool {
-        !matches!(self, Self::Ocean | Self::Mountains)
+        !self.is_water() && !matches!(self, Self::Mountains | Self::Glacier)
     }
 
     pub(crate) fn prefers_mine(self) -> bool {

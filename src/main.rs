@@ -57,8 +57,21 @@ async fn main() {
     let screenshot_path = argument_value("--screenshot");
     let self_test_path = argument_value("--self-test");
     let automated = screenshot_path.is_some() || self_test_path.is_some();
+    let args: Vec<_> = env::args().collect();
+    let seed = if let Some(index) = args.iter().position(|arg| arg == "--seed") {
+        args.get(index + 1)
+            .and_then(|arg| arg.parse::<u64>().ok())
+            .unwrap_or_else(|| {
+                eprintln!("--seed requires a nonnegative 64-bit integer");
+                std::process::exit(1);
+            })
+    } else {
+        mapgen::random_seed()
+    };
+    println!("World seed: {seed}");
+    let map = mapgen::generate(seed);
     let assets = Assets::new();
-    let mut game = Game::new();
+    let mut game = Game::new(map);
     let mut buttons: Vec<(Rect, UiAction)> = Vec::new();
     let mut frame = 0_u32;
     let mut move_passed = false;

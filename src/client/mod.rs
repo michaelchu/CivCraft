@@ -66,8 +66,8 @@ pub(crate) struct Game {
 }
 
 impl Game {
-    pub(crate) fn new() -> Self {
-        let sim = Simulation::new();
+    pub(crate) fn new(map: crate::mapgen::GeneratedMap) -> Self {
+        let sim = Simulation::new(map);
         let settler = sim
             .units()
             .iter()
@@ -397,7 +397,7 @@ mod tests {
     use super::*;
     #[test]
     fn clicking_a_garrisoned_city_opens_city_management() {
-        let mut game = Game::new();
+        let mut game = Game::new(crate::mapgen::generate(42));
         let settler = game
             .sim
             .units()

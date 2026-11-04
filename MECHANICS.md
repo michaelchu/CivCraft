@@ -83,8 +83,8 @@ Every function listed above, plus the seven string-trace helpers, was requested 
 | Source map target | 100 land tiles per player | reference/freeciv/data/civ2civ3/game.ruleset, tilesperplayer = 100 |
 | Requested map area | 2,000 tiles | `_generator_init_topology` at `0x100031444`: `6 players × 100 land tiles × 100 / 30 land-percent` |
 | Build map | 32 by 64 wrapped native tiles, 2,048 total | `_get_ratios` at `0x100031e9c` returns 1:1 for two-axis wrap. `_set_sizes` at `0x100031f5c` computes `scale = trunc(sqrt(2000 / (1 × 1 × 2 × 2²)) + 0.49) = 16`, then `width = 1 × 16 × 2` and `height = 1 × 16 × 2 × 2`. |
-| Build land | 614 tiles | 30% of the 2,048 generated tiles, matching the configured land percentage to the nearest whole tile |
-| Generator | Deterministic fractal-like continents | Native `map_fractal_generate` and `make_land` confirm the source path; the compact Rust height function is an estimated substitute |
+| Land target | 30% | CivCraft uses the Civ2Civ3 land percentage when placing the shoreline. |
+| Generator | Local pseudofractal height, climate and terrain, water depth and lakes, followed by start placement | Reference `server/generator/mapgen.c`, `height_map.c`, and `startpos.c`. CivCraft adapts these stages in Rust with its own RNG, terrain thresholds, and start scoring. |
 | Wrap | Horizontal and vertical | reference/freeciv/data/civ2civ3/game.ruleset, WRAPX and WRAPY |
 | Starting year | 4000 BCE | reference/freeciv/data/civ2civ3/game.ruleset, calendar.start_year = -4000 |
 | Early calendar | 50 years per turn before 1000 BCE | reference/freeciv/data/civ2civ3/effects.ruleset, effect_calendar_base |

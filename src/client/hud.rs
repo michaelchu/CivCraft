@@ -90,6 +90,15 @@ impl Game {
             18.0,
             Color::from_rgba(227, 211, 164, 255),
         );
+        let seed_label = format!("Seed {}", self.sim.world_seed);
+        let seed_width = measure_text(&seed_label, None, 14, 1.0).width;
+        draw_text(
+            &seed_label,
+            screen_width() - 18.0 - seed_width,
+            TOP_H + 26.0,
+            14.0,
+            Color::from_rgba(208, 207, 190, 255),
+        );
         self.draw_minimap();
         self.hud_elements_drawn += 1;
 

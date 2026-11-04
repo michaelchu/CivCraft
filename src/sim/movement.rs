@@ -3,7 +3,7 @@ use super::*;
 impl Simulation {
     pub(super) fn movement_cost_for(&self, unit: &Unit, nx: i32, ny: i32) -> Option<i32> {
         let dest = self.tile(nx, ny);
-        if dest.terrain == Terrain::Ocean {
+        if dest.terrain.is_water() {
             return None;
         }
         let source = self.tile(unit.x, unit.y);
@@ -240,7 +240,7 @@ impl Simulation {
             for (dx, dy) in ISOHEX_DIRS {
                 let (nx, ny) = offset_native_by_map(cx, cy, dx, dy);
                 let ni = Self::idx(nx, ny);
-                if previous[ni].is_some() || self.tile(nx, ny).terrain == Terrain::Ocean {
+                if previous[ni].is_some() || self.tile(nx, ny).terrain.is_water() {
                     continue;
                 }
                 let enemy_block = self

@@ -22,6 +22,14 @@ Run cargo run --release from this folder. The match opens directly on the map.
 
 The right side of the screen holds the world overview, objective, research, selected-unit or city details, actions, and event history. The bottom strip always shows the selected unit's health, movement, attack, defense, and terrain.
 
+## Map seeds
+
+CivCraft generates a new map locally each time it launches and prints the world seed to the terminal. To replay a world, pass that seed back in:
+
+```sh
+cargo run --release -- --seed 12345
+```
+
 ## Research
 
 Lines connect each advance to its prerequisites, and gold highlights the branch leading to your goal. Right or middle drag to pan, scroll to zoom, and use **Fit tree** for an overview or **Find goal** to return to your goal. Hover an advance to see its prerequisites and unlocks. Selecting a new goal only discards accumulated research if it changes the current target. Philosophy gives a free advance to the first civilization to discover it. After the named advances are complete, research continues with repeatable Future Tech.

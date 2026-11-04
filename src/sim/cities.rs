@@ -44,7 +44,7 @@ impl Simulation {
         ISOHEX_DIRS.iter().any(|&(dx, dy)| {
             let (source_x, source_y) = offset_native_by_map(x, y, dx, dy);
             let source = self.tile(source_x, source_y);
-            source.terrain == Terrain::Ocean || source.irrigation
+            source.terrain.is_water() || source.irrigation
         })
     }
 

@@ -173,13 +173,19 @@ impl Terrain {
             Self::Mountains => Some(5),
             Self::Tundra => Some(6),
             Self::Swamp => Some(8),
-            Self::Ocean => None,
+            Self::Glacier => Some(7),
+            Self::Jungle => Some(9),
+            Self::Ocean | Self::DeepOcean | Self::Lake => None,
         }
     }
 
     pub(super) fn minimap_color(self) -> Color {
         match self {
             Self::Ocean => Color::from_rgba(18, 72, 132, 255),
+            Self::DeepOcean => Color::from_rgba(12, 49, 102, 255),
+            Self::Lake => Color::from_rgba(35, 99, 153, 255),
+            Self::Glacier => Color::from_rgba(220, 232, 235, 255),
+            Self::Jungle => Color::from_rgba(26, 107, 54, 255),
             Self::Desert => Color::from_rgba(211, 181, 103, 255),
             Self::Forest => Color::from_rgba(41, 91, 34, 255),
             Self::Grassland => Color::from_rgba(76, 146, 61, 255),

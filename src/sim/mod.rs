@@ -43,6 +43,7 @@ pub(crate) enum MoveResult {
 }
 
 pub(crate) struct Simulation {
+    pub(crate) world_seed: u64,
     tiles: Vec<Tile>,
     units: Vec<Unit>,
     cities: Vec<City>,
@@ -120,8 +121,12 @@ impl Simulation {
         self.game_over.as_deref()
     }
 
-    pub(crate) fn new() -> Self {
-        let crate::mapgen::GeneratedMap { tiles, starts } = crate::mapgen::generate();
+    pub(crate) fn new(map: crate::mapgen::GeneratedMap) -> Self {
+        let crate::mapgen::GeneratedMap {
+            seed,
+            tiles,
+            starts,
+        } = map;
 
         let names = [
             "Crimson League",
@@ -197,6 +202,7 @@ impl Simulation {
         }
 
         let mut game = Self {
+            world_seed: seed,
             tiles,
             units,
             cities: Vec::new(),
@@ -428,7 +434,7 @@ mod tests {
         for &(start_x, start_y) in &[
             (0, 0),
             (MAP_W - 1, MAP_H - 1),
-            crate::mapgen::generate().starts[0],
+            crate::mapgen::generate(42).starts[0],
         ] {
             let mut neighbors = Vec::new();
             for (dx, dy) in ISOHEX_DIRS {
@@ -449,30 +455,39 @@ mod tests {
     }
 
     #[test]
-    fn generated_world_uses_source_size_land_target_and_starter_terrain() {
+    fn generated_world_uses_reference_dimensions_and_start_positions() {
         assert_eq!(MAP_TARGET_TILES, 2_000);
         assert_eq!(MAP_LINEAR_SCALE, 16);
         assert_eq!((MAP_W, MAP_H), (32, 64));
-        assert_eq!(LAND_TILE_TARGET, 614);
-
-        let game = Simulation::new();
-        assert_eq!(game.tiles.len(), (MAP_W * MAP_H) as usize);
-        assert_eq!(
-            game.tiles
+        let first = crate::mapgen::generate(42);
+        let terrain = |map: &crate::mapgen::GeneratedMap| {
+            map.tiles
                 .iter()
-                .filter(|tile| tile.terrain != Terrain::Ocean)
-                .count(),
-            LAND_TILE_TARGET
-        );
-        for &(x, y) in &crate::mapgen::generate().starts {
-            assert_eq!(game.tile(x, y).terrain, Terrain::Grassland);
-            assert!(game.can_found_at(x, y));
+                .map(|tile| tile.terrain)
+                .collect::<Vec<_>>()
+        };
+        let replay = crate::mapgen::generate(42);
+        assert_eq!(terrain(&first), terrain(&replay));
+        assert_eq!(first.starts, replay.starts);
+        assert_ne!(terrain(&first), terrain(&crate::mapgen::generate(12345)));
+
+        for seed in 0..32 {
+            let map = crate::mapgen::generate(seed);
+            let starts = map.starts;
+            let game = Simulation::new(map);
+            assert_eq!(game.tiles.len(), (MAP_W * MAP_H) as usize);
+            for (i, &(x, y)) in starts.iter().enumerate() {
+                assert!(game.can_found_at(x, y));
+                assert!(starts[..i].iter().all(|&(other_x, other_y)| {
+                    game.map_distance(x, y, other_x, other_y) >= CITY_MIN_DISTANCE
+                }));
+            }
         }
     }
 
     #[test]
     fn wrapped_path_uses_one_legal_hex_step() {
-        let mut game = Simulation::new();
+        let mut game = Simulation::new(crate::mapgen::generate(42));
         for tile in &mut game.tiles {
             tile.terrain = Terrain::Grassland;
         }
@@ -486,7 +501,7 @@ mod tests {
 
     #[test]
     fn healing_uses_city_minimum_and_fortified_regeneration() {
-        let game = Simulation::new();
+        let game = Simulation::new(crate::mapgen::generate(42));
         let mut unit = game
             .units
             .iter()
@@ -496,8 +511,8 @@ mod tests {
                 id: 999,
                 owner: HUMAN,
                 kind: UnitKind::Warrior,
-                x: crate::mapgen::generate().starts[0].0,
-                y: crate::mapgen::generate().starts[0].1,
+                x: crate::mapgen::generate(42).starts[0].0,
+                y: crate::mapgen::generate(42).starts[0].1,
                 hp: 1,
                 moves_left: 0,
                 state: UnitState::Idle,
@@ -529,8 +544,8 @@ mod tests {
 
     #[test]
     fn defense_stages_and_research_costs_match_civ2civ3() {
-        let mut game = Simulation::new();
-        let (x, y) = crate::mapgen::generate().starts[0];
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (x, y) = crate::mapgen::generate(42).starts[0];
         game.tile_mut(x, y).terrain = Terrain::Forest;
         let mut defender = Unit {
             id: 999,
@@ -581,7 +596,7 @@ mod tests {
         let even_fight = combat_win_chance(10, 10, 1, 10, 10, 1);
         assert!((even_fight - 0.5).abs() < 1.0e-12);
 
-        let mut game = Simulation::new();
+        let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();
         let attacker = Unit {
@@ -623,7 +638,7 @@ mod tests {
 
     #[test]
     fn famine_destroys_size_one_city() {
-        let mut game = Simulation::new();
+        let mut game = Simulation::new(crate::mapgen::generate(42));
         let settler = game
             .units
             .iter()
@@ -638,8 +653,8 @@ mod tests {
 
     #[test]
     fn irrigation_needs_water_and_conflicts_with_mines() {
-        let mut game = Simulation::new();
-        let (x, y) = crate::mapgen::generate().starts[0];
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (x, y) = crate::mapgen::generate(42).starts[0];
         game.tile_mut(x, y).terrain = Terrain::Plains;
         for (dx, dy) in ISOHEX_DIRS {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);

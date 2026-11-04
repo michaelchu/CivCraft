@@ -2,27 +2,11 @@ use super::*;
 
 impl Game {
     fn ocean_match_type(&self, x: i32, y: i32) -> u8 {
-        if self.sim.tile(x, y).terrain != Terrain::Ocean {
-            return 2; // land
+        match self.sim.tile(x, y).terrain {
+            Terrain::DeepOcean => 0,
+            Terrain::Ocean | Terrain::Lake => 1,
+            _ => 2,
         }
-
-        let shallow = [
-            (-1, -1),
-            (0, -1),
-            (1, -1),
-            (1, 0),
-            (1, 1),
-            (0, 1),
-            (-1, 1),
-            (-1, 0),
-        ]
-        .iter()
-        .any(|(dx, dy)| {
-            let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, *dx, *dy);
-            let neighbor = self.sim.tile(neighbor_x, neighbor_y);
-            neighbor.seen && neighbor.terrain != Terrain::Ocean
-        });
-        if shallow { 1 } else { 0 }
     }
 
     fn ocean_neighbor_match(&self, x: i32, y: i32, dx: i32, dy: i32, current: u8) -> u8 {
@@ -96,7 +80,7 @@ impl Game {
             Color::new(0.54, 0.59, 0.62, 1.0)
         };
 
-        if terrain == Terrain::Ocean {
+        if terrain.is_water() {
             self.draw_ocean_sprite(assets, x, y, center, tile_w, tile_h, tint);
             return;
         }
@@ -130,7 +114,7 @@ impl Game {
             Color::new(0.54, 0.59, 0.62, 1.0)
         };
         match terrain {
-            Terrain::Forest => {
+            Terrain::Forest | Terrain::Jungle => {
                 draw_texture_ex(
                     &assets.terrain2,
                     center.x - tile_w * 0.5,
@@ -138,7 +122,12 @@ impl Game {
                     tint,
                     DrawTextureParams {
                         dest_size: Some(vec2(tile_w, tile_h)),
-                        source: Some(bordered_sprite_source(4, 0, 96.0, 48.0)),
+                        source: Some(bordered_sprite_source(
+                            if terrain == Terrain::Jungle { 2 } else { 4 },
+                            0,
+                            96.0,
+                            48.0,
+                        )),
                         ..Default::default()
                     },
                 );
