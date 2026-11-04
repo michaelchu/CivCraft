@@ -4,6 +4,7 @@ mod cities;
 mod civil_war;
 mod commands;
 mod diplomacy;
+pub(crate) use diplomacy::Pact;
 mod economy;
 mod government;
 pub(crate) use government::Government;

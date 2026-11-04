@@ -124,7 +124,7 @@ impl Simulation {
         ));
     }
 
-    fn resolve_split_stacks(&mut self, original: usize, rebel: usize) {
+    pub(super) fn resolve_split_stacks(&mut self, original: usize, rebel: usize) {
         let mut relocations = Vec::new();
         for unit in &self.units {
             if unit.owner != rebel && unit.owner != original {
@@ -140,7 +140,10 @@ impl Simulation {
                     && (other.owner == original || other.owner == rebel)
                     && (other.x, other.y) == (unit.x, unit.y)
             });
-            if !wrong_transport && !mixed {
+            let foreign_city = self.cities.iter().any(|city| {
+                (city.x, city.y) == (unit.x, unit.y) && !self.allied(city.owner, unit.owner)
+            });
+            if !wrong_transport && !mixed && !foreign_city {
                 continue;
             }
             if !wrong_transport && unit.transport.is_some() {
@@ -171,6 +174,7 @@ impl Simulation {
                 self.map_distance(unit.x, unit.y, city.x, city.y)
             });
             if wrong_transport
+                || foreign_city
                 || distance < rival_distance
                 || (distance == rival_distance && unit.owner == rebel)
             {

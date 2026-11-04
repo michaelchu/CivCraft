@@ -95,7 +95,10 @@ impl Simulation {
         let mut best = None;
         let mut best_rank = None;
         for defender in self.units.iter().filter(|unit| {
-            unit.x == x && unit.y == y && unit.owner != attacker.owner && unit.transport.is_none()
+            unit.x == x
+                && unit.y == y
+                && self.at_war(unit.owner, attacker.owner)
+                && unit.transport.is_none()
         }) {
             let rank = self.defender_rank(attacker, defender, x, y);
             if best_rank.is_none() || best_rank.is_some_and(|current| rank > current) {
@@ -121,18 +124,9 @@ impl Simulation {
         let Some(cost) = self.movement_cost_for(&unit, nx, ny) else {
             return MoveResult::Blocked;
         };
-        let protected = self.units.iter().any(|other| {
-            (other.x, other.y) == (nx, ny)
-                && other.owner != unit.owner
-                && !self.at_war(unit.owner, other.owner)
-        }) || self.cities.iter().any(|city| {
-            (city.x, city.y) == (nx, ny)
-                && city.owner != unit.owner
-                && !self.at_war(unit.owner, city.owner)
-        });
-        if protected {
+        if self.treaty_blocks_move(&unit, nx, ny) {
             if unit.owner == HUMAN {
-                self.add_event("A ceasefire protects that tile.");
+                self.add_event("A treaty prevents entry to that tile.");
             }
             return MoveResult::Blocked;
         }
@@ -154,7 +148,7 @@ impl Simulation {
         }
 
         if let Some(city) = self.cities.iter().find(|c| c.x == nx && c.y == ny) {
-            if city.owner != unit.owner && !unit.kind.is_military() {
+            if self.at_war(city.owner, unit.owner) && !unit.kind.is_military() {
                 return MoveResult::Blocked;
             }
         }
@@ -281,13 +275,16 @@ impl Simulation {
             for (dx, dy) in ISOHEX_DIRS {
                 let (nx, ny) = offset_native_by_map(cx, cy, dx, dy);
                 let ni = Self::idx(nx, ny);
-                if previous[ni].is_some() || self.movement_cost_for(unit, nx, ny).is_none() {
+                if previous[ni].is_some()
+                    || self.movement_cost_for(unit, nx, ny).is_none()
+                    || self.treaty_blocks_move(unit, nx, ny)
+                {
                     continue;
                 }
                 let enemy_block = self
                     .units
                     .iter()
-                    .any(|u| u.x == nx && u.y == ny && u.owner != unit.owner);
+                    .any(|u| u.x == nx && u.y == ny && self.at_war(u.owner, unit.owner));
                 if enemy_block && ni != goal {
                     continue;
                 }

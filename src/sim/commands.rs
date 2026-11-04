@@ -14,8 +14,9 @@ pub(crate) enum Command {
     Research(Tech),
     RaiseRate(usize),
     Government(super::Government),
-    Ceasefire(usize),
-    CancelCeasefire(usize),
+    Negotiate(usize, super::Pact),
+    CancelPact(usize),
+    DeclineOffer(usize),
     Specialist(u32, usize, i32),
     HomeCity(u32),
     EndTurn,
@@ -99,8 +100,9 @@ impl Simulation {
                 self.add_event(format!("{name} now produces {}.", kind.name()));
                 true
             }
-            Ceasefire(other) => self.agree_ceasefire(other),
-            CancelCeasefire(other) => self.cancel_ceasefire(HUMAN, other),
+            Negotiate(other, pact) => self.negotiate(other, pact),
+            CancelPact(other) => self.cancel_pact(HUMAN, other),
+            DeclineOffer(other) => self.decline_offer(other),
             Government(target) => self.change_government(HUMAN, target),
             RaiseRate(index) => self.raise_rate(HUMAN, index),
             Specialist(id, index, delta) => self.assign_specialist(id, index, delta),

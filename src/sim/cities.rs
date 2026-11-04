@@ -75,6 +75,16 @@ impl Simulation {
             return false;
         };
         let unit = self.units[index].clone();
+        if self
+            .tile(unit.x, unit.y)
+            .owner
+            .is_some_and(|owner| owner != unit.owner && !self.at_war(owner, unit.owner))
+        {
+            if unit.owner == HUMAN {
+                self.add_event("A treaty prevents settling on that tile.");
+            }
+            return false;
+        }
         if !unit.kind.stats().can_found || !self.can_found_at(unit.x, unit.y) {
             if unit.owner == HUMAN {
                 self.add_event("A city must be on land and at least 3 tiles from another city.");

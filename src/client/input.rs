@@ -89,11 +89,14 @@ impl Game {
                 self.diplomacy_page = 0;
             }
             UiAction::DiplomacyPage(page) => self.diplomacy_page = page,
-            UiAction::Ceasefire(other) => {
-                self.sim.apply(Command::Ceasefire(other));
+            UiAction::Negotiate(other, pact) => {
+                self.sim.apply(Command::Negotiate(other, pact));
             }
-            UiAction::CancelCeasefire(other) => {
-                self.sim.apply(Command::CancelCeasefire(other));
+            UiAction::CancelPact(other) => {
+                self.sim.apply(Command::CancelPact(other));
+            }
+            UiAction::DeclineOffer(other) => {
+                self.sim.apply(Command::DeclineOffer(other));
             }
             UiAction::ToggleGovernment => self.government_open = !self.government_open,
             UiAction::ChangeGovernment(target) => {

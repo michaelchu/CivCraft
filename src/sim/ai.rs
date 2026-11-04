@@ -10,7 +10,12 @@ impl Simulation {
         let mut best_score = i32::MIN;
         for index in 0..self.tiles.len() {
             let (x, y) = Self::xy(index);
-            if !self.can_found_at(x, y) {
+            if !self.can_found_at(x, y)
+                || self
+                    .tile(x, y)
+                    .owner
+                    .is_some_and(|other| other != owner && !self.at_war(owner, other))
+            {
                 continue;
             }
             let distance = self.map_distance(founder.x, founder.y, x, y);

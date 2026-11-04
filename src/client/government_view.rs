@@ -120,22 +120,16 @@ impl Game {
         let page = self.diplomacy_page.min(rivals.len().saturating_sub(1) / 7);
         for (row, &owner) in rivals.iter().skip(page * 7).take(7).enumerate() {
             let y = panel.y + 53.0 + row as f32 * 37.0;
-            let remaining = self.sim.ceasefire_turns(HUMAN, owner);
-            let (status, label, action) = if remaining > 0 {
-                let blocked = self.sim.senate_blocks_cancellation(HUMAN, owner);
-                let status = if blocked {
-                    format!("Ceasefire ({remaining}) · Senate veto")
-                } else {
-                    format!("Ceasefire ({remaining})")
-                };
-                (status, "Cancel ceasefire", UiAction::CancelCeasefire(owner))
-            } else {
-                (
-                    "At war".to_owned(),
-                    "Propose ceasefire",
-                    UiAction::Ceasefire(owner),
-                )
-            };
+            let pact = self.sim.pact(HUMAN, owner);
+            let turns = self.sim.pact_turns(HUMAN, owner);
+            let offer = self.sim.pact_offer(owner);
+            let mut status = pact.name().to_owned();
+            if turns > 0 {
+                status.push_str(&format!(" ({turns})"));
+            }
+            if pact != Pact::War && self.sim.senate_blocks_cancellation(HUMAN, owner) {
+                status.push_str(" · Senate veto");
+            }
             draw_text(
                 self.sim.players()[owner].name,
                 panel.x + 18.0,
@@ -144,9 +138,26 @@ impl Game {
                 WHITE,
             );
             draw_text(&status, panel.x + 18.0, y + 30.0, 14.0, LIGHTGRAY);
-            let button = Rect::new(panel.right() - 165.0, y, 147.0, 30.0);
-            draw_ui_button(button, label, true, false);
-            actions.push((button, action));
+            let mut buttons = Vec::new();
+            if let Some(next) = offer.or_else(|| self.sim.next_pact(HUMAN, owner)) {
+                let verb = if offer.is_some() { "Accept" } else { "Propose" };
+                buttons.push((
+                    format!("{verb} {}", next.name().to_lowercase()),
+                    UiAction::Negotiate(owner, next),
+                ));
+            }
+            if offer.is_some() {
+                buttons.push(("Decline".to_owned(), UiAction::DeclineOffer(owner)));
+            }
+            if pact != Pact::War {
+                buttons.push(("Cancel pact".to_owned(), UiAction::CancelPact(owner)));
+            }
+            for (index, (label, action)) in buttons.into_iter().rev().enumerate() {
+                let button =
+                    Rect::new(panel.right() - 129.0 - index as f32 * 116.0, y, 110.0, 30.0);
+                draw_ui_button(button, &label, true, false);
+                actions.push((button, action));
+            }
         }
         if rivals.is_empty() {
             draw_text(
