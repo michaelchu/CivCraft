@@ -431,7 +431,37 @@ async fn main() {
                 && revealed;
             act_detail.push_str(&format!(" Reviewed and accepted an alliance bundle with Pottery, Writing, {gold} gold and live vision: {act_passed}."));
         }
+        if self_test_path.is_some() && frame == 138 && act_passed {
+            game.sim.diplomacy_playtest_allied_exchange();
+        }
         if self_test_path.is_some() && frame == 141 && act_passed {
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::ReviewOffer(1, _)))
+            {
+                game.perform_action(*action);
+            }
+        }
+        if self_test_path.is_some() && frame == 144 && act_passed {
+            let offer = game.sim.treaty_offer(1).unwrap_or_default();
+            let gold = game.sim.players()[HUMAN].gold;
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::AcceptOffer(1, _)))
+            {
+                game.perform_action(*action);
+            }
+            let paid = offer.terms[0].gold;
+            act_passed = offer.pact.is_none()
+                && paid == 23
+                && game.sim.players()[HUMAN].gold == gold - paid
+                && game.sim.players()[HUMAN]
+                    .known
+                    .iter()
+                    .any(|tech| tech.name() == "Currency");
+            act_detail.push_str(&format!(" Existing allies exchanged Warrior Code for Currency plus {paid} gold after the ally discount: {act_passed}."));
+        }
+        if self_test_path.is_some() && frame == 148 && act_passed {
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::CancelPact(1)))

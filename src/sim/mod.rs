@@ -4,6 +4,7 @@ mod cities;
 mod civil_war;
 mod commands;
 mod diplomacy;
+mod tech_trade;
 pub(crate) use diplomacy::{Pact, TreatyOffer};
 mod economy;
 mod government;
@@ -189,6 +190,7 @@ impl Simulation {
                 ][i],
                 future_techs: 0,
                 research: 0,
+                last_science: 0,
                 ai: i != HUMAN,
             });
         }
@@ -205,6 +207,7 @@ impl Simulation {
             research_goal: Tech::FUTURE,
             future_techs: 0,
             research: 0,
+            last_science: 0,
             ai: true,
         });
 

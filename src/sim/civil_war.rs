@@ -75,6 +75,7 @@ impl Simulation {
             research_goal: original.research_goal,
             future_techs: original.future_techs,
             research: 0,
+            last_science: 0,
             ai: true,
         };
         self.players.push(rebel_player);

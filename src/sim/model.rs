@@ -664,5 +664,6 @@ pub(crate) struct Player {
     pub(crate) research_goal: Tech,
     pub(crate) future_techs: i32,
     pub(crate) research: i32,
+    pub(super) last_science: i32,
     pub(crate) ai: bool,
 }

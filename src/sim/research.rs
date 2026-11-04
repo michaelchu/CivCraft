@@ -96,6 +96,7 @@ impl Simulation {
 
     pub(super) fn apply_research_upkeep(&mut self, owner: usize, income: i32) {
         let upkeep = self.technology_upkeep(owner);
+        self.players[owner].last_science = income - upkeep;
         self.players[owner].research += income - upkeep;
         if self.players[owner].research >= 0 {
             return;

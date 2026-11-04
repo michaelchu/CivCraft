@@ -55,7 +55,7 @@ pub(super) struct Relation {
 }
 
 impl Simulation {
-    fn relation_key(a: usize, b: usize) -> (usize, usize) {
+    pub(super) fn relation_key(a: usize, b: usize) -> (usize, usize) {
         (a.min(b), a.max(b))
     }
 
@@ -188,7 +188,7 @@ impl Simulation {
         (trust < threshold).then_some("We do not trust you enough for that treaty.")
     }
 
-    fn player_alive(&self, owner: usize) -> bool {
+    pub(super) fn player_alive(&self, owner: usize) -> bool {
         self.cities.iter().any(|city| city.owner == owner)
             || self.units.iter().any(|unit| unit.owner == owner)
     }
@@ -245,11 +245,14 @@ impl Simulation {
                 || self.players[giver].gold < terms.gold
                 || terms
                     .technology
-                    .is_some_and(|tech| !self.can_trade_tech(giver, receiver, tech))
+                    .is_some_and(|tech| self.tech_sell_price(giver, receiver, tech).is_none())
                 || (terms.vision && (after != Pact::Alliance || !self.vision_safe(giver, receiver)))
             {
                 return false;
             }
+        }
+        if !self.ai_accepts_technology_exchange(key.0, key.1, &offer.terms) {
+            return false;
         }
         if let Some(pact) = offer.pact {
             self.sign_pact(a, b, pact);
@@ -276,19 +279,35 @@ impl Simulation {
         true
     }
 
-    fn can_trade_tech(&self, giver: usize, receiver: usize, tech: Tech) -> bool {
-        tech != Tech::FUTURE
-            && self.has_tech(giver, tech)
-            && self.tech_available(receiver, tech)
-            && !(0..self.players.len()).any(|third| {
-                third != receiver
-                    && third != giver
-                    && third != BARBARIANS
-                    && self.player_alive(third)
-                    && self.allied(receiver, third)
-                    && self.at_war(giver, third)
-                    && !self.has_tech(third, tech)
-            })
+    pub(super) fn tech_trade_partner_is_dangerous(&self, owner: usize, other: usize) -> bool {
+        let stance = self.pact(owner, other);
+        if stance == Pact::Ceasefire
+            || (stance == Pact::War
+                && self
+                    .diplomacy
+                    .contains_key(&Self::relation_key(owner, other)))
+        {
+            return true;
+        }
+        let has_hostile_ally = (0..self.players.len()).any(|third| {
+            third != owner
+                && third != other
+                && third != BARBARIANS
+                && self.player_alive(third)
+                && self.allied(other, third)
+                && self.at_war(owner, third)
+                && self
+                    .diplomacy
+                    .contains_key(&Self::relation_key(owner, third))
+        });
+        has_hostile_ally
+            || self
+                .diplomacy
+                .get(&Self::relation_key(owner, other))
+                .is_none_or(|relation| {
+                    let side = usize::from(owner > other);
+                    relation.cause_until[side] > self.turn || relation.trust[side] < 1000
+                })
     }
 
     fn vision_safe(&self, giver: usize, receiver: usize) -> bool {
@@ -330,21 +349,35 @@ impl Simulation {
         };
         let after = pact.unwrap_or_else(|| self.pact(a, b));
         if matches!(after, Pact::Peace | Pact::Alliance) {
-            let value = |tech: Tech| tech.cost() * 3 / if self.allied(a, b) { 4 } else { 2 };
-            let a_techs = Tech::all().filter(|&tech| self.can_trade_tech(a, b, tech));
-            let b_techs: Vec<_> = Tech::all()
-                .filter(|&tech| self.can_trade_tech(b, a, tech))
+            // Freeciv scans technologies received by the proposer first.
+            let proposer = if a == HUMAN { b } else { a };
+            let recipient = if proposer == a { b } else { a };
+            let incoming: Vec<_> = Tech::all()
+                .filter_map(|tech| {
+                    self.tech_sell_price(recipient, proposer, tech)
+                        .map(|price| (tech, price))
+                })
                 .collect();
-            'exchange: for from_a in a_techs {
-                for &from_b in &b_techs {
-                    let balance = value(from_b) - value(from_a);
-                    if self.players[a].gold >= balance.max(0)
-                        && self.players[b].gold >= (-balance).max(0)
+            let outgoing: Vec<_> = Tech::all()
+                .filter_map(|tech| {
+                    self.tech_sell_price(proposer, recipient, tech)
+                        .map(|price| (tech, price))
+                })
+                .collect();
+            'exchange: for &(received, incoming_value) in &incoming {
+                for &(given, outgoing_value) in &outgoing {
+                    let balance = incoming_value - outgoing_value;
+                    let giver = usize::from(proposer != a);
+                    let mut terms = [Concessions::default(); 2];
+                    terms[giver].technology = Some(given);
+                    terms[1 - giver].technology = Some(received);
+                    terms[giver].gold = balance.max(0);
+                    terms[1 - giver].gold = (-balance).max(0);
+                    if self.players[proposer].gold >= terms[giver].gold
+                        && self.players[recipient].gold >= terms[1 - giver].gold
+                        && self.ai_accepts_technology_exchange(a, b, &terms)
                     {
-                        offer.terms[0].technology = Some(from_a);
-                        offer.terms[1].technology = Some(from_b);
-                        offer.terms[0].gold = balance.max(0);
-                        offer.terms[1].gold = (-balance).max(0);
+                        offer.terms = terms;
                         break 'exchange;
                     }
                 }
@@ -635,7 +668,19 @@ impl Simulation {
             self.players[HUMAN].known.push(Tech::POTTERY);
             self.players[1].known.push(writing);
             self.players[HUMAN].gold = 100;
+            self.players[1].last_science = 4;
         }
+    }
+
+    pub(crate) fn diplomacy_playtest_allied_exchange(&mut self) {
+        let currency = Tech::all().find(|tech| tech.name() == "Currency").unwrap();
+        self.players[HUMAN]
+            .known
+            .extend([Tech::BRONZE_WORKING, Tech::WARRIOR_CODE]);
+        self.players[1]
+            .known
+            .extend([Tech::BRONZE_WORKING, currency]);
+        self.diplomacy_playtest_tick(13);
     }
 
     pub(crate) fn diplomacy_playtest_hidden_city(&self, owner: usize) -> Option<(i32, i32)> {
@@ -676,6 +721,39 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn technology_price_discounts_allies_before_adding_leakage() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.players[1].known = vec![Tech::POTTERY];
+        game.players[HUMAN].known.clear();
+        game.players[2].known.clear();
+        assert_eq!(game.tech_sell_price(1, HUMAN, Tech::POTTERY), Some(45));
+        game.sign_pact(HUMAN, 1, Pact::Alliance);
+        assert_eq!(game.tech_sell_price(1, HUMAN, Tech::POTTERY), Some(22));
+        game.sign_pact(HUMAN, 2, Pact::Alliance);
+        let other = game.diplomacy.entry((1, 2)).or_default();
+        other.pact = Pact::Peace;
+        other.trust[0] = 1000;
+        assert_eq!(game.tech_sell_price(1, HUMAN, Tech::POTTERY), Some(33));
+        game.sign_pact(1, 2, Pact::Ceasefire);
+        assert_eq!(game.tech_sell_price(1, HUMAN, Tech::POTTERY), None);
+    }
+
+    #[test]
+    fn low_science_can_make_a_balanced_offer_unacceptable_to_the_ai() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.diplomacy_playtest_technologies(true);
+        game.sign_pact(HUMAN, 1, Pact::Peace);
+        game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().pact = Pact::Peace;
+        let offer = game.build_offer(HUMAN, 1, None);
+        assert!(offer.terms.iter().all(|term| term.technology.is_some()));
+        assert!(game.ai_accepts_technology_exchange(HUMAN, 1, &offer.terms));
+        game.players[1].last_science = 0;
+        assert!(!game.ai_accepts_technology_exchange(HUMAN, 1, &offer.terms));
+        game.players[1].research = -1;
+        assert!(!game.ai_accepts_technology_exchange(HUMAN, 1, &offer.terms));
+    }
 
     #[test]
     fn stale_bundle_applies_no_gold_technology_pact_or_vision() {

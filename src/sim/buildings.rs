@@ -10,6 +10,15 @@ impl Simulation {
     }
 
     pub(crate) fn building_blocker(&self, city: &City, building: Building) -> Option<String> {
+        self.building_blocker_with_tech(city, building, None)
+    }
+
+    pub(super) fn building_blocker_with_tech(
+        &self,
+        city: &City,
+        building: Building,
+        granted: Option<Tech>,
+    ) -> Option<String> {
         let data = building.data();
         if city.buildings.contains(&building) {
             return Some("Built".into());
@@ -30,7 +39,9 @@ impl Simulation {
         };
         let met = |&(requirement, present): &(Requirement, bool)| {
             let matches = match requirement {
-                Requirement::Tech(id) => self.has_tech(city.owner, Tech(id)),
+                Requirement::Tech(id) => {
+                    granted == Some(Tech(id)) || self.has_tech(city.owner, Tech(id))
+                }
                 Requirement::Improvement(id) => city.buildings.contains(&Building(id)),
                 Requirement::River => nearby().any(|tile| tile.river),
                 Requirement::Lake => nearby().any(|tile| tile.terrain == Terrain::Lake),
