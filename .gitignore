@@ -1,0 +1,5 @@
+/target/
+/shots/
+.DS_Store
+*.log
+
