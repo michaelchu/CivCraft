@@ -1,3 +1,6 @@
+mod research;
+
+use research::Tech;
 use macroquad::prelude::*;
 use std::collections::VecDeque;
 use std::env;
@@ -401,6 +404,8 @@ enum UnitKind {
     Archer,
     Legion,
     Horseman,
+    Chariot,
+    Catapult,
 }
 
 #[derive(Clone, Copy)]
@@ -432,6 +437,8 @@ impl UnitKind {
             Self::Archer => "Archers",
             Self::Legion => "Legion",
             Self::Horseman => "Horsemen",
+            Self::Chariot => "Chariot",
+            Self::Catapult => "Catapult",
         }
     }
 
@@ -557,6 +564,36 @@ impl UnitKind {
                 can_work: false,
                 can_found: false,
             },
+            Self::Chariot => UnitStats {
+                cost: 30,
+                pop_cost: 0,
+                attack: 4,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 2,
+                sprite_row: 0,
+                sprite_col: 9,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Catapult => UnitStats {
+                cost: 40,
+                pop_cost: 0,
+                attack: 6,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                sprite_row: 0,
+                sprite_col: 7,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
             Self::Horseman => UnitStats {
                 cost: 20,
                 pop_cost: 0,
@@ -586,49 +623,16 @@ impl UnitKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Tech {
-    Alphabet,
-    BronzeWorking,
-    WarriorCode,
-    HorsebackRiding,
-    Pottery,
-    IronWorking,
+impl Tech {
+    fn cost(self) -> i32 {
+        let requirements = self.data().map_or(1, |advance| advance.requirement_count);
+        research_cost(requirements)
+    }
 }
 
-impl Tech {
-    const ALL: [Tech; 6] = [
-        Tech::Alphabet,
-        Tech::BronzeWorking,
-        Tech::WarriorCode,
-        Tech::HorsebackRiding,
-        Tech::Pottery,
-        Tech::IronWorking,
-    ];
-
-    fn name(self) -> &'static str {
-        match self {
-            Self::Alphabet => "Alphabet",
-            Self::BronzeWorking => "Bronze Working",
-            Self::WarriorCode => "Warrior Code",
-            Self::HorsebackRiding => "Horseback Riding",
-            Self::Pottery => "Pottery",
-            Self::IronWorking => "Iron Working",
-        }
-    }
-
-    fn cost(self) -> i32 {
-        let recursive_requirements = match self {
-            Self::IronWorking => 3,
-            _ => 1,
-        };
-        // techs_precalc_data first applies the linear requirement formula
-        // and its minimum. research_total_bulbs_required then applies the
-        // player's Tech_Cost_Pct and the global sciencebox percentage.
-        let precalculated_cost = (BASE_TECH_COST * recursive_requirements).max(MIN_TECH_COST);
-        let player_cost = percent_of(precalculated_cost, TECH_COST_PERCENT);
-        percent_of(player_cost, SCIENCEBOX_PERCENT).max(1)
-    }
+fn research_cost(requirements: i32) -> i32 {
+    let base = (BASE_TECH_COST * requirements).max(MIN_TECH_COST);
+    percent_of(percent_of(base, TECH_COST_PERCENT), SCIENCEBOX_PERCENT).max(1)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -691,6 +695,8 @@ struct Player {
     gold: i32,
     known: Vec<Tech>,
     researching: Tech,
+    research_goal: Tech,
+    future_techs: i32,
     research: i32,
     ai: bool,
 }
@@ -708,7 +714,10 @@ enum UiAction {
     Wait,
     Automate,
     Produce(UnitKind),
-    CycleResearch,
+    OpenResearch,
+    CloseResearch,
+    ResearchPage(usize),
+    ResearchGoal(Tech),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -734,6 +743,7 @@ struct Game {
     rng: u64,
     events: Vec<String>,
     goto_mode: bool,
+    research_page: Option<usize>,
     game_over: Option<String>,
     hud_elements_drawn: usize,
     dragging: bool,
@@ -945,20 +955,20 @@ impl Game {
             Color::from_rgba(225, 77, 171, 255),
         ];
         let free_techs = [
-            Tech::BronzeWorking,
-            Tech::Alphabet,
-            Tech::HorsebackRiding,
-            Tech::Pottery,
-            Tech::WarriorCode,
-            Tech::BronzeWorking,
+            Tech::BRONZE_WORKING,
+            Tech::ALPHABET,
+            Tech::HORSEBACK_RIDING,
+            Tech::POTTERY,
+            Tech::WARRIOR_CODE,
+            Tech::BRONZE_WORKING,
         ];
         let research_targets = [
-            Tech::WarriorCode,
-            Tech::BronzeWorking,
-            Tech::Pottery,
-            Tech::HorsebackRiding,
-            Tech::Alphabet,
-            Tech::WarriorCode,
+            Tech::WARRIOR_CODE,
+            Tech::BRONZE_WORKING,
+            Tech::POTTERY,
+            Tech::HORSEBACK_RIDING,
+            Tech::ALPHABET,
+            Tech::WARRIOR_CODE,
         ];
         let mut players = Vec::new();
         for i in 0..PLAYER_COUNT {
@@ -968,6 +978,9 @@ impl Game {
                 gold: 50,
                 known: vec![free_techs[i]],
                 researching: research_targets[i],
+                research_goal: [research_targets[i], Tech::IRON_WORKING, Tech::THE_WHEEL,
+                    Tech::MATHEMATICS, Tech::IRON_WORKING, Tech::THE_WHEEL][i],
+                future_techs: 0,
                 research: 0,
                 ai: i != HUMAN,
             });
@@ -1028,11 +1041,15 @@ impl Game {
                 "Explore, research, grow, and unite the world.".to_owned(),
             ],
             goto_mode: false,
+            research_page: None,
             game_over: None,
             hud_elements_drawn: 0,
             dragging: false,
             drag_last: vec2(0.0, 0.0),
         };
+        for owner in 1..PLAYER_COUNT {
+            game.players[owner].researching = game.research_target(owner);
+        }
         game.refresh_visibility();
         game
     }
@@ -1078,24 +1095,75 @@ impl Game {
     }
 
     fn tech_available(&self, owner: usize, tech: Tech) -> bool {
-        if self.has_tech(owner, tech) {
-            return false;
+        if tech == Tech::FUTURE {
+            return Tech::all().all(|advance| self.has_tech(owner, advance));
         }
-        match tech {
-            Tech::IronWorking => {
-                self.has_tech(owner, Tech::BronzeWorking) && self.has_tech(owner, Tech::WarriorCode)
+        !self.has_tech(owner, tech)
+            && tech.prerequisites().iter().all(|&req| self.has_tech(owner, req))
+    }
+
+    fn research_path(&self, owner: usize, goal: Tech) -> Vec<Tech> {
+        fn visit(game: &Game, owner: usize, tech: Tech, path: &mut Vec<Tech>) {
+            if game.has_tech(owner, tech) || path.contains(&tech) {
+                return;
             }
-            _ => true,
+            for &req in tech.prerequisites() {
+                visit(game, owner, req, path);
+            }
+            path.push(tech);
+        }
+
+        let mut path = Vec::new();
+        if goal == Tech::FUTURE {
+            for advance in Tech::all() {
+                visit(self, owner, advance, &mut path);
+            }
+        }
+        visit(self, owner, goal, &mut path);
+        path
+    }
+
+    fn research_target(&self, owner: usize) -> Tech {
+        self.research_path(owner, self.players[owner].research_goal)
+            .first()
+            .copied()
+            .or_else(|| {
+                Tech::all()
+                    .filter(|&tech| self.tech_available(owner, tech))
+                    .min_by_key(|tech| tech.cost())
+            })
+            .unwrap_or(Tech::FUTURE)
+    }
+
+    fn target_cost(&self, owner: usize, tech: Tech) -> i32 {
+        if tech == Tech::FUTURE {
+            let player = &self.players[owner];
+            research_cost(player.known.len() as i32 + player.future_techs + 1)
+        } else {
+            tech.cost()
+        }
+    }
+
+    fn discover(&mut self, owner: usize, tech: Tech) {
+        if tech == Tech::FUTURE {
+            self.players[owner].future_techs += 1;
+        } else {
+            self.players[owner].known.push(tech);
+        }
+        if owner == HUMAN {
+            self.add_event(format!("Research complete: {}.", tech.name()));
         }
     }
 
     fn unit_available(&self, owner: usize, kind: UnitKind) -> bool {
         match kind {
-            UnitKind::Phalanx => self.has_tech(owner, Tech::BronzeWorking),
-            UnitKind::Archer => self.has_tech(owner, Tech::WarriorCode),
-            UnitKind::Legion => self.has_tech(owner, Tech::IronWorking),
-            UnitKind::Horseman => self.has_tech(owner, Tech::HorsebackRiding),
-            UnitKind::Diplomat => self.has_tech(owner, Tech::Alphabet),
+            UnitKind::Phalanx => self.has_tech(owner, Tech::BRONZE_WORKING),
+            UnitKind::Archer => self.has_tech(owner, Tech::WARRIOR_CODE),
+            UnitKind::Legion => self.has_tech(owner, Tech::IRON_WORKING),
+            UnitKind::Horseman => self.has_tech(owner, Tech::HORSEBACK_RIDING),
+            UnitKind::Chariot => self.has_tech(owner, Tech::THE_WHEEL),
+            UnitKind::Catapult => self.has_tech(owner, Tech::MATHEMATICS),
+            UnitKind::Diplomat => self.has_tech(owner, Tech::ALPHABET),
             UnitKind::Explorer => false,
             _ => true,
         }
@@ -1760,6 +1828,8 @@ impl Game {
             return UnitKind::Settlers;
         }
         for kind in [
+            UnitKind::Catapult,
+            UnitKind::Chariot,
             UnitKind::Legion,
             UnitKind::Archer,
             UnitKind::Horseman,
@@ -1860,20 +1930,19 @@ impl Game {
             }
             self.players[owner].research += science;
             let current = self.players[owner].researching;
-            if self.players[owner].research >= current.cost() {
-                self.players[owner].research -= current.cost();
-                if !self.players[owner].known.contains(&current) {
-                    self.players[owner].known.push(current);
+            let cost = self.target_cost(owner, current);
+            if self.players[owner].research >= cost {
+                self.players[owner].research -= cost;
+                let first_bonus = current.data().is_some_and(|advance| advance.first_discovery_bonus)
+                    && self.players.iter().all(|player| !player.known.contains(&current));
+                self.discover(owner, current);
+                if first_bonus {
+                    let bonus = self.research_target(owner);
+                    if bonus != Tech::FUTURE {
+                        self.discover(owner, bonus);
+                    }
                 }
-                if owner == HUMAN {
-                    self.add_event(format!("Research complete: {}.", current.name()));
-                }
-                if let Some(next) = Tech::ALL
-                    .into_iter()
-                    .find(|tech| self.tech_available(owner, *tech))
-                {
-                    self.players[owner].researching = next;
-                }
+                self.players[owner].researching = self.research_target(owner);
             }
         }
     }
@@ -2260,22 +2329,31 @@ impl Game {
                     }
                 }
             }
-            UiAction::CycleResearch => {
-                let current = self.players[HUMAN].researching;
-                let current_index = Tech::ALL.iter().position(|t| *t == current).unwrap_or(0);
-                if let Some(next) = (1..=Tech::ALL.len())
-                    .map(|offset| Tech::ALL[(current_index + offset) % Tech::ALL.len()])
-                    .find(|tech| self.tech_available(HUMAN, *tech))
-                {
-                    self.players[HUMAN].researching = next;
-                    self.players[HUMAN].research = 0;
-                    self.add_event(format!("Research changed to {}.", next.name()));
+            UiAction::OpenResearch => self.research_page = Some(0),
+            UiAction::CloseResearch => self.research_page = None,
+            UiAction::ResearchPage(page) => self.research_page = Some(page),
+            UiAction::ResearchGoal(goal) => {
+                if self.has_tech(HUMAN, goal) {
+                    return;
+                }
+                self.players[HUMAN].research_goal = goal;
+                let next = self.research_target(HUMAN);
+                let player = &mut self.players[HUMAN];
+                if player.researching != next {
+                    player.researching = next;
+                    player.research = 0;
                 }
             }
         }
     }
 
     fn handle_keyboard(&mut self) {
+        if self.research_page.is_some() {
+            if is_key_pressed(KeyCode::Escape) {
+                self.research_page = None;
+            }
+            return;
+        }
         let shift_down = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
         if is_key_pressed(KeyCode::Escape) {
             if self.selected_city.is_some() {
@@ -2481,6 +2559,15 @@ impl Game {
     }
 
     fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
+        if self.research_page.is_some() {
+            if is_mouse_button_pressed(MouseButton::Left) {
+                let (x, y) = mouse_position();
+                if let Some((_, action)) = buttons.iter().find(|(rect, _)| rect.contains(vec2(x, y))) {
+                    self.perform_action(*action);
+                }
+            }
+            return;
+        }
         let (_, wheel) = mouse_wheel();
         if wheel.abs() > 0.01 {
             self.zoom = (self.zoom + wheel * 0.08).clamp(MIN_ZOOM, MAX_ZOOM);
@@ -3033,6 +3120,9 @@ impl Game {
     fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         clear_background(Color::from_rgba(7, 20, 31, 255));
         self.hud_elements_drawn = 0;
+        if let Some(page) = self.research_page {
+            return self.draw_research(page);
+        }
         self.draw_world(assets);
         let mut actions = self.draw_hud();
         if self.selected_city_index().is_some() {
@@ -3095,6 +3185,100 @@ impl Game {
         actions
     }
 
+    fn draw_research(&self, page: usize) -> Vec<(Rect, UiAction)> {
+        let player = &self.players[HUMAN];
+        let advances: Vec<_> = Tech::all().chain(std::iter::once(Tech::FUTURE)).collect();
+        let rows = (((screen_height() - 192.0) / 55.0).floor() as usize).max(1);
+        let columns = if screen_width() >= 900.0 { 2 } else { 1 };
+        let page_size = rows * columns;
+        let pages = advances.len().div_ceil(page_size);
+        let page = page.min(pages - 1);
+        let width = (screen_width() - 48.0) / columns as f32;
+        let mut actions = Vec::new();
+
+        draw_text("Research tree", 24.0, 40.0, 34.0, WHITE);
+        let close = Rect::new(screen_width() - 144.0, 16.0, 120.0, 34.0);
+        draw_ui_button(close, "Close [Esc]", true, false);
+        actions.push((close, UiAction::CloseResearch));
+
+        let current = player.researching;
+        let path = self.research_path(HUMAN, player.research_goal);
+        let remaining = path.iter().filter(|&&tech| tech != Tech::FUTURE).count();
+        draw_text(
+            &format!("Researching {}  {}/{}   |   Goal: {}   |   {} advances remaining",
+                current.name(), player.research, self.target_cost(HUMAN, current),
+                player.research_goal.name(), remaining),
+            24.0, 72.0, 19.0, SKYBLUE,
+        );
+        draw_text("Select an advance to pursue its prerequisites. Switching the current target resets progress.",
+            24.0, 100.0, 17.0, LIGHTGRAY);
+
+        let remaining_path = path.iter().map(|tech| tech.name()).collect::<Vec<_>>().join(" > ");
+        let path_label = if remaining_path.is_empty() {
+            "Goal complete. Choose another advance.".to_owned()
+        } else {
+            format!("Research path: {remaining_path}")
+        };
+        draw_text(
+            &clip_text(&path_label, ((screen_width() - 48.0) / 8.0) as usize),
+            24.0, 123.0, 16.0, LIGHTGRAY,
+        );
+
+        for (index, &tech) in advances.iter().skip(page * page_size).take(page_size).enumerate() {
+            let x = 24.0 + (index / rows) as f32 * width;
+            let y = 136.0 + (index % rows) as f32 * 55.0;
+            let card = Rect::new(x, y, width - 8.0, 51.0);
+            let known = self.has_tech(HUMAN, tech);
+            let status = if known { "Known" } else if tech == current { "Researching" }
+                else if self.tech_available(HUMAN, tech) { "Available" } else { "Locked" };
+            let (mx, my) = mouse_position();
+            let fill = if tech == player.research_goal { Color::from_rgba(65, 57, 36, 255) }
+                else if !known && card.contains(vec2(mx, my)) { Color::from_rgba(49, 67, 76, 255) }
+                else { Color::from_rgba(27, 45, 55, 255) };
+            draw_rectangle(card.x, card.y, card.w, card.h, fill);
+            draw_text(&format!("{}  ·  {}  ·  {} bulbs", tech.name(), status,
+                self.target_cost(HUMAN, tech)), x + 8.0, y + 17.0, 17.0, WHITE);
+            let reqs = tech.prerequisites().iter().map(|req| req.name()).collect::<Vec<_>>();
+            let requirement = if tech == Tech::FUTURE { "Requires every named advance".to_owned() }
+                else if reqs.is_empty() { "No prerequisites".to_owned() }
+                else { format!("Requires {}", reqs.join(" + ")) };
+            draw_text(&requirement, x + 8.0, y + 33.0, 15.0, LIGHTGRAY);
+            let unlocks = match tech {
+                Tech::ALPHABET => "In CivCraft: Diplomat",
+                Tech::BRONZE_WORKING => "In CivCraft: Phalanx",
+                Tech::WARRIOR_CODE => "In CivCraft: Archers",
+                Tech::IRON_WORKING => "In CivCraft: Legion",
+                Tech::HORSEBACK_RIDING => "In CivCraft: Horsemen",
+                Tech::THE_WHEEL => "In CivCraft: Chariot",
+                Tech::MATHEMATICS => "In CivCraft: Catapult",
+                _ => "",
+            };
+            let label = if !unlocks.is_empty() { unlocks.to_owned() }
+                else if let Some(data) = tech.data().filter(|data| !data.reference_unlocks.is_empty()) {
+                    format!("Reference only: {}", data.reference_unlocks)
+                } else { String::new() };
+            draw_text(&clip_text(&label, ((width - 20.0) / 7.0) as usize),
+                x + 8.0, y + 47.0, 14.0, SKYBLUE);
+            if !known {
+                actions.push((card, UiAction::ResearchGoal(tech)));
+            }
+        }
+
+        let y = screen_height() - 42.0;
+        for (x, label, target, enabled) in [
+            (24.0, "Previous", page.saturating_sub(1), page > 0),
+            (236.0, "Next", page + 1, page + 1 < pages),
+        ] {
+            let button = Rect::new(x, y, 92.0, 30.0);
+            draw_ui_button(button, label, enabled, false);
+            if enabled {
+                actions.push((button, UiAction::ResearchPage(target)));
+            }
+        }
+        draw_text(&format!("Page {} / {}", page + 1, pages), 133.0, y + 21.0, 18.0, WHITE);
+        actions
+    }
+
     fn draw_hud(&mut self) -> Vec<(Rect, UiAction)> {
         let mut actions = Vec::new();
         let viewport = Self::viewport_rect();
@@ -3150,7 +3334,7 @@ impl Game {
                 "Research: {}  {}/{}",
                 research.name(),
                 player.research,
-                research.cost()
+                self.target_cost(HUMAN, research)
             ),
             785.0,
             29.0,
@@ -3204,13 +3388,13 @@ impl Game {
         draw_ui_button(
             research_rect,
             &format!(
-                "Change research: {}",
+                "Research tree: {}",
                 self.players[HUMAN].researching.name()
             ),
             true,
             false,
         );
-        actions.push((research_rect, UiAction::CycleResearch));
+        actions.push((research_rect, UiAction::OpenResearch));
         let end_rect = Rect::new(panel_x + 18.0, screen_height() - 65.0, PANEL_W - 36.0, 44.0);
         draw_ui_button(end_rect, "END TURN  [Shift+Enter]", true, true);
         actions.push((end_rect, UiAction::EndTurn));
@@ -3419,6 +3603,8 @@ impl Game {
             UnitKind::Phalanx,
             UnitKind::Archer,
             UnitKind::Horseman,
+            UnitKind::Catapult,
+            UnitKind::Chariot,
             UnitKind::Legion,
             UnitKind::Diplomat,
             UnitKind::Settlers,
@@ -3522,7 +3708,7 @@ impl Game {
             }
         }
 
-        let garrison_y = rect.y + 315.0;
+        let garrison_y = rect.y + 395.0;
         draw_text(
             "GARRISON",
             rect.x + 22.0,
@@ -3810,6 +3996,8 @@ impl Game {
                 UnitKind::Phalanx,
                 UnitKind::Archer,
                 UnitKind::Horseman,
+                UnitKind::Catapult,
+                UnitKind::Chariot,
                 UnitKind::Legion,
                 UnitKind::Settlers,
             ] {
@@ -3987,6 +4175,8 @@ fn short_unit_name(kind: UnitKind) -> &'static str {
         UnitKind::Archer => "Archer",
         UnitKind::Legion => "Legion",
         UnitKind::Horseman => "Horseman",
+        UnitKind::Chariot => "Chariot",
+        UnitKind::Catapult => "Catapult",
     }
 }
 
@@ -4215,8 +4405,8 @@ mod tests {
 
         // Linear precalculation is 10 bulbs per recursive requirement; the
         // ruleset's unconditional 300% Tech_Cost_Pct effect is then applied.
-        assert_eq!(Tech::Alphabet.cost(), 30);
-        assert_eq!(Tech::IronWorking.cost(), 90);
+        assert_eq!(Tech::ALPHABET.cost(), 30);
+        assert_eq!(Tech::IRON_WORKING.cost(), 90);
     }
 
     #[test]

@@ -2,7 +2,7 @@ This build contains the original game's own files, for the private use of the pe
 
 # CivCraft
 
-CivCraft is a focused, offline Rust recreation of Freeciv's opening-era single-player game. It starts with the Civ2Civ3 setup, lets six civilizations explore a wrapped isometric-hex world, found and grow cities, research early advances, improve land, produce units, fight with terrain-aware combat, capture rival cities, and win by conquest.
+CivCraft is a focused, offline Rust recreation of Freeciv's opening-era single-player game. It starts with the Civ2Civ3 setup, lets six civilizations explore a wrapped isometric-hex world, found and grow cities, research the Civ2Civ3 technology tree, improve land, produce units, fight with terrain-aware combat, capture rival cities, and win by conquest.
 
 ## Play
 
@@ -17,10 +17,16 @@ Run cargo run --release from this folder. The match opens directly on the map.
 - Space finishes the selected unit and selects the next one.
 - Shift plus Enter ends the turn. Shift plus arrow keys pan the map.
 - The mouse wheel zooms; middle-drag or right-drag pans.
-- Click a city to open city management, change production, or select a garrisoned unit. Click the research card to change the current advance.
+- Click a city to open city management, change production, or select a garrisoned unit. Click the research button to browse all 87 Civ2Civ3 advances and select a research goal. CivCraft automatically researches the missing prerequisites in order.
 - N starts a fresh world after victory or defeat; Escape cancels a queued goto.
 
 The right side of the screen holds the world overview, objective, research, selected-unit or city details, actions, and event history. The bottom strip always shows the selected unit's health, movement, attack, defense, and terrain.
+
+## Research
+
+Each advance shows its prerequisites, research cost, and status. Selecting a new goal only discards accumulated research if it changes the current target. Philosophy gives a free advance to the first civilization to discover it. After the named advances are complete, research continues with repeatable Future Tech.
+
+The research screen distinguishes units that CivCraft can produce from unit and building unlocks in the reference. The Wheel unlocks Chariots and Mathematics unlocks Catapults. Later advances can be researched while their associated game systems are still under development.
 
 ## Automated modes
 
