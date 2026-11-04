@@ -87,6 +87,7 @@ impl Game {
             UiAction::ToggleDiplomacy => {
                 self.diplomacy_open = !self.diplomacy_open;
                 self.diplomacy_page = 0;
+                self.reviewed_offer = None;
             }
             UiAction::DiplomacyPage(page) => self.diplomacy_page = page,
             UiAction::Negotiate(other, pact) => {
@@ -95,7 +96,14 @@ impl Game {
             UiAction::CancelPact(other) => {
                 self.sim.apply(Command::CancelPact(other));
             }
+            UiAction::ReviewOffer(other, offer) => self.reviewed_offer = Some((other, offer)),
+            UiAction::CloseOffer => self.reviewed_offer = None,
+            UiAction::AcceptOffer(other, offer) => {
+                self.sim.apply(Command::AcceptOffer(other, offer));
+                self.reviewed_offer = None;
+            }
             UiAction::DeclineOffer(other) => {
+                self.reviewed_offer = None;
                 self.sim.apply(Command::DeclineOffer(other));
             }
             UiAction::ToggleGovernment => self.government_open = !self.government_open,
@@ -130,6 +138,9 @@ impl Game {
     pub(crate) fn handle_keyboard(&mut self) {
         if self.government_open || self.diplomacy_open {
             if is_key_pressed(KeyCode::Escape) {
+                if self.reviewed_offer.take().is_some() {
+                    return;
+                }
                 self.government_open = false;
                 self.diplomacy_open = false;
             }

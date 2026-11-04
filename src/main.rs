@@ -80,6 +80,7 @@ async fn main() {
     let mut act_detail = "No scripted action completed".to_owned();
 
     let mut diplomacy_probe = None;
+    let mut vision_probe = None;
 
     loop {
         if !automated {
@@ -364,6 +365,7 @@ async fn main() {
             }
             let refused_early_peace = !game.sim.apply(Command::Negotiate(1, sim::Pact::Peace));
             act_passed = refused_early_peace && game.sim.pact(HUMAN, 1) == sim::Pact::Ceasefire;
+            game.sim.diplomacy_playtest_technologies(false);
             game.sim.diplomacy_playtest_tick(12);
         }
         if self_test_path.is_some() && frame == 128 && act_passed {
@@ -375,6 +377,7 @@ async fn main() {
                 game.perform_action(*action);
             }
             act_passed = offered && game.sim.pact(HUMAN, 1) == sim::Pact::Armistice;
+            game.sim.diplomacy_playtest_technologies(true);
             game.sim.diplomacy_playtest_tick(16);
             diplomacy_probe = game.sim.diplomacy_playtest_unit(1);
             act_passed &= game.sim.pact(HUMAN, 1) == sim::Pact::Peace
@@ -383,10 +386,21 @@ async fn main() {
             act_detail.push_str(&format!(" AI refused early peace, then offered it after the ceasefire held. Armistice matured and peace blocked entry: {act_passed}."));
         }
         if self_test_path.is_some() && frame == 132 && act_passed {
-            let offered = game.sim.pact_offer(1) == Some(sim::Pact::Alliance);
+            vision_probe = game.sim.diplomacy_playtest_hidden_city(1);
             if let Some((_, action)) = buttons
                 .iter()
-                .find(|(_, action)| matches!(action, UiAction::Negotiate(1, sim::Pact::Alliance)))
+                .find(|(_, action)| matches!(action, UiAction::ReviewOffer(1, _)))
+            {
+                game.perform_action(*action);
+            }
+        }
+        if self_test_path.is_some() && frame == 136 && act_passed {
+            let human_gold = game.sim.players()[HUMAN].gold;
+            let ai_gold = game.sim.players()[1].gold;
+            let offer = game.sim.treaty_offer(1).unwrap_or_default();
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::AcceptOffer(1, _)))
             {
                 game.perform_action(*action);
             }
@@ -397,12 +411,39 @@ async fn main() {
                 .cities()
                 .iter()
                 .any(|city| (city.x, city.y, city.owner) == (x, y, 1));
-            act_passed = offered
-                && entered
+            let gold = offer.terms[0].gold;
+            let exchanged = gold > 0
+                && game.sim.players()[HUMAN].gold == human_gold - gold
+                && game.sim.players()[1].gold == ai_gold + gold
+                && game.sim.players()[HUMAN]
+                    .known
+                    .iter()
+                    .any(|tech| tech.name() == "Writing")
+                && game.sim.players()[1]
+                    .known
+                    .iter()
+                    .any(|tech| tech.name() == "Pottery");
+            let revealed = vision_probe.is_some_and(|(x, y)| game.sim.tile(x, y).visible);
+            act_passed = entered
                 && stayed_allied
-                && game.sim.pact(HUMAN, 1) == sim::Pact::Alliance;
+                && game.sim.pact(HUMAN, 1) == sim::Pact::Alliance
+                && exchanged
+                && revealed;
+            act_detail.push_str(&format!(" Reviewed and accepted an alliance bundle with Pottery, Writing, {gold} gold and live vision: {act_passed}."));
+        }
+        if self_test_path.is_some() && frame == 141 && act_passed {
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::CancelPact(1)))
+            {
+                game.perform_action(*action);
+            }
+            act_passed = vision_probe.is_some_and(|(x, y)| {
+                let tile = game.sim.tile(x, y);
+                tile.seen && !tile.visible
+            });
             act_detail.push_str(&format!(
-                " Accepted AI alliance and entered its city without capturing it: {act_passed}."
+                " Ending the alliance removed live vision and retained map knowledge: {act_passed}."
             ));
             game.perform_action(UiAction::ToggleDiplomacy);
         }

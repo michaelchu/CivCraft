@@ -17,6 +17,7 @@ pub(crate) enum Command {
     Negotiate(usize, super::Pact),
     CancelPact(usize),
     DeclineOffer(usize),
+    AcceptOffer(usize, super::TreatyOffer),
     Specialist(u32, usize, i32),
     HomeCity(u32),
     EndTurn,
@@ -102,6 +103,7 @@ impl Simulation {
             }
             Negotiate(other, pact) => self.negotiate(other, pact),
             CancelPact(other) => self.cancel_pact(HUMAN, other),
+            AcceptOffer(other, offer) => self.accept_offer(other, offer),
             DeclineOffer(other) => self.decline_offer(other),
             Government(target) => self.change_government(HUMAN, target),
             RaiseRate(index) => self.raise_rate(HUMAN, index),

@@ -4,7 +4,7 @@ mod cities;
 mod civil_war;
 mod commands;
 mod diplomacy;
-pub(crate) use diplomacy::Pact;
+pub(crate) use diplomacy::{Pact, TreatyOffer};
 mod economy;
 mod government;
 pub(crate) use government::Government;
@@ -329,6 +329,27 @@ impl Simulation {
             .map(|u| (u.owner, u.x, u.y, u.kind.stats().vision_sq))
             .chain(self.cities.iter().map(|c| (c.owner, c.x, c.y, 8)))
             .collect();
+        let recipients: Vec<_> = (0..self.players.len())
+            .map(|owner| self.vision_recipients(owner))
+            .collect();
+        let sharing: Vec<_> = recipients
+            .iter()
+            .enumerate()
+            .filter(|(_, targets)| targets.len() > 1)
+            .collect();
+        if !sharing.is_empty() {
+            for tile in &mut self.tiles {
+                let known = tile.known_by;
+                for &(owner, targets) in &sharing {
+                    if known[owner] {
+                        for &target in targets {
+                            tile.known_by[target] = true;
+                        }
+                    }
+                }
+                tile.seen |= tile.known_by[HUMAN];
+            }
+        }
         for (owner, x, y, radius_sq) in revealers {
             let radius = (radius_sq as f32).sqrt().ceil() as i32;
             for dy in -radius..=radius {
@@ -338,9 +359,11 @@ impl Simulation {
                         let (visible_x, visible_y) = offset_native_by_map(x, y, dx, dy);
                         let idx = Self::idx(visible_x, visible_y);
                         if owner != BARBARIANS {
-                            self.tiles[idx].known_by[owner] = true;
+                            for &target in &recipients[owner] {
+                                self.tiles[idx].known_by[target] = true;
+                            }
                         }
-                        if owner == HUMAN {
+                        if recipients[owner].contains(&HUMAN) {
                             self.tiles[idx].visible = true;
                             self.tiles[idx].seen = true;
                         }

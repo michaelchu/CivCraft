@@ -95,6 +95,9 @@ impl Game {
 
 impl Game {
     pub(super) fn draw_diplomacy(&self) -> Vec<(Rect, UiAction)> {
+        if let Some((owner, offer)) = self.reviewed_offer {
+            return self.draw_treaty_offer(owner, offer);
+        }
         let width = (screen_width() - 24.0).min(580.0);
         let panel = Rect::new(
             (screen_width() - width) / 2.0,
@@ -139,14 +142,19 @@ impl Game {
             );
             draw_text(&status, panel.x + 18.0, y + 30.0, 14.0, LIGHTGRAY);
             let mut buttons = Vec::new();
-            if let Some(next) = offer.or_else(|| self.sim.next_pact(HUMAN, owner)) {
+            if let Some(bundle) = self.sim.treaty_offer(owner).filter(|offer| offer.bundled()) {
+                buttons.push((
+                    "Review offer".to_owned(),
+                    UiAction::ReviewOffer(owner, bundle),
+                ));
+            } else if let Some(next) = offer.or_else(|| self.sim.next_pact(HUMAN, owner)) {
                 let verb = if offer.is_some() { "Accept" } else { "Propose" };
                 buttons.push((
                     format!("{verb} {}", next.name().to_lowercase()),
                     UiAction::Negotiate(owner, next),
                 ));
             }
-            if offer.is_some() {
+            if self.sim.treaty_offer(owner).is_some() {
                 buttons.push(("Decline".to_owned(), UiAction::DeclineOffer(owner)));
             }
             if pact != Pact::War {
@@ -181,6 +189,79 @@ impl Game {
                 let button = Rect::new(x, panel.bottom() - 36.0, 77.0, 25.0);
                 draw_ui_button(button, label, true, false);
                 actions.push((button, UiAction::DiplomacyPage(target)));
+            }
+        }
+        actions
+    }
+}
+
+impl Game {
+    fn draw_treaty_offer(&self, owner: usize, offer: TreatyOffer) -> Vec<(Rect, UiAction)> {
+        let width = (screen_width() - 24.0).min(560.0);
+        let panel = Rect::new(
+            (screen_width() - width) / 2.0,
+            (screen_height() - 290.0) / 2.0,
+            width,
+            290.0,
+        );
+        draw_rectangle(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            Color::from_rgba(42, 44, 40, 255),
+        );
+        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 2.0, GOLD);
+        let x = panel.x + 18.0;
+        draw_text(
+            &format!("Treaty offer from {}", self.sim.players()[owner].name),
+            x,
+            panel.y + 32.0,
+            22.0,
+            WHITE,
+        );
+        let pact = offer.pact.map_or("Exchange", Pact::name);
+        draw_text(pact, x, panel.y + 60.0, 18.0, GOLD);
+        for (index, terms) in offer.terms.into_iter().enumerate() {
+            let mut y = panel.y + 90.0;
+            let x = x + index as f32 * (width / 2.0);
+            draw_text(
+                if index == 0 { "You give" } else { "They give" },
+                x,
+                y,
+                19.0,
+                WHITE,
+            );
+            let mut lines = Vec::new();
+            if terms.gold > 0 {
+                lines.push(format!("{} gold", terms.gold));
+            }
+            if let Some(tech) = terms.technology {
+                lines.push(tech.name().to_owned());
+            }
+            if terms.vision {
+                lines.push("Shared vision".to_owned());
+            }
+            if lines.is_empty() {
+                lines.push("No concessions".to_owned());
+            }
+            for line in lines {
+                y += 24.0;
+                draw_text(&line, x, y, 17.0, LIGHTGRAY);
+            }
+        }
+        let valid = self.sim.treaty_offer(owner) == Some(offer);
+        let buttons = [
+            ("Accept", UiAction::AcceptOffer(owner, offer), valid),
+            ("Decline", UiAction::DeclineOffer(owner), valid),
+            ("Back", UiAction::CloseOffer, true),
+        ];
+        let mut actions = Vec::new();
+        for (index, (label, action, enabled)) in buttons.into_iter().enumerate() {
+            let rect = Rect::new(x + index as f32 * 91.0, panel.bottom() - 46.0, 85.0, 28.0);
+            draw_ui_button(rect, label, enabled, index == 0);
+            if enabled {
+                actions.push((rect, action));
             }
         }
         actions
