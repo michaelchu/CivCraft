@@ -93,6 +93,7 @@ pub(crate) fn window_conf() -> Conf {
 
 pub(crate) struct Assets {
     pub(super) terrain: Texture2D,
+    pub(super) water: Texture2D,
     pub(super) terrain2: Texture2D,
     pub(super) hills: Texture2D,
     pub(super) mountains: Texture2D,
@@ -107,6 +108,11 @@ impl Assets {
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_terrain1.png"), None)
                 .expect("valid Amplio2 terrain atlas");
         let terrain = Texture2D::from_image(&terrain_image);
+        let water = Texture2D::from_file_with_format(
+            include_bytes!("../../assets/amplio2_water.png"),
+            None,
+        );
+        water.set_filter(FilterMode::Nearest);
         let terrain2 = Texture2D::from_file_with_format(
             include_bytes!("../../assets/amplio2_terrain2.png"),
             None,
@@ -144,6 +150,7 @@ impl Assets {
         Self {
             terrain,
             terrain2,
+            water,
             hills,
             mountains,
             ocean_corners,
@@ -211,5 +218,33 @@ pub(super) fn unit_sprite(kind: UnitKind) -> (i32, i32) {
         UnitKind::Chariot => (0, 9),
         UnitKind::Catapult => (0, 7),
         UnitKind::Horseman => (0, 8),
+    }
+}
+
+impl Resource {
+    pub(super) fn sprite(self, terrain: Terrain) -> (i32, i32) {
+        match self {
+            Self::Oil if terrain == Terrain::Glacier => (6, 4),
+            Self::Gold => (4, 2),
+            Self::Iron => (4, 4),
+            Self::Game => (5, 2),
+            Self::Furs => (5, 4),
+            Self::Coal => (3, 2),
+            Self::Fish => (9, 2),
+            Self::Fruit => (8, 4),
+            Self::Gems => (8, 2),
+            Self::Buffalo => (1, 2),
+            Self::Wheat => (1, 4),
+            Self::Oasis => (0, 2),
+            Self::Peat => (7, 2),
+            Self::Pheasant => (2, 2),
+            Self::Resources => (11, 4),
+            Self::Ivory => (6, 2),
+            Self::Silk => (2, 4),
+            Self::Spice => (7, 4),
+            Self::Whales => (9, 4),
+            Self::Wine => (3, 4),
+            Self::Oil => (0, 4),
+        }
     }
 }

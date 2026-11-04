@@ -463,7 +463,7 @@ mod tests {
         let terrain = |map: &crate::mapgen::GeneratedMap| {
             map.tiles
                 .iter()
-                .map(|tile| tile.terrain)
+                .map(|tile| (tile.terrain, tile.river, tile.resource))
                 .collect::<Vec<_>>()
         };
         let replay = crate::mapgen::generate(42);
@@ -656,11 +656,13 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = crate::mapgen::generate(42).starts[0];
         game.tile_mut(x, y).terrain = Terrain::Plains;
+        game.tile_mut(x, y).river = false;
         for (dx, dy) in ISOHEX_DIRS {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
             let neighbor = game.tile_mut(neighbor_x, neighbor_y);
             neighbor.terrain = Terrain::Grassland;
             neighbor.irrigation = false;
+            neighbor.river = false;
         }
         assert!(!game.can_irrigate_at(x, y));
         let (water_x, water_y) = offset_native_by_map(x, y, ISOHEX_DIRS[0].0, ISOHEX_DIRS[0].1);

@@ -165,7 +165,7 @@ impl Game {
 
     fn draw_terrain_extra(
         &self,
-        assets: &Assets,
+        texture: &Texture2D,
         center: Vec2,
         tile_w: f32,
         tile_h: f32,
@@ -173,7 +173,7 @@ impl Game {
         source_col: i32,
     ) {
         draw_texture_ex(
-            &assets.terrain,
+            texture,
             center.x - tile_w * 0.5,
             center.y - tile_h * 0.5,
             WHITE,
@@ -183,6 +183,75 @@ impl Game {
                 ..Default::default()
             },
         );
+    }
+
+    fn draw_river(&self, assets: &Assets, x: i32, y: i32, center: Vec2, tile_w: f32, tile_h: f32) {
+        let tile = self.sim.tile(x, y);
+        let water = tile.terrain.is_water();
+        if !water && !tile.river {
+            return;
+        }
+
+        let mut mask = 0;
+        for (direction, (dx, dy)) in [(0, -1), (1, 0), (0, 1), (-1, 0)].into_iter().enumerate() {
+            let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+            let neighbor = self.sim.tile(nx, ny);
+            if neighbor.seen && (neighbor.river || (!water && neighbor.terrain.is_water())) {
+                if water {
+                    self.draw_terrain_extra(
+                        &assets.water,
+                        center,
+                        tile_w,
+                        tile_h,
+                        4,
+                        direction as i32,
+                    );
+                } else {
+                    mask |= 8 >> direction;
+                }
+            }
+        }
+        if !water {
+            self.draw_terrain_extra(
+                &assets.water,
+                center,
+                tile_w,
+                tile_h,
+                2 + mask / 8,
+                mask % 8,
+            );
+        }
+
+        // Amplio2 has four river exits per diamond. The two additional
+        // isometric-hex neighbors meet this projection at its vertical tips.
+        for step in [-1, 1] {
+            let (nx, ny) = offset_native_by_map(x, y, step, step);
+            let neighbor = self.sim.tile(nx, ny);
+            if neighbor.seen && (neighbor.river || (!water && neighbor.terrain.is_water())) {
+                let tip = center.y + step as f32 * tile_h * 0.5;
+                let end = if water {
+                    center.y + step as f32 * tile_h * 0.23
+                } else {
+                    center.y
+                };
+                draw_line(
+                    center.x,
+                    tip,
+                    center.x,
+                    end,
+                    tile_w * 0.048,
+                    Color::from_rgba(23, 70, 136, 255),
+                );
+                draw_line(
+                    center.x,
+                    tip,
+                    center.x,
+                    end,
+                    tile_w * 0.024,
+                    Color::from_rgba(56, 126, 190, 255),
+                );
+            }
+        }
     }
 
     fn draw_road_sprites(
@@ -206,12 +275,12 @@ impl Game {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
             let neighbor = self.sim.tile(neighbor_x, neighbor_y);
             if neighbor.seen && neighbor.road {
-                self.draw_terrain_extra(assets, center, tile_w, tile_h, 12, source_col);
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 12, source_col);
                 connected = true;
             }
         }
         if !connected {
-            self.draw_terrain_extra(assets, center, tile_w, tile_h, 12, 0);
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 12, 0);
         }
     }
 
@@ -316,10 +385,18 @@ impl Game {
                 self.draw_road_sprites(assets, x, y, center, tile_w, tile_h);
             }
             if tile.irrigation {
-                self.draw_terrain_extra(assets, center, tile_w, tile_h, 1, 6);
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 1, 6);
             }
             if tile.mine {
-                self.draw_terrain_extra(assets, center, tile_w, tile_h, 3, 6);
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 3, 6);
+            }
+            self.draw_river(assets, x, y, center, tile_w, tile_h);
+            if tile.hut {
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 5, 6);
+            }
+            if let Some(resource) = tile.resource {
+                let (row, col) = resource.sprite(tile.terrain);
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, col);
             }
             if !tile.visible {
                 draw_diamond(center, tile_w, tile_h, Color::from_rgba(18, 29, 39, 112));

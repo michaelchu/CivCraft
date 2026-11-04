@@ -41,11 +41,12 @@ impl Simulation {
         if tile.irrigation || tile.terrain.irrigation_time() == 0 {
             return false;
         }
-        ISOHEX_DIRS.iter().any(|&(dx, dy)| {
-            let (source_x, source_y) = offset_native_by_map(x, y, dx, dy);
-            let source = self.tile(source_x, source_y);
-            source.terrain.is_water() || source.irrigation
-        })
+        tile.river
+            || ISOHEX_DIRS.iter().any(|&(dx, dy)| {
+                let (source_x, source_y) = offset_native_by_map(x, y, dx, dy);
+                let source = self.tile(source_x, source_y);
+                source.terrain.is_water() || source.river || source.irrigation
+            })
     }
 
     pub(super) fn city_name(&self, owner: usize) -> String {

@@ -132,9 +132,64 @@ impl Terrain {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Resource {
+    Gold,
+    Iron,
+    Game,
+    Furs,
+    Coal,
+    Fish,
+    Fruit,
+    Gems,
+    Buffalo,
+    Wheat,
+    Oasis,
+    Peat,
+    Pheasant,
+    Resources,
+    Ivory,
+    Silk,
+    Spice,
+    Whales,
+    Wine,
+    Oil,
+}
+
+impl Resource {
+    pub(crate) fn bonus(self) -> (i32, i32, i32) {
+        match self {
+            Self::Gold => (0, 0, 6),
+            Self::Iron => (0, 3, 0),
+            Self::Game => (2, 1, 0),
+            Self::Furs => (1, 0, 3),
+            Self::Coal => (0, 2, 0),
+            Self::Fish => (2, 0, 0),
+            Self::Fruit => (3, 0, 1),
+            Self::Gems => (0, 0, 4),
+            Self::Buffalo => (0, 2, 0),
+            Self::Wheat => (2, 0, 0),
+            Self::Oasis => (3, 0, 0),
+            Self::Peat => (0, 4, 0),
+            Self::Pheasant => (2, 0, 0),
+            Self::Resources => (0, 1, 0),
+            Self::Ivory => (1, 1, 4),
+            Self::Silk => (0, 0, 3),
+            Self::Spice => (1, 0, 4),
+            Self::Whales => (1, 1, 0),
+            Self::Wine => (0, 0, 4),
+            Self::Oil => (0, 3, 0),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct Tile {
     pub(crate) terrain: Terrain,
+    pub(crate) altitude: i32,
+    pub(crate) hut: bool,
+    pub(crate) river: bool,
+    pub(crate) resource: Option<Resource>,
     pub(crate) road: bool,
     pub(crate) irrigation: bool,
     pub(crate) mine: bool,
@@ -147,6 +202,13 @@ pub(crate) struct Tile {
 impl Tile {
     pub(crate) fn yields(&self) -> (i32, i32, i32) {
         let (mut food, mut shields, mut trade) = self.terrain.base_yields();
+        if let Some(resource) = self.resource {
+            let (extra_food, extra_shields, extra_trade) = resource.bonus();
+            food += extra_food;
+            shields += extra_shields;
+            trade += extra_trade;
+        }
+        trade += i32::from(self.river);
         if self.irrigation {
             food += self.terrain.irrigation_bonus();
         }

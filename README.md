@@ -24,7 +24,7 @@ The right side of the screen holds the world overview, objective, research, sele
 
 ## Map seeds
 
-CivCraft generates a new map locally each time it launches and prints the world seed to the terminal. To replay a world, pass that seed back in:
+CivCraft generates a new map locally each time it launches and shows the world seed above the minimap and prints it to the terminal. To replay a world, pass that seed back in:
 
 ```sh
 cargo run --release -- --seed 12345

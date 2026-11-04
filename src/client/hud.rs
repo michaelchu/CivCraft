@@ -580,7 +580,11 @@ impl Game {
                 Color::from_rgba(229, 226, 209, 255),
             );
             draw_text(
-                &format!("Terrain: {}", self.sim.tile(unit.x, unit.y).terrain.name()),
+                &format!(
+                    "{}   Elevation {}",
+                    self.sim.tile(unit.x, unit.y).terrain.name(),
+                    self.sim.tile(unit.x, unit.y).altitude,
+                ),
                 x,
                 y + 123.0,
                 17.0,

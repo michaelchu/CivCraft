@@ -139,6 +139,13 @@ impl Simulation {
             mover.state = UnitState::Idle;
         }
         self.capture_city_if_needed(unit_id, nx, ny);
+        if self.tile(nx, ny).hut {
+            self.tile_mut(nx, ny).hut = false;
+            self.players[unit.owner].gold += 25;
+            if unit.owner == HUMAN {
+                self.add_event("The village gave your expedition 25 gold.");
+            }
+        }
         if unit.owner == HUMAN {
             self.refresh_visibility();
         }
