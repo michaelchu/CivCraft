@@ -1,4 +1,4 @@
-use super::{HUMAN, MoveResult, Simulation, UnitKind, UnitState, WorkKind};
+use super::{HUMAN, MoveResult, Production, Simulation, UnitState, WorkKind};
 use crate::rules::Tech;
 
 pub(crate) enum Command {
@@ -10,7 +10,7 @@ pub(crate) enum Command {
     Wait(u32),
     Sentry(u32),
     Automate(u32),
-    Produce(u32, UnitKind),
+    Produce(u32, Production),
     Research(Tech),
     EndTurn,
 }
@@ -85,12 +85,10 @@ impl Simulation {
                 else {
                     return false;
                 };
-                if !self.unit_available(HUMAN, kind) {
-                    self.add_event(format!("{} requires more research.", kind.name()));
+                let name = city.name.clone();
+                if !self.change_production(id, kind) {
                     return false;
                 }
-                let name = city.name.clone();
-                self.change_unit_production(id, kind);
                 self.add_event(format!("{name} now produces {}.", kind.name()));
                 true
             }

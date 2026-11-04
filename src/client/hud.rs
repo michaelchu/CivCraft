@@ -291,7 +291,7 @@ impl Game {
         let (food, shields, trade) = self.sim.city_yields(city);
         let food_net = food - city.size * 2;
         let growth_box = Simulation::growth_box(city.size);
-        let production_cost = city.production.stats().cost;
+        let production_cost = city.production.cost();
         let progress_x = rect.x + 205.0;
         let progress_w = rect.w - 229.0;
         draw_text(
@@ -375,98 +375,215 @@ impl Game {
         let card_w = (rect.w - 44.0 - gap * 3.0) / 4.0;
         let card_h = 72.0;
         let mouse = vec2(mouse_position().0, mouse_position().1);
-        for (choice_index, kind) in choices.into_iter().enumerate() {
-            let column = choice_index % columns;
-            let row = choice_index / columns;
-            let card = Rect::new(
-                rect.x + 22.0 + column as f32 * (card_w + gap),
-                rect.y + 139.0 + row as f32 * (card_h + gap),
-                card_w,
-                card_h,
+        let buildings: Vec<_> = if self.production_page == 0 {
+            Vec::new()
+        } else {
+            Building::all()
+                .filter_map(|building| {
+                    let blocker = self.sim.building_blocker(city, building);
+                    (blocker.is_none() || city.buildings.contains(&building))
+                        .then_some((building, blocker))
+                })
+                .collect()
+        };
+        let last_page = buildings.len().div_ceil(12).max(1);
+        let page = self.production_page.min(last_page);
+        for (offset, width, label, action, enabled) in [
+            (
+                0.0,
+                72.0,
+                if page == 0 { "Buildings" } else { "Units" },
+                UiAction::ProductionPage(usize::from(page == 0)),
+                true,
+            ),
+            (
+                79.0,
+                39.0,
+                "<",
+                UiAction::ProductionPage(page.saturating_sub(1)),
+                page > 1,
+            ),
+            (
+                125.0,
+                39.0,
+                ">",
+                UiAction::ProductionPage(page + 1),
+                page > 0 && page < last_page,
+            ),
+        ] {
+            let button = Rect::new(
+                rect.x + rect.w - 186.0 + offset,
+                rect.y + 109.0,
+                width,
+                25.0,
             );
-            let enabled = self.sim.unit_available(HUMAN, kind);
-            let current = city.production == kind;
-            let hovered = enabled && card.contains(mouse);
-            let fill = if current {
-                Color::from_rgba(101, 80, 39, 255)
-            } else if hovered {
-                Color::from_rgba(76, 89, 80, 255)
-            } else if enabled {
-                Color::from_rgba(55, 61, 56, 255)
-            } else {
-                Color::from_rgba(43, 46, 43, 255)
-            };
-            draw_rectangle(card.x, card.y, card.w, card.h, fill);
-            draw_rectangle_lines(
-                card.x,
-                card.y,
-                card.w,
-                card.h,
-                if current { 2.0 } else { 1.0 },
-                if current {
-                    Color::from_rgba(236, 199, 97, 255)
-                } else if enabled {
-                    Color::from_rgba(117, 124, 111, 255)
-                } else {
-                    Color::from_rgba(65, 68, 63, 255)
-                },
-            );
-            let (sprite_row, sprite_col) = unit_sprite(kind);
-            let stats = kind.stats();
-            draw_texture_ex(
-                &assets.units,
-                card.x + 6.0,
-                card.y + 13.0,
-                if enabled {
-                    WHITE
-                } else {
-                    Color::new(0.38, 0.4, 0.4, 1.0)
-                },
-                DrawTextureParams {
-                    dest_size: Some(vec2(52.0, 39.0)),
-                    source: Some(Rect::new(
-                        1.0 + sprite_col as f32 * 65.0,
-                        1.0 + sprite_row as f32 * 49.0,
-                        64.0,
-                        48.0,
-                    )),
-                    ..Default::default()
-                },
-            );
-            let name = short_unit_name(kind);
+            draw_ui_button(button, label, enabled, false);
+            if enabled {
+                actions.push((button, action));
+            }
+        }
+        if page > 0 {
             draw_text(
-                name,
-                card.x + 62.0,
-                card.y + 26.0,
-                16.0,
-                if enabled {
-                    Color::from_rgba(239, 235, 216, 255)
-                } else {
-                    Color::from_rgba(111, 114, 107, 255)
-                },
+                &format!("Buildings {page}/{last_page}"),
+                rect.x + 216.0,
+                rect.y + 127.0,
+                15.0,
+                LIGHTGRAY,
             );
-            draw_text(
-                &format!("{} shields", stats.cost),
-                card.x + 62.0,
-                card.y + 47.0,
-                13.0,
-                if enabled {
-                    Color::from_rgba(176, 184, 171, 255)
-                } else {
-                    Color::from_rgba(91, 94, 89, 255)
-                },
-            );
-            if current {
+            if buildings.is_empty() {
                 draw_text(
-                    "CURRENT",
-                    card.x + 7.0,
-                    card.y + card.h - 7.0,
-                    11.0,
-                    Color::from_rgba(247, 211, 112, 255),
+                    "No buildings available in this city.",
+                    rect.x + 22.0,
+                    rect.y + 170.0,
+                    16.0,
+                    LIGHTGRAY,
                 );
             }
-            if enabled {
-                actions.push((card, UiAction::Produce(kind)));
+            for (index, (building, blocker)) in buildings
+                .into_iter()
+                .skip((page - 1) * 12)
+                .take(12)
+                .enumerate()
+            {
+                let card = Rect::new(
+                    rect.x + 22.0 + (index % 4) as f32 * (card_w + gap),
+                    rect.y + 139.0 + (index / 4) as f32 * (card_h + gap),
+                    card_w,
+                    card_h,
+                );
+                let data = building.data();
+                let target = Production::Building(building);
+                let enabled = blocker.is_none();
+                let built = city.buildings.contains(&building);
+                let current = city.production == target;
+                let fill = if current {
+                    Color::from_rgba(101, 80, 39, 255)
+                } else if enabled && card.contains(mouse) {
+                    Color::from_rgba(76, 89, 80, 255)
+                } else {
+                    Color::from_rgba(50, 54, 49, 255)
+                };
+                draw_rectangle(card.x, card.y, card.w, card.h, fill);
+                draw_rectangle_lines(card.x, card.y, card.w, card.h, 1.0, GRAY);
+                draw_text(
+                    data.name,
+                    card.x + 8.0,
+                    card.y + 20.0,
+                    15.0,
+                    if enabled || built { WHITE } else { LIGHTGRAY },
+                );
+                let cost = if data.genus == Genus::Convert {
+                    "Converts shields to gold".to_owned()
+                } else {
+                    format!("{} shields  /  ref. upkeep {}", data.cost, data.upkeep)
+                };
+                draw_text(&cost, card.x + 8.0, card.y + 38.0, 13.0, LIGHTGRAY);
+                let state = blocker.unwrap_or_else(|| {
+                    if current {
+                        "Current".into()
+                    } else {
+                        "Available".into()
+                    }
+                });
+                draw_text(&state, card.x + 8.0, card.y + 57.0, 12.0, LIGHTGRAY);
+                if enabled {
+                    actions.push((card, UiAction::Produce(target)));
+                }
+            }
+        } else {
+            for (choice_index, kind) in choices.into_iter().enumerate() {
+                let column = choice_index % columns;
+                let row = choice_index / columns;
+                let card = Rect::new(
+                    rect.x + 22.0 + column as f32 * (card_w + gap),
+                    rect.y + 139.0 + row as f32 * (card_h + gap),
+                    card_w,
+                    card_h,
+                );
+                let enabled = self.sim.unit_available(HUMAN, kind);
+                let current = city.production == Production::Unit(kind);
+                let hovered = enabled && card.contains(mouse);
+                let fill = if current {
+                    Color::from_rgba(101, 80, 39, 255)
+                } else if hovered {
+                    Color::from_rgba(76, 89, 80, 255)
+                } else if enabled {
+                    Color::from_rgba(55, 61, 56, 255)
+                } else {
+                    Color::from_rgba(43, 46, 43, 255)
+                };
+                draw_rectangle(card.x, card.y, card.w, card.h, fill);
+                draw_rectangle_lines(
+                    card.x,
+                    card.y,
+                    card.w,
+                    card.h,
+                    if current { 2.0 } else { 1.0 },
+                    if current {
+                        Color::from_rgba(236, 199, 97, 255)
+                    } else if enabled {
+                        Color::from_rgba(117, 124, 111, 255)
+                    } else {
+                        Color::from_rgba(65, 68, 63, 255)
+                    },
+                );
+                let (sprite_row, sprite_col) = unit_sprite(kind);
+                let stats = kind.stats();
+                draw_texture_ex(
+                    &assets.units,
+                    card.x + 6.0,
+                    card.y + 13.0,
+                    if enabled {
+                        WHITE
+                    } else {
+                        Color::new(0.38, 0.4, 0.4, 1.0)
+                    },
+                    DrawTextureParams {
+                        dest_size: Some(vec2(52.0, 39.0)),
+                        source: Some(Rect::new(
+                            1.0 + sprite_col as f32 * 65.0,
+                            1.0 + sprite_row as f32 * 49.0,
+                            64.0,
+                            48.0,
+                        )),
+                        ..Default::default()
+                    },
+                );
+                let name = short_unit_name(kind);
+                draw_text(
+                    name,
+                    card.x + 62.0,
+                    card.y + 26.0,
+                    16.0,
+                    if enabled {
+                        Color::from_rgba(239, 235, 216, 255)
+                    } else {
+                        Color::from_rgba(111, 114, 107, 255)
+                    },
+                );
+                draw_text(
+                    &format!("{} shields", stats.cost),
+                    card.x + 62.0,
+                    card.y + 47.0,
+                    13.0,
+                    if enabled {
+                        Color::from_rgba(176, 184, 171, 255)
+                    } else {
+                        Color::from_rgba(91, 94, 89, 255)
+                    },
+                );
+                if current {
+                    draw_text(
+                        "CURRENT",
+                        card.x + 7.0,
+                        card.y + card.h - 7.0,
+                        11.0,
+                        Color::from_rgba(247, 211, 112, 255),
+                    );
+                }
+                if enabled {
+                    actions.push((card, UiAction::Produce(Production::Unit(kind))));
+                }
             }
         }
 
@@ -614,7 +731,7 @@ impl Game {
         } else if let Some(index) = self.selected_city_index() {
             let city = &self.sim.cities()[index];
             let (food, shields, trade) = self.sim.city_yields(city);
-            let cost = city.production.stats().cost;
+            let cost = city.production.cost();
             draw_text(
                 &city.name,
                 x,
@@ -648,7 +765,7 @@ impl Game {
                 Color::from_rgba(229, 226, 209, 255),
             );
             draw_text(
-                &format!("Training: {}", city.production.name()),
+                &format!("Producing: {}", city.production.name()),
                 x,
                 y + 132.0,
                 18.0,
@@ -776,7 +893,7 @@ impl Game {
             ] {
                 entries.push((
                     format!("{} {}", short_unit_name(kind), kind.stats().cost),
-                    UiAction::Produce(kind),
+                    UiAction::Produce(Production::Unit(kind)),
                     self.sim.unit_available(HUMAN, kind),
                 ));
             }

@@ -2,7 +2,7 @@
 // Reference unlock labels come from the unit and building rulesets.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Tech(usize);
+pub(crate) struct Tech(pub(crate) usize);
 
 pub(crate) struct Advance {
     pub(crate) name: &'static str,

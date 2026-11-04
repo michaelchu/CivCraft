@@ -1,7 +1,7 @@
 use super::{
     BASE_TECH_COST, MIN_TECH_COST, PLAYER_COUNT, SCIENCEBOX_PERCENT, TECH_COST_PERCENT, percent_of,
 };
-use crate::rules::Tech;
+use crate::rules::{Building, Tech};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Terrain {
@@ -590,6 +590,43 @@ pub(crate) struct Unit {
     pub(crate) work_remaining: i32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Production {
+    Unit(UnitKind),
+    Building(Building),
+}
+
+impl Production {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Unit(kind) => kind.name(),
+            Self::Building(building) => building.data().name,
+        }
+    }
+
+    pub(crate) fn cost(self) -> i32 {
+        match self {
+            Self::Unit(kind) => kind.stats().cost,
+            Self::Building(building) => building.data().cost,
+        }
+    }
+
+    pub(super) fn class(self) -> u8 {
+        match self {
+            Self::Unit(_) => 0,
+            Self::Building(building)
+                if matches!(
+                    building.data().genus,
+                    crate::rules::Genus::SmallWonder | crate::rules::Genus::GreatWonder
+                ) =>
+            {
+                1
+            }
+            Self::Building(_) => 2,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct City {
     pub(crate) id: u32,
@@ -600,7 +637,9 @@ pub(crate) struct City {
     pub(crate) size: i32,
     pub(crate) food: i32,
     pub(crate) shields: i32,
-    pub(crate) production: UnitKind,
+    pub(crate) production: Production,
+    pub(super) production_before_switch: Option<(Production, i32)>,
+    pub(crate) buildings: Vec<Building>,
 }
 
 pub(crate) struct Player {

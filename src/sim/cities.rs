@@ -1,4 +1,5 @@
 use super::*;
+use crate::rules::Genus;
 
 impl Simulation {
     pub(super) fn claim_city_tiles(&mut self, city_x: i32, city_y: i32, owner: usize) {
@@ -92,6 +93,7 @@ impl Simulation {
         let name = self.city_name(owner);
         let id = self.next_city_id;
         self.next_city_id += 1;
+        let first_city = !self.cities.iter().any(|city| city.owner == owner);
         self.cities.push(City {
             id,
             owner,
@@ -101,7 +103,13 @@ impl Simulation {
             size: 1,
             food: 0,
             shields: 0,
-            production: UnitKind::Warrior,
+            production: Production::Unit(UnitKind::Warrior),
+            production_before_switch: None,
+            buildings: if first_city && owner != BARBARIANS {
+                vec![Building::PALACE]
+            } else {
+                Vec::new()
+            },
         });
         self.tile_mut(x, y).road = true;
         self.claim_city_tiles(x, y, owner);
@@ -128,7 +136,20 @@ impl Simulation {
         self.cities[city_index].size = (self.cities[city_index].size - 1).max(1);
         self.cities[city_index].food = 0;
         self.cities[city_index].shields = 0;
-        self.cities[city_index].production = UnitKind::Warrior;
+        self.cities[city_index].production_before_switch = None;
+        self.cities[city_index].production = Production::Unit(UnitKind::Warrior);
+        self.cities[city_index]
+            .buildings
+            .retain(|building| building.data().genus != Genus::SmallWonder);
+        if old_owner != BARBARIANS
+            && !self
+                .cities
+                .iter()
+                .any(|city| city.owner == old_owner && city.buildings.contains(&Building::PALACE))
+            && let Some(capital) = self.cities.iter_mut().find(|city| city.owner == old_owner)
+        {
+            capital.buildings.push(Building::PALACE);
+        }
         self.claim_city_tiles(x, y, unit.owner);
         if unit.owner == HUMAN || old_owner == HUMAN {
             self.add_event(format!(
@@ -211,14 +232,23 @@ impl Simulation {
         (hp_regen.max(minimum) + regeneration_after_minimum).clamp(0, base - unit.hp)
     }
 
-    pub(super) fn change_unit_production(&mut self, city_id: u32, kind: UnitKind) -> bool {
-        let Some(city) = self.cities.iter_mut().find(|city| city.id == city_id) else {
+    pub(super) fn change_production(&mut self, city_id: u32, target: Production) -> bool {
+        let Some(index) = self.cities.iter().position(|city| city.id == city_id) else {
             return false;
         };
-        // Native city_change_production_penalty keeps every shield when the
-        // old and new targets are both units. This focused build has no
-        // building production, so every exposed switch is in that class.
-        city.production = kind;
+        if !self.can_produce(&self.cities[index], target) {
+            return false;
+        }
+        let city = &mut self.cities[index];
+        let (original, shields) = *city
+            .production_before_switch
+            .get_or_insert((city.production, city.shields));
+        city.shields = if original.class() == target.class() {
+            shields
+        } else {
+            shields / 2
+        };
+        city.production = target;
         true
     }
 
@@ -269,11 +299,13 @@ impl Simulation {
                 continue;
             };
             let (food_income, shield_income, _) = self.city_yields(&snapshot);
+            let can_produce = self.can_produce(&snapshot, snapshot.production);
             let mut grew = false;
             let mut starved = false;
             let mut destroyed = false;
             let mut finished = None;
             if let Some(city) = self.cities.iter_mut().find(|c| c.id == city_id) {
+                city.production_before_switch = None;
                 city.food += food_income - city.size * CITIZEN_FOOD_COST;
                 if city.food >= Self::growth_box(city.size) {
                     city.food -= Self::growth_box(city.size);
@@ -292,13 +324,22 @@ impl Simulation {
                 }
                 if !destroyed {
                     city.shields += shield_income;
-                    let stats = city.production.stats();
-                    if city.shields >= stats.cost
-                        && (stats.pop_cost == 0 || city.size > stats.pop_cost)
-                    {
-                        city.shields -= stats.cost;
-                        city.size -= stats.pop_cost;
-                        finished = Some(city.production);
+                    if can_produce {
+                        let pop_cost = match city.production {
+                            Production::Unit(kind) => kind.stats().pop_cost,
+                            Production::Building(_) => 0,
+                        };
+                        let converts = matches!(city.production, Production::Building(building) if building.data().genus == Genus::Convert);
+                        let cost = if converts {
+                            city.shields
+                        } else {
+                            city.production.cost()
+                        };
+                        if city.shields >= cost && (pop_cost == 0 || city.size > pop_cost) {
+                            city.shields -= cost;
+                            city.size -= pop_cost;
+                            finished = Some((city.production, cost));
+                        }
                     }
                 }
             }
@@ -320,15 +361,22 @@ impl Simulation {
             if starved && snapshot.owner == HUMAN {
                 self.add_event(format!("{} lost population to famine.", snapshot.name));
             }
-            if let Some(kind) = finished {
-                self.spawn_unit(snapshot.owner, kind, snapshot.x, snapshot.y);
+            if let Some((target, shields)) = finished {
+                match target {
+                    Production::Unit(kind) => {
+                        self.spawn_unit(snapshot.owner, kind, snapshot.x, snapshot.y);
+                    }
+                    Production::Building(building) => {
+                        self.finish_building(city_id, snapshot.owner, building, shields)
+                    }
+                }
                 if snapshot.owner == HUMAN {
-                    self.add_event(format!("{} completed {}.", snapshot.name, kind.name()));
+                    self.add_event(format!("{} completed {}.", snapshot.name, target.name()));
                 }
                 if self.players[snapshot.owner].ai {
                     let next = self.choose_ai_production(snapshot.owner, city_id);
                     if let Some(city) = self.cities.iter_mut().find(|c| c.id == city_id) {
-                        city.production = next;
+                        city.production = Production::Unit(next);
                     }
                 }
             }

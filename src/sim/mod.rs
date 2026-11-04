@@ -1,4 +1,5 @@
 mod ai;
+mod buildings;
 mod cities;
 mod commands;
 mod movement;
@@ -9,7 +10,7 @@ mod model;
 pub(crate) mod topology;
 mod villages;
 
-use crate::rules::Tech;
+use crate::rules::{Building, Tech};
 pub(crate) use model::*;
 use std::collections::VecDeque;
 use topology::*;
@@ -49,6 +50,8 @@ pub(crate) struct Simulation {
     tiles: Vec<Tile>,
     units: Vec<Unit>,
     cities: Vec<City>,
+    completed_wonders: Vec<Building>,
+    spaceship_parts: [[usize; 3]; PLAYER_COUNT],
     players: Vec<Player>,
     turn: i32,
     year: i32,
@@ -220,6 +223,8 @@ impl Simulation {
             tiles,
             units,
             cities: Vec::new(),
+            completed_wonders: Vec::new(),
+            spaceship_parts: [[0; 3]; PLAYER_COUNT],
             players,
             turn: 1,
             year: -4000,
@@ -603,7 +608,9 @@ mod tests {
             size: 1,
             food: 0,
             shields: 0,
-            production: UnitKind::Warrior,
+            production: Production::Unit(UnitKind::Warrior),
+            production_before_switch: None,
+            buildings: Vec::new(),
         });
         assert_eq!(game.defense_power(&defender, x, y), 27);
 

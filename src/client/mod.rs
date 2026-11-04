@@ -10,7 +10,7 @@ mod research_tree;
 mod research_view;
 mod world;
 
-use crate::rules::Tech;
+use crate::rules::{Building, Genus, Requirement, Tech};
 use crate::sim::{topology::*, *};
 use macroquad::prelude::*;
 use research_tree::{NODE_SIZE, RESEARCH_AGES, ResearchTree};
@@ -36,7 +36,8 @@ pub(crate) enum UiAction {
     Fortify,
     Wait,
     Automate,
-    Produce(UnitKind),
+    Produce(Production),
+    ProductionPage(usize),
     OpenResearch,
     CloseResearch,
     CenterResearch,
@@ -50,6 +51,7 @@ pub(crate) struct Game {
     pub(crate) sim: Simulation,
     pub(crate) selected_unit: Option<u32>,
     selected_city: Option<u32>,
+    production_page: usize,
     camera: Vec2,
     zoom: f32,
     goto_mode: bool,
@@ -79,6 +81,7 @@ impl Game {
             sim,
             selected_unit,
             selected_city: None,
+            production_page: 0,
             camera: vec2(x as f32, y as f32),
             zoom: START_ZOOM,
             goto_mode: false,
@@ -98,6 +101,7 @@ impl Game {
     fn found_city(&mut self, id: u32) -> bool {
         if self.sim.apply(Command::FoundCity(id)) {
             self.selected_unit = None;
+            self.production_page = 0;
             self.selected_city = self.sim.cities().last().map(|city| city.id);
             true
         } else {

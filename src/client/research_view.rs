@@ -264,7 +264,17 @@ impl Game {
             Tech::SUPERCONDUCTORS => "City art: Postmodern",
             _ => "",
         };
-        let detail = if !unlocks.is_empty() {
+        let buildings = Building::all()
+            .filter_map(|building| {
+                let data = building.data();
+                data.requirements
+                    .contains(&(Requirement::Tech(tech.0), true))
+                    .then_some(data.name)
+            })
+            .collect::<Vec<_>>();
+        let detail = if !buildings.is_empty() {
+            format!("City production: {}", buildings.join(", "))
+        } else if !unlocks.is_empty() {
             unlocks.to_owned()
         } else if let Some(data) = tech
             .data()

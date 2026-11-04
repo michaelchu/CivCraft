@@ -65,6 +65,7 @@ impl Game {
                     self.sim.apply(Command::Produce(id, kind));
                 }
             }
+            UiAction::ProductionPage(page) => self.production_page = page,
             UiAction::OpenResearch => {
                 self.research_open = true;
                 self.research_drag = None;
@@ -391,6 +392,7 @@ impl Game {
             .iter()
             .find(|city| city.owner == HUMAN && city.x == x && city.y == y)
         {
+            self.production_page = 0;
             self.selected_city = Some(city.id);
             self.selected_unit = None;
             return;
