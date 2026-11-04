@@ -1,6 +1,8 @@
 mod research;
+mod research_tree;
 
 use research::Tech;
+use research_tree::{NODE_SIZE, RESEARCH_AGES, ResearchTree};
 use macroquad::prelude::*;
 use std::collections::VecDeque;
 use std::env;
@@ -716,7 +718,10 @@ enum UiAction {
     Produce(UnitKind),
     OpenResearch,
     CloseResearch,
-    ResearchPage(usize),
+    CenterResearch,
+    FitResearch,
+    ResearchAge(usize),
+    InspectResearch(Tech),
     ResearchGoal(Tech),
 }
 
@@ -743,7 +748,13 @@ struct Game {
     rng: u64,
     events: Vec<String>,
     goto_mode: bool,
-    research_page: Option<usize>,
+    research_open: bool,
+    research_age: usize,
+    research_inspected: Option<Tech>,
+    research_tree: ResearchTree,
+    research_center: Vec2,
+    research_zoom: f32,
+    research_drag: Option<Vec2>,
     game_over: Option<String>,
     hud_elements_drawn: usize,
     dragging: bool,
@@ -1041,7 +1052,13 @@ impl Game {
                 "Explore, research, grow, and unite the world.".to_owned(),
             ],
             goto_mode: false,
-            research_page: None,
+            research_open: false,
+            research_age: 0,
+            research_inspected: None,
+            research_tree: ResearchTree::new(),
+            research_center: Vec2::ZERO,
+            research_zoom: 1.0,
+            research_drag: None,
             game_over: None,
             hud_elements_drawn: 0,
             dragging: false,
@@ -2329,10 +2346,26 @@ impl Game {
                     }
                 }
             }
-            UiAction::OpenResearch => self.research_page = Some(0),
-            UiAction::CloseResearch => self.research_page = None,
-            UiAction::ResearchPage(page) => self.research_page = Some(page),
+            UiAction::OpenResearch => {
+                self.research_open = true;
+                self.research_drag = None;
+                self.dragging = false;
+                self.center_research();
+            }
+            UiAction::CloseResearch => self.research_open = false,
+            UiAction::CenterResearch => self.center_research(),
+            UiAction::FitResearch => self.fit_research(),
+            UiAction::ResearchAge(age) => {
+                self.research_age = age;
+                self.research_inspected = None;
+                self.fit_research();
+            }
+            UiAction::InspectResearch(tech) => {
+                self.research_inspected = Some(tech);
+                self.focus_research(tech);
+            }
             UiAction::ResearchGoal(goal) => {
+                self.research_inspected = Some(goal);
                 if self.has_tech(HUMAN, goal) {
                     return;
                 }
@@ -2348,9 +2381,9 @@ impl Game {
     }
 
     fn handle_keyboard(&mut self) {
-        if self.research_page.is_some() {
+        if self.research_open {
             if is_key_pressed(KeyCode::Escape) {
-                self.research_page = None;
+                self.research_open = false;
             }
             return;
         }
@@ -2559,13 +2592,8 @@ impl Game {
     }
 
     fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
-        if self.research_page.is_some() {
-            if is_mouse_button_pressed(MouseButton::Left) {
-                let (x, y) = mouse_position();
-                if let Some((_, action)) = buttons.iter().find(|(rect, _)| rect.contains(vec2(x, y))) {
-                    self.perform_action(*action);
-                }
-            }
+        if self.research_open {
+            self.handle_research_mouse(buttons);
             return;
         }
         let (_, wheel) = mouse_wheel();
@@ -3005,7 +3033,18 @@ impl Game {
     }
 
     fn draw_city(&self, assets: &Assets, city: &City, center: Vec2) {
-        let col = (city.id as usize + city.owner * 2) % 11;
+        let style = [
+            (Tech::SUPERCONDUCTORS, 9),
+            (Tech::ROCKETRY, 8),
+            (Tech::AUTOMOBILE, 7),
+            (Tech::RAILROAD, 6),
+        ].into_iter().find(|&(tech, _)| self.has_tech(city.owner, tech));
+        let (row, col) = if let Some((_, row)) = style {
+            let size_band = [5, 9, 13, 17].into_iter().filter(|&size| city.size >= size).count();
+            (row, size_band)
+        } else {
+            (2, (city.id as usize + city.owner * 2) % 11)
+        };
         let city_w = 69.0 * self.zoom;
         let city_h = 52.0 * self.zoom;
         draw_texture_ex(
@@ -3017,7 +3056,7 @@ impl Game {
                 dest_size: Some(vec2(city_w, city_h)),
                 source: Some(Rect::new(
                     1.0 + col as f32 * 97.0,
-                    1.0 + 2.0 * 73.0,
+                    1.0 + row as f32 * 73.0,
                     96.0,
                     72.0,
                 )),
@@ -3120,8 +3159,8 @@ impl Game {
     fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         clear_background(Color::from_rgba(7, 20, 31, 255));
         self.hud_elements_drawn = 0;
-        if let Some(page) = self.research_page {
-            return self.draw_research(page);
+        if self.research_open {
+            return self.draw_research();
         }
         self.draw_world(assets);
         let mut actions = self.draw_hud();
@@ -3185,97 +3224,233 @@ impl Game {
         actions
     }
 
-    fn draw_research(&self, page: usize) -> Vec<(Rect, UiAction)> {
-        let player = &self.players[HUMAN];
-        let advances: Vec<_> = Tech::all().chain(std::iter::once(Tech::FUTURE)).collect();
-        let rows = (((screen_height() - 192.0) / 55.0).floor() as usize).max(1);
-        let columns = if screen_width() >= 900.0 { 2 } else { 1 };
-        let page_size = rows * columns;
-        let pages = advances.len().div_ceil(page_size);
-        let page = page.min(pages - 1);
-        let width = (screen_width() - 48.0) / columns as f32;
-        let mut actions = Vec::new();
+    fn research_viewport() -> Rect {
+        Rect::new(0.0, 141.0, screen_width(), (screen_height() - 232.0).max(1.0))
+    }
 
-        draw_text("Research tree", 24.0, 40.0, 34.0, WHITE);
-        let close = Rect::new(screen_width() - 144.0, 16.0, 120.0, 34.0);
-        draw_ui_button(close, "Close [Esc]", true, false);
-        actions.push((close, UiAction::CloseResearch));
+    fn center_research(&mut self) {
+        self.research_inspected = None;
+        self.focus_research(self.players[HUMAN].research_goal);
+    }
 
-        let current = player.researching;
-        let path = self.research_path(HUMAN, player.research_goal);
-        let remaining = path.iter().filter(|&&tech| tech != Tech::FUTURE).count();
-        draw_text(
-            &format!("Researching {}  {}/{}   |   Goal: {}   |   {} advances remaining",
-                current.name(), player.research, self.target_cost(HUMAN, current),
-                player.research_goal.name(), remaining),
-            24.0, 72.0, 19.0, SKYBLUE,
-        );
-        draw_text("Select an advance to pursue its prerequisites. Switching the current target resets progress.",
-            24.0, 100.0, 17.0, LIGHTGRAY);
+    fn focus_research(&mut self, tech: Tech) {
+        self.research_center = self.research_tree.center(tech);
+        self.research_age = self.research_tree.age(self.research_center);
+        self.research_zoom = 1.0;
+        self.clamp_research_center();
+    }
 
-        let remaining_path = path.iter().map(|tech| tech.name()).collect::<Vec<_>>().join(" > ");
-        let path_label = if remaining_path.is_empty() {
-            "Goal complete. Choose another advance.".to_owned()
+    fn fit_research(&mut self) {
+        let viewport = Self::research_viewport();
+        let bounds = self.research_tree.bounds(self.research_age);
+        self.research_center = bounds.center();
+        self.research_zoom = (viewport.w / (bounds.w + 40.0))
+            .min(viewport.h / (bounds.h + 40.0)).min(1.0);
+    }
+
+    fn clamp_research_center(&mut self) {
+        let viewport = Self::research_viewport();
+        let bounds = self.research_tree.bounds(self.research_age);
+        let padding = vec2(20.0, 20.0);
+        let size = vec2(bounds.w, bounds.h) + padding * 2.0;
+        let margin = (vec2(viewport.w, viewport.h) / (2.0 * self.research_zoom))
+            .min(size * 0.5);
+        let start = vec2(bounds.x, bounds.y) - padding;
+        self.research_center = self.research_center.clamp(start + margin, start + size - margin);
+    }
+
+    fn handle_research_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
+        let (x, y) = mouse_position();
+        let mouse = vec2(x, y);
+        let viewport = Self::research_viewport();
+        let panning = is_mouse_button_down(MouseButton::Middle)
+            || is_mouse_button_down(MouseButton::Right);
+        if panning {
+            if let Some(previous) = self.research_drag {
+                self.research_center -= (mouse - previous) / self.research_zoom;
+            } else if !viewport.contains(mouse) {
+                return;
+            }
+            self.research_drag = Some(mouse);
         } else {
-            format!("Research path: {remaining_path}")
-        };
-        draw_text(
-            &clip_text(&path_label, ((screen_width() - 48.0) / 8.0) as usize),
-            24.0, 123.0, 16.0, LIGHTGRAY,
-        );
+            self.research_drag = None;
+            let (_, wheel) = mouse_wheel();
+            if viewport.contains(mouse) && wheel != 0.0 {
+                let old_zoom = self.research_zoom;
+                self.research_zoom = (old_zoom * 1.15_f32.powf(wheel)).clamp(0.02, 1.7);
+                self.research_center += (mouse - viewport.center())
+                    * (1.0 / old_zoom - 1.0 / self.research_zoom);
+            } else if is_mouse_button_pressed(MouseButton::Left) {
+                if let Some((_, action)) = buttons.iter().find(|(rect, _)| rect.contains(mouse)) {
+                    self.perform_action(*action);
+                }
+            }
+        }
+        self.clamp_research_center();
+    }
 
-        for (index, &tech) in advances.iter().skip(page * page_size).take(page_size).enumerate() {
-            let x = 24.0 + (index / rows) as f32 * width;
-            let y = 136.0 + (index % rows) as f32 * 55.0;
-            let card = Rect::new(x, y, width - 8.0, 51.0);
-            let known = self.has_tech(HUMAN, tech);
-            let status = if known { "Known" } else if tech == current { "Researching" }
-                else if self.tech_available(HUMAN, tech) { "Available" } else { "Locked" };
-            let (mx, my) = mouse_position();
-            let fill = if tech == player.research_goal { Color::from_rgba(65, 57, 36, 255) }
-                else if !known && card.contains(vec2(mx, my)) { Color::from_rgba(49, 67, 76, 255) }
-                else { Color::from_rgba(27, 45, 55, 255) };
-            draw_rectangle(card.x, card.y, card.w, card.h, fill);
-            draw_text(&format!("{}  ·  {}  ·  {} bulbs", tech.name(), status,
-                self.target_cost(HUMAN, tech)), x + 8.0, y + 17.0, 17.0, WHITE);
-            let reqs = tech.prerequisites().iter().map(|req| req.name()).collect::<Vec<_>>();
-            let requirement = if tech == Tech::FUTURE { "Requires every named advance".to_owned() }
-                else if reqs.is_empty() { "No prerequisites".to_owned() }
-                else { format!("Requires {}", reqs.join(" + ")) };
-            draw_text(&requirement, x + 8.0, y + 33.0, 15.0, LIGHTGRAY);
-            let unlocks = match tech {
-                Tech::ALPHABET => "In CivCraft: Diplomat",
-                Tech::BRONZE_WORKING => "In CivCraft: Phalanx",
-                Tech::WARRIOR_CODE => "In CivCraft: Archers",
-                Tech::IRON_WORKING => "In CivCraft: Legion",
-                Tech::HORSEBACK_RIDING => "In CivCraft: Horsemen",
-                Tech::THE_WHEEL => "In CivCraft: Chariot",
-                Tech::MATHEMATICS => "In CivCraft: Catapult",
-                _ => "",
+    fn draw_research(&self) -> Vec<(Rect, UiAction)> {
+        let player = &self.players[HUMAN];
+        let goal = player.research_goal;
+        let current = player.researching;
+        let ancestors = self.research_tree.ancestors(goal);
+        let viewport = Self::research_viewport();
+        let in_age = |position: Vec2| self.research_tree.age(position) == self.research_age;
+        let zoom = self.research_zoom;
+        let project = |point: Vec2| viewport.center() + (point - self.research_center) * zoom;
+        let (mx, my) = mouse_position();
+        let mouse = vec2(mx, my);
+        let background = Color::from_rgba(7, 20, 31, 255);
+        let gold = Color::from_rgba(245, 193, 87, 255);
+        let muted_gold = Color::from_rgba(152, 124, 71, 255);
+        let mut actions = Vec::new();
+        let mut hovered = None;
+
+        // Draw the selected branch over unrelated links so it stays visible
+        // wherever the routes cross.
+        for highlighted in [false, true] {
+            for edge in &self.research_tree.edges {
+                if ancestors.contains(&edge.to) != highlighted
+                    || !in_age(self.research_tree.center(edge.from))
+                    || !in_age(self.research_tree.center(edge.to))
+                {
+                    continue;
+                }
+                let color = if !highlighted {
+                    Color::from_rgba(61, 84, 99, 255)
+                } else if self.has_tech(HUMAN, edge.from) {
+                    muted_gold
+                } else {
+                    gold
+                };
+                let thickness = if highlighted { 2.5 } else { 1.0 };
+                for pair in edge.points.windows(2) {
+                    let a = project(pair[0]);
+                    let b = project(pair[1]);
+                    draw_line(a.x, a.y, b.x, b.y, thickness, color);
+                }
+            }
+        }
+
+        for &(tech, position) in &self.research_tree.nodes {
+            if !in_age(position) {
+                continue;
+            }
+            let center = project(position);
+            let size = NODE_SIZE * zoom;
+            let card = Rect::new(center.x - size.x / 2.0, center.y - size.y / 2.0, size.x, size.y);
+            let Some(hitbox) = card.intersect(viewport) else {
+                continue;
             };
-            let label = if !unlocks.is_empty() { unlocks.to_owned() }
-                else if let Some(data) = tech.data().filter(|data| !data.reference_unlocks.is_empty()) {
-                    format!("Reference only: {}", data.reference_unlocks)
-                } else { String::new() };
-            draw_text(&clip_text(&label, ((width - 20.0) / 7.0) as usize),
-                x + 8.0, y + 47.0, 14.0, SKYBLUE);
-            if !known {
-                actions.push((card, UiAction::ResearchGoal(tech)));
+            let known = self.has_tech(HUMAN, tech);
+            let available = self.tech_available(HUMAN, tech);
+            let on_path = ancestors.contains(&tech);
+            let hover = hitbox.contains(mouse);
+            let status = if known { "Known" } else if tech == current { "Researching" }
+                else if available { "Available" } else { "Locked" };
+            let fill = if tech == goal { Color::from_rgba(91, 66, 28, 255) }
+                else if hover { Color::from_rgba(57, 78, 92, 255) }
+                else if known { Color::from_rgba(32, 61, 48, 255) }
+                else if tech == current { Color::from_rgba(28, 66, 84, 255) }
+                else if available { Color::from_rgba(31, 51, 66, 255) }
+                else { Color::from_rgba(21, 35, 46, 255) };
+            let outline = if on_path { gold } else if tech == current { SKYBLUE } else { fill };
+            draw_rectangle(card.x, card.y, card.w, card.h, fill);
+            if on_path || tech == current {
+                draw_rectangle_lines(card.x, card.y, card.w, card.h, 2.0 * zoom, outline);
             }
+            if zoom >= 0.5 {
+                draw_text(tech.name(), card.x + 8.0 * zoom, card.y + 22.0 * zoom,
+                    17.0 * zoom, WHITE);
+                draw_text(&format!("{status} · {} bulbs", self.target_cost(HUMAN, tech)),
+                    card.x + 8.0 * zoom, card.y + 43.0 * zoom, 15.0 * zoom, LIGHTGRAY);
+            }
+            if hover {
+                hovered = Some(tech);
+            }
+            actions.push((hitbox, UiAction::ResearchGoal(tech)));
         }
 
-        let y = screen_height() - 42.0;
-        for (x, label, target, enabled) in [
-            (24.0, "Previous", page.saturating_sub(1), page > 0),
-            (236.0, "Next", page + 1, page + 1 < pages),
+        // Paint the fixed controls over the graph and keep hitboxes within the viewport.
+        draw_rectangle(0.0, 0.0, screen_width(), viewport.y, background);
+        draw_rectangle(0.0, viewport.bottom(), screen_width(), 91.0, background);
+        draw_text("Research tree", 24.0, 38.0, 32.0, WHITE);
+        for (offset, width, label, action) in [
+            (308.0, 84.0, "Fit tree", UiAction::FitResearch),
+            (214.0, 86.0, "Find goal", UiAction::CenterResearch),
+            (120.0, 100.0, "Close [Esc]", UiAction::CloseResearch),
         ] {
-            let button = Rect::new(x, y, 92.0, 30.0);
-            draw_ui_button(button, label, enabled, false);
-            if enabled {
-                actions.push((button, UiAction::ResearchPage(target)));
-            }
+            let button = Rect::new(screen_width() - offset, 15.0, width, 30.0);
+            draw_ui_button(button, label, true, false);
+            actions.push((button, action));
         }
-        draw_text(&format!("Page {} / {}", page + 1, pages), 133.0, y + 21.0, 18.0, WHITE);
+        draw_text(
+            &format!("Researching {}  {}/{}   |   Goal: {}",
+                current.name(), player.research, self.target_cost(HUMAN, current), goal.name()),
+            24.0, 68.0, 19.0, SKYBLUE,
+        );
+        draw_text("Click a goal · Right or middle drag to pan · Scroll to zoom · Gold shows the goal branch",
+            24.0, 93.0, 16.0, LIGHTGRAY);
+
+        let tabs = std::iter::once("Early").chain(
+            RESEARCH_AGES.iter().map(|&(name, _)| name),
+        );
+        let tab_width = ((screen_width() - 48.0) / (RESEARCH_AGES.len() + 1) as f32).min(142.0);
+        for (age, name) in tabs.enumerate() {
+            let button = Rect::new(24.0 + age as f32 * tab_width, 105.0, tab_width - 4.0, 29.0);
+            draw_ui_button(button, name, true, self.research_age == age);
+            actions.push((button, UiAction::ResearchAge(age)));
+        }
+
+        let inspected = self.research_inspected.unwrap_or(goal);
+        let tech = hovered.unwrap_or(inspected);
+        let requirements = if tech == Tech::FUTURE {
+            "Requires all 87 named advances".to_owned()
+        } else if tech.prerequisites().is_empty() {
+            "No prerequisites".to_owned()
+        } else {
+            let names: Vec<_> = tech.prerequisites().iter().map(|req| req.name()).collect();
+            format!("Requires {}", names.join(" + "))
+        };
+        let y = viewport.bottom();
+        draw_text(&format!("{}  ·  {requirements}", tech.name()), 24.0, y + 23.0, 18.0, WHITE);
+        let unlocks = match tech {
+            Tech::ALPHABET => "In CivCraft: Diplomat",
+            Tech::BRONZE_WORKING => "In CivCraft: Phalanx",
+            Tech::WARRIOR_CODE => "In CivCraft: Archers",
+            Tech::IRON_WORKING => "In CivCraft: Legion",
+            Tech::HORSEBACK_RIDING => "In CivCraft: Horsemen",
+            Tech::THE_WHEEL => "In CivCraft: Chariot",
+            Tech::MATHEMATICS => "In CivCraft: Catapult",
+            Tech::RAILROAD => "City art: Industrial",
+            Tech::AUTOMOBILE => "City art: Electric Age",
+            Tech::ROCKETRY => "City art: Modern",
+            Tech::SUPERCONDUCTORS => "City art: Postmodern",
+            _ => "",
+        };
+        let detail = if !unlocks.is_empty() {
+            unlocks.to_owned()
+        } else if let Some(data) = tech.data().filter(|data| !data.reference_unlocks.is_empty()) {
+            format!("Reference only: {}", data.reference_unlocks)
+        } else {
+            "Choosing a goal that changes the current target resets research progress.".to_owned()
+        };
+        draw_text(&clip_text(&detail, ((screen_width() - 48.0) / 8.0) as usize),
+            24.0, y + 45.0, 16.0, SKYBLUE);
+        let mut x = 24.0;
+        for &req in inspected.prerequisites() {
+            if in_age(self.research_tree.center(req)) {
+                continue;
+            }
+            let age = self.research_tree.age(self.research_tree.center(req));
+            let age_name = if age == 0 { "Early" } else { RESEARCH_AGES[age - 1].0 };
+            let label = format!("{} ({})", req.name(), age_name);
+            let width = measure_text(&label, None, 15, 1.0).width + 22.0;
+            let button = Rect::new(x, y + 53.0, width, 29.0);
+            draw_ui_button(button, &label, true, false);
+            actions.push((button, UiAction::InspectResearch(req)));
+            x += width + 8.0;
+        }
         actions
     }
 

@@ -24,7 +24,7 @@ The right side of the screen holds the world overview, objective, research, sele
 
 ## Research
 
-Each advance shows its prerequisites, research cost, and status. Selecting a new goal only discards accumulated research if it changes the current target. Philosophy gives a free advance to the first civilization to discover it. After the named advances are complete, research continues with repeatable Future Tech.
+Lines connect each advance to its prerequisites, and gold highlights the branch leading to your goal. Right or middle drag to pan, scroll to zoom, and use **Fit tree** for an overview or **Find goal** to return to your goal. Hover an advance to see its prerequisites and unlocks. Selecting a new goal only discards accumulated research if it changes the current target. Philosophy gives a free advance to the first civilization to discover it. After the named advances are complete, research continues with repeatable Future Tech.
 
 The research screen distinguishes units that CivCraft can produce from unit and building unlocks in the reference. The Wheel unlocks Chariots and Mathematics unlocks Catapults. Later advances can be researched while their associated game systems are still under development.
 
