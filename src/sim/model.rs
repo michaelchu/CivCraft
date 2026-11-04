@@ -1,5 +1,5 @@
 use super::{
-    BASE_TECH_COST, MIN_TECH_COST, PLAYER_COUNT, SCIENCEBOX_PERCENT, TECH_COST_PERCENT, percent_of,
+    BASE_TECH_COST, MIN_TECH_COST, PLAYER_SLOTS, SCIENCEBOX_PERCENT, TECH_COST_PERCENT, percent_of,
 };
 use crate::rules::{Building, Tech};
 
@@ -197,7 +197,7 @@ pub(crate) struct Tile {
     pub(crate) owner: Option<usize>,
     pub(crate) seen: bool,
     pub(crate) visible: bool,
-    pub(crate) known_by: [bool; PLAYER_COUNT],
+    pub(crate) known_by: [bool; PLAYER_SLOTS],
 }
 
 impl Tile {
@@ -644,6 +644,7 @@ pub(crate) struct City {
     pub(crate) name: String,
     pub(crate) size: i32,
     pub(crate) specialists: [i32; 3],
+    pub(super) was_happy: bool,
     pub(crate) food: i32,
     pub(crate) shields: i32,
     pub(crate) production: Production,

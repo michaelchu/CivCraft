@@ -1,7 +1,9 @@
 mod ai;
 mod buildings;
 mod cities;
+mod civil_war;
 mod commands;
+mod diplomacy;
 mod economy;
 mod government;
 pub(crate) use government::Government;
@@ -21,6 +23,7 @@ use topology::*;
 
 pub(crate) const PLAYER_COUNT: usize = 6;
 pub(crate) const HUMAN: usize = 0;
+pub(crate) const PLAYER_SLOTS: usize = 512;
 pub(crate) const BARBARIANS: usize = PLAYER_COUNT;
 const PERCENT_SCALE: i32 = 100;
 const CITY_MIN_DISTANCE: i32 = 3;
@@ -55,7 +58,9 @@ pub(crate) struct Simulation {
     units: Vec<Unit>,
     cities: Vec<City>,
     completed_wonders: Vec<Building>,
-    spaceship_parts: [[usize; 3]; PLAYER_COUNT],
+    spaceship_parts: Vec<[usize; 3]>,
+    diplomacy: std::collections::BTreeMap<(usize, usize), diplomacy::Relation>,
+    apollo_completed: bool,
     players: Vec<Player>,
     government_adoptions: [i32; 9],
     turn: i32,
@@ -239,7 +244,9 @@ impl Simulation {
             units,
             cities: Vec::new(),
             completed_wonders: Vec::new(),
-            spaceship_parts: [[0; 3]; PLAYER_COUNT],
+            spaceship_parts: vec![[0; 3]; players.len()],
+            diplomacy: Default::default(),
+            apollo_completed: false,
             players,
             government_adoptions: [0; 9],
             turn: 1,
@@ -340,6 +347,7 @@ impl Simulation {
                 }
             }
         }
+        self.remember_visible_rivals();
     }
 
     pub(crate) fn map_distance(&self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
@@ -406,7 +414,10 @@ impl Simulation {
         for id in automated {
             self.run_automated_unit(id);
         }
-        for owner in 1..PLAYER_COUNT {
+        for owner in 1..self.players.len() {
+            if owner == BARBARIANS {
+                continue;
+            }
             let upgrade = match self.players[owner].government {
                 Government::Tribal => Some(Government::Republic),
                 Government::Despotism => Some(Government::Monarchy),
@@ -422,6 +433,7 @@ impl Simulation {
         self.process_cities();
         self.update_activities_and_restore();
         self.turn += 1;
+        self.advance_diplomacy();
         self.finish_revolutions();
         self.advance_calendar();
         self.refresh_visibility();
@@ -680,6 +692,7 @@ mod tests {
             production_before_switch: None,
             buildings: Vec::new(),
             specialists: [0; 3],
+            was_happy: false,
         });
         assert_eq!(game.defense_power(&defender, x, y), 27);
 

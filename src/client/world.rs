@@ -308,7 +308,7 @@ impl Game {
             vec2(center.x - tile_w * 0.5, center.y),
         ];
         let edge_neighbors = [(0, -1), (1, 0), (0, 1), (-1, 0)];
-        let color = with_alpha(PLAYER_COLORS[owner], if visible { 0.82 } else { 0.42 });
+        let color = with_alpha(player_color(owner), if visible { 0.82 } else { 0.42 });
 
         for (edge, (dx, dy)) in edge_neighbors.into_iter().enumerate() {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
@@ -477,7 +477,7 @@ impl Game {
             label_y - 13.0,
             3.0,
             17.0,
-            PLAYER_COLORS[city.owner],
+            player_color(city.owner),
         );
         draw_text(
             &label,
@@ -534,7 +534,7 @@ impl Game {
             center.x - 21.0 * self.zoom,
             center.y - 25.0 * self.zoom,
             (5.0 * self.zoom).max(3.2),
-            PLAYER_COLORS[unit.owner],
+            player_color(unit.owner),
         );
         if stack_count > 1 {
             draw_circle(

@@ -96,7 +96,7 @@ impl Simulation {
         let landing = self
             .cities
             .iter()
-            .filter(|city| city.owner != boat.owner)
+            .filter(|city| self.at_war(city.owner, boat.owner))
             .flat_map(|city| {
                 ISOHEX_DIRS
                     .into_iter()
@@ -264,7 +264,7 @@ impl Simulation {
                     if let Some(target) = self
                         .cities
                         .iter()
-                        .filter(|c| c.owner != owner)
+                        .filter(|c| self.at_war(c.owner, owner))
                         .min_by_key(|c| self.map_distance(unit.x, unit.y, c.x, c.y))
                         .cloned()
                     {

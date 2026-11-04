@@ -92,3 +92,86 @@ impl Game {
         actions
     }
 }
+
+impl Game {
+    pub(super) fn draw_diplomacy(&self) -> Vec<(Rect, UiAction)> {
+        let width = (screen_width() - 24.0).min(580.0);
+        let panel = Rect::new(
+            (screen_width() - width) / 2.0,
+            (screen_height() - 360.0) / 2.0,
+            width,
+            360.0,
+        );
+        draw_rectangle(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            Color::from_rgba(42, 44, 40, 255),
+        );
+        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 2.0, GOLD);
+        draw_text("Diplomacy", panel.x + 18.0, panel.y + 31.0, 24.0, WHITE);
+        let close = Rect::new(panel.right() - 45.0, panel.y + 12.0, 32.0, 26.0);
+        draw_ui_button(close, "X", true, false);
+        let mut actions = vec![(close, UiAction::ToggleDiplomacy)];
+        let rivals: Vec<_> = (1..self.sim.players().len())
+            .filter(|&owner| self.sim.can_negotiate(owner))
+            .collect();
+        let page = self.diplomacy_page.min(rivals.len().saturating_sub(1) / 7);
+        for (row, &owner) in rivals.iter().skip(page * 7).take(7).enumerate() {
+            let y = panel.y + 53.0 + row as f32 * 37.0;
+            let remaining = self.sim.ceasefire_turns(HUMAN, owner);
+            let (status, label, action) = if remaining > 0 {
+                let blocked = self.sim.senate_blocks_cancellation(HUMAN, owner);
+                let status = if blocked {
+                    format!("Ceasefire ({remaining}) · Senate veto")
+                } else {
+                    format!("Ceasefire ({remaining})")
+                };
+                (status, "Cancel ceasefire", UiAction::CancelCeasefire(owner))
+            } else {
+                (
+                    "At war".to_owned(),
+                    "Propose ceasefire",
+                    UiAction::Ceasefire(owner),
+                )
+            };
+            draw_text(
+                self.sim.players()[owner].name,
+                panel.x + 18.0,
+                y + 14.0,
+                17.0,
+                WHITE,
+            );
+            draw_text(&status, panel.x + 18.0, y + 30.0, 14.0, LIGHTGRAY);
+            let button = Rect::new(panel.right() - 165.0, y, 147.0, 30.0);
+            draw_ui_button(button, label, true, false);
+            actions.push((button, action));
+        }
+        if rivals.is_empty() {
+            draw_text(
+                "Meet a rival civilization to negotiate.",
+                panel.x + 18.0,
+                panel.y + 76.0,
+                17.0,
+                LIGHTGRAY,
+            );
+        }
+        for (enabled, x, label, target) in [
+            (page > 0, panel.x + 18.0, "Previous", page.saturating_sub(1)),
+            (
+                (page + 1) * 7 < rivals.len(),
+                panel.right() - 95.0,
+                "Next",
+                page + 1,
+            ),
+        ] {
+            if enabled {
+                let button = Rect::new(x, panel.bottom() - 36.0, 77.0, 25.0);
+                draw_ui_button(button, label, true, false);
+                actions.push((button, UiAction::DiplomacyPage(target)));
+            }
+        }
+        actions
+    }
+}

@@ -160,7 +160,7 @@ impl Assets {
     }
 }
 
-pub(super) const PLAYER_COLORS: [Color; PLAYER_COUNT + 1] = [
+const PLAYER_COLORS: [Color; PLAYER_COUNT + 1] = [
     Color::from_rgba(236, 61, 58, 255),
     Color::from_rgba(245, 213, 55, 255),
     Color::from_rgba(56, 207, 226, 255),
@@ -169,6 +169,14 @@ pub(super) const PLAYER_COLORS: [Color; PLAYER_COUNT + 1] = [
     Color::from_rgba(225, 77, 171, 255),
     Color::from_rgba(179, 187, 191, 255),
 ];
+
+pub(super) fn player_color(owner: usize) -> Color {
+    const REBEL_COLORS: [Color; 5] = [GREEN, BLUE, VIOLET, PINK, LIME];
+    PLAYER_COLORS
+        .get(owner)
+        .copied()
+        .unwrap_or_else(|| REBEL_COLORS[(owner - PLAYER_COLORS.len()) % REBEL_COLORS.len()])
+}
 
 impl Terrain {
     pub(super) fn sprite_row(self) -> Option<i32> {

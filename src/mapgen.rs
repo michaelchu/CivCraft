@@ -1,4 +1,4 @@
-use crate::sim::{PLAYER_COUNT, Resource, Terrain, Tile, topology::*};
+use crate::sim::{PLAYER_COUNT, PLAYER_SLOTS, Resource, Terrain, Tile, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
 const TILE_COUNT: usize = (MAP_W * MAP_H) as usize;
@@ -860,7 +860,7 @@ pub(crate) fn generate(seed: u64) -> GeneratedMap {
                 owner: None,
                 seen: false,
                 visible: false,
-                known_by: [false; PLAYER_COUNT],
+                known_by: [false; PLAYER_SLOTS],
             })
             .collect();
         let river_heights: Vec<_> = (0..TILE_COUNT)

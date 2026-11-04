@@ -286,6 +286,70 @@ async fn main() {
             ));
         }
 
+        if self_test_path.is_some() && frame == 98 && act_passed {
+            game.selected_unit = game.sim.civil_war_playtest();
+            act_passed = game.selected_unit.is_some();
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::ToggleDiplomacy))
+            {
+                game.perform_action(*action);
+            }
+        }
+        if self_test_path.is_some() && frame == 101 && act_passed {
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::Ceasefire(1)))
+            {
+                game.perform_action(*action);
+            }
+            act_passed = game.sim.ceasefire_turns(HUMAN, 1) == 16;
+        }
+        if self_test_path.is_some() && frame == 105 && act_passed {
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::CancelCeasefire(1)))
+            {
+                game.perform_action(*action);
+            }
+            act_passed = game.sim.ceasefire_turns(HUMAN, 1) == 16
+                && !game
+                    .sim
+                    .apply(Command::Move(game.selected_unit.unwrap(), 1, 0));
+            act_detail.push_str(&format!(
+                " Senate veto preserved the ceasefire and blocked the attack: {act_passed}."
+            ));
+        }
+        if self_test_path.is_some() && frame == 115 && act_passed {
+            game.sim.apply(Command::Government(sim::Government::Tribal));
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::CancelCeasefire(1)))
+            {
+                game.perform_action(*action);
+            }
+            game.perform_action(UiAction::ToggleDiplomacy);
+            let rebel = game.sim.players().len();
+            let moved = game
+                .sim
+                .apply(Command::Move(game.selected_unit.unwrap(), 1, 0));
+            let cities = game
+                .sim
+                .cities()
+                .iter()
+                .filter(|city| city.owner == rebel)
+                .count();
+            act_passed = moved
+                && cities == 4
+                && game.sim.players()[1].government == sim::Government::Anarchy;
+            if act_passed {
+                game.sim.apply(Command::EndTurn);
+                act_passed = game.sim.players()[1].government == sim::Government::Tribal
+                    && game.sim.cities().iter().any(|city| city.owner == rebel);
+            }
+            act_detail.push_str(&format!(" Revolution lifted the veto and capital capture split off {cities} rebel cities: {act_passed}."));
+        }
+
         buttons = game.draw(&assets);
         frame += 1;
 

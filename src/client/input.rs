@@ -84,6 +84,17 @@ impl Game {
                 }
             }
             UiAction::ProductionPage(page) => self.production_page = page,
+            UiAction::ToggleDiplomacy => {
+                self.diplomacy_open = !self.diplomacy_open;
+                self.diplomacy_page = 0;
+            }
+            UiAction::DiplomacyPage(page) => self.diplomacy_page = page,
+            UiAction::Ceasefire(other) => {
+                self.sim.apply(Command::Ceasefire(other));
+            }
+            UiAction::CancelCeasefire(other) => {
+                self.sim.apply(Command::CancelCeasefire(other));
+            }
             UiAction::ToggleGovernment => self.government_open = !self.government_open,
             UiAction::ChangeGovernment(target) => {
                 self.sim.apply(Command::Government(target));
@@ -114,9 +125,10 @@ impl Game {
     }
 
     pub(crate) fn handle_keyboard(&mut self) {
-        if self.government_open {
+        if self.government_open || self.diplomacy_open {
             if is_key_pressed(KeyCode::Escape) {
                 self.government_open = false;
+                self.diplomacy_open = false;
             }
             return;
         }
@@ -345,7 +357,7 @@ impl Game {
     }
 
     pub(crate) fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
-        if self.government_open {
+        if self.government_open || self.diplomacy_open {
             let (x, y) = mouse_position();
             if is_mouse_button_pressed(MouseButton::Left)
                 && let Some((_, action)) =

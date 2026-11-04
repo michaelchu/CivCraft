@@ -42,7 +42,10 @@ impl Game {
         let government_button = Rect::new(115.0, 9.0, 95.0, 27.0);
         draw_ui_button(government_button, player.government.name(), true, false);
         actions.push((government_button, UiAction::ToggleGovernment));
-        draw_circle(483.0, 23.0, 8.0, PLAYER_COLORS[HUMAN]);
+        let diplomacy = Rect::new(392.0, 9.0, 78.0, 27.0);
+        draw_ui_button(diplomacy, "Diplomacy", true, false);
+        actions.push((diplomacy, UiAction::ToggleDiplomacy));
+        draw_circle(483.0, 23.0, 8.0, player_color(HUMAN));
         draw_text(
             player.name,
             498.0,
@@ -220,7 +223,7 @@ impl Game {
             if self.sim.tile(city.x, city.y).visible {
                 let origin = Self::minimap_tile_origin(rect, city.x, city.y);
                 let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);
-                let color = PLAYER_COLORS[city.owner];
+                let color = player_color(city.owner);
                 if let Some(part) = marker.intersect(rect) {
                     draw_rectangle(part.x, part.y, part.w, part.h, color);
                 }
@@ -910,13 +913,14 @@ impl Game {
                 Color::from_rgba(225, 224, 208, 255),
             );
             draw_text(
-                "the six rival civilizations.",
+                "the rival civilizations.",
                 x,
                 y + 128.0,
                 17.0,
                 Color::from_rgba(225, 224, 208, 255),
             );
-            let living = (1..PLAYER_COUNT)
+            let living = (1..self.sim.players().len())
+                .filter(|&owner| owner != BARBARIANS)
                 .filter(|owner| {
                     self.sim.cities().iter().any(|c| c.owner == *owner)
                         || self.sim.units().iter().any(|u| u.owner == *owner)

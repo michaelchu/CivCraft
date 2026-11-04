@@ -223,7 +223,10 @@ impl Simulation {
     }
 
     pub(super) fn finish_revolutions(&mut self) {
-        for owner in 0..PLAYER_COUNT {
+        for owner in 0..self.players.len() {
+            if owner == BARBARIANS {
+                continue;
+            }
             let player = &mut self.players[owner];
             if player.revolution_turn.is_some_and(|turn| turn <= self.turn)
                 && let Some(target) = player.revolution_target.take()

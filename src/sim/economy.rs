@@ -129,6 +129,10 @@ impl Simulation {
     }
 
     pub(crate) fn city_in_disorder(&self, city: &City, luxury: i32) -> bool {
+        self.city_mood(city, luxury).0
+    }
+
+    pub(super) fn city_mood(&self, city: &City, luxury: i32) -> (bool, bool) {
         let government = self.players[city.owner].government;
         // Apply luxury before Make_Content.
         let cities = self
@@ -239,7 +243,10 @@ impl Simulation {
             unhappy += from_happy;
             happy = (happy - from_happy - pressure % 2).max(0);
         }
-        happy < unhappy + 2 * angry
+        (
+            happy < unhappy + 2 * angry,
+            city.size >= 3 && unhappy == 0 && angry == 0 && happy >= (city.size + 1) / 2,
+        )
     }
 
     pub(super) fn balance_building_upkeep(&mut self, owner: usize, city_id: u32) {

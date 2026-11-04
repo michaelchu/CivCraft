@@ -18,7 +18,7 @@ impl Simulation {
             return Some("Wonder already completed".into());
         }
         if let Some((part, limit)) = spaceship_part(building)
-            && (city.owner >= PLAYER_COUNT || self.spaceship_parts[city.owner][part] >= limit)
+            && (city.owner == BARBARIANS || self.spaceship_parts[city.owner][part] >= limit)
         {
             return Some("Spaceship part limit reached".into());
         }
@@ -76,7 +76,12 @@ impl Simulation {
                 }
                 return;
             }
-            Genus::GreatWonder => self.completed_wonders.push(building),
+            Genus::GreatWonder => {
+                self.completed_wonders.push(building);
+                if building.data().name == "Apollo Program" {
+                    self.apollo_completed = true;
+                }
+            }
             Genus::SmallWonder => {
                 for city in self.cities.iter_mut().filter(|city| city.owner == owner) {
                     city.buildings.retain(|&built| built != building);

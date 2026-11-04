@@ -60,6 +60,9 @@ impl Simulation {
             ["Yarrow", "Zephyr", "Alder", "Brook"],
         ];
         let count = self.cities.iter().filter(|c| c.owner == owner).count();
+        if owner >= PLAYER_COUNT {
+            return format!("{} {}", self.players[owner].name, count + 1);
+        }
         if count < 4 {
             ROOTS[owner][count].to_owned()
         } else {
@@ -102,6 +105,7 @@ impl Simulation {
             name: name.clone(),
             size: 1,
             specialists: [0; 3],
+            was_happy: false,
             food: 0,
             shields: 0,
             production: Production::Unit(UnitKind::Warrior),
@@ -130,12 +134,20 @@ impl Simulation {
         let Some(city_index) = self
             .cities
             .iter()
-            .position(|c| c.x == x && c.y == y && c.owner != unit.owner)
+            .position(|c| c.x == x && c.y == y && self.at_war(c.owner, unit.owner))
         else {
             return;
         };
         let old_owner = self.cities[city_index].owner;
+        self.record_provocation(old_owner, unit.owner);
         let city_name = self.cities[city_index].name.clone();
+        let capital = self.cities[city_index]
+            .buildings
+            .contains(&Building::PALACE);
+        let civil_war = capital && self.capital_loss_triggers_civil_war(old_owner);
+        if capital {
+            self.spaceship_parts[old_owner] = [0; 3];
+        }
         self.cities[city_index].owner = unit.owner;
         if self.cities[city_index].size > 1 {
             self.cities[city_index].size -= 1;
@@ -159,6 +171,9 @@ impl Simulation {
             capital.buildings.push(Building::PALACE);
         }
         self.claim_city_tiles(x, y, unit.owner);
+        if civil_war {
+            self.split_civil_war(old_owner);
+        }
         if unit.owner == HUMAN || old_owner == HUMAN {
             self.add_event(format!(
                 "{} captured {city_name} from {}.",
@@ -330,7 +345,7 @@ impl Simulation {
     }
 
     pub(super) fn process_cities(&mut self) {
-        let mut science_income = [0; PLAYER_COUNT];
+        let mut science_income = vec![0; self.players.len()];
         let mut gold_paid = Vec::new();
         let city_ids: Vec<u32> = self.cities.iter().map(|c| c.id).collect();
         for city_id in city_ids {
@@ -339,7 +354,7 @@ impl Simulation {
             };
             let (food_income, shield_income, trade) = self.city_yields(&snapshot);
             let [science, gold, luxury] = self.city_trade(&snapshot, trade);
-            let disorder = self.city_in_disorder(&snapshot, luxury);
+            let (disorder, happy) = self.city_mood(&snapshot, luxury);
             let shields_due = self.city_unit_upkeep(&snapshot).shields;
             let (shield_surplus, recovered) =
                 self.pay_shield_support(&snapshot, shield_income, shields_due);
@@ -363,6 +378,7 @@ impl Simulation {
             let mut finished = None;
             if let Some(city) = self.cities.iter_mut().find(|c| c.id == city_id) {
                 city.production_before_switch = None;
+                city.was_happy = happy;
                 city.food += if disorder {
                     food_surplus.min(0)
                 } else {
@@ -427,7 +443,7 @@ impl Simulation {
                 }
                 continue;
             }
-            if snapshot.owner < PLAYER_COUNT {
+            if snapshot.owner != BARBARIANS {
                 science_income[snapshot.owner] += if disorder { 0 } else { science };
                 let unit_gold = self.city_gold_upkeep(&snapshot);
                 self.players[snapshot.owner].gold += (if disorder { 0 } else { gold })
@@ -471,6 +487,9 @@ impl Simulation {
         }
 
         for (owner, science) in science_income.into_iter().enumerate() {
+            if owner == BARBARIANS {
+                continue;
+            }
             self.balance_unit_gold_upkeep(owner, &gold_paid);
             self.apply_research_upkeep(owner, science);
             let current = self.players[owner].researching;

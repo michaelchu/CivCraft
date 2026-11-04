@@ -136,7 +136,8 @@ impl Simulation {
             ]
             .into_iter()
             .filter_map(|(kind, tech)| {
-                (self.players[..PLAYER_COUNT]
+                (self
+                    .players
                     .iter()
                     .filter(|player| player.known.contains(&tech))
                     .count()

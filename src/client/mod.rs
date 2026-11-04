@@ -1,8 +1,8 @@
 mod assets;
 pub(crate) use assets::{Assets, window_conf};
 use assets::{
-    OCEAN_ATLAS_H, PLAYER_COLORS, TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source,
-    ocean_cell_source, unit_sprite,
+    OCEAN_ATLAS_H, TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source, ocean_cell_source,
+    player_color, unit_sprite,
 };
 mod government_view;
 mod hud;
@@ -32,6 +32,10 @@ pub(crate) enum UiAction {
     Specialist(u32, usize, i32),
     HomeCity,
     ToggleGovernment,
+    ToggleDiplomacy,
+    DiplomacyPage(usize),
+    Ceasefire(usize),
+    CancelCeasefire(usize),
     ChangeGovernment(Government),
     CloseCity,
     SelectUnit(u32),
@@ -63,6 +67,8 @@ pub(crate) struct Game {
     goto_mode: bool,
     research_open: bool,
     government_open: bool,
+    diplomacy_open: bool,
+    diplomacy_page: usize,
     research_age: usize,
     research_inspected: Option<Tech>,
     research_tree: ResearchTree,
@@ -94,6 +100,8 @@ impl Game {
             goto_mode: false,
             research_open: false,
             government_open: false,
+            diplomacy_open: false,
+            diplomacy_page: 0,
             research_age: 0,
             research_inspected: None,
             research_tree: ResearchTree::new(),
@@ -200,6 +208,9 @@ impl Game {
         let mut actions = self.draw_hud();
         if self.government_open {
             return self.draw_government();
+        }
+        if self.diplomacy_open {
+            return self.draw_diplomacy();
         }
         if self.selected_city_index().is_some() {
             self.draw_city_manager(assets, &mut actions);

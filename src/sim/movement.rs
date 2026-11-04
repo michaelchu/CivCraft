@@ -121,12 +121,34 @@ impl Simulation {
         let Some(cost) = self.movement_cost_for(&unit, nx, ny) else {
             return MoveResult::Blocked;
         };
+        let protected = self.units.iter().any(|other| {
+            (other.x, other.y) == (nx, ny)
+                && other.owner != unit.owner
+                && !self.at_war(unit.owner, other.owner)
+        }) || self.cities.iter().any(|city| {
+            (city.x, city.y) == (nx, ny)
+                && city.owner != unit.owner
+                && !self.at_war(unit.owner, city.owner)
+        });
+        if protected {
+            if unit.owner == HUMAN {
+                self.add_event("A ceasefire protects that tile.");
+            }
+            return MoveResult::Blocked;
+        }
         let defender = self.best_defender_id(&unit, nx, ny);
 
         if let Some(defender_id) = defender {
             if unit.kind.stats().attack <= 0 || unit.transport.is_some() {
                 return MoveResult::Blocked;
             }
+            let defender_owner = self
+                .units
+                .iter()
+                .find(|unit| unit.id == defender_id)
+                .unwrap()
+                .owner;
+            self.record_provocation(defender_owner, unit.owner);
             self.resolve_combat(unit_id, defender_id, nx, ny);
             return MoveResult::Fought;
         }
