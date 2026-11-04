@@ -2457,8 +2457,7 @@ impl Game {
                 None
             };
             if let Some((dx, dy)) = pan {
-                self.camera.x += dx;
-                self.camera.y += dy;
+                self.camera += vec2(dx + dy, dy - dx) * 0.5;
                 self.normalize_camera();
                 return;
             }
@@ -2525,12 +2524,20 @@ impl Game {
     }
 
     fn minimap_rect() -> Rect {
-        Rect::new(
-            screen_width() - PANEL_W + 18.0,
-            TOP_H + 38.0,
-            PANEL_W - 36.0,
-            150.0,
-        )
+        let top = TOP_H + 38.0;
+        let available_width = PANEL_W - 36.0;
+        // Leave room for the context text and the two bottom buttons.
+        let available_height = (screen_height() - top - 17.0 - 207.0 - 122.0).max(1.0);
+        let natural_size = vec2((2 * MAP_W) as f32, MAP_H as f32);
+        let scale = (available_width / natural_size.x).min(available_height / natural_size.y);
+        let size = natural_size * scale;
+        let left = screen_width() - PANEL_W + (PANEL_W - size.x) * 0.5;
+        Rect::new(left, top, size.x, size.y)
+    }
+
+    fn minimap_tile_origin(rect: Rect, x: i32, y: i32) -> Vec2 {
+        let scale = rect.h / MAP_H as f32;
+        vec2(rect.x + (2 * x + y.rem_euclid(2)) as f32 * scale, rect.y + y as f32 * scale)
     }
 
     fn city_manager_rect() -> Rect {
@@ -2550,34 +2557,34 @@ impl Game {
         self.camera = vec2(map_x as f32, map_y as f32);
     }
 
-    fn normalize_camera(&mut self) {
-        let rounded_x = self.camera.x.round();
-        let rounded_y = self.camera.y.round();
-        let fractional_x = self.camera.x - rounded_x;
-        let fractional_y = self.camera.y - rounded_y;
-        let (native_x, native_y) = map_pos_to_native(rounded_x as i32, rounded_y as i32);
-        let (map_x, map_y) = native_to_map(native_x, native_y);
-        self.camera = vec2(map_x as f32 + fractional_x, map_y as f32 + fractional_y);
+    fn camera_overview_position(&self) -> Vec2 {
+        vec2(
+            (self.camera.x - self.camera.y + MAP_W as f32).rem_euclid(2.0 * MAP_W as f32),
+            self.camera.x + self.camera.y - MAP_W as f32,
+        )
     }
 
-    fn camera_native(&self) -> (i32, i32) {
-        map_pos_to_native(self.camera.x.round() as i32, self.camera.y.round() as i32)
+    fn normalize_camera(&mut self) {
+        let position = self.camera_overview_position();
+        let y = position.y.clamp(0.0, (MAP_H - 1) as f32);
+        let map_x = (position.x + y) * 0.5;
+        self.camera = vec2(map_x, y + MAP_W as f32 - map_x);
     }
 
     fn world_to_screen(&self, x: i32, y: i32) -> Vec2 {
         let viewport = Self::viewport_rect();
-        let (camera_x, camera_y) = self.camera_native();
-        let (camera_map_x, camera_map_y) = native_to_map(camera_x, camera_y);
-        let (map_dx, map_dy) = wrapped_map_vector(camera_x, camera_y, x, y);
-        let dx = map_dx as f32 - (self.camera.x - camera_map_x as f32);
-        let dy = map_dy as f32 - (self.camera.y - camera_map_y as f32);
+        let camera = self.camera_overview_position();
+        let tile_x = (2 * x + y.rem_euclid(2)) as f32;
+        let half_width = MAP_W as f32;
+        let dx = (tile_x - camera.x + half_width).rem_euclid(2.0 * half_width) - half_width;
+        let dy = y as f32 - camera.y;
         vec2(
-            viewport.x + viewport.w * 0.5 + (dx - dy) * TILE_W * 0.5 * self.zoom,
-            viewport.y + viewport.h * 0.47 + (dx + dy) * TILE_H * 0.5 * self.zoom,
+            viewport.x + viewport.w * 0.5 + dx * TILE_W * 0.5 * self.zoom,
+            viewport.y + viewport.h * 0.47 + dy * TILE_H * 0.5 * self.zoom,
         )
     }
 
-    fn screen_to_world(&self, point: Vec2) -> (i32, i32) {
+    fn screen_to_world(&self, point: Vec2) -> Option<(i32, i32)> {
         let viewport = Self::viewport_rect();
         let sx = point.x - (viewport.x + viewport.w * 0.5);
         let sy = point.y - (viewport.y + viewport.h * 0.47);
@@ -2585,10 +2592,11 @@ impl Game {
         let b = sy / (TILE_H * 0.5 * self.zoom);
         let dx = (a + b) * 0.5;
         let dy = (b - a) * 0.5;
-        map_pos_to_native(
+        let (x, y) = map_to_native(
             (self.camera.x + dx).round() as i32,
             (self.camera.y + dy).round() as i32,
-        )
+        );
+        (0..MAP_H).contains(&y).then_some((x.rem_euclid(MAP_W), y))
     }
 
     fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
@@ -2638,17 +2646,19 @@ impl Game {
         }
         let minimap = Self::minimap_rect();
         if minimap.contains(mouse) {
-            let native_x = ((mouse.x - minimap.x) / minimap.w * MAP_W as f32)
-                .clamp(0.0, MAP_W as f32 - 0.01) as i32;
-            let native_y = ((mouse.y - minimap.y) / minimap.h * MAP_H as f32)
-                .clamp(0.0, MAP_H as f32 - 0.01) as i32;
-            self.focus_camera_on(native_x, native_y);
+            let scale = minimap.h / MAP_H as f32;
+            let natural_x = ((mouse.x - minimap.x) / scale).floor() as i32;
+            let native_y = (((mouse.y - minimap.y) / scale).floor() as i32).min(MAP_H - 1);
+            let native_x = (natural_x - native_y.rem_euclid(2)).div_euclid(2);
+            self.focus_camera_on(native_x.rem_euclid(MAP_W), native_y);
             return;
         }
         if !Self::viewport_rect().contains(mouse) {
             return;
         }
-        let (x, y) = self.screen_to_world(mouse);
+        let Some((x, y)) = self.screen_to_world(mouse) else {
+            return;
+        };
         if self.goto_mode {
             if let Some(id) = self.selected_unit {
                 self.goto_unit(id, x, y);
@@ -3542,7 +3552,7 @@ impl Game {
         self.draw_minimap();
         self.hud_elements_drawn += 1;
 
-        let context_y = TOP_H + 205.0;
+        let context_y = Self::minimap_rect().bottom() + 17.0;
         draw_line(
             panel_x + 16.0,
             context_y - 9.0,
@@ -3598,14 +3608,10 @@ impl Game {
     fn draw_minimap(&self) {
         let rect = Self::minimap_rect();
         draw_rectangle(
-            rect.x - 3.0,
-            rect.y - 3.0,
-            rect.w + 6.0,
-            rect.h + 6.0,
+            rect.x - 3.0, rect.y - 3.0, rect.w + 6.0, rect.h + 6.0,
             Color::from_rgba(15, 17, 16, 255),
         );
-        let cell_w = rect.w / MAP_W as f32;
-        let cell_h = rect.h / MAP_H as f32;
+        let scale = rect.h / MAP_H as f32;
         for y in 0..MAP_H {
             for x in 0..MAP_W {
                 let tile = self.tile(x, y);
@@ -3616,28 +3622,48 @@ impl Game {
                 } else {
                     darken(tile.terrain.minimap_color(), 0.53)
                 };
-                draw_rectangle(
-                    rect.x + x as f32 * cell_w,
-                    rect.y + y as f32 * cell_h,
-                    cell_w + 0.4,
-                    cell_h + 0.4,
-                    color,
-                );
+                let origin = Self::minimap_tile_origin(rect, x, y);
+                let width = (rect.right() - origin.x).min(2.0 * scale);
+                draw_rectangle(origin.x, origin.y, width, scale, color);
+                if y % 2 == 1 && x == MAP_W - 1 {
+                    draw_rectangle(rect.x, origin.y, scale, scale, color);
+                }
             }
         }
         for city in &self.cities {
-            draw_rectangle(
-                rect.x + city.x as f32 * cell_w - 1.0,
-                rect.y + city.y as f32 * cell_h - 1.0,
-                4.0,
-                4.0,
-                self.players[city.owner].color,
-            );
+            if self.tile(city.x, city.y).visible {
+                let origin = Self::minimap_tile_origin(rect, city.x, city.y);
+                let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);
+                let color = self.players[city.owner].color;
+                if let Some(part) = marker.intersect(rect) {
+                    draw_rectangle(part.x, part.y, part.w, part.h, color);
+                }
+                if marker.right() > rect.right() {
+                    draw_rectangle(rect.x, marker.y, marker.right() - rect.right(), marker.h, color);
+                }
+            }
         }
-        let (camera_native_x, camera_native_y) = self.camera_native();
-        let camera_x = rect.x + camera_native_x as f32 / MAP_W as f32 * rect.w;
-        let camera_y = rect.y + camera_native_y as f32 / MAP_H as f32 * rect.h;
-        draw_rectangle_lines(camera_x - 12.0, camera_y - 8.0, 24.0, 16.0, 1.5, WHITE);
+
+        let viewport = Self::viewport_rect();
+        let camera = vec2(rect.x, rect.y) + (self.camera_overview_position() + vec2(1.0, 0.5)) * scale;
+        let width = viewport.w * scale / (TILE_W * 0.5 * self.zoom);
+        let height = viewport.h * scale / (TILE_H * 0.5 * self.zoom);
+        for wrap_x in [-rect.w, 0.0, rect.w] {
+            let left = camera.x + wrap_x - width * 0.5;
+            let top = camera.y - height * 0.47;
+            let right = left + width;
+            let bottom = top + height;
+            for y in [top, bottom] {
+                if (rect.y..=rect.bottom()).contains(&y) && left < rect.right() && right > rect.x {
+                    draw_line(left.max(rect.x), y, right.min(rect.right()), y, 1.0, WHITE);
+                }
+            }
+            for x in [left, right] {
+                if (rect.x..=rect.right()).contains(&x) && top < rect.bottom() && bottom > rect.y {
+                    draw_line(x, top.max(rect.y), x, bottom.min(rect.bottom()), 1.0, WHITE);
+                }
+            }
+        }
     }
 
     fn draw_city_manager(&self, assets: &Assets, actions: &mut Vec<(Rect, UiAction)>) {
