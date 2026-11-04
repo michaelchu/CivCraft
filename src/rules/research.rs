@@ -14,6 +14,7 @@ pub(crate) struct Advance {
 
 impl Tech {
     pub(crate) const ALPHABET: Self = Self(1);
+    pub(crate) const BRIDGE_BUILDING: Self = Self(7);
     pub(crate) const BRONZE_WORKING: Self = Self(8);
     pub(crate) const WARRIOR_CODE: Self = Self(85);
     pub(crate) const HORSEBACK_RIDING: Self = Self(34);

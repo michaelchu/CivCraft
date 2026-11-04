@@ -151,6 +151,11 @@ mod tests {
         game.process_cities();
         assert_eq!(game.units.len(), units);
         assert!(game.cities[0].buildings.contains(&library));
+        assert_eq!(game.city_trade(&game.cities[0], 10), [9, 4, 0]);
+        assert_eq!(
+            Simulation::building_upkeep(&game.cities[0]),
+            library.data().upkeep
+        );
         assert!(!game.can_produce(&game.cities[0], target));
         assert!(game.apply(Command::Produce(id, university)));
     }

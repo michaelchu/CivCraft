@@ -854,6 +854,7 @@ pub(crate) fn generate(seed: u64) -> GeneratedMap {
                 river: false,
                 resource: None,
                 road: false,
+                railroad: false,
                 irrigation: false,
                 mine: false,
                 owner: None,

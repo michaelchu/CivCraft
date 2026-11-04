@@ -191,6 +191,7 @@ pub(crate) struct Tile {
     pub(crate) river: bool,
     pub(crate) resource: Option<Resource>,
     pub(crate) road: bool,
+    pub(crate) railroad: bool,
     pub(crate) irrigation: bool,
     pub(crate) mine: bool,
     pub(crate) owner: Option<usize>,
@@ -217,6 +218,9 @@ impl Tile {
         }
         if self.road {
             trade += self.terrain.road_trade_bonus();
+        }
+        if self.railroad {
+            shields += shields / 2;
         }
         (food, shields, trade)
     }
@@ -559,6 +563,7 @@ pub(crate) enum UnitState {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum WorkKind {
     Road,
+    Railroad,
     Irrigation,
     Mine,
 }
@@ -567,6 +572,7 @@ impl WorkKind {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Road => "road",
+            Self::Railroad => "railroad",
             Self::Irrigation => "irrigation",
             Self::Mine => "mine",
         }
@@ -645,6 +651,7 @@ pub(crate) struct City {
 pub(crate) struct Player {
     pub(crate) name: &'static str,
     pub(crate) gold: i32,
+    pub(crate) rates: [i32; 3],
     pub(crate) known: Vec<Tech>,
     pub(crate) researching: Tech,
     pub(crate) research_goal: Tech,

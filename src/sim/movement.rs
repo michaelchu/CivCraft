@@ -10,7 +10,9 @@ impl Simulation {
             return None;
         }
         let source = self.tile(unit.x, unit.y);
-        if source.road && dest.road {
+        if source.railroad && dest.railroad {
+            Some(1)
+        } else if source.road && dest.road {
             Some(2)
         } else if unit.kind.stats().ignores_terrain {
             Some(2)
@@ -39,6 +41,9 @@ impl Simulation {
         let mut defend_bonus = 0;
         if let Some(city) = city {
             defend_bonus += CITY_DEFEND_BONUS;
+            if unit.kind.transport_capacity() == 0 && city.has_building("City Walls") {
+                defend_bonus += 100;
+            }
             if city.size >= LARGE_CITY_SIZE {
                 defend_bonus += LARGE_CITY_DEFEND_BONUS;
             }
@@ -306,6 +311,15 @@ impl Simulation {
         moved
     }
 
+    pub(crate) fn can_railroad_at(&self, owner: usize, x: i32, y: i32) -> bool {
+        let tile = self.tile(x, y);
+        tile.road
+            && !tile.railroad
+            && !tile.terrain.is_water()
+            && self.has_tech(owner, Tech::RAILROAD)
+            && (!tile.river || self.has_tech(owner, Tech::BRIDGE_BUILDING))
+    }
+
     pub(super) fn begin_work(&mut self, unit_id: u32, kind: WorkKind) -> bool {
         let Some(index) = self.units.iter().position(|u| u.id == unit_id) else {
             return false;
@@ -316,7 +330,13 @@ impl Simulation {
         }
         let tile = self.tile(unit.x, unit.y);
         let turns = match kind {
-            WorkKind::Road if !tile.road => tile.terrain.road_time(),
+            WorkKind::Road
+                if !tile.road
+                    && (!tile.river || self.has_tech(unit.owner, Tech::BRIDGE_BUILDING)) =>
+            {
+                tile.terrain.road_time()
+            }
+            WorkKind::Railroad if self.can_railroad_at(unit.owner, unit.x, unit.y) => 3,
             WorkKind::Irrigation if self.can_irrigate_at(unit.x, unit.y) => {
                 tile.terrain.irrigation_time()
             }
@@ -392,6 +412,7 @@ impl Simulation {
             let tile = self.tile_mut(x, y);
             match kind {
                 WorkKind::Road => tile.road = true,
+                WorkKind::Railroad => tile.railroad = true,
                 WorkKind::Irrigation => {
                     tile.irrigation = true;
                     tile.mine = false;

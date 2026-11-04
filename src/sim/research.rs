@@ -63,6 +63,17 @@ impl Simulation {
             self.players[owner].future_techs += 1;
         } else {
             self.players[owner].known.push(tech);
+            if tech == Tech::RAILROAD {
+                let centers: Vec<_> = self
+                    .cities
+                    .iter()
+                    .filter(|city| city.owner == owner)
+                    .map(|city| (city.x, city.y))
+                    .collect();
+                for (x, y) in centers {
+                    self.tile_mut(x, y).railroad = true;
+                }
+            }
         }
         if owner == HUMAN {
             self.add_event(format!("Research complete: {}.", tech.name()));

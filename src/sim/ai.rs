@@ -58,6 +58,11 @@ impl Simulation {
             if !tile.road && self.begin_work(unit_id, WorkKind::Road) {
                 return;
             }
+            if self.can_railroad_at(unit.owner, unit.x, unit.y)
+                && self.begin_work(unit_id, WorkKind::Railroad)
+            {
+                return;
+            }
             if tile.terrain.prefers_mine() {
                 if !tile.mine && self.begin_work(unit_id, WorkKind::Mine) {
                     return;
@@ -137,6 +142,52 @@ impl Simulation {
             for id in cargo {
                 self.try_move_unit(id, dx, dy);
             }
+        }
+    }
+
+    pub(super) fn choose_ai_rates(&mut self, owner: usize) {
+        let cities: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|city| city.owner == owner)
+            .map(|city| (city, self.city_yields(city).2))
+            .collect();
+        let upkeep: i32 = cities
+            .iter()
+            .map(|(city, _)| Self::building_upkeep(city))
+            .sum();
+        let mut best = None;
+        for science_rate in (0..=60).step_by(10) {
+            for tax_rate in (0..=60).step_by(10) {
+                let luxury_rate = 100 - science_rate - tax_rate;
+                if !(0..=60).contains(&luxury_rate) {
+                    continue;
+                }
+                let rates = [science_rate, tax_rate, luxury_rate];
+                let (mut disorder, mut science, mut gold) = (0, 0, 0);
+                for &(city, trade) in &cities {
+                    let [bulbs, coins, luxury] = Self::split_city_trade(city, trade, rates);
+                    if self.city_in_disorder(city, luxury) {
+                        disorder += 1;
+                    } else {
+                        science += bulbs;
+                        gold += coins;
+                    }
+                }
+                let score = (
+                    disorder,
+                    (upkeep - gold).max(0),
+                    -science,
+                    -gold,
+                    luxury_rate,
+                );
+                if best.is_none_or(|(current, _)| score < current) {
+                    best = Some((score, rates));
+                }
+            }
+        }
+        if let Some((_, rates)) = best {
+            self.players[owner].rates = rates;
         }
     }
 

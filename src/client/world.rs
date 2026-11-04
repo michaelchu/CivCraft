@@ -264,6 +264,7 @@ impl Game {
         tile_h: f32,
     ) {
         let mut connected = false;
+        let railroad = self.sim.tile(x, y).railroad;
         for ((dx, dy), source_col) in [
             ((0, -1), 1),
             ((1, 0), 3),
@@ -275,12 +276,18 @@ impl Game {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
             let neighbor = self.sim.tile(neighbor_x, neighbor_y);
             if neighbor.seen && neighbor.road {
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 12, source_col);
+                let row = if railroad && neighbor.railroad {
+                    13
+                } else {
+                    12
+                };
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, source_col);
                 connected = true;
             }
         }
         if !connected {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 12, 0);
+            let row = if railroad { 13 } else { 12 };
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, 0);
         }
     }
 

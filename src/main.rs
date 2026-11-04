@@ -133,6 +133,36 @@ async fn main() {
             }
         }
 
+        if self_test_path.is_some() && frame == 45 && act_passed {
+            if let Some((_, rate_button)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::RaiseRate(1)))
+            {
+                game.perform_action(*rate_button);
+            }
+            let rate_changed = game.sim.players()[HUMAN].rates == [50, 50, 0];
+            let city = game
+                .sim
+                .cities()
+                .iter()
+                .find(|city| city.owner == HUMAN)
+                .unwrap();
+            let trade = game.sim.city_yields(city).2;
+            let [science, gold, _] = game.sim.city_trade(city, trade);
+            let player = &game.sim.players()[HUMAN];
+            let expected_gold = player.gold + gold - sim::Simulation::building_upkeep(city);
+            let expected_research = player.research + science;
+            game.sim.apply(Command::EndTurn);
+            let player = &game.sim.players()[HUMAN];
+            act_passed = rate_changed
+                && player.gold == expected_gold
+                && player.research == expected_research;
+            act_detail = format!(
+                "Founded a city, used the tax control, and ended the turn. Treasury {} (expected {expected_gold}), research {} (expected {expected_research}).",
+                player.gold, player.research
+            );
+        }
+
         buttons = game.draw(&assets);
         frame += 1;
 

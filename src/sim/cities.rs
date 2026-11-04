@@ -111,7 +111,10 @@ impl Simulation {
                 Vec::new()
             },
         });
-        self.tile_mut(x, y).road = true;
+        let railroad = self.has_tech(owner, Tech::RAILROAD);
+        let tile = self.tile_mut(x, y);
+        tile.road = true;
+        tile.railroad |= railroad;
         self.claim_city_tiles(x, y, owner);
         name
     }
@@ -252,9 +255,9 @@ impl Simulation {
         true
     }
 
-    pub(super) fn choose_ai_production(&self, owner: usize, city_id: u32) -> UnitKind {
+    pub(super) fn choose_ai_production(&self, owner: usize, city_id: u32) -> Production {
         let Some(city) = self.cities.iter().find(|c| c.id == city_id) else {
-            return UnitKind::Warrior;
+            return Production::Unit(UnitKind::Warrior);
         };
         let defenders = self
             .units
@@ -262,11 +265,11 @@ impl Simulation {
             .filter(|u| u.owner == owner && u.x == city.x && u.y == city.y && u.kind.is_military())
             .count();
         if defenders == 0 {
-            return if self.unit_available(owner, UnitKind::Phalanx) {
+            return Production::Unit(if self.unit_available(owner, UnitKind::Phalanx) {
                 UnitKind::Phalanx
             } else {
                 UnitKind::Warrior
-            };
+            });
         }
         let city_count = self.cities.iter().filter(|c| c.owner == owner).count();
         let has_founder = self
@@ -274,7 +277,25 @@ impl Simulation {
             .iter()
             .any(|u| u.owner == owner && u.kind == UnitKind::Settlers);
         if city.size >= 3 && city_count < 3 && !has_founder {
-            return UnitKind::Settlers;
+            return Production::Unit(UnitKind::Settlers);
+        }
+        let priorities = [
+            (city.size >= 4, "Temple"),
+            (city.size >= 4, "Granary"),
+            (city.size >= 2, "Library"),
+            (city.size >= 3, "Marketplace"),
+            (city.size >= 7, "Aqueduct"),
+            (city.size >= 7, "Aqueduct, River"),
+            (city.size >= 7, "Aqueduct, Lake"),
+        ];
+        for (wanted, name) in priorities {
+            if wanted
+                && let Some(building) = Building::all().find(|building| {
+                    building.data().name == name && self.building_blocker(city, *building).is_none()
+                })
+            {
+                return Production::Building(building);
+            }
         }
         for kind in [
             UnitKind::Catapult,
@@ -286,19 +307,25 @@ impl Simulation {
             UnitKind::Warrior,
         ] {
             if self.unit_available(owner, kind) {
-                return kind;
+                return Production::Unit(kind);
             }
         }
-        UnitKind::Warrior
+        Production::Unit(UnitKind::Warrior)
     }
 
     pub(super) fn process_cities(&mut self) {
+        let mut science_income = [0; PLAYER_COUNT];
         let city_ids: Vec<u32> = self.cities.iter().map(|c| c.id).collect();
         for city_id in city_ids {
             let Some(snapshot) = self.cities.iter().find(|c| c.id == city_id).cloned() else {
                 continue;
             };
-            let (food_income, shield_income, _) = self.city_yields(&snapshot);
+            let (food_income, shield_income, trade) = self.city_yields(&snapshot);
+            let [science, gold, luxury] = self.city_trade(&snapshot, trade);
+            let disorder = self.city_in_disorder(&snapshot, luxury);
+            let food_surplus = food_income - snapshot.size * CITIZEN_FOOD_COST;
+            let size_limit = Self::city_size_limit(&snapshot);
+            let food_retained = Self::food_retained(&snapshot);
             let can_produce = self.can_produce(&snapshot, snapshot.production);
             let mut grew = false;
             let mut starved = false;
@@ -306,16 +333,27 @@ impl Simulation {
             let mut finished = None;
             if let Some(city) = self.cities.iter_mut().find(|c| c.id == city_id) {
                 city.production_before_switch = None;
-                city.food += food_income - city.size * CITIZEN_FOOD_COST;
+                city.food += if disorder {
+                    food_surplus.min(0)
+                } else {
+                    food_surplus
+                };
                 if city.food >= Self::growth_box(city.size) {
-                    city.food -= Self::growth_box(city.size);
-                    city.size += 1;
-                    grew = true;
+                    if city.size < size_limit {
+                        let overflow = city.food - Self::growth_box(city.size);
+                        city.size += 1;
+                        city.food = city
+                            .food
+                            .min(overflow + percent_of(Self::growth_box(city.size), food_retained));
+                        grew = true;
+                    } else {
+                        city.food = Self::growth_box(city.size);
+                    }
                 } else if city.food < 0 {
                     starved = true;
                     if city.size > 1 {
                         city.size -= 1;
-                        city.food = 0;
+                        city.food = percent_of(Self::growth_box(city.size), food_retained);
                     } else {
                         destroyed = true;
                     }
@@ -323,8 +361,10 @@ impl Simulation {
                     city.food = city.food.max(0);
                 }
                 if !destroyed {
-                    city.shields += shield_income;
-                    if can_produce {
+                    if !disorder {
+                        city.shields += shield_income;
+                    }
+                    if can_produce && !disorder {
                         let pop_cost = match city.production {
                             Production::Unit(kind) => kind.stats().pop_cost,
                             Production::Building(_) => 0,
@@ -351,6 +391,11 @@ impl Simulation {
                 }
                 continue;
             }
+            if snapshot.owner < PLAYER_COUNT {
+                science_income[snapshot.owner] += if disorder { 0 } else { science };
+                self.players[snapshot.owner].gold +=
+                    (if disorder { 0 } else { gold }) - Self::building_upkeep(&snapshot);
+            }
             if grew && snapshot.owner == HUMAN {
                 self.add_event(format!(
                     "{} grew to size {}.",
@@ -376,19 +421,14 @@ impl Simulation {
                 if self.players[snapshot.owner].ai {
                     let next = self.choose_ai_production(snapshot.owner, city_id);
                     if let Some(city) = self.cities.iter_mut().find(|c| c.id == city_id) {
-                        city.production = Production::Unit(next);
+                        city.production = next;
                     }
                 }
             }
         }
 
-        for owner in 0..PLAYER_COUNT {
-            let science: i32 = self
-                .cities
-                .iter()
-                .filter(|c| c.owner == owner)
-                .map(|c| self.city_yields(c).2.max(1))
-                .sum();
+        for (owner, science) in science_income.into_iter().enumerate() {
+            self.balance_building_upkeep(owner);
             if science <= 0 {
                 continue;
             }

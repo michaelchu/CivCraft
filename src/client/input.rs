@@ -6,6 +6,9 @@ impl Game {
             return;
         }
         match action {
+            UiAction::RaiseRate(index) => {
+                self.sim.apply(Command::RaiseRate(index));
+            }
             UiAction::EndTurn => {
                 self.sim.apply(Command::EndTurn);
                 self.select_next_unit();
@@ -30,8 +33,15 @@ impl Game {
                 }
             }
             UiAction::Road => {
-                if let Some(id) = self.selected_unit {
-                    self.sim.apply(Command::Work(id, WorkKind::Road));
+                if let Some(index) = self.selected_unit_index() {
+                    let unit = &self.sim.units()[index];
+                    let id = unit.id;
+                    let kind = if self.sim.tile(unit.x, unit.y).road {
+                        WorkKind::Railroad
+                    } else {
+                        WorkKind::Road
+                    };
+                    self.sim.apply(Command::Work(id, kind));
                 }
             }
             UiAction::Irrigate => {

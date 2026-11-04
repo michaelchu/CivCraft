@@ -12,6 +12,7 @@ pub(crate) enum Command {
     Automate(u32),
     Produce(u32, Production),
     Research(Tech),
+    RaiseRate(usize),
     EndTurn,
 }
 
@@ -92,6 +93,7 @@ impl Simulation {
                 self.add_event(format!("{name} now produces {}.", kind.name()));
                 true
             }
+            RaiseRate(index) => self.raise_rate(HUMAN, index),
             Research(goal) => {
                 if self.has_tech(HUMAN, goal) {
                     return false;

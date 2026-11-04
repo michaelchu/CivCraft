@@ -27,6 +27,7 @@ const MAX_ZOOM: f32 = 1.35;
 #[derive(Clone, Copy)]
 pub(crate) enum UiAction {
     EndTurn,
+    RaiseRate(usize),
     CloseCity,
     SelectUnit(u32),
     FoundCity,

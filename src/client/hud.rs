@@ -114,6 +114,19 @@ impl Game {
         self.draw_context_panel(panel_x + 18.0, context_y);
         self.hud_elements_drawn += 1;
 
+        for (index, label) in ["Science", "Tax", "Luxury"].into_iter().enumerate() {
+            let rate = self.sim.players()[HUMAN].rates[index];
+            let rect = Rect::new(
+                panel_x + 18.0 + index as f32 * 94.0,
+                screen_height() - 146.0,
+                90.0,
+                28.0,
+            );
+            draw_ui_button(rect, &format!("{label} {rate}%"), rate < 60, false);
+            if rate < 60 {
+                actions.push((rect, UiAction::RaiseRate(index)));
+            }
+        }
         let research_rect = Rect::new(
             panel_x + 18.0,
             screen_height() - 112.0,
@@ -290,12 +303,23 @@ impl Game {
 
         let (food, shields, trade) = self.sim.city_yields(city);
         let food_net = food - city.size * 2;
+        let [science, gold, luxury] = self.sim.city_trade(city, trade);
+        let upkeep = Simulation::building_upkeep(city);
+        let disorder = self.sim.city_in_disorder(city, luxury);
+        let (science, gold, shields, food_net) = if disorder {
+            (0, 0, 0, food_net.min(0))
+        } else {
+            (science, gold, shields, food_net)
+        };
         let growth_box = Simulation::growth_box(city.size);
         let production_cost = city.production.cost();
         let progress_x = rect.x + 205.0;
         let progress_w = rect.w - 229.0;
         draw_text(
-            &format!("Food {food} ({food_net:+})   Shields {shields}   Trade {trade}"),
+            &format!(
+                "Food {food_net:+}   Shields {shields}   Science {science}   Gold {:+}   Luxury {luxury}",
+                gold - upkeep
+            ),
             progress_x,
             rect.y + 31.0,
             17.0,
@@ -308,7 +332,13 @@ impl Game {
             Color::from_rgba(82, 166, 82, 255),
         );
         draw_text(
-            &format!("Growth  {}/{}", city.food, growth_box),
+            &if disorder {
+                "Civil disorder".to_owned()
+            } else if city.size >= Simulation::city_size_limit(city) {
+                "Growth limit reached".to_owned()
+            } else {
+                format!("Growth  {}/{}", city.food, growth_box)
+            },
             progress_x,
             rect.y + 78.0,
             15.0,
@@ -857,11 +887,23 @@ impl Game {
                 ));
             }
             if stats.can_work {
-                entries.push((
-                    "Road [R]".to_owned(),
-                    UiAction::Road,
-                    !self.sim.tile(unit.x, unit.y).road,
-                ));
+                let tile = self.sim.tile(unit.x, unit.y);
+                let (label, enabled) = if tile.road && self.sim.has_tech(unit.owner, Tech::RAILROAD)
+                {
+                    (
+                        "Railroad [R]",
+                        self.sim.can_railroad_at(unit.owner, unit.x, unit.y),
+                    )
+                } else {
+                    (
+                        "Road [R]",
+                        !tile.road
+                            && tile.terrain.road_time() > 0
+                            && (!tile.river
+                                || self.sim.has_tech(unit.owner, Tech::BRIDGE_BUILDING)),
+                    )
+                };
+                entries.push((label.to_owned(), UiAction::Road, enabled));
                 entries.push((
                     "Irrigate [I]".to_owned(),
                     UiAction::Irrigate,

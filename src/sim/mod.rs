@@ -2,6 +2,7 @@ mod ai;
 mod buildings;
 mod cities;
 mod commands;
+mod economy;
 mod movement;
 mod research;
 pub(crate) use commands::Command;
@@ -162,6 +163,7 @@ impl Simulation {
             players.push(Player {
                 name: names[i],
                 gold: 50,
+                rates: [60, 40, 0],
                 known: vec![free_techs[i]],
                 researching: research_targets[i],
                 research_goal: [
@@ -181,6 +183,7 @@ impl Simulation {
         players.push(Player {
             name: "Barbarians",
             gold: 0,
+            rates: [60, 40, 0],
             known: Vec::new(),
             researching: Tech::FUTURE,
             research_goal: Tech::FUTURE,
@@ -390,6 +393,7 @@ impl Simulation {
         }
         for owner in 1..PLAYER_COUNT {
             self.run_ai_player(owner);
+            self.choose_ai_rates(owner);
         }
         self.run_ai_player(BARBARIANS);
         self.process_cities();
@@ -438,6 +442,42 @@ pub(crate) fn year_label(year: i32) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn railroad_research_upgrades_centers_and_enables_worker_tracks() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let worker = game
+            .units
+            .iter()
+            .find(|u| u.owner == HUMAN && u.kind == UnitKind::Worker)
+            .unwrap()
+            .clone();
+        let (x, y) = (worker.x, worker.y);
+        let (nx, ny) = offset_native_by_map(x, y, 1, 0);
+        game.tile_mut(nx, ny).terrain = Terrain::Grassland;
+        game.create_city(HUMAN, nx, ny);
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Hills;
+        tile.road = true;
+        tile.river = false;
+        tile.mine = true;
+        let initial = tile.yields();
+        assert!(!game.apply(Command::Work(worker.id, WorkKind::Railroad)));
+        game.discover(HUMAN, Tech::RAILROAD);
+        assert!(game.tile(nx, ny).railroad);
+        assert!(game.apply(Command::Work(worker.id, WorkKind::Railroad)));
+        for _ in 0..2 {
+            game.update_activities_and_restore();
+            assert!(!game.tile(x, y).railroad);
+        }
+        game.update_activities_and_restore();
+        assert!(game.tile(x, y).railroad);
+        assert_eq!(
+            game.tile(x, y).yields(),
+            (initial.0, initial.1 + initial.1 / 2, initial.2)
+        );
+        assert_eq!(game.movement_cost_for(&worker, nx, ny), Some(1));
+    }
+
     use super::*;
 
     #[test]
