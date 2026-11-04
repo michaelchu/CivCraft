@@ -1,6 +1,6 @@
 # Mechanics source sheet
 
-This sheet is the contract for the values used by the Rust build. Paths beginning with reference/freeciv are relative to the supplied target. Readable ruleset and C-source values are the primary evidence, and an out-of-tree arm64 build of the original server was also traced to verify that the compiled control flow uses the same rules.
+This sheet is the contract for the values used by the Rust build. Paths beginning with reference/freeciv are relative to the supplied target. Deep-mode decompilation of the original arm64 server establishes the native functions, addresses, control flow, and arithmetic; the readable Civ2Civ3 ruleset supplies the runtime data those functions load, and the matching C source resolves types that the register-level lifter cannot recover reliably.
 
 ## Native verification
 
@@ -27,12 +27,12 @@ The native trace began with complete string searches and then followed each exec
 | --- | --- | --- | --- |
 | Topology | `_generator_init_topology` | `0x100031444` | Player-count, land-percentage, and tiles-per-player values determine requested map size. |
 | Topology | `_get_ratios` | `0x100031e9c` | A map wrapped on both axes uses the 1:1 torus ratio. |
-| Topology | `_set_sizes` | `0x100031f5c` | Isometric dimensions are even and the native Y dimension is doubled, producing 32 by 64 for this 2,000-tile request. |
+| Topology | `_set_sizes` | `0x100031f5c` | Uses `trunc(sqrt(requested / (xratio × yratio × iso × even²)) + 0.49)`, with `even = 2` and `iso = 2`, then derives both dimensions. |
 | Generation | `_map_fractal_generate` | `0x10001fef4` | The standard map path uses fractal generation. |
 | Generation | `_make_land` | `0x10002437c` | Land generation is driven by the configured land percentage. |
 | Distance | `_map_distance_vector` | `0x100395e70` | Wrapped native coordinates are converted before distance is measured. |
 | Distance | `_base_map_distance_vector` | `0x10039859c` | Topology-aware map vectors choose the shortest wrapped displacement. |
-| Distance | `_map_vector_to_real_distance` | `0x100395c10` | Isometric-hex distance uses six legal directions. |
+| Distance | `_map_vector_to_real_distance` | `0x100395c10` | Isometric-hex distance is `abs(dx) + abs(dy)` across the forbidden diagonal and `max(abs(dx), abs(dy))` otherwise. |
 | Distance | `_real_map_distance` | `0x100395e30` | City spacing and AI range use the topology-aware distance. |
 | Distance | `_is_tiles_adjacent` | `0x100398030` | Only one-step topology neighbors are adjacent. |
 | Movement | `_tile_move_cost_ptrs` | `0x100396d8c` | Destination terrain, roads, and unit terrain-ignore rules determine entry cost. |
@@ -63,7 +63,7 @@ The native trace began with complete string searches and then followed each exec
 | Combat | `_unit_win_chance` | `0x10037c8d4` | Supplies current attack, defense, HP, and modified firepower to the win-chance formula. |
 | Combat | `_get_defense_rating` | `0x10037daa4` | Rates defense as defense power times rounds survived times defender firepower. |
 | Combat | `_get_defender` | `0x10037d7f8` | Chooses the defender by full combat odds, then lower build cost, then higher defense rating. |
-| Recovery | `_hp_gain_coord` | `0x1003fee50` | City minimum HP, base regeneration, and fortified regeneration are cumulative. |
+| Recovery | `_hp_gain_coord` | `0x1003fee50` | Takes the greater of percentage regeneration and minimum HP, then adds the separately truncated `(max_hp / 10) × HP_Regen_2 / 10` term. |
 | Recovery | `_unit_gain_hitpoints` | `0x1003fef90` | A unit that moved does not receive normal turn regeneration. |
 | Recovery | `_unit_restore_hitpoints` | `0x100190388` | End-of-turn healing is capped at the unit type's maximum HP. |
 | AI | `_dai_military_attack` | `0x100458244` | Military units evaluate and move toward attack targets. |
@@ -72,7 +72,7 @@ The native trace began with complete string searches and then followed each exec
 | AI | `_dai_do_build_city` | `0x1004473c4` | AI settlers validate and found at candidate city sites. |
 | AI | `_advisor_choose_build` | `0x10000d468` | City production is selected through the advisor path. |
 
-Every function listed above returned from `native_function_pseudocode`. The Ghidra bridge returned no result for them, so Craft Anything's built-in lifter supplied register-level pseudo-C instead. That output has approximate types and conditions, unresolved instructions, and some unstructured branches; function identities, addresses, calls, and strings were used as native confirmation, while exact values and semantics were cross-checked against the supplied C source and Civ2Civ3 rulesets.
+Every function listed above, plus the seven string-trace helpers, was requested separately from `native_function_pseudocode`, and all 53 results were awaited. The Ghidra bridge returned no result for them, so Craft Anything's built-in lifter supplied register-level pseudo-C instead. That output has approximate types and conditions, unresolved instructions, and some unstructured branches; function identities, addresses, calls, constants, and strings were used as native confirmation, while exact types and runtime-loaded values were cross-checked against the supplied C source and Civ2Civ3 rulesets.
 
 ## Match
 
@@ -81,7 +81,8 @@ Every function listed above returned from `native_function_pseudocode`. The Ghid
 | Ruleset | Civ2Civ3 | reference/freeciv/common/game.h, GAME_DEFAULT_RULESETDIR |
 | Players | 6 total: one person and five computer rivals | reference/freeciv/data/civ2civ3/game.ruleset, aifill = 6 |
 | Source map target | 100 land tiles per player | reference/freeciv/data/civ2civ3/game.ruleset, tilesperplayer = 100 |
-| Build map | 32 by 64 wrapped native tiles, 2,048 total | `generator_init_topology` and `set_sizes`: six players × 100 land tiles × 100 / 30% land = 2,000 requested tiles; the 1:1 isometric torus formula rounds to 32 × 64 |
+| Requested map area | 2,000 tiles | `_generator_init_topology` at `0x100031444`: `6 players × 100 land tiles × 100 / 30 land-percent` |
+| Build map | 32 by 64 wrapped native tiles, 2,048 total | `_get_ratios` at `0x100031e9c` returns 1:1 for two-axis wrap. `_set_sizes` at `0x100031f5c` computes `scale = trunc(sqrt(2000 / (1 × 1 × 2 × 2²)) + 0.49) = 16`, then `width = 1 × 16 × 2` and `height = 1 × 16 × 2 × 2`. |
 | Build land | 614 tiles | 30% of the 2,048 generated tiles, matching the configured land percentage to the nearest whole tile |
 | Generator | Deterministic fractal-like continents | Native `map_fractal_generate` and `make_land` confirm the source path; the compact Rust height function is an estimated substitute |
 | Wrap | Horizontal and vertical | reference/freeciv/data/civ2civ3/game.ruleset, WRAPX and WRAPY |
@@ -112,7 +113,7 @@ Every function listed above returned from `native_function_pseudocode`. The Ghid
 | Zoom range | 0.55 to 1.35 | Estimated usability range; the source clients expose zoom but do not share one fixed range |
 | Camera field of view | not applicable; orthographic map | Turn-based isometric client |
 
-Terrain entry cost is paid when a land unit enters the destination. As in Freeciv, a unit with movement remaining may enter a more expensive rough tile and finish at zero. Water blocks the opening land units. Native/map coordinate conversion and shortest wrapped vectors are used for movement, visibility, city range, AI targets, and pathfinding, so crossing either edge remains one legal hex step.
+Terrain entry cost is paid when a land unit enters the destination. As in Freeciv, a unit with movement remaining may enter a more expensive rough tile and finish at zero. Water blocks the opening land units. `_base_map_distance_vector` at `0x10039859c` first wraps each native delta into `[-dimension / 2, dimension / 2)`, then converts the wrapped endpoint back to map coordinates. `_map_vector_to_real_distance` at `0x100395c10` returns `abs(dx) + abs(dy)` when an iso-hex vector points northeast or southwest (the forbidden diagonals), and `max(abs(dx), abs(dy))` otherwise. Movement, visibility, city range, AI targets, and pathfinding share that vector, so crossing either edge remains one legal hex step.
 
 ## Terrain
 
@@ -160,7 +161,7 @@ Phalanx requires Bronze Working, Archers require Warrior Code, Legion requires I
 - A city gives ground defenders a +50% `Defend_Bonus`; size 9 adds another +50% within that same stage. A can-fortify ground unit in a city also receives a +50% `Fortify_Defense_Bonus` even when it has not explicitly fortified. Explicit fortification supplies that same stage outside a city and becomes active on the following turn. Thus a regular 10-power defender on grassland has power 10 in the field, 15 fortified in the field, and 22 in a size-one city (`10 × 150% × 150%`, with integer truncation). Source: `effect_city_defense_0`, `effect_city_defense_1`, `effect_city_fortified`, and `effect_fortified` in Civ2Civ3 effects.ruleset.
 - Tired attack is enabled: below one full movement point, attack power is multiplied by remaining fragments divided by 6. Source: civ2civ3/game.ruleset combat_rules and common/combat.c base_get_attack_power.
 - A successful attacker occupies the target tile with 100% chance. Source: civ2civ3/game.ruleset occupychance = 100.
-- `_hp_gain_coord` at `0x1003fee50` calculates `max(max HP × HP_Regen / 100, max HP × Min_HP_Pct / 100) + ceil(max HP / 10) × HP_Regen_2 / 10`. Opening ground units have 0% `HP_Regen`, a universal 10-point `HP_Regen_2`, a city-center `Min_HP_Pct` of 33, and another 10 points of `HP_Regen_2` while fortified. A damaged 10-HP unit therefore gains 1 HP in the field, 4 HP in a city, or 5 HP while fortified in a city. `_unit_gain_hitpoints` at `0x1003fef90` suppresses normal regeneration after movement, and `_unit_restore_hitpoints` at `0x100190388` caps healing at maximum HP.
+- `_hp_gain_coord` at `0x1003fee50` calculates `max(floor(max HP × HP_Regen / 100), floor(max HP × Min_HP_Pct / 100)) + floor(floor(max HP / 10) × HP_Regen_2 / 10)`. The original C spells the last numerator as `ceil(base / 10)`, but `base / 10` is integer division before `ceil`; the arm64 pseudo-C confirms an integer `sdiv` by 10 first. Opening ground units have 0% `HP_Regen`, a universal 10-point `HP_Regen_2`, a city-center `Min_HP_Pct` of 33, and another 10 points of `HP_Regen_2` while fortified. A damaged 10-HP unit therefore gains 1 HP in the field, 4 HP in a city, or 5 HP while fortified in a city; a 20-HP Settlers unit gains 2 HP in the field or 8 HP in a city. `_unit_gain_hitpoints` at `0x1003fef90` suppresses normal regeneration after movement, and `_unit_restore_hitpoints` at `0x100190388` caps healing at maximum HP.
 - There are no magazines, reloads, spread, recoil, projectile range, armour, or real-time respawns in this turn-based strategy game.
 
 ## Cities and research

@@ -10,9 +10,34 @@ const PERCENT_SCALE: i32 = 100;
 const TILES_PER_PLAYER: i32 = 100;
 const LAND_PERCENT: i32 = 30;
 const MAP_TARGET_TILES: i32 = PLAYER_COUNT as i32 * TILES_PER_PLAYER * PERCENT_SCALE / LAND_PERCENT;
-const MAP_W: i32 = 32;
-const MAP_H: i32 = 64;
-const LAND_TILE_TARGET: usize = 614;
+const MAP_X_RATIO: i32 = 1;
+const MAP_Y_RATIO: i32 = 1;
+const MAP_EVEN_FACTOR: i32 = 2;
+const MAP_ISO_FACTOR: i32 = 2;
+
+// Native _set_sizes at 0x100031f5c truncates
+// sqrt(size / (xratio * yratio * iso * even^2)) + 0.49.  This integer
+// comparison expresses the same 0.49 threshold at compile time, so the
+// dimensions remain derived from the ruleset inputs instead of copied out.
+const fn source_map_linear_scale(requested_tiles: i32) -> i32 {
+    let denominator =
+        (MAP_X_RATIO * MAP_Y_RATIO * MAP_ISO_FACTOR * MAP_EVEN_FACTOR * MAP_EVEN_FACTOR) as i64;
+    let requested_scaled = requested_tiles as i64 * 10_000;
+    let mut scale = 1_i64;
+    loop {
+        let next = scale + 1;
+        let threshold = next * 100 - 49;
+        if denominator * threshold * threshold > requested_scaled {
+            return scale as i32;
+        }
+        scale = next;
+    }
+}
+
+const MAP_LINEAR_SCALE: i32 = source_map_linear_scale(MAP_TARGET_TILES);
+const MAP_W: i32 = MAP_X_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR;
+const MAP_H: i32 = MAP_Y_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR * MAP_ISO_FACTOR;
+const LAND_TILE_TARGET: usize = (MAP_W * MAP_H * LAND_PERCENT / PERCENT_SCALE) as usize;
 const CITY_MIN_DISTANCE: i32 = 3;
 const MOVE_FRAGMENTS: i32 = 6;
 const POWER_FACTOR: i32 = 10;
@@ -129,7 +154,7 @@ fn build_ocean_corner_atlas(ocean: &Image, terrain: &Image) -> Image {
 
 fn window_conf() -> Conf {
     Conf {
-        window_title: "Open Empires".to_owned(),
+        window_title: "CivCraft".to_owned(),
         window_width: 1280,
         window_height: 720,
         window_resizable: true,
@@ -1693,7 +1718,9 @@ impl Game {
         if unit.state == UnitState::Fortified {
             regeneration_2 += FORTIFIED_HP_REGEN_2;
         }
-        let regeneration_after_minimum = ((base + 9) / 10) * regeneration_2 / 10;
+        // hp_gain_coord at 0x1003fee50 divides the integer HP value by 10
+        // before applying HP_Regen_2, then truncates again after the bonus.
+        let regeneration_after_minimum = (base / 10) * regeneration_2 / 10;
         (hp_regen.max(minimum) + regeneration_after_minimum).clamp(0, base - unit.hp)
     }
 
@@ -3088,7 +3115,7 @@ impl Game {
             Color::from_rgba(171, 133, 55, 255),
         );
         draw_text(
-            "OPEN EMPIRES",
+            "CivCraft",
             18.0,
             31.0,
             25.0,
@@ -4066,6 +4093,11 @@ mod tests {
 
     #[test]
     fn generated_world_uses_source_size_land_target_and_starter_terrain() {
+        assert_eq!(MAP_TARGET_TILES, 2_000);
+        assert_eq!(MAP_LINEAR_SCALE, 16);
+        assert_eq!((MAP_W, MAP_H), (32, 64));
+        assert_eq!(LAND_TILE_TARGET, 614);
+
         let game = Game::new();
         assert_eq!(game.tiles.len(), (MAP_W * MAP_H) as usize);
         assert_eq!(
@@ -4126,6 +4158,16 @@ mod tests {
         assert_eq!(Game::hitpoint_gain(&unit, true), 5);
         unit.moved = true;
         assert_eq!(Game::hitpoint_gain(&unit, true), 0);
+
+        // The compiled hp_gain_coord performs integer max-HP / 10 before
+        // applying HP_Regen_2. Settlers have 20 maximum HP, so they gain 2
+        // in the field and 6 minimum-city HP plus 2 regeneration in a city.
+        unit.kind = UnitKind::Settlers;
+        unit.hp = 1;
+        unit.state = UnitState::Idle;
+        unit.moved = false;
+        assert_eq!(Game::hitpoint_gain(&unit, false), 2);
+        assert_eq!(Game::hitpoint_gain(&unit, true), 8);
     }
 
     #[test]

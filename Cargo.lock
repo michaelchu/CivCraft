@@ -238,7 +238,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "open-empires"
+name = "civcraft"
 version = "0.1.0"
 dependencies = [
  "macroquad",
