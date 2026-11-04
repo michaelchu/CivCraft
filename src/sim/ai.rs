@@ -146,6 +146,11 @@ impl Simulation {
     }
 
     pub(super) fn choose_ai_rates(&mut self, owner: usize) {
+        let government = self.players[owner].government;
+        if government == Government::Anarchy {
+            return;
+        }
+        let cap = government.max_rate();
         let cities: Vec<_> = self
             .cities
             .iter()
@@ -154,13 +159,13 @@ impl Simulation {
             .collect();
         let upkeep: i32 = cities
             .iter()
-            .map(|(city, _)| Self::building_upkeep(city))
+            .map(|(city, _)| self.building_upkeep(city) + self.city_unit_upkeep(city).gold)
             .sum();
         let mut best = None;
-        for science_rate in (0..=60).step_by(10) {
-            for tax_rate in (0..=60).step_by(10) {
+        for science_rate in (0..=cap).step_by(10) {
+            for tax_rate in (0..=cap).step_by(10) {
                 let luxury_rate = 100 - science_rate - tax_rate;
-                if !(0..=60).contains(&luxury_rate) {
+                if !(0..=cap).contains(&luxury_rate) {
                     continue;
                 }
                 let rates = [science_rate, tax_rate, luxury_rate];

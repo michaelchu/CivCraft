@@ -42,8 +42,12 @@ impl Simulation {
     }
 
     pub(super) fn raise_rate(&mut self, owner: usize, index: usize) -> bool {
-        let rates = &mut self.players[owner].rates;
-        if index >= rates.len() || rates[index] >= 60 {
+        let player = &mut self.players[owner];
+        let rates = &mut player.rates;
+        if player.government == Government::Anarchy
+            || index >= rates.len()
+            || rates[index] >= player.government.max_rate()
+        {
             return false;
         }
         let donor = (0..rates.len())
@@ -60,6 +64,12 @@ impl Simulation {
     }
 
     pub(super) fn split_city_trade(&self, city: &City, trade: i32, rates: [i32; 3]) -> [i32; 3] {
+        let government = self.players[city.owner].government;
+        let rates = if government == Government::Anarchy {
+            [0, 0, 100]
+        } else {
+            rates
+        };
         let scaled = rates.map(|rate| trade * rate);
         let mut output = scaled.map(|value| value / 100);
         let mut order = [0, 1, 2];
@@ -92,24 +102,46 @@ impl Simulation {
             ["Marketplace", "Bank", "Stock Exchange"].as_slice(),
             ["Marketplace", "Bank", "Stock Exchange"].as_slice(),
         ];
-        for (amount, buildings) in output.iter_mut().zip(bonuses) {
+        for (index, (amount, buildings)) in output.iter_mut().zip(bonuses).enumerate() {
             let bonus = buildings
                 .iter()
                 .filter(|name| city.has_building(name))
-                .count();
-            *amount = apply_percent_bonus(*amount, 50 * bonus as i32);
+                .count() as i32;
+            let adjustment = match (government, index) {
+                (Government::Anarchy, 2) | (Government::Fundamentalism, 0) => -50,
+                (Government::Despotism, 1)
+                    if city.has_building("Palace")
+                        || city.has_building("Ecclesiastical Palace") =>
+                {
+                    75
+                }
+                (Government::Monarchy, 1)
+                    if city.has_building("Palace")
+                        || city.has_building("Ecclesiastical Palace") =>
+                {
+                    50
+                }
+                _ => 0,
+            };
+            *amount = percent_of(*amount, 100 + 50 * bonus + adjustment);
         }
         output
     }
 
     pub(crate) fn city_in_disorder(&self, city: &City, luxury: i32) -> bool {
-        // Opening government: Tribal. Apply luxury before Make_Content.
+        let government = self.players[city.owner].government;
+        // Apply luxury before Make_Content.
         let cities = self
             .cities
             .iter()
             .filter(|other| other.owner == city.owner)
             .count() as i32;
-        let empire_penalty = (cities - 1).max(0) / 12;
+        let basis = government.empire_size();
+        let empire_penalty = if basis > 0 {
+            (cities - 1).max(0) / basis
+        } else {
+            0
+        };
         let base = 4 - empire_penalty;
         let workers = city.tile_workers();
         let specialists = city.size - workers;
@@ -125,46 +157,111 @@ impl Simulation {
         upgrades -= happy_content;
         let happy_unhappy = unhappy.min(upgrades / 2);
         unhappy -= happy_unhappy;
+        let mut content = content - happy_content;
         upgrades -= happy_unhappy * 2;
         if upgrades >= 1 {
-            unhappy = (unhappy - 1).max(0);
+            let promoted = unhappy.min(1);
+            unhappy -= promoted;
+            content += promoted;
         }
 
         let mysticism = self.players[city.owner]
             .known
             .iter()
             .any(|tech| tech.name() == "Mysticism");
-        let pacification = 1 + if city.has_building("Temple") {
-            1 + i32::from(mysticism)
-        } else {
-            0
+        let martial = match government {
+            Government::Anarchy | Government::Despotism | Government::Monarchy => 1,
+            Government::Communism => 2,
+            _ => 0,
         };
+        let garrison = self
+            .units
+            .iter()
+            .filter(|unit| {
+                unit.owner == city.owner
+                    && unit.kind.is_military()
+                    && (unit.x, unit.y) == (city.x, city.y)
+            })
+            .count()
+            .min(3) as i32;
+        let pacification = i32::from(government == Government::Tribal)
+            + martial * garrison
+            + 2 * i32::from(city.has_building("Police Station"))
+            + i32::from(city.has_building("Courthouse"))
+            + if city.has_building("Temple") {
+                1 + i32::from(mysticism && government != Government::Communism)
+            } else {
+                0
+            };
         let calming_angry = pacification.min(angry);
         angry -= calming_angry;
-        unhappy = (unhappy + calming_angry - (pacification - calming_angry)).max(0);
-        happy_content + happy_unhappy < unhappy + 2 * angry
+        unhappy += calming_angry;
+        let promoted = unhappy.min(pacification - calming_angry);
+        unhappy -= promoted;
+        content += promoted;
+
+        let suffrage = self.owns_wonder(city.owner, "Women's Suffrage");
+        let (factor, allowance) = match government {
+            Government::Republic => (1, 1),
+            Government::Democracy => (2 - i32::from(suffrage), 3 - i32::from(suffrage)),
+            Government::Communism | Government::Fundamentalism | Government::Federation => (1, 2),
+            _ => (0, 0),
+        };
+        let mut happy = happy_content + happy_unhappy;
+        if factor > 0 {
+            let deployed = self
+                .units
+                .iter()
+                .filter(|unit| {
+                    unit.home_city == Some(city.id)
+                        && unit.owner == city.owner
+                        && unit.kind.is_military()
+                        && self.tile(unit.x, unit.y).owner != Some(city.owner)
+                        && !self
+                            .cities
+                            .iter()
+                            .any(|other| (other.x, other.y) == (unit.x, unit.y))
+                })
+                .count() as i32;
+            let police = i32::from(city.has_building("Police Station"))
+                * if government == Government::Democracy && !suffrage {
+                    2
+                } else {
+                    1
+                };
+            let local_suffrage = i32::from(city.has_building("Women's Suffrage"));
+            let pressure =
+                (deployed * (factor - police - local_suffrage).max(0) - allowance).max(0);
+            let from_content = content.min(pressure);
+            unhappy += from_content;
+            let pressure = pressure - from_content;
+            let from_happy = happy.min(pressure / 2);
+            unhappy += from_happy;
+            happy = (happy - from_happy - pressure % 2).max(0);
+        }
+        happy < unhappy + 2 * angry
     }
 
-    pub(super) fn balance_building_upkeep(&mut self, owner: usize) {
+    pub(super) fn balance_building_upkeep(&mut self, owner: usize, city_id: u32) {
         while self.players[owner].gold < 0 {
             let candidates: Vec<_> = self
                 .cities
                 .iter()
                 .enumerate()
-                .filter(|(_, city)| city.owner == owner)
+                .filter(|(_, city)| city.id == city_id)
                 .flat_map(|(index, city)| {
+                    let free = self.free_building_upkeep(city);
                     city.buildings
                         .iter()
                         .copied()
-                        .filter(|building| {
+                        .filter(move |building| {
                             building.data().genus == crate::rules::Genus::Improvement
-                                && building.data().upkeep > 0
+                                && building.data().upkeep > free
                         })
                         .map(move |building| (index, building))
                 })
                 .collect();
             if candidates.is_empty() {
-                self.players[owner].gold = 0;
                 break;
             }
             let (index, building) = candidates[self.rand_below(candidates.len() as i32) as usize];
@@ -182,10 +279,21 @@ impl Simulation {
         }
     }
 
-    pub(crate) fn building_upkeep(city: &City) -> i32 {
+    fn free_building_upkeep(&self, city: &City) -> i32 {
+        match self.players[city.owner].government {
+            Government::Anarchy => 99,
+            Government::Communism => 1,
+            _ => i32::from(
+                city.has_building("Stock Exchange")
+                    && self.owns_wonder(city.owner, "A.Smith's Trading Co."),
+            ),
+        }
+    }
+
+    pub(crate) fn building_upkeep(&self, city: &City) -> i32 {
         city.buildings
             .iter()
-            .map(|building| building.data().upkeep)
+            .map(|building| (building.data().upkeep - self.free_building_upkeep(city)).max(0))
             .sum()
     }
 

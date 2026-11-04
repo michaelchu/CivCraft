@@ -58,6 +58,87 @@ impl Simulation {
         }
     }
 
+    pub(crate) fn technology_upkeep(&self, owner: usize) -> i32 {
+        let player = &self.players[owner];
+        let known_cost: i64 = player
+            .known
+            .iter()
+            .filter_map(|tech| tech.data())
+            .map(|advance| {
+                i64::from((advance.requirement_count * BASE_TECH_COST).max(MIN_TECH_COST))
+            })
+            .sum();
+        let future = i64::from(player.future_techs);
+        let known = player.known.len() as i64 + 1;
+        let future_cost = if future > 0 {
+            i64::from(BASE_TECH_COST) * (future * (2 * known + future + 1) + 2 * known) / 2
+        } else {
+            0
+        };
+        // Civ2Civ3 uses the default Normal science factor (100) plus the
+        // ruleset's Tech_Cost_Pct (300) for maintenance calculations.
+        let scaled = (known_cost + future_cost)
+            * i64::from(100 + TECH_COST_PERCENT)
+            * i64::from(SCIENCEBOX_PERCENT);
+        let free = if player.government == Government::Anarchy {
+            102
+        } else {
+            3
+        };
+        let divider = 6000 * 100 * 100;
+        let cities = self
+            .cities
+            .iter()
+            .filter(|city| city.owner == owner)
+            .count() as i64;
+        (((scaled - free * divider).max(0) * cities) / divider) as i32
+    }
+
+    pub(super) fn apply_research_upkeep(&mut self, owner: usize, income: i32) {
+        let upkeep = self.technology_upkeep(owner);
+        self.players[owner].research += income - upkeep;
+        if self.players[owner].research >= 0 {
+            return;
+        }
+        let lost = if self.players[owner].future_techs > 0 {
+            Some(Tech::FUTURE)
+        } else {
+            let known = &self.players[owner].known;
+            let eligible: Vec<_> = Tech::all()
+                .filter(|tech| {
+                    known.contains(tech)
+                        && known
+                            .iter()
+                            .all(|other| !other.prerequisites().contains(tech))
+                })
+                .collect();
+            if eligible.is_empty() {
+                None
+            } else {
+                Some(eligible[self.rand_below(eligible.len() as i32) as usize])
+            }
+        };
+        let Some(tech) = lost else {
+            return;
+        };
+        self.players[owner].research += self.target_cost(owner, tech) / 2;
+        if tech == Tech::FUTURE {
+            self.players[owner].future_techs -= 1;
+        } else {
+            self.players[owner].known.retain(|&known| known != tech);
+            self.players[owner].researching = self.research_target(owner);
+        }
+        if owner == HUMAN {
+            self.add_event(format!(
+                "Insufficient science to maintain {}. The technology was lost.",
+                tech.name()
+            ));
+        }
+        if tech != Tech::FUTURE {
+            self.handle_government_tech_loss(owner, tech);
+        }
+    }
+
     pub(super) fn discover(&mut self, owner: usize, tech: Tech) {
         if tech == Tech::FUTURE {
             self.players[owner].future_techs += 1;

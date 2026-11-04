@@ -4,6 +4,7 @@ use assets::{
     OCEAN_ATLAS_H, PLAYER_COLORS, TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source,
     ocean_cell_source, unit_sprite,
 };
+mod government_view;
 mod hud;
 mod input;
 mod research_tree;
@@ -30,6 +31,8 @@ pub(crate) enum UiAction {
     RaiseRate(usize),
     Specialist(u32, usize, i32),
     HomeCity,
+    ToggleGovernment,
+    ChangeGovernment(Government),
     CloseCity,
     SelectUnit(u32),
     FoundCity,
@@ -59,6 +62,7 @@ pub(crate) struct Game {
     zoom: f32,
     goto_mode: bool,
     research_open: bool,
+    government_open: bool,
     research_age: usize,
     research_inspected: Option<Tech>,
     research_tree: ResearchTree,
@@ -89,6 +93,7 @@ impl Game {
             zoom: START_ZOOM,
             goto_mode: false,
             research_open: false,
+            government_open: false,
             research_age: 0,
             research_inspected: None,
             research_tree: ResearchTree::new(),
@@ -193,6 +198,9 @@ impl Game {
         }
         self.draw_world(assets);
         let mut actions = self.draw_hud();
+        if self.government_open {
+            return self.draw_government();
+        }
         if self.selected_city_index().is_some() {
             self.draw_city_manager(assets, &mut actions);
         }

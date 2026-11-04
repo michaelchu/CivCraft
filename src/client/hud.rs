@@ -39,6 +39,9 @@ impl Game {
             Color::from_rgba(227, 230, 220, 255),
         );
         let player = &self.sim.players()[HUMAN];
+        let government_button = Rect::new(115.0, 9.0, 95.0, 27.0);
+        draw_ui_button(government_button, player.government.name(), true, false);
+        actions.push((government_button, UiAction::ToggleGovernment));
         draw_circle(483.0, 23.0, 8.0, PLAYER_COLORS[HUMAN]);
         draw_text(
             player.name,
@@ -67,6 +70,16 @@ impl Game {
             17.0,
             Color::from_rgba(151, 210, 231, 255),
         );
+        let tech_upkeep = self.sim.technology_upkeep(HUMAN);
+        if tech_upkeep > 0 {
+            draw_text(
+                &format!("Tech upkeep: {tech_upkeep}"),
+                1050.0,
+                29.0,
+                15.0,
+                LIGHTGRAY,
+            );
+        }
         self.hud_elements_drawn += 1;
 
         draw_rectangle(
@@ -115,15 +128,22 @@ impl Game {
         self.hud_elements_drawn += 1;
 
         for (index, label) in ["Science", "Tax", "Luxury"].into_iter().enumerate() {
-            let rate = self.sim.players()[HUMAN].rates[index];
+            let player = &self.sim.players()[HUMAN];
+            let in_anarchy = player.government == Government::Anarchy;
+            let rate = if in_anarchy {
+                [0, 0, 100][index]
+            } else {
+                player.rates[index]
+            };
+            let enabled = !in_anarchy && rate < player.government.max_rate();
             let rect = Rect::new(
                 panel_x + 18.0 + index as f32 * 94.0,
                 screen_height() - 146.0,
                 90.0,
                 28.0,
             );
-            draw_ui_button(rect, &format!("{label} {rate}%"), rate < 60, false);
-            if rate < 60 {
+            draw_ui_button(rect, &format!("{label} {rate}%"), enabled, false);
+            if enabled {
                 actions.push((rect, UiAction::RaiseRate(index)));
             }
         }
@@ -306,7 +326,7 @@ impl Game {
         let food_net = food - city.size * CITIZEN_FOOD_COST - support.food;
         let shields = (shields - support.shields).max(0);
         let [science, gold, luxury] = self.sim.city_trade(city, trade);
-        let upkeep = Simulation::building_upkeep(city);
+        let upkeep = self.sim.building_upkeep(city) + support.gold;
         let disorder = self.sim.city_in_disorder(city, luxury);
         let (science, gold, shields, food_net) = if disorder {
             (0, 0, 0, food_net.min(0))
@@ -647,8 +667,8 @@ impl Game {
         let garrison_y = rect.y + 395.0;
         draw_text(
             &format!(
-                "GARRISON     Unit upkeep  {} food / {} shields",
-                support.food, support.shields
+                "GARRISON     Unit upkeep  {} food / {} shields / {} gold",
+                support.food, support.shields, support.gold
             ),
             rect.x + 22.0,
             garrison_y,

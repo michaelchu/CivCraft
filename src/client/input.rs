@@ -84,6 +84,10 @@ impl Game {
                 }
             }
             UiAction::ProductionPage(page) => self.production_page = page,
+            UiAction::ToggleGovernment => self.government_open = !self.government_open,
+            UiAction::ChangeGovernment(target) => {
+                self.sim.apply(Command::Government(target));
+            }
             UiAction::OpenResearch => {
                 self.research_open = true;
                 self.research_drag = None;
@@ -110,6 +114,12 @@ impl Game {
     }
 
     pub(crate) fn handle_keyboard(&mut self) {
+        if self.government_open {
+            if is_key_pressed(KeyCode::Escape) {
+                self.government_open = false;
+            }
+            return;
+        }
         if self.research_open {
             if is_key_pressed(KeyCode::Escape) {
                 self.research_open = false;
@@ -335,6 +345,16 @@ impl Game {
     }
 
     pub(crate) fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
+        if self.government_open {
+            let (x, y) = mouse_position();
+            if is_mouse_button_pressed(MouseButton::Left)
+                && let Some((_, action)) =
+                    buttons.iter().find(|(rect, _)| rect.contains(vec2(x, y)))
+            {
+                self.perform_action(*action);
+            }
+            return;
+        }
         if self.research_open {
             self.handle_research_mouse(buttons);
             return;

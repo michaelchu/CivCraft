@@ -150,7 +150,7 @@ async fn main() {
             let trade = game.sim.city_yields(city).2;
             let [science, gold, _] = game.sim.city_trade(city, trade);
             let player = &game.sim.players()[HUMAN];
-            let expected_gold = player.gold + gold - sim::Simulation::building_upkeep(city);
+            let expected_gold = player.gold + gold - game.sim.building_upkeep(city);
             let expected_research = player.research + science;
             game.sim.apply(Command::EndTurn);
             let player = &game.sim.players()[HUMAN];
@@ -224,6 +224,65 @@ async fn main() {
             act_passed = verified;
             act_detail.push_str(&format!(
                 " Third supported unit charged one shield on the next turn: {verified}."
+            ));
+        }
+
+        if self_test_path.is_some() && frame == 78 && act_passed {
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::ToggleGovernment))
+            {
+                game.perform_action(*action);
+            }
+        }
+        if self_test_path.is_some() && frame == 83 && act_passed {
+            use sim::Government;
+            let locked = !buttons.iter().any(|(_, action)| {
+                matches!(action, UiAction::ChangeGovernment(Government::Monarchy))
+            });
+            if let Some((_, action)) = buttons.iter().find(|(_, action)| {
+                matches!(action, UiAction::ChangeGovernment(Government::Despotism))
+            }) {
+                game.perform_action(*action);
+            }
+            let player = &game.sim.players()[HUMAN];
+            act_passed = locked
+                && player.government == Government::Anarchy
+                && player.revolution_target == Some(Government::Despotism);
+            act_detail.push_str(&format!(
+                " Government panel enforced the tech lock and started Anarchy: {act_passed}."
+            ));
+        }
+        if self_test_path.is_some() && frame == 90 && act_passed {
+            use sim::Government;
+            let finish = game.sim.players()[HUMAN].revolution_turn.unwrap();
+            game.perform_action(UiAction::ToggleGovernment);
+            while game.sim.turn() < finish && game.sim.apply(Command::EndTurn) {}
+            let city = game
+                .sim
+                .cities()
+                .iter()
+                .find(|city| city.owner == HUMAN)
+                .unwrap();
+            let upkeep = game.sim.city_unit_upkeep(city);
+            let [_, gold, luxury] = game.sim.city_trade(city, game.sim.city_yields(city).2);
+            let revenue = if game.sim.city_in_disorder(city, luxury) {
+                0
+            } else {
+                gold
+            };
+            let treasury = game.sim.players()[HUMAN].gold + revenue
+                - game.sim.building_upkeep(city)
+                - upkeep.gold;
+            let adopted = game.sim.players()[HUMAN].government == Government::Despotism;
+            game.sim.apply(Command::EndTurn);
+            act_passed = adopted
+                && upkeep.shields == 0
+                && upkeep.gold > 0
+                && game.sim.players()[HUMAN].gold == treasury;
+            act_detail.push_str(&format!(
+                " Despotism charged {} gold and {} shields in unit upkeep: {act_passed}.",
+                upkeep.gold, upkeep.shields
             ));
         }
 

@@ -175,9 +175,19 @@ impl Simulation {
             // automatically, but an explicit irrigation does not stack.
             cf += center.terrain.irrigation_bonus();
         }
-        let mut food = cf.max(1);
-        let mut shields = cs.max(1);
-        let mut trade = ct.max(1);
+        let government = self.players[city.owner].government;
+        let tile_penalty = matches!(
+            government,
+            Government::Tribal | Government::Despotism | Government::Anarchy
+        ) && !self.has_tech(city.owner, Tech::RAILROAD)
+            && !self.owns_wonder(city.owner, "Pyramids");
+        let trade_bonus = matches!(government, Government::Republic | Government::Democracy);
+        let adjust = |tile: &Tile, (food, shields, trade): (i32, i32, i32)| {
+            let trade = trade + i32::from(trade_bonus && trade > 0 && !tile.terrain.is_water());
+            let cap = |value| value - i32::from(tile_penalty && value > 2);
+            (cap(food), cap(shields), cap(trade))
+        };
+        let (mut food, mut shields, mut trade) = adjust(center, (cf.max(1), cs.max(1), ct.max(1)));
         let mut candidates = Vec::new();
         for dy in -2..=2 {
             for dx in -2..=2 {
@@ -187,7 +197,7 @@ impl Simulation {
                 }
                 let (tile_x, tile_y) = offset_native_by_map(city.x, city.y, dx, dy);
                 let tile = self.tile(tile_x, tile_y);
-                let yields = tile.yields();
+                let yields = adjust(tile, tile.yields());
                 let score = yields.0 * 4 + yields.1 * 3 + yields.2 * 2;
                 candidates.push((score, yields));
             }
@@ -198,6 +208,7 @@ impl Simulation {
             shields += s;
             trade += t;
         }
+        let (shields, trade) = self.government_output_waste(city, shields, trade);
         (food, shields, trade)
     }
 
@@ -320,6 +331,7 @@ impl Simulation {
 
     pub(super) fn process_cities(&mut self) {
         let mut science_income = [0; PLAYER_COUNT];
+        let mut gold_paid = Vec::new();
         let city_ids: Vec<u32> = self.cities.iter().map(|c| c.id).collect();
         for city_id in city_ids {
             let Some(snapshot) = self.cities.iter().find(|c| c.id == city_id).cloned() else {
@@ -417,8 +429,12 @@ impl Simulation {
             }
             if snapshot.owner < PLAYER_COUNT {
                 science_income[snapshot.owner] += if disorder { 0 } else { science };
-                self.players[snapshot.owner].gold +=
-                    (if disorder { 0 } else { gold }) - Self::building_upkeep(&snapshot);
+                let unit_gold = self.city_gold_upkeep(&snapshot);
+                self.players[snapshot.owner].gold += (if disorder { 0 } else { gold })
+                    - self.building_upkeep(&snapshot)
+                    - unit_gold.iter().map(|(_, cost)| cost).sum::<i32>();
+                gold_paid.extend(unit_gold);
+                self.balance_building_upkeep(snapshot.owner, city_id);
             }
             if grew && snapshot.owner == HUMAN {
                 self.add_event(format!(
@@ -455,11 +471,8 @@ impl Simulation {
         }
 
         for (owner, science) in science_income.into_iter().enumerate() {
-            self.balance_building_upkeep(owner);
-            if science <= 0 {
-                continue;
-            }
-            self.players[owner].research += science;
+            self.balance_unit_gold_upkeep(owner, &gold_paid);
+            self.apply_research_upkeep(owner, science);
             let current = self.players[owner].researching;
             let cost = self.target_cost(owner, current);
             if self.players[owner].research >= cost {

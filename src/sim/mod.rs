@@ -3,6 +3,8 @@ mod buildings;
 mod cities;
 mod commands;
 mod economy;
+mod government;
+pub(crate) use government::Government;
 mod movement;
 mod research;
 pub(crate) use commands::Command;
@@ -55,6 +57,7 @@ pub(crate) struct Simulation {
     completed_wonders: Vec<Building>,
     spaceship_parts: [[usize; 3]; PLAYER_COUNT],
     players: Vec<Player>,
+    government_adoptions: [i32; 9],
     turn: i32,
     year: i32,
     next_unit_id: u32,
@@ -165,6 +168,9 @@ impl Simulation {
                 name: names[i],
                 gold: 50,
                 rates: [60, 40, 0],
+                government: Government::Tribal,
+                revolution_target: None,
+                revolution_turn: None,
                 known: vec![free_techs[i]],
                 researching: research_targets[i],
                 research_goal: [
@@ -185,6 +191,9 @@ impl Simulation {
             name: "Barbarians",
             gold: 0,
             rates: [60, 40, 0],
+            government: Government::Tribal,
+            revolution_target: None,
+            revolution_turn: None,
             known: Vec::new(),
             researching: Tech::FUTURE,
             research_goal: Tech::FUTURE,
@@ -232,6 +241,7 @@ impl Simulation {
             completed_wonders: Vec::new(),
             spaceship_parts: [[0; 3]; PLAYER_COUNT],
             players,
+            government_adoptions: [0; 9],
             turn: 1,
             year: -4000,
             next_unit_id,
@@ -397,6 +407,14 @@ impl Simulation {
             self.run_automated_unit(id);
         }
         for owner in 1..PLAYER_COUNT {
+            let upgrade = match self.players[owner].government {
+                Government::Tribal => Some(Government::Republic),
+                Government::Despotism => Some(Government::Monarchy),
+                _ => None,
+            };
+            if let Some(target) = upgrade {
+                self.change_government(owner, target);
+            }
             self.run_ai_player(owner);
             self.choose_ai_rates(owner);
         }
@@ -404,6 +422,7 @@ impl Simulation {
         self.process_cities();
         self.update_activities_and_restore();
         self.turn += 1;
+        self.finish_revolutions();
         self.advance_calendar();
         self.refresh_visibility();
         self.add_event(format!(

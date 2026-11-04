@@ -3,6 +3,7 @@ use super::*;
 pub(crate) struct UnitUpkeep {
     pub(crate) food: i32,
     pub(crate) shields: i32,
+    pub(crate) gold: i32,
     pub(super) food_unit: Option<u32>,
 }
 
@@ -28,17 +29,91 @@ impl Simulation {
             .filter(|unit| {
                 unit.home_city == Some(city.id)
                     && unit.owner == city.owner
-                    && unit.kind != UnitKind::Settlers
+                    && self.unit_shield_cost(unit) > 0
             })
             .count() as i32;
-        let zeus = self
-            .cities
-            .iter()
-            .any(|other| other.owner == city.owner && other.has_building("Statue of Zeus"));
+        let (_, free_shields, _) = self.players[city.owner].government.unit_support();
+        let zeus = self.owns_wonder(city.owner, "Statue of Zeus");
         UnitUpkeep {
             food: food_units.len().saturating_sub(free_food) as i32,
-            shields: (shield_units - 2 - i32::from(zeus)).max(0),
+            shields: (shield_units - free_shields - i32::from(zeus)).max(0),
+            gold: self
+                .city_gold_upkeep(city)
+                .iter()
+                .map(|(_, cost)| cost)
+                .sum(),
             food_unit: food_units.get(free_food).map(|unit| unit.id),
+        }
+    }
+
+    fn unit_shield_cost(&self, unit: &Unit) -> i32 {
+        i32::from(unit.kind != UnitKind::Settlers && self.unit_gold_cost(unit) == 0)
+    }
+
+    fn unit_gold_cost(&self, unit: &Unit) -> i32 {
+        // Caravel lacks ShieldToGold in Civ2Civ3. Settlers have no base shield cost.
+        if matches!(unit.kind, UnitKind::Caravel | UnitKind::Settlers) {
+            0
+        } else {
+            self.players[unit.owner].government.unit_support().0
+        }
+    }
+
+    pub(super) fn city_gold_upkeep(&self, city: &City) -> Vec<(u32, i32)> {
+        let (conversion, _, free_gold) = self.players[city.owner].government.unit_support();
+        if conversion == 0 {
+            return Vec::new();
+        }
+        let mut free =
+            free_gold + 2 * i32::from(self.owns_wonder(city.owner, "King Richard's Crusade"));
+        let mut units: Vec<_> = self
+            .units
+            .iter()
+            .filter(|unit| unit.owner == city.owner && unit.home_city == Some(city.id))
+            .collect();
+        units.sort_by_key(|unit| std::cmp::Reverse(unit.home_order));
+        units
+            .into_iter()
+            .filter_map(|unit| {
+                let cost = self.unit_gold_cost(unit);
+                let covered = free.min(cost);
+                free -= covered;
+                (cost > covered).then_some((unit.id, cost - covered))
+            })
+            .collect()
+    }
+
+    pub(super) fn balance_unit_gold_upkeep(&mut self, owner: usize, paid: &[(u32, i32)]) {
+        while self.players[owner].gold < 0 {
+            let candidates: Vec<_> = self
+                .units
+                .iter()
+                .filter(|unit| unit.owner == owner && paid.iter().any(|&(id, _)| id == unit.id))
+                .map(|unit| unit.id)
+                .collect();
+            if candidates.is_empty() {
+                self.players[owner].gold = 0;
+                break;
+            }
+            let count = candidates.len();
+            let mut id = candidates[self.rand_below(count as i32) as usize];
+            // The reference sells upkeep-paying cargo before its transport.
+            while let Some(cargo) = self.units.iter().find(|unit| {
+                unit.transport == Some(id) && paid.iter().any(|&(paid_id, _)| paid_id == unit.id)
+            }) {
+                id = cargo.id;
+            }
+            let unit = self.units.iter().find(|unit| unit.id == id).unwrap();
+            if owner == HUMAN {
+                let message = format!(
+                    "Not enough gold to support {}. The unit was disbanded.",
+                    unit.kind.name()
+                );
+                self.add_event(message);
+            }
+            self.units
+                .retain(|unit| unit.id != id && unit.transport != Some(id));
+            self.players[owner].gold += paid.iter().find(|&&(paid_id, _)| paid_id == id).unwrap().1;
         }
     }
 
@@ -107,7 +182,7 @@ impl Simulation {
                 .filter(|unit| {
                     unit.owner == city.owner
                         && unit.home_city == Some(city.id)
-                        && unit.kind != UnitKind::Settlers
+                        && self.unit_shield_cost(unit) > 0
                 })
                 .cloned()
                 .collect();
