@@ -32,7 +32,7 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery renders 14 isolated scenarios with actual game assets and the production renderer. It uses long city names, a large treasury and a full-width seed, populates diplomacy and spy dialogs, exercises available next-page actions, and checks that actionable controls remain inside the window. Each scenario produces a PNG plus a second PNG after pagination. The fixture does not affect normal games and disables autosaving.
+The gallery renders 15 isolated scenarios with actual game assets and the production renderer. It uses long city names, a large treasury and a full-width seed, populates diplomacy and spy dialogs, includes two civilizations sharing a territorial boundary, exercises available next-page actions, and checks that actionable controls remain inside the window. Each scenario produces a PNG plus a second PNG after pagination. The fixture does not affect normal games and disables autosaving.
 
 Repeat at 800x600 and 1600x900 to inspect compact and wide layouts. Run the existing desktop interaction suite separately:
 
@@ -57,3 +57,5 @@ Parity implementation remains paused during this UI work.
 The city map reuses the world's terrain and improvement passes. It fits the city radius into the available panel space, clips terrain overhangs, and fogs irrelevant or unexplored tiles. Gold outlines show the city center and worked tiles, with each shared edge drawn once at a consistent thickness; tile yield labels remain visible. Click targets follow each diamond rather than its overlapping bounding rectangle. Preview rendering does not move or zoom the main world camera.
 
 Validation: 490 Rust tests and 278 desktop checks passed, including worker/specialist reassignment. Standard and compact window captures passed control-bound checks; the main-world screenshot remained pixel-identical after extracting the shared terrain pass.
+
+Territorial borders use a thin player-colored band with a dark outline and diagonal stitching. Each filled band is clipped to its owning tile and reaches the exact shared boundary, so both colors meet without a gap or protruding line caps. The dark outline is drawn only on the terrain-facing side. The touching-borders gallery scenario demonstrates this with red and gold territories.

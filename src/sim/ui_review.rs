@@ -75,3 +75,34 @@ impl Simulation {
         (city, spy, rival)
     }
 }
+
+impl Simulation {
+    /// Isolated visual fixture for the two sides of a shared national boundary.
+    pub(crate) fn ui_review_touching_borders(&mut self) {
+        self.units.clear();
+        self.cities.clear();
+        for (owner, dx, name) in [(HUMAN, -2, "Crimson City"), (1, 2, "Golden City")] {
+            let (x, y) = offset_native_by_map(20, 24, dx, 0);
+            self.tile_mut(x, y).terrain = Terrain::Grassland;
+            self.create_city(owner, x, y);
+            self.cities.last_mut().unwrap().name = name.into();
+        }
+        for tile in &mut self.tiles {
+            tile.owner = None;
+            tile.last_seen_owner = None;
+        }
+        for dy in -4..=4 {
+            for dx in -4..=4 {
+                let (x, y) = offset_native_by_map(20, 24, dx, dy);
+                let tile = self.tile_mut(x, y);
+                tile.terrain = Terrain::Grassland;
+                tile.river = false;
+                tile.owner = Some(if dx <= 0 { HUMAN } else { 1 });
+                tile.last_seen_owner = tile.owner;
+                tile.seen = true;
+                tile.visible = true;
+                tile.known_by.fill(true);
+            }
+        }
+    }
+}

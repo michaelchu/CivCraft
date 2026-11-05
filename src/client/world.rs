@@ -323,7 +323,16 @@ impl Game {
             vec2(center.x - tile_w * 0.5, center.y),
         ];
         let edge_neighbors = [(0, -1), (1, 0), (0, 1), (-1, 0)];
-        let color = with_alpha(player_color(owner), if visible { 0.82 } else { 0.42 });
+        let opacity = if visible { 0.95 } else { 0.42 };
+        let color = with_alpha(player_color(owner), opacity);
+        let width = (3.5 * tile_w / TILE_W).clamp(2.75, 4.75);
+        let shadow = Color::new(0.025, 0.035, 0.04, opacity * 0.9);
+        let thread = Color::new(
+            color.r * 0.45 + 0.55,
+            color.g * 0.45 + 0.55,
+            color.b * 0.45 + 0.55,
+            opacity,
+        );
 
         for (edge, (dx, dy)) in edge_neighbors.into_iter().enumerate() {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
@@ -331,8 +340,27 @@ impl Game {
                 continue;
             }
             let start = points[edge];
-            let end = points[(edge + 1) % points.len()];
-            draw_line(start.x, start.y, end.x, end.y, 2.0, color);
+            let end = points[(edge + 1) % 4];
+            let tangent = (end - start).normalize();
+            let normal = territory_inward_normal(start, end, center);
+            // Filled bands reach the exact boundary, with the dark outline
+            // only on the terrain-facing side. Tile clipping joins corners
+            // without extending line caps into another civilization.
+            fill_territory_polygon(&territory_edge_band(&points, edge, width + 1.0), shadow);
+            fill_territory_polygon(&territory_edge_band(&points, edge, width), color);
+            let length = start.distance(end);
+            let stitches = (length / 9.0).floor().max(1.0) as usize;
+            for index in 0..stitches {
+                let midpoint = start + tangent * (length * (index as f32 + 0.5) / stitches as f32);
+                let a = midpoint + normal * width * 0.22 - tangent * width * 0.18;
+                let b = midpoint + normal * width * 0.78 + tangent * width * 0.18;
+                let cross = vec2(-(b - a).y, (b - a).x).normalize() * 0.6;
+                let stitch = clip_territory_polygon(
+                    vec![a - cross, b - cross, b + cross, a + cross],
+                    &points,
+                );
+                fill_territory_polygon(&stitch, thread);
+            }
         }
     }
 
@@ -715,5 +743,125 @@ impl Game {
                 WHITE,
             );
         }
+    }
+}
+
+fn territory_inward_normal(start: Vec2, end: Vec2, center: Vec2) -> Vec2 {
+    let tangent = (end - start).normalize();
+    let normal = vec2(-tangent.y, tangent.x);
+    if normal.dot(center - (start + end) * 0.5) < 0.0 {
+        -normal
+    } else {
+        normal
+    }
+}
+
+/// A band lies completely inside the owning diamond and touches its edge.
+fn territory_edge_band(diamond: &[Vec2; 4], edge: usize, width: f32) -> Vec<Vec2> {
+    let center = diamond.iter().copied().sum::<Vec2>() * 0.25;
+    let (a, b) = (diamond[edge], diamond[(edge + 1) % 4]);
+    let offset = territory_inward_normal(a, b, center) * width;
+    clip_territory_polygon(vec![a, b, b + offset, a + offset], diamond)
+}
+
+/// Clip convex geometry against the four owning half-planes, including corners.
+fn clip_territory_polygon(mut polygon: Vec<Vec2>, diamond: &[Vec2; 4]) -> Vec<Vec2> {
+    let center = diamond.iter().copied().sum::<Vec2>() * 0.25;
+    for edge in 0..4 {
+        let (a, b) = (diamond[edge], diamond[(edge + 1) % 4]);
+        let normal = territory_inward_normal(a, b, center);
+        let input = std::mem::take(&mut polygon);
+        let Some(&last) = input.last() else {
+            break;
+        };
+        let mut previous = last;
+        let mut previous_distance = (previous - a).dot(normal);
+        for current in input {
+            let distance = (current - a).dot(normal);
+            if (distance >= 0.0) != (previous_distance >= 0.0) {
+                let t = previous_distance / (previous_distance - distance);
+                polygon.push(previous + (current - previous) * t);
+            }
+            if distance >= 0.0 {
+                polygon.push(current);
+            }
+            previous = current;
+            previous_distance = distance;
+        }
+    }
+    polygon
+}
+
+fn fill_territory_polygon(polygon: &[Vec2], color: Color) {
+    for index in 1..polygon.len().saturating_sub(1) {
+        draw_triangle(polygon[0], polygon[index], polygon[index + 1], color);
+    }
+}
+
+#[cfg(test)]
+mod border_tests {
+    use super::*;
+    fn diamond(center: Vec2) -> [Vec2; 4] {
+        [
+            vec2(0.0, -24.0),
+            vec2(48.0, 0.0),
+            vec2(0.0, 24.0),
+            vec2(-48.0, 0.0),
+        ]
+        .map(|p| p + center)
+    }
+    fn assert_inside(points: &[Vec2], tile: &[Vec2; 4]) {
+        let center = tile.iter().copied().sum::<Vec2>() * 0.25;
+        for edge in 0..4 {
+            let normal = territory_inward_normal(tile[edge], tile[(edge + 1) % 4], center);
+            for point in points {
+                assert!(
+                    (*point - tile[edge]).dot(normal) >= -0.001,
+                    "border protrudes from tile: {point:?}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn neighboring_colors_meet_exactly_at_shared_boundary() {
+        let red = diamond(Vec2::ZERO);
+        let gold = diamond(vec2(48.0, 24.0));
+        let red_band = territory_edge_band(&red, 1, 3.5);
+        let gold_band = territory_edge_band(&gold, 3, 3.5);
+        for endpoint in [red[1], red[2]] {
+            assert!(red_band.iter().any(|p| p.distance(endpoint) < 0.001));
+            assert!(gold_band.iter().any(|p| p.distance(endpoint) < 0.001));
+        }
+        assert_inside(&red_band, &red);
+        assert_inside(&gold_band, &gold);
+    }
+    #[test]
+    fn bands_and_outlines_never_protrude_at_any_corner() {
+        let tile = diamond(Vec2::ZERO);
+        for width in [2.75, 3.5, 4.75, 5.75] {
+            for edge in 0..4 {
+                let band = territory_edge_band(&tile, edge, width);
+                assert!(band.len() >= 3);
+                assert_inside(&band, &tile);
+                assert!(band.iter().any(|p| p.distance(tile[edge]) < 0.001));
+                assert!(
+                    band.iter()
+                        .any(|p| p.distance(tile[(edge + 1) % 4]) < 0.001)
+                );
+            }
+        }
+    }
+    #[test]
+    fn patterned_strokes_are_clipped_at_the_tile_corner() {
+        let tile = diamond(Vec2::ZERO);
+        let pattern = vec![
+            vec2(43.0, -4.0),
+            vec2(55.0, -4.0),
+            vec2(55.0, 4.0),
+            vec2(43.0, 4.0),
+        ];
+        let clipped = clip_territory_polygon(pattern, &tile);
+        assert!(clipped.len() >= 3);
+        assert_inside(&clipped, &tile);
     }
 }

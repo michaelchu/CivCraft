@@ -15,6 +15,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "spy",
     "investigation",
     "worker-actions",
+    "touching-borders",
 ];
 impl Game {
     pub(crate) fn prepare_ui_review(&mut self, scene: usize, seed: u64) {
@@ -63,6 +64,10 @@ impl Game {
                     .iter()
                     .find(|u| u.owner == HUMAN && u.kind == UnitKind::Engineer)
                     .map(|u| u.id);
+            }
+            14 => {
+                self.sim.ui_review_touching_borders();
+                self.zoom = 1.0;
             }
             _ => {}
         }
