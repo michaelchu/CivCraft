@@ -473,7 +473,9 @@ fn draw_ui_button(rect: Rect, label: &str, enabled: bool, accent: bool) {
     draw_text(
         label,
         rect.x + (rect.w - size.width) * 0.5,
-        rect.y + (rect.h + font_size * 0.68) * 0.5,
+        // draw_text uses a baseline; center the measured glyph bounds, not an
+        // estimate based on font size (which places symbols such as + too low).
+        rect.y + (rect.h - size.height) * 0.5 + size.offset_y,
         font_size,
         if enabled {
             Color::from_rgba(241, 238, 218, 255)
