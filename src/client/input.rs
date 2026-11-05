@@ -621,8 +621,11 @@ impl Game {
         {
             let (x, y) = mouse_position();
             if is_mouse_button_pressed(MouseButton::Left)
-                && let Some((_, action)) =
-                    buttons.iter().find(|(rect, _)| rect.contains(vec2(x, y)))
+                && let Some((_, action)) = buttons.iter().find(|(rect, action)| {
+                    rect.contains(vec2(x, y))
+                        && (!matches!(action, UiAction::WorkCityTile(..))
+                            || super::city_map::tile_hit(*rect, vec2(x, y)))
+                })
             {
                 self.perform_action(*action);
             }
@@ -665,7 +668,11 @@ impl Game {
         if !is_mouse_button_pressed(MouseButton::Left) {
             return;
         }
-        if let Some((_, action)) = buttons.iter().find(|(rect, _)| rect.contains(mouse)) {
+        if let Some((_, action)) = buttons.iter().find(|(rect, action)| {
+            rect.contains(mouse)
+                && (!matches!(action, UiAction::WorkCityTile(..))
+                    || super::city_map::tile_hit(*rect, mouse))
+        }) {
             self.perform_action(*action);
             return;
         }

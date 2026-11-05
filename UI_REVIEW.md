@@ -13,7 +13,7 @@ This is deliberately a small shared UI layer rather than a retained widget frame
 | Action strip | Two rows and a More control expose overflow actions instead of dropping them. |
 | City manager | Wider responsive modal; separate name, forecast, progress and specialist rows; production grid adapts rows and columns to available space. |
 | Production cards | Names, cost and status fit their cards; pagination uses the actual grid capacity. |
-| Worklist / worked tiles | Content starts below the expanded city header; queue labels leave space for editing controls. |
+| Worklist / worked tiles | Queue labels leave space for editing controls. Worked tiles use an isometric map with shared world terrain, improvements and city artwork; surrounding tiles are fogged, with diamond-shaped worker hit targets. |
 | Government | Common frame, bounded prose, existing two-column government choices. |
 | Diplomacy | Rival details sit above wrapping action rows; map and city offers remain available in narrower windows. |
 | City deals / treaties | Names stay clear of purchase controls; treaty columns fit independently and reserve footer space. |
@@ -51,3 +51,9 @@ Screenshots still require visual inspection: control bounds alone cannot prove t
 - Formatting and whitespace checks passed.
 
 Parity implementation remains paused during this UI work.
+
+### Isometric worked-tile view
+
+The city map reuses the world's terrain and improvement passes. It fits the city radius into the available panel space, clips terrain overhangs, and fogs irrelevant or unexplored tiles. Gold outlines show the city center and worked tiles, with each shared edge drawn once at a consistent thickness; tile yield labels remain visible. Click targets follow each diamond rather than its overlapping bounding rectangle. Preview rendering does not move or zoom the main world camera.
+
+Validation: 490 Rust tests and 278 desktop checks passed, including worker/specialist reassignment. Standard and compact window captures passed control-bound checks; the main-world screenshot remained pixel-identical after extracting the shared terrain pass.

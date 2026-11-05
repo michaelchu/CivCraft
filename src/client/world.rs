@@ -146,11 +146,12 @@ impl Game {
                 );
             }
             Terrain::Mountains => {
-                let mountain_h = 66.0 * self.zoom;
+                let zoom = tile_w / TILE_W;
+                let mountain_h = 66.0 * zoom;
                 draw_texture_ex(
                     &assets.mountains,
                     center.x - tile_w * 0.5,
-                    center.y + tile_h * 0.5 - mountain_h + 6.0 * self.zoom,
+                    center.y + tile_h * 0.5 - mountain_h + 6.0 * zoom,
                     tint,
                     DrawTextureParams {
                         dest_size: Some(vec2(tile_w, mountain_h)),
@@ -398,55 +399,7 @@ impl Game {
                 continue;
             }
 
-            self.draw_terrain_overlay(assets, tile.terrain, center, tile_w, tile_h, tile.visible);
-
-            if let Some(owner) = self.sim.displayed_tile_owner(x, y) {
-                self.draw_territory_border(x, y, owner, center, tile_w, tile_h, tile.visible);
-            }
-            if tile.road {
-                self.draw_road_sprites(assets, x, y, center, tile_w, tile_h);
-            }
-            if tile.farmland {
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 2, 6);
-            } else if tile.irrigation {
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 1, 6);
-            }
-            if tile.oil_platform {
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 7, 6);
-            } else if tile.oil_well {
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 0, 6);
-            } else if tile.mine {
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 3, 6);
-            }
-            self.draw_river(assets, x, y, center, tile_w, tile_h);
-            if tile.hut {
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 5, 6);
-            }
-            if let Some(resource) = tile.active_resource() {
-                let (row, col) = resource.sprite(tile.terrain);
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, col);
-            }
-            if tile.pollution {
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 4, 6);
-            }
-            if tile.fallout {
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 6, 6);
-            }
-            if let Some(base) = tile.base {
-                let (row, col) = match base {
-                    Base::Fort => (1, 4),
-                    Base::Fortress => (0, 4),
-                    Base::Airstrip => (1, 0),
-                    Base::Airbase => (0, 0),
-                };
-                self.draw_base_sprite(assets, center, tile_w, tile_h, row, col);
-                if !tile.visible && col == 4 {
-                    self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
-                }
-            }
-            if !tile.visible {
-                draw_diamond(center, tile_w, tile_h, Color::from_rgba(18, 29, 39, 112));
-            }
+            self.draw_tile_details(assets, x, y, center, tile_w, tile_h);
             if (tile.visible || reveal_cities)
                 && let Some(city) = self.sim.cities().iter().find(|c| c.x == x && c.y == y)
             {
@@ -472,7 +425,169 @@ impl Game {
         }
     }
 
+    /// Shared terrain/improvement pass for both the world and city map views.
+    fn draw_tile_details(
+        &self,
+        assets: &Assets,
+        x: i32,
+        y: i32,
+        center: Vec2,
+        tile_w: f32,
+        tile_h: f32,
+    ) {
+        let tile = self.sim.tile(x, y);
+        self.draw_terrain_overlay(assets, tile.terrain, center, tile_w, tile_h, tile.visible);
+
+        if let Some(owner) = self.sim.displayed_tile_owner(x, y) {
+            self.draw_territory_border(x, y, owner, center, tile_w, tile_h, tile.visible);
+        }
+        if tile.road {
+            self.draw_road_sprites(assets, x, y, center, tile_w, tile_h);
+        }
+        if tile.farmland {
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 2, 6);
+        } else if tile.irrigation {
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 1, 6);
+        }
+        if tile.oil_platform {
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 7, 6);
+        } else if tile.oil_well {
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 0, 6);
+        } else if tile.mine {
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 3, 6);
+        }
+        self.draw_river(assets, x, y, center, tile_w, tile_h);
+        if tile.hut {
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 5, 6);
+        }
+        if let Some(resource) = tile.active_resource() {
+            let (row, col) = resource.sprite(tile.terrain);
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, col);
+        }
+        if tile.pollution {
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 4, 6);
+        }
+        if tile.fallout {
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 6, 6);
+        }
+        if let Some(base) = tile.base {
+            let (row, col) = match base {
+                Base::Fort => (1, 4),
+                Base::Fortress => (0, 4),
+                Base::Airstrip => (1, 0),
+                Base::Airbase => (0, 0),
+            };
+            self.draw_base_sprite(assets, center, tile_w, tile_h, row, col);
+            if !tile.visible && col == 4 {
+                self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
+            }
+        }
+        if !tile.visible {
+            draw_diamond(center, tile_w, tile_h, Color::from_rgba(18, 29, 39, 112));
+        }
+    }
+
+    pub(super) fn draw_city_map(
+        &self,
+        assets: &Assets,
+        city: &City,
+        layout: &super::city_map::CityMapLayout,
+    ) {
+        let bounds = layout.bounds;
+        let scale = screen_dpi_scale();
+        // QuadGl records clipping per draw call. Coordinates are physical pixels
+        // from the top-left, so clip both terrain overhangs and surrounding fog.
+        unsafe {
+            get_internal_gl().quad_gl.scissor(Some((
+                (bounds.x * scale) as i32,
+                (bounds.y * scale) as i32,
+                (bounds.w * scale) as i32,
+                (bounds.h * scale) as i32,
+            )));
+        }
+        draw_rectangle(
+            bounds.x,
+            bounds.y,
+            bounds.w,
+            bounds.h,
+            Color::from_rgba(8, 28, 48, 255),
+        );
+        let radius: std::collections::HashSet<_> = Simulation::city_radius(city)
+            .map(|(dx, dy, _, _)| (dx, dy))
+            .collect();
+        let span =
+            ((bounds.w / layout.tile_w + bounds.h / layout.tile_h).ceil() as i32 + 3).min(24);
+        let mut tiles = Vec::new();
+        for dy in -span..=span {
+            for dx in -span..=span {
+                let center = layout.center(dx, dy);
+                if center.x + layout.tile_w < bounds.x
+                    || center.x - layout.tile_w > bounds.right()
+                    || center.y + layout.tile_h < bounds.y
+                    || center.y - layout.tile_h * 2.0 > bounds.bottom()
+                {
+                    continue;
+                }
+                let (mx, my) = native_to_map(city.x, city.y);
+                let (x, y) = map_to_native(mx + dx, my + dy);
+                let x = x.rem_euclid(MAP_W);
+                let relevant = (0..MAP_H).contains(&y) && radius.contains(&(dx, dy));
+                tiles.push((dx, dy, x, y, center, relevant));
+            }
+        }
+        tiles.sort_by(|a, b| a.4.y.total_cmp(&b.4.y));
+        for &(_, _, x, y, center, relevant) in &tiles {
+            if !relevant || !self.sim.tile(x, y).seen {
+                draw_diamond(
+                    center,
+                    layout.tile_w - 1.0,
+                    layout.tile_h - 1.0,
+                    Color::from_rgba(5, 15, 24, 255),
+                );
+            } else {
+                let tile = self.sim.tile(x, y);
+                draw_diamond(
+                    center,
+                    layout.tile_w,
+                    layout.tile_h,
+                    tile.terrain.minimap_color(),
+                );
+                self.draw_terrain_sprite(
+                    assets,
+                    x,
+                    y,
+                    center,
+                    layout.tile_w,
+                    layout.tile_h,
+                    tile.visible,
+                );
+            }
+        }
+        for &(_, _, x, y, center, relevant) in &tiles {
+            if relevant && self.sim.tile(x, y).seen {
+                self.draw_tile_details(assets, x, y, center, layout.tile_w, layout.tile_h);
+                if (x, y) == (city.x, city.y) {
+                    self.draw_city_at_scale(assets, city, center, layout.tile_w / TILE_W, false);
+                }
+            }
+        }
+        unsafe {
+            get_internal_gl().quad_gl.scissor(None);
+        }
+    }
+
     fn draw_city(&self, assets: &Assets, city: &City, center: Vec2) {
+        self.draw_city_at_scale(assets, city, center, self.zoom, true);
+    }
+
+    fn draw_city_at_scale(
+        &self,
+        assets: &Assets,
+        city: &City,
+        center: Vec2,
+        zoom: f32,
+        label: bool,
+    ) {
         let style = [
             (Tech::SUPERCONDUCTORS, 9),
             (Tech::ROCKETRY, 8),
@@ -490,12 +605,12 @@ impl Game {
         } else {
             (2, (city.id as usize + city.owner * 2) % 11)
         };
-        let city_w = 69.0 * self.zoom;
-        let city_h = 52.0 * self.zoom;
+        let city_w = 69.0 * zoom;
+        let city_h = 52.0 * zoom;
         draw_texture_ex(
             &assets.cities,
             center.x - city_w * 0.5,
-            center.y - city_h + 9.0 * self.zoom,
+            center.y - city_h + 9.0 * zoom,
             WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(city_w, city_h)),
@@ -508,9 +623,12 @@ impl Game {
                 ..Default::default()
             },
         );
-        let label_y = center.y + 10.0 * self.zoom;
+        if !label {
+            return;
+        }
+        let label_y = center.y + 10.0 * zoom;
         let label = format!("{}  {}", city.name, city.size);
-        let width = measure_text(&label, None, (14.0 * self.zoom).max(10.0) as u16, 1.0).width;
+        let width = measure_text(&label, None, (14.0 * zoom).max(10.0) as u16, 1.0).width;
         draw_rectangle(
             center.x - width * 0.5 - 6.0,
             label_y - 13.0,
@@ -529,14 +647,14 @@ impl Game {
             &label,
             center.x - width * 0.5,
             label_y,
-            (14.0 * self.zoom).max(10.0),
+            (14.0 * zoom).max(10.0),
             Color::from_rgba(244, 235, 201, 255),
         );
         if self.selected_city == Some(city.id) {
             draw_diamond_lines(
                 center,
-                TILE_W * self.zoom * 0.88,
-                TILE_H * self.zoom * 0.82,
+                TILE_W * zoom * 0.88,
+                TILE_H * zoom * 0.82,
                 3.0,
                 Color::from_rgba(255, 234, 119, 255),
             );

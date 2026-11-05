@@ -251,57 +251,14 @@ impl Game {
         }
     }
 
-    fn draw_city_tiles(&self, city: &City, panel: Rect, actions: &mut Vec<(Rect, UiAction)>) {
-        draw_text("WORKED TILES", panel.x + 22.0, panel.y + 187.0, 18.0, WHITE);
-        draw_text(
-            "Food / shields / trade. Gold border marks worked tiles.",
-            panel.x + 22.0,
-            panel.y + panel.h - 15.0,
-            16.0,
-            LIGHTGRAY,
-        );
-        let mouse = vec2(mouse_position().0, mouse_position().1);
-        let grid_height = (panel.h - 226.0).min(195.0);
-        let row_height = grid_height / 9.0;
-        for (dx, dy, x, y) in Simulation::city_radius(city) {
-            let center = (dx, dy) == (0, 0);
-            let worked = city.worked_tiles.contains(&(x, y));
-            let enabled = worked
-                || (city.specialists.iter().any(|&count| count > 0)
-                    && self.sim.can_assign_city_tile(city, x, y));
-            let tile = self.sim.tile(x, y);
-            let cell = Rect::new(
-                panel.x + panel.w * 0.5 - 23.0 + (dx - dy) as f32 * 25.0,
-                panel.y + 198.0 + (4 + dx + dy) as f32 * row_height,
-                46.0,
-                row_height - 2.0,
-            );
-            let fill = tile.terrain.minimap_color();
-            let fill = if worked || center || (enabled && cell.contains(mouse)) {
-                fill
-            } else {
-                darken(fill, 0.55)
-            };
-            draw_rectangle(cell.x, cell.y, cell.w, cell.h, fill);
-            let border = if worked || center { GOLD } else { GRAY };
-            draw_rectangle_lines(cell.x, cell.y, cell.w, cell.h, 2.0, border);
-            let (food, shields, trade) = tile.yields();
-            let label = if center {
-                "City".to_owned()
-            } else {
-                format!("{food}/{shields}/{trade}")
-            };
-            draw_text(
-                &label,
-                cell.x + 6.0,
-                cell.y + cell.h - 3.0,
-                cell.h.min(15.0),
-                WHITE,
-            );
-            if enabled {
-                actions.push((cell, UiAction::WorkCityTile(city.id, x, y)));
-            }
-        }
+    fn draw_city_tiles(
+        &self,
+        assets: &Assets,
+        city: &City,
+        panel: Rect,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
+        self.draw_city_tiles_map(assets, city, panel, actions);
     }
 
     fn draw_worklist(
@@ -558,7 +515,7 @@ impl Game {
         );
         actions.push((tiles_button, UiAction::CityTiles));
         if self.city_tiles {
-            self.draw_city_tiles(city, rect, actions);
+            self.draw_city_tiles(assets, city, rect, actions);
             return;
         }
         draw_text(

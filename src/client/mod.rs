@@ -4,6 +4,7 @@ use assets::{
     OCEAN_ATLAS_H, TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source, ocean_cell_source,
     player_color, unit_sprite,
 };
+mod city_map;
 mod government_view;
 mod hud;
 mod input;
