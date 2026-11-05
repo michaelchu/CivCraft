@@ -30,7 +30,8 @@ fn ensure_parent(path: &str) {
 async fn main() {
     let screenshot_path = argument_value("--screenshot");
     let self_test_path = argument_value("--self-test");
-    let automated = screenshot_path.is_some() || self_test_path.is_some();
+    let ui_review = argument_value("--ui-review");
+    let automated = screenshot_path.is_some() || self_test_path.is_some() || ui_review.is_some();
     let args: Vec<_> = env::args().collect();
     let seed = if let Some(index) = args.iter().position(|arg| arg == "--seed") {
         args.get(index + 1)
@@ -76,9 +77,44 @@ async fn main() {
             playtest.advance(frame, &mut game, &buttons);
         }
 
+        if ui_review.is_some() && frame % 10 == 0 {
+            game.prepare_ui_review((frame / 10) as usize, seed);
+        }
+        if ui_review.is_some() && frame % 10 == 6 {
+            game.advance_ui_review((frame / 10) as usize, &buttons);
+        }
         buttons = game.draw(&assets);
+        if ui_review.is_some() {
+            for (rect, _) in &buttons {
+                assert!(
+                    rect.x >= 0.0
+                        && rect.y >= 0.0
+                        && rect.right() <= screen_width() + 0.1
+                        && rect.bottom() <= screen_height() + 0.1,
+                    "UI control outside window in {}: {:?}",
+                    client::UI_REVIEW_SCENES[(frame / 10) as usize],
+                    rect
+                );
+            }
+        }
         frame += 1;
 
+        if let Some(dir) = &ui_review {
+            if frame % 10 == 5 {
+                let name = client::UI_REVIEW_SCENES[(frame / 10) as usize];
+                let path = format!("{dir}/{name}.png");
+                ensure_parent(&path);
+                get_screen_data().export_png(&path);
+            }
+            if frame % 10 == 8 {
+                let name = client::UI_REVIEW_SCENES[(frame / 10) as usize];
+                let path = Path::new(dir).join(format!("{name}-next.png"));
+                get_screen_data().export_png(path.to_str().expect("UTF-8 gallery path"));
+            }
+            if frame >= client::UI_REVIEW_SCENES.len() as u32 * 10 {
+                break;
+            }
+        }
         if let Some(path) = &screenshot_path {
             if frame == 120 {
                 ensure_parent(path);

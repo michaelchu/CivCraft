@@ -3380,3 +3380,41 @@ mod tests {
         assert!(!game.has_senate(HUMAN));
     }
 }
+
+impl Simulation {
+    /// Worst-case concessions for the isolated, opt-in screenshot gallery.
+    pub(crate) fn ui_review_offer(&mut self) -> TreatyOffer {
+        let mut terms = Concessions {
+            gold: 12345,
+            technology: Some(Tech::AMPHIBIOUS_WARFARE),
+            access: 3,
+        };
+        terms = terms
+            .with_embassy()
+            .with_city(self.cities.iter().find(|c| c.owner == 1).unwrap().id);
+        let offer = TreatyOffer {
+            pact: Some(Pact::Alliance),
+            terms: [terms; 2],
+        };
+        self.diplomacy
+            .get_mut(&Self::relation_key(HUMAN, 1))
+            .unwrap()
+            .offer = Some(offer);
+        offer
+    }
+}
+
+impl Simulation {
+    pub(crate) fn ui_review_contacts(&mut self) {
+        for other in 1..PLAYER_COUNT {
+            self.make_diplomatic_contact(HUMAN, other);
+            // Established peace lets the gallery exercise city purchase controls.
+            let relation = self
+                .diplomacy
+                .get_mut(&Self::relation_key(HUMAN, other))
+                .unwrap();
+            relation.pact = Pact::Peace;
+            relation.until = 0;
+        }
+    }
+}

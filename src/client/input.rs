@@ -119,6 +119,7 @@ impl Game {
                     .iter()
                     .any(|unit| unit.id == id && unit.owner == HUMAN)
                 {
+                    self.action_page = 0;
                     self.selected_unit = Some(id);
                     self.selected_city = None;
                 }
@@ -190,6 +191,7 @@ impl Game {
                     self.sim.apply(Command::Produce(id, kind));
                 }
             }
+            UiAction::ActionPage(page) => self.action_page = page,
             UiAction::ProductionPage(page) => self.production_page = page,
             UiAction::UnitProductionPage(page) => self.unit_production_page = page,
             UiAction::WorklistPage(page) => self.worklist_page = page,
@@ -521,15 +523,21 @@ impl Game {
     }
 
     pub(super) fn minimap_rect(&self) -> Rect {
-        let top = TOP_H + 38.0;
+        let top = TOP_H + 58.0;
         let available_width = PANEL_W - 36.0;
         // Leave room for the context text and the two bottom buttons.
         let space_row = if self.sim.spaceship_status(HUMAN).is_some() {
-            56.0
+            34.0
         } else {
             0.0
         };
-        let available_height = (screen_height() - top - 17.0 - 207.0 - 122.0 - space_row).max(1.0);
+        let context_height = if screen_height() < 700.0 {
+            168.0
+        } else {
+            214.0
+        };
+        let available_height =
+            (screen_height() - top - 17.0 - context_height - 160.0 - space_row).max(1.0);
         let natural_size = vec2((2 * MAP_W) as f32, MAP_H as f32);
         let scale = (available_width / natural_size.x).min(available_height / natural_size.y);
         let size = natural_size * scale;
@@ -546,12 +554,11 @@ impl Game {
     }
 
     pub(super) fn city_manager_rect() -> Rect {
-        let viewport = Self::viewport_rect();
-        let width = (viewport.w - 40.0).clamp(300.0, 760.0);
-        let height = (viewport.h - 36.0).clamp(260.0, 480.0);
+        let width = (screen_width() - 48.0).min(920.0);
+        let height = (screen_height() - 80.0).min(640.0);
         Rect::new(
-            viewport.x + (viewport.w - width) * 0.5,
-            viewport.y + (viewport.h - height) * 0.5,
+            (screen_width() - width) * 0.5,
+            (screen_height() - height) * 0.5,
             width,
             height,
         )
@@ -610,6 +617,7 @@ impl Game {
             || self.diplomacy_open
             || self.investigation.is_some()
             || self.spy_targets.is_some()
+            || self.selected_city.is_some()
         {
             let (x, y) = mouse_position();
             if is_mouse_button_pressed(MouseButton::Left)
@@ -706,6 +714,7 @@ impl Game {
             self.unit_production_page = 0;
             self.worklist_page = None;
             self.city_tiles = false;
+            self.action_page = 0;
             self.selected_city = Some(city.id);
             self.selected_unit = None;
             return;
@@ -725,6 +734,7 @@ impl Game {
             .and_then(|index| stack.get(index + 1))
             .or_else(|| stack.first());
         if let Some(unit) = next {
+            self.action_page = 0;
             self.selected_unit = Some(unit.id);
             self.selected_city = None;
         }

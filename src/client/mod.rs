@@ -12,7 +12,11 @@ mod research_tree;
 mod research_view;
 mod spaceship_view;
 mod spy_view;
+mod ui;
+mod ui_review;
 mod world;
+use ui::*;
+pub(crate) use ui_review::UI_REVIEW_SCENES;
 
 use crate::rules::{Building, Genus, Requirement, Tech};
 use crate::sim::{topology::*, *};
@@ -23,13 +27,14 @@ const TILE_W: f32 = 96.0;
 const TILE_H: f32 = 48.0;
 const PANEL_W: f32 = 316.0;
 const TOP_H: f32 = 46.0;
-const BOTTOM_H: f32 = 92.0;
+const BOTTOM_H: f32 = 128.0;
 const START_ZOOM: f32 = 0.82;
 const MIN_ZOOM: f32 = 0.55;
 const MAX_ZOOM: f32 = 1.35;
 
 #[derive(Clone, Copy)]
 pub(crate) enum UiAction {
+    ActionPage(usize),
     EndTurn,
     LaunchSpaceship,
     ToggleSpaceship,
@@ -107,6 +112,7 @@ pub(crate) struct Game {
     pub(crate) autosave_enabled: bool,
     pub(crate) selected_unit: Option<u32>,
     selected_city: Option<u32>,
+    action_page: usize,
     production_page: usize,
     unit_production_page: usize,
     worklist_page: Option<usize>,
@@ -163,6 +169,7 @@ impl Game {
             autosave_enabled: false,
             selected_unit,
             selected_city: None,
+            action_page: 0,
             production_page: 0,
             unit_production_page: 0,
             worklist_page: None,
@@ -263,6 +270,7 @@ impl Game {
             .copied()
             .find(|id| *id > current)
             .or_else(|| candidates.first().copied());
+        self.action_page = 0;
         self.selected_unit = next;
         self.selected_city = None;
         if let Some(id) = next {
@@ -291,6 +299,19 @@ impl Game {
         }
         self.draw_world(assets);
         let mut actions = self.draw_hud();
+        if self.spy_targets.is_some()
+            || self.investigation.is_some()
+            || self.government_open
+            || self.diplomacy_open
+        {
+            draw_rectangle(
+                0.0,
+                0.0,
+                screen_width(),
+                screen_height(),
+                Color::from_rgba(4, 9, 12, 178),
+            );
+        }
         if let Some((city, page)) = self.spy_targets {
             return self.draw_spy_targets(city, page);
         }
@@ -304,6 +325,7 @@ impl Game {
             return self.draw_diplomacy();
         }
         if self.selected_city_index().is_some() {
+            actions.clear();
             self.draw_city_manager(assets, &mut actions);
         }
         if self.goto_mode || self.paradrop_mode {
@@ -437,10 +459,16 @@ fn draw_ui_button(rect: Rect, label: &str, enabled: bool, accent: bool) {
     draw_rectangle(rect.x, rect.y, rect.w, rect.h, fill);
     draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 1.0, border);
     let mut font_size = if rect.h > 38.0 { 19.0 } else { 15.0 };
-    while font_size > 11.0 && measure_text(label, None, font_size as u16, 1.0).width > rect.w - 10.0
+    while font_size > 13.0 && measure_text(label, None, font_size as u16, 1.0).width > rect.w - 10.0
     {
         font_size -= 1.0;
     }
+    let fitted = fit_text(
+        label,
+        font_size,
+        rect.w - if rect.w < 40.0 { 6.0 } else { 16.0 },
+    );
+    let label = fitted.as_str();
     let size = measure_text(label, None, font_size as u16, 1.0);
     draw_text(
         label,
@@ -550,16 +578,6 @@ fn short_unit_name(kind: UnitKind) -> &'static str {
         UnitKind::Leader => "Leader",
         UnitKind::Awacs => "AWACS",
         UnitKind::Storm => "Storm",
-    }
-}
-
-fn clip_text(text: &str, max_chars: usize) -> String {
-    if text.chars().count() <= max_chars {
-        text.to_owned()
-    } else {
-        let mut clipped: String = text.chars().take(max_chars.saturating_sub(3)).collect();
-        clipped.push_str("...");
-        clipped
     }
 }
 

@@ -27,62 +27,38 @@ impl Game {
             25.0,
             Color::from_rgba(244, 220, 143, 255),
         );
-        draw_text(
-            &format!(
-                "TURN {}  |  {}",
-                self.sim.turn(),
-                year_label(self.sim.year())
-            ),
-            214.0,
-            29.0,
-            20.0,
-            Color::from_rgba(227, 230, 220, 255),
-        );
         let player = &self.sim.players()[HUMAN];
-        let government_button = Rect::new(115.0, 9.0, 95.0, 27.0);
+        let government_button = Rect::new(118.0, 8.0, 108.0, 30.0);
         draw_ui_button(government_button, player.government.name(), true, false);
         actions.push((government_button, UiAction::ToggleGovernment));
-        let diplomacy = Rect::new(392.0, 9.0, 78.0, 27.0);
-        draw_ui_button(diplomacy, "Diplomacy", true, false);
-        actions.push((diplomacy, UiAction::ToggleDiplomacy));
-        draw_circle(483.0, 23.0, 8.0, player_color(HUMAN));
-        draw_text(
-            player.name.as_str(),
-            498.0,
-            29.0,
-            18.0,
-            Color::from_rgba(228, 226, 210, 255),
-        );
-        draw_text(
-            &format!("Treasury: {}", player.gold),
-            665.0,
+        text_in(
+            &format!("Turn {} · {}", self.sim.turn(), year_label(self.sim.year())),
+            238.0,
             29.0,
             17.0,
-            Color::from_rgba(231, 201, 91, 255),
+            178.0,
+            WHITE,
         );
+        let diplomacy = Rect::new(424.0, 8.0, 90.0, 30.0);
+        draw_ui_button(diplomacy, "Diplomacy", true, false);
+        actions.push((diplomacy, UiAction::ToggleDiplomacy));
+        let treasury = format!("Gold {}", player.gold);
+        let treasury_w = measure_text(&treasury, None, 16, 1.0).width.min(180.0);
+        text_in(&treasury, 530.0, 29.0, 16.0, treasury_w, GOLD);
         let research = player.researching;
-        draw_text(
+        text_in(
             &format!(
-                "Research: {}  {}/{}",
+                "{}  {}/{}",
                 research.name(),
                 player.research,
                 self.sim.target_cost(HUMAN, research)
             ),
-            785.0,
+            546.0 + treasury_w,
             29.0,
-            17.0,
+            16.0,
+            screen_width() - 564.0 - treasury_w,
             Color::from_rgba(151, 210, 231, 255),
         );
-        let tech_upkeep = self.sim.technology_upkeep(HUMAN);
-        if tech_upkeep > 0 {
-            draw_text(
-                &format!("Tech upkeep: {tech_upkeep}"),
-                1050.0,
-                29.0,
-                15.0,
-                LIGHTGRAY,
-            );
-        }
         self.hud_elements_drawn += 1;
 
         draw_rectangle(
@@ -107,13 +83,13 @@ impl Game {
             Color::from_rgba(227, 211, 164, 255),
         );
         let seed_label = format!("Seed {}", self.sim.world_seed);
-        let seed_width = measure_text(&seed_label, None, 14, 1.0).width;
-        draw_text(
+        text_in(
             &seed_label,
-            screen_width() - 18.0 - seed_width,
-            TOP_H + 26.0,
+            panel_x + UI_PAD,
+            TOP_H + 46.0,
             14.0,
-            Color::from_rgba(208, 207, 190, 255),
+            PANEL_W - 2.0 * UI_PAD,
+            LIGHTGRAY,
         );
         if let Some(status) = self.sim.spaceship_status(HUMAN) {
             let rect = Rect::new(
@@ -151,9 +127,9 @@ impl Game {
             };
             let enabled = !in_anarchy && rate < player.government.max_rate();
             let rect = Rect::new(
-                panel_x + 18.0 + index as f32 * 94.0,
+                panel_x + UI_PAD + index as f32 * ((PANEL_W - 2.0 * UI_PAD + UI_GAP) / 3.0),
                 screen_height() - 146.0,
-                90.0,
+                (PANEL_W - 2.0 * UI_PAD - 2.0 * UI_GAP) / 3.0,
                 28.0,
             );
             draw_ui_button(rect, &format!("{label} {rate}%"), enabled, false);
@@ -276,7 +252,7 @@ impl Game {
     }
 
     fn draw_city_tiles(&self, city: &City, panel: Rect, actions: &mut Vec<(Rect, UiAction)>) {
-        draw_text("WORKED TILES", panel.x + 22.0, panel.y + 127.0, 18.0, WHITE);
+        draw_text("WORKED TILES", panel.x + 22.0, panel.y + 187.0, 18.0, WHITE);
         draw_text(
             "Food / shields / trade. Gold border marks worked tiles.",
             panel.x + 22.0,
@@ -285,7 +261,7 @@ impl Game {
             LIGHTGRAY,
         );
         let mouse = vec2(mouse_position().0, mouse_position().1);
-        let grid_height = (panel.h - 166.0).min(195.0);
+        let grid_height = (panel.h - 226.0).min(195.0);
         let row_height = grid_height / 9.0;
         for (dx, dy, x, y) in Simulation::city_radius(city) {
             let center = (dx, dy) == (0, 0);
@@ -296,7 +272,7 @@ impl Game {
             let tile = self.sim.tile(x, y);
             let cell = Rect::new(
                 panel.x + panel.w * 0.5 - 23.0 + (dx - dy) as f32 * 25.0,
-                panel.y + 138.0 + (4 + dx + dy) as f32 * row_height,
+                panel.y + 198.0 + (4 + dx + dy) as f32 * row_height,
                 46.0,
                 row_height - 2.0,
             );
@@ -335,13 +311,13 @@ impl Game {
         requested_page: usize,
         actions: &mut Vec<(Rect, UiAction)>,
     ) {
-        let rows = ((panel.h - 148.0) / 34.0).floor().max(1.0) as usize;
+        let rows = ((panel.h - 208.0) / 34.0).floor().max(1.0) as usize;
         let last_page = city.worklist.len().saturating_sub(1) / rows;
         let page = requested_page.min(last_page);
         draw_text(
             &format!("WORKLIST  {}/{}", city.worklist.len(), WORKLIST_LIMIT),
             panel.x + 22.0,
-            panel.y + 127.0,
+            panel.y + 187.0,
             18.0,
             WHITE,
         );
@@ -350,7 +326,7 @@ impl Game {
             (150.0, 28.0, ">", Some(page + 1), page < last_page),
             (114.0, 92.0, "Production", None, true),
         ] {
-            let button = Rect::new(panel.x + panel.w - offset, panel.y + 109.0, width, 25.0);
+            let button = Rect::new(panel.x + panel.w - offset, panel.y + 169.0, width, 25.0);
             draw_ui_button(button, label, enabled, false);
             if enabled {
                 actions.push((button, UiAction::WorklistPage(target)));
@@ -360,7 +336,7 @@ impl Game {
             draw_text(
                 "Use + on a production card to add it to the worklist.",
                 panel.x + 22.0,
-                panel.y + 164.0,
+                panel.y + 224.0,
                 16.0,
                 LIGHTGRAY,
             );
@@ -372,7 +348,7 @@ impl Game {
             .skip(page * rows)
             .take(rows)
         {
-            let y = panel.y + 141.0 + (index % rows) as f32 * 34.0;
+            let y = panel.y + 201.0 + (index % rows) as f32 * 34.0;
             let target = self.sim.worklist_replacement(city, entry);
             let status = if !self.sim.can_produce(city, target) {
                 "  (unavailable)".to_owned()
@@ -381,23 +357,24 @@ impl Game {
             } else {
                 String::new()
             };
-            draw_text(
+            text_in(
                 &format!("{}. {}{status}", index + 1, entry.name()),
                 panel.x + 22.0,
                 y + 19.0,
                 16.0,
+                panel.w - 158.0,
                 WHITE,
             );
             for (offset, label, edit, enabled) in [
                 (
                     122.0,
-                    "Up",
+                    "^",
                     WorklistEdit::Move(index, index.saturating_sub(1)),
                     index > 0,
                 ),
                 (
                     87.0,
-                    "Down",
+                    "v",
                     WorklistEdit::Move(index, index + 1),
                     index + 1 < city.worklist.len(),
                 ),
@@ -435,12 +412,11 @@ impl Game {
         };
         let city = &self.sim.cities()[index];
         let rect = Self::city_manager_rect();
-        let viewport = Self::viewport_rect();
         draw_rectangle(
-            viewport.x,
-            viewport.y,
-            viewport.w,
-            viewport.h,
+            0.0,
+            0.0,
+            screen_width(),
+            screen_height(),
             Color::from_rgba(4, 9, 12, 178),
         );
         draw_rectangle(
@@ -466,31 +442,17 @@ impl Game {
             Color::from_rgba(206, 165, 72, 255),
         );
 
-        draw_text(
-            "CITY MANAGEMENT",
-            rect.x + 22.0,
-            rect.y + 29.0,
-            17.0,
-            Color::from_rgba(175, 178, 165, 255),
-        );
-        draw_text(
+        text_in(
             &city.name,
             rect.x + 22.0,
-            rect.y + 61.0,
-            29.0,
+            rect.y + 35.0,
+            26.0,
+            rect.w - 100.0,
             Color::from_rgba(248, 222, 139, 255),
         );
-        draw_text(
-            &format!("Size {}  |  {}, {}", city.size, city.x, city.y),
-            rect.x + 24.0,
-            rect.y + 84.0,
-            16.0,
-            Color::from_rgba(183, 188, 178, 255),
-        );
-        let close_rect = Rect::new(rect.x + rect.w - 48.0, rect.y + 14.0, 32.0, 28.0);
+        let close_rect = Rect::new(rect.right() - 50.0, rect.y + 14.0, 28.0, 28.0);
         draw_ui_button(close_rect, "X", true, false);
         actions.push((close_rect, UiAction::CloseCity));
-
         let forecast = self.sim.city_forecast(city);
         let support = &forecast.support;
         let food_net = forecast.food_surplus(city.size, support.food);
@@ -498,106 +460,92 @@ impl Game {
         let science = forecast.science;
         let luxury = forecast.luxury;
         let gold = forecast.gold_surplus(support.gold);
-        let disorder = forecast.disorder;
-        let growth_box = Simulation::growth_box(city.size);
-        let production_cost = city.production.cost();
-        let progress_x = rect.x + 205.0;
-        let progress_w = rect.w - 229.0;
-        draw_text(
+        text_in(
             &format!(
-                "Food {food_net:+}   Shields {shields}   Science {science}   Gold {:+}   Luxury {luxury}",
-                gold
+                "Size {} · Food {food_net:+} · Shields {shields} · Science {science} · Gold {gold:+} · Luxury {luxury}",
+                city.size
             ),
-            progress_x,
-            rect.y + 31.0,
-            17.0,
+            rect.x + 22.0,
+            rect.y + 61.0,
+            16.0,
+            rect.w - 44.0,
             Color::from_rgba(188, 220, 166, 255),
         );
+        let growth_box = Simulation::growth_box(city.size);
+        let production_cost = city.production.cost();
+        let half = (rect.w - 60.0) / 2.0;
+        let growth = if forecast.disorder {
+            "Civil disorder".to_owned()
+        } else if city.size >= Simulation::city_size_limit(city) {
+            "Growth limit reached".to_owned()
+        } else {
+            format!("Growth {}/{}", city.food, growth_box)
+        };
+        text_in(&growth, rect.x + 22.0, rect.y + 87.0, 15.0, half, LIGHTGRAY);
+        text_in(
+            &format!(
+                "{} {}/{}",
+                city.production.name(),
+                city.shields,
+                production_cost
+            ),
+            rect.x + 38.0 + half,
+            rect.y + 87.0,
+            15.0,
+            half,
+            LIGHTGRAY,
+        );
         draw_meter(
-            Rect::new(progress_x, rect.y + 43.0, progress_w, 15.0),
+            Rect::new(rect.x + 22.0, rect.y + 96.0, half, 10.0),
             city.food,
             growth_box,
             Color::from_rgba(82, 166, 82, 255),
         );
-        draw_text(
-            &if disorder {
-                "Civil disorder".to_owned()
-            } else if city.size >= Simulation::city_size_limit(city) {
-                "Growth limit reached".to_owned()
-            } else {
-                format!("Growth  {}/{}", city.food, growth_box)
-            },
-            progress_x,
-            rect.y + 78.0,
-            15.0,
-            Color::from_rgba(215, 218, 202, 255),
-        );
         draw_meter(
-            Rect::new(
-                progress_x + progress_w * 0.48,
-                rect.y + 66.0,
-                progress_w * 0.52,
-                15.0,
-            ),
+            Rect::new(rect.x + 38.0 + half, rect.y + 96.0, half, 10.0),
             city.shields,
             production_cost,
             Color::from_rgba(173, 133, 62, 255),
         );
-        let production_label = format!(
-            "{}  {}/{}",
-            city.production.name(),
-            city.shields,
-            production_cost
-        );
-        let production_label_width = measure_text(&production_label, None, 15, 1.0)
-            .width
-            .min(progress_w * 0.5);
-        draw_text(
-            &production_label,
-            progress_x + progress_w - production_label_width,
-            rect.y + 78.0,
-            15.0,
-            Color::from_rgba(215, 218, 202, 255),
-        );
-
-        draw_line(
-            rect.x + 20.0,
-            rect.y + 101.0,
-            rect.x + rect.w - 20.0,
-            rect.y + 101.0,
-            1.0,
-            Color::from_rgba(105, 102, 86, 255),
-        );
-        let specialist_w = (progress_w / 3.0).min(156.0);
+        let specialist_w = (rect.w - 44.0) / 3.0;
         for (index, label) in ["Scientists", "Taxmen", "Entertainers"]
             .into_iter()
             .enumerate()
         {
-            let x = progress_x + index as f32 * specialist_w;
+            let x = rect.x + 22.0 + index as f32 * specialist_w;
             let count = city.specialists[index];
             for (delta, offset, symbol, enabled) in [
                 (-1, 0.0, "-", count > 0),
-                (1, specialist_w - 24.0, "+", city.tile_workers() > 0),
+                (1, specialist_w - 36.0, "+", city.tile_workers() > 0),
             ] {
-                let button = Rect::new(x + offset, rect.y + 82.0, 19.0, 18.0);
+                let button = Rect::new(x + offset, rect.y + 118.0, 28.0, 26.0);
                 draw_ui_button(button, symbol, enabled, false);
                 if enabled {
                     actions.push((button, UiAction::Specialist(city.id, index, delta)));
                 }
             }
-            draw_text(
+            text_in(
                 &format!("{label} {count}"),
-                x + 24.0,
-                rect.y + 96.0,
-                13.0,
-                Color::from_rgba(215, 218, 202, 255),
+                x + 34.0,
+                rect.y + 136.0,
+                14.0,
+                specialist_w - 76.0,
+                LIGHTGRAY,
             );
         }
+        draw_line(
+            rect.x + 22.0,
+            rect.y + 154.0,
+            rect.right() - 22.0,
+            rect.y + 154.0,
+            1.0,
+            Color::from_rgba(105, 102, 86, 255),
+        );
         if let Some(page) = self.worklist_page {
             self.draw_worklist(city, rect, page, actions);
             return;
         }
-        let tiles_button = Rect::new(rect.x + rect.w - 277.0, rect.y + 109.0, 82.0, 25.0);
+        let tiles_button = Rect::new(rect.x + rect.w - 277.0, rect.y + 169.0, 82.0, 25.0);
         draw_ui_button(
             tiles_button,
             if self.city_tiles {
@@ -616,7 +564,7 @@ impl Game {
         draw_text(
             "CHOOSE PRODUCTION",
             rect.x + 22.0,
-            rect.y + 127.0,
+            rect.y + 187.0,
             18.0,
             Color::from_rgba(226, 211, 162, 255),
         );
@@ -625,10 +573,12 @@ impl Game {
             .into_iter()
             .filter(|&kind| self.sim.can_produce(city, Production::Unit(kind)))
             .collect();
-        let columns = 4;
+        let columns = grid_columns(rect.w - 44.0, 180.0);
         let gap = 8.0;
-        let card_w = (rect.w - 44.0 - gap * 3.0) / 4.0;
+        let card_w = (rect.w - 44.0 - gap * (columns - 1) as f32) / columns as f32;
         let card_h = 72.0;
+        let rows = ((rect.h - 199.0 - 112.0) / (card_h + gap)).floor().max(1.0) as usize;
+        let capacity = columns * rows;
         let mouse = vec2(mouse_position().0, mouse_position().1);
         let buildings: Vec<_> = if self.production_page == 0 {
             Vec::new()
@@ -641,9 +591,9 @@ impl Game {
                 })
                 .collect()
         };
-        let last_page = buildings.len().div_ceil(12).max(1);
+        let last_page = buildings.len().div_ceil(capacity).max(1);
         let page = self.production_page.min(last_page);
-        let unit_pages = choices.len().div_ceil(12).max(1);
+        let unit_pages = choices.len().div_ceil(capacity).max(1);
         let unit_page = self.unit_production_page.min(unit_pages - 1);
         for (offset, width, label, action, enabled) in [
             (
@@ -682,7 +632,7 @@ impl Game {
         ] {
             let button = Rect::new(
                 rect.x + rect.w - 186.0 + offset,
-                rect.y + 109.0,
+                rect.y + 169.0,
                 width,
                 25.0,
             );
@@ -695,7 +645,7 @@ impl Game {
             draw_text(
                 &format!("Buildings {page}/{last_page}"),
                 rect.x + 216.0,
-                rect.y + 127.0,
+                rect.y + 187.0,
                 15.0,
                 LIGHTGRAY,
             );
@@ -703,20 +653,20 @@ impl Game {
                 draw_text(
                     "No buildings available in this city.",
                     rect.x + 22.0,
-                    rect.y + 170.0,
+                    rect.y + 230.0,
                     16.0,
                     LIGHTGRAY,
                 );
             }
             for (index, (building, blocker)) in buildings
                 .into_iter()
-                .skip((page - 1) * 12)
-                .take(12)
+                .skip((page - 1) * capacity)
+                .take(capacity)
                 .enumerate()
             {
                 let card = Rect::new(
-                    rect.x + 22.0 + (index % 4) as f32 * (card_w + gap),
-                    rect.y + 139.0 + (index / 4) as f32 * (card_h + gap),
+                    rect.x + 22.0 + (index % columns) as f32 * (card_w + gap),
+                    rect.y + 199.0 + (index / columns) as f32 * (card_h + gap),
                     card_w,
                     card_h,
                 );
@@ -734,11 +684,12 @@ impl Game {
                 };
                 draw_rectangle(card.x, card.y, card.w, card.h, fill);
                 draw_rectangle_lines(card.x, card.y, card.w, card.h, 1.0, GRAY);
-                draw_text(
+                text_in(
                     data.name,
                     card.x + 8.0,
                     card.y + 20.0,
                     15.0,
+                    card.w - 16.0,
                     if enabled || built { WHITE } else { LIGHTGRAY },
                 );
                 let cost = if data.genus == Genus::Convert {
@@ -746,7 +697,14 @@ impl Game {
                 } else {
                     format!("{} shields  /  ref. upkeep {}", data.cost, data.upkeep)
                 };
-                draw_text(&cost, card.x + 8.0, card.y + 38.0, 13.0, LIGHTGRAY);
+                text_in(
+                    &cost,
+                    card.x + 8.0,
+                    card.y + 38.0,
+                    13.0,
+                    card.w - 16.0,
+                    LIGHTGRAY,
+                );
                 let state = blocker.unwrap_or_else(|| {
                     if current {
                         "Current".into()
@@ -754,7 +712,14 @@ impl Game {
                         "Available".into()
                     }
                 });
-                draw_text(&state, card.x + 8.0, card.y + 57.0, 12.0, LIGHTGRAY);
+                text_in(
+                    &state,
+                    card.x + 8.0,
+                    card.y + 57.0,
+                    13.0,
+                    card.w - 92.0,
+                    LIGHTGRAY,
+                );
                 if let Some(price) = Simulation::building_sale_price(city, building) {
                     let button = Rect::new(card.x + card.w - 69.0, card.y + 44.0, 62.0, 21.0);
                     draw_ui_button(button, &format!("Sell {price}g"), true, false);
@@ -769,21 +734,21 @@ impl Game {
             draw_text(
                 &format!("Units {}/{}", unit_page + 1, unit_pages),
                 rect.x + 216.0,
-                rect.y + 127.0,
+                rect.y + 187.0,
                 15.0,
                 LIGHTGRAY,
             );
             for (choice_index, kind) in choices
                 .into_iter()
-                .skip(unit_page * 12)
-                .take(12)
+                .skip(unit_page * capacity)
+                .take(capacity)
                 .enumerate()
             {
                 let column = choice_index % columns;
                 let row = choice_index / columns;
                 let card = Rect::new(
                     rect.x + 22.0 + column as f32 * (card_w + gap),
-                    rect.y + 139.0 + row as f32 * (card_h + gap),
+                    rect.y + 199.0 + row as f32 * (card_h + gap),
                     card_w,
                     card_h,
                 );
@@ -837,11 +802,12 @@ impl Game {
                     },
                 );
                 let name = short_unit_name(kind);
-                draw_text(
+                text_in(
                     name,
                     card.x + 62.0,
                     card.y + 26.0,
                     16.0,
+                    card.w - 70.0,
                     if enabled {
                         Color::from_rgba(239, 235, 216, 255)
                     } else {
@@ -875,8 +841,8 @@ impl Game {
             }
         }
 
-        let garrison_y = rect.y + 395.0;
-        let worklist_button = Rect::new(rect.x + rect.w - 251.0, garrison_y - 18.0, 104.0, 24.0);
+        let garrison_y = rect.bottom() - 77.0;
+        let worklist_button = Rect::new(rect.x + rect.w - 251.0, garrison_y - 20.0, 104.0, 24.0);
         draw_ui_button(
             worklist_button,
             &format!("Worklist ({})", city.worklist.len()),
@@ -884,7 +850,7 @@ impl Game {
             false,
         );
         actions.push((worklist_button, UiAction::WorklistPage(Some(0))));
-        let buy_button = Rect::new(rect.x + rect.w - 139.0, garrison_y - 18.0, 115.0, 24.0);
+        let buy_button = Rect::new(rect.x + rect.w - 139.0, garrison_y - 20.0, 115.0, 24.0);
         let cost = self.sim.rush_cost(city);
         let affordable = cost.is_some_and(|price| price <= self.sim.players()[city.owner].gold);
         let buy_label = cost.map_or_else(
@@ -903,12 +869,12 @@ impl Game {
         }
         draw_text(
             &format!(
-                "GARRISON     Unit upkeep  {} food / {} shields / {} gold",
+                "Upkeep: {} food / {} shields / {} gold",
                 support.food, support.shields, support.gold
             ),
             rect.x + 22.0,
-            garrison_y,
-            18.0,
+            garrison_y + 22.0,
+            14.0,
             Color::from_rgba(226, 211, 162, 255),
         );
         let garrison: Vec<&Unit> = self
@@ -931,9 +897,9 @@ impl Game {
             for (unit_index, unit) in garrison.into_iter().take(4).enumerate() {
                 let unit_rect = Rect::new(
                     rect.x + 22.0 + unit_index as f32 * (button_w + button_gap),
-                    garrison_y + 10.0,
+                    garrison_y + 31.0,
                     button_w,
-                    35.0,
+                    28.0,
                 );
                 draw_ui_button(
                     unit_rect,
@@ -944,16 +910,21 @@ impl Game {
                 actions.push((unit_rect, UiAction::SelectUnit(unit.id)));
             }
         }
-        draw_text(
-            "Select a unit to leave the city screen  |  Esc closes",
-            rect.x + 22.0,
-            rect.y + rect.h - 17.0,
-            14.0,
-            Color::from_rgba(145, 151, 142, 255),
-        );
     }
 
     fn draw_context_panel(&self, x: f32, y: f32) {
+        let compact = screen_height() < 700.0;
+        let context_text = |text: &str, tx: f32, ty: f32, size: f32, color: Color| {
+            let baseline = y + (ty - y) * if compact { 0.72 } else { 1.0 };
+            text_in(
+                text,
+                tx,
+                baseline,
+                if compact { size.min(17.0) } else { size },
+                PANEL_W - 36.0,
+                color,
+            );
+        };
         if let Some(index) = self.selected_unit_index() {
             let unit = &self.sim.units()[index];
             let stats = unit.kind.stats();
@@ -988,14 +959,14 @@ impl Game {
                     UnitState::Sentry => "Sentry".to_owned(),
                 }
             };
-            draw_text(
+            context_text(
                 unit.kind.name(),
                 x,
                 y + 23.0,
                 25.0,
                 Color::from_rgba(244, 221, 147, 255),
             );
-            draw_text(
+            context_text(
                 &format!(
                     "{} at {}, {}",
                     self.sim.players()[unit.owner].name,
@@ -1007,14 +978,14 @@ impl Game {
                 16.0,
                 Color::from_rgba(180, 185, 176, 255),
             );
-            draw_text(
+            context_text(
                 &format!("Attack {}   Defense {}", stats.attack, stats.defense),
                 x,
                 y + 75.0,
                 18.0,
                 Color::from_rgba(229, 226, 209, 255),
             );
-            draw_text(
+            context_text(
                 &format!(
                     "Health {}/{}   Moves {}/{}",
                     unit.hp,
@@ -1027,7 +998,7 @@ impl Game {
                 18.0,
                 Color::from_rgba(229, 226, 209, 255),
             );
-            draw_text(
+            context_text(
                 &format!(
                     "{}   Elevation {}",
                     self.sim.tile(unit.x, unit.y).terrain.name(),
@@ -1048,7 +1019,7 @@ impl Game {
             } else {
                 state
             };
-            draw_text(
+            context_text(
                 &state,
                 x,
                 y + 148.0,
@@ -1063,21 +1034,21 @@ impl Game {
             let support = home.map_or("No home city".to_owned(), |city| {
                 format!("Home city: {}", city.name)
             });
-            draw_text(
+            context_text(
                 &support,
                 x,
                 y + 168.0,
                 15.0,
                 Color::from_rgba(177, 177, 164, 255),
             );
-            draw_text(
+            context_text(
                 "Move: arrows / 2 3 4 6 7 8",
                 x,
                 y + 184.0,
                 16.0,
                 Color::from_rgba(177, 177, 164, 255),
             );
-            draw_text(
+            context_text(
                 "G: go-to   Space: wait   Tab: next",
                 x,
                 y + 207.0,
@@ -1090,14 +1061,14 @@ impl Game {
             let (food, shields, trade) = (forecast.food, forecast.shields, forecast.trade);
             let foreign = city.size - city.domestic_citizens();
             let cost = city.production.cost();
-            draw_text(
+            context_text(
                 &city.name,
                 x,
                 y + 23.0,
                 25.0,
                 Color::from_rgba(244, 221, 147, 255),
             );
-            draw_text(
+            context_text(
                 &format!(
                     "City size {} ({foreign} foreign)  Plague {:.1}%",
                     city.size,
@@ -1108,14 +1079,14 @@ impl Game {
                 18.0,
                 Color::from_rgba(229, 226, 209, 255),
             );
-            draw_text(
+            context_text(
                 &format!("Food {}  Shields {}  Trade {}", food, shields, trade),
                 x,
                 y + 76.0,
                 17.0,
                 Color::from_rgba(177, 213, 159, 255),
             );
-            draw_text(
+            context_text(
                 &format!(
                     "Food store {}/{}",
                     city.food,
@@ -1126,21 +1097,21 @@ impl Game {
                 17.0,
                 Color::from_rgba(229, 226, 209, 255),
             );
-            draw_text(
+            context_text(
                 &format!("Producing: {}", city.production.name()),
                 x,
                 y + 132.0,
                 18.0,
                 Color::from_rgba(145, 204, 224, 255),
             );
-            draw_text(
+            context_text(
                 &format!("Production {}/{}", city.shields, cost),
                 x,
                 y + 156.0,
                 17.0,
                 Color::from_rgba(229, 226, 209, 255),
             );
-            draw_text(
+            context_text(
                 "Choose a unit below to change production.",
                 x,
                 y + 192.0,
@@ -1148,35 +1119,35 @@ impl Game {
                 Color::from_rgba(177, 177, 164, 255),
             );
         } else {
-            draw_text(
+            context_text(
                 "YOUR CHRONICLE",
                 x,
                 y + 22.0,
                 22.0,
                 Color::from_rgba(244, 221, 147, 255),
             );
-            draw_text(
+            context_text(
                 "Found a city with your Settlers.",
                 x,
                 y + 55.0,
                 17.0,
                 Color::from_rgba(225, 224, 208, 255),
             );
-            draw_text(
+            context_text(
                 "Explore the fog and improve the land.",
                 x,
                 y + 80.0,
                 17.0,
                 Color::from_rgba(225, 224, 208, 255),
             );
-            draw_text(
+            context_text(
                 "Research stronger units and unite",
                 x,
                 y + 105.0,
                 17.0,
                 Color::from_rgba(225, 224, 208, 255),
             );
-            draw_text(
+            context_text(
                 "the rival civilizations.",
                 x,
                 y + 128.0,
@@ -1190,14 +1161,14 @@ impl Game {
                         || self.sim.units().iter().any(|u| u.owner == *owner)
                 })
                 .count();
-            draw_text(
+            context_text(
                 &format!("Rivals remaining: {living}"),
                 x,
                 y + 172.0,
                 18.0,
                 Color::from_rgba(236, 183, 117, 255),
             );
-            draw_text(
+            context_text(
                 "Click a unit or city for details.",
                 x,
                 y + 208.0,
@@ -1504,21 +1475,41 @@ impl Game {
             entries.push(("Next ready unit [Tab]".to_owned(), UiAction::Wait, false));
         }
 
-        let count = entries.len().max(1) as f32;
-        let gap = 6.0;
-        let width = ((available_width - 24.0 - gap * (count - 1.0)) / count).clamp(76.0, 132.0);
-        let y = screen_height() - BOTTOM_H + 10.0;
-        let mut x = 12.0;
-        for (label, action, enabled) in entries {
-            if x + width > available_width - 8.0 {
-                break;
-            }
-            let rect = Rect::new(x, y, width, 31.0);
+        let columns = grid_columns(available_width - 24.0, 112.0);
+        let capacity = columns * 2;
+        let paginated = entries.len() > capacity;
+        let page_size = capacity - usize::from(paginated);
+        let pages = entries.len().div_ceil(page_size).max(1);
+        let page = self.action_page.min(pages - 1);
+        let width = (available_width - 24.0 - UI_GAP * (columns - 1) as f32) / columns as f32;
+        let origin_y = screen_height() - BOTTOM_H + 8.0;
+        for (slot, (label, action, enabled)) in entries
+            .into_iter()
+            .skip(page * page_size)
+            .take(page_size)
+            .enumerate()
+        {
+            let rect = Rect::new(
+                12.0 + (slot % columns) as f32 * (width + UI_GAP),
+                origin_y + (slot / columns) as f32 * 36.0,
+                width,
+                28.0,
+            );
             draw_ui_button(rect, &label, enabled, false);
             if enabled {
                 actions.push((rect, action));
             }
-            x += width + gap;
+        }
+        if paginated {
+            let slot = capacity - 1;
+            let rect = Rect::new(
+                12.0 + (slot % columns) as f32 * (width + UI_GAP),
+                origin_y + 36.0,
+                width,
+                28.0,
+            );
+            draw_ui_button(rect, &format!("More {}/{} >", page + 1, pages), true, false);
+            actions.push((rect, UiAction::ActionPage((page + 1) % pages)));
         }
     }
 
@@ -1531,7 +1522,7 @@ impl Game {
             } else {
                 Color::from_rgba(154, 158, 151, 255)
             };
-            let clipped = clip_text(message, ((available_width - 36.0) / 8.6) as usize);
+            let clipped = fit_text(message, 15.0, available_width - 36.0);
             draw_text(&clipped, 18.0, y, 15.0, color);
             y -= 19.0;
         }

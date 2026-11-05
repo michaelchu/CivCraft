@@ -5,7 +5,9 @@ impl Game {
         let width = (screen_width() - 32.0).min(700.0);
         let x = (screen_width() - width) / 2.0;
         let y = ((screen_height() - 384.0) / 2.0).max(12.0);
-        draw_rectangle(x, y, width, 384.0, Color::from_rgba(29, 31, 28, 255));
+        let panel = Rect::new(x, y, width, 384.0);
+        panel_frame(panel);
+        let draw_text = panel_text(panel);
         draw_text("Spaceship assembly", x + 16.0, y + 32.0, 24.0, GOLD);
         let close = Rect::new(x + width - 52.0, y + 12.0, 36.0, 27.0);
         draw_ui_button(close, "X", true, false);
@@ -46,7 +48,7 @@ impl Game {
             LIGHTGRAY,
         );
         draw_text(
-            "Structural slots  (slot ← required slot)",
+            "Structural slots  (slot < required slot)",
             x + 16.0,
             y + 160.0,
             16.0,
@@ -65,7 +67,7 @@ impl Game {
             let label = if index == 0 || placed {
                 format!("{}", index + 1)
             } else {
-                format!("{} ← {}", index + 1, STRUCTURE_PARENT[index] + 1)
+                format!("{} < {}", index + 1, STRUCTURE_PARENT[index] + 1)
             };
             draw_ui_button(rect, &label, enabled, placed);
             if enabled {

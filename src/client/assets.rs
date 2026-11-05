@@ -80,10 +80,18 @@ fn build_ocean_corner_atlas(ocean: &Image, terrain: &Image) -> Image {
 }
 
 pub(crate) fn window_conf() -> Conf {
+    let args: Vec<_> = std::env::args().collect();
+    let size = args
+        .windows(2)
+        .find(|a| a[0] == "--window-size")
+        .and_then(|a| a[1].split_once('x'))
+        .and_then(|(w, h)| Some((w.parse::<i32>().ok()?, h.parse::<i32>().ok()?)))
+        .filter(|&(w, h)| w >= 800 && h >= 600)
+        .unwrap_or((1280, 720));
     Conf {
         window_title: "CivCraft".to_owned(),
-        window_width: 1280,
-        window_height: 720,
+        window_width: size.0,
+        window_height: size.1,
         window_resizable: true,
         high_dpi: true,
         sample_count: 4,

@@ -57,6 +57,7 @@ mod playtest;
 mod research;
 mod research_phase;
 mod terrain_work;
+mod ui_review;
 pub(crate) use commands::Command;
 use model::research_cost;
 mod military_research;

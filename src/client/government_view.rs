@@ -3,13 +3,6 @@ use super::*;
 impl Game {
     pub(super) fn draw_government(&self) -> Vec<(Rect, UiAction)> {
         let player = &self.sim.players()[HUMAN];
-        draw_rectangle(
-            0.0,
-            TOP_H,
-            screen_width(),
-            screen_height() - TOP_H,
-            Color::from_rgba(4, 9, 12, 185),
-        );
         let width = (screen_width() - 24.0).min(620.0);
         let panel = Rect::new(
             (screen_width() - width) / 2.0,
@@ -17,21 +10,8 @@ impl Game {
             width,
             378.0,
         );
-        draw_rectangle(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            Color::from_rgba(42, 44, 40, 255),
-        );
-        draw_rectangle_lines(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            2.0,
-            Color::from_rgba(206, 165, 72, 255),
-        );
+        panel_frame(panel);
+        let draw_text = panel_text(panel);
         let close = Rect::new(panel.right() - 45.0, panel.y + 12.0, 32.0, 26.0);
         draw_ui_button(close, "X", true, false);
         let mut actions = vec![(close, UiAction::ToggleGovernment)];
@@ -104,18 +84,12 @@ impl Game {
         let width = (screen_width() - 24.0).min(850.0);
         let panel = Rect::new(
             (screen_width() - width) / 2.0,
-            (screen_height() - 360.0) / 2.0,
+            (screen_height() - 480.0) / 2.0,
             width,
-            360.0,
+            480.0,
         );
-        draw_rectangle(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            Color::from_rgba(42, 44, 40, 255),
-        );
-        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 2.0, GOLD);
+        panel_frame(panel);
+        let draw_text = panel_text(panel);
         draw_text("Diplomacy", panel.x + 18.0, panel.y + 31.0, 24.0, WHITE);
         let close = Rect::new(panel.right() - 45.0, panel.y + 12.0, 32.0, 26.0);
         draw_ui_button(close, "X", true, false);
@@ -125,9 +99,9 @@ impl Game {
                 self.sim.can_negotiate(owner) || self.sim.treaty_offer(owner).is_some()
             })
             .collect();
-        let page = self.diplomacy_page.min(rivals.len().saturating_sub(1) / 7);
-        for (row, &owner) in rivals.iter().skip(page * 7).take(7).enumerate() {
-            let y = panel.y + 53.0 + row as f32 * 37.0;
+        let page = self.diplomacy_page.min(rivals.len().saturating_sub(1) / 4);
+        for (row, &owner) in rivals.iter().skip(page * 4).take(4).enumerate() {
+            let y = panel.y + 53.0 + row as f32 * 94.0;
             let pact = self.sim.pact(HUMAN, owner);
             let turns = self.sim.pact_turns(HUMAN, owner);
             let offer = self.sim.pact_offer(owner);
@@ -141,11 +115,12 @@ impl Game {
             if pact != Pact::War && self.sim.senate_blocks_cancellation(HUMAN, owner) {
                 status.push_str(" · Senate veto");
             }
-            draw_text(
+            text_in(
                 self.sim.players()[owner].name.as_str(),
                 panel.x + 18.0,
                 y + 14.0,
                 17.0,
+                panel.w - 36.0,
                 WHITE,
             );
             draw_text(&status, panel.x + 18.0, y + 30.0, 14.0, LIGHTGRAY);
@@ -172,7 +147,7 @@ impl Game {
             if pact != Pact::War {
                 buttons.push(("Cancel pact".to_owned(), UiAction::CancelPact(owner)));
             }
-            if self.sim.treaty_offer(owner).is_none() && width >= 660.0 {
+            if self.sim.treaty_offer(owner).is_none() {
                 for (label, map) in [("World", TreatyMap::World), ("Sea", TreatyMap::Sea)] {
                     let price = self.sim.map_trade_price(owner, HUMAN, map, pact);
                     buttons.push((
@@ -181,21 +156,26 @@ impl Game {
                     ));
                 }
             }
-            if width >= 790.0
-                && self
-                    .sim
-                    .cities()
-                    .iter()
-                    .any(|city| city.owner == owner && self.sim.city_trade_price(city).is_some())
+            if self
+                .sim
+                .cities()
+                .iter()
+                .any(|city| city.owner == owner && self.sim.city_trade_price(city).is_some())
             {
                 buttons.push((
                     "City deals".to_owned(),
                     UiAction::CityDeals(Some((owner, 0))),
                 ));
             }
-            for (index, (label, action)) in buttons.into_iter().rev().enumerate() {
-                let button =
-                    Rect::new(panel.right() - 129.0 - index as f32 * 116.0, y, 110.0, 30.0);
+            let columns = grid_columns(panel.w - 36.0, 120.0);
+            let button_w = (panel.w - 36.0 - UI_GAP * (columns - 1) as f32) / columns as f32;
+            for (index, (label, action)) in buttons.into_iter().enumerate() {
+                let button = Rect::new(
+                    panel.x + 18.0 + (index % columns) as f32 * (button_w + UI_GAP),
+                    y + 39.0 + (index / columns) as f32 * 32.0,
+                    button_w,
+                    26.0,
+                );
                 draw_ui_button(button, &label, true, false);
                 actions.push((button, action));
             }
@@ -209,21 +189,12 @@ impl Game {
                 LIGHTGRAY,
             );
         }
-        for (enabled, x, label, target) in [
-            (page > 0, panel.x + 18.0, "Previous", page.saturating_sub(1)),
-            (
-                (page + 1) * 7 < rivals.len(),
-                panel.right() - 95.0,
-                "Next",
-                page + 1,
-            ),
-        ] {
-            if enabled {
-                let button = Rect::new(x, panel.bottom() - 36.0, 77.0, 25.0);
-                draw_ui_button(button, label, true, false);
-                actions.push((button, UiAction::DiplomacyPage(target)));
-            }
-        }
+        actions.extend(pager(
+            panel,
+            page,
+            rivals.len().saturating_sub(1) / 4,
+            UiAction::DiplomacyPage,
+        ));
         actions
     }
 }
@@ -237,14 +208,8 @@ impl Game {
             width,
             360.0,
         );
-        draw_rectangle(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            Color::from_rgba(42, 44, 40, 255),
-        );
-        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 2.0, GOLD);
+        panel_frame(panel);
+        let draw_text = panel_text(panel);
         draw_text("City deals", panel.x + 18.0, panel.y + 31.0, 24.0, WHITE);
         let back = Rect::new(panel.right() - 88.0, panel.y + 12.0, 72.0, 26.0);
         draw_ui_button(back, "Back", true, false);
@@ -256,10 +221,26 @@ impl Game {
             .filter(|city| city.owner == owner)
             .filter_map(|city| self.sim.city_trade_price(city).map(|price| (city, price)))
             .collect();
+        if cities.is_empty() {
+            draw_text(
+                "No cities are available for purchase.",
+                panel.x + 18.0,
+                panel.y + 76.0,
+                17.0,
+                LIGHTGRAY,
+            );
+        }
         let page = page.min(cities.len().saturating_sub(1) / 7);
         for (row, &(city, price)) in cities.iter().skip(page * 7).take(7).enumerate() {
             let y = panel.y + 53.0 + row as f32 * 37.0;
-            draw_text(&city.name, panel.x + 18.0, y + 20.0, 17.0, WHITE);
+            text_in(
+                &city.name,
+                panel.x + 18.0,
+                y + 20.0,
+                17.0,
+                panel.w - 185.0,
+                WHITE,
+            );
             let button = Rect::new(panel.right() - 145.0, y, 129.0, 28.0);
             let affordable = self.sim.players()[HUMAN].gold >= price;
             draw_ui_button(button, &format!("Buy {price}g"), affordable, false);
@@ -267,21 +248,12 @@ impl Game {
                 actions.push((button, UiAction::BuyCity(city.id, price)));
             }
         }
-        for (enabled, x, label, target) in [
-            (page > 0, panel.x + 18.0, "Previous", page.saturating_sub(1)),
-            (
-                (page + 1) * 7 < cities.len(),
-                panel.right() - 95.0,
-                "Next",
-                page + 1,
-            ),
-        ] {
-            if enabled {
-                let button = Rect::new(x, panel.bottom() - 36.0, 77.0, 25.0);
-                draw_ui_button(button, label, true, false);
-                actions.push((button, UiAction::CityDeals(Some((owner, target)))));
-            }
-        }
+        actions.extend(pager(
+            panel,
+            page,
+            cities.len().saturating_sub(1) / 7,
+            |page| UiAction::CityDeals(Some((owner, page))),
+        ));
         actions
     }
 
@@ -289,18 +261,12 @@ impl Game {
         let width = (screen_width() - 24.0).min(560.0);
         let panel = Rect::new(
             (screen_width() - width) / 2.0,
-            (screen_height() - 290.0) / 2.0,
+            (screen_height() - 340.0) / 2.0,
             width,
-            290.0,
+            340.0,
         );
-        draw_rectangle(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            Color::from_rgba(42, 44, 40, 255),
-        );
-        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 2.0, GOLD);
+        panel_frame(panel);
+        let draw_text = panel_text(panel);
         let x = panel.x + 18.0;
         draw_text(
             &format!("Treaty offer from {}", self.sim.players()[owner].name),
@@ -313,7 +279,8 @@ impl Game {
         draw_text(pact, x, panel.y + 60.0, 18.0, GOLD);
         for (index, terms) in offer.terms.into_iter().enumerate() {
             let mut y = panel.y + 90.0;
-            let x = x + index as f32 * (width / 2.0);
+            let column_w = (width - 54.0) / 2.0;
+            let x = x + index as f32 * (column_w + 18.0);
             draw_text(
                 if index == 0 { "You give" } else { "They give" },
                 x,
@@ -351,7 +318,7 @@ impl Game {
             }
             for line in lines {
                 y += 24.0;
-                draw_text(&line, x, y, 17.0, LIGHTGRAY);
+                text_in(&line, x, y, 17.0, column_w, LIGHTGRAY);
             }
         }
         let valid = self.sim.treaty_offer(owner) == Some(offer);

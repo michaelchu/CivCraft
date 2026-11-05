@@ -153,6 +153,21 @@ impl Playtest {
                 format!("Worked tile reassigned to entertainer: {reassigned}. Tile labor restored: {restored}.")));
         }
 
+        // The city manager is modal: use its close control before touching HUD rates.
+        if (frame == 43 || frame == 76) && self.act_passed {
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::CloseCity))
+            {
+                game.perform_action(*action);
+            }
+        }
+        if frame == 53 && self.act_passed {
+            if let Some(city) = game.sim.cities().iter().find(|city| city.owner == HUMAN) {
+                let (x, y) = (city.x, city.y);
+                game.select_at(x, y);
+            }
+        }
         if frame == 45 && self.act_passed {
             if let Some((_, rate_button)) = buttons
                 .iter()
@@ -729,6 +744,16 @@ impl Playtest {
             game.perform_action(UiAction::FoundCity);
             let engineer = game.sim.base_playtest_setup();
             game.perform_action(UiAction::SelectUnit(engineer));
+        }
+        if frame == 183 || frame == 186 {
+            let target = if frame == 183 {
+                sim::Base::Airstrip
+            } else {
+                sim::Base::Airbase
+            };
+            if !buttons.iter().any(|(_,action)| matches!(action, UiAction::TerrainWork(sim::WorkKind::BuildBase(base)) if *base == target)) {
+                if let Some((_, action)) = buttons.iter().find(|(_,action)| matches!(action,UiAction::ActionPage(_))) { game.perform_action(*action); }
+            }
         }
         if frame == 184 || frame == 187 {
             let target = if frame == 184 {

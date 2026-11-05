@@ -194,6 +194,9 @@ impl Game {
         // Paint the fixed controls over the graph and keep hitboxes within the viewport.
         draw_rectangle(0.0, 0.0, screen_width(), viewport.y, background);
         draw_rectangle(0.0, viewport.bottom(), screen_width(), 91.0, background);
+        let draw_text = |text: &str, x: f32, y: f32, size: f32, color: Color| {
+            text_in(text, x, y, size, screen_width() - 24.0 - x, color);
+        };
         draw_text("Research tree", 24.0, 38.0, 32.0, WHITE);
         for (offset, width, label, action) in [
             (308.0, 84.0, "Fit tree", UiAction::FitResearch),
@@ -228,7 +231,12 @@ impl Game {
         let tabs = std::iter::once("Early").chain(RESEARCH_AGES.iter().map(|&(name, _)| name));
         let tab_width = ((screen_width() - 48.0) / (RESEARCH_AGES.len() + 1) as f32).min(142.0);
         for (age, name) in tabs.enumerate() {
-            let button = Rect::new(24.0 + age as f32 * tab_width, 105.0, tab_width - 4.0, 29.0);
+            let button = Rect::new(
+                24.0 + age as f32 * tab_width,
+                105.0,
+                tab_width - UI_GAP,
+                29.0,
+            );
             draw_ui_button(button, name, true, self.research_age == age);
             actions.push((button, UiAction::ResearchAge(age)));
         }
@@ -254,13 +262,7 @@ impl Game {
             WHITE,
         );
         let detail = research_unlock_detail(tech);
-        draw_text(
-            &clip_text(&detail, ((screen_width() - 48.0) / 8.0) as usize),
-            24.0,
-            y + 45.0,
-            16.0,
-            SKYBLUE,
-        );
+        draw_text(&detail, 24.0, y + 45.0, 16.0, SKYBLUE);
         let mut x = 24.0;
         for &req in inspected.prerequisites() {
             if in_age(self.research_tree.center(req)) {

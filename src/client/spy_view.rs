@@ -23,14 +23,8 @@ impl Game {
             w,
             h,
         );
-        draw_rectangle(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            Color::from_rgba(42, 44, 40, 255),
-        );
-        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 2.0, GOLD);
+        panel_frame(panel);
+        let draw_text = panel_text(panel);
         draw_text(
             &format!("Spy targets in {}", city.name),
             panel.x + 18.0,
@@ -108,16 +102,9 @@ impl Game {
             draw_ui_button(button, &label, true, false);
             actions.push((button, action));
         }
-        for (enabled, x, label, next) in [
-            (page > 0, panel.x + 18.0, "Previous", page.saturating_sub(1)),
-            (page < last, panel.right() - 96.0, "Next", page + 1),
-        ] {
-            if enabled {
-                let button = Rect::new(x, panel.bottom() - 35.0, 78.0, 25.0);
-                draw_ui_button(button, label, true, false);
-                actions.push((button, UiAction::SpyTargets(Some((city_id, next)))));
-            }
-        }
+        actions.extend(pager(panel, page, last, |page| {
+            UiAction::SpyTargets(Some((city_id, page)))
+        }));
         actions
     }
 }
