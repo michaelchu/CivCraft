@@ -1,28 +1,68 @@
 use super::*;
 
 impl Simulation {
+    pub(in crate::sim) fn live_map_observation(&self, index: usize) -> MapObservation {
+        let (x, y) = Self::xy(index);
+        let tile = &self.tiles[index];
+        MapObservation {
+            route: self.live_route_tile(x, y),
+            owner: tile.owner,
+            ocean: tile.terrain.is_water(),
+        }
+    }
+
     pub(super) fn transfer_treaty_map(&mut self, giver: usize, receiver: usize, map: TreatyMap) {
         let recipients = self.vision_recipients(receiver);
         for index in 0..self.tiles.len() {
             let tile = &self.tiles[index];
-            if !tile.known_by[giver] || (map == TreatyMap::Sea && !tile.terrain.is_water()) {
+            if !tile.known_by[giver] {
                 continue;
             }
-            let human_learns = recipients.contains(&HUMAN) && !tile.seen;
-            let observed = human_learns.then(|| {
-                let (x, y) = Self::xy(index);
-                self.live_route_tile(x, y)
-            });
+            // Older saves and knowledge granted without direct sight may lack a snapshot.
+            let observation = if giver == HUMAN && !tile.visible {
+                self.route_memory[index].map(|route| MapObservation {
+                    route,
+                    owner: tile.last_seen_owner,
+                    ocean: route.is_water(),
+                })
+            } else {
+                self.ai_map_memory.get(&(giver, index)).copied()
+            }
+            .unwrap_or_else(|| self.live_map_observation(index));
+            if map == TreatyMap::Sea && !observation.ocean {
+                continue;
+            }
             let tile = &mut self.tiles[index];
             for &recipient in &recipients {
+                if !tile.known_by[recipient] && recipient != HUMAN && recipient != BARBARIANS {
+                    self.ai_map_memory.insert((recipient, index), observation);
+                }
                 tile.known_by[recipient] = true;
             }
-            if let Some(observed) = observed {
+            if recipients.contains(&HUMAN) && !tile.seen {
                 tile.seen = true;
-                tile.last_seen_owner = tile.owner;
-                self.route_memory[index] = Some(observed);
+                tile.last_seen_owner = observation.owner;
+                self.route_memory[index] = Some(observation.route);
             }
         }
+    }
+
+    pub(crate) fn map_snapshot_playtest(&mut self) -> bool {
+        self.units.clear();
+        let (x, y) = (23, 36);
+        let index = Self::idx(x, y);
+        self.tile_mut(x, y).terrain = Terrain::Ocean;
+        self.spawn_unit(1, UnitKind::Trireme, x, y);
+        self.refresh_visibility();
+        self.units.clear();
+        self.tile_mut(x, y).terrain = Terrain::Grassland;
+        self.refresh_visibility();
+        self.tile_mut(x, y).seen = false;
+        self.tile_mut(x, y).known_by[HUMAN] = false;
+        self.transfer_treaty_map(1, HUMAN, TreatyMap::Sea);
+        self.tile(x, y).seen
+            && !self.tile(x, y).visible
+            && self.route_memory[index].is_some_and(|tile| tile.is_water())
     }
 
     pub(crate) fn unit_visible_to_human(&self, unit: &Unit) -> bool {
@@ -100,6 +140,12 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sea_map_transfers_the_sellers_last_observation() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert!(game.map_snapshot_playtest());
+    }
 
     #[test]
     fn stealth_units_require_close_detection_and_foreign_city_garrisons_stay_hidden() {

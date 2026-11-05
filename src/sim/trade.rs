@@ -223,39 +223,51 @@ impl Simulation {
             {
                 continue;
             }
-            let water: Vec<_> = neighbors(lx, ly)
-                .filter(|&(x, y)| self.tile(x, y).terrain.is_water())
-                .collect();
-            if water.is_empty() {
+            let sea_approach = neighbors(lx, ly)
+                .filter(|&(x, y)| {
+                    self.tile(x, y).terrain.is_water()
+                        && !self.units.iter().any(|unit| {
+                            (unit.x, unit.y) == (x, y) && !self.allied(ship.owner, unit.owner)
+                        })
+                })
+                .filter_map(|(x, y)| {
+                    let cost = self.route_cost_within(ship, x, y, i32::MAX)?;
+                    let sea_turns = ((cost - remaining).max(0) + allowance - 1) / allowance;
+                    Some((sea_turns, x, y))
+                })
+                .min();
+            let Some((sea_turns, x, y)) = sea_approach else {
                 continue;
-            }
+            };
+
             let mut walker = merchant.clone();
-            (walker.x, walker.y) = (lx, ly);
+            (walker.x, walker.y) = (x, y);
             walker.transport = None;
-            let foot_cost = self
-                .merchant_land_approach(&walker, city)
-                .map(|(cost, _, _)| cost);
-            let Some(foot_cost) = foot_cost else { continue };
-            let foot_allowance = merchant.kind.stats().moves * MOVE_FRAGMENTS;
-            let foot_turns = (foot_cost
-                + self.tile(lx, ly).terrain.movement_cost() * MOVE_FRAGMENTS)
-                / foot_allowance;
-            for (x, y) in water {
-                if self
-                    .units
-                    .iter()
-                    .any(|unit| (unit.x, unit.y) == (x, y) && !self.allied(ship.owner, unit.owner))
-                {
-                    continue;
-                }
-                let Some(cost) = self.route_cost_within(ship, x, y, i32::MAX) else {
-                    continue;
-                };
-                let sea_turns = ((cost - remaining).max(0) + allowance - 1) / allowance;
-                let candidate = (sea_turns + foot_turns, x, y, (lx, ly));
-                if best.is_none_or(|previous| candidate < previous) {
-                    best = Some(candidate);
-                }
+            let foot_allowance = self.unit_move_allowance(walker.owner, walker.kind);
+            let mut landing_turn = sea_turns;
+            if landing_turn > 0 {
+                walker.moves_left = foot_allowance;
+            } else if walker.moves_left <= 0 {
+                landing_turn += 1;
+                walker.moves_left = foot_allowance;
+            }
+            let Some(landing_cost) = self.movement_cost_for(&walker, lx, ly) else {
+                continue;
+            };
+            walker.moves_left = (walker.moves_left - landing_cost).max(0);
+            (walker.x, walker.y) = (lx, ly);
+            let Some((foot_cost, _, _)) = self.merchant_land_approach(&walker, city) else {
+                continue;
+            };
+            // Delivery requires a movement fragment after the last walking step.
+            let walking_turns = if foot_cost < walker.moves_left {
+                0
+            } else {
+                1 + (foot_cost - walker.moves_left) / foot_allowance
+            };
+            let candidate = (landing_turn + walking_turns, x, y, (lx, ly));
+            if best.is_none_or(|previous| candidate < previous) {
+                best = Some(candidate);
             }
         }
         best
@@ -306,6 +318,10 @@ impl Simulation {
                 (staged.x, staged.y) = (merchant.x, merchant.y);
                 staged.moves_left = remaining;
             }
+            let mut passenger = merchant.clone();
+            if ready_in > 0 || pickup_turns > 0 {
+                passenger.moves_left = self.unit_move_allowance(passenger.owner, passenger.kind);
+            }
             for city in self.cities.iter().filter(|city| self.can_trade(home, city)) {
                 let approach = neighbors(city.x, city.y)
                     .filter(|&(x, y)| {
@@ -320,16 +336,13 @@ impl Simulation {
                     })
                     .min();
                 let (journey, x, y, landing) = if let Some((cost, x, y)) = approach {
-                    (
-                        ((cost - remaining).max(0) + allowance - 1) / allowance,
-                        x,
-                        y,
-                        None,
-                    )
+                    let sailing_turns = ((cost - remaining).max(0) + allowance - 1) / allowance;
+                    let delivery_turn = sailing_turns.max(i32::from(passenger.moves_left <= 0));
+                    (delivery_turn, x, y, None)
                 } else {
                     let labels = labels.get_or_insert_with(|| self.continent_labels());
                     let Some((turns, x, y, landing)) = self.inland_ferry_approach(
-                        merchant, &staged, city, allowance, remaining, labels,
+                        &passenger, &staged, city, allowance, remaining, labels,
                     ) else {
                         continue;
                     };
@@ -604,6 +617,40 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ferry_landing_counts_only_the_movement_available_to_the_caravan() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Ocean;
+            tile.road = false;
+            tile.railroad = false;
+        }
+        let sea = (10, 24);
+        let landing = offset_native_by_map(sea.0, sea.1, 1, 0);
+        let destination = offset_native_by_map(sea.0, sea.1, 2, 0);
+        game.tile_mut(landing.0, landing.1).terrain = Terrain::Mountains;
+        game.tile_mut(destination.0, destination.1).terrain = Terrain::Grassland;
+        game.create_city(HUMAN, destination.0, destination.1);
+        game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+        let mut ship = game.make_unit(0, 1, UnitKind::Transport, sea.0, sea.1);
+        ship.moves_left = 0;
+        let allowance = game.unit_move_allowance(ship.owner, ship.kind);
+        let mut merchant = game.make_unit(0, 1, UnitKind::Caravan, sea.0, sea.1);
+        let labels = game.continent_labels();
+        let city = &game.cities[0];
+
+        assert_eq!(
+            game.inland_ferry_approach(&merchant, &ship, city, allowance, 0, &labels),
+            Some((1, sea.0, sea.1, landing))
+        );
+        merchant.moves_left = 0;
+        assert_eq!(
+            game.inland_ferry_approach(&merchant, &ship, city, allowance, 0, &labels)
+                .map(|(turns, _, _, _)| turns),
+            Some(2)
+        );
+    }
 
     #[test]
     fn ai_freight_can_help_a_wonder_under_construction() {

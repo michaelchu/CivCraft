@@ -2401,6 +2401,11 @@ impl Playtest {
             self.results.push(("ai_merchant_road_delivery", sim.ai_merchant_road_playtest(),
                 "The same Caravan reached the destination and delivered in one turn only when the road was open.".to_owned()));
         }
+        if frame == 569 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_map_observation_transfer", sim.map_snapshot_playtest(),
+                "A sea map transferred the seller's observed ocean after the tile changed out of sight.".to_owned()));
+        }
         if let Some(step) = match frame {
             30 => Some("foundation"),
             65 => Some("economy"),

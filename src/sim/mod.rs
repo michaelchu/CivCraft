@@ -91,6 +91,15 @@ pub(crate) enum MoveResult {
     Blocked,
 }
 
+type AiMapMemory = std::collections::BTreeMap<(usize, usize), MapObservation>;
+
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+struct MapObservation {
+    route: movement::RouteTile,
+    owner: Option<usize>,
+    ocean: bool,
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct Simulation {
     pub(crate) world_seed: u64,
@@ -117,6 +126,8 @@ pub(crate) struct Simulation {
     trade_routes: Vec<(u32, u32)>,
     #[serde(skip)]
     route_memory: Vec<Option<movement::RouteTile>>,
+    #[serde(skip)]
+    ai_map_memory: AiMapMemory,
     #[serde(skip)]
     ai_purchase_reserve: std::collections::BTreeMap<usize, i32>,
     #[serde(skip)]
@@ -329,6 +340,7 @@ impl Simulation {
             climate_pressure: [ClimatePressure::default(); 2],
             trade_routes: Vec::new(),
             route_memory: vec![None; (MAP_W * MAP_H) as usize],
+            ai_map_memory: Default::default(),
             ai_purchase_reserve: Default::default(),
             agent_city_targets: Default::default(),
             city_founders: Default::default(),
@@ -424,6 +436,7 @@ impl Simulation {
                 tile.seen |= tile.known_by[HUMAN];
             }
         }
+        let mut observations = vec![None; self.tiles.len()];
         for (owner, x, y, radius_sq, stealth_sq) in revealers {
             let radius = (radius_sq as f32).sqrt().ceil() as i32;
             for dy in -radius..=radius {
@@ -435,6 +448,11 @@ impl Simulation {
                         if owner != BARBARIANS {
                             for &target in &recipients[owner] {
                                 self.tiles[idx].known_by[target] = true;
+                                if target != HUMAN && target != BARBARIANS {
+                                    let observation = *observations[idx]
+                                        .get_or_insert_with(|| self.live_map_observation(idx));
+                                    self.ai_map_memory.insert((target, idx), observation);
+                                }
                             }
                         }
                         if recipients[owner].contains(&HUMAN) {

@@ -392,6 +392,7 @@ impl Simulation {
             .collect();
         priorities.sort_unstable();
         self.ai_purchase_reserve.remove(&owner);
+        let emergency_cities: Vec<_> = priorities.iter().map(|&(_, city)| city).collect();
         for (_, id) in priorities {
             let city = self.cities.iter().find(|city| city.id == id).unwrap();
             let position = (city.x, city.y);
@@ -453,8 +454,73 @@ impl Simulation {
             };
             rival != BARBARIANS && self.player_alive(rival) && self.at_war(owner, rival)
         });
+        self.spend_ai_routine_gold(owner, reserve, expenses, at_war, &emergency_cities);
         if !at_war {
             self.spend_ai_upgrade_gold(owner, None, reserve.max(expenses));
+        }
+    }
+
+    fn spend_ai_routine_gold(
+        &mut self,
+        owner: usize,
+        reserve: i32,
+        expenses: i32,
+        at_war: bool,
+        emergency_cities: &[u32],
+    ) {
+        let city_count = self
+            .cities
+            .iter()
+            .filter(|city| city.owner == owner)
+            .count();
+        let gold = self.players[owner].gold;
+        let mut purchases = Vec::new();
+        for city in self.cities.iter().filter(|city| {
+            city.owner == owner && city.shields > 0 && !emergency_cities.contains(&city.id)
+        }) {
+            let Some(price) = self.rush_cost(city) else {
+                continue;
+            };
+            let mut cash_floor = 2 * reserve;
+            if let Production::Unit(kind) = city.production {
+                let stats = kind.stats();
+                if city.size <= stats.pop_cost {
+                    continue;
+                }
+                if stats.can_found {
+                    if at_war || city_count > 6 {
+                        continue;
+                    }
+                    cash_floor = reserve;
+                } else if !at_war
+                    && price > 2 * stats.cost
+                    && kind.is_military()
+                    && (stats.attack > stats.defense
+                        || self.offensive_production(city) == Some(kind))
+                {
+                    continue;
+                }
+            }
+            let cash_floor = cash_floor.max(expenses);
+            if gold - price < cash_floor {
+                continue;
+            }
+
+            let missing = city.production.cost() - city.shields;
+            let surplus = self.city_forecast(city).shield_surplus();
+            if missing <= surplus {
+                continue;
+            }
+            // Current production does not retain the advisor's choice score.
+            // Prefer purchases that save more turns, then the cheaper purchase.
+            let turns_saved = (missing - 1) / surplus.max(1);
+            purchases.push((std::cmp::Reverse(turns_saved), price, city.id, cash_floor));
+        }
+        purchases.sort_unstable();
+        for (_, price, city, cash_floor) in purchases {
+            if self.players[owner].gold - price >= cash_floor {
+                self.rush_production(owner, city);
+            }
         }
     }
 
@@ -668,6 +734,59 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn routine_rush_preserves_reserve_and_requires_invested_shields() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.players[1].known.push(Tech::POTTERY);
+        game.create_city(1, 20, 20);
+        game.turn += 1;
+        game.cities[0].production = Production::Building(Building::GRANARY);
+        game.players[1].gold = 500;
+        game.spend_ai_defense_gold(1);
+        assert!(!game.cities[0].bought_production);
+
+        game.cities[0].shields = 1;
+        let price = game.rush_cost(&game.cities[0]).unwrap();
+        let reserve = 2 * game.ai_gold_reserve(1);
+        game.players[1].gold = price + reserve - 1;
+        game.spend_ai_defense_gold(1);
+        assert!(!game.cities[0].bought_production);
+
+        game.players[1].gold += 1;
+        game.spend_ai_defense_gold(1);
+        assert!(game.cities[0].bought_production);
+        assert_eq!(game.players[1].gold, reserve);
+    }
+
+    #[test]
+    fn routine_settler_rush_requires_peacetime_and_population() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.create_city(1, 20, 20);
+        game.turn += 1;
+        game.cities[0].production = Production::Unit(UnitKind::Settlers);
+        game.cities[0].shields = 1;
+        game.cities[0].size = UnitKind::Settlers.stats().pop_cost;
+        game.players[1].gold = 500;
+        game.spend_ai_defense_gold(1);
+        assert!(!game.cities[0].bought_production);
+
+        game.cities[0].size += 1;
+        game.create_city(HUMAN, 5, 5);
+        game.sign_pact(1, HUMAN, Pact::War);
+        game.spend_ai_defense_gold(1);
+        assert!(!game.cities[0].bought_production);
+
+        game.sign_pact(1, HUMAN, Pact::Peace);
+        let price = game.rush_cost(&game.cities[0]).unwrap();
+        let reserve = game.ai_gold_reserve(1);
+        game.players[1].gold = price + reserve;
+        game.spend_ai_defense_gold(1);
+        assert!(game.cities[0].bought_production);
+        assert_eq!(game.players[1].gold, reserve);
+    }
 
     #[test]
     fn city_output_priorities_raise_the_bid_for_a_library_technology() {

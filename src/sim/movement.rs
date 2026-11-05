@@ -10,6 +10,12 @@ pub(super) struct RouteTile {
     pub(super) city_owner: Option<usize>,
 }
 
+impl RouteTile {
+    pub(super) fn is_water(self) -> bool {
+        self.terrain.is_water()
+    }
+}
+
 impl From<&Tile> for RouteTile {
     fn from(tile: &Tile) -> Self {
         Self {
@@ -148,10 +154,15 @@ impl Simulation {
     }
 
     fn helicopter_cargo_access(&self, passenger: &Unit, x: i32, y: i32) -> bool {
+        Self::can_disembark_helicopter_in_field(passenger)
+            || self.refuel_site(passenger.owner, x, y)
+    }
+
+    fn can_disembark_helicopter_in_field(passenger: &Unit) -> bool {
         matches!(
             passenger.kind,
             UnitKind::Partisan | UnitKind::Marines | UnitKind::Paratroopers
-        ) || self.refuel_site(passenger.owner, x, y)
+        )
     }
 
     fn can_leave_transport(&self, passenger: &Unit) -> bool {
@@ -844,10 +855,13 @@ impl Simulation {
                     .filter_map(|ship| {
                         let mut outermost = ship;
                         let mut depth = 0;
+                        let mut total_moves = 0;
                         loop {
                             if losses.contains(&outermost.id) || outermost.id == passenger.id {
                                 return None;
                             }
+                            total_moves += outermost.moves_left
+                                + self.unit_move_allowance(outermost.owner, outermost.kind);
                             let Some(parent) = outermost.transport else {
                                 break;
                             };
@@ -857,8 +871,17 @@ impl Simulation {
                             }
                             outermost = self.units.iter().find(|unit| unit.id == parent)?;
                         }
+                        let busy = ship.state != UnitState::Idle || ship.work_left > 0;
+                        let restricted_unload = ship.kind == UnitKind::Helicopter
+                            && !Self::can_disembark_helicopter_in_field(passenger);
                         Some((
-                            (ship.state != UnitState::Idle, depth, -outermost.moves_left),
+                            (
+                                busy,
+                                restricted_unload,
+                                depth,
+                                -outermost.moves_left,
+                                -total_moves,
+                            ),
                             ship.id,
                         ))
                     })
@@ -1736,6 +1759,44 @@ mod tests {
 #[cfg(test)]
 mod transport_tests {
     use super::*;
+
+    #[test]
+    fn rescue_prefers_idle_carriers_then_uses_future_speed_to_break_ties() {
+        for fast_ship_working in [false, true] {
+            let mut game = Simulation::new(crate::mapgen::generate(42));
+            game.units.clear();
+            let (x, y) = (10, 20);
+            game.tile_mut(x, y).terrain = Terrain::Ocean;
+            let lost = game.spawn_unit(HUMAN, UnitKind::Transport, x, y);
+            let slow = game.spawn_unit(HUMAN, UnitKind::Caravel, x, y);
+            let fast = game.spawn_unit(HUMAN, UnitKind::Transport, x, y);
+            let passenger = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
+            assert!(game.board_specific_ship(passenger, lost));
+            for ship in game
+                .units
+                .iter_mut()
+                .filter(|unit| [slow, fast].contains(&unit.id))
+            {
+                ship.moves_left = MOVE_FRAGMENTS;
+                if ship.id == fast && fast_ship_working {
+                    ship.work_kind = Some(WorkKind::Clean(Contamination::Fallout));
+                    ship.work_left = 1;
+                }
+            }
+
+            game.remove_units_with_cargo(vec![lost]);
+
+            let expected = if fast_ship_working { slow } else { fast };
+            assert_eq!(
+                game.units
+                    .iter()
+                    .find(|unit| unit.id == passenger)
+                    .unwrap()
+                    .transport,
+                Some(expected)
+            );
+        }
+    }
 
     #[test]
     fn engineering_replaces_earlier_ferries_and_transport_carries_heavy_units() {

@@ -11,7 +11,8 @@ const HEADER_V1: &[u8] = b"CIVCRAFT\0\x01";
 const HEADER_V2: &[u8] = b"CIVCRAFT\0\x02";
 const HEADER_V3: &[u8] = b"CIVCRAFT\0\x03";
 const HEADER_V4: &[u8] = b"CIVCRAFT\0\x04";
-const HEADER: &[u8] = b"CIVCRAFT\0\x05";
+const HEADER_V5: &[u8] = b"CIVCRAFT\0\x05";
+const HEADER: &[u8] = b"CIVCRAFT\0\x06";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -24,6 +25,7 @@ impl Simulation {
                 &self.ai_purchase_reserve,
                 &self.agent_city_targets,
                 &self.city_founders,
+                &self.ai_map_memory,
             ))
             .map_err(io::Error::other)?;
         let filename = path
@@ -58,6 +60,7 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         if header != HEADER
+            && header != HEADER_V5
             && header != HEADER_V4
             && header != HEADER_V3
             && header != HEADER_V2
@@ -79,32 +82,59 @@ impl Simulation {
             game.remember_route_tiles(true);
         } else {
             let decode_error = |error: bincode::Error| invalid(error.to_string());
-            let (loaded, memory, reserves, missions, founders) = if header == HEADER_V2 {
-                let (loaded, memory) = codec().deserialize(&payload).map_err(decode_error)?;
-                (
-                    loaded,
-                    memory,
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
-                )
-            } else if header == HEADER_V3 {
-                let (loaded, memory, reserves) =
-                    codec().deserialize(&payload).map_err(decode_error)?;
-                (
-                    loaded,
-                    memory,
-                    reserves,
-                    Default::default(),
-                    Default::default(),
-                )
-            } else if header == HEADER_V4 {
-                let (loaded, memory, reserves, missions) =
-                    codec().deserialize(&payload).map_err(decode_error)?;
-                (loaded, memory, reserves, missions, Default::default())
-            } else {
-                codec().deserialize(&payload).map_err(decode_error)?
+            let (loaded, memory, reserves, missions, founders, observations) = match header
+                .as_slice()
+            {
+                HEADER_V2 => {
+                    let (loaded, memory) = codec().deserialize(&payload).map_err(decode_error)?;
+                    (
+                        loaded,
+                        memory,
+                        Default::default(),
+                        Default::default(),
+                        Default::default(),
+                        Default::default(),
+                    )
+                }
+                HEADER_V3 => {
+                    let (loaded, memory, reserves) =
+                        codec().deserialize(&payload).map_err(decode_error)?;
+                    (
+                        loaded,
+                        memory,
+                        reserves,
+                        Default::default(),
+                        Default::default(),
+                        Default::default(),
+                    )
+                }
+                HEADER_V4 => {
+                    let (loaded, memory, reserves, missions) =
+                        codec().deserialize(&payload).map_err(decode_error)?;
+                    (
+                        loaded,
+                        memory,
+                        reserves,
+                        missions,
+                        Default::default(),
+                        Default::default(),
+                    )
+                }
+                HEADER_V5 => {
+                    let (loaded, memory, reserves, missions, founders) =
+                        codec().deserialize(&payload).map_err(decode_error)?;
+                    (
+                        loaded,
+                        memory,
+                        reserves,
+                        missions,
+                        founders,
+                        Default::default(),
+                    )
+                }
+                _ => codec().deserialize(&payload).map_err(decode_error)?,
             };
+            let observations: AiMapMemory = observations;
             let founders: std::collections::BTreeMap<u32, usize> = founders;
             let missions: std::collections::BTreeMap<u32, u32> = missions;
             let reserves: std::collections::BTreeMap<usize, i32> = reserves;
@@ -139,6 +169,20 @@ impl Simulation {
             }
             game.agent_city_targets = missions;
             game.city_founders = founders;
+            if observations.iter().any(|(&(owner, index), tile)| {
+                owner == HUMAN
+                    || owner == BARBARIANS
+                    || owner >= game.players.len()
+                    || index >= game.tiles.len()
+                    || tile.owner.is_some_and(|owner| owner >= game.players.len())
+                    || tile
+                        .route
+                        .city_owner
+                        .is_some_and(|owner| owner >= game.players.len())
+            }) {
+                return Err(invalid("Invalid AI map observation"));
+            }
+            game.ai_map_memory = observations;
         }
         Ok(game)
     }
@@ -175,6 +219,7 @@ impl Simulation {
                         &sim.ai_purchase_reserve,
                         &sim.agent_city_targets,
                         &sim.city_founders,
+                        &sim.ai_map_memory,
                     ))
                     .map_err(io::Error::other)
             };
@@ -219,12 +264,33 @@ impl Simulation {
                 .map_err(io::Error::other)?;
             fs::write(&path, previous)?;
             let migrated_v4 = Self::load_campaign(&path)?.city_founders.is_empty();
+            let mut previous = HEADER_V5.to_vec();
+            codec()
+                .serialize_into(
+                    &mut previous,
+                    &(
+                        &*self,
+                        &self.route_memory,
+                        &self.ai_purchase_reserve,
+                        &self.agent_city_targets,
+                        &self.city_founders,
+                    ),
+                )
+                .map_err(io::Error::other)?;
+            fs::write(&path, previous)?;
+            let migrated_v5 = Self::load_campaign(&path)?.ai_map_memory.is_empty();
             fs::write(&path, b"CIVCRAFT\0\xffbad save")?;
             let rejected = Self::load_campaign(&path).is_err();
             Ok((
                 restored,
                 deterministic,
-                replaced && migrated && migrated_v2 && migrated_v3 && migrated_v4 && rejected,
+                replaced
+                    && migrated
+                    && migrated_v2
+                    && migrated_v3
+                    && migrated_v4
+                    && migrated_v5
+                    && rejected,
             ))
         })();
         let cleanup = fs::remove_dir_all(dir);

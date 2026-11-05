@@ -88,7 +88,7 @@ async fn main() {
                 }
             }
         }
-        if frame >= 569
+        if frame >= 571
             && let Some(playtest) = &playtest
         {
             playtest.finish(game.hud_elements_drawn);
