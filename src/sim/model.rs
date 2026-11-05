@@ -126,10 +126,6 @@ impl Terrain {
     pub(crate) fn allows_city(self) -> bool {
         !self.is_water() && !matches!(self, Self::Mountains | Self::Glacier)
     }
-
-    pub(crate) fn prefers_mine(self) -> bool {
-        matches!(self, Self::Hills | Self::Mountains | Self::Tundra)
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -308,6 +304,21 @@ pub(crate) enum UnitKind {
     Nuclear,
     BarbarianLeader,
     Paratroopers,
+    Pikemen,
+    Riflemen,
+    AlpineTroops,
+    Fanatics,
+    MechInf,
+    Elephants,
+    Crusaders,
+    Dragoons,
+    Cavalry,
+    Armor,
+    Artillery,
+    Howitzer,
+    Leader,
+    Awacs,
+    Storm,
 }
 
 #[derive(Clone, Copy)]
@@ -326,59 +337,138 @@ pub(crate) struct UnitStats {
 }
 
 impl UnitKind {
-    pub(super) const AI_MILITARY: [Self; 7] = [
-        Self::Catapult,
-        Self::Chariot,
-        Self::Legion,
-        Self::Archer,
-        Self::Horseman,
-        Self::Phalanx,
+    // Source ruleset ordering is independent of enum/save discriminants.
+    pub(crate) const ALL_NATIVE: [Self; 57] = [
+        Self::Settlers,
+        Self::Migrants,
+        Self::Worker,
+        Self::Engineer,
         Self::Warrior,
+        Self::Phalanx,
+        Self::Archer,
+        Self::Legion,
+        Self::Pikemen,
+        Self::Musketeers,
+        Self::Riflemen,
+        Self::AlpineTroops,
+        Self::Partisan,
+        Self::Fanatics,
+        Self::Marines,
+        Self::Paratroopers,
+        Self::MechInf,
+        Self::Horseman,
+        Self::Chariot,
+        Self::Elephants,
+        Self::Crusaders,
+        Self::Knights,
+        Self::Dragoons,
+        Self::Cavalry,
+        Self::Armor,
+        Self::Catapult,
+        Self::Cannon,
+        Self::Artillery,
+        Self::Howitzer,
+        Self::Fighter,
+        Self::Bomber,
+        Self::Helicopter,
+        Self::StealthFighter,
+        Self::StealthBomber,
+        Self::Trireme,
+        Self::Caravel,
+        Self::Galleon,
+        Self::Frigate,
+        Self::Ironclad,
+        Self::Destroyer,
+        Self::Cruiser,
+        Self::AegisCruiser,
+        Self::Battleship,
+        Self::Submarine,
+        Self::Carrier,
+        Self::Transport,
+        Self::CruiseMissile,
+        Self::Nuclear,
+        Self::Diplomat,
+        Self::Spy,
+        Self::Caravan,
+        Self::Freight,
+        Self::Explorer,
+        Self::Leader,
+        Self::BarbarianLeader,
+        Self::Awacs,
+        Self::Storm,
+    ];
+    #[cfg(test)]
+    pub(crate) const ALL: [Self; 57] = Self::ALL_NATIVE;
+    #[cfg(test)]
+    pub(crate) fn all() -> impl Iterator<Item = Self> {
+        Self::ALL_NATIVE.into_iter()
+    }
+    pub(super) const SIMPLE_MILITARY: [Self; 32] = [
+        Self::Warrior,
+        Self::Phalanx,
+        Self::Archer,
+        Self::Legion,
+        Self::Pikemen,
+        Self::Musketeers,
+        Self::Riflemen,
+        Self::AlpineTroops,
+        Self::Partisan,
+        Self::Fanatics,
+        Self::Marines,
+        Self::Paratroopers,
+        Self::MechInf,
+        Self::Horseman,
+        Self::Chariot,
+        Self::Elephants,
+        Self::Crusaders,
+        Self::Knights,
+        Self::Dragoons,
+        Self::Cavalry,
+        Self::Armor,
+        Self::Catapult,
+        Self::Cannon,
+        Self::Artillery,
+        Self::Howitzer,
+        Self::Helicopter,
+        Self::Frigate,
+        Self::Ironclad,
+        Self::Destroyer,
+        Self::Cruiser,
+        Self::AegisCruiser,
+        Self::Battleship,
     ];
 
-    pub(super) fn required_tech(self) -> Option<Tech> {
-        match self {
-            Self::Engineer => Some(Tech::EXPLOSIVES),
-            Self::Migrants => Some(Tech::POTTERY),
-            Self::Phalanx => Some(Tech::BRONZE_WORKING),
-            Self::Archer => Some(Tech::WARRIOR_CODE),
-            Self::Legion => Some(Tech::IRON_WORKING),
-            Self::Horseman => Some(Tech::HORSEBACK_RIDING),
-            Self::Chariot => Some(Tech::THE_WHEEL),
-            Self::Catapult => Some(Tech::MATHEMATICS),
-            Self::Musketeers => Some(Tech::GUNPOWDER),
-            Self::Marines => Some(Tech::AMPHIBIOUS_WARFARE),
-            Self::Paratroopers => Some(Tech::COMBINED_ARMS),
-            Self::Knights => Some(Tech::CHIVALRY),
-            Self::Partisan => Some(Tech::GUERILLA_WARFARE),
-            Self::Cannon => Some(Tech::METALLURGY),
-            Self::Bomber => Some(Tech::ADVANCED_FLIGHT),
-            Self::Fighter => Some(Tech::FLIGHT),
-            Self::Helicopter => Some(Tech::COMBINED_ARMS),
-            Self::StealthFighter | Self::StealthBomber => Some(Tech::STEALTH),
-            Self::Diplomat => Some(Tech::ALPHABET),
-            Self::Spy => Some(Tech::ESPIONAGE),
-            Self::Trireme => Some(Tech::MAP_MAKING),
-            Self::Caravel => Some(Tech::MAGNETISM),
-            Self::Galleon => Some(Tech::NAVIGATION),
-            Self::Transport => Some(Tech::ENGINEERING),
-            Self::Carrier => Some(Tech::ADVANCED_FLIGHT),
-            Self::Frigate => Some(Tech::NAVIGATION),
-            Self::Ironclad => Some(Tech::STEAM_ENGINE),
-            Self::Destroyer => Some(Tech::ENGINEERING),
-            Self::Cruiser => Some(Tech::STEEL),
-            Self::Battleship => Some(Tech::MASS_PRODUCTION),
-            Self::Submarine => Some(Tech::COMBUSTION),
-            Self::AegisCruiser | Self::CruiseMissile => Some(Tech::ROCKETRY),
-            Self::Nuclear => Some(Tech::NUCLEAR_FISSION),
-            Self::Caravan => Some(Tech::TRADE),
-            Self::Freight => Some(Tech::THE_CORPORATION),
-            _ => None,
+    pub(super) fn hp_loss_percent(self) -> i32 {
+        // Civ2Civ3 unit classes Air and Helicopter lose 10%; Missile and
+        // every supported land/sea class lose none.
+        if self.is_aircraft() && !self.is_missile() {
+            10
+        } else {
+            0
         }
+    }
+
+    pub(super) fn required_tech(self) -> Option<Tech> {
+        self.metadata().tech
     }
 
     pub(crate) fn name(self) -> &'static str {
         match self {
+            Self::Pikemen => "Pikemen",
+            Self::Riflemen => "Riflemen",
+            Self::AlpineTroops => "Alpine Troops",
+            Self::Fanatics => "Fanatics",
+            Self::MechInf => "Mech. Inf.",
+            Self::Elephants => "Elephants",
+            Self::Crusaders => "Crusaders",
+            Self::Dragoons => "Dragoons",
+            Self::Cavalry => "Cavalry",
+            Self::Armor => "Armor",
+            Self::Artillery => "Artillery",
+            Self::Howitzer => "Howitzer",
+            Self::Leader => "Leader",
+            Self::Awacs => "AWACS",
+            Self::Storm => "Storm",
             Self::Settlers => "Settlers",
             Self::Worker => "Workers",
             Self::Migrants => "Migrants",
@@ -426,6 +516,201 @@ impl UnitKind {
 
     pub(crate) fn stats(self) -> UnitStats {
         match self {
+            Self::Pikemen => UnitStats {
+                cost: 30,
+                pop_cost: 0,
+                attack: 2,
+                defense: 3,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Riflemen => UnitStats {
+                cost: 50,
+                pop_cost: 0,
+                attack: 5,
+                defense: 4,
+                hp: 20,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::AlpineTroops => UnitStats {
+                cost: 60,
+                pop_cost: 0,
+                attack: 7,
+                defense: 4,
+                hp: 20,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: true,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Fanatics => UnitStats {
+                cost: 20,
+                pop_cost: 1,
+                attack: 5,
+                defense: 5,
+                hp: 20,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::MechInf => UnitStats {
+                cost: 70,
+                pop_cost: 0,
+                attack: 6,
+                defense: 6,
+                hp: 30,
+                firepower: 1,
+                moves: 3,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Elephants => UnitStats {
+                cost: 30,
+                pop_cost: 0,
+                attack: 3,
+                defense: 2,
+                hp: 10,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Crusaders => UnitStats {
+                cost: 40,
+                pop_cost: 0,
+                attack: 5,
+                defense: 1,
+                hp: 10,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Dragoons => UnitStats {
+                cost: 50,
+                pop_cost: 0,
+                attack: 5,
+                defense: 2,
+                hp: 20,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Cavalry => UnitStats {
+                cost: 60,
+                pop_cost: 0,
+                attack: 8,
+                defense: 3,
+                hp: 20,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Armor => UnitStats {
+                cost: 90,
+                pop_cost: 0,
+                attack: 10,
+                defense: 5,
+                hp: 30,
+                firepower: 1,
+                moves: 3,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Artillery => UnitStats {
+                cost: 60,
+                pop_cost: 0,
+                attack: 10,
+                defense: 2,
+                hp: 20,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Howitzer => UnitStats {
+                cost: 80,
+                pop_cost: 0,
+                attack: 12,
+                defense: 2,
+                hp: 30,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Leader => UnitStats {
+                cost: 10,
+                pop_cost: 0,
+                attack: 0,
+                defense: 2,
+                hp: 20,
+                firepower: 1,
+                moves: 2,
+                vision_sq: 8,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Awacs => UnitStats {
+                cost: 140,
+                pop_cost: 0,
+                attack: 0,
+                defense: 1,
+                hp: 20,
+                firepower: 1,
+                moves: 16,
+                vision_sq: 26,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
+            Self::Storm => UnitStats {
+                cost: 10,
+                pop_cost: 0,
+                attack: 0,
+                defense: 9,
+                hp: 10,
+                firepower: 1,
+                moves: 1,
+                vision_sq: 2,
+                ignores_terrain: false,
+                can_work: false,
+                can_found: false,
+            },
             Self::Settlers => UnitStats {
                 cost: 30,
                 pop_cost: 2,
@@ -943,7 +1228,7 @@ impl UnitKind {
                 moves: 5,
                 vision_sq: 8,
                 ignores_terrain: false,
-                can_work: false,
+                can_work: true,
                 can_found: false,
             },
             Self::Horseman => UnitStats {
@@ -962,21 +1247,10 @@ impl UnitKind {
         }
     }
 
-    pub(super) fn is_naval(self) -> bool {
+    pub(crate) fn is_naval(self) -> bool {
         matches!(
-            self,
-            Self::Trireme
-                | Self::Caravel
-                | Self::Galleon
-                | Self::Transport
-                | Self::Carrier
-                | Self::Frigate
-                | Self::Ironclad
-                | Self::Destroyer
-                | Self::Cruiser
-                | Self::Battleship
-                | Self::Submarine
-                | Self::AegisCruiser
+            self.unit_class(),
+            super::unit_catalog::UnitClass::Sea | super::unit_catalog::UnitClass::Trireme
         )
     }
 
@@ -985,14 +1259,7 @@ impl UnitKind {
     }
 
     pub(crate) fn transport_capacity(self) -> usize {
-        match self {
-            Self::Helicopter => 1,
-            Self::Trireme => 2,
-            Self::Caravel => 3,
-            Self::Galleon => 4,
-            Self::Transport | Self::Carrier | Self::Submarine => 8,
-            _ => 0,
-        }
+        self.metadata().capacity
     }
 
     pub(crate) fn is_diplomatic(self) -> bool {
@@ -1000,36 +1267,15 @@ impl UnitKind {
     }
 
     pub(crate) fn can_clean(self) -> bool {
-        self.stats().can_work || self == Self::Transport
+        self.is_worker()
     }
 
     pub(super) fn obsolete_by(self) -> &'static [Self] {
-        match self {
-            Self::Warrior | Self::Archer | Self::Legion | Self::Phalanx => &[Self::Musketeers],
-            Self::Horseman => &[Self::Knights],
-            Self::Catapult => &[Self::Cannon],
-            Self::Worker => &[Self::Engineer],
-            Self::Diplomat => &[Self::Spy],
-            Self::Frigate => &[Self::Destroyer, Self::Ironclad],
-            Self::Ironclad => &[Self::Destroyer],
-            Self::Cruiser => &[Self::AegisCruiser],
-            Self::Trireme => &[Self::Transport],
-            Self::Caravel => &[Self::Transport, Self::Galleon],
-            Self::Galleon => &[Self::Transport],
-            Self::Fighter => &[Self::StealthFighter],
-            Self::Bomber => &[Self::StealthBomber],
-            Self::Caravan => &[Self::Freight],
-            _ => &[],
-        }
+        self.metadata().obsolete
     }
 
     pub(crate) fn fuel_capacity(self) -> u8 {
-        match self {
-            Self::Bomber | Self::StealthBomber => 3,
-            Self::Fighter | Self::StealthFighter => 2,
-            Self::CruiseMissile | Self::Nuclear => 1,
-            _ => 0,
-        }
+        self.metadata().fuel
     }
 
     pub(super) fn is_missile(self) -> bool {
@@ -1041,10 +1287,7 @@ impl UnitKind {
     }
 
     pub(super) fn can_attack_aircraft(self) -> bool {
-        matches!(
-            self,
-            Self::Fighter | Self::StealthFighter | Self::CruiseMissile
-        )
+        self.metadata().attacks_air
     }
 
     pub(super) fn bombard_rate(self) -> i32 {
@@ -1057,85 +1300,36 @@ impl UnitKind {
     }
 
     pub(super) fn uses_stealth_vision(self) -> bool {
-        self.is_diplomatic()
-            || matches!(
-                self,
-                Self::StealthFighter | Self::StealthBomber | Self::Submarine
-            )
+        self.metadata().stealth
     }
 
     pub(super) fn can_occupy_city(self) -> bool {
-        self.is_military() && !self.is_naval() && (!self.is_aircraft() || self == Self::Helicopter)
+        !self.is_civilian() && self.unit_class().can_occupy_city()
     }
 
     pub(crate) fn can_carry(self, kind: Self) -> bool {
-        if self == Self::Helicopter {
-            return kind.is_military() && !kind.is_naval() && !kind.is_aircraft();
-        }
-        if self == Self::Submarine {
-            return kind.is_missile();
-        }
-        if self == Self::Carrier {
-            return kind.is_aircraft()
-                || matches!(
-                    kind,
-                    Self::Warrior
-                        | Self::Phalanx
-                        | Self::Archer
-                        | Self::Legion
-                        | Self::Horseman
-                        | Self::Musketeers
-                        | Self::Marines
-                        | Self::Paratroopers
-                        | Self::Knights
-                        | Self::Partisan
-                );
-        }
-        !kind.is_naval()
-            && !kind.is_aircraft()
-            && match self {
-                Self::Trireme | Self::Caravel => {
-                    !matches!(kind, Self::Cannon | Self::Catapult | Self::Chariot)
-                }
-                Self::Galleon | Self::Transport => true,
-                _ => false,
-            }
+        self.metadata().cargo.contains(&kind.unit_class())
     }
 
     pub(super) fn can_capture_units(self) -> bool {
-        matches!(
-            self,
-            Self::Warrior
-                | Self::Phalanx
-                | Self::Archer
-                | Self::Legion
-                | Self::Musketeers
-                | Self::Marines
-                | Self::Paratroopers
-                | Self::Partisan
-                | Self::Horseman
-                | Self::Chariot
-                | Self::Knights
-        )
+        self.has_flag(super::unit_catalog::UnitFlag::Capturer)
     }
 
     pub(super) fn is_capturable(self) -> bool {
-        matches!(self, Self::Caravan | Self::Freight | Self::Migrants)
+        self.has_flag(super::unit_catalog::UnitFlag::Capturable)
     }
 
     pub(crate) fn is_military(self) -> bool {
         self.stats().attack > 0
     }
 
+    pub(crate) fn is_civilian(self) -> bool {
+        self.has_flag(super::unit_catalog::UnitFlag::NonMil)
+    }
+
     pub(crate) fn can_fortify(self) -> bool {
-        // Every opening unit uses a land class with CanFortify, but these
-        // three unit types carry the ruleset's overriding Cant_Fortify flag.
-        !self.is_naval()
-            && !self.is_aircraft()
-            && !matches!(
-                self,
-                Self::Settlers | Self::Migrants | Self::Worker | Self::Engineer | Self::Explorer
-            )
+        self.unit_class().can_fortify()
+            && !self.has_flag(super::unit_catalog::UnitFlag::CantFortify)
     }
 }
 
@@ -1285,7 +1479,7 @@ pub(crate) struct City {
     pub(crate) buildings: Vec<Building>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Player {
     pub(crate) name: String,
     pub(crate) gold: i32,
@@ -1300,4 +1494,134 @@ pub(crate) struct Player {
     pub(crate) research: i32,
     pub(super) last_science: i32,
     pub(crate) ai: bool,
+}
+
+#[cfg(test)]
+mod native_type_order_tests {
+    use super::*;
+    use crate::sim::{HUMAN, Simulation};
+
+    #[test]
+    fn simple_military_cache_excludes_nonmil_fuelled_large_and_native_only_sea_types() {
+        for kind in UnitKind::SIMPLE_MILITARY {
+            assert!(!kind.is_civilian());
+            assert_eq!(kind.fuel_capacity(), 0);
+            assert!(kind.transport_capacity() < 8);
+        }
+        for kind in [
+            UnitKind::Trireme,
+            UnitKind::Caravel,
+            UnitKind::Galleon,
+            UnitKind::Transport,
+            UnitKind::Carrier,
+            UnitKind::Submarine,
+            UnitKind::Fighter,
+            UnitKind::Bomber,
+            UnitKind::CruiseMissile,
+            UnitKind::Nuclear,
+            UnitKind::Diplomat,
+        ] {
+            assert!(!UnitKind::SIMPLE_MILITARY.contains(&kind), "{kind:?}");
+        }
+        assert!(UnitKind::SIMPLE_MILITARY.contains(&UnitKind::Helicopter));
+        let position = |kind| {
+            UnitKind::SIMPLE_MILITARY
+                .iter()
+                .position(|&candidate| candidate == kind)
+                .unwrap()
+        };
+        assert!(position(UnitKind::Partisan) < position(UnitKind::Marines));
+        assert!(position(UnitKind::Paratroopers) < position(UnitKind::Horseman));
+        assert!(position(UnitKind::Knights) < position(UnitKind::Catapult));
+        assert!(position(UnitKind::AegisCruiser) < position(UnitKind::Battleship));
+    }
+
+    #[test]
+    fn tactical_equal_defense_and_cost_uses_later_native_type() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        game.prune_unit_ai_state();
+        game.players[1].known = vec![Tech::GUERILLA_WARFARE, Tech::AMPHIBIOUS_WARFARE];
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.river = false;
+            tile.base = None;
+            tile.owner = None;
+            tile.hut = false;
+        }
+        game.create_city(1, 10, 20);
+        let attacker = game.spawn_unit(HUMAN, UnitKind::Cannon, 10, 20);
+        let attacker = game.units.iter().find(|unit| unit.id == attacker).unwrap();
+        let defender = game.defender_versus(&game.cities[0], attacker).unwrap();
+        assert_eq!(
+            UnitKind::Partisan.stats().defense,
+            UnitKind::Marines.stats().defense
+        );
+        assert_eq!(UnitKind::Partisan.stats().hp, UnitKind::Marines.stats().hp);
+        assert_eq!(
+            UnitKind::Partisan.stats().cost,
+            UnitKind::Marines.stats().cost
+        );
+        assert_eq!(defender.kind, UnitKind::Marines);
+    }
+
+    #[test]
+    fn ordinary_offense_forecasts_a_counter_defender_even_for_an_empty_city() {
+        use crate::sim::{Government, offset_native_by_map};
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        game.prune_unit_ai_state();
+        game.players[1].known = vec![Tech::WARRIOR_CODE, Tech::IRON_WORKING];
+        game.players[1].government = Government::Democracy;
+        game.players[1].rates = [0, 0, 100];
+        game.sign_pact(1, HUMAN, crate::sim::Pact::War);
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Hills;
+            tile.resource = Some(Resource::Coal);
+            tile.mine = true;
+            tile.road = true;
+            tile.railroad = true;
+            tile.river = true;
+            tile.base = None;
+            tile.owner = None;
+            tile.hut = false;
+            tile.known_by.fill(true);
+        }
+        game.create_city(1, 10, 20);
+        let worked: Vec<_> = Simulation::city_radius(&game.cities[0])
+            .filter(|&(dx, dy, _, _)| (dx, dy) != (0, 0))
+            .map(|(_, _, x, y)| (x, y))
+            .collect();
+        game.cities[0].size = worked.len() as i32;
+        game.cities[0].worked_tiles = worked;
+        game.cities[0].buildings.extend([
+            Building::FACTORY,
+            Building::MFG_PLANT,
+            Building::SOLAR_PLANT,
+            Building::MARKETPLACE,
+            Building::BANK,
+            Building::STOCK_EXCHANGE,
+        ]);
+        let target = offset_native_by_map(10, 20, 4, 0);
+        game.tile_mut(target.0, target.1).terrain = Terrain::Hills;
+        game.tile_mut(target.0, target.1).resource = None;
+        game.tile_mut(target.0, target.1).mine = false;
+        game.tile_mut(target.0, target.1).railroad = false;
+        game.tile_mut(target.0, target.1).river = false;
+        game.create_city(HUMAN, target.0, target.1);
+        game.cities.last_mut().unwrap().size = 8;
+        assert!(game.city_forecast(&game.cities[0]).shield_surplus() > 45);
+        assert!(game.unit_buildable(&game.cities[0], UnitKind::Warrior));
+        assert!(game.unit_buildable(&game.cities[0], UnitKind::Archer));
+        assert!(game.unit_buildable(&game.cities[0], UnitKind::Legion));
+        // kill_something_with retains the buildable counter-defender TYPE
+        // even for an empty nearby city. Candidate profits therefore do not
+        // tie: Legion's stronger attack beats the cheaper Warrior/Archer.
+        assert_eq!(
+            game.offensive_production(&game.cities[0]),
+            Some(UnitKind::Legion)
+        );
+    }
 }

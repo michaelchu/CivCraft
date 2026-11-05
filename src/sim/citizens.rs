@@ -99,7 +99,7 @@ mod tests {
         city.size -= 1;
         assert_eq!(game.remove_citizen_nationalities(0, 1), 1);
         assert_eq!(game.cities[0].foreign_citizens, [(1, 2)]);
-        game.rng = 109;
+        game.set_random_seed(1); // Native first roll is 35/1000, below assimilation chance.
         game.assimilate_citizen(0);
         assert_eq!(game.cities[0].foreign_citizens, [(1, 1)]);
         assert_eq!(game.cities[0].domestic_citizens(), 2);

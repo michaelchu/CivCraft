@@ -44,11 +44,14 @@ impl Simulation {
         unit.moved = true;
         unit.state = UnitState::Idle;
         unit.clear_work();
+        self.list_order.unit(unit);
+        self.record_transport_change(id, None);
         for city in &mut self.cities {
             if city.id == source || city.id == destination {
                 city.airlift_used = true;
             }
         }
+        self.refresh_diplomatic_contact_at(owner, x, y);
         self.refresh_visibility();
         if owner == HUMAN {
             self.add_event(format!("A unit was airlifted to {name}."));
@@ -221,9 +224,11 @@ impl Simulation {
                 self.add_event("Visible enemy units block the landing.");
                 return false;
             }
+            self.refresh_diplomatic_contact_at(unit.owner, x, y);
             if unit.owner == HUMAN {
                 if let Some(paratroopers) = self.units.iter_mut().find(|unit| unit.id == id) {
                     (paratroopers.x, paratroopers.y) = (x, y);
+                    self.list_order.unit(paratroopers);
                 }
                 self.refresh_visibility();
                 self.add_event("Paratroopers were lost landing on enemy units.");
@@ -243,10 +248,7 @@ impl Simulation {
             .iter()
             .any(|city| (city.x, city.y) == (x, y) && self.allied(owner, city.owner))
             || (matches!(self.tile(x, y).base, Some(Base::Airstrip | Base::Airbase))
-                && self
-                    .tile(x, y)
-                    .owner
-                    .is_none_or(|other| self.allied(owner, other)))
+                && self.tile(x, y).known_by[owner])
     }
 
     fn aboard_refueling_transport(&self, unit: &Unit) -> bool {
@@ -259,117 +261,532 @@ impl Simulation {
         })
     }
 
-    pub(super) fn position_ai_carrier(&mut self, carrier: &Unit) -> bool {
-        let owner = carrier.owner;
-        let deck = (carrier.x, carrier.y);
-        let strike_aircraft = |unit: &Unit| {
-            unit.owner == owner
-                && matches!(
-                    unit.kind,
-                    UnitKind::Bomber
-                        | UnitKind::StealthBomber
-                        | UnitKind::Fighter
-                        | UnitKind::StealthFighter
-                )
-        };
-        if self.cargo_count(carrier.id) < carrier.kind.transport_capacity()
+    pub(super) fn run_source_air_ferry(&mut self, carrier: &Unit) -> (bool, Vec<u32>) {
+        let mut done = Vec::new();
+        if carrier.moves_left <= 0 {
+            return (true, done);
+        }
+        if carrier.hp < carrier.kind.stats().hp
             && self
+                .cities
+                .iter()
+                .any(|city| (city.x, city.y) == (carrier.x, carrier.y))
+        {
+            return (true, done);
+        }
+        self.refresh_ferry_boss(carrier.id);
+        loop {
+            let Some(boss) = self
+                .ferry_boss(carrier.id)
+                .and_then(|id| self.units.iter().find(|unit| unit.id == id))
+                .cloned()
+            else {
+                return (false, done);
+            };
+            if self.map_distance(carrier.x, carrier.y, boss.x, boss.y) > 1 {
+                // Native temporarily abandons a distant boss and falls back
+                // to pickup/exploration if no cargo replaces it. The restored
+                // reservation must not activate that remote passenger.
+                return (false, done);
+            }
+            // Land passengers retain their ordinary founder/worker/military
+            // dispatch; fueled cargo uses the same manager as a land airbase.
+            if boss.kind.fuel_capacity() == 0 {
+                return (false, done);
+            }
+            if boss.moves_left > 0 && !self.ai_guard_targets.contains_key(&boss.id) {
+                self.run_ai_strike_aircraft(&boss);
+            }
+            let Some(ship) = self
                 .units
                 .iter()
-                .filter(|unit| strike_aircraft(unit))
-                .any(|plane| {
-                    plane.transport.is_none()
-                        && !self.refuel_site(owner, plane.x, plane.y)
-                        && self.map_distance(plane.x, plane.y, deck.0, deck.1) * MOVE_FRAGMENTS
-                            <= self.unit_move_allowance(owner, plane.kind)
-                })
+                .find(|unit| unit.id == carrier.id)
+                .cloned()
+            else {
+                return (true, done);
+            };
+            if self
+                .units
+                .iter()
+                .any(|unit| unit.id == boss.id && (unit.x, unit.y) == (ship.x, ship.y))
+            {
+                // daiferry.c: the boss remains on the boat, so hold station
+                // and mark it done for the owner's remaining unit loop.
+                done.push(boss.id);
+                return (true, done);
+            }
+            if ship.moves_left <= 0 {
+                return (true, done);
+            }
+            if self.cargo_count(ship.id) == 0 {
+                return (false, done);
+            }
+            self.release_ai_ferry(boss.id);
+            self.refresh_ferry_boss(ship.id);
+        }
+    }
+
+    pub(crate) fn ai_aircraft_advisor_playtest_setup(&mut self) -> (u32, u32) {
+        self.units.clear();
+        self.cities.clear();
+        let (x, y) = (10, 24);
+        self.sign_pact(1, HUMAN, Pact::War);
+        for tile in &mut self.tiles {
+            tile.known_by[1] = true;
+            tile.hut = false;
+        }
+        self.tile_mut(x, y).terrain = Terrain::Grassland;
+        self.create_city(1, x, y);
+        self.cities[0].size = 5;
+        self.players[1].known.extend([
+            Tech::FLIGHT,
+            Tech::ADVANCED_FLIGHT,
+            Tech::NUCLEAR_FISSION,
+            Tech::ROCKETRY,
+        ]);
+        self.completed_wonders.push(Building::MANHATTAN_PROJECT);
+        let target = offset_native_by_map(x, y, 2, 0);
+        self.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+        let fighter = self.spawn_unit(1, UnitKind::Fighter, x, y);
+        let victim = self.spawn_unit(HUMAN, UnitKind::Battleship, target.0, target.1);
+        self.units.last_mut().unwrap().hp = 1;
+        self.set_random_seed(4);
+        self.refresh_visibility();
+        (fighter, victim)
+    }
+
+    pub(crate) fn ai_nuclear_advisor_playtest_setup(&mut self) -> (u32, u32) {
+        let (fighter, target) = self.ai_aircraft_advisor_playtest_setup();
+        self.units.retain(|u| u.id != fighter);
+        let victim = self.units.iter().find(|u| u.id == target).unwrap().clone();
+        for _ in 0..4 {
+            self.spawn_unit(HUMAN, UnitKind::Battleship, victim.x, victim.y);
+        }
+        let city = self.cities[0].clone();
+        let missile = self.spawn_unit(1, UnitKind::Nuclear, city.x, city.y);
+        (missile, target)
+    }
+
+    // daiair.c: find_something_to_bomb, dai_evaluate_tile_for_air_attack.
+    // All legally attackable enemy stacks compete, not just aircraft for fighters.
+    pub(super) fn aircraft_target_value(&self, plane: &Unit, x: i32, y: i32) -> f64 {
+        if !self.players[plane.owner].ai && !self.tile(x, y).known_by[plane.owner]
+            || self
+                .units
+                .iter()
+                .any(|u| (u.x, u.y) == (x, y) && !self.at_war(plane.owner, u.owner))
+            || self
+                .cities
+                .iter()
+                .any(|c| (c.x, c.y) == (x, y) && !self.at_war(plane.owner, c.owner))
         {
-            return true;
+            return 0.0;
         }
-
-        let wing: Vec<_> = self
-            .units
-            .iter()
-            .filter(|unit| strike_aircraft(unit) && unit.transport == Some(carrier.id))
-            .collect();
-        if wing.is_empty() {
-            return false;
-        }
-        let range = wing
-            .iter()
-            .filter(|plane| plane.kind.bombard_rate() > 0 && plane.hp * 2 >= plane.kind.stats().hp)
-            .map(|plane| self.unit_move_allowance(owner, plane.kind) / MOVE_FRAGMENTS)
-            .max()
-            .unwrap_or(0);
-        if range == 0 || carrier.moves_left <= 0 {
-            return true;
-        }
-
-        let targets: Vec<_> = self
-            .units
-            .iter()
-            .filter(|enemy| {
-                self.at_war(owner, enemy.owner)
-                    && !enemy.kind.is_aircraft()
-                    && enemy.transport.is_none()
-                    && enemy.hp > 1
-                    && !self.tile(enemy.x, enemy.y).terrain.is_water()
-                    && self.tile(enemy.x, enemy.y).known_by[owner]
-            })
-            .collect();
-        if targets
-            .iter()
-            .any(|enemy| self.map_distance(deck.0, deck.1, enemy.x, enemy.y) <= range)
+        if plane.id != 0
+            && self
+                .cities
+                .iter()
+                .find(|c| (c.x, c.y) == (x, y))
+                .is_some_and(|city| self.invasion_support(plane.owner, city, plane.id).1 == 0)
         {
-            return true;
+            return 0.0;
         }
+        let Some(defender) = self
+            .best_defender_id(plane, x, y)
+            .and_then(|id| self.units.iter().find(|u| u.id == id))
+        else {
+            return 0.0;
+        };
+        let stats = plane.kind.stats();
+        let (firepower, retaliation) = self.combat_firepower(plane, defender);
+        let win = (100.0
+            * combat_win_chance(
+                Self::attack_power(plane),
+                plane.hp,
+                firepower,
+                self.defense_power_against(defender, x, y, plane.kind),
+                defender.hp,
+                retaliation,
+            ))
+        .floor()
+            / 100.0;
+        let mut benefit: i32 = self
+            .combat_stack_losses(defender, plane)
+            .map(|u| u.kind.stats().cost)
+            .sum();
+        if benefit == 0 {
+            return 0.0;
+        }
+        if plane.kind.is_missile() {
+            benefit -= stats.cost;
+        }
+        let risk = f64::from(stats.cost * stats.hp) / f64::from(plane.hp.max(1));
+        let profit = 17.0 * (f64::from(benefit) * win - risk * (1.0 - win)) - 17.0 + 36.0;
+        let outputs: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|c| c.owner == plane.owner)
+            .map(|c| self.city_forecast(c).shield_surplus())
+            .collect();
+        let average = outputs.iter().sum::<i32>() / outputs.len().max(1) as i32;
+        let home = self
+            .cities
+            .iter()
+            .find(|c| Some(c.id) == plane.home_city)
+            .map(|c| self.city_forecast(c).shield_surplus())
+            .unwrap_or(1);
+        let balanced = 2 * stats.cost * stats.attack / (stats.attack + stats.defense).max(1);
+        profit.max(0.0) * (23.0_f64 / 24.0).powi(1 + balanced / home.max(average).max(1))
+    }
 
+    pub(super) fn aircraft_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
         let mut best = None;
         let mut best_value = 0.0;
-        for (index, tile) in self.tiles.iter().enumerate() {
-            if !tile.terrain.is_water() {
+        for kind in UnitKind::ALL_NATIVE
+            .into_iter()
+            .filter(|kind| kind.fuel_capacity() > 0)
+        {
+            // daiair.c rejects unit_type_is_losing_hp even for fuelled Air.
+            // This ruleset supplies no global Unit_Recover effect; Medicine
+            // is Health_Pct, so the Air/Helicopter class loss remains active.
+            if !self.unit_buildable(city, kind) || kind.hp_loss_percent() > 0 {
                 continue;
             }
-            let (x, y) = Self::xy(index);
-            let target_value = targets
+            let mut plane = self.make_unit(0, city.owner, kind, city.x, city.y);
+            plane.home_city = Some(city.id);
+            plane.veteran = self.trained_rank(city, kind);
+            if let Some((_, _, value)) = self.aircraft_best_target(&plane)
+                && value > best_value
+            {
+                best_value = value;
+                best = Some((kind, value));
+            }
+        }
+        best
+    }
+
+    fn aircraft_attack_path(&self, plane: &Unit) -> Option<(Vec<(i32, i32)>, (i32, i32), f64)> {
+        let mut map = super::fuel_paths::FuelPaths::new(self, plane, true)?;
+        let mut best = None;
+        let mut best_value = 0.0;
+        for (x, y, _) in map.reachable_within(self, plane.moves_left, true, false) {
+            if !self
+                .units
                 .iter()
-                .filter_map(|enemy| {
-                    let distance = self.map_distance(x, y, enemy.x, enemy.y);
-                    (2..=range).contains(&distance).then(|| {
-                        f64::from(enemy.kind.stats().cost) / (1.0 + 0.1 * f64::from(distance))
-                    })
-                })
-                .fold(0.0_f64, f64::max);
-            if target_value == 0.0
-                || self.units.iter().any(|unit| {
-                    self.at_war(owner, unit.owner)
-                        && self.map_distance(x, y, unit.x, unit.y)
-                            <= i32::from(unit.kind.is_naval())
-                })
+                .any(|unit| (unit.x, unit.y) == (x, y) && self.at_war(plane.owner, unit.owner))
             {
                 continue;
             }
-            let min_steps = self.map_distance(deck.0, deck.1, x, y);
-            if target_value / (1.0 + f64::from(min_steps)) <= best_value {
-                continue;
+            let value = self.aircraft_target_value(plane, x, y);
+            if value > best_value {
+                best_value = value;
+                best = Some((x, y));
             }
-            let path = self.path_for_unit(carrier, x, y);
-            if !path.is_empty() {
-                let value = target_value / (1.0 + path.len() as f64);
-                if value > best_value {
-                    best_value = value;
-                    best = Some(path);
+        }
+        let target = best?;
+        Some((map.path(self, target.0, target.1)?, target, best_value))
+    }
+
+    fn aircraft_best_target(&self, plane: &Unit) -> Option<(i32, i32, f64)> {
+        if plane.kind.fuel_capacity() > 0 {
+            return self
+                .aircraft_attack_path(plane)
+                .map(|(_, (x, y), value)| (x, y, value));
+        }
+        self.units
+            .iter()
+            .filter(|u| self.at_war(plane.owner, u.owner) && u.transport.is_none())
+            .filter_map(|u| {
+                self.route_cost_within(plane, u.x, u.y, plane.moves_left)?;
+                let value = self.aircraft_target_value(plane, u.x, u.y);
+                (value > 0.0).then_some((u.x, u.y, value))
+            })
+            .max_by(|a, b| a.2.total_cmp(&b.2))
+    }
+
+    #[cfg(test)]
+    pub(super) fn run_ai_nuclear_aircraft(&mut self, plane: &Unit) {
+        // dai_manage_unit dispatches all fueled non-escort actors through
+        // dai_manage_airunit. Hunter-controlled launches are separate.
+        self.run_ai_strike_aircraft(plane);
+    }
+
+    fn source_unit_can_strike(&self, attacker: &Unit, defender: &Unit) -> bool {
+        if (attacker.x, attacker.y) == (defender.x, defender.y) {
+            return false;
+        }
+        let cost = if let Some(mut map) = super::fuel_paths::FuelPaths::new(self, attacker, true) {
+            map.movement_cost(self, defender.x, defender.y)
+        } else {
+            super::normal_paths::NormalPaths::enemy_map(self, attacker)
+                .movement_cost(self, defender.x, defender.y)
+        };
+        cost.is_some_and(|cost| cost <= attacker.moves_left)
+    }
+
+    pub(super) fn source_hunter_launch(&mut self, hunter_id: u32, primary: u32) {
+        let Some(hunter) = self.units.iter().find(|unit| unit.id == hunter_id).cloned() else {
+            return;
+        };
+        if !self.units.iter().any(|unit| unit.id == primary) {
+            return;
+        }
+        let missiles: Vec<_> = self
+            .cargo_units_ordered(hunter_id)
+            .filter(|unit| unit.owner == hunter.owner && unit.kind.is_missile())
+            .map(|unit| unit.id)
+            .collect();
+        for id in missiles {
+            let Some(missile) = self.units.iter().find(|unit| unit.id == id).cloned() else {
+                continue;
+            };
+            // Literal daihunter.c: the map describes the HUNTER and its raw
+            // move cost is compared with missile MP divided by SINGLE_MOVE.
+            let mut map = super::normal_paths::NormalPaths::enemy_map(self, &hunter);
+            let mut target = None;
+            for (x, y) in map.reachable_within(self, missile.moves_left / MOVE_FRAGMENTS) {
+                if self.cities.iter().any(|city| (city.x, city.y) == (x, y))
+                    || self.best_defender_id(&hunter, x, y).is_none()
+                {
+                    continue;
+                }
+                for victim in self.tile_units_ordered(x, y) {
+                    if !self.at_war(hunter.owner, victim.owner) {
+                        continue;
+                    }
+                    if victim.id == primary
+                        || victim.kind.stats().attack > hunter.kind.stats().defense
+                            && self.source_unit_can_strike(victim, &hunter)
+                    {
+                        target = Some((x, y));
+                        break;
+                    }
+                }
+                if target.is_some() {
+                    break;
+                }
+            }
+            if let Some(target) = target {
+                // Native deboard passes the hunter's id as actor, targeting
+                // itself. It is illegal for the supported naval hunters and
+                // does not unload the missile; normal GOTO performs departure.
+                self.unit_goto_tiles.insert(id, target);
+                let result = self.ai_goto_unit(id, target, super::normal_paths::GotoTask::None);
+                if result.alive {
+                    let live = self
+                        .units
+                        .iter()
+                        .find(|unit| unit.id == id)
+                        .unwrap()
+                        .clone();
+                    if let Some(primary) = self.units.iter().find(|unit| unit.id == primary)
+                        && self.map_distance(live.x, live.y, primary.x, primary.y) == 1
+                    {
+                        let step = wrapped_map_vector(live.x, live.y, primary.x, primary.y);
+                        self.try_move_unit(id, step.0, step.1);
+                    }
+                }
+                if !self.units.iter().any(|unit| unit.id == primary) {
+                    return;
                 }
             }
         }
-        if let Some(path) = best {
-            self.follow_path(carrier.id, path);
+    }
+
+    pub(crate) fn ai_source_hunter_launch_playtest(&mut self) -> (bool, bool, bool) {
+        let mut outcomes = [false; 3];
+        for (case, (distance, kind)) in [
+            (2, UnitKind::CruiseMissile),
+            (3, UnitKind::CruiseMissile),
+            (2, UnitKind::Nuclear),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            self.units.clear();
+            self.cities.clear();
+            self.prune_unit_ai_state();
+            self.sign_pact(1, HUMAN, Pact::War);
+            self.players[1]
+                .known
+                .extend([Tech::ADVANCED_FLIGHT, Tech::ROCKETRY]);
+            for tile in &mut self.tiles {
+                tile.terrain = Terrain::Ocean;
+                tile.base = None;
+                tile.owner = None;
+                tile.hut = false;
+                tile.known_by.fill(true);
+            }
+            let boat = self.spawn_unit(1, UnitKind::Submarine, 10, 20);
+            let missile = self.spawn_unit(1, kind, 10, 20);
+            let loaded = self.board_specific_ship(missile, boat);
+            let point = offset_native_by_map(10, 20, distance, 0);
+            let victim = self.spawn_unit(HUMAN, UnitKind::Caravel, point.0, point.1);
+            self.units.last_mut().unwrap().hp = 1;
+            self.set_random_seed(4);
+            self.source_hunter_launch(boat, victim);
+            outcomes[case] = loaded
+                && if case == 1 {
+                    self.units.iter().any(|unit| unit.id == victim)
+                        && self
+                            .units
+                            .iter()
+                            .any(|unit| unit.id == missile && unit.transport == Some(boat))
+                } else {
+                    self.units
+                        .iter()
+                        .all(|unit| unit.id != victim && unit.id != missile)
+                };
         }
-        true
+        (outcomes[0], outcomes[1], outcomes[2])
+    }
+
+    fn aircraft_repair_gain(&self, plane: &Unit, x: i32, y: i32) -> i32 {
+        let percent = if let Some(city) = self.cities.iter().find(|c| (c.x, c.y) == (x, y)) {
+            if city.has_building(Building::AIRPORT) {
+                100
+            } else {
+                33
+            }
+        } else if self.tile(x, y).base == Some(Base::Airbase) {
+            34
+        } else if self.refuel_site(plane.owner, x, y) {
+            10
+        } else {
+            0
+        };
+        percent_of(plane.kind.stats().hp, percent)
+    }
+
+    fn aircraft_regen_turns(&self, plane: &Unit, x: i32, y: i32) -> i32 {
+        let lost = plane.kind.stats().hp - plane.hp;
+        if lost <= 0 {
+            return 0;
+        }
+        let gain = self.aircraft_repair_gain(plane, x, y);
+        if gain <= 0 { i32::MAX } else { 1 + lost / gain }
+    }
+
+    fn aircraft_city_needs_defender(&self, plane: &Unit, x: i32, y: i32, current: bool) -> bool {
+        let Some(city) = self.cities.iter().find(|c| (c.x, c.y) == (x, y)) else {
+            return false;
+        };
+        // daimilitary.c:grave_danger counts occupiers arriving within one
+        // turn (including transports carrying occupation-capable units).
+        let danger = self.city_grave_danger(city);
+        let defenders = self
+            .units
+            .iter()
+            .filter(|u| (u.x, u.y) == (x, y) && (!current || u.id != plane.id))
+            .count();
+        danger > defenders * 2
+    }
+
+    fn aircraft_refuel_route(
+        &self,
+        plane: &Unit,
+        bases: &[(i32, i32)],
+    ) -> Option<(Vec<(i32, i32)>, (i32, i32))> {
+        let mut map = super::fuel_paths::FuelPaths::new(self, plane, true)?;
+        let mut best = None;
+        let mut best_regen = i32::MAX;
+        for (x, y, _) in map.reachable_within(self, plane.moves_left, false, true) {
+            if !bases.contains(&(x, y)) {
+                continue;
+            }
+            let turns = self.aircraft_regen_turns(plane, x, y);
+            if plane.hp >= plane.kind.stats().hp || turns <= 0 {
+                best = Some((x, y));
+                break;
+            }
+            if turns < best_regen {
+                best_regen = turns;
+                best = Some((x, y));
+            }
+        }
+        let destination = best?;
+        Some((map.path(self, destination.0, destination.1)?, destination))
+    }
+
+    fn strategic_airbase(
+        &self,
+        plane: &Unit,
+        bases: &[(i32, i32)],
+    ) -> Option<(Vec<(i32, i32)>, (i32, i32))> {
+        let lost = plane.kind.stats().hp - plane.hp;
+        let gain = self.aircraft_repair_gain(plane, plane.x, plane.y);
+        let mut minimum_regen = i32::MAX;
+        if lost > 0 && gain > 0 {
+            let remaining = lost - if plane.moved { 0 } else { gain };
+            if remaining <= 0 {
+                return None;
+            }
+            minimum_regen = 1 + remaining / gain;
+        }
+        let mut defend = self.aircraft_city_needs_defender(plane, plane.x, plane.y, true);
+        if defend && (lost <= 0 || minimum_regen <= 1) {
+            return None;
+        }
+        let mut virtual_plane = plane.clone();
+        virtual_plane.id = 0;
+        virtual_plane.moves_left = self.unit_move_rate(&plane);
+        let mut worth = if defend {
+            0.0
+        } else {
+            self.aircraft_best_target(&virtual_plane)
+                .map_or(0.0, |t| t.2)
+        };
+        let mut map = super::fuel_paths::FuelPaths::new(self, plane, true)?;
+        let routes: Vec<_> = map
+            .reachable_within(self, plane.moves_left, true, false)
+            .into_iter()
+            .filter(|&(x, y, _)| bases.contains(&(x, y)))
+            .filter_map(|(x, y, cost)| Some((cost, x, y, map.path(self, x, y)?)))
+            .collect();
+        let mut best = None;
+        for (_, x, y, path) in routes {
+            let mut faster = false;
+            if lost > 0 {
+                let turns = self.aircraft_regen_turns(plane, x, y);
+                if turns > minimum_regen {
+                    continue;
+                }
+                if turns < minimum_regen {
+                    minimum_regen = turns;
+                    best = Some((path.clone(), (x, y)));
+                    worth = 0.0;
+                    faster = true;
+                }
+            }
+            if self.aircraft_city_needs_defender(plane, x, y, false) {
+                if lost <= 0 {
+                    return Some((path, (x, y)));
+                }
+                if !defend {
+                    best = Some((path, (x, y)));
+                    defend = true;
+                }
+                continue;
+            } else if defend {
+                if faster {
+                    defend = false;
+                } else {
+                    continue;
+                }
+            }
+            (virtual_plane.x, virtual_plane.y) = (x, y);
+            let value = self
+                .aircraft_best_target(&virtual_plane)
+                .map_or(0.0, |t| t.2);
+            if value > worth {
+                worth = value;
+                best = Some((path, (x, y)));
+            }
+        }
+        best
     }
 
     pub(super) fn run_ai_strike_aircraft(&mut self, aircraft: &Unit) {
-        let fighter = aircraft.kind.can_attack_aircraft();
         let position = (aircraft.x, aircraft.y);
         let mut bases = Vec::new();
         for (index, _) in self.tiles.iter().enumerate() {
@@ -386,7 +803,7 @@ impl Simulation {
             .units
             .iter()
             .filter(|ship| {
-                ship.kind == UnitKind::Carrier
+                ship.kind.can_carry(aircraft.kind)
                     && self.allied(aircraft.owner, ship.owner)
                     && (aircraft.transport == Some(ship.id)
                         || self.cargo_count(ship.id) < ship.kind.transport_capacity())
@@ -400,147 +817,101 @@ impl Simulation {
         }
         let on_base = self.refuel_site(aircraft.owner, position.0, position.1)
             || self.aboard_refueling_transport(aircraft);
-        if on_base && aircraft.hp * 2 < aircraft.kind.stats().hp {
+        if on_base && aircraft.fuel < aircraft.kind.fuel_capacity() {
             return;
         }
-        let allowance = self.unit_move_allowance(aircraft.owner, aircraft.kind);
-        let mut best = None;
-        let mut best_value = 0.0;
-        for enemy in self.units.iter().filter(|unit| {
-            self.at_war(aircraft.owner, unit.owner)
-                && unit.transport.is_none()
-                && (if fighter {
-                    unit.kind.is_aircraft()
-                        && self.best_defender_id(aircraft, unit.x, unit.y) == Some(unit.id)
-                } else {
-                    !unit.kind.is_aircraft() && !self.tile(unit.x, unit.y).terrain.is_water()
+        let before = aircraft.moves_left;
+        let route = if on_base {
+            self.aircraft_attack_path(aircraft)
+                .map(|(path, target, _)| (path, target))
+                .or_else(|| self.strategic_airbase(aircraft, &bases))
+        } else {
+            let old_goal = self
+                .unit_goto_tiles
+                .get(&aircraft.id)
+                .copied()
+                .filter(|goal| *goal != position && bases.contains(goal));
+            old_goal
+                .and_then(|goal| {
+                    let mut map = super::fuel_paths::FuelPaths::new(self, aircraft, true)?;
+                    Some((map.path(self, goal.0, goal.1)?, goal))
                 })
-                && self.tile(unit.x, unit.y).known_by[aircraft.owner]
-                && self.map_distance(aircraft.x, aircraft.y, unit.x, unit.y) * MOVE_FRAGMENTS
-                    <= aircraft.moves_left + MOVE_FRAGMENTS
-        }) {
-            if self.units.iter().any(|unit| {
-                (unit.x, unit.y) == (enemy.x, enemy.y) && !self.at_war(aircraft.owner, unit.owner)
-            }) || self.cities.iter().any(|city| {
-                (city.x, city.y) == (enemy.x, enemy.y) && !self.at_war(aircraft.owner, city.owner)
-            }) {
-                continue;
-            }
-            for (x, y) in super::terrain_work::neighbors(enemy.x, enemy.y) {
-                let at = (x, y);
-                if self.map_distance(aircraft.x, aircraft.y, x, y) * MOVE_FRAGMENTS
-                    >= aircraft.moves_left
-                    || self.units.iter().any(|unit| {
-                        (unit.x, unit.y) == at && !self.allied(aircraft.owner, unit.owner)
-                    })
-                    || self.cities.iter().any(|city| {
-                        (city.x, city.y) == at && !self.allied(aircraft.owner, city.owner)
-                    })
-                {
-                    continue;
-                }
-                let path = self.path_for_unit(aircraft, x, y);
-                let remaining = aircraft.moves_left - path.len() as i32 * MOVE_FRAGMENTS;
-                if (at != position && path.is_empty()) || remaining <= 0 {
-                    continue;
-                }
-                let mut staged = aircraft.clone();
-                (staged.x, staged.y) = at;
-                staged.moves_left = remaining;
-                let after_attack = if fighter {
-                    (remaining - MOVE_FRAGMENTS).max(0)
-                } else {
-                    0
-                };
-                let return_budget = if aircraft.fuel <= 1 {
-                    after_attack
-                } else {
-                    allowance.max(after_attack)
-                };
-                let recovery = bases
-                    .iter()
-                    .filter_map(|&(bx, by)| {
-                        if (bx, by) == at {
-                            return Some((Vec::new(), (bx, by)));
-                        }
-                        if self.map_distance(x, y, bx, by) * MOVE_FRAGMENTS > return_budget {
-                            return None;
-                        }
-                        let path = self.path_for_unit(&staged, bx, by);
-                        (!path.is_empty() && path.len() as i32 * MOVE_FRAGMENTS <= return_budget)
-                            .then_some((path, (bx, by)))
-                    })
-                    .min_by_key(|(path, _)| path.len());
-                let Some((return_path, recovery)) = recovery else {
-                    continue;
-                };
-                let attack = Self::attack_power(&staged);
-                let defense = self.defense_power_against(enemy, enemy.x, enemy.y, aircraft.kind);
-                let (firepower, retaliation) = self.combat_firepower(&staged, enemy);
-                let profit = if fighter {
-                    let chance = combat_win_chance(
-                        attack,
-                        aircraft.hp,
-                        firepower,
-                        defense,
-                        enemy.hp,
-                        retaliation,
-                    );
-                    let cost = f64::from(aircraft.kind.stats().cost * aircraft.kind.stats().hp)
-                        / f64::from(aircraft.hp.max(1));
-                    chance * f64::from(enemy.kind.stats().cost) - (1.0 - chance) * cost
-                } else {
-                    let damage = (f64::from(aircraft.kind.bombard_rate() * firepower * attack)
-                        / f64::from((attack + defense).max(1)))
-                    .min(f64::from((enemy.hp - 1).max(0)));
-                    damage * f64::from(enemy.kind.stats().cost) / f64::from(enemy.kind.stats().hp)
-                };
-                let value = profit / (1.0 + 0.1 * (path.len() + return_path.len()) as f64);
-                if value > best_value {
-                    best_value = value;
-                    best = Some((at, path, (enemy.x, enemy.y), return_path, recovery));
-                }
-            }
-        }
-        if let Some((at, path, target, return_path, recovery)) = best {
-            self.follow_path(aircraft.id, path);
-            if self
+                .or_else(|| self.aircraft_refuel_route(aircraft, &bases))
+        };
+        if let Some((path, _destination)) = route {
+            self.follow_source_ai_path(aircraft.id, path);
+            if let Some(live) = self
                 .units
                 .iter()
-                .any(|unit| unit.id == aircraft.id && (unit.x, unit.y) == at)
+                .find(|unit| unit.id == aircraft.id)
+                .cloned()
+                && live.moves_left > 0
+                && live.moves_left != before
             {
-                let (dx, dy) = wrapped_map_vector(at.0, at.1, target.0, target.1);
-                if self
-                    .units
-                    .iter()
-                    .any(|unit| unit.id == aircraft.id && unit.transport.is_some())
-                    && !self.board_or_deboard(aircraft.id)
-                {
-                    return;
-                }
-                self.try_move_unit(aircraft.id, dx, dy);
-                if fighter {
-                    self.follow_path(aircraft.id, return_path);
-                }
-                if let Some(&(_, carrier)) = decks.iter().find(|&&(tile, _)| tile == recovery) {
-                    self.board_specific_ship(aircraft.id, carrier);
-                }
-            }
-        } else if !on_base {
-            let route = bases
-                .into_iter()
-                .filter_map(|(x, y)| {
-                    let path = self.path_for_unit(aircraft, x, y);
-                    ((x, y) == position || !path.is_empty()).then_some((path, (x, y)))
-                })
-                .min_by_key(|(path, _)| path.len());
-            if let Some((path, destination)) = route {
-                self.follow_path(aircraft.id, path);
-                if let Some(&(_, carrier)) = decks.iter().find(|&&(tile, _)| tile == destination) {
-                    self.board_specific_ship(aircraft.id, carrier);
-                }
+                self.run_ai_strike_aircraft(&live);
             }
         }
+    }
+
+    pub(crate) fn ai_fuel_mission_playtest(&mut self) -> bool {
+        let (id, victim) = self.ai_aircraft_advisor_playtest_setup();
+        let home = (self.cities[0].x, self.cities[0].y);
+        let fighter = self
+            .units
+            .iter()
+            .find(|unit| unit.id == id)
+            .unwrap()
+            .clone();
+        self.run_ai_strike_aircraft(&fighter);
+        let sortie = self.units.iter().all(|unit| unit.id != victim)
+            && self
+                .units
+                .iter()
+                .any(|unit| unit.id == id && (unit.x, unit.y) == home);
+        let (id, victim) = self.ai_aircraft_advisor_playtest_setup();
+        let plane = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
+        plane.kind = UnitKind::Bomber;
+        plane.hp = plane.kind.stats().hp;
+        plane.moves_left = plane.kind.stats().moves * MOVE_FRAGMENTS;
+        plane.fuel = plane.kind.fuel_capacity();
+        let bomber = plane.clone();
+        let target = self.units.iter().find(|unit| unit.id == victim).unwrap();
+        let target_point = (target.x, target.y);
+        let value = self.aircraft_target_value(&bomber, target.x, target.y);
+        let mut map = super::fuel_paths::FuelPaths::new(self, &bomber, true).unwrap();
+        let strict_bound = value > 0.0
+            && map.movement_cost(self, target_point.0, target_point.1) == Some(bomber.moves_left)
+            && self.aircraft_attack_path(&bomber).is_none();
+        self.run_ai_strike_aircraft(&bomber);
+        let stayed = self.units.iter().any(|unit| unit.id == victim)
+            && self.units.iter().any(|unit| {
+                unit.id == id && (unit.x, unit.y) == home && unit.moves_left == bomber.moves_left
+            });
+        self.units.retain(|unit| unit.id == id);
+        self.prune_unit_ai_state();
+        let start = offset_native_by_map(home.0, home.1, 1, 0);
+        let target = offset_native_by_map(home.0, home.1, 4, 0);
+        let actor = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
+        actor.kind = UnitKind::Fighter;
+        actor.hp = actor.kind.stats().hp;
+        actor.fuel = 1;
+        actor.moves_left = 3 * MOVE_FRAGMENTS;
+        (actor.x, actor.y) = start;
+        let actor = actor.clone();
+        let mut map = super::fuel_paths::FuelPaths::new(self, &actor, true).unwrap();
+        let waited = if let Some(path) = map.path(self, target.0, target.1) {
+            let includes_wait = path.contains(&(0, 0));
+            self.follow_source_ai_path(id, path);
+            includes_wait
+                && self.units.iter().any(|unit| {
+                    unit.id == id
+                        && (unit.x, unit.y) == home
+                        && unit.moves_left == 2 * MOVE_FRAGMENTS
+                })
+        } else {
+            false
+        };
+        sortie && strict_bound && stayed && waited
     }
 
     pub(super) fn try_bombard(&mut self, attacker: &Unit, x: i32, y: i32) -> MoveResult {
@@ -602,108 +973,131 @@ impl Simulation {
     }
 
     pub(super) fn restore_aircraft(&mut self) {
-        let aircraft: Vec<_> = self
-            .units
-            .iter()
-            .filter(|unit| unit.kind.is_aircraft())
-            .map(|unit| unit.id)
+        for owner in 0..self.players.len() {
+            let ids: Vec<_> = self
+                .player_units_ordered(owner)
+                .filter(|unit| unit.kind.is_aircraft())
+                .map(|unit| unit.id)
+                .collect();
+            for id in ids {
+                self.restore_aircraft_unit(id);
+            }
+            self.finish_aircraft_fuel_deaths(owner);
+        }
+    }
+
+    pub(super) fn finish_aircraft_fuel_deaths(&mut self, owner: usize) {
+        let dead: Vec<_> = self
+            .player_units_ordered(owner)
+            .filter(|unit| unit.kind.fuel_capacity() > 0 && unit.fuel == 0)
+            .map(|unit| (unit.id, unit.kind))
             .collect();
-        for id in aircraft {
-            let unit = self.units.iter().find(|unit| unit.id == id).cloned();
-            let Some(unit) = unit else { continue };
-            let max_fuel = unit.kind.fuel_capacity();
-            let max_hp = unit.kind.stats().hp;
-            let airborne_loss = if unit.kind.is_missile() {
-                0
-            } else {
-                percent_of(max_hp, 10)
-            };
-            let site = self.refuel_site(unit.owner, unit.x, unit.y);
-            if site || self.aboard_refueling_transport(&unit) {
-                let city = self
-                    .cities
-                    .iter()
-                    .find(|city| (city.x, city.y) == (unit.x, unit.y));
-                let percent = if let Some(city) = city {
-                    if city.has_building(Building::AIRPORT) {
-                        100
-                    } else {
-                        33
-                    }
-                } else if self.tile(unit.x, unit.y).base == Some(Base::Airbase) {
-                    34
-                } else if site {
-                    10
-                } else {
-                    0
-                };
-                let bomber = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
-                bomber.fuel = max_fuel;
-                if !unit.moved {
-                    bomber.hp = (bomber.hp + percent_of(max_hp, percent)).min(max_hp);
-                }
+        for (id, kind) in dead {
+            if !self.units.iter().any(|unit| unit.id == id) {
                 continue;
             }
-            if unit.fuel == 1
-                && unit.hp > airborne_loss
-                && self.boarding_target(&unit, unit.x, unit.y).is_some()
+            self.remove_units_with_cargo(vec![id]);
+            if owner == HUMAN {
+                self.add_event(format!("Your {} crashed.", kind.name()));
+            }
+        }
+    }
+
+    pub(super) fn restore_aircraft_unit(&mut self, id: u32) {
+        let unit = self.units.iter().find(|unit| unit.id == id).cloned();
+        let Some(mut unit) = unit else { return };
+        let max_fuel = unit.kind.fuel_capacity();
+        let max_hp = unit.kind.stats().hp;
+        let airborne_loss = if unit.kind.is_missile() {
+            0
+        } else {
+            percent_of(max_hp, 10)
+        };
+        let site = self.refuel_site(unit.owner, unit.x, unit.y);
+        if site || self.aboard_refueling_transport(&unit) {
+            let gain = self.aircraft_repair_gain(&unit, unit.x, unit.y);
+            let bomber = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
+            bomber.fuel = max_fuel;
+            bomber.moved = false;
+            if !unit.moved {
+                bomber.hp = (bomber.hp + gain).min(max_hp);
+            }
+            return;
+        }
+        // player_restore_units restores hit points (including airborne
+        // loss), kills dead actors, then attempts last-fuel rescue.
+        unit.hp -= airborne_loss;
+        self.units
+            .iter_mut()
+            .find(|actor| actor.id == id)
+            .unwrap()
+            .hp = unit.hp;
+        self.units
+            .iter_mut()
+            .find(|actor| actor.id == id)
+            .unwrap()
+            .moved = false;
+        if unit.hp <= 0 {
+            self.remove_units_with_cargo(vec![id]);
+            if unit.owner == HUMAN {
+                self.add_event(format!("Your {} crashed.", unit.kind.name()));
+            }
+            return;
+        }
+        if max_fuel > 0 && unit.fuel <= 1 && self.boarding_target(&unit, unit.x, unit.y).is_some() {
+            self.board_or_deboard(id);
+            self.units
+                .iter_mut()
+                .find(|unit| unit.id == id)
+                .unwrap()
+                .fuel = max_fuel;
+            return;
+        }
+        if max_fuel > 0 && unit.fuel <= 1 && unit.moves_left > 0 {
+            if let Some(mut map) =
+                super::fuel_paths::FuelPaths::new(self, &unit, self.players[unit.owner].ai)
             {
-                self.board_or_deboard(id);
-                self.units
-                    .iter_mut()
-                    .find(|unit| unit.id == id)
-                    .unwrap()
-                    .fuel = max_fuel;
-                continue;
-            }
-            if unit.fuel == 1 && unit.hp > airborne_loss && unit.moves_left > 0 {
-                let sites: Vec<_> = self
-                    .tiles
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, _)| {
-                        let (x, y) = Self::xy(index);
-                        let distance = self.map_distance(unit.x, unit.y, x, y);
-                        (distance * MOVE_FRAGMENTS <= unit.moves_left
+                let destination = map
+                    .reachable_within(self, unit.moves_left, false, true)
+                    .into_iter()
+                    .find(|&(x, y, _)| {
+                        !self
+                            .tile_units_ordered(x, y)
+                            .any(|other| !self.allied(unit.owner, other.owner))
                             && (self.refuel_site(unit.owner, x, y)
                                 || self.boarding_target(&unit, x, y).is_some())
-                            && self.best_defender_id(&unit, x, y).is_none())
-                        .then_some((distance, x, y))
-                    })
-                    .collect();
-                let nearest = sites
-                    .into_iter()
-                    .filter_map(|(_, x, y)| {
-                        let path = self.path_to(id, x, y);
-                        (!path.is_empty() && path.len() as i32 * MOVE_FRAGMENTS <= unit.moves_left)
-                            .then_some((path.len(), x, y))
-                    })
-                    .min();
-                if let Some((_, x, y)) = nearest {
-                    self.goto_unit(id, x, y);
-                }
-            }
-            let Some(index) = self.units.iter().position(|unit| unit.id == id) else {
-                continue;
-            };
-            let unit = &self.units[index];
-            let refueled = self.refuel_site(unit.owner, unit.x, unit.y)
-                || self.aboard_refueling_transport(unit);
-            let unit = &mut self.units[index];
-            unit.hp -= airborne_loss;
-            unit.fuel = if refueled {
-                max_fuel
-            } else {
-                unit.fuel.saturating_sub(1)
-            };
-            if (max_fuel > 0 && unit.fuel == 0) || unit.hp <= 0 {
-                let unit = unit.clone();
-                self.remove_units_with_cargo(vec![id]);
-                if unit.owner == HUMAN {
-                    self.add_event(format!("Your {} crashed.", unit.kind.name()));
+                    });
+                if let Some((x, y, _)) = destination
+                    && let Some(path) = map.path(self, x, y)
+                {
+                    self.follow_source_ai_path(id, path);
+                    if let Some(live) = self.units.iter().find(|actor| actor.id == id).cloned() {
+                        if (live.x, live.y) == (x, y)
+                            && self.boarding_target(&live, x, y).is_some()
+                            && !self.refuel_site(live.owner, x, y)
+                        {
+                            self.board_or_deboard(id);
+                        }
+                        if let Some(actor) = self.units.iter_mut().find(|actor| actor.id == id) {
+                            actor.state = UnitState::Idle;
+                        }
+                    }
                 }
             }
         }
+
+        let Some(index) = self.units.iter().position(|unit| unit.id == id) else {
+            return;
+        };
+        let unit = &self.units[index];
+        let refueled =
+            self.refuel_site(unit.owner, unit.x, unit.y) || self.aboard_refueling_transport(unit);
+        let unit = &mut self.units[index];
+        unit.fuel = if refueled {
+            max_fuel
+        } else {
+            unit.fuel.saturating_sub(1)
+        };
     }
 }
 
@@ -904,6 +1298,7 @@ mod tests {
                 unit.moves_left = 0;
             }
         }
+        game.refresh_visibility(); // Newly placed human aircraft see the nearby airstrip.
         game.restore_aircraft();
         let saved = game.units.iter().find(|unit| unit.id == first).unwrap();
         assert_eq!((saved.x, saved.y, saved.fuel), (nx, ny, 3));
@@ -968,6 +1363,302 @@ mod stealth_tests {
     use super::*;
 
     #[test]
+    fn desktop_airbase_sortie_fixture_uses_fighter_and_preserves_safe_return() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(game.ai_bomber_playtest(), (true, true, true));
+    }
+
+    fn missile_hunt(distance: i32, kind: UnitKind) -> (Simulation, u32, u32, u32) {
+        loaded_hunt(distance, kind, UnitKind::Submarine)
+    }
+
+    fn loaded_hunt(
+        distance: i32,
+        kind: UnitKind,
+        platform: UnitKind,
+    ) -> (Simulation, u32, u32, u32) {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        game.prune_unit_ai_state();
+        game.sign_pact(1, HUMAN, Pact::War);
+        game.players[1]
+            .known
+            .extend([Tech::ADVANCED_FLIGHT, Tech::ROCKETRY]);
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Ocean;
+            tile.base = None;
+            tile.owner = None;
+            tile.hut = false;
+            tile.known_by.fill(true);
+        }
+        let boat = game.spawn_unit(1, platform, 10, 20);
+        let missile = game.spawn_unit(1, kind, 10, 20);
+        assert!(game.board_specific_ship(missile, boat));
+        let target = offset_native_by_map(10, 20, distance, 0);
+        let victim = game.spawn_unit(HUMAN, UnitKind::Caravel, target.0, target.1);
+        game.units.last_mut().unwrap().hp = 1;
+        game.set_random_seed(4);
+        (game, boat, missile, victim)
+    }
+
+    #[test]
+    fn hunter_launch_preserves_transport_pf_and_divided_missile_budget() {
+        let (mut game, boat, missile, victim) = missile_hunt(3, UnitKind::CruiseMissile);
+        game.source_hunter_launch(boat, victim);
+        assert!(game.units.iter().any(|unit| unit.id == victim));
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| unit.id == missile && unit.transport == Some(boat))
+        );
+        let (mut game, boat, missile, victim) = missile_hunt(2, UnitKind::CruiseMissile);
+        game.source_hunter_launch(boat, victim);
+        assert!(
+            game.units
+                .iter()
+                .all(|unit| unit.id != victim && unit.id != missile)
+        );
+    }
+
+    #[test]
+    fn desktop_native_hunter_launch_fixture_exercises_range_and_nuclear_cargo() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(game.ai_source_hunter_launch_playtest(), (true, true, true));
+    }
+
+    #[test]
+    fn carrier_bomber_boss_holds_fighter_reserve_instead_of_independent_cargo_dispatch() {
+        let (mut game, boat, bomber, victim) = loaded_hunt(2, UnitKind::Bomber, UnitKind::Carrier);
+        let fighter = game.spawn_unit(1, UnitKind::Fighter, 10, 20);
+        assert!(game.board_specific_ship(fighter, boat));
+        game.run_ai_player(1);
+        assert_eq!(game.ferry_boss(boat), Some(bomber));
+        assert!(game.units.iter().any(|unit| unit.id == victim));
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| unit.id == fighter && !unit.moved && unit.transport == Some(boat))
+        );
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| unit.id == boat && (unit.x, unit.y) == (10, 20))
+        );
+    }
+
+    #[test]
+    fn carrier_without_moves_cannot_activate_its_aircraft_boss() {
+        let (mut game, boat, fighter, victim) =
+            loaded_hunt(2, UnitKind::Fighter, UnitKind::Carrier);
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == boat)
+            .unwrap()
+            .moves_left = 0;
+        game.run_ai_player(1);
+        assert!(game.units.iter().any(|unit| unit.id == victim));
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| unit.id == fighter && !unit.moved)
+        );
+    }
+
+    #[test]
+    fn carrier_does_not_activate_a_distant_reserved_aircraft_without_cargo() {
+        let (mut game, boat, fighter, victim) =
+            loaded_hunt(2, UnitKind::Fighter, UnitKind::Carrier);
+        assert!(game.board_or_deboard(fighter));
+        let remote = offset_native_by_map(10, 20, 5, 0);
+        game.tile_mut(remote.0, remote.1).terrain = Terrain::Grassland;
+        game.tile_mut(remote.0, remote.1).base = Some(Base::Airstrip);
+        let actor = game
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == fighter)
+            .unwrap();
+        (actor.x, actor.y) = remote;
+        let actor = actor.clone();
+        let target = offset_native_by_map(remote.0, remote.1, 2, 0);
+        let enemy = game
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == victim)
+            .unwrap();
+        (enemy.x, enemy.y) = target;
+        assert!(game.aircraft_attack_path(&actor).is_some());
+        game.release_ai_ferry(fighter);
+        assert!(game.assign_ai_ferry(boat, fighter));
+        let ship = game
+            .units
+            .iter()
+            .find(|unit| unit.id == boat)
+            .unwrap()
+            .clone();
+        let (handled, done) = game.run_source_air_ferry(&ship);
+        assert!(!handled && done.is_empty());
+        assert!(game.units.iter().any(|unit| unit.id == victim));
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| unit.id == fighter && unit.moves_left == actor.moves_left)
+        );
+    }
+
+    #[test]
+    fn empty_air_refuel_path_does_not_embark_until_emergency_rescue() {
+        let (mut game, boat, fighter, victim) =
+            loaded_hunt(2, UnitKind::Fighter, UnitKind::Carrier);
+        assert!(game.board_or_deboard(fighter));
+        let actor = game
+            .units
+            .iter()
+            .find(|unit| unit.id == fighter)
+            .unwrap()
+            .clone();
+        assert_eq!(actor.fuel, 2);
+        game.run_ai_strike_aircraft(&actor);
+        assert!(game.units.iter().any(|unit| unit.id == victim));
+        assert!(game.units.iter().any(|unit| unit.id == fighter
+            && unit.transport.is_none()
+            && unit.moves_left == actor.moves_left));
+        game.restore_aircraft();
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| unit.id == fighter && unit.transport.is_none() && unit.fuel == 1)
+        );
+        game.restore_aircraft();
+        assert!(game.units.iter().any(|unit| unit.id == fighter
+            && unit.transport == Some(boat)
+            && unit.fuel == 2
+            && unit.hp == actor.hp - 2 * percent_of(actor.kind.stats().hp, 10)));
+    }
+
+    #[test]
+    fn fuel_free_helicopter_takes_airborne_loss_without_emergency_embark() {
+        let (mut game, _boat, helicopter, _victim) =
+            loaded_hunt(2, UnitKind::Helicopter, UnitKind::Carrier);
+        assert!(game.board_or_deboard(helicopter));
+        let before = game
+            .units
+            .iter()
+            .find(|unit| unit.id == helicopter)
+            .unwrap()
+            .hp;
+        game.restore_aircraft();
+        assert!(game.units.iter().any(|unit| unit.id == helicopter
+            && unit.transport.is_none()
+            && unit.fuel == 0
+            && unit.hp == before - percent_of(UnitKind::Helicopter.stats().hp, 10)));
+    }
+
+    #[test]
+    fn hunter_launch_supports_nuclear_cargo_and_cargo_append_order() {
+        let (mut game, boat, missile, victim) = missile_hunt(2, UnitKind::CruiseMissile);
+        let nuclear = game.spawn_unit(1, UnitKind::Nuclear, 10, 20);
+        assert!(game.board_specific_ship(nuclear, boat));
+        game.source_hunter_launch(boat, victim);
+        assert!(
+            game.units
+                .iter()
+                .all(|unit| unit.id != victim && unit.id != missile)
+        );
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| unit.id == nuclear && unit.transport == Some(boat))
+        );
+        let (mut game, boat, missile, victim) = missile_hunt(2, UnitKind::Nuclear);
+        game.source_hunter_launch(boat, victim);
+        assert!(
+            game.units
+                .iter()
+                .all(|unit| unit.id != victim && unit.id != missile)
+        );
+    }
+
+    #[test]
+    fn immobile_auxiliary_threat_does_not_preempt_primary_hunter_target() {
+        let (mut game, boat, missile, victim) = missile_hunt(2, UnitKind::CruiseMissile);
+        let point = offset_native_by_map(10, 20, 0, 1);
+        let threat = game.spawn_unit(HUMAN, UnitKind::Battleship, point.0, point.1);
+        game.units.last_mut().unwrap().moves_left = 0;
+        game.source_hunter_launch(boat, victim);
+        assert!(game.units.iter().any(|unit| unit.id == threat));
+        assert!(
+            game.units
+                .iter()
+                .all(|unit| unit.id != victim && unit.id != missile)
+        );
+    }
+
+    #[test]
+    fn desktop_carrier_sortie_fixture_uses_fighter_and_recovers_aboard() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(game.ai_carrier_sortie_playtest(false), (true, true, true));
+    }
+
+    #[test]
+    fn desktop_carrier_does_not_reposition_to_extend_its_aircraft_sortie() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(game.ai_carrier_sortie_playtest(true), (true, true, true));
+    }
+
+    #[test]
+    fn fuel_mission_fixture_exercises_sortie_wait_and_literal_oneattack_limit() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert!(game.ai_fuel_mission_playtest());
+    }
+
+    #[test]
+    fn default_ai_air_target_pf_is_omniscient_without_map_handicap() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
+        let plane = game
+            .units
+            .iter()
+            .find(|unit| unit.id == id)
+            .unwrap()
+            .clone();
+        let target = game.units.iter().find(|unit| unit.id == victim).unwrap();
+        let point = (target.x, target.y);
+        game.tile_mut(point.0, point.1).known_by[plane.owner] = false;
+        assert_eq!(
+            game.aircraft_attack_path(&plane).map(|path| path.1),
+            Some(point)
+        );
+    }
+
+    #[test]
+    fn known_refuel_extras_work_on_enemy_owned_tiles() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        let point = (10, 20);
+        game.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
+        game.tile_mut(point.0, point.1).base = Some(Base::Airstrip);
+        game.tile_mut(point.0, point.1).owner = Some(HUMAN);
+        game.tile_mut(point.0, point.1).known_by[1] = true;
+        game.sign_pact(1, HUMAN, Pact::War);
+        let id = game.spawn_unit(1, UnitKind::Fighter, point.0, point.1);
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == id)
+            .unwrap()
+            .fuel = 1;
+        assert!(game.refuel_site(1, point.0, point.1));
+        game.restore_aircraft();
+        assert_eq!(
+            game.units.iter().find(|unit| unit.id == id).unwrap().fuel,
+            2
+        );
+        game.tile_mut(point.0, point.1).known_by[1] = false;
+        assert!(!game.refuel_site(1, point.0, point.1));
+    }
+
+    #[test]
     fn stealth_aircraft_replace_older_models_and_need_close_detection() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (explorer, hidden) = game.stealth_playtest_setup();
@@ -991,5 +1682,274 @@ mod stealth_tests {
             assert_eq!(game.production_successor(city, old), Some(new));
             assert_eq!(new.fuel_capacity(), old.fuel_capacity());
         }
+    }
+    #[test]
+    fn existing_aircraft_attack_profitable_targets_but_hp_loss_blocks_offensive_builds() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
+        let plane = game.units.iter().find(|u| u.id == id).unwrap().clone();
+        let target = game.units.iter().find(|u| u.id == victim).unwrap().clone();
+        assert!(game.unit_buildable(&game.cities[0], UnitKind::Fighter));
+        assert_eq!(UnitKind::Fighter.hp_loss_percent(), 10);
+        assert!(game.aircraft_target_value(&plane, target.x, target.y) > 0.0);
+        assert!(game.aircraft_production_choice(&game.cities[0]).is_none());
+        game.players[1].known.push(Tech::MEDICINE);
+        game.cities[0].buildings.push(Building::AIRPORT);
+        assert!(game.aircraft_production_choice(&game.cities[0]).is_none());
+        game.run_ai_strike_aircraft(&plane);
+        assert!(!game.units.iter().any(|u| u.id == victim));
+        game.players[1].known.clear();
+        assert!(game.aircraft_production_choice(&game.cities[0]).is_none());
+    }
+
+    #[test]
+    fn airborne_plane_refuels_before_attacking_and_waits_for_full_fuel() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
+        let home = (game.cities[0].x, game.cities[0].y);
+        let open = offset_native_by_map(home.0, home.1, 1, 0);
+        let plane = game.units.iter_mut().find(|u| u.id == id).unwrap();
+        (plane.x, plane.y) = open;
+        plane.fuel = 1;
+        let snapshot = plane.clone();
+        game.run_ai_strike_aircraft(&snapshot);
+        let plane = game.units.iter().find(|u| u.id == id).unwrap().clone();
+        assert_eq!((plane.x, plane.y), home);
+        assert!(game.units.iter().any(|u| u.id == victim));
+        game.run_ai_strike_aircraft(&plane);
+        assert!(game.units.iter().any(|u| u.id == victim));
+    }
+
+    #[test]
+    fn standalone_nuclear_uses_native_air_manager_strict_attack_cutoff() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (fighter, victim) = game.ai_aircraft_advisor_playtest_setup();
+        game.units.retain(|u| u.id != fighter);
+        let city = game.cities[0].clone();
+        let target = game.units.iter().find(|u| u.id == victim).unwrap().clone();
+        let id = game.spawn_unit(1, UnitKind::Nuclear, city.x, city.y);
+        let plane = game.units.iter().find(|u| u.id == id).unwrap().clone();
+        game.units.iter_mut().find(|u| u.id == victim).unwrap().kind = UnitKind::Warrior;
+        assert!(game.aircraft_best_target(&plane).is_none());
+        for _ in 0..4 {
+            game.spawn_unit(HUMAN, UnitKind::Battleship, target.x, target.y);
+        }
+        assert!(game.aircraft_target_value(&plane, target.x, target.y) > 0.0);
+        let mut map = super::super::fuel_paths::FuelPaths::new(&game, &plane, true).unwrap();
+        assert_eq!(
+            map.movement_cost(&game, target.x, target.y),
+            Some(plane.moves_left)
+        );
+        assert!(game.aircraft_best_target(&plane).is_none());
+        let mut short_range = plane.clone();
+        short_range.moves_left = MOVE_FRAGMENTS;
+        assert!(game.aircraft_best_target(&short_range).is_none());
+        game.run_ai_nuclear_aircraft(&plane);
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| unit.id == id && unit.moves_left == plane.moves_left)
+        );
+        assert!(game.units.iter().any(|unit| unit.id == victim));
+        assert!(game.ai_nuclear_advisor_playtest());
+    }
+    #[test]
+    fn aircraft_rebases_toward_targets_outside_its_current_sortie() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
+        let plane = game.units.iter().find(|u| u.id == id).unwrap().clone();
+        let base = offset_native_by_map(plane.x, plane.y, 6, 0);
+        let target = offset_native_by_map(plane.x, plane.y, 12, 0);
+        game.tile_mut(base.0, base.1).terrain = Terrain::Grassland;
+        game.tile_mut(base.0, base.1).base = Some(Base::Airbase);
+        game.tile_mut(base.0, base.1).owner = Some(1);
+        let enemy = game.units.iter_mut().find(|u| u.id == victim).unwrap();
+        (enemy.x, enemy.y) = target;
+        game.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+        assert!(game.aircraft_best_target(&plane).is_none());
+        game.run_ai_strike_aircraft(&plane);
+        let plane = game.units.iter().find(|u| u.id == id).unwrap();
+        assert_eq!((plane.x, plane.y), base);
+        assert!(game.units.iter().any(|u| u.id == victim));
+    }
+    #[test]
+    fn city_air_raids_need_occupiers_but_virtual_production_can_plan_ahead() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
+        let plane = game.units.iter().find(|u| u.id == id).unwrap().clone();
+        let enemy = game.units.iter_mut().find(|u| u.id == victim).unwrap();
+        enemy.kind = UnitKind::Warrior;
+        let target = (enemy.x, enemy.y);
+        game.tile_mut(target.0, target.1).terrain = Terrain::Grassland;
+        game.create_city(HUMAN, target.0, target.1);
+        assert_eq!(game.aircraft_target_value(&plane, target.0, target.1), 0.0);
+        let mut virtual_plane = plane.clone();
+        virtual_plane.id = 0;
+        assert!(game.aircraft_target_value(&virtual_plane, target.0, target.1) > 0.0);
+        let occupier = game.spawn_unit(1, UnitKind::Warrior, plane.x, plane.y);
+        // Nearby troops alone do not support bombing a defended city.
+        assert_eq!(game.aircraft_target_value(&plane, target.0, target.1), 0.0);
+        let city = game
+            .cities
+            .iter()
+            .find(|c| (c.x, c.y) == target)
+            .unwrap()
+            .id;
+        game.ai_ground_targets.insert(occupier, city);
+        assert!(game.aircraft_target_value(&plane, target.0, target.1) > 0.0);
+    }
+    #[test]
+    fn damaged_aircraft_prefers_fast_repair_but_finishes_imminent_home_repair() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
+        game.units.retain(|u| u.id != victim);
+        let home = (game.cities[0].x, game.cities[0].y);
+        let airport = offset_native_by_map(home.0, home.1, 4, 0);
+        game.tile_mut(airport.0, airport.1).terrain = Terrain::Grassland;
+        game.create_city(1, airport.0, airport.1);
+        game.cities
+            .last_mut()
+            .unwrap()
+            .buildings
+            .push(Building::AIRPORT);
+        let plane = game.units.iter_mut().find(|u| u.id == id).unwrap();
+        plane.hp = 5;
+        plane.moved = true;
+        let plane = plane.clone();
+        assert!(
+            game.aircraft_regen_turns(&plane, airport.0, airport.1)
+                < game.aircraft_regen_turns(&plane, home.0, home.1)
+        );
+        game.run_ai_strike_aircraft(&plane);
+        let plane = game.units.iter_mut().find(|u| u.id == id).unwrap();
+        assert_eq!((plane.x, plane.y), airport);
+        (plane.x, plane.y) = home;
+        plane.hp = plane.kind.stats().hp - 1;
+        plane.moved = false;
+        plane.moves_left = plane.kind.stats().moves * MOVE_FRAGMENTS;
+        let plane = plane.clone();
+        assert!(game.strategic_airbase(&plane, &[home, airport]).is_none());
+    }
+
+    #[test]
+    fn airborne_damaged_plane_selects_repair_time_before_distance() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
+        game.units.retain(|u| u.id != victim);
+        let home = (game.cities[0].x, game.cities[0].y);
+        let airport = offset_native_by_map(home.0, home.1, 4, 0);
+        game.tile_mut(airport.0, airport.1).terrain = Terrain::Grassland;
+        game.create_city(1, airport.0, airport.1);
+        game.cities
+            .last_mut()
+            .unwrap()
+            .buildings
+            .push(Building::AIRPORT);
+        let plane = game.units.iter_mut().find(|u| u.id == id).unwrap();
+        (plane.x, plane.y) = offset_native_by_map(home.0, home.1, 1, 0);
+        plane.hp = 5;
+        let plane = plane.clone();
+        game.run_ai_strike_aircraft(&plane);
+        let plane = game.units.iter().find(|u| u.id == id).unwrap();
+        assert_eq!((plane.x, plane.y), airport);
+    }
+
+    #[test]
+    fn strategic_airbase_reinforces_grave_danger_and_holds_its_own_city() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
+        game.units.retain(|u| u.id != victim);
+        let plane = game.units.iter().find(|u| u.id == id).unwrap().clone();
+        let home = (plane.x, plane.y);
+        let front = offset_native_by_map(home.0, home.1, 5, 0);
+        let attack = offset_native_by_map(front.0, front.1, 1, 0);
+        game.tile_mut(front.0, front.1).terrain = Terrain::Grassland;
+        game.tile_mut(attack.0, attack.1).terrain = Terrain::Grassland;
+        game.create_city(1, front.0, front.1);
+        for _ in 0..3 {
+            game.spawn_unit(HUMAN, UnitKind::Warrior, attack.0, attack.1);
+        }
+        assert!(game.aircraft_city_needs_defender(&plane, front.0, front.1, false));
+        assert_eq!(
+            game.strategic_airbase(&plane, &[home, front]).map(|r| r.1),
+            Some(front)
+        );
+        let mut defender = plane.clone();
+        (defender.x, defender.y) = front;
+        assert!(game.strategic_airbase(&defender, &[home, front]).is_none());
+        for _ in 0..2 {
+            game.spawn_unit(1, UnitKind::Warrior, front.0, front.1);
+        }
+        assert!(!game.aircraft_city_needs_defender(&plane, front.0, front.1, false));
+    }
+    #[test]
+    fn airlift_refreshes_contact_but_stationary_bombardment_does_not() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.hut = false;
+        }
+        let source = (10, 20);
+        let destination = offset_native_by_map(source.0, source.1, 6, 0);
+        game.create_city(HUMAN, source.0, source.1);
+        game.create_city(HUMAN, destination.0, destination.1);
+        for city in &mut game.cities {
+            city.buildings.push(Building::AIRPORT);
+        }
+        let arrival_city = game.cities[1].id;
+        let visitor = game.spawn_unit(HUMAN, UnitKind::Warrior, source.0, source.1);
+        let target = offset_native_by_map(destination.0, destination.1, 1, 0);
+        game.spawn_unit(1, UnitKind::Warrior, target.0, target.1);
+        game.turn += 30;
+        game.diplomatic_contact_until.clear();
+        assert!(game.airlift(visitor, arrival_city));
+        assert!(
+            game.diplomatic_contact_until
+                .get(&(HUMAN, 1))
+                .is_some_and(|until| *until > game.turn)
+        );
+        let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, destination.0, destination.1);
+        game.diplomatic_contact_until.clear();
+        let aircraft = game.units.iter().find(|u| u.id == bomber).unwrap().clone();
+        assert_eq!(
+            game.try_bombard(&aircraft, target.0, target.1),
+            MoveResult::Fought
+        );
+        assert!(game.diplomatic_contact_until.is_empty());
+        game.sign_pact(HUMAN, 1, Pact::Peace);
+        game.diplomatic_contact_until.clear();
+        assert_eq!(
+            game.try_bombard(&aircraft, target.0, target.1),
+            MoveResult::Blocked
+        );
+        assert!(game.diplomatic_contact_until.is_empty());
+    }
+
+    #[test]
+    fn lost_paradrop_establishes_contact_at_the_actual_landing() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.hut = false;
+        }
+        let origin = (10, 20);
+        let landing = offset_native_by_map(origin.0, origin.1, 5, 0);
+        game.create_city(HUMAN, origin.0, origin.1);
+        let troop = game.spawn_unit(HUMAN, UnitKind::Paratroopers, origin.0, origin.1);
+        game.spawn_unit(1, UnitKind::Warrior, landing.0, landing.1);
+        game.tile_mut(landing.0, landing.1).known_by[HUMAN] = true;
+        game.turn += 30;
+        game.diplomatic_contact_until.clear();
+        assert!(game.paradrop(troop, landing.0, landing.1));
+        assert!(!game.units.iter().any(|u| u.id == troop));
+        assert!(
+            game.diplomatic_contact_until
+                .get(&(HUMAN, 1))
+                .is_some_and(|until| *until > game.turn)
+        );
     }
 }

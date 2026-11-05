@@ -11,13 +11,8 @@ impl Simulation {
         (-2..=2).flat_map(move |dy| {
             (-2..=2).filter_map(move |dx| {
                 let distance = isohex_vector_distance(dx, dy);
-                let (x, y) = map_to_native(map_x + dx, map_y + dy);
-                (distance * distance <= 5 && (0..MAP_H).contains(&y)).then_some((
-                    dx,
-                    dy,
-                    x.rem_euclid(MAP_W),
-                    y,
-                ))
+                let (x, y) = map_pos_to_native(map_x + dx, map_y + dy);
+                (distance * distance <= 5).then_some((dx, dy, x, y))
             })
         })
     }
@@ -145,14 +140,9 @@ impl Simulation {
     }
 
     fn has_irrigation_source(&self, owner: usize, x: i32, y: i32) -> bool {
-        let (mx, my) = native_to_map(x, y);
         self.has_tech(owner, Tech::ELECTRICITY)
             || self.tile(x, y).river
-            || ISOHEX_DIRS.iter().any(|&(dx, dy)| {
-                let (nx, ny) = map_to_native(mx + dx, my + dy);
-                if !(0..MAP_H).contains(&ny) {
-                    return false;
-                }
+            || super::terrain_work::neighbors(x, y).any(|(nx, ny)| {
                 let source = self.tile(nx, ny);
                 source.terrain.is_water() || source.river || source.irrigation
             })
@@ -183,6 +173,9 @@ impl Simulation {
             return false;
         };
         let unit = self.units[index].clone();
+        if unit.moves_left <= 0 {
+            return false; // Civ2Civ3 Found City requires MinMoveFrags 1.
+        }
         if self
             .tile(unit.x, unit.y)
             .owner
@@ -203,6 +196,8 @@ impl Simulation {
             return false;
         }
         self.units.remove(index);
+        self.discard_unit_ai(unit_id);
+        self.ai_settlement_targets.remove(&unit_id);
         let name = self.create_city(unit.owner, unit.x, unit.y);
         self.cities
             .last_mut()
@@ -230,7 +225,7 @@ impl Simulation {
             y,
             name: name.clone(),
             size: 1,
-            specialists: [0; 3],
+            specialists: [0, 0, 1],
             worked_tiles: Vec::new(),
             was_happy: false,
             last_plague: None,
@@ -254,19 +249,23 @@ impl Simulation {
                 Vec::new()
             },
         });
+        self.list_order.city(self.cities.last().unwrap());
         let railroad = self.has_tech(owner, Tech::RAILROAD);
         let tile = self.tile_mut(x, y);
         tile.road = true;
         tile.base = None;
         tile.railroad |= railroad;
         self.refresh_visibility();
-        self.rebuild_city_ownership();
+        self.rebuild_city_ownership_for_city_event(id);
+        self.refresh_diplomatic_contact_at(owner, x, y);
         name
     }
 
     pub(crate) fn can_join_city(&self, unit: &Unit, city: &City) -> bool {
-        matches!(unit.kind, UnitKind::Migrants | UnitKind::Settlers)
-            && unit.owner == city.owner
+        matches!(
+            unit.kind,
+            UnitKind::Migrants | UnitKind::Settlers | UnitKind::Fanatics
+        ) && unit.owner == city.owner
             && unit.moves_left > 0
             && (unit.y - city.y).abs() <= 2
             && self.map_distance(unit.x, unit.y, city.x, city.y) <= 1
@@ -297,6 +296,7 @@ impl Simulation {
         let kind = unit.kind;
         let owner = unit.owner;
         self.remove_units_with_cargo(vec![unit_id]);
+        self.rebuild_city_ownership_for_city_event(city_id);
         self.refresh_visibility();
         if owner == HUMAN {
             self.add_event(format!(
@@ -309,10 +309,7 @@ impl Simulation {
 
     pub(super) fn apply_combat_population_loss(&mut self, attacker: &Unit, x: i32, y: i32) {
         // Civ2Civ3 gives KillCitizen to Big Land and protects size-one cities.
-        if !matches!(
-            attacker.kind,
-            UnitKind::Chariot | UnitKind::Catapult | UnitKind::Cannon
-        ) {
+        if !attacker.kind.is_big_land() {
             return;
         }
         let Some(index) = self.cities.iter().position(|city| {
@@ -337,9 +334,9 @@ impl Simulation {
         debug_assert!(city.size > 1);
         city.size -= 1;
         city.food = city.food.min(Self::growth_box(city.size));
-        city.remove_specialists(1);
+        city.remove_citizen_assignments(1);
         self.remove_citizen_nationalities(index, 1);
-        self.rebuild_city_ownership();
+        self.rebuild_city_ownership_for_city_event(self.cities[index].id);
     }
 
     pub(super) fn transfer_traded_city(&mut self, index: usize, buyer: usize) {
@@ -348,6 +345,7 @@ impl Simulation {
         let center = (self.cities[index].x, self.cities[index].y);
         let first_city = !self.cities.iter().any(|city| city.owner == buyer);
         self.cities[index].transfer_citizens(buyer);
+        self.list_order.city(&self.cities[index]);
         self.cities[index]
             .buildings
             .retain(|building| building.data().genus != Genus::SmallWonder);
@@ -356,7 +354,13 @@ impl Simulation {
         }
 
         let mut affected = std::collections::BTreeSet::from([center]);
-        for unit in self.units.iter_mut().filter(|unit| unit.owner == original) {
+        let transfer_units = self.city_transfer_unit_ids(id, original);
+        for unit_id in transfer_units {
+            let unit = self
+                .units
+                .iter_mut()
+                .find(|unit| unit.id == unit_id)
+                .unwrap();
             let stationed = (unit.x, unit.y) == center;
             if !stationed && unit.home_city != Some(id) {
                 continue;
@@ -372,6 +376,7 @@ impl Simulation {
             }
             affected.insert((unit.x, unit.y));
             unit.owner = buyer;
+            self.list_order.unit(unit);
             unit.home_city = unit.home_city.map(|_| id);
             unit.automated = false;
             unit.clear_work();
@@ -400,7 +405,8 @@ impl Simulation {
             self.cities[index].production = self.choose_ai_production(buyer, id);
         }
         self.prune_trade_routes();
-        self.rebuild_city_ownership();
+        self.rebuild_city_ownership_for_city_event(id);
+        self.refresh_diplomatic_contact_at(buyer, center.0, center.1);
         self.refresh_visibility();
     }
 
@@ -415,11 +421,7 @@ impl Simulation {
                 if (dx, dy) == (0, 0) {
                     continue;
                 }
-                let (x, y) = map_to_native(mx + dx, my + dy);
-                if !(0..MAP_H).contains(&y) {
-                    continue;
-                }
-                let x = x.rem_euclid(MAP_W);
+                let (x, y) = map_pos_to_native(mx + dx, my + dy);
                 if self.movement_cost_for(&unit, x, y).is_some()
                     && (!unit.kind.is_aircraft() || self.refuel_site(unit.owner, x, y))
                     && self.cities.iter().all(|city| {
@@ -451,6 +453,7 @@ impl Simulation {
         (unit.x, unit.y) = (x, y);
         unit.transport = None;
         unit.clear_work();
+        self.list_order.unit(unit);
         self.move_cargo(id, x, y);
     }
 
@@ -469,7 +472,6 @@ impl Simulation {
             return;
         };
         let old_owner = self.cities[city_index].owner;
-        self.record_provocation(old_owner, unit.owner);
         let city_name = self.cities[city_index].name.clone();
         let capital = self.cities[city_index]
             .buildings
@@ -479,11 +481,12 @@ impl Simulation {
             self.lose_spaceship(old_owner);
         }
         self.cities[city_index].transfer_citizens(unit.owner);
+        self.list_order.city(&self.cities[city_index]);
         self.prune_trade_routes();
         if self.cities[city_index].size > 1 {
             self.cities[city_index].size -= 1;
             self.remove_citizen_nationalities(city_index, 1);
-            self.cities[city_index].remove_specialists(1);
+            self.cities[city_index].remove_citizen_assignments(1);
         }
         self.release_city_support(self.cities[city_index].id);
         self.cities[city_index].food = 0;
@@ -505,7 +508,8 @@ impl Simulation {
         {
             capital.buildings.push(Building::PALACE);
         }
-        self.rebuild_city_ownership();
+        self.rebuild_city_ownership_for_city_event(self.cities[city_index].id);
+        self.refresh_diplomatic_contact_at(unit.owner, x, y);
         if civil_war {
             self.split_civil_war(old_owner);
         }
@@ -522,68 +526,125 @@ impl Simulation {
         self.city_yields_with_tech(city, None)
     }
 
-    pub(super) fn city_yields_with_tech(
+    pub(super) fn city_tile_yields(
         &self,
         city: &City,
+        x: i32,
+        y: i32,
+        is_center: bool,
         granted: Option<Tech>,
     ) -> (i32, i32, i32) {
-        let mut center = self.tile(city.x, city.y).clone();
-        center.railroad |= granted == Some(Tech::RAILROAD);
-        let (mut cf, cs, ct) = center.yields();
-        if !center.irrigation && !center.mine {
-            // City centers receive the terrain's irrigation bonus
-            // automatically, but an explicit irrigation does not stack.
-            cf += center.irrigation_food();
-        }
-        let government = self.players[city.owner].government;
+        self.city_tile_yields_under_government(
+            city,
+            x,
+            y,
+            is_center,
+            granted,
+            self.players[city.owner].government,
+        )
+    }
+
+    pub(super) fn city_tile_yields_under_government(
+        &self,
+        city: &City,
+        x: i32,
+        y: i32,
+        is_center: bool,
+        granted: Option<Tech>,
+        government: Government,
+    ) -> (i32, i32, i32) {
+        let celebrating = self.base_city_celebrating(city);
         let tile_penalty = matches!(
             government,
             Government::Tribal | Government::Despotism | Government::Anarchy
         ) && granted != Some(Tech::RAILROAD)
             && !self.has_tech(city.owner, Tech::RAILROAD)
-            && !self.has_active_wonder(city.owner, Building::PYRAMIDS);
-        let trade_bonus = matches!(government, Government::Republic | Government::Democracy);
-        let supermarket = city.has_building(Building::SUPERMARKET);
-        let highways = city.has_building(Building::SUPER_HIGHWAYS);
+            && !self.has_active_wonder(city.owner, Building::PYRAMIDS)
+            && self.city_rapture.get(&city.id).copied().unwrap_or(0) <= 0;
+        let republic_trade = matches!(government, Government::Republic | Government::Democracy);
+        let celebrate_trade = celebrating
+            && matches!(
+                government,
+                Government::Monarchy
+                    | Government::Federation
+                    | Government::Republic
+                    | Government::Democracy
+            );
+        let pyramids = city.has_building(Building::PYRAMIDS)
+            && !self.building_is_obsolete(city, Building::PYRAMIDS, granted);
         let colossus = city.has_building(Building::COLOSSUS)
             && !self.building_is_obsolete(city, Building::COLOSSUS, granted);
-        let adjust = |tile: &Tile, (food, shields, trade): (i32, i32, i32), is_center: bool| {
-            let farm_output =
-                tile.farmland || (is_center && !tile.mine && tile.terrain.irrigation_time() > 0);
-            let food = food
-                + if supermarket && farm_output {
-                    food / 2
-                } else {
-                    0
-                };
-            let shields = shields
-                + i32::from(
-                    city.has_building(Building::OFFSHORE_PLATFORM)
-                        && tile.terrain.is_water()
-                        && (tile.terrain != Terrain::DeepOcean || tile.oil_platform),
-                );
-            let highway_bonus = highways && tile.road && trade > 0 && (is_center || !tile.farmland);
-            let trade = trade
-                + i32::from(trade_bonus && trade > 0 && !tile.terrain.is_water())
-                + i32::from(highway_bonus)
-                + i32::from(colossus && trade > 0);
-            let cap =
-                |value| tile.contamination_output(value - i32::from(tile_penalty && value > 2));
-            (cap(food), cap(shields), cap(trade))
+        let mut center;
+        let tile = if is_center {
+            center = self.tile(x, y).clone();
+            center.railroad |= granted == Some(Tech::RAILROAD);
+            &center
+        } else {
+            self.tile(x, y)
         };
-        let (mut food, mut shields, mut trade) = adjust(&center, (cf, cs, ct), true);
-        food = food.max(1);
-        shields = shields.max(1);
-        trade = trade.max(1);
+        let (mut food, mut shields, mut trade) = tile.yields();
+        if is_center && !tile.irrigation && !tile.mine && tile.terrain.irrigation_time() > 0 {
+            food += tile.irrigation_food();
+        }
+        // common/city.c:city_tile_output: terrain/extra/road outputs, then
+        // Add_Tile, Inc_Tile(+celebration), Per_Tile, penalty, punishment,
+        // and finally the Civ2Civ3 center minima (all zero in game.ruleset).
+        food += i32::from(
+            city.has_building(Building::HARBOR)
+                && matches!(tile.terrain, Terrain::Ocean | Terrain::DeepOcean),
+        );
+        shields += i32::from(is_center)
+            + i32::from(
+                city.has_building(Building::OFFSHORE_PLATFORM)
+                    && tile.terrain.is_water()
+                    && (tile.terrain != Terrain::DeepOcean || tile.oil_platform),
+            );
+        if shields > 0 {
+            shields += i32::from(pyramids);
+        }
+        if trade > 0 {
+            trade += i32::from(republic_trade && !tile.terrain.is_water())
+                + i32::from(celebrate_trade)
+                + i32::from(colossus)
+                + i32::from(
+                    city.has_building(Building::SUPER_HIGHWAYS)
+                        && tile.road
+                        && (is_center || !tile.farmland),
+                );
+        }
+        let farm = tile.farmland
+            || (is_center && !tile.mine && !tile.oil_well && tile.terrain.irrigation_time() > 0);
+        if food > 0 && city.has_building(Building::SUPERMARKET) && farm {
+            food += food * 50 / 100;
+        }
+        let finish =
+            |value| tile.contamination_output(value - i32::from(tile_penalty && value > 2));
+        (
+            finish(food).max(0),
+            finish(shields).max(0),
+            finish(trade).max(0),
+        )
+    }
+
+    pub(super) fn city_yields_with_tech(
+        &self,
+        city: &City,
+        granted: Option<Tech>,
+    ) -> (i32, i32, i32) {
+        let (mut food, mut shields, mut trade) =
+            self.city_tile_yields(city, city.x, city.y, true, granted);
         for &(x, y) in city.worked_tiles.iter().take(city.tile_workers() as usize) {
-            let tile = self.tile(x, y);
-            let (f, s, t) = adjust(tile, tile.yields(), false);
+            let (f, s, t) = self.city_tile_yields(city, x, y, false, granted);
             food += f;
             shields += s;
             trade += t;
         }
         trade += self.route_trade(city);
+        // common/city.c:set_city_production applies output bonuses before
+        // calculating waste; waste therefore includes industrial output.
+        shields = percent_of(shields, self.shield_output_bonus(city));
         let (shields, trade) = self.government_output_waste(city, shields, trade, granted);
+        food = self.government_food_output(city, food, self.players[city.owner].government);
         (food, shields, trade)
     }
 
@@ -663,48 +724,32 @@ impl Simulation {
     }
 
     pub(super) fn choose_ai_production(&self, owner: usize, city_id: u32) -> Production {
-        let Some(city) = self.cities.iter().find(|c| c.id == city_id) else {
+        let Some(city) = self.cities.iter().find(|city| city.id == city_id) else {
             return Production::Unit(UnitKind::Warrior);
         };
-        let defenders = self
-            .units
-            .iter()
-            .filter(|u| u.owner == owner && u.x == city.x && u.y == city.y && u.kind.is_military())
-            .count();
         if self.players[owner].ai {
-            if let Some(target) = self
-                .counterintelligence_production(city)
-                .or_else(|| self.city_defense_production(city))
-            {
-                return target;
-            }
-            if defenders == 0 {
-                return Production::Unit(self.preferred_city_defender(city));
-            }
-        }
-        if defenders == 0 {
-            return Production::Unit(if self.unit_available(owner, UnitKind::Phalanx) {
-                UnitKind::Phalanx
-            } else {
-                UnitKind::Warrior
-            });
-        }
-        if self.players[owner].ai
-            && let Some(kind) = self.settlement_production(city)
-        {
-            return Production::Unit(kind);
-        }
-        if self.players[owner].ai
-            && let Some(kind) = self.hunter_production(city)
-        {
-            return Production::Unit(kind);
-        }
-        if self.players[owner].ai {
-            if let Some(building) = self.domestic_production(city) {
-                return Production::Building(building);
+            if let Some(choice) = self.ai_build_choice(city) {
+                return choice.production;
             }
         } else {
-            let priorities = [
+            let defenders = self
+                .units
+                .iter()
+                .filter(|unit| {
+                    unit.owner == owner
+                        && unit.kind.is_military()
+                        && (unit.x, unit.y) == (city.x, city.y)
+                })
+                .count();
+            if defenders == 0 {
+                if let Some(kind) = UnitKind::ALL_NATIVE.into_iter().rev().find(|kind| {
+                    kind.has_role(super::unit_catalog::UnitRole::FirstBuild)
+                        && self.unit_buildable(city, *kind)
+                }) {
+                    return Production::Unit(kind);
+                }
+            }
+            for (wanted, building) in [
                 (city.size >= 4, Building::TEMPLE),
                 (city.size >= 4, Building::GRANARY),
                 (city.size >= 2, Building::LIBRARY),
@@ -712,42 +757,16 @@ impl Simulation {
                 (city.size >= 7, Building::AQUEDUCT),
                 (city.size >= 7, Building::AQUEDUCT_RIVER),
                 (city.size >= 7, Building::AQUEDUCT_LAKE),
-            ];
-            for (wanted, building) in priorities {
+            ] {
                 if wanted && self.building_blocker(city, building).is_none() {
                     return Production::Building(building);
                 }
             }
         }
-        if self.players[owner].ai {
-            for building in [
-                Building::APOLLO_PROGRAM,
-                Building::SPACE_MODULE,
-                Building::SPACE_COMPONENT,
-                Building::SPACE_STRUCTURAL,
-            ] {
-                if self.building_blocker(city, building).is_none() {
-                    return Production::Building(building);
-                }
-            }
-        }
-        if self.players[owner].ai
-            && let Some(kind) = self.merchant_production(city)
-        {
-            return Production::Unit(kind);
-        }
-        if self.players[owner].ai
-            && let Some(kind) = self.offensive_agent_production(city)
-        {
-            return Production::Unit(kind);
-        }
-        if self.players[owner].ai
-            && let Some(kind) = self.offensive_production(city)
-        {
-            return Production::Unit(kind);
-        }
-        for kind in UnitKind::AI_MILITARY {
-            if self.unit_available(owner, kind) {
+        for kind in UnitKind::ALL_NATIVE.into_iter().rev() {
+            if kind.has_role(super::unit_catalog::UnitRole::FirstBuild)
+                && self.unit_buildable(city, kind)
+            {
                 return Production::Unit(kind);
             }
         }
@@ -755,15 +774,33 @@ impl Simulation {
     }
 
     pub(super) fn process_cities(&mut self) {
+        for owner in 0..self.players.len() {
+            let income = self.process_player_cities(owner);
+            self.finish_player_national_activities(owner, income);
+        }
+    }
+
+    pub(super) fn process_player_cities(&mut self, owner: usize) -> (i32, Vec<(u32, i32)>) {
         self.reconcile_city_workers();
-        let mut science_income = vec![0; self.players.len()];
+        let mut science_income = 0;
         let mut gold_paid = Vec::new();
-        let city_ids: Vec<u32> = self.cities.iter().map(|c| c.id).collect();
-        for city_id in city_ids {
+        let mut city_ids: Vec<u32> = self
+            .player_cities_ordered(owner)
+            .map(|city| city.id)
+            .collect();
+        // cityturn.c:update_city_activities converts citizens in player
+        // list order before randomizing the city activity order.
+        for &id in &city_ids {
+            if let Some(index) = self.cities.iter().position(|city| city.id == id) {
+                self.assimilate_citizen(index);
+            }
+        }
+        while !city_ids.is_empty() {
+            let selected = self.rand_below(city_ids.len() as i32) as usize;
+            let city_id = city_ids.swap_remove(selected);
             let Some(index) = self.cities.iter().position(|city| city.id == city_id) else {
                 continue;
             };
-            self.assimilate_citizen(index);
             let city = &self.cities[index];
             if !city.bought_production {
                 self.cities[index].production = self.worklist_replacement(city, city.production);
@@ -791,7 +828,6 @@ impl Simulation {
             };
             if finished.is_some() {
                 city.protected_shields = surplus.min(city.shields);
-                self.reconcile_city_workers();
             }
             if let Some((target, shields)) = finished {
                 match target {
@@ -806,6 +842,9 @@ impl Simulation {
                         unit.home_city = Some(city_id);
                         unit.home_order = id;
                         unit.veteran = rank;
+                        if kind.stats().pop_cost > 0 {
+                            self.rebuild_city_ownership_for_city_event(city_id);
+                        }
                     }
                     Production::Building(building) => {
                         self.finish_building(city_id, snapshot.owner, building, shields)
@@ -827,15 +866,31 @@ impl Simulation {
             let refreshed = self.cities[index].size != snapshot.size
                 || matches!(finished, Some((Production::Building(building), _))
                     if matches!(building.data().genus, Genus::Improvement | Genus::SmallWonder | Genus::GreatWonder));
-            let illness_shields = if refreshed {
-                self.city_forecast(&self.cities[index]).shields
+            let production_forecast = refreshed.then(|| self.city_forecast(&self.cities[index]));
+            let post_build_happy = production_forecast
+                .as_ref()
+                .map_or(forecast.happy, |updated| updated.happy);
+            let initial_celebrating = self.base_city_celebrating(&snapshot) && forecast.happy;
+            let current_celebrating =
+                self.base_city_celebrating(&self.cities[index]) && post_build_happy;
+            if initial_celebrating || current_celebrating {
+                let rapture = self.city_rapture.entry(city_id).or_default();
+                *rapture = rapture.wrapping_add(1);
             } else {
-                forecast.shields
-            };
+                self.city_rapture.remove(&city_id);
+            }
+            self.cities[index].was_happy = forecast.happy || post_build_happy;
+            let illness_shields = production_forecast
+                .as_ref()
+                .map_or(forecast.shields, |updated| updated.shields);
             let plague = self.check_city_plague(index, illness_shields);
             let populated = self.cities[index].clone();
             let refreshed = refreshed || plague;
-            let growth_forecast = refreshed.then(|| self.city_forecast(&populated));
+            let growth_forecast = if plague {
+                Some(self.city_forecast(&populated))
+            } else {
+                production_forecast
+            };
             let food_surplus = growth_forecast.as_ref().map_or_else(
                 || forecast.food_surplus(populated.size, food_support.food),
                 |updated| updated.food_surplus(populated.size, updated.support.food),
@@ -848,10 +903,6 @@ impl Simulation {
                 None
             };
             let city = &mut self.cities[index];
-            city.was_happy = forecast.happy
-                || growth_forecast
-                    .as_ref()
-                    .is_some_and(|updated| updated.happy);
             let growth = city.resolve_growth(
                 food_surplus,
                 Self::city_size_limit(&populated),
@@ -871,7 +922,8 @@ impl Simulation {
                 }
                 let removed = self.cities.remove(index);
                 self.city_founders.remove(&removed.id);
-                self.rebuild_city_ownership();
+                self.city_rapture.remove(&removed.id);
+                self.rebuild_city_ownership_for_city_event(removed.id);
                 if snapshot.owner == HUMAN {
                     self.add_event(format!("Famine destroyed {} entirely.", snapshot.name));
                 }
@@ -890,18 +942,18 @@ impl Simulation {
             self.cities[index].bought_production = false;
             self.cities[index].sold_building = false;
             if growth != Growth::Unchanged {
-                self.reconcile_city_workers();
+                self.rebuild_city_ownership_for_city_event(city_id);
             }
             if snapshot.owner != BARBARIANS {
                 let city = &self.cities[index];
                 let income_refreshed =
                     refreshed || growth != Growth::Unchanged || starving_unit.is_some();
-                let income = if income_refreshed {
+                let income = if plague || growth != Growth::Unchanged || starving_unit.is_some() {
                     self.city_forecast(city)
                 } else {
-                    forecast
+                    growth_forecast.unwrap_or(forecast)
                 };
-                science_income[snapshot.owner] += income.science;
+                science_income += income.science;
                 let unit_gold = if income_refreshed {
                     self.city_gold_upkeep(city)
                 } else {
@@ -915,14 +967,18 @@ impl Simulation {
                 self.check_city_pollution(&city, income.shields);
             }
         }
-
         self.reconcile_city_workers();
-        for (owner, science) in science_income.into_iter().enumerate() {
-            if owner == BARBARIANS {
-                continue;
-            }
-            self.balance_unit_gold_upkeep(owner, &gold_paid);
-            self.resolve_research_turn(owner, science);
+        (science_income, gold_paid)
+    }
+
+    pub(super) fn finish_player_national_activities(
+        &mut self,
+        owner: usize,
+        income: (i32, Vec<(u32, i32)>),
+    ) {
+        if owner != BARBARIANS {
+            self.balance_unit_gold_upkeep(owner, &income.1);
+            self.resolve_research_turn(owner, income.0);
         }
     }
 }
@@ -952,6 +1008,7 @@ impl City {
             }
             let overflow = self.food - capacity;
             self.size += 1;
+            self.specialists[2] += 1; // Native default specialist before growth CM.
             self.food = self
                 .food
                 .min(overflow + percent_of(Simulation::growth_box(self.size), retained));
@@ -968,7 +1025,7 @@ impl City {
             return Growth::Destroyed;
         }
         self.size -= 1;
-        self.remove_specialists(1);
+        self.remove_citizen_assignments(1);
         self.food = percent_of(Simulation::growth_box(self.size), retained);
         Growth::Starved
     }
@@ -991,15 +1048,141 @@ impl City {
         self.size -= population;
         if population > 0 {
             self.food = self.food.min(Simulation::growth_box(self.size));
-            self.remove_specialists(population);
+            self.remove_citizen_assignments(population);
         }
         Some((self.production, cost))
+    }
+}
+
+impl Simulation {
+    pub(crate) fn city_worker_lifecycle_playtest(&self) -> (bool, bool, bool) {
+        let mut game = self.clone();
+        game.units.clear();
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Mountains;
+            tile.resource = None;
+            tile.road = false;
+            tile.railroad = false;
+            tile.river = false;
+            tile.irrigation = false;
+            tile.mine = false;
+            tile.owner = None;
+        }
+        game.players[HUMAN].government = Government::Communism;
+        game.players[HUMAN].known = vec![Tech::COMMUNISM];
+        let center = (12, 24);
+        let grass = offset_native_by_map(center.0, center.1, -1, 0);
+        let coal = [
+            offset_native_by_map(center.0, center.1, 1, 0),
+            offset_native_by_map(center.0, center.1, 0, 1),
+        ];
+        game.tile_mut(center.0, center.1).terrain = Terrain::Grassland;
+        game.tile_mut(grass.0, grass.1).terrain = Terrain::Grassland;
+        for (x, y) in coal {
+            game.tile_mut(x, y).terrain = Terrain::Hills;
+            game.tile_mut(x, y).resource = Some(Resource::Coal);
+        }
+        game.create_city(HUMAN, center.0, center.1);
+        let founded =
+            game.cities[0].worked_tiles == vec![grass] && game.cities[0].specialists == [0; 3];
+        game.cities[0].food = Self::growth_box(1) - 1;
+        game.process_cities();
+        let grew = game.cities[0].size == 2
+            && coal
+                .into_iter()
+                .all(|tile| game.cities[0].worked_tiles.contains(&tile))
+            && !game.cities[0].worked_tiles.contains(&grass)
+            && game.cities[0].specialists == [0; 3];
+        let id = game.cities[0].id;
+        game.reduce_city_population(0);
+        let reduced = game.cities[0].id == id
+            && game.cities[0].size == 1
+            && game.cities[0].worked_tiles == vec![grass]
+            && game.cities[0].specialists == [0; 3];
+        (founded, grew, reduced)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lifecycle_cm_replaces_existing_workers_when_population_weights_change() {
+        let game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(game.city_worker_lifecycle_playtest(), (true, true, true));
+    }
+
+    #[test]
+    fn city_events_preserve_other_manual_workers_and_normal_build_completion_does_not_arrange() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.resource = None;
+            tile.river = false;
+        }
+        game.create_city(HUMAN, 12, 24);
+        let manual = offset_native_by_map(12, 24, 1, 0);
+        game.tile_mut(manual.0, manual.1).terrain = Terrain::Mountains;
+        game.cities[0].worked_tiles = vec![manual];
+        game.cities[0].specialists = [0; 3];
+        game.create_city(HUMAN, 30, 60);
+        assert_eq!(game.cities[0].worked_tiles, vec![manual]);
+        game.cities[1].size = 2;
+        game.cities[1].specialists = [0, 0, 1];
+        game.reduce_city_population(1);
+        assert_eq!(game.cities[0].worked_tiles, vec![manual]);
+        game.players[HUMAN].known.push(Tech::POTTERY);
+        game.cities[0].production = Production::Building(Building::GRANARY);
+        game.cities[0].shields = 100;
+        game.cities[0].food = 10;
+        game.process_cities();
+        assert!(game.cities[0].has_building(Building::GRANARY));
+        assert_eq!(game.cities[0].size, 1);
+        assert_eq!(game.cities[0].worked_tiles, vec![manual]);
+    }
+
+    #[test]
+    fn population_loss_removes_specialists_before_native_city_index_workers() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 12, 24);
+        let city = &mut game.cities[0];
+        let mut tiles: Vec<_> = Simulation::city_radius(city)
+            .filter(|&(dx, dy, _, _)| (dx, dy) != (0, 0))
+            .collect();
+        tiles.sort_by_key(|&(dx, dy, _, _)| (isohex_vector_distance(dx, dy).pow(2), dx, dy));
+        let first = (tiles[0].2, tiles[0].3);
+        let second = (tiles[1].2, tiles[1].3);
+        city.size = 5;
+        city.specialists = [1, 1, 1];
+        city.worked_tiles = vec![second, first];
+        city.size -= 4;
+        city.remove_citizen_assignments(4);
+        assert_eq!(city.specialists, [0; 3]);
+        assert_eq!(city.worked_tiles, vec![second]);
+    }
+
+    #[test]
+    fn founding_consumes_the_unit_and_releases_its_guard_and_task_state() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        game.tile_mut(10, 24).terrain = Terrain::Grassland;
+        let founder = game.spawn_unit(HUMAN, UnitKind::Settlers, 10, 24);
+        let guard = game.spawn_unit(HUMAN, UnitKind::Phalanx, 10, 24);
+        assert!(game.assign_ai_guard(guard, guards::GuardTarget::Unit(founder)));
+        game.unit_goto_tiles.insert(founder, (10, 24));
+        game.ai_worker_tasks.insert(founder);
+        assert!(game.apply(Command::FoundCity(founder)));
+        assert!(!game.unit_goto_tiles.contains_key(&founder));
+        assert!(!game.ai_worker_tasks.contains(&founder));
+        assert!(!game.ai_unit_guards.contains_key(&founder));
+        assert!(!game.ai_guard_targets.contains_key(&guard));
+        assert!(game.validate_ai_guards());
+    }
 
     #[test]
     fn migrants_cost_population_and_obey_join_size_limits() {

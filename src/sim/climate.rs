@@ -40,6 +40,14 @@ impl Terrain {
 }
 
 impl Simulation {
+    pub(super) fn worker_climate_urgency(&self, target: Contamination) -> i32 {
+        let index = usize::from(target == Contamination::Fallout);
+        let pressure = self.climate_pressure[index];
+        // autoworkers.c: cached heating/cooling from the last environmental
+        // update, not a recount after workers have already cleaned tiles.
+        50 * self.climate_current[index] / ((pressure.level + 1) / 2).max(1) + pressure.accumulated
+    }
+
     pub(super) fn update_climate(&mut self) {
         for (index, contamination) in [Contamination::Pollution, Contamination::Fallout]
             .into_iter()
@@ -50,6 +58,8 @@ impl Simulation {
                 .iter()
                 .filter(|tile| tile.has_contamination(contamination))
                 .count() as i32;
+            // srv_main.c:update_environmental_upset, default percent=100.
+            self.climate_current[index] = count;
             let mut pressure = self.climate_pressure[index];
             pressure.accumulated += count;
             if pressure.accumulated < pressure.level {
@@ -120,6 +130,34 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worker_disaster_priority_uses_last_update_counts_until_the_next_update() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.climate_current = [6, 2];
+        game.climate_pressure = [
+            ClimatePressure {
+                accumulated: 3,
+                level: 5,
+            },
+            ClimatePressure {
+                accumulated: 1,
+                level: 4,
+            },
+        ];
+        for tile in &mut game.tiles {
+            tile.pollution = false;
+            tile.fallout = false;
+        }
+        // Removing contamination during a worker phase does not alter the
+        // environmental snapshot already supplied to that phase's advisor.
+        assert_eq!(game.worker_climate_urgency(Contamination::Pollution), 103);
+        assert_eq!(game.worker_climate_urgency(Contamination::Fallout), 51);
+        game.update_climate();
+        assert_eq!(game.climate_current, [0, 0]);
+        assert_eq!(game.worker_climate_urgency(Contamination::Pollution), 0);
+        assert_eq!(game.worker_climate_urgency(Contamination::Fallout), 0);
+    }
 
     #[test]
     fn climate_obeys_moisture_and_checks_the_fallback_only_when_blocked() {

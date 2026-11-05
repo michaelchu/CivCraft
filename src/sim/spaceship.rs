@@ -27,6 +27,10 @@ pub(super) struct Spaceship {
 }
 
 impl Spaceship {
+    pub(super) fn arrival_year(&self) -> Option<f64> {
+        self.arrival
+    }
+
     pub(super) fn launched(&self) -> bool {
         self.arrival.is_some()
     }

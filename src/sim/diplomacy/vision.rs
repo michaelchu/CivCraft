@@ -80,7 +80,7 @@ impl Simulation {
                 && (!unit.kind.uses_stealth_vision() || tile.stealth_visible))
     }
 
-    pub(super) fn vision_safe(&self, giver: usize, receiver: usize) -> bool {
+    pub(in crate::sim) fn vision_safe(&self, giver: usize, receiver: usize) -> bool {
         self.vision_recipients(receiver).into_iter().all(|third| {
             third == giver
                 || third == receiver

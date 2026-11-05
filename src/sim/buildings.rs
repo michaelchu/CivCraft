@@ -104,15 +104,44 @@ impl Simulation {
     }
 
     pub(crate) fn production_successor(&self, city: &City, kind: UnitKind) -> Option<UnitKind> {
-        kind.obsolete_by()
-            .iter()
-            .copied()
-            .find(|&candidate| self.unit_buildable(city, candidate))
+        self.available_unit_successor(city.owner, kind)
+    }
+
+    // Native obsolescence walks the entire chain using player requirements,
+    // independently of whether this particular city can launch the successor.
+    pub(super) fn available_unit_successor(
+        &self,
+        owner: usize,
+        kind: UnitKind,
+    ) -> Option<UnitKind> {
+        let mut next = kind.obsolete_by().first().copied();
+        let mut best = None;
+        while let Some(candidate) = next {
+            if self.unit_available(owner, candidate) {
+                best = Some(candidate);
+            }
+            next = candidate.obsolete_by().first().copied();
+        }
+        best
     }
 
     pub(super) fn unit_buildable(&self, city: &City, kind: UnitKind) -> bool {
         self.unit_available(city.owner, kind)
-            && (!kind.is_naval() || self.naval_city_access(city, kind))
+            && self.available_unit_successor(city.owner, kind).is_none()
+            && (kind.unit_class().build_anywhere()
+                || kind.is_aircraft()
+                || self.naval_city_access(city, kind))
+    }
+
+    // common/city.c:can_city_build_unit_later deliberately ignores the
+    // candidate's current technology/government requirements, but not an
+    // already available successor or the city's native terrain access.
+    pub(super) fn unit_buildable_later(&self, city: &City, kind: UnitKind) -> bool {
+        !kind.has_no_build()
+            && self.available_unit_successor(city.owner, kind).is_none()
+            && (kind.unit_class().build_anywhere()
+                || kind.is_aircraft()
+                || self.naval_city_access(city, kind))
     }
 
     fn building_requirement_met(
@@ -313,7 +342,9 @@ mod tests {
         game.process_cities();
         assert_eq!(game.units.len(), units);
         assert!(game.cities[0].buildings.contains(&library));
-        assert_eq!(game.city_trade(&game.cities[0], 10), [9, 4, 0]);
+        // Library adds 50% science; the starting Despotism capital adds
+        // 75% gold through its Palace (6*1.5=9 and 4*1.75=7).
+        assert_eq!(game.city_trade(&game.cities[0], 10), [9, 7, 0]);
         assert_eq!(game.building_upkeep(&game.cities[0]), library.data().upkeep);
         assert!(!game.can_produce(&game.cities[0], target));
         assert!(game.apply(Command::Produce(id, university)));

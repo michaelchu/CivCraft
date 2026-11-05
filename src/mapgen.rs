@@ -6,6 +6,7 @@ const INITIAL_DIVISIONS: i32 = 6;
 
 pub(crate) struct GeneratedMap {
     pub(crate) seed: u64,
+    pub(crate) game_random: crate::sim::FreecivRng,
     pub(crate) tiles: Vec<Tile>,
     pub(crate) starts: [(i32, i32); PLAYER_COUNT],
 }
@@ -890,8 +891,12 @@ pub(crate) fn generate(seed: u64) -> GeneratedMap {
             start_rng.draw(u32::MAX);
         }
         if let Some(starts) = start_positions(&terrain, &tiles, &temperature, &mut start_rng) {
+            let game_random =
+                crate::sim::FreecivRng::from_map_state(start_rng.values, start_rng.next)
+                    .expect("map RNG cursor is valid");
             return GeneratedMap {
                 seed,
+                game_random,
                 tiles,
                 starts,
             };
@@ -903,6 +908,22 @@ pub(crate) fn generate(seed: u64) -> GeneratedMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn map_cursor_conversion_continues_the_same_native_stream() {
+        for seed in [0, 42, u64::MAX] {
+            let mut map = MapRng::new(seed);
+            // Cross many ring boundaries and rejection-heavy ranges.
+            for _ in 0..137 {
+                map.draw(2_147_483_649);
+            }
+            let mut game = crate::sim::FreecivRng::from_map_state(map.values, map.next).unwrap();
+            for limit in [0, 1, 2, 3, 100, 2_147_483_649, u32::MAX].repeat(23) {
+                assert_eq!(game.draw(limit), map.draw(limit));
+            }
+        }
+        assert!(crate::sim::FreecivRng::from_map_state([0; 56], 56).is_err());
+    }
 
     #[test]
     fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {

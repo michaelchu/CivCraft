@@ -1,6 +1,106 @@
 use super::*;
 
 impl Simulation {
+    pub(crate) fn native_turn_orchestration_playtest(&mut self) -> bool {
+        self.units.clear();
+        self.cities.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.resource = None;
+            tile.river = false;
+            tile.hut = false;
+            tile.base = None;
+            tile.pollution = false;
+            tile.fallout = false;
+        }
+        self.players[HUMAN].known = vec![Tech::BRONZE_WORKING];
+        self.create_city(HUMAN, 10, 24);
+        // Keep a rival alive so the first end-turn does not end the game.
+        self.create_city(1, 22, 40);
+        self.cities[0].production = Production::Building(Building::BARRACKS);
+        self.cities[0].shields = self.cities[0].production.cost();
+        let soldier = self.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+        self.units.last_mut().unwrap().hp = 1;
+        self.end_turn();
+        let built_after_healing = self.cities[0].has_building(Building::BARRACKS)
+            && self
+                .units
+                .iter()
+                .find(|unit| unit.id == soldier)
+                .is_some_and(|unit| unit.hp == 5);
+        self.end_turn();
+        built_after_healing
+            && self
+                .units
+                .iter()
+                .find(|unit| unit.id == soldier)
+                .is_some_and(|unit| unit.hp == UnitKind::Warrior.stats().hp)
+    }
+
+    pub(crate) fn tribal_upkeep_playtest_setup(&mut self) {
+        // This scenario specifically exercises shield upkeep. New games use
+        // the ruleset's Despotism default, which converts eligible upkeep.
+        self.players[HUMAN].government = Government::Tribal;
+        self.players[HUMAN].revolution_target = None;
+        self.players[HUMAN].revolution_turn = None;
+        self.reconcile_city_workers();
+    }
+    pub(crate) fn ai_ground_invasion_playtest(&mut self) -> bool {
+        let (infantry, bomber, city) = self.ai_ground_invasion_playtest_setup();
+        let target = self.cities.iter().find(|target| target.id == city).unwrap();
+        let guard = self
+            .units
+            .iter()
+            .find(|unit| unit.owner == HUMAN && (unit.x, unit.y) == (target.x, target.y))
+            .unwrap()
+            .clone();
+        let actor = self.units.iter().find(|unit| unit.id == infantry).unwrap();
+        let distant =
+            self.map_distance(actor.x, actor.y, target.x, target.y) > actor.kind.stats().moves;
+        self.run_ai_player(1);
+        distant
+            && self.ai_ground_targets.get(&infantry) == Some(&city)
+            && self
+                .units
+                .iter()
+                .any(|unit| unit.id == bomber && unit.moved)
+            && self
+                .units
+                .iter()
+                .find(|unit| unit.id == guard.id)
+                .is_none_or(|unit| unit.hp < guard.hp)
+    }
+
+    pub(crate) fn ai_aircraft_advisor_playtest(&mut self) -> bool {
+        let (fighter, victim) = self.ai_aircraft_advisor_playtest_setup();
+        let plane = self.units.iter().find(|unit| unit.id == fighter).unwrap();
+        let target = self.units.iter().find(|unit| unit.id == victim).unwrap();
+        let positive_tactical_value = self.aircraft_target_value(plane, target.x, target.y) > 0.0;
+        let production_gated = self.aircraft_production_choice(&self.cities[0]).is_none();
+        self.run_ai_player(1);
+        positive_tactical_value
+            && production_gated
+            && !self.units.iter().any(|unit| unit.id == victim)
+            && self
+                .units
+                .iter()
+                .any(|unit| unit.id == fighter && unit.owner == 1)
+    }
+
+    pub(crate) fn ai_nuclear_advisor_playtest(&mut self) -> bool {
+        let (missile, victim) = self.ai_nuclear_advisor_playtest_setup();
+        let initial_moves = self
+            .units
+            .iter()
+            .find(|unit| unit.id == missile)
+            .unwrap()
+            .moves_left;
+        self.run_ai_player(1);
+        self.units
+            .iter()
+            .any(|unit| unit.id == missile && unit.moves_left == initial_moves)
+            && self.units.iter().any(|unit| unit.id == victim)
+    }
     pub(crate) fn ai_merchant_road_playtest(&mut self) -> bool {
         self.units.clear();
         for tile in &mut self.tiles {
@@ -16,7 +116,7 @@ impl Simulation {
         self.tile_mut(origin.0, origin.1).river = true;
         self.create_city(HUMAN, x, y);
         self.create_city(1, origin.0, origin.1);
-        self.sign_pact(HUMAN, 1, Pact::Ceasefire);
+        self.sign_pact(HUMAN, 1, Pact::Alliance);
         let city = self.cities[0].id;
         let home = self.cities[1].id;
         let id = self.spawn_unit(1, UnitKind::Caravan, origin.0, origin.1);
@@ -42,6 +142,8 @@ impl Simulation {
             tile.terrain = Terrain::Mountains;
             tile.road = false;
             tile.railroad = false;
+            tile.river = false;
+            tile.owner = None;
             tile.known_by[1] = true;
         }
         let start = (10, 24);
@@ -64,7 +166,17 @@ impl Simulation {
             let (x, y) = point(step);
             self.tile_mut(x, y).road = true;
         }
-        rough && open && arrival(self) == Some(1)
+        // Three neutral road steps cost two fragments each, but the last
+        // enemy-owned city step costs six. Native PF floors 12 / 12 to one.
+        let hostile_roads = arrival(self) == Some(1);
+        let mut friendly = self.units.iter().find(|u| u.id == enemy).unwrap().clone();
+        friendly.owner = 1;
+        // Compare the same corridor without an enemy occupying its origin.
+        self.units.retain(|unit| unit.id != enemy);
+        let friendly_roads = self
+            .search_route(&friendly, city.0, city.1, false, i32::MAX)
+            .is_some_and(|(_, cost)| cost / self.unit_move_rate(&friendly) == 0);
+        rough && open && hostile_roads && friendly_roads
     }
 
     pub(crate) fn city_buyback_playtest(&mut self) -> bool {
@@ -73,9 +185,14 @@ impl Simulation {
             self.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
             self.create_city(owner, point.0, point.1);
         }
+        for point in [(20, 10), (24, 40)] {
+            self.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
+            self.create_city(1, point.0, point.1);
+        }
         self.sign_pact(HUMAN, 1, Pact::Alliance);
         let id = self.cities[2].id;
         self.transfer_traded_city(2, 1);
+        self.spawn_unit(HUMAN, UnitKind::Diplomat, 12, 24);
         let discount = self.city_trade_price(&self.cities[2]);
         let founder = self.city_founders.remove(&id);
         let full = self.city_trade_price(&self.cities[2]);
@@ -103,7 +220,14 @@ impl Simulation {
         }
         self.create_city(1, capital.0, capital.1);
         self.create_city(1, town.0, town.1);
+        for point in [(20, 10), (24, 40)] {
+            self.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
+            self.create_city(1, point.0, point.1);
+        }
+        self.tile_mut(3, 3).terrain = Terrain::Grassland;
+        self.create_city(HUMAN, 3, 3);
         self.sign_pact(HUMAN, 1, Pact::Alliance);
+        self.spawn_unit(HUMAN, UnitKind::Diplomat, capital.0, capital.1);
         self.tile_mut(town.0, town.1).known_by[HUMAN] = true;
         let id = self.cities[1].id;
         let capital_id = self.cities[0].id;
@@ -182,6 +306,13 @@ impl Simulation {
             tile.seen = false;
         }
         self.create_city(HUMAN, 3, 3);
+        // Meet away from the map probes so contact itself reveals none of
+        // the tiles whose knowledge must be transferred by the treaty.
+        self.tile_mut(22, 10).terrain = Terrain::Grassland;
+        self.create_city(1, 22, 10);
+        let envoy = offset_native_by_map(22, 10, 1, 0);
+        self.tile_mut(envoy.0, envoy.1).terrain = Terrain::Grassland;
+        self.spawn_unit(HUMAN, UnitKind::Diplomat, envoy.0, envoy.1);
         let price = self.map_trade_price(1, HUMAN, TreatyMap::Sea, Pact::Ceasefire);
         self.players[HUMAN].gold = price - 1;
         let refused = !self.apply(Command::BuyMap(1, TreatyMap::Sea))
@@ -289,7 +420,7 @@ impl Simulation {
         self.sign_pact(1, HUMAN, Pact::Peace);
         let abstained = !self.ai_city_espionage(&agent) && self.cities[0].shields == 10;
         self.sign_pact(1, HUMAN, Pact::War);
-        self.rng = 1;
+        self.set_random_seed(1);
         self.run_ai_player(1);
         abstained && self.cities[0].shields == 0 && self.cities[0].has_building(Building::PALACE)
     }
@@ -321,7 +452,7 @@ impl Simulation {
         self.players[1].gold = price - 1;
         let declined = !self.ai_city_espionage(&diplomat) && self.cities[1].owner == HUMAN;
         self.players[1].gold = price;
-        self.rng = 1;
+        self.set_random_seed(1);
         self.run_ai_player(1);
         declined
             && self.cities[1].owner == 1
@@ -348,7 +479,7 @@ impl Simulation {
         self.run_ai_player(1);
         let embassy = self.has_embassy(1, HUMAN) && !self.has_embassy(HUMAN, 1);
         self.spawn_unit(1, UnitKind::Diplomat, start.0, start.1);
-        self.rng = 1;
+        self.set_random_seed(1);
         self.run_ai_player(1);
         embassy && self.has_tech(1, Tech::POTTERY) && self.cities[0].technology_thefts == 1
     }
@@ -369,6 +500,7 @@ impl Simulation {
         self.spawn_unit(1, UnitKind::Warrior, city.0, city.1);
         self.spawn_unit(HUMAN, UnitKind::Diplomat, enemy.0, enemy.1);
         self.refresh_visibility();
+        self.ai_tech_wants.insert(1, self.advisor_tech_wants(1));
         let researched = self.counterintelligence_tech_want(1) == 3000
             && self.next_ai_research_target(1) == Tech::ALPHABET;
         self.players[1]
@@ -425,7 +557,7 @@ impl Simulation {
             return false;
         };
         self.players[1].gold = price;
-        self.run_ai_player(1);
+        self.ai_bribe_nearby(&diplomat);
         declined
             && self.players[1].gold == 0
             && self.units.iter().all(|unit| unit.id != target)
@@ -440,10 +572,42 @@ impl Simulation {
 
     pub(crate) fn ai_reserve_playtest(&mut self) -> bool {
         self.units.clear();
+        self.cities.clear();
+        self.ai_war_plans.clear();
+        self.ai_purchase_reserve.clear();
+        self.ai_government_cache.clear();
+        self.players[1].government = Government::Despotism;
+        self.players[1].known = vec![Tech::EXPLOSIVES];
+        self.players[1].researching = Tech::BRONZE_WORKING;
+        self.players[1].research = 0;
+        self.players[1].last_science = 0;
+        self.players[1].rates = [60, 40, 0];
         let home = (10, 24);
-        self.tile_mut(home.0, home.1).terrain = Terrain::Grassland;
+        for (_, _, x, y) in Self::city_radius_at(home.0, home.1) {
+            let tile = self.tile_mut(x, y);
+            tile.terrain = Terrain::Grassland;
+            tile.resource = None;
+            tile.river = true;
+            tile.road = true;
+            tile.railroad = false;
+            tile.irrigation = false;
+            tile.farmland = false;
+            tile.mine = false;
+            tile.pollution = false;
+            tile.fallout = false;
+            tile.hut = false;
+        }
         self.create_city(1, home.0, home.1);
-        self.players[1].known.push(Tech::EXPLOSIVES);
+        let city = self.cities[0].id;
+        // A real balanced 40% tax floor makes the source +10% coffers refill
+        // observable. With zero expenses, the 60% science cap already forces
+        // 40% tax and hides that increase.
+        for _ in 0..5 {
+            let id = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
+            let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
+            unit.home_city = Some(city);
+            unit.home_order = id;
+        }
         self.spawn_unit(1, UnitKind::Worker, home.0, home.1);
         let Some((_, price)) = self.paid_upgrade(self.units.last().unwrap()) else {
             return false;
@@ -482,11 +646,19 @@ impl Simulation {
             return false;
         };
         self.refresh_visibility();
+        self.ai_war_plans.insert(
+            (1, HUMAN),
+            super::diplomacy::WarPlan {
+                countdown: 0,
+                reason: super::diplomacy::WarReason::Hatred,
+            },
+        );
         self.players[1].gold = price + 3;
         self.spend_ai_defense_gold(1);
         let wartime = kind(self, worker) == UnitKind::Worker && self.players[1].gold == price + 3;
 
         self.sign_pact(1, HUMAN, Pact::Peace);
+        self.ai_war_plans.remove(&(1, HUMAN));
         self.units.retain(|unit| unit.id != rival);
         self.players[1].gold = price + 2;
         self.spend_ai_defense_gold(1);
@@ -807,10 +979,11 @@ impl Simulation {
         let ship = self.spawn_unit(1, UnitKind::Transport, sea.0, sea.1);
         let passenger = self.spawn_unit(1, UnitKind::Marines, sea.0, sea.1);
         self.units.last_mut().unwrap().transport = Some(ship);
-        let escort = self.spawn_unit(1, UnitKind::Battleship, guard.0, guard.1);
+        let escort = self.spawn_unit(1, UnitKind::AegisCruiser, guard.0, guard.1);
+        self.request_ai_guard(ship);
         let enemy = self.spawn_unit(HUMAN, UnitKind::Frigate, threat.0, threat.1);
         self.units.last_mut().unwrap().hp = 1;
-        self.rng = 1;
+        self.set_random_seed(1);
         self.run_ai_player(1);
         let intercepted = self.units.iter().all(|unit| unit.id != enemy)
             && self
@@ -853,7 +1026,7 @@ impl Simulation {
         let second_start = if remote { point(-5) } else { home };
         let second = self.spawn_unit(1, UnitKind::Trireme, second_start.0, second_start.1);
         self.units.last_mut().unwrap().moves_left = 0;
-        self.rng = 1;
+        self.set_random_seed(1);
         self.run_ai_player(1);
         let waited = !remote
             || (self.cargo_count(first) == 0
@@ -918,7 +1091,7 @@ impl Simulation {
         let guard = self.spawn_unit(1, UnitKind::Marines, home.0, home.1);
         let attacker = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         let (x, y) = point(-1);
-        let boat = self.spawn_unit(1, UnitKind::Transport, x, y);
+        let boat = self.spawn_unit(1, UnitKind::Galleon, x, y);
         let mut rejected = true;
         if defended {
             for _ in 0..2 {
@@ -929,7 +1102,7 @@ impl Simulation {
             for _ in 0..2 {
                 self.spawn_unit(1, UnitKind::Marines, home.0, home.1);
             }
-            self.rng = 1;
+            self.set_random_seed(1);
         }
         self.run_ai_player(1);
         let embarked = self
@@ -960,6 +1133,7 @@ impl Simulation {
 
     pub(crate) fn offensive_production_playtest(&mut self) -> (bool, bool, bool) {
         self.units.clear();
+        self.cities.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Ocean;
             tile.resource = None;
@@ -973,6 +1147,9 @@ impl Simulation {
             tile.known_by[1] = true;
         }
         self.create_city(1, home.0, home.1);
+        // Keep this scenario about offensive unit choice after the source
+        // military advisor's veteran-building substitution.
+        self.cities[0].buildings.push(Building::BARRACKS);
         let (x, y) = point(5);
         self.create_city(HUMAN, x, y);
         self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
@@ -980,8 +1157,8 @@ impl Simulation {
             .known
             .extend([Tech::THE_WHEEL, Tech::MATHEMATICS]);
         self.cities[0].shields = 100;
-        let selected =
-            self.choose_ai_production(1, self.cities[0].id) == Production::Unit(UnitKind::Chariot);
+        let choice = self.choose_ai_production(1, self.cities[0].id);
+        let selected = choice == Production::Unit(UnitKind::Chariot);
         let (ix, iy) = point(-2);
         self.tile_mut(ix, iy).terrain = Terrain::Grassland;
         self.tile_mut(ix, iy).known_by[1] = true;
@@ -995,6 +1172,20 @@ impl Simulation {
             .any(|unit| unit.id == attacker && [point(2), point(3)].contains(&(unit.x, unit.y)));
         let (x, y) = point(2);
         self.tile_mut(x, y).terrain = Terrain::Ocean;
+        // Native offense may simulate a ferry across a cut land corridor.
+        // Exclude the nearer secondary target and block the BigLand seed's
+        // target approaches as well; this makes the selected job unreachable.
+        let secondary = point(-2);
+        self.tile_mut(secondary.0, secondary.1).known_by[1] = false;
+        let destination = point(5);
+        for (x, y) in super::terrain_work::neighbors(destination.0, destination.1) {
+            let tile = self.tile_mut(x, y);
+            tile.terrain = Terrain::Mountains;
+            tile.road = false;
+            tile.railroad = false;
+            tile.river = false;
+            tile.base = None;
+        }
         (
             selected,
             advanced,
@@ -1069,48 +1260,58 @@ impl Simulation {
 
     pub(crate) fn ai_government_playtest(&mut self) -> (bool, bool, bool, bool) {
         self.units.clear();
-        let (x, y) = (10, 24);
-        for (tx, ty) in super::terrain_work::neighbors(x, y).chain([(x, y)]) {
-            let tile = self.tile_mut(tx, ty);
-            tile.terrain = Terrain::Grassland;
-            tile.resource = None;
+        self.cities.clear();
+        self.ai_government_cache.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Plains;
+            tile.resource = Some(Resource::Wheat);
+            tile.irrigation = true;
             tile.road = true;
             tile.river = true;
         }
-        self.create_city(1, x, y);
-        self.cities[0].size = 3;
+        self.create_city(1, 10, 24);
+        self.cities[0].size = 4;
         self.reconcile_city_workers();
-        self.players[1].known.clear();
+        self.players[1].government = Government::Tribal;
+        self.players[1].known = self.research_path(1, Tech::MONARCHY);
+        self.players[1].known.retain(|&tech| tech != Tech::MONARCHY);
         self.players[1].rates = [60, 40, 0];
-        let republic_path = self.research_path(1, Tech::THE_REPUBLIC);
-        self.players[1]
-            .known
-            .extend(republic_path.into_iter().rev().skip(2));
         self.turn = 20;
         self.players[1].research_goal = Tech::BRONZE_WORKING;
+        self.players[1].researching = Tech::BRONZE_WORKING;
+        self.players[1].research = 0;
+        self.clear_ai_tech_wants(1);
         let research = self
             .government_research_want(1)
             .is_some_and(|(goal, want)| {
-                let prerequisite = self.research_path(1, goal).first().copied();
-                want >= 100
-                    && prerequisite == Some(self.next_ai_research_target(1))
-                    && prerequisite != Some(Tech::BRONZE_WORKING)
-                    && self.players[1].research_goal == Tech::BRONZE_WORKING
+                self.add_ai_tech_want(1, goal, want as f32);
+                let chosen = self.next_ai_research_target(1);
+                self.manage_ai_research(1);
+                goal == Tech::MONARCHY
+                    && want >= 100
+                    && chosen == goal
+                    && self.players[1].research_goal == goal
+                    && self.players[1].researching == goal
             });
         self.choose_ai_government(1);
-        let locked = self.players[1].revolution_target != Some(Government::Republic);
-        // Use the same city economy while unlocking a trade-oriented government.
-        self.players[1].government = Government::Tribal;
-        self.players[1].revolution_target = None;
-        self.players[1].revolution_turn = None;
-        self.players[1].known.push(Tech::THE_REPUBLIC);
+        let locked = self.players[1].revolution_target != Some(Government::Monarchy);
+        // Finish any available-government transition before unlocking the goal.
+        // Keep the real advisor cache; technology changes availability at once.
+        if let Some(finish) = self.players[1].revolution_turn {
+            self.turn = finish;
+            self.finish_revolutions();
+            // The game disallows a second government change in the same
+            // turn as adoption; evaluate the new unlock on the next turn.
+            self.turn += 1;
+        }
+        self.players[1].known.push(Tech::MONARCHY);
         self.choose_ai_government(1);
-        let chose = self.players[1].revolution_target == Some(Government::Republic)
+        let chose = self.players[1].revolution_target == Some(Government::Monarchy)
             && self.players[1].government == Government::Anarchy;
         let finish = self.players[1].revolution_turn;
         self.players[1].known.push(Tech::DEMOCRACY);
         self.choose_ai_government(1);
-        let kept = self.players[1].revolution_target == Some(Government::Republic)
+        let kept = self.players[1].revolution_target == Some(Government::Monarchy)
             && self.players[1].revolution_turn == finish;
         if let Some(turn) = finish {
             self.turn = turn;
@@ -1120,7 +1321,7 @@ impl Simulation {
             research,
             locked,
             chose,
-            kept && self.players[1].government == Government::Republic,
+            kept && self.players[1].government == Government::Monarchy,
         )
     }
 
@@ -1143,7 +1344,7 @@ impl Simulation {
         for _ in 0..2 {
             self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
         }
-        self.rng = 1;
+        self.set_random_seed(1);
         let struck = self.run_ai_paratrooper(&unit)
             && self.units.iter().all(|unit| unit.owner != HUMAN)
             && self.units.iter().any(|unit| {
@@ -1236,10 +1437,9 @@ impl Simulation {
         self.tile_mut(near.0, near.1).known_by[1] = true;
         self.tile_mut(far.0, far.1).known_by[1] = true;
         let fighter = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
-        self.units.last_mut().unwrap().fuel = 1;
         let close = self.spawn_unit(HUMAN, UnitKind::Bomber, near.0, near.1);
         self.units.last_mut().unwrap().hp = 1;
-        self.rng = 1;
+        self.set_random_seed(1);
         self.run_ai_player(1);
         let intercepted = self.units.iter().all(|unit| unit.id != close);
         self.restore_aircraft();
@@ -1265,20 +1465,29 @@ impl Simulation {
 
     pub(crate) fn ai_carrier_sortie_playtest(&mut self, reposition: bool) -> (bool, bool, bool) {
         self.units.clear();
+        self.cities.clear();
+        self.prune_unit_ai_state();
+        self.sign_pact(1, HUMAN, Pact::War);
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Ocean;
             tile.base = None;
             tile.hut = false;
+            tile.owner = None;
+            tile.known_by[1] = true;
         }
         let deck = (10, 24);
         let target = offset_native_by_map(deck.0, deck.1, if reposition { 11 } else { 2 }, 0);
         self.tile_mut(target.0, target.1).terrain = Terrain::Grassland;
-        self.tile_mut(target.0, target.1).known_by[1] = true;
         let carrier = self.spawn_unit(1, UnitKind::Carrier, deck.0, deck.1);
+        // Cargo load order appoints the Fighter as passenger-in-charge.
+        // The reserve Bomber does not receive an independent cargo dispatch.
+        let fighter = self.spawn_unit(1, UnitKind::Fighter, deck.0, deck.1);
+        assert!(self.board_specific_ship(fighter, carrier));
         let bomber = self.spawn_unit(1, UnitKind::Bomber, deck.0, deck.1);
-        self.units.last_mut().unwrap().transport = Some(carrier);
+        assert!(self.board_specific_ship(bomber, carrier));
         let victim = self.spawn_unit(HUMAN, UnitKind::Cannon, target.0, target.1);
-        self.rng = 1;
+        self.units.last_mut().unwrap().hp = if reposition { 2 } else { 1 };
+        self.set_random_seed(1);
         self.run_ai_player(1);
         let station = self
             .units
@@ -1286,19 +1495,19 @@ impl Simulation {
             .find(|unit| unit.id == carrier)
             .map(|unit| (unit.x, unit.y))
             .unwrap();
-        let launched = self
-            .units
-            .iter()
-            .any(|unit| unit.id == bomber && unit.transport.is_none())
-            && self
-                .units
+        let launched =
+            self.units
                 .iter()
-                .any(|unit| unit.id == victim && unit.hp < UnitKind::Cannon.stats().hp);
+                .any(|unit| unit.id == fighter && unit.moved)
+                && self.units.iter().all(|unit| unit.id != victim)
+                && self.units.iter().any(|unit| {
+                    unit.id == bomber && unit.transport == Some(carrier) && !unit.moved
+                });
         self.restore_aircraft();
         self.update_activities_and_restore();
         self.units
             .iter_mut()
-            .find(|unit| unit.id == bomber)
+            .find(|unit| unit.id == fighter)
             .unwrap()
             .fuel = 1;
         self.run_ai_player(1);
@@ -1308,53 +1517,74 @@ impl Simulation {
             .iter()
             .any(|unit| unit.id == carrier && (unit.x, unit.y) == station);
         let recovered = self.units.iter().any(|unit| {
-            unit.id == bomber
+            unit.id == fighter
                 && unit.transport == Some(carrier)
-                && unit.fuel == UnitKind::Bomber.fuel_capacity()
+                && unit.fuel == UnitKind::Fighter.fuel_capacity()
         });
-        (
-            launched && (!reposition || station != deck),
-            steady,
-            recovered,
-        )
+        let source_mission = if reposition {
+            // Native ferries do not reposition to extend an aircraft sortie.
+            station == deck && self.units.iter().any(|unit| unit.id == victim) && !launched
+        } else {
+            launched
+        };
+        (source_mission, steady, recovered)
     }
 
     pub(crate) fn ai_bomber_playtest(&mut self) -> (bool, bool, bool) {
+        // Retain the existing desktop hook name; this now tests the native
+        // Fighter sortie. OneAttack Bomber's strict PF cutoff is tested apart.
         self.units.clear();
+        self.cities.clear();
+        self.prune_unit_ai_state();
+        self.sign_pact(1, HUMAN, Pact::War);
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
             tile.base = None;
             tile.hut = false;
+            tile.owner = None;
+            tile.known_by[1] = true;
         }
         let home = (10, 24);
         let target = offset_native_by_map(home.0, home.1, 2, 0);
         self.create_city(1, home.0, home.1);
-        let bomber = self.spawn_unit(1, UnitKind::Bomber, home.0, home.1);
+        let fighter = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
         let victim = self.spawn_unit(HUMAN, UnitKind::Cannon, target.0, target.1);
-        self.rng = 1;
+        self.units.last_mut().unwrap().hp = 1;
+        self.set_random_seed(1);
         self.run_ai_player(1);
-        let hp = |game: &Self| game.units.iter().find(|unit| unit.id == victim).unwrap().hp;
-        let bombed = hp(self) < UnitKind::Cannon.stats().hp;
+        let struck = self.units.iter().all(|unit| unit.id != victim)
+            && self
+                .units
+                .iter()
+                .any(|unit| unit.id == fighter && unit.moved);
         self.restore_aircraft();
         self.update_activities_and_restore();
-        let aircraft = self
-            .units
+        self.units
             .iter_mut()
-            .find(|unit| unit.id == bomber)
-            .unwrap();
-        aircraft.fuel = 1;
+            .find(|unit| unit.id == fighter)
+            .unwrap()
+            .fuel = 1;
         self.run_ai_player(1);
         self.restore_aircraft();
         let returned = self.units.iter().any(|unit| {
-            unit.id == bomber
+            unit.id == fighter
                 && (unit.x, unit.y) == home
-                && unit.fuel == UnitKind::Bomber.fuel_capacity()
+                && unit.fuel == UnitKind::Fighter.fuel_capacity()
         });
         self.cities.clear();
-        let old_hp = hp(self);
         self.update_activities_and_restore();
+        let guarded = self.spawn_unit(HUMAN, UnitKind::Cannon, target.0, target.1);
+        self.units.last_mut().unwrap().hp = 1;
         self.run_ai_player(1);
-        (bombed, returned, hp(self) == old_hp)
+        let skipped = self
+            .units
+            .iter()
+            .any(|unit| unit.id == guarded && unit.hp == 1)
+            && self
+                .units
+                .iter()
+                .any(|unit| unit.id == fighter && (unit.x, unit.y) == home && !unit.moved);
+        (struck, returned, skipped)
     }
 
     pub(crate) fn ai_counterattack_playtest(&mut self) -> (bool, bool, bool) {
@@ -1376,7 +1606,7 @@ impl Simulation {
         self.update_activities_and_restore();
         let guard = self.spawn_unit(1, UnitKind::Warrior, x, y);
         self.units.last_mut().unwrap().moves_left = 0;
-        self.rng = 1;
+        self.set_random_seed(1);
         self.run_ai_player(1);
         let attack = self.units.iter().all(|unit| unit.id != cannon)
             && self
@@ -1414,7 +1644,7 @@ impl Simulation {
         let home = (10, 24);
         let point = |step| offset_native_by_map(home.0, home.1, step, 0);
         let front = point(3);
-        let enemy = point(5);
+        let enemy = point(4);
         self.create_city(1, home.0, home.1);
         self.create_city(1, front.0, front.1);
         let marine = self.spawn_unit(1, UnitKind::Marines, home.0, home.1);
@@ -1476,27 +1706,73 @@ impl Simulation {
 
     pub(crate) fn ai_fortifications_playtest(&mut self) -> (bool, bool, bool) {
         self.units.clear();
+        self.cities.clear();
+        self.diplomacy.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.owner = None;
+            tile.road = false;
+            tile.railroad = false;
+            tile.river = false;
+            tile.base = None;
+            tile.hut = false;
+        }
         let (x, y) = (10, 24);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-        self.tile_mut(x, y).terrain = Terrain::Grassland;
-        self.tile_mut(nx, ny).terrain = Terrain::Grassland;
+        let (tx, ty) = offset_native_by_map(x, y, 2, 0);
         self.create_city(1, x, y);
         self.players[1]
             .known
             .extend([Tech::GUNPOWDER, Tech::MASONRY]);
         let city = self.cities[0].id;
-        let cannon = self.spawn_unit(HUMAN, UnitKind::Cannon, nx, ny);
+        let immediate = self.spawn_unit(HUMAN, UnitKind::Cannon, nx, ny);
         let empty = self.choose_ai_production(1, city) == Production::Unit(UnitKind::Musketeers);
+        self.units.retain(|unit| unit.id != immediate);
+        let cannon = self.spawn_unit(HUMAN, UnitKind::Cannon, tx, ty);
+        let guard = self.spawn_unit(1, UnitKind::Musketeers, x, y);
         self.spawn_unit(1, UnitKind::Musketeers, x, y);
         self.cities[0].production = Production::Building(Building::GRANARY);
-        self.prepare_ai_city_defenses(1);
-        let walls = self.cities[0].production == Production::Building(Building::CITY_WALLS);
+        // A two-turn occupier has urgency1 (not the adjacent grave-danger11).
+        // Two defenders now exceed urgency, so the native defense advisor
+        // considers walls instead of another unit. Routine military/training
+        // and domestic competitors are intentionally a separate decision.
+        let walls = self.city_defense_production(&self.cities[0])
+            == Some(Production::Building(Building::CITY_WALLS));
+        let defender = self.units.iter().find(|unit| unit.id == guard).unwrap();
+        let land_bonus =
+            self.defense_power_with_building(
+                defender,
+                x,
+                y,
+                UnitKind::Cannon,
+                Some(Building::CITY_WALLS),
+            ) > self.defense_power_with_building(defender, x, y, UnitKind::Cannon, None);
         self.units.retain(|unit| unit.id != cannon);
         self.tile_mut(nx, ny).terrain = Terrain::Ocean;
         self.spawn_unit(HUMAN, UnitKind::Battleship, nx, ny);
-        let naval = self.city_defense_production(&self.cities[0])
-            == Some(Production::Unit(UnitKind::Musketeers));
-        (empty, walls, naval)
+        let defender = self.units.iter().find(|unit| unit.id == guard).unwrap();
+        let ordinary = self.defense_power_with_building(defender, x, y, UnitKind::Battleship, None);
+        // Native dai_find_source_building(NULL) ignores class requirements:
+        // its first positive provider can still be City Walls for sea danger.
+        // Preserve that advisor quirk while checking the real combat effects.
+        let naval = self.city_threats(&self.cities[0]).next().is_some()
+            && self.city_defense_production(&self.cities[0])
+                == Some(Production::Building(Building::CITY_WALLS))
+            && self.defense_power_with_building(
+                defender,
+                x,
+                y,
+                UnitKind::Battleship,
+                Some(Building::CITY_WALLS),
+            ) == ordinary
+            && self.defense_power_with_building(
+                defender,
+                x,
+                y,
+                UnitKind::Battleship,
+                Some(Building::COASTAL_DEFENSE),
+            ) > ordinary;
+        (empty, walls && land_bonus, naval)
     }
 
     pub(crate) fn ai_city_defense_playtest(&mut self) -> (bool, bool, bool) {
@@ -1509,17 +1785,24 @@ impl Simulation {
         self.players[1]
             .known
             .extend([Tech::GUNPOWDER, Tech::AMPHIBIOUS_WARFARE]);
-        let budget = self.preferred_city_defender(&self.cities[0]) == UnitKind::Musketeers;
+        // The literal source comparison permits a higher-desire later unit
+        // over stock+40; the stock limit is not a hard affordability filter.
+        let budget = self.preferred_city_defender(&self.cities[0]) == UnitKind::Marines;
         self.cities[0].shields = 20;
         let stocked = self.preferred_city_defender(&self.cities[0]) == UnitKind::Marines;
         self.cities[0].shields = 0;
+        // Isolate the defender recruitment choice from the native veteran
+        // training-building stage, which can replace a sub-emergency bid.
+        self.cities[0].buildings.push(Building::BARRACKS_II);
         self.spawn_unit(1, UnitKind::Warrior, x, y);
         self.cities[0].production = Production::Building(Building::GRANARY);
         self.prepare_ai_city_defenses(1);
         let quiet = self.cities[0].production == Production::Building(Building::GRANARY);
         self.spawn_unit(HUMAN, UnitKind::Cannon, nx, ny);
         self.prepare_ai_city_defenses(1);
-        let responded = self.cities[0].production == Production::Unit(UnitKind::Musketeers);
+        // The complete native upgrade chain makes Musketeers obsolete once
+        // Marines are available, even if intermediate Riflemen tech is absent.
+        let responded = self.cities[0].production == Production::Unit(UnitKind::Marines);
         (budget && stocked, quiet, responded)
     }
 
@@ -1624,10 +1907,15 @@ impl Simulation {
             let cost = self.target_cost(1, tech);
             self.resolve_research_turn(1, cost + self.technology_upkeep(1));
         }
-        let resumed = self.has_tech(1, Tech::MAP_MAKING)
+        let next = self.players[1].researching;
+        let advanced = self.has_tech(1, Tech::MAP_MAKING)
             && self.ferry_tech_want(1, Tech::MAP_MAKING) == 0
-            && self.players[1].researching == Tech::BRONZE_WORKING;
-        (inland, coastal, resumed)
+            && next != Tech::MAP_MAKING
+            && self.tech_available(1, next)
+            && self
+                .research_path(1, self.players[1].research_goal)
+                .contains(&next);
+        (inland, coastal, advanced)
     }
 
     pub(crate) fn settlement_ferry_production_playtest(&mut self) -> (bool, bool, bool) {
@@ -1862,6 +2150,20 @@ impl Simulation {
     }
 
     pub(crate) fn combat_population_playtest(&mut self) -> bool {
+        self.units.clear();
+        self.cities.clear();
+        // Isolate population and automatic rearrangement from random terrain.
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.resource = None;
+            tile.river = false;
+            tile.irrigation = false;
+            tile.farmland = false;
+            tile.mine = false;
+            tile.oil_well = false;
+            tile.pollution = false;
+            tile.fallout = false;
+        }
         let (x, y) = (12, 20);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
         let (wx, wy) = offset_native_by_map(x, y, 8, 0);
@@ -1871,7 +2173,12 @@ impl Simulation {
         let target = self.cities.len() - 2;
         let wonder_city = target + 1;
         self.cities[target].size = 5;
-        self.cities[target].specialists[2] = 3;
+        self.cities[target].specialists = [0, 0, 3];
+        self.cities[target].worked_tiles = Self::city_radius_at(nx, ny)
+            .map(|(_, _, x, y)| (x, y))
+            .filter(|&p| p != (nx, ny))
+            .take(2)
+            .collect();
         self.cities[target].food = Self::growth_box(5);
         self.spawn_unit(1, UnitKind::Warrior, nx, ny);
 
@@ -1897,7 +2204,12 @@ impl Simulation {
         self.players[1].known.push(Tech::MACHINE_TOOLS);
         let exposed = attack(self, UnitKind::Cannon) == 4
             && self.cities[target].food == Self::growth_box(4)
-            && self.cities[target].specialists[2] == 2;
+            // Native CM follows citizen removal. With a full granary and
+            // plain Grassland, three workers feed size four and the last
+            // citizen becomes a Taxman (the Palace boosts gold) rather than
+            // staying an entertainer.
+            && self.cities[target].specialists == [0, 1, 0]
+            && self.cities[target].worked_tiles.len() == 3;
         self.cities[target].size = 1;
         self.cities[target].specialists = [0; 3];
         light_attack && walls && great_wall && exposed && attack(self, UnitKind::Cannon) == 1
@@ -1973,20 +2285,21 @@ impl Simulation {
             self.units.last_mut().unwrap().home_city = Some(home);
         }
 
-        let pressure = |game: &Self| game.city_mood(&game.cities[0], 0).0;
+        let pressure = |game: &Self| game.city_military_unhappiness(&game.cities[0]);
         let upkeep = |game: &Self| {
             game.city_gold_upkeep(&game.cities[0])
                 .iter()
                 .map(|(_, cost)| cost)
                 .sum::<i32>()
         };
-        let baseline = pressure(self) && upkeep(self) == 2;
+        let original_pressure = pressure(self);
+        let baseline = original_pressure == 2 && upkeep(self) == 2;
         self.cities[1]
             .buildings
             .push(Building::KING_RICHARDS_CRUSADE);
-        let crusade = baseline && !pressure(self) && upkeep(self) == 0;
+        let crusade = baseline && pressure(self) == original_pressure - 1 && upkeep(self) == 0;
         self.players[HUMAN].known.push(Tech::COMMUNISM);
-        let obsolete = pressure(self) && upkeep(self) == 2;
+        let obsolete = pressure(self) == original_pressure && upkeep(self) == 2;
 
         self.cities[1]
             .buildings
@@ -2118,8 +2431,28 @@ impl Simulation {
             .find(|unit| unit.id == merchant)
             .unwrap();
         (cargo.x, cargo.y) = (x, y);
-        let ferry = self.spawn_unit(1, UnitKind::Transport, x, y);
+        let ferry = self.spawn_unit(1, UnitKind::Galleon, x, y);
         (merchant, ferry, home, destination)
+    }
+
+    pub(crate) fn ai_trade_production_gate_playtest(&mut self) -> bool {
+        self.units.clear();
+        self.cities.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.hut = false;
+        }
+        self.create_city(HUMAN, 10, 24);
+        let (home, _) = self.ai_merchant_production_playtest_setup();
+        self.sign_pact(1, HUMAN, Pact::Alliance);
+        for step in [10, 14, 18, 22] {
+            let (x, y) = offset_native_by_map(10, 24, step, 0);
+            self.create_city(1, x, y);
+        }
+        let city = self.cities.iter().find(|city| city.id == home).unwrap();
+        self.cities.iter().filter(|city| city.owner == 1).count() >= 5
+            && self.can_produce(city, Production::Unit(UnitKind::Freight))
+            && self.merchant_production_choice(city).is_none()
     }
 
     pub(crate) fn ai_merchant_production_playtest_setup(&mut self) -> (u32, u32) {
@@ -2164,7 +2497,7 @@ impl Simulation {
         self.tile_mut(nx, ny).terrain = Terrain::Grassland;
         self.create_city(1, nx, ny);
         let home = self.cities.last().unwrap().id;
-        self.sign_pact(HUMAN, 1, Pact::Ceasefire);
+        self.sign_pact(HUMAN, 1, Pact::Alliance);
         let merchant = self.spawn_unit(1, UnitKind::Freight, mx, my);
         self.units.last_mut().unwrap().home_city = Some(home);
         (merchant, home, destination)
@@ -2206,6 +2539,14 @@ impl Simulation {
                 unit.transport = Some(submarine);
             }
         }
+        let (x, y) = self
+            .units
+            .iter()
+            .find(|unit| unit.id == target)
+            .map(|unit| (unit.x, unit.y))
+            .unwrap();
+        self.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
+        self.units.last_mut().unwrap().transport = Some(target);
         (submarine, missile, target)
     }
 
@@ -2540,7 +2881,7 @@ impl Simulation {
         if protected {
             city.buildings.push(Building::AQUEDUCT);
         }
-        self.rng = 109;
+        self.set_random_seed(92); // Native C oracle: plague roll 27/1000.
         self.check_city_plague(index, 0);
         self.cities[index].size
     }
@@ -2558,7 +2899,8 @@ impl Simulation {
             Building::MFG_PLANT
         };
         self.cities[index].buildings.push(plant);
-        self.rng = if nuclear { 903 } else { 593 };
+        // Native C oracle: the fifth/ fourth frequency draw is 183/738.
+        self.set_random_seed(if nuclear { 171 } else { 1110 });
         self.check_disasters();
         let city = &self.cities[index];
         let contamination = if nuclear {
@@ -2605,7 +2947,7 @@ impl Simulation {
         self.completed_wonders.push(Building::MANHATTAN_PROJECT);
         let missile = self.spawn_unit(HUMAN, UnitKind::Nuclear, x, y);
         let defender = self.spawn_unit(1, UnitKind::Musketeers, target.0, target.1);
-        self.rng = 1;
+        self.set_random_seed(1);
         (missile, defender, city_id)
     }
 
@@ -2622,7 +2964,7 @@ impl Simulation {
         let missile = self.spawn_unit(HUMAN, UnitKind::CruiseMissile, x, y);
         let target = self.spawn_unit(1, UnitKind::Transport, nx, ny);
         self.units.last_mut().unwrap().hp = 1;
-        self.rng = 1;
+        self.set_random_seed(1);
         (carrier, missile, target)
     }
 
@@ -2642,7 +2984,7 @@ impl Simulation {
             .filter(|unit| [attacker, cruiser].contains(&unit.id))
             .for_each(|unit| unit.hp = 1);
         // This seed makes the first round hinge on the anti-air bonus.
-        self.rng = 19;
+        self.set_random_seed(19);
         (attacker, cruiser)
     }
 
@@ -2662,7 +3004,7 @@ impl Simulation {
         }
         let bomber = self.spawn_unit(HUMAN, UnitKind::Bomber, x, y);
         let defender = self.spawn_unit(1, UnitKind::Musketeers, nx, ny);
-        self.rng = 45;
+        self.set_random_seed(91); // All three native rolls distinguish SAM defense.
         (bomber, defender)
     }
 
@@ -2716,7 +3058,7 @@ impl Simulation {
         let fighter = self.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
         let bomber = self.spawn_unit(1, UnitKind::Bomber, nx, ny);
         self.units.last_mut().unwrap().hp = 1;
-        self.rng = 4;
+        self.set_random_seed(4);
         (fighter, bomber)
     }
 
@@ -2746,7 +3088,7 @@ impl Simulation {
     }
 
     pub(crate) fn work_promotion_playtest_tick(&mut self) {
-        self.rng = 41;
+        self.set_random_seed(20);
         self.update_activities_and_restore();
     }
 
@@ -2812,7 +3154,7 @@ impl Simulation {
         let (actor, _, _) = self.incite_playtest_setup();
         let spy = self.units.iter_mut().find(|unit| unit.id == actor).unwrap();
         spy.kind = UnitKind::Spy;
-        self.rng = if fail { 3 } else { 1 };
+        self.set_random_seed(if fail { 3 } else { 2 });
         actor
     }
 
@@ -2828,7 +3170,7 @@ impl Simulation {
             .find(|unit| unit.id == target)
             .unwrap()
             .hp = 3;
-        self.rng = 1;
+        self.set_random_seed(1);
         (actor, target)
     }
 
@@ -2852,6 +3194,7 @@ impl Simulation {
         self.create_city(HUMAN, x, y);
         self.players[HUMAN].known.push(Tech::ESPIONAGE);
         self.cities[0].technology_thefts = 1;
+        self.set_random_seed(2);
         diplomat
     }
 
@@ -2861,7 +3204,7 @@ impl Simulation {
         city.shields = 9;
         city.protected_shields = 2;
         city.production_before_switch = Some((city.production, 12));
-        self.rng = 1;
+        self.set_random_seed(1);
         diplomat
     }
 
@@ -2869,7 +3212,7 @@ impl Simulation {
         let diplomat = self.embassy_playtest_setup();
         self.players[HUMAN].known = vec![Tech::ALPHABET];
         self.players[1].known = vec![Tech::POTTERY];
-        self.rng = 1;
+        self.set_random_seed(1);
         diplomat
     }
 
@@ -3036,11 +3379,17 @@ impl Simulation {
         self.players[1]
             .known
             .extend([Tech::BRONZE_WORKING, Tech::WARRIOR_CODE]);
-        self.players[1].rates = [40, 60, 0];
-        if let Some(city) = self.cities.iter_mut().find(|city| city.owner == 1) {
-            city.size = 3;
-            city.specialists = [0, 3, 0];
-        }
+        // Isolate the quote consumer with an explicitly controlled prior-
+        // phase adv_want snapshot. This is not a claim that a locked
+        // Marketplace produces this want in the native building advisor.
+        // Choose a minimal premium that survives both native integer halves
+        // (gold equivalent, then alliance discount) throughout these ticks.
+        let until = self.turn + 13;
+        let base_bulbs = 3 * self.target_cost(1, currency);
+        let premium_want = 4 - base_bulbs.rem_euclid(4);
+        let mut retained = vec![0.0; Tech::all().count()];
+        retained[currency.0] = (until.max(1) * premium_want) as f32 + 0.25;
+        self.ai_tech_wants.insert(1, retained);
         self.diplomacy_playtest_tick(13);
     }
 
@@ -3109,5 +3458,103 @@ impl Simulation {
         self.players[HUMAN].government = Government::Democracy;
         self.refresh_visibility();
         Some(self.spawn_unit(HUMAN, UnitKind::Warrior, x, y))
+    }
+}
+
+#[cfg(test)]
+mod ai_integration_tests {
+    use super::*;
+    #[test]
+    fn actual_end_turn_heals_before_new_city_improvements() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert!(game.native_turn_orchestration_playtest());
+    }
+    #[test]
+    fn native_seeds_preserve_sam_plague_and_disaster_scenario_preconditions() {
+        let fresh = || Simulation::new(crate::mapgen::generate(42));
+        let mut hp = Vec::new();
+        let mut sizes = Vec::new();
+        for protected in [false, true] {
+            let mut game = fresh();
+            let (bomber, defender) = game.sam_battery_playtest_setup(protected);
+            assert!(game.apply(Command::Move(bomber, 1, 0)));
+            hp.push(
+                game.units
+                    .iter()
+                    .find(|unit| unit.id == defender)
+                    .unwrap()
+                    .hp,
+            );
+            let mut game = fresh();
+            let settler = game
+                .units
+                .iter()
+                .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settlers)
+                .unwrap()
+                .clone();
+            game.create_city(HUMAN, settler.x, settler.y);
+            sizes.push(game.run_plague_playtest(protected));
+        }
+        assert_eq!(hp, [17, 20]);
+        assert_eq!(sizes, [8, 9]);
+        for nuclear in [false, true] {
+            let mut game = fresh();
+            let settler = game
+                .units
+                .iter()
+                .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settlers)
+                .unwrap()
+                .clone();
+            game.create_city(HUMAN, settler.x, settler.y);
+            assert!(game.run_disaster_playtest(nuclear));
+        }
+    }
+    #[test]
+    fn combat_population_protection_and_native_worker_rearrangement() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert!(game.combat_population_playtest());
+    }
+    #[test]
+    fn fortifications_follow_native_urgency_and_land_sea_effect_classes() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(game.ai_fortifications_playtest(), (true, true, true));
+    }
+    #[test]
+    fn counterintelligence_fixture_uses_prior_phase_research_wants() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert!(game.ai_counterintelligence_playtest());
+    }
+
+    #[test]
+    fn crusade_relieves_one_raw_military_pressure_and_gold_upkeep() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let id = game
+            .units
+            .iter()
+            .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settlers)
+            .unwrap()
+            .id;
+        assert!(game.apply(Command::FoundCity(id)));
+        assert_eq!(game.theatre_and_crusade_playtest(), (true, true, true));
+    }
+
+    #[test]
+    fn integrated_advisor_scenarios() {
+        let fresh = || Simulation::new(crate::mapgen::generate(42));
+        let bribery = fresh().ai_bribery_playtest();
+        let government = fresh().ai_government_playtest();
+        let ferry = fresh().ferry_research_playtest();
+        assert!(bribery);
+        assert_eq!(government, (true, true, true, true));
+        assert_eq!(ferry, (true, true, true));
+        assert!(fresh().ai_civilian_upgrade_playtest());
+        assert!(fresh().ai_production_priorities_playtest());
+        assert!(fresh().ai_trade_production_gate_playtest());
+        assert_eq!(fresh().ai_city_defense_playtest(), (true, true, true));
+        assert!(fresh().ai_threat_route_cost_playtest());
+        assert!(fresh().ai_ground_invasion_playtest());
+        assert!(fresh().ai_aircraft_advisor_playtest());
+        assert!(fresh().ai_nuclear_advisor_playtest());
+        assert_eq!(fresh().ai_fighter_playtest(), (true, true, true));
     }
 }

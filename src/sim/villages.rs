@@ -96,7 +96,7 @@ impl Simulation {
         }
         let was_researching = self.players[owner].researching == tech;
         self.discover(owner, tech);
-        if was_researching {
+        if was_researching && !self.players[owner].ai {
             self.players[owner].researching = self.research_target(owner);
         }
         tech
@@ -224,12 +224,13 @@ mod tests {
         let (nx, ny) = offset_native_by_map(x, y, 0, -1);
         game.tile_mut(nx, ny).terrain = Terrain::Plains;
         game.tile_mut(nx, ny).hut = true;
-        game.rng = (1..)
-            .find(|&state| {
-                game.rng = state;
+        let seed = (1..)
+            .find(|&seed| {
+                game.set_random_seed(seed);
                 game.rand_below(14) == roll
             })
             .unwrap();
+        game.set_random_seed(seed);
         (game, id, (nx, ny))
     }
 

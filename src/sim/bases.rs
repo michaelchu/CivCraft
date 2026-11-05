@@ -40,24 +40,8 @@ impl Simulation {
     pub(crate) fn base_work_time(&self, unit: &Unit, base: Base) -> Option<i32> {
         let tile = self.tile(unit.x, unit.y);
         let (tech, capable) = match base {
-            Base::Fort | Base::Fortress => (
-                Tech::CONSTRUCTION,
-                matches!(
-                    unit.kind,
-                    UnitKind::Settlers
-                        | UnitKind::Worker
-                        | UnitKind::Engineer
-                        | UnitKind::Warrior
-                        | UnitKind::Phalanx
-                        | UnitKind::Archer
-                        | UnitKind::Legion
-                        | UnitKind::Musketeers
-                        | UnitKind::Marines
-                        | UnitKind::Paratroopers
-                        | UnitKind::Partisan
-                ),
-            ),
-            Base::Airstrip | Base::Airbase => (Tech::RADIO, unit.kind.stats().can_work),
+            Base::Fort | Base::Fortress => (Tech::CONSTRUCTION, unit.kind.can_build_fortress()),
+            Base::Airstrip | Base::Airbase => (Tech::RADIO, unit.kind.is_worker()),
         };
         if !capable
             || unit.transport.is_some()

@@ -15,18 +15,8 @@ impl Simulation {
             .filter(|unit| {
                 unit.home_city == Some(city.id)
                     && unit.owner == city.owner
-                    && !matches!(
-                        unit.kind,
-                        UnitKind::Worker
-                            | UnitKind::Engineer
-                            | UnitKind::Diplomat
-                            | UnitKind::Spy
-                            | UnitKind::CruiseMissile
-                            | UnitKind::Nuclear
-                            | UnitKind::Caravan
-                            | UnitKind::Freight
-                            | UnitKind::Explorer
-                    )
+                    && unit.kind.base_upkeep().0 > 0
+                    && !self.fanatic_upkeep_exempt(unit)
             })
             .collect();
         food_units.sort_by_key(|unit| std::cmp::Reverse(unit.home_order));
@@ -54,22 +44,33 @@ impl Simulation {
         }
     }
 
+    fn fanatic_upkeep_exempt(&self, unit: &Unit) -> bool {
+        unit.kind == UnitKind::Fanatics
+            && self.players[unit.owner].government == Government::Fundamentalism
+    }
+
     fn unit_shield_cost(&self, unit: &Unit) -> i32 {
-        i32::from(
-            !matches!(unit.kind, UnitKind::Settlers | UnitKind::Migrants)
-                && self.unit_gold_cost(unit) == 0,
-        )
+        if self.fanatic_upkeep_exempt(unit)
+            || !matches!(
+                self.players[unit.owner].government,
+                Government::Anarchy
+                    | Government::Tribal
+                    | Government::Communism
+                    | Government::Republic
+            )
+            || self.unit_gold_cost(unit) > 0
+        {
+            0
+        } else {
+            unit.kind.base_upkeep().1
+        }
     }
 
     fn unit_gold_cost(&self, unit: &Unit) -> i32 {
-        // Caravel lacks ShieldToGold in Civ2Civ3. Settlers have no base shield cost.
-        if matches!(
-            unit.kind,
-            UnitKind::Caravel | UnitKind::Settlers | UnitKind::Migrants
-        ) {
+        if self.fanatic_upkeep_exempt(unit) || !unit.kind.has_shield_to_gold() {
             0
         } else {
-            self.players[unit.owner].government.unit_support().0
+            unit.kind.base_upkeep().1 * self.players[unit.owner].government.unit_support().0
         }
     }
 
@@ -100,9 +101,8 @@ impl Simulation {
     pub(super) fn balance_unit_gold_upkeep(&mut self, owner: usize, paid: &[(u32, i32)]) {
         while self.players[owner].gold < 0 {
             let candidates: Vec<_> = self
-                .units
-                .iter()
-                .filter(|unit| unit.owner == owner && paid.iter().any(|&(id, _)| id == unit.id))
+                .player_units_ordered(owner)
+                .filter(|unit| paid.iter().any(|&(id, _)| id == unit.id))
                 .map(|unit| unit.id)
                 .collect();
             if candidates.is_empty() {
@@ -131,7 +131,7 @@ impl Simulation {
     }
 
     pub(crate) fn home_city_target(&self, unit: &Unit) -> Option<u32> {
-        if unit.home_city.is_none() && !unit.kind.is_diplomatic() {
+        if unit.kind.has_no_home() || (unit.home_city.is_none() && !unit.kind.is_diplomatic()) {
             return None;
         }
         self.cities
@@ -182,6 +182,7 @@ impl Simulation {
         self.units.retain(|unit| {
             !lost.contains(&unit.id) && unit.transport.is_none_or(|id| !lost.contains(&id))
         });
+        self.prune_unit_ai_state();
     }
 
     pub(super) fn pay_shield_support(

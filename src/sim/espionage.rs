@@ -17,6 +17,7 @@ enum CityMission {
 struct AgentRoute {
     city: u32,
     path: Vec<(i32, i32)>,
+    cost: i32,
 }
 
 impl Simulation {
@@ -70,6 +71,7 @@ impl Simulation {
         let Some(AgentRoute {
             city: city_id,
             path,
+            ..
         }) = self.plan_city_mission(agent, budget, true, &reserved)
         else {
             self.agent_city_targets.remove(&agent.id);
@@ -146,15 +148,14 @@ impl Simulation {
                 {
                     continue;
                 }
-                let path = self.path_for_unit(agent, x, y);
-                if (x, y) != origin && path.is_empty() {
+                let Some((path, cost)) = self.search_route(agent, x, y, false, i32::MAX) else {
                     continue;
-                }
+                };
                 let changed_target = self
                     .agent_city_targets
                     .get(&agent.id)
                     .is_some_and(|&target| target != city.id);
-                let priority = (changed_target, path.len(), city.id);
+                let priority = (changed_target, cost, city.id);
                 if best
                     .as_ref()
                     .is_none_or(|(previous, _)| priority < *previous)
@@ -163,7 +164,7 @@ impl Simulation {
                 }
             }
         }
-        best.map(|((_, _, city), path)| AgentRoute { city, path })
+        best.map(|((_, cost, city), path)| AgentRoute { city, path, cost })
     }
 
     fn active_agent_targets(
@@ -208,6 +209,10 @@ impl Simulation {
     }
 
     pub(super) fn offensive_agent_production(&self, city: &City) -> Option<UnitKind> {
+        self.offensive_agent_choice(city).map(|(kind, _)| kind)
+    }
+
+    pub(super) fn offensive_agent_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
         let owner = city.owner;
         let kind = [UnitKind::Spy, UnitKind::Diplomat]
             .into_iter()
@@ -257,27 +262,51 @@ impl Simulation {
                 gain = gain.max((30 * food + 17 * shields + 18 * trade) * 17 - 18 * price);
             }
         }
-        let travel = (route.path.len() as i32 + kind.stats().moves - 1) / kind.stats().moves;
+        let allowance = self.unit_move_allowance(owner, kind).max(1);
+        let travel = (route.cost / allowance + 1).max(1);
+        let delay = travel * ((travel + 1) / 2);
         let loss = 17 * kind.stats().cost * if kind == UnitKind::Spy { 20 } else { 100 };
-        let want = (80 * gain - loss) / 100 - 17 * travel * ((travel + 1) / 2);
-        (want > 0).then_some(kind)
+        let want = (80 * gain - loss) / 100 - 17 * delay;
+        if want <= 0 {
+            return None;
+        }
+        // ai/default/daitools.c:military_amortize uses the greater of this
+        // city's production and the empire average to estimate build time.
+        let outputs: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|other| other.owner == owner)
+            .map(|other| self.city_forecast(other).shield_surplus())
+            .collect();
+        let average = outputs.iter().sum::<i32>() / outputs.len().max(1) as i32;
+        let production = self
+            .city_forecast(city)
+            .shield_surplus()
+            .max(average)
+            .max(1);
+        let build_time = kind.stats().cost / production;
+        let mut want = f64::from(want) * (23.0_f64 / 24.0).powi(delay + build_time);
+        if !self.has_embassy(owner, target.owner) {
+            want = want.max(99.0);
+        }
+        Some((kind, want))
     }
 
     fn diplomatic_threat(&self, city: &City) -> bool {
         self.units.iter().any(|unit| {
+            let allowance = self.unit_move_rate(unit).max(1);
             if !unit.kind.is_diplomatic()
                 || !self.at_war(city.owner, unit.owner)
                 || !self.tile(unit.x, unit.y).known_by[city.owner]
-                || self.map_distance(city.x, city.y, unit.x, unit.y) > 2 * unit.kind.stats().moves
+                || self.map_distance(city.x, city.y, unit.x, unit.y) > 2 * allowance
             {
                 return false;
             }
+            let mut ready = unit.clone();
+            ready.moves_left = allowance;
             super::terrain_work::neighbors(city.x, city.y).any(|(x, y)| {
-                if (x, y) == (unit.x, unit.y) {
-                    return true;
-                }
-                let path = self.path_for_unit(unit, x, y);
-                !path.is_empty() && path.len() < (2 * unit.kind.stats().moves) as usize
+                self.route_cost_within(&ready, x, y, 2 * allowance - 1)
+                    .is_some()
             })
         })
     }
@@ -326,6 +355,15 @@ impl Simulation {
             .find(|&target| self.can_produce(city, target))
     }
 
+    pub(super) fn holds_counterintelligence(&self, actor: &Unit) -> bool {
+        self.cities.iter().any(|city| {
+            city.owner == actor.owner
+                && (actor.x, actor.y) == (city.x, city.y)
+                && !self.city_has_other_diplomat(city, actor.id)
+                && (self.diplomatic_threat(city) || self.city_threats(city).next().is_some())
+        })
+    }
+
     pub(super) fn assign_counterintelligence(&mut self, actor: &Unit) -> bool {
         let mut best = None;
         for city in self.cities.iter().filter(|city| {
@@ -339,8 +377,11 @@ impl Simulation {
             if (actor.x, actor.y) == (city.x, city.y) {
                 return true;
             }
-            let path = self.path_for_unit(actor, city.x, city.y);
-            let score = (!diplomatic, path.len(), city.id);
+            let Some((path, cost)) = self.search_route(actor, city.x, city.y, false, i32::MAX)
+            else {
+                continue;
+            };
+            let score = (!diplomatic, cost, city.id);
             if !path.is_empty() && best.as_ref().is_none_or(|(previous, _)| score < *previous) {
                 best = Some((score, path));
             }
@@ -394,7 +435,7 @@ impl Simulation {
         if !self.can_poison_city(&unit, &city) {
             return false;
         }
-        if !self.resolve_diplomatic_defender(&unit, &city) {
+        if !self.resolve_diplomatic_defender(&unit, &city, None) {
             // Freeciv rolls at 100% after infiltration. The escape roll is separate.
             self.rand_below(100);
             self.reduce_city_population(index);
@@ -549,13 +590,23 @@ impl Simulation {
         {
             return false;
         }
-        if self.resolve_diplomatic_defender(&unit, &city) {
+        if self.resolve_diplomatic_defender(
+            &unit,
+            &city,
+            Some(diplomacy::DiplomaticIncident::CityLoss),
+        ) {
             self.refresh_visibility();
             return true;
         }
         let location = (city.x, city.y);
         if !self.at_war(owner, city.owner) {
             self.record_provocation(city.owner, owner);
+            self.record_diplomatic_incident(
+                owner,
+                Some(city.owner),
+                diplomacy::DiplomaticIncident::CityLoss,
+                false,
+            );
         }
         if self.rand_below(100) >= 80 {
             self.finish_covert_mission(&unit, location, false);
@@ -583,6 +634,7 @@ impl Simulation {
         let first_city = !self.cities.iter().any(|other| other.owner == owner);
         let city_after = &mut self.cities[index];
         city_after.transfer_citizens(owner);
+        self.list_order.city(city_after);
         city_after.shields = 0;
         city_after.protected_shields = 0;
         city_after.caravan_shields = 0;
@@ -595,10 +647,11 @@ impl Simulation {
         if first_city {
             city_after.buildings.push(Building::PALACE);
         }
-        for other in &mut self.units {
-            if other.owner != city.owner {
+        let transfer_units = self.city_transfer_unit_ids(city_id, city.owner);
+        for id in transfer_units {
+            let Some(other) = self.units.iter_mut().find(|unit| unit.id == id) else {
                 continue;
-            }
+            };
             let stationed = (other.x, other.y) == location;
             let (dx, dy) = wrapped_map_vector(other.x, other.y, city.x, city.y);
             let in_other_friendly_city = self
@@ -611,6 +664,7 @@ impl Simulation {
                     && !in_other_friendly_city)
             {
                 other.owner = owner;
+                self.list_order.unit(other);
                 other.home_city = other.home_city.map(|_| city_id);
                 other.automated = false;
                 other.clear_work();
@@ -622,6 +676,7 @@ impl Simulation {
         }
         self.prune_trade_routes();
         self.rebuild_city_ownership();
+        self.refresh_diplomatic_contact_at(owner, city.x, city.y);
         if owner == HUMAN || city.owner == HUMAN {
             self.add_event(format!(
                 "{} revolted and joined {}.",
@@ -667,11 +722,14 @@ impl Simulation {
             spy.moved = true;
             spy.state = UnitState::Idle;
             self.promote_unit(unit.id, 100);
+            self.release_ai_ferry(unit.id);
+            self.refresh_diplomatic_contact_at(unit.owner, x, y);
             if unit.owner == HUMAN {
                 self.add_event(format!("Your Spy escaped to {home}."));
             }
         } else {
             self.units.retain(|other| other.id != unit.id);
+            self.discard_unit_ai(unit.id);
             if success && unit.owner == HUMAN {
                 self.add_event(format!(
                     "Your {} was captured after the mission.",
@@ -701,7 +759,7 @@ impl Simulation {
         {
             return false;
         }
-        if self.resolve_diplomatic_defender(&unit, &city) {
+        if self.resolve_diplomatic_defender(&unit, &city, None) {
             self.refresh_visibility();
             return true;
         }
@@ -792,7 +850,12 @@ impl Simulation {
         true
     }
 
-    fn resolve_diplomatic_defender(&mut self, actor: &Unit, city: &City) -> bool {
+    fn resolve_diplomatic_defender(
+        &mut self,
+        actor: &Unit,
+        city: &City,
+        incident: Option<diplomacy::DiplomaticIncident>,
+    ) -> bool {
         let defender = self
             .units
             .iter()
@@ -823,6 +886,7 @@ impl Simulation {
         let attacker_won = self.rand_below(100) < chance;
         let loser = if attacker_won { defender } else { actor.id };
         self.units.retain(|unit| unit.id != loser);
+        self.discard_unit_ai(loser);
         if attacker_won {
             let unit = self
                 .units
@@ -830,8 +894,11 @@ impl Simulation {
                 .find(|unit| unit.id == actor.id)
                 .unwrap();
             unit.moves_left = (unit.moves_left - MOVE_FRAGMENTS).max(0);
-        } else if !self.at_war(actor.owner, city.owner) {
+        } else if !self.at_war(actor.owner, city.owner)
+            && let Some(incident) = incident
+        {
             self.record_provocation(city.owner, actor.owner);
+            self.record_diplomatic_incident(actor.owner, Some(city.owner), incident, false);
         }
         let (winner, modifier) = if attacker_won {
             (actor.id, (100 - chance) * 2)
@@ -891,7 +958,11 @@ impl Simulation {
         {
             return false;
         }
-        if self.resolve_diplomatic_defender(&unit, &city) {
+        if self.resolve_diplomatic_defender(
+            &unit,
+            &city,
+            Some(diplomacy::DiplomaticIncident::Theft),
+        ) {
             self.refresh_visibility();
             return true;
         }
@@ -902,8 +973,15 @@ impl Simulation {
                 .any(|_| self.rand_below(100) >= 80);
         if failed {
             self.units.retain(|other| other.id != actor);
+            self.discard_unit_ai(actor);
             if !self.at_war(unit.owner, city.owner) {
                 self.record_provocation(city.owner, unit.owner);
+                self.record_diplomatic_incident(
+                    unit.owner,
+                    Some(city.owner),
+                    diplomacy::DiplomaticIncident::Theft,
+                    false,
+                );
             }
             if unit.owner == HUMAN {
                 self.add_event(if repeated {
@@ -940,6 +1018,12 @@ impl Simulation {
         self.cities[index].technology_thefts += 1;
         if !self.at_war(unit.owner, city.owner) {
             self.record_provocation(city.owner, unit.owner);
+            self.record_diplomatic_incident(
+                unit.owner,
+                Some(city.owner),
+                diplomacy::DiplomaticIncident::Theft,
+                false,
+            );
         }
         if unit.owner == HUMAN {
             self.add_event(format!(
@@ -967,6 +1051,85 @@ mod tests {
     use super::*;
 
     #[test]
+    fn agent_prefers_a_road_to_a_closer_city_across_rough_terrain() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Mountains;
+            tile.road = false;
+            tile.railroad = false;
+            tile.known_by[1] = true;
+        }
+        let origin = (10, 24);
+        let point = |dx, dy| offset_native_by_map(origin.0, origin.1, dx, dy);
+        let near = point(0, 3);
+        let far = point(5, 0);
+        game.create_city(HUMAN, near.0, near.1);
+        let near_id = game.cities[0].id;
+        game.create_city(HUMAN, far.0, far.1);
+        let far_id = game.cities[1].id;
+        for step in 0..=4 {
+            let (x, y) = point(step, 0);
+            game.tile_mut(x, y).road = true;
+            // Enemy infrastructure is restricted. This fixture is a neutral
+            // road approach to a hostile city, rather than enemy-owned roads.
+            game.tile_mut(x, y).owner = None;
+        }
+        game.spawn_unit(1, UnitKind::Diplomat, origin.0, origin.1);
+        let agent = game.units.last().unwrap().clone();
+        let route = game
+            .plan_city_mission(&agent, 0, false, &BTreeSet::new())
+            .unwrap();
+        assert_eq!(route.city, far_id);
+        assert!(route.path.len() > 2);
+        assert!(
+            route.cost
+                < game
+                    .route_cost_within(&agent, near.0, near.1, i32::MAX)
+                    .unwrap()
+        );
+        game.agent_city_targets.insert(agent.id, near_id);
+        assert_eq!(
+            game.plan_city_mission(&agent, 0, false, &BTreeSet::new())
+                .unwrap()
+                .city,
+            near_id
+        );
+    }
+
+    #[test]
+    fn offense_precedes_reassignment_but_not_a_sole_home_defender() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.hut = false;
+            tile.known_by[1] = true;
+        }
+        let origin = (10, 24);
+        let foreign = offset_native_by_map(origin.0, origin.1, 2, 0);
+        let home = offset_native_by_map(origin.0, origin.1, -2, 0);
+        game.create_city(HUMAN, foreign.0, foreign.1);
+        game.create_city(1, home.0, home.1);
+        let danger = offset_native_by_map(home.0, home.1, 0, -1);
+        game.spawn_unit(HUMAN, UnitKind::Diplomat, danger.0, danger.1);
+        let id = game.spawn_unit(1, UnitKind::Diplomat, origin.0, origin.1);
+        game.run_ai_player(1);
+        assert!(game.has_embassy(1, HUMAN));
+        assert!(!game.units.iter().any(|unit| unit.id == id));
+
+        let guard = game.spawn_unit(1, UnitKind::Diplomat, home.0, home.1);
+        let unit = game.units.last().unwrap().clone();
+        assert!(game.holds_counterintelligence(&unit));
+        game.run_ai_player(1);
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| unit.id == guard && (unit.x, unit.y) == home)
+        );
+    }
+
+    #[test]
     fn targeted_missions_use_the_chosen_building_and_apply_the_harder_roll() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let spy = game.spy_playtest_setup();
@@ -980,7 +1143,7 @@ mod tests {
             foreign,
             SabotageTarget::Building(Building::PALACE)
         )));
-        game.rng = 10;
+        game.set_random_seed(14); // Native rolls 18 and 14 pass targeted mission and capital.
         assert!(game.apply(Command::TargetedSabotage(
             spy,
             foreign,
@@ -992,7 +1155,7 @@ mod tests {
 
         let (x, y) = offset_native_by_map(game.cities[0].x, game.cities[0].y, 1, 0);
         let second = game.spawn_unit(HUMAN, UnitKind::Spy, x, y);
-        game.rng = 1; // 61 would pass an 80% random mission, but fails targeted sabotage.
+        game.set_random_seed(2); // Native 51 passes an 80% random mission, but fails targeted sabotage.
         assert!(game.apply(Command::TargetedSabotage(
             second,
             foreign,
@@ -1008,6 +1171,7 @@ mod tests {
         let spy = game.spy_playtest_setup();
         let foreign = game.cities[0].id;
         let home = game.cities[1].clone();
+        game.set_random_seed(2); // Native rolls 51, 60, 40 pass repeat theft and escape.
         assert!(game.can_produce(&home, Production::Unit(UnitKind::Spy)));
         assert!(!game.can_produce(&home, Production::Unit(UnitKind::Diplomat)));
         assert!(game.apply(Command::StealTechnology(spy, foreign)));
@@ -1032,14 +1196,14 @@ mod tests {
             .unwrap()
             .clone();
         game.cities[0].buildings.push(Building::GRANARY);
-        game.rng = 4; // Pass infiltration, choose a building, then pass capital resistance.
+        game.set_random_seed(8); // Native 34, 37, 44 pass mission, select building, defeat capital.
         assert!(game.apply(Command::SabotageCity(diplomat, id)));
         assert!(game.cities[0].has_building(Building::PALACE));
         assert!(!game.cities[0].has_building(Building::GRANARY));
         assert_eq!(game.cities[0].shields, 9);
 
         let next = game.spawn_unit(HUMAN, UnitKind::Diplomat, actor.x, actor.y);
-        game.rng = 1;
+        game.set_random_seed(1);
         assert!(game.apply(Command::SabotageCity(next, id)));
         assert_eq!(game.cities[0].shields, 0);
         assert_eq!(game.cities[0].protected_shields, 0);
@@ -1075,6 +1239,7 @@ mod tests {
         let diplomat = game.technology_theft_playtest_setup();
         let (id, x, y) = (game.cities[0].id, game.cities[0].x, game.cities[0].y);
         let guard = game.spawn_unit(1, UnitKind::Diplomat, x, y);
+        game.set_random_seed(2); // Native 51 defeats the attacker's capital-adjusted 25% chance.
         assert!(game.apply(Command::StealTechnology(diplomat, id)));
         assert!(!game.has_tech(HUMAN, Tech::POTTERY));
         assert_eq!(game.cities[0].technology_thefts, 0);

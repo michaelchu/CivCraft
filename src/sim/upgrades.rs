@@ -1,13 +1,8 @@
 use super::*;
 
 impl Simulation {
-    fn upgrade_target(&self, unit: &Unit) -> Option<UnitKind> {
-        let target = unit
-            .kind
-            .obsolete_by()
-            .iter()
-            .copied()
-            .find(|&candidate| self.unit_available(unit.owner, candidate))?;
+    pub(super) fn upgrade_target(&self, unit: &Unit) -> Option<UnitKind> {
+        let target = self.available_unit_successor(unit.owner, unit.kind)?;
         if unit.kind == UnitKind::Trireme
             && !self.tile(unit.x, unit.y).terrain.is_water()
             && !self.cities.iter().any(|city| {
@@ -68,23 +63,25 @@ impl Simulation {
         true
     }
 
+    #[cfg(test)]
     pub(super) fn apply_workshop_upgrades(&mut self) {
         for owner in 0..self.players.len() {
-            if !self.has_active_wonder(owner, Building::LEONARDOS_WORKSHOP) {
-                continue;
-            }
-            let candidates: Vec<_> = self
-                .units
-                .iter()
-                .enumerate()
-                .rev()
-                .filter(|(_, unit)| unit.owner == owner)
-                .filter_map(|(index, unit)| self.upgrade_target(unit).map(|target| (index, target)))
-                .collect();
-            if !candidates.is_empty() {
-                let (index, target) = candidates[self.rand_below(candidates.len() as i32) as usize];
-                self.transform_upgraded_unit(index, target, 0);
-            }
+            self.apply_workshop_upgrades_for(owner);
+        }
+    }
+
+    pub(super) fn apply_workshop_upgrades_for(&mut self, owner: usize) {
+        if !self.has_active_wonder(owner, Building::LEONARDOS_WORKSHOP) {
+            return;
+        }
+        let candidates: Vec<_> = self
+            .player_units_ordered(owner)
+            .filter_map(|unit| self.upgrade_target(unit).map(|target| (unit.id, target)))
+            .collect();
+        if !candidates.is_empty() {
+            let (id, target) = candidates[self.rand_below(candidates.len() as i32) as usize];
+            let index = self.units.iter().position(|unit| unit.id == id).unwrap();
+            self.transform_upgraded_unit(index, target, 0);
         }
     }
 
@@ -133,6 +130,45 @@ mod tests {
         assert_eq!(game.players[HUMAN].gold, gold - price);
         let field = game.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
         assert!(!game.apply(Command::UpgradeUnit(field, UnitKind::Musketeers, price)));
+    }
+
+    #[test]
+    fn a_workshop_completed_in_city_activity_waits_until_next_restore_phase() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.hut = false;
+        }
+        game.create_city(HUMAN, 10, 24);
+        game.players[HUMAN]
+            .known
+            .extend([Tech::INVENTION, Tech::EXPLOSIVES]);
+        game.cities[0].production = Production::Building(Building::LEONARDOS_WORKSHOP);
+        game.cities[0].shields = 1000;
+        game.cities[0].food = 10;
+        let workers: Vec<_> = [11, 12]
+            .into_iter()
+            .map(|x| game.spawn_unit(HUMAN, UnitKind::Worker, x, 24))
+            .collect();
+        game.restore_player_units(HUMAN);
+        game.process_cities();
+        assert!(game.cities[0].has_building(Building::LEONARDOS_WORKSHOP));
+        assert!(
+            game.units
+                .iter()
+                .filter(|unit| workers.contains(&unit.id))
+                .all(|unit| unit.kind == UnitKind::Worker)
+        );
+        game.restore_player_units(HUMAN);
+        assert_eq!(
+            game.units
+                .iter()
+                .filter(|unit| workers.contains(&unit.id) && unit.kind == UnitKind::Engineer)
+                .count(),
+            1
+        );
     }
 
     #[test]

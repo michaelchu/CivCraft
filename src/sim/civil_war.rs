@@ -43,11 +43,13 @@ impl Simulation {
 
     pub(super) fn split_civil_war(&mut self, owner: usize) {
         let candidates: Vec<_> = self
-            .cities
-            .iter()
-            .enumerate()
-            .filter(|(_, city)| city.owner == owner && !city.buildings.contains(&Building::PALACE))
-            .map(|(index, _)| index)
+            .player_cities_ordered(owner)
+            .filter(|city| !city.buildings.contains(&Building::PALACE))
+            .filter_map(|city| {
+                self.cities
+                    .iter()
+                    .position(|candidate| candidate.id == city.id)
+            })
             .collect();
         if candidates.is_empty() {
             return;
@@ -86,6 +88,14 @@ impl Simulation {
             ai: true,
         };
         self.players.push(rebel_player);
+        // daiplayer.c:dai_player_copy copies retained advisor wants during
+        // player splits; they are nevertheless transient across save/load.
+        let wants = self
+            .ai_tech_wants
+            .get(&owner)
+            .cloned()
+            .unwrap_or_else(|| vec![0.0; Tech::all().count()]);
+        self.ai_tech_wants.insert(rebel, wants);
         self.spaceships.push(Spaceship::default());
         self.nation_scores.push(NationScore::default());
         for tile in &mut self.tiles {
@@ -99,13 +109,21 @@ impl Simulation {
                 || (remaining > 0 && self.rand_below(2) == 1)
             {
                 self.cities[index].transfer_citizens(rebel);
+                self.list_order.city(&self.cities[index]);
                 defectors.push(index);
                 remaining -= 1;
             }
         }
         let capital = defectors[self.rand_below(defectors.len() as i32) as usize];
         self.cities[capital].buildings.push(Building::PALACE);
-        for unit in self.units.iter_mut().filter(|unit| unit.owner == owner) {
+        let unit_ids: Vec<_> = self
+            .player_units_ordered(owner)
+            .map(|unit| unit.id)
+            .collect();
+        for id in unit_ids {
+            let Some(unit) = self.units.iter_mut().find(|unit| unit.id == id) else {
+                continue;
+            };
             let rebel_home = self
                 .cities
                 .iter()
@@ -121,6 +139,7 @@ impl Simulation {
             } else if rebel_home {
                 unit.owner = rebel;
             }
+            self.list_order.unit(unit);
         }
         self.resolve_split_stacks(owner, rebel);
         self.rebuild_city_ownership();

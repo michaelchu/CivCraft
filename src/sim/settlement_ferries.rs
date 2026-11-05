@@ -1,3 +1,4 @@
+use super::normal_paths::GotoTask;
 use super::{terrain_work::neighbors, *};
 use std::{
     cmp::Reverse,
@@ -66,25 +67,14 @@ impl Simulation {
         500 * ports
     }
 
-    pub(super) fn settlement_production(&self, city: &City) -> Option<UnitKind> {
+    pub(super) fn settlement_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
         let waiting = self.units.iter().find(|unit| {
             unit.owner == city.owner
                 && unit.kind == UnitKind::Settlers
                 && unit.transport.is_none()
                 && (unit.x, unit.y) == (city.x, city.y)
         });
-        if waiting.is_none()
-            && (city.size < 3
-                || self
-                    .units
-                    .iter()
-                    .any(|unit| unit.owner == city.owner && unit.kind == UnitKind::Settlers)
-                || self.cities.iter().any(|other| {
-                    other.owner == city.owner
-                        && other.id != city.id
-                        && other.production == Production::Unit(UnitKind::Settlers)
-                }))
-        {
+        if waiting.is_none() && city.size <= UnitKind::Settlers.stats().pop_cost {
             return None;
         }
         let virtual_founder = self.make_unit(0, city.owner, UnitKind::Settlers, city.x, city.y);
@@ -96,11 +86,13 @@ impl Simulation {
             .best_settlement_ferry(founder, |_| false)
             .map_or(0.0, |(_, plan)| plan.value);
         if existing > 0.0 {
-            return waiting.is_none().then_some(UnitKind::Settlers);
+            return waiting
+                .is_none()
+                .then_some((UnitKind::Settlers, existing.max(land)));
         }
 
         if !self.is_port(city) {
-            return (waiting.is_none() && land > 0.0).then_some(UnitKind::Settlers);
+            return (waiting.is_none() && land > 0.0).then_some((UnitKind::Settlers, land));
         }
         let forecast = self.city_forecast(city);
         let surplus = forecast.shields - forecast.support.shields;
@@ -136,16 +128,25 @@ impl Simulation {
             if let Some((kind, value)) = new_ferry
                 && value > land
             {
-                return Some(kind);
+                return Some((kind, value));
             }
         }
-        (waiting.is_none() && land > 0.0).then_some(UnitKind::Settlers)
+        (waiting.is_none() && land > 0.0).then_some((UnitKind::Settlers, land))
     }
 
     fn settler_rendezvous_points(&self, founder: &Unit, ship: &Unit) -> Vec<Rendezvous> {
         let start = Self::idx(founder.x, founder.y);
-        let ship_speed = self.unit_move_allowance(ship.owner, ship.kind);
-        let land_speed = self.unit_move_allowance(founder.owner, founder.kind);
+        let ship_speed = self.unit_move_rate(&ship).max(1);
+        let land_speed = self.unit_move_rate(&founder).max(1);
+        let land_initial = founder.moves_left.max(0);
+        let sea_initial = ship.moves_left.max(0);
+        let arrival = |cost: i32, initial: i32, speed: i32| {
+            if cost <= initial {
+                0
+            } else {
+                (cost - initial + speed - 1) / speed
+            }
+        };
         let mut costs = vec![i32::MAX; self.tiles.len()];
         let mut previous = vec![None; self.tiles.len()];
         let mut queue = BinaryHeap::from([Reverse((0, start))]);
@@ -157,11 +158,24 @@ impl Simulation {
             if cost != costs[index] {
                 continue;
             }
-            let land_turns = (cost + land_speed - 1) / land_speed;
+            let land_turns = arrival(cost, land_initial, land_speed);
+            let arrival_remaining = if cost <= land_initial {
+                land_initial - cost
+            } else {
+                land_speed - (cost - land_initial - 1) % land_speed - 1
+            };
+            let step_remaining = if cost < land_initial {
+                land_initial - cost
+            } else {
+                land_speed - (cost - land_initial) % land_speed
+            };
             let (x, y) = Self::xy(index);
             (traveler.x, traveler.y) = (x, y);
+            traveler.moves_left = step_remaining;
             let port = self.cities.iter().any(|city| {
-                city.owner == founder.owner && (city.x, city.y) == (x, y) && self.is_port(city)
+                self.allied(city.owner, founder.owner)
+                    && (city.x, city.y) == (x, y)
+                    && self.is_port(city)
             });
             for pickup in port
                 .then_some((x, y))
@@ -174,16 +188,16 @@ impl Simulation {
                         })
                 }))
             {
-                let steps = *checked[Self::idx(pickup.0, pickup.1)].get_or_insert_with(|| {
-                    if (ship.x, ship.y) == pickup {
-                        return Some(0);
-                    }
-                    let path = self.path_for_unit(ship, pickup.0, pickup.1);
-                    (!path.is_empty()).then_some(path.len() as i32)
+                let sea_cost = *checked[Self::idx(pickup.0, pickup.1)].get_or_insert_with(|| {
+                    self.route_cost_within(ship, pickup.0, pickup.1, i32::MAX)
                 });
-                if let Some(steps) = steps {
-                    let sea_cost = steps * MOVE_FRAGMENTS;
-                    let turns = land_turns.max((sea_cost + ship_speed - 1) / ship_speed);
+                if let Some(sea_cost) = sea_cost {
+                    let sea_turns = arrival(sea_cost, sea_initial, ship_speed);
+                    // Adjacent embark is a move, unlike loading on the same
+                    // port tile. A spent walker must wait for movement refresh.
+                    let land_ready =
+                        land_turns + i32::from(pickup != (x, y) && arrival_remaining == 0);
+                    let turns = land_ready.max(sea_turns);
                     let meeting = &mut rendezvous[Self::idx(pickup.0, pickup.1)];
                     if meeting.is_none_or(|current| (turns, cost, index) < current) {
                         *meeting = Some((turns, cost, index));
@@ -192,10 +206,11 @@ impl Simulation {
             }
             for (nx, ny, step) in self.settler_land_steps(&traveler) {
                 let next = Self::idx(nx, ny);
-                if cost + step < costs[next] {
-                    costs[next] = cost + step;
+                let next_cost = cost + step.min(step_remaining);
+                if next_cost < costs[next] {
+                    costs[next] = next_cost;
                     previous[next] = Some((index, wrapped_map_vector(x, y, nx, ny)));
-                    queue.push(Reverse((cost + step, next)));
+                    queue.push(Reverse((next_cost, next)));
                 }
             }
         }
@@ -219,10 +234,48 @@ impl Simulation {
             .collect()
     }
 
+    pub(super) fn merchant_pickup_route(
+        &self,
+        passenger: &Unit,
+        ship: &Unit,
+    ) -> Option<((i32, i32), Vec<(i32, i32)>, i32)> {
+        if !self.allied(passenger.owner, ship.owner)
+            || !ship.kind.can_carry(passenger.kind)
+            || (passenger.transport.is_some() && passenger.transport != Some(ship.id))
+            || (passenger.transport.is_none()
+                && self.cargo_count(ship.id) >= ship.kind.transport_capacity())
+        {
+            return None;
+        }
+        if passenger.transport == Some(ship.id) {
+            return Some(((ship.x, ship.y), Vec::new(), 0));
+        }
+        self.settler_rendezvous_points(passenger, ship)
+            .into_iter()
+            .min_by_key(|meeting| {
+                (
+                    meeting.turns,
+                    meeting.walk.len(),
+                    self.map_distance(ship.x, ship.y, meeting.tile.0, meeting.tile.1),
+                    meeting.tile,
+                )
+            })
+            .map(|meeting| (meeting.tile, meeting.walk, meeting.turns))
+    }
+
     fn best_settlement_ferry(
         &self,
         founder: &Unit,
         unavailable: impl Fn(u32) -> bool,
+    ) -> Option<(u32, SettlementFerry)> {
+        self.best_settlement_ferry_with_capacity(founder, unavailable, 1)
+    }
+
+    fn best_settlement_ferry_with_capacity(
+        &self,
+        founder: &Unit,
+        unavailable: impl Fn(u32) -> bool,
+        capacity: usize,
     ) -> Option<(u32, SettlementFerry)> {
         let labels = self.continent_labels();
         let origin =
@@ -237,12 +290,14 @@ impl Simulation {
         let mut best: Option<(u32, SettlementFerry)> = None;
         for ship in self.units.iter().filter(|ship| {
             ship.owner == founder.owner
+                && self.ferry_can_take_unit(ship, founder)
                 && ship.kind.is_naval()
                 && ship.kind.can_carry(UnitKind::Settlers)
                 && !unavailable(ship.id)
-                && founder
-                    .transport
-                    .map_or_else(|| self.cargo_count(ship.id) == 0, |id| id == ship.id)
+                && founder.transport.map_or_else(
+                    || self.cargo_count(ship.id) + capacity <= ship.kind.transport_capacity(),
+                    |id| id == ship.id,
+                )
         }) {
             let rendezvous = if founder.transport.is_some() {
                 vec![Rendezvous {
@@ -273,8 +328,15 @@ impl Simulation {
         origin: usize,
         rendezvous: &[Rendezvous],
     ) -> Option<SettlementFerry> {
-        let sea_speed = self.unit_move_allowance(ship.owner, ship.kind);
-        let land_speed = self.unit_move_allowance(founder.owner, founder.kind);
+        let government = self.ai_goal_government(founder.owner);
+        let reservations = self.settlement_citymap(founder.owner, Some(founder.id));
+        let assigned = self
+            .ai_settlement_targets
+            .get(&founder.id)
+            .filter(|reservation| reservation.owner == founder.owner)
+            .map(|reservation| reservation.destination);
+        let sea_speed = self.unit_move_rate(&ship);
+        let land_speed = self.unit_move_rate(&founder);
         let turn_cost = sea_speed * land_speed;
         let mut sea_costs = vec![i32::MAX; self.tiles.len()];
         let mut sea_queue = BinaryHeap::new();
@@ -342,8 +404,11 @@ impl Simulation {
             let turns = cost / turn_cost;
             let discount = (23.0_f64 / 24.0).powi(3 * turns);
             let (x, y) = Self::xy(index);
-            if let Some(yields) = self.city_site_value(founder.owner, x, y) {
-                let value = f64::from(yields) * discount - f64::from(unit_cost);
+            if assigned.is_none_or(|destination| destination == (x, y))
+                && let Some(site) =
+                    self.city_site_result(founder.owner, x, y, government, &reservations)
+            {
+                let value = site.value * discount - f64::from(unit_cost);
                 if value > best_value {
                     best = Some(index);
                     best_value = value;
@@ -383,27 +448,124 @@ impl Simulation {
     }
 
     pub(super) fn dispatch_settlement_ferries(
-        &self,
+        &mut self,
         owner: usize,
         merchant_ferries: &BTreeMap<u32, u32>,
     ) -> BTreeMap<u32, SettlementFerry> {
         let mut dispatch = BTreeMap::new();
-        for founder in self
+        let founders: Vec<_> = self
             .units
             .iter()
             .filter(|unit| unit.owner == owner && unit.kind == UnitKind::Settlers)
-        {
+            .cloned()
+            .collect();
+        for founder in &founders {
+            let assigned = self.ai_settlement_targets.contains_key(&founder.id);
+            if !assigned && founder.work_left > 0 {
+                continue;
+            }
+            let improvement = if assigned {
+                0.0
+            } else {
+                self.worker_improvement_want(founder)
+            };
             if let Some((ship, plan)) = self.best_settlement_ferry(founder, |id| {
                 merchant_ferries.contains_key(&id) || dispatch.contains_key(&id)
-            }) && (founder.transport.is_some()
-                || self
-                    .best_city_site(founder)
-                    .is_none_or(|(_, _, land)| plan.value > land))
+            }) && (assigned || plan.value as f32 > improvement)
+                && (founder.transport.is_some()
+                    || self
+                        .best_city_site(founder)
+                        .is_none_or(|(_, _, land)| plan.value > land))
             {
-                dispatch.insert(ship, plan);
+                if !self.ai_settlement_targets.contains_key(&founder.id) {
+                    self.reserve_settlement_site(founder, plan.destination);
+                }
+                let needs_guard = self.ai_guard_for_destination(
+                    founder.id,
+                    plan.destination.0,
+                    plan.destination.1,
+                );
+                let actual = if needs_guard && founder.transport.is_none() {
+                    self.best_settlement_ferry_with_capacity(
+                        founder,
+                        |id| merchant_ferries.contains_key(&id) || dispatch.contains_key(&id),
+                        2,
+                    )
+                } else {
+                    Some((ship, plan))
+                };
+                if let Some((ship, plan)) = actual {
+                    if self.assign_ai_ferry(ship, founder.id) {
+                        dispatch.insert(ship, plan);
+                    }
+                } else {
+                    self.release_ai_ferry(founder.id);
+                    self.request_ai_ferry(founder.id);
+                }
             }
         }
         dispatch
+    }
+
+    pub(crate) fn ai_guard_ferry_capacity_playtest(&mut self) -> (bool, bool, bool) {
+        self.units.clear();
+        self.cities.clear();
+        self.ai_settlement_targets.clear();
+        self.ai_guard_targets.clear();
+        self.ai_unit_guards.clear();
+        self.ai_ferries = Default::default();
+        self.diplomacy.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Ocean;
+            tile.owner = None;
+            tile.road = false;
+            tile.railroad = false;
+            tile.river = false;
+            tile.resource = None;
+            tile.hut = false;
+        }
+        let home = (10, 24);
+        let island = offset_native_by_map(home.0, home.1, 8, 0);
+        for (x, y) in [home, island] {
+            self.tile_mut(x, y).terrain = Terrain::Grassland;
+        }
+        self.create_city(1, home.0, home.1);
+        let founder = self.spawn_unit(1, UnitKind::Settlers, home.0, home.1);
+        let small = self.spawn_unit(1, UnitKind::Trireme, home.0, home.1);
+        let cargo = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
+        self.units
+            .iter_mut()
+            .find(|u| u.id == cargo)
+            .unwrap()
+            .transport = Some(small);
+        let far = offset_native_by_map(home.0, home.1, -2, 0);
+        let roomy = self.spawn_unit(1, UnitKind::Trireme, far.0, far.1);
+        let actor = self.units.iter().find(|u| u.id == founder).unwrap().clone();
+        self.reserve_settlement_site(&actor, island);
+        let speculative = self
+            .best_settlement_ferry(&actor, |_| false)
+            .is_some_and(|(id, _)| id == small);
+        let guard = self.spawn_unit(1, UnitKind::Musketeers, home.0, home.1);
+        self.assign_ai_guard(guard, guards::GuardTarget::Unit(founder));
+        let actual = self.dispatch_settlement_ferries(1, &BTreeMap::new());
+        let reselected = actual
+            .get(&roomy)
+            .is_some_and(|plan| plan.destination == island)
+            && !actual.contains_key(&small)
+            && self
+                .ai_settlement_targets
+                .get(&founder)
+                .is_some_and(|target| target.destination == island);
+        self.remove_units_with_cargo(vec![roomy]);
+        let blocked = self
+            .dispatch_settlement_ferries(1, &BTreeMap::new())
+            .is_empty()
+            && self
+                .ai_settlement_targets
+                .get(&founder)
+                .is_some_and(|target| target.destination == island)
+            && self.ferry_boss(small).is_none();
+        (speculative, reselected, blocked)
     }
 
     pub(crate) fn rendezvous_route_playtest(&mut self) -> bool {
@@ -452,15 +614,19 @@ impl Simulation {
         };
         if founder.transport.is_none() {
             self.follow_path(founder.id, plan.pickup_walk.iter().copied());
-            self.goto_unit(ship, plan.pickup.0, plan.pickup.1);
+            self.unit_goto_tiles.insert(ship, plan.pickup);
+            self.ai_goto_unit(ship, plan.pickup, GotoTask::None);
             if !self.board_specific_ship(founder.id, ship)
                 && !self.embark_adjacent_ship(founder.id, ship)
             {
                 return;
             }
         }
+        if !self.ai_guard_prepare_ferry(founder.id, ship) {
+            return;
+        }
         let (x, y) = plan.approach;
-        self.goto_unit(ship, x, y);
+        self.ai_ferry_goto_waypoint(ship, (x, y), plan.destination);
         if self
             .units
             .iter()
@@ -469,14 +635,177 @@ impl Simulation {
             let (dx, dy) = wrapped_map_vector(x, y, plan.landing.0, plan.landing.1);
             if self.try_move_unit(founder.id, dx, dy) == MoveResult::Moved {
                 self.follow_path(founder.id, plan.inland_path.iter().copied());
-                if self
-                    .units
-                    .iter()
-                    .any(|unit| unit.id == founder.id && (unit.x, unit.y) == plan.destination)
-                {
+                if self.units.iter().any(|unit| {
+                    unit.id == founder.id
+                        && unit.moves_left > 0
+                        && (unit.x, unit.y) == plan.destination
+                }) {
                     self.found_city(founder.id);
+                    self.ai_settlement_targets.remove(&founder.id);
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod pickup_tests {
+    use super::*;
+
+    #[test]
+    fn actual_ferry_reselects_two_slots_for_guard_without_changing_city_goal() {
+        let mut game = ocean_game();
+        assert_eq!(game.ai_guard_ferry_capacity_playtest(), (true, true, true));
+    }
+
+    #[test]
+    fn founder_can_plan_with_a_partly_loaded_available_ferry_but_not_a_full_one() {
+        let mut game = ocean_game();
+        let home = (10, 24);
+        let island = offset_native_by_map(home.0, home.1, 8, 0);
+        for (x, y) in [home, island] {
+            game.tile_mut(x, y).terrain = Terrain::Grassland;
+        }
+        game.create_city(1, home.0, home.1);
+        let founder_id = game.spawn_unit(1, UnitKind::Settlers, home.0, home.1);
+        let ship = game.spawn_unit(1, UnitKind::Trireme, home.0, home.1);
+        let cargo = game.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == cargo)
+            .unwrap()
+            .transport = Some(ship);
+        let founder = game
+            .units
+            .iter()
+            .find(|unit| unit.id == founder_id)
+            .unwrap()
+            .clone();
+        assert_eq!(
+            game.best_settlement_ferry(&founder, |_| false)
+                .map(|(id, _)| id),
+            Some(ship)
+        );
+        let second = game.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == second)
+            .unwrap()
+            .transport = Some(ship);
+        assert!(game.best_settlement_ferry(&founder, |_| false).is_none());
+    }
+
+    fn ocean_game() -> Simulation {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Ocean;
+            tile.owner = None;
+            tile.road = false;
+            tile.railroad = false;
+            tile.river = false;
+            tile.hut = false;
+        }
+        game
+    }
+
+    #[test]
+    fn merchant_can_board_from_ordinary_coast_without_a_city() {
+        let mut game = ocean_game();
+        let shore = (10, 24);
+        let sea = offset_native_by_map(shore.0, shore.1, 1, 0);
+        game.tile_mut(shore.0, shore.1).terrain = Terrain::Plains;
+        let passenger = game.spawn_unit(1, UnitKind::Freight, shore.0, shore.1);
+        let ship = game.spawn_unit(1, UnitKind::Caravel, sea.0, sea.1);
+        let walker = game
+            .units
+            .iter()
+            .find(|unit| unit.id == passenger)
+            .unwrap()
+            .clone();
+        let ferry = game
+            .units
+            .iter()
+            .find(|unit| unit.id == ship)
+            .unwrap()
+            .clone();
+        let (pickup, path, turns) = game.merchant_pickup_route(&walker, &ferry).unwrap();
+        assert_eq!(pickup, sea);
+        assert!(path.is_empty());
+        assert_eq!(turns, 0);
+        assert!(game.embark_adjacent_ship(passenger, ship));
+        assert_eq!(
+            game.units
+                .iter()
+                .find(|unit| unit.id == passenger)
+                .unwrap()
+                .transport,
+            Some(ship)
+        );
+    }
+
+    #[test]
+    fn rough_ground_cost_is_clipped_to_walking_movement_before_port_pickup() {
+        let mut game = ocean_game();
+        let start = (10, 24);
+        let port = offset_native_by_map(start.0, start.1, 1, 0);
+        game.tile_mut(start.0, start.1).terrain = Terrain::Plains;
+        game.tile_mut(port.0, port.1).terrain = Terrain::Hills;
+        game.create_city(1, port.0, port.1);
+        let passenger = game.spawn_unit(1, UnitKind::Freight, start.0, start.1);
+        let ship = game.spawn_unit(1, UnitKind::Caravel, port.0, port.1);
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == passenger)
+            .unwrap()
+            .moves_left = 1;
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == ship)
+            .unwrap()
+            .moves_left = 0;
+        let walker = game
+            .units
+            .iter()
+            .find(|unit| unit.id == passenger)
+            .unwrap()
+            .clone();
+        let ferry = game
+            .units
+            .iter()
+            .find(|unit| unit.id == ship)
+            .unwrap()
+            .clone();
+        assert!(game.movement_cost_for(&walker, port.0, port.1).unwrap() > 1);
+        let (pickup, path, turns) = game.merchant_pickup_route(&walker, &ferry).unwrap();
+        assert_eq!(pickup, port);
+        assert_eq!(path.len(), 1);
+        assert_eq!(turns, 0);
+        game.follow_path(passenger, path);
+        assert_eq!(
+            game.units
+                .iter()
+                .find(|unit| unit.id == passenger)
+                .unwrap()
+                .moves_left,
+            0
+        );
+        assert!(game.board_specific_ship(passenger, ship));
+    }
+
+    #[test]
+    fn same_tile_pickup_works_in_an_allied_port() {
+        let mut game = ocean_game();
+        let port = (10, 24);
+        game.tile_mut(port.0, port.1).terrain = Terrain::Plains;
+        game.create_city(HUMAN, port.0, port.1);
+        game.sign_pact(1, HUMAN, Pact::Alliance);
+        let passenger = game.make_unit(0, 1, UnitKind::Caravan, port.0, port.1);
+        let ship = game.make_unit(0, 1, UnitKind::Caravel, port.0, port.1);
+        let (pickup, path, turns) = game.merchant_pickup_route(&passenger, &ship).unwrap();
+        assert_eq!(pickup, port);
+        assert!(path.is_empty());
+        assert_eq!(turns, 0);
     }
 }

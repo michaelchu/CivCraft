@@ -53,8 +53,8 @@ impl Simulation {
                         .unwrap_or(MOVE_FRAGMENTS)
                         .min(projected.moves_left);
                 let stats = target.kind.stats();
-                let threat = stats.attack > stats.defense
-                    && self.unit_move_allowance(target.owner, target.kind) > contact_cost;
+                let threat =
+                    stats.attack > stats.defense && self.unit_move_rate(target) > contact_cost;
                 let keep = if threat { expenses } else { reserve };
                 let priority = (contact_cost, target.id);
                 if treasury - price >= keep
@@ -75,7 +75,7 @@ impl Simulation {
 
     pub(crate) fn bribe_price(&self, actor: &Unit, target: &Unit) -> Option<i32> {
         if !actor.kind.is_diplomatic()
-            || target.kind == UnitKind::BarbarianLeader
+            || target.kind.is_unbribable()
             || actor.moves_left < 1
             || self.tile(actor.x, actor.y).terrain.is_water()
             || self.allied(actor.owner, target.owner)
@@ -113,8 +113,16 @@ impl Simulation {
     }
 
     pub(super) fn transfer_unit(&mut self, victim: &Unit, owner: usize, home: Option<u32>) {
+        // Native places the gained unit before wiping the old one, so the
+        // old owner is still present for ownership-contact refresh.
+        self.refresh_diplomatic_contact_at(owner, victim.x, victim.y);
+        let birth = self.merchant_birth_turns.get(&victim.id).copied();
         self.units.retain(|unit| unit.id != victim.id);
+        self.discard_unit_ai(victim.id);
         let id = self.spawn_unit(owner, victim.kind, victim.x, victim.y);
+        if let Some(born) = birth {
+            self.merchant_birth_turns.insert(id, born);
+        }
         let gained = self.units.last_mut().unwrap();
         gained.hp = victim.hp;
         gained.nationality = victim.nationality;
@@ -144,6 +152,12 @@ impl Simulation {
 
         if !self.at_war(diplomat.owner, victim.owner) {
             self.record_provocation(victim.owner, diplomat.owner);
+            self.record_diplomatic_incident(
+                diplomat.owner,
+                Some(victim.owner),
+                diplomacy::DiplomaticIncident::UnitLoss,
+                false,
+            );
         }
         let (dx, dy) = wrapped_map_vector(diplomat.x, diplomat.y, victim.x, victim.y);
         if self.try_move_unit(actor, dx, dy) == MoveResult::Blocked

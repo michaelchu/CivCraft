@@ -50,6 +50,9 @@ impl Tech {
     pub(crate) const MACHINE_TOOLS: Self = Self(42);
     pub(crate) const METALLURGY: Self = Self(49);
     pub(crate) const FUTURE: Self = Self(ADVANCES.len());
+    // Keep all persisted real/Future indices stable. A_UNSET is a goal state,
+    // never a researchable/discoverable advance.
+    pub(crate) const UNSET: Self = Self(ADVANCES.len() + 1);
 
     pub(crate) const COMPUTERS: Self = Self(16);
     pub(crate) const COMMUNISM: Self = Self(15);
@@ -83,7 +86,11 @@ impl Tech {
     }
 
     pub(crate) fn name(self) -> &'static str {
-        self.data().map_or("Future Tech", |advance| advance.name)
+        if self == Self::UNSET {
+            "No goal"
+        } else {
+            self.data().map_or("Future Tech", |advance| advance.name)
+        }
     }
 
     pub(crate) fn prerequisites(self) -> &'static [Self] {
@@ -702,3 +709,26 @@ const ADVANCES: &[Advance] = &[
         reference_unlocks: "Library",
     },
 ];
+
+#[cfg(test)]
+mod sentinel_tests {
+    use super::*;
+    #[test]
+    fn adding_unset_preserves_every_existing_persisted_advance_index() {
+        assert_eq!(Tech::all().count(), 87);
+        assert_eq!(Tech::FUTURE.0, 87);
+        assert_eq!(Tech::UNSET.0, 88);
+        assert_eq!(Tech::POTTERY.0, 62);
+        assert_eq!(
+            bincode::serialize(&Tech::FUTURE).unwrap(),
+            87_u64.to_le_bytes()
+        );
+        assert_eq!(
+            bincode::deserialize::<Tech>(&88_u64.to_le_bytes()).unwrap(),
+            Tech::UNSET
+        );
+        assert_eq!(Tech::UNSET.name(), "No goal");
+        assert!(Tech::UNSET.data().is_none());
+        assert!(Tech::UNSET.prerequisites().is_empty());
+    }
+}

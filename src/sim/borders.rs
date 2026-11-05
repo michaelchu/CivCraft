@@ -22,6 +22,36 @@ impl Simulation {
     }
 
     pub(super) fn rebuild_city_ownership(&mut self) {
+        self.rebuild_city_ownership_inner(None);
+    }
+
+    pub(super) fn rebuild_city_ownership_for_city_event(&mut self, city_id: u32) {
+        self.rebuild_city_ownership_inner(Some(city_id));
+    }
+
+    fn rebuild_city_ownership_inner(&mut self, city_event: Option<u32>) {
+        self.refresh_ai_ferries();
+        self.refresh_ai_guards();
+        self.city_rapture
+            .retain(|id, _| self.cities.iter().any(|city| city.id == *id));
+        self.ai_merchant_missions.retain(|id, mission| {
+            self.cities.iter().any(|city| city.id == mission.city)
+                && self
+                    .units
+                    .iter()
+                    .any(|unit| unit.id == *id && unit.owner == mission.owner)
+        });
+        self.ai_settlement_targets.retain(|id, reservation| {
+            self.units
+                .iter()
+                .any(|unit| unit.id == *id && unit.owner == reservation.owner)
+        });
+        self.merchant_birth_turns
+            .retain(|id, _| self.units.iter().any(|unit| unit.id == *id));
+        self.ai_ground_targets
+            .retain(|_, id| self.cities.iter().any(|city| city.id == *id));
+        self.agent_city_targets
+            .retain(|_, id| self.cities.iter().any(|city| city.id == *id));
         let (regions, sizes) = self.border_regions();
         let mut surrounders = vec![None; sizes.len()];
         let mut mixed = vec![false; sizes.len()];
@@ -90,10 +120,7 @@ impl Simulation {
             let (mx, my) = native_to_map(city.x, city.y);
             for dy in -radius..=radius {
                 for dx in -radius..=radius {
-                    let (x, y) = map_to_native(mx + dx, my + dy);
-                    if !(0..MAP_H).contains(&y) {
-                        continue;
-                    }
+                    let (x, y) = map_pos_to_native(mx + dx, my + dy);
                     let index = Self::idx(x, y);
                     let (distance_sq, strength) = claim_strength(city, index);
                     if claimable(city, index, distance_sq)
@@ -112,7 +139,11 @@ impl Simulation {
             tile.owner = claim.map(|(_, owner, _, _)| owner);
         }
         self.remember_visible_borders();
-        self.reconcile_city_workers();
+        if let Some(city_id) = city_event {
+            self.arrange_city_event_workers(city_id);
+        } else {
+            self.reconcile_city_workers();
+        }
     }
 
     fn border_regions(&self) -> (Vec<usize>, Vec<usize>) {

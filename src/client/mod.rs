@@ -1,5 +1,5 @@
 mod assets;
-pub(crate) use assets::{Assets, window_conf};
+pub(crate) use assets::{Assets, native_unit_rendering_playtest, window_conf};
 use assets::{
     OCEAN_ATLAS_H, TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source, ocean_cell_source,
     player_color, unit_sprite,
@@ -535,6 +535,21 @@ fn short_unit_name(kind: UnitKind) -> &'static str {
         UnitKind::Caravan => "Caravan",
         UnitKind::Freight => "Freight",
         UnitKind::BarbarianLeader => "Barbarian Leader",
+        UnitKind::Pikemen => "Pikemen",
+        UnitKind::Riflemen => "Riflemen",
+        UnitKind::AlpineTroops => "Alpine Troops",
+        UnitKind::Fanatics => "Fanatics",
+        UnitKind::MechInf => "Mech. Inf.",
+        UnitKind::Elephants => "Elephants",
+        UnitKind::Crusaders => "Crusaders",
+        UnitKind::Dragoons => "Dragoons",
+        UnitKind::Cavalry => "Cavalry",
+        UnitKind::Armor => "Armor",
+        UnitKind::Artillery => "Artillery",
+        UnitKind::Howitzer => "Howitzer",
+        UnitKind::Leader => "Leader",
+        UnitKind::Awacs => "AWACS",
+        UnitKind::Storm => "Storm",
     }
 }
 

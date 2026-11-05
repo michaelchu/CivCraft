@@ -148,15 +148,18 @@ impl Simulation {
         let (lx, ly) = neighbors(x, y).next().unwrap();
         self.tile_mut(lx, ly).terrain = Terrain::Grassland;
         let index = Self::idx(x, y);
-        let seed = (1..=1_000_000)
-            .find(|&seed| {
-                self.rng = seed;
-                self.rand_below(self.tiles.len() as i32) as usize == index
-                    && self.rand_below(30) == 0
-                    && self.rand_below(100) <= self.players[HUMAN].government.civil_war_chance()
-            })
-            .unwrap();
-        self.rng = seed;
+        // Native C-oracle seed: tile 975 of 2048, uprising gate 0/30,
+        // and a successful Despotism unrest roll. Check instead of a costly
+        // debug-build seed search (each seed heats the table 10000 times).
+        self.set_random_seed(42_907);
+        let snapshot = self.random_snapshot();
+        let targeted = self.rand_below(self.tiles.len() as i32) as usize == index
+            && self.rand_below(30) == 0
+            && self.rand_below(100) <= self.players[HUMAN].government.civil_war_chance();
+        self.restore_random(snapshot);
+        if !targeted {
+            return false;
+        }
         self.turn = BARBARIAN_ONSET - 1;
         self.summon_barbarians();
         let gated = self.units.is_empty() && self.tile(x, y).hut;

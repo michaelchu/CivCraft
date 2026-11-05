@@ -134,7 +134,18 @@ impl Simulation {
             }
             Automate(_) => {
                 let unit = &mut self.units[unit_index.unwrap()];
+                // common/unit.c: ACTIVITY_EXPLORE excludes fuelled types and
+                // helicopter-class units that lose HP away from a base.
+                if !unit.automated
+                    && (unit.kind.fuel_capacity() > 0 || unit.kind == UnitKind::Helicopter)
+                {
+                    return false;
+                }
                 unit.automated = !unit.automated;
+                if unit.automated && !unit.kind.stats().can_work {
+                    unit.clear_work();
+                    unit.state = UnitState::Idle;
+                }
                 let name = unit.kind.name();
                 let state = if unit.automated {
                     "enabled"
@@ -185,7 +196,7 @@ impl Simulation {
             UpgradeUnit(id, target, price) => self.upgrade_unit(id, target, price),
             HomeCity(_) => self.change_home_city(unit_index.unwrap()),
             Research(goal) => {
-                if self.has_tech(HUMAN, goal) {
+                if (goal.data().is_none() && goal != Tech::FUTURE) || self.has_tech(HUMAN, goal) {
                     return false;
                 }
                 self.players[HUMAN].research_goal = goal;

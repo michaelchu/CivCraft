@@ -42,13 +42,18 @@ impl Simulation {
                 "SDI defenses at {} intercepted a nuclear strike.",
                 city.name
             ));
-            self.record_provocation(owner, weapon.owner);
             self.nation_scores[owner].units_killed += 1;
             return;
         }
 
         if let Some(owner) = self.tile(x, y).owner {
             self.record_provocation(owner, weapon.owner);
+            self.record_diplomatic_incident(
+                weapon.owner,
+                Some(owner),
+                diplomacy::DiplomaticIncident::Nuclear,
+                false,
+            );
         }
 
         // The ruleset uses a squared radius of two. On a hex map that covers
@@ -76,8 +81,11 @@ impl Simulation {
                 let city = &mut self.cities[index];
                 let loss = (49 * city.size + 50) / 100;
                 city.size -= loss;
-                city.remove_specialists(loss);
+                city.remove_citizen_assignments(loss);
                 self.remove_citizen_nationalities(index, loss);
+                if loss > 0 {
+                    self.rebuild_city_ownership_for_city_event(self.cities[index].id);
+                }
             }
             if self.rand_below(2) == 1 {
                 let tile = self.tile_mut(tx, ty);

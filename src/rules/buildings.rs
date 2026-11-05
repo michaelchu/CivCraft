@@ -34,6 +34,7 @@ pub(crate) struct BuildingData {
 impl Building {
     pub(crate) const SUPER_HIGHWAYS: Self = Self(38);
     pub(crate) const SUPERMARKET: Self = Self(39);
+    pub(crate) const HARBOR: Self = Self(15);
     pub(crate) const FACTORY: Self = Self(13);
     pub(crate) const HYDRO_PLANT: Self = Self(16);
     pub(crate) const MASS_TRANSIT: Self = Self(19);
@@ -49,6 +50,7 @@ impl Building {
     pub(crate) const LIGHTHOUSE: Self = Self(57);
     pub(crate) const MAGELLANS_EXPEDITION: Self = Self(58);
     pub(crate) const PORT_FACILITY: Self = Self(26);
+    pub(crate) const POWER_PLANT: Self = Self(27);
     pub(crate) const AIRPORT: Self = Self(0);
     pub(crate) const PALACE: Self = Self(23);
     pub(crate) const SPACE_STRUCTURAL: Self = Self(36);

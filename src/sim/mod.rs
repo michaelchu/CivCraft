@@ -1,5 +1,6 @@
 mod advisors;
 mod ai;
+mod ai_economy;
 mod aviation;
 mod bases;
 mod borders;
@@ -15,8 +16,10 @@ mod tech_trade;
 pub(crate) use diplomacy::{Pact, TreatyMap, TreatyOffer};
 mod economy;
 mod espionage;
+mod exploration;
 pub(crate) use espionage::SabotageTarget;
 mod government;
+mod guards;
 mod investigation;
 pub(crate) use government::Government;
 pub(crate) use investigation::CityInvestigation;
@@ -24,13 +27,23 @@ mod achievements;
 mod citizens;
 mod climate;
 mod disasters;
+mod ferries;
+mod fuel_paths;
 mod illness;
+mod leaders;
+mod list_order;
 mod movement;
+mod normal_paths;
+mod output_effects;
 mod partisans;
+mod pf_actions;
 mod pillage;
 mod pollution;
+mod random;
+pub(crate) use random::FreecivRng;
 mod save;
 mod score;
+mod settlement;
 mod settlement_ferries;
 mod spaceship;
 use score::NationScore;
@@ -42,16 +55,22 @@ use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
 mod playtest;
 mod research;
+mod research_phase;
 mod terrain_work;
 pub(crate) use commands::Command;
 use model::research_cost;
+mod military_research;
 mod model;
+mod offense;
+mod roster_actions;
 pub(crate) mod topology;
+mod unit_catalog;
 mod upgrades;
 mod upkeep;
 mod uprisings;
 mod veterancy;
 mod villages;
+mod workers;
 mod worklist;
 pub(crate) use worklist::{WORKLIST_LIMIT, WorklistEdit};
 
@@ -100,7 +119,7 @@ struct MapObservation {
     ocean: bool,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Simulation {
     pub(crate) world_seed: u64,
     tiles: Vec<Tile>,
@@ -109,7 +128,9 @@ pub(crate) struct Simulation {
     completed_wonders: Vec<Building>,
     spaceships: Vec<Spaceship>,
     nation_scores: Vec<NationScore>,
+    #[serde(serialize_with = "save::serialize_unit_map")]
     hunter_targets: std::collections::HashMap<u32, u32>,
+    #[serde(serialize_with = "save::serialize_unit_map")]
     previous_naval_positions: std::collections::HashMap<u32, (i32, i32)>,
     diplomacy: std::collections::BTreeMap<(usize, usize), diplomacy::Relation>,
     apollo_completed: bool,
@@ -120,9 +141,15 @@ pub(crate) struct Simulation {
     next_unit_id: u32,
     next_city_id: u32,
     rng: u64,
+    #[serde(skip)]
+    native_random: Option<FreecivRng>,
+    #[serde(skip)]
+    cargo_order: std::collections::BTreeMap<u32, Vec<u32>>,
     events: Vec<String>,
     game_over: Option<String>,
     climate_pressure: [ClimatePressure; 2],
+    #[serde(skip)]
+    climate_current: [i32; 2],
     trade_routes: Vec<(u32, u32)>,
     #[serde(skip)]
     route_memory: Vec<Option<movement::RouteTile>>,
@@ -134,6 +161,48 @@ pub(crate) struct Simulation {
     agent_city_targets: std::collections::BTreeMap<u32, u32>,
     #[serde(skip)]
     city_founders: std::collections::BTreeMap<u32, usize>,
+    #[serde(skip)]
+    ai_war_plans: std::collections::BTreeMap<(usize, usize), diplomacy::WarPlan>,
+    #[serde(skip)]
+    ai_space_warnings: std::collections::BTreeMap<(usize, usize), i32>,
+    #[serde(skip)]
+    ai_free_bulbs: std::collections::BTreeMap<usize, i32>,
+    #[serde(skip)]
+    ai_tech_wants: std::collections::BTreeMap<usize, Vec<f32>>,
+    #[serde(skip)]
+    ai_ground_targets: std::collections::BTreeMap<u32, u32>,
+    #[serde(skip)]
+    ai_merchant_missions: std::collections::BTreeMap<u32, trade::MerchantMission>,
+    #[serde(skip)]
+    merchant_mission_attempts: std::collections::HashSet<u32>,
+    #[serde(skip)]
+    merchant_birth_turns: std::collections::BTreeMap<u32, i32>,
+    #[serde(skip)]
+    ai_settlement_targets: std::collections::BTreeMap<u32, settlement::SettlementReservation>,
+    #[serde(skip)]
+    ai_diplomatic_memory: std::collections::BTreeMap<(usize, usize), diplomacy::DiplomaticMemory>,
+    #[serde(skip)]
+    ai_diplomatic_intel: std::collections::BTreeMap<(usize, usize), diplomacy::DiplomaticIntel>,
+    #[serde(skip)]
+    ai_pending_war_targets: std::collections::BTreeMap<usize, usize>,
+    #[serde(skip)]
+    ai_guard_targets: std::collections::BTreeMap<u32, guards::GuardTarget>,
+    #[serde(skip)]
+    ai_unit_guards: std::collections::BTreeMap<u32, guards::GuardState>,
+    #[serde(skip)]
+    city_rapture: std::collections::BTreeMap<u32, i32>,
+    #[serde(skip)]
+    unit_goto_tiles: std::collections::BTreeMap<u32, (i32, i32)>,
+    #[serde(skip)]
+    list_order: list_order::ListOrder,
+    #[serde(skip)]
+    ai_worker_tasks: std::collections::BTreeSet<u32>,
+    #[serde(skip)]
+    ai_ferries: ferries::FerryRegistry,
+    #[serde(skip)]
+    ai_government_cache: std::collections::BTreeMap<usize, government::GovernmentAdvisorCache>,
+    #[serde(skip)]
+    diplomatic_contact_until: std::collections::BTreeMap<(usize, usize), i32>,
 }
 
 fn percent_of(value: i32, percent: i32) -> i32 {
@@ -209,6 +278,7 @@ impl Simulation {
             seed,
             tiles,
             starts,
+            game_random,
         } = map;
 
         let names = [
@@ -241,7 +311,7 @@ impl Simulation {
                 name: names[i].to_owned(),
                 gold: 50,
                 rates: [60, 40, 0],
-                government: Government::Tribal,
+                government: Government::Despotism,
                 revolution_target: None,
                 revolution_turn: None,
                 known: vec![free_techs[i]],
@@ -265,7 +335,7 @@ impl Simulation {
             name: "Barbarians".to_owned(),
             gold: 0,
             rates: [60, 40, 0],
-            government: Government::Tribal,
+            government: Government::Despotism,
             revolution_target: None,
             revolution_turn: None,
             known: Vec::new(),
@@ -331,6 +401,8 @@ impl Simulation {
             next_unit_id,
             next_city_id: 1,
             rng: 0x9e37_79b9_7f4a_7c15,
+            native_random: Some(game_random),
+            cargo_order: Default::default(),
             events: vec![
                 "4000 BCE - Your people are ready to settle.".to_owned(),
                 "Choose the Settlers and press B to found a city.".to_owned(),
@@ -338,16 +410,47 @@ impl Simulation {
             ],
             game_over: None,
             climate_pressure: [ClimatePressure::default(); 2],
+            climate_current: [0; 2],
             trade_routes: Vec::new(),
             route_memory: vec![None; (MAP_W * MAP_H) as usize],
             ai_map_memory: Default::default(),
             ai_purchase_reserve: Default::default(),
             agent_city_targets: Default::default(),
             city_founders: Default::default(),
+            ai_war_plans: Default::default(),
+            ai_space_warnings: Default::default(),
+            ai_free_bulbs: Default::default(),
+            ai_tech_wants: Default::default(),
+            ai_ground_targets: Default::default(),
+            ai_merchant_missions: Default::default(),
+            merchant_mission_attempts: Default::default(),
+            merchant_birth_turns: Default::default(),
+            ai_settlement_targets: Default::default(),
+            ai_diplomatic_memory: Default::default(),
+            ai_diplomatic_intel: Default::default(),
+            ai_pending_war_targets: Default::default(),
+            ai_guard_targets: Default::default(),
+            ai_unit_guards: Default::default(),
+            city_rapture: Default::default(),
+            unit_goto_tiles: Default::default(),
+            list_order: Default::default(),
+            ai_worker_tasks: Default::default(),
+            ai_ferries: Default::default(),
+            ai_government_cache: Default::default(),
+            diplomatic_contact_until: Default::default(),
         };
         for owner in 1..PLAYER_COUNT {
             game.players[owner].researching = game.research_target(owner);
         }
+        let initial_contacts: Vec<_> = game
+            .units
+            .iter()
+            .map(|unit| (unit.owner, unit.x, unit.y))
+            .collect();
+        for (owner, x, y) in initial_contacts {
+            game.refresh_diplomatic_contact_at(owner, x, y);
+        }
+        game.sync_list_order();
         game.refresh_visibility();
         game
     }
@@ -382,14 +485,59 @@ impl Simulation {
         if max <= 1 {
             return 0;
         }
+        if let Some(random) = &mut self.native_random {
+            return random.draw(max as u32) as i32;
+        }
         self.rng ^= self.rng << 13;
         self.rng ^= self.rng >> 7;
         self.rng ^= self.rng << 17;
         (self.rng % max as u64) as i32
     }
 
+    fn set_random_seed(&mut self, seed: u32) {
+        self.native_random = Some(FreecivRng::new(seed));
+    }
+
+    fn random_snapshot(&self) -> (u64, Option<FreecivRng>) {
+        (self.rng, self.native_random.clone())
+    }
+
+    fn restore_random(&mut self, snapshot: (u64, Option<FreecivRng>)) {
+        (self.rng, self.native_random) = snapshot;
+    }
+
+    pub(crate) fn native_random_stream_playtest(&mut self) -> bool {
+        let same = Self::new(crate::mapgen::generate(self.world_seed));
+        let reproducible =
+            self.native_random.is_some() && self.random_snapshot() == same.random_snapshot();
+        let other = Self::new(crate::mapgen::generate(self.world_seed.wrapping_add(1)));
+        let seed_matters = self.random_snapshot() != other.random_snapshot();
+        self.set_random_seed(42);
+        // Literal fc_srand/fc_rand oracle values, independent of this wrapper.
+        let oracle = [
+            (0, 0),
+            (1, 0),
+            (2, 0),
+            (3, 2),
+            (7, 4),
+            (56, 41),
+            (100, 4),
+            (1000, 186),
+        ];
+        let equal = oracle
+            .into_iter()
+            .all(|(bound, value)| self.rand_below(bound) == value);
+        let before = self.random_snapshot();
+        let trivial =
+            self.rand_below(0) == 0 && self.rand_below(1) == 0 && self.random_snapshot() == before;
+        reproducible && seed_matters && equal && trivial
+    }
+
     pub(crate) fn unit_available(&self, owner: usize, kind: UnitKind) -> bool {
-        !matches!(kind, UnitKind::Explorer | UnitKind::BarbarianLeader)
+        !kind.has_no_build()
+            && kind
+                .required_government()
+                .is_none_or(|government| self.players[owner].government == government)
             && (kind != UnitKind::Nuclear || self.manhattan_project_completed())
             && kind
                 .required_tech()
@@ -488,17 +636,86 @@ impl Simulation {
         isohex_vector_distance(dx, dy)
     }
 
+    fn prune_unit_ai_state(&mut self) {
+        let ids: std::collections::BTreeSet<_> = self
+            .ai_ground_targets
+            .keys()
+            .chain(self.agent_city_targets.keys())
+            .chain(self.ai_merchant_missions.keys())
+            .chain(self.merchant_birth_turns.keys())
+            .chain(self.ai_settlement_targets.keys())
+            .chain(self.ai_ferries.boats.keys())
+            .chain(self.ai_ferries.passengers.keys())
+            .chain(self.ai_guard_targets.keys())
+            .chain(self.ai_unit_guards.keys())
+            .chain(self.unit_goto_tiles.keys())
+            .chain(self.ai_worker_tasks.iter())
+            .copied()
+            .filter(|id| !self.units.iter().any(|unit| unit.id == *id))
+            .collect();
+        for id in ids {
+            self.discard_unit_ai(id);
+        }
+        self.refresh_ai_ferries();
+        self.refresh_ai_guards();
+        self.sync_list_order();
+    }
+
+    fn discard_unit_ai(&mut self, id: u32) {
+        self.list_order.forget_unit(id);
+        self.unit_goto_tiles.remove(&id);
+        self.ai_worker_tasks.remove(&id);
+        self.forget_ai_guard_unit(id);
+        self.ai_ferries.forget(id);
+        self.ai_ground_targets.remove(&id);
+        self.agent_city_targets.remove(&id);
+        self.ai_merchant_missions.remove(&id);
+        self.merchant_birth_turns.remove(&id);
+        self.merchant_mission_attempts.remove(&id);
+        self.ai_settlement_targets.remove(&id);
+    }
+
+    fn run_ai_last_activities(&mut self, owner: usize) {
+        // ai/default/aihand.c:dai_do_last_activities runs government and
+        // taxes before city management and spending, then research.
+        self.clear_ai_tech_wants(owner);
+        self.choose_ai_government(owner);
+        if let Some((tech, want)) = self.government_research_want(owner) {
+            self.add_ai_tech_want(owner, tech, want as f32);
+        }
+        self.choose_ai_rates(owner);
+        self.arrange_ai_emergency_workers(owner);
+        self.record_ai_domestic_tech_wants(owner);
+        self.prepare_ai_city_defenses(owner);
+        self.spend_ai_defense_gold(owner);
+        self.record_ai_tech_effect_wants(owner);
+        self.manage_ai_research(owner);
+    }
+
     fn spawn_unit(&mut self, owner: usize, kind: UnitKind, x: i32, y: i32) -> u32 {
         let id = self.next_unit_id;
         self.next_unit_id += 1;
         self.units.push(self.make_unit(id, owner, kind, x, y));
+        self.list_order.unit(self.units.last().unwrap());
+        if Self::is_ai_ferry(kind) {
+            self.ai_ferries.boats.insert(
+                id,
+                ferries::BoatRecord {
+                    owner,
+                    state: ferries::FerryState::Available,
+                },
+            );
+        }
+        if matches!(kind, UnitKind::Caravan | UnitKind::Freight) {
+            self.merchant_birth_turns.insert(id, self.turn);
+        }
+        self.refresh_diplomatic_contact_at(owner, x, y);
         id
     }
 
     fn make_unit(&self, id: u32, owner: usize, kind: UnitKind, x: i32, y: i32) -> Unit {
         let stats = kind.stats();
-        let moves_left = self.unit_move_allowance(owner, kind);
-        Unit {
+        let mut unit = Unit {
             nationality: owner,
             id,
             owner,
@@ -511,14 +728,16 @@ impl Simulation {
             x,
             y,
             hp: stats.hp,
-            moves_left,
+            moves_left: 0,
             state: UnitState::Idle,
             moved: false,
             automated: false,
             work_kind: None,
             work_left: 0,
             work_done: 0,
-        }
+        };
+        unit.moves_left = self.unit_move_rate(&unit);
+        unit
     }
 
     fn advance_calendar(&mut self) {
@@ -547,10 +766,12 @@ impl Simulation {
         if self.game_over.is_some() {
             return;
         }
+        // srv_main:end_phase also enacts changes made during this phase.
+        self.finish_revolutions();
+        self.run_ai_worker_phase(HUMAN);
         let automated: Vec<u32> = self
-            .units
-            .iter()
-            .filter(|u| u.owner == HUMAN && u.automated)
+            .player_units_ordered(HUMAN)
+            .filter(|u| u.automated && !u.kind.stats().can_work)
             .map(|u| u.id)
             .collect();
         for id in automated {
@@ -560,37 +781,41 @@ impl Simulation {
             if owner == BARBARIANS {
                 continue;
             }
-            self.choose_ai_government(owner);
             self.run_ai_player(owner);
-            self.prepare_ai_city_defenses(owner);
-            if self.players[owner].research == 0 {
-                self.players[owner].researching = self.next_ai_research_target(owner);
-            }
-            self.choose_ai_rates(owner);
-            self.spend_ai_defense_gold(owner);
+            self.run_ai_last_activities(owner);
         }
         self.summon_barbarians();
         self.run_ai_player(BARBARIANS);
-        self.process_cities();
-        self.apply_workshop_upgrades();
-        self.restore_aircraft();
-        self.update_activities_and_restore();
+        self.ai_free_bulbs.clear();
+        for owner in 0..self.players.len() {
+            self.restore_player_units(owner);
+            let income = self.process_player_cities(owner);
+            self.finish_player_national_activities(owner, income);
+        }
         self.check_disasters();
         self.update_climate();
+        self.refresh_diplomatic_contact_effects();
         self.turn += 1;
         self.advance_diplomacy();
         self.prune_trade_routes();
-        self.finish_revolutions();
         self.advance_calendar();
+        // srv_main:begin_phase progresses activities with the previous
+        // movement budget, then refills MP. Revolution completion is also
+        // checked here, after activities (update_revolution at line 1381).
+        for owner in 0..self.players.len() {
+            self.progress_player_unit_activities(owner);
+        }
+        self.finish_revolutions();
         for city in &mut self.cities {
             city.airlift_used = false;
         }
         self.refresh_visibility();
         self.rebuild_city_ownership();
+        // Historical field name is retained for save compatibility; hunter
+        // interception needs previous positions of land and sea units alike.
         self.previous_naval_positions = self
             .units
             .iter()
-            .filter(|unit| unit.kind.is_naval())
             .map(|unit| (unit.id, (unit.x, unit.y)))
             .collect();
         self.hunter_targets.retain(|hunter, target| {

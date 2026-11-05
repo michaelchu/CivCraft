@@ -264,6 +264,78 @@ pub(super) fn unit_sprite(kind: UnitKind) -> (i32, i32) {
         UnitKind::Caravan => (0, 5),
         UnitKind::Freight => (1, 14),
         UnitKind::Horseman => (0, 8),
+        UnitKind::Pikemen => (1, 17),
+        UnitKind::Riflemen => (1, 2),
+        UnitKind::AlpineTroops => (2, 5),
+        UnitKind::Fanatics => (2, 12),
+        UnitKind::MechInf => (0, 17),
+        UnitKind::Elephants => (2, 10),
+        UnitKind::Crusaders => (2, 11),
+        UnitKind::Dragoons => (1, 12),
+        UnitKind::Cavalry => (1, 9),
+        UnitKind::Armor => (0, 0),
+        UnitKind::Artillery => (2, 3),
+        UnitKind::Howitzer => (0, 1),
+        UnitKind::Leader => (2, 15),
+        UnitKind::Awacs => (2, 13),
+        UnitKind::Storm => (2, 18),
+    }
+}
+
+pub(crate) fn native_unit_rendering_playtest() -> (bool, bool, bool) {
+    let atlas =
+        Image::from_file_with_format(include_bytes!("../../assets/amplio2_units.png"), None)
+            .expect("valid native unit atlas");
+    let pixels = atlas.get_image_data();
+    let visible = |kind| {
+        let (row, col) = unit_sprite(kind);
+        let source = bordered_sprite_source(row, col, 64.0, 48.0);
+        let (x, y) = (source.x as usize, source.y as usize);
+        x + 64 <= atlas.width()
+            && y + 48 <= atlas.height()
+            && (y..y + 48)
+                .any(|row| (x..x + 64).any(|col| pixels[row * atlas.width() + col][3] != 0))
+    };
+    let added = [
+        UnitKind::Pikemen,
+        UnitKind::Riflemen,
+        UnitKind::AlpineTroops,
+        UnitKind::Fanatics,
+        UnitKind::MechInf,
+        UnitKind::Elephants,
+        UnitKind::Crusaders,
+        UnitKind::Dragoons,
+        UnitKind::Cavalry,
+        UnitKind::Armor,
+        UnitKind::Artillery,
+        UnitKind::Howitzer,
+        UnitKind::Leader,
+        UnitKind::Awacs,
+        UnitKind::Storm,
+    ];
+    let complete =
+        UnitKind::ALL_NATIVE.len() == 57 && UnitKind::ALL_NATIVE.into_iter().all(visible);
+    let distinct = added
+        .into_iter()
+        .map(unit_sprite)
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+        == 15;
+    let labels = added
+        .into_iter()
+        .all(|kind| !short_unit_name(kind).is_empty())
+        && short_unit_name(UnitKind::Awacs) == "AWACS"
+        && short_unit_name(UnitKind::MechInf) == "Mech. Inf.";
+    (complete, distinct, labels)
+}
+
+#[cfg(test)]
+mod native_unit_tests {
+    use super::*;
+
+    #[test]
+    fn all_native_unit_sprites_have_pixels_and_new_types_have_distinct_atlas_cells() {
+        assert_eq!(native_unit_rendering_playtest(), (true, true, true));
     }
 }
 

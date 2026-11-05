@@ -35,14 +35,14 @@ impl Simulation {
         let city = &mut self.cities[index];
         city.size -= 1;
         city.last_plague = Some(self.turn);
-        city.remove_specialists(1);
+        city.remove_citizen_assignments(1);
         city.food = city.food.min(Self::growth_box(city.size));
         if city.owner == HUMAN {
             let name = city.name.clone();
             self.add_event(format!("Plague struck {name}. One citizen died."));
         }
         self.remove_citizen_nationalities(index, 1);
-        self.reconcile_city_workers();
+        self.rebuild_city_ownership_for_city_event(self.cities[index].id);
         true
     }
 }

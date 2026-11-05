@@ -12,27 +12,16 @@ impl Simulation {
     }
 
     pub(crate) fn can_negotiate(&self, other: usize) -> bool {
-        other != HUMAN
-            && other != BARBARIANS
-            && other < self.players.len()
-            && (self.cities.iter().any(|city| city.owner == other)
-                || self.units.iter().any(|unit| unit.owner == other))
-            && (self.has_embassy(HUMAN, other)
-                || self
-                    .diplomacy
-                    .contains_key(&Self::relation_key(HUMAN, other))
-                || self
-                    .cities
-                    .iter()
-                    .any(|city| city.owner == other && self.tile(city.x, city.y).visible)
-                || self
-                    .units
-                    .iter()
-                    .any(|unit| unit.owner == other && self.unit_visible_to_human(unit)))
+        self.diplomatic_meeting_possible(HUMAN, other)
     }
 
     pub(in crate::sim) fn accept_offer(&mut self, other: usize, offer: TreatyOffer) -> bool {
-        if !self.can_negotiate(other) || self.treaty_offer(other) != Some(offer) {
+        // Native acceptance looks up the existing meeting; contact expiry
+        // prevents opening a new meeting, not concluding an existing one.
+        if other >= self.players.len()
+            || !self.player_alive(other)
+            || self.treaty_offer(other) != Some(offer)
+        {
             return false;
         }
         if !self.execute_offer(HUMAN, other, offer) {
@@ -79,6 +68,12 @@ impl Simulation {
     pub(crate) fn city_trade_price(&self, city: &City) -> Option<i32> {
         let seller = city.owner;
         if !self.can_negotiate(seller)
+            || self
+                .cities
+                .iter()
+                .filter(|city| city.owner == seller)
+                .count()
+                <= 3
             || !matches!(self.pact(HUMAN, seller), Pact::Peace | Pact::Alliance)
             || !self.tile(city.x, city.y).known_by[HUMAN]
             || city.has_building(Building::PALACE)
@@ -213,17 +208,42 @@ impl Simulation {
                 })
                 || terms.gold < 0
                 || self.players[giver].gold < terms.gold
-                || terms
-                    .technology
-                    .is_some_and(|tech| self.tech_sell_price(giver, receiver, tech).is_none())
-                || (terms.shared_vision()
-                    && (after != Pact::Alliance || !self.vision_safe(giver, receiver)))
+                || terms.technology.is_some_and(|tech| {
+                    self.tech_trade_quote(giver, receiver, tech, true).is_none()
+                })
+                || (terms.embassy() && self.has_real_embassy(receiver, giver))
             {
                 return false;
             }
         }
-        if !self.ai_accepts_treaty_exchange(key.0, key.1, &offer.terms, after) {
-            return false;
+        let mut gifts = Vec::new();
+        for (side, (owner, other)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {
+            if !self.players[owner].ai {
+                continue;
+            }
+            let Some((mut balance, mut gift)) = self.ai_treaty_clause_balance(
+                owner,
+                other,
+                offer.terms[side],
+                offer.terms[1 - side],
+                after,
+            ) else {
+                return false;
+            };
+            if let Some(pact) = offer.pact {
+                if self.pact_refusal(owner, other, pact).is_some() {
+                    return false;
+                }
+                let value = self.pact_clause_value(owner, other, pact);
+                balance += value;
+                gift &= value >= 0;
+            }
+            if balance < 0 {
+                return false;
+            }
+            if gift && balance > 0 {
+                gifts.push((owner, balance));
+            }
         }
         if let Some(pact) = offer.pact {
             self.sign_pact(a, b, pact);
@@ -233,6 +253,7 @@ impl Simulation {
         for (index, (giver, receiver)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {
             let terms = offer.terms[index];
             relation.vision[index] |= terms.shared_vision();
+            relation.embassy[1 - index] |= terms.embassy();
             self.players[giver].gold -= terms.gold;
             self.players[receiver].gold += terms.gold;
         }
@@ -257,6 +278,17 @@ impl Simulation {
         }
         if offer.terms.iter().any(|terms| terms.shared_vision()) {
             self.refresh_visibility();
+        }
+        for (owner, balance) in gifts {
+            let cities = self
+                .cities
+                .iter()
+                .filter(|city| city.owner == owner)
+                .count() as i64;
+            let gain = (balance / (cities * 10 + 1)).min(30 * 150) * 100;
+            let side = usize::from(owner > if owner == key.0 { key.1 } else { key.0 });
+            let love = &mut self.diplomacy.get_mut(&key).unwrap().trust[side];
+            *love = (i64::from(*love) + gain).min(i64::from(i32::MAX)) as i32;
         }
         true
     }
@@ -296,6 +328,73 @@ impl Simulation {
                 })
     }
 
+    fn technology_exchange_terms(
+        &self,
+        proposer: usize,
+        recipient: usize,
+        after: Pact,
+    ) -> [Concessions; 2] {
+        let (a, b) = Self::relation_key(proposer, recipient);
+        let mut offer = TreatyOffer::default();
+        let incoming: Vec<_> = Tech::all()
+            .filter_map(|tech| {
+                self.tech_sell_price(recipient, proposer, tech)
+                    .map(|price| (tech, price))
+            })
+            .collect();
+        let outgoing: Vec<_> = Tech::all()
+            .filter_map(|tech| {
+                self.tech_sell_price(proposer, recipient, tech)
+                    .map(|price| (tech, price))
+            })
+            .collect();
+        'exchange: for &(received, incoming_value) in &incoming {
+            for &(given, outgoing_value) in &outgoing {
+                let balance = incoming_value - outgoing_value;
+                let giver = usize::from(proposer != a);
+                let mut terms = [Concessions::default(); 2];
+                terms[giver].technology = Some(given);
+                terms[1 - giver].technology = Some(received);
+                terms[giver].gold = balance.max(0);
+                terms[1 - giver].gold = (-balance).max(0);
+                if self.players[proposer].gold >= terms[giver].gold
+                    && self.players[recipient].gold >= terms[1 - giver].gold
+                    && self.ai_accepts_treaty_exchange(a, b, &terms, after)
+                {
+                    offer.terms = terms;
+                    break 'exchange;
+                }
+            }
+        }
+        offer.terms
+    }
+
+    pub(super) fn source_allied_offer(&self, owner: usize, other: usize) -> TreatyOffer {
+        let key = Self::relation_key(owner, other);
+        let side = usize::from(owner > other);
+        let mut offer = TreatyOffer {
+            terms: self.technology_exchange_terms(owner, other, Pact::Alliance),
+            ..TreatyOffer::default()
+        };
+        let existing = self.diplomacy[&key].vision;
+        let mut gives_vision = existing[side];
+        if !gives_vision && self.vision_safe(owner, other) {
+            offer.terms[side].access |= 1;
+            gives_vision = true;
+        }
+        if gives_vision && !existing[1 - side] && (other == HUMAN || self.vision_safe(other, owner))
+        {
+            offer.terms[1 - side].access |= 1;
+        }
+        if !self.has_embassy(owner, other) {
+            offer.terms[1 - side] = offer.terms[1 - side].with_embassy();
+        }
+        if !self.has_embassy(other, owner) {
+            offer.terms[side] = offer.terms[side].with_embassy();
+        }
+        offer
+    }
+
     pub(super) fn build_offer(&self, a: usize, b: usize, pact: Option<Pact>) -> TreatyOffer {
         let mut offer = TreatyOffer {
             pact,
@@ -303,39 +402,9 @@ impl Simulation {
         };
         let after = pact.unwrap_or_else(|| self.pact(a, b));
         if matches!(after, Pact::Peace | Pact::Alliance) {
-            // Freeciv scans technologies received by the proposer first.
             let proposer = if a == HUMAN { b } else { a };
             let recipient = if proposer == a { b } else { a };
-            let incoming: Vec<_> = Tech::all()
-                .filter_map(|tech| {
-                    self.tech_sell_price(recipient, proposer, tech)
-                        .map(|price| (tech, price))
-                })
-                .collect();
-            let outgoing: Vec<_> = Tech::all()
-                .filter_map(|tech| {
-                    self.tech_sell_price(proposer, recipient, tech)
-                        .map(|price| (tech, price))
-                })
-                .collect();
-            'exchange: for &(received, incoming_value) in &incoming {
-                for &(given, outgoing_value) in &outgoing {
-                    let balance = incoming_value - outgoing_value;
-                    let giver = usize::from(proposer != a);
-                    let mut terms = [Concessions::default(); 2];
-                    terms[giver].technology = Some(given);
-                    terms[1 - giver].technology = Some(received);
-                    terms[giver].gold = balance.max(0);
-                    terms[1 - giver].gold = (-balance).max(0);
-                    if self.players[proposer].gold >= terms[giver].gold
-                        && self.players[recipient].gold >= terms[1 - giver].gold
-                        && self.ai_accepts_treaty_exchange(a, b, &terms, after)
-                    {
-                        offer.terms = terms;
-                        break 'exchange;
-                    }
-                }
-            }
+            offer.terms = self.technology_exchange_terms(proposer, recipient, after);
         }
         // Freeciv values map clauses, but its default AI does not originate
         // them. Use those values when CivCraft proposes a useful map.
