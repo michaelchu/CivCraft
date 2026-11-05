@@ -1,5 +1,3 @@
-This build contains the original game's own files, for the private use of the person who owns the game, on their own computer. It must not be shared or published.
-
 # CivCraft
 
 CivCraft is an offline Rust recreation of Freeciv's single-player game using the supplied Civ2Civ3 rules as its reference. Six civilizations explore a horizontally wrapped isometric-hex world, develop cities, research technologies, negotiate treaties, trade, wage land, sea, and air warfare, and pursue conquest or spaceship victory.
@@ -54,7 +52,7 @@ The research screen lists unit and building unlocks from the implemented catalog
 
 ## Repository
 
-The project is hosted at [michaelchu/CivCraft](https://github.com/michaelchu/CivCraft). Keep the repository private because it includes original Freeciv artwork.
+The project is hosted at [michaelchu/CivCraft](https://github.com/michaelchu/CivCraft).
 
 ## Focus of this build
 
