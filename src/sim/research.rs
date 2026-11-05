@@ -38,7 +38,14 @@ impl Simulation {
     }
 
     pub(super) fn research_target(&self, owner: usize) -> Tech {
-        self.research_path(owner, self.players[owner].research_goal)
+        let goal = self.players[owner].research_goal;
+        let ferry_want = self.ferry_tech_want(owner, Tech::MAP_MAKING);
+        let goal = if ferry_want > 0 && ferry_want > self.advisor_tech_want(owner, goal) {
+            Tech::MAP_MAKING
+        } else {
+            goal
+        };
+        self.research_path(owner, goal)
             .first()
             .copied()
             .or_else(|| {
@@ -49,12 +56,52 @@ impl Simulation {
             .unwrap_or(Tech::FUTURE)
     }
 
+    pub(super) fn next_ai_research_target(&mut self, owner: usize) -> Tech {
+        let baseline = self.research_target(owner);
+        let competing = self
+            .advisor_tech_want(owner, self.players[owner].research_goal)
+            .max(self.ferry_tech_want(owner, Tech::MAP_MAKING));
+        let defensive = self.counterintelligence_tech_want(owner);
+        let government = self.government_research_want(owner);
+        if defensive > competing && government.is_none_or(|(_, want)| defensive >= want) {
+            return Tech::ALPHABET;
+        }
+        if let Some((goal, want)) = government
+            && want > competing
+            && let Some(&next) = self.research_path(owner, goal).first()
+        {
+            return next;
+        }
+        baseline
+    }
+
     pub(crate) fn target_cost(&self, owner: usize, tech: Tech) -> i32 {
-        if tech == Tech::FUTURE {
-            let player = &self.players[owner];
+        let player = &self.players[owner];
+        let base = if tech == Tech::FUTURE {
             research_cost(player.known.len() as i32 + player.future_techs + 1)
         } else {
             tech.cost()
+        };
+        let mut alive = 0;
+        let mut sources = 0;
+        for other in 0..self.players.len() {
+            if !self.player_alive(other) {
+                continue;
+            }
+            alive += 1;
+            let knows = if tech == Tech::FUTURE {
+                self.players[other].future_techs > player.future_techs
+            } else {
+                self.has_tech(other, tech)
+            };
+            if knows && self.has_embassy(owner, other) {
+                sources += 1;
+            }
+        }
+        if alive == 0 {
+            base
+        } else {
+            (base * (alive - sources) / alive).max(1)
         }
     }
 
@@ -140,6 +187,25 @@ impl Simulation {
         }
     }
 
+    pub(super) fn grant_cheapest_advance(&mut self, owner: usize) {
+        let available: Vec<_> = Tech::all()
+            .filter(|&tech| self.tech_available(owner, tech))
+            .collect();
+        let advance = if let Some(cost) = available.iter().map(|tech| tech.cost()).min() {
+            let cheapest: Vec<_> = available
+                .into_iter()
+                .filter(|tech| tech.cost() == cost)
+                .collect();
+            cheapest[self.rand_below(cheapest.len() as i32) as usize]
+        } else {
+            Tech::FUTURE
+        };
+        self.discover(owner, advance);
+        if self.players[owner].researching == advance {
+            self.players[owner].researching = self.research_target(owner);
+        }
+    }
+
     pub(super) fn discover(&mut self, owner: usize, tech: Tech) {
         if tech == Tech::FUTURE {
             self.players[owner].future_techs += 1;
@@ -159,6 +225,29 @@ impl Simulation {
         }
         if owner == HUMAN {
             self.add_event(format!("Research complete: {}.", tech.name()));
+        }
+    }
+    pub(super) fn resolve_research_turn(&mut self, owner: usize, science: i32) {
+        self.apply_research_upkeep(owner, science);
+        let current = self.players[owner].researching;
+        let cost = self.target_cost(owner, current);
+        if self.players[owner].research >= cost {
+            self.players[owner].research -= cost;
+            let first_bonus = current
+                .data()
+                .is_some_and(|advance| advance.first_discovery_bonus)
+                && self
+                    .players
+                    .iter()
+                    .all(|player| !player.known.contains(&current));
+            self.discover(owner, current);
+            if first_bonus {
+                let bonus = self.research_target(owner);
+                if bonus != Tech::FUTURE {
+                    self.discover(owner, bonus);
+                }
+            }
+            self.players[owner].researching = self.next_ai_research_target(owner);
         }
     }
 }

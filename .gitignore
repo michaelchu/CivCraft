@@ -3,3 +3,7 @@
 .DS_Store
 *.log
 
+
+/civcraft.save
+/civcraft-autosave.save
+/civcraft*.save.*.tmp

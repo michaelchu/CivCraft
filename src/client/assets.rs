@@ -100,6 +100,7 @@ pub(crate) struct Assets {
     pub(super) ocean_corners: Texture2D,
     pub(super) units: Texture2D,
     pub(super) cities: Texture2D,
+    pub(super) bases: Texture2D,
 }
 
 impl Assets {
@@ -138,6 +139,11 @@ impl Assets {
             include_bytes!("../../assets/amplio2_cities.png"),
             None,
         );
+        let bases = Texture2D::from_file_with_format(
+            include_bytes!("../../assets/amplio2_bases.png"),
+            None,
+        );
+        bases.set_filter(FilterMode::Nearest);
         // These are tightly packed sprite atlases. Nearest filtering keeps a
         // tile from sampling the neighbouring cell at zoom levels below 1x.
         terrain.set_filter(FilterMode::Nearest);
@@ -156,6 +162,7 @@ impl Assets {
             ocean_corners,
             units,
             cities,
+            bases,
         }
     }
 }
@@ -217,8 +224,11 @@ impl Terrain {
 pub(super) fn unit_sprite(kind: UnitKind) -> (i32, i32) {
     match kind {
         UnitKind::Settlers => (1, 4),
+        UnitKind::Migrants => (2, 17),
         UnitKind::Worker => (2, 14),
-        UnitKind::Diplomat => (0, 11),
+        UnitKind::Engineer => (2, 2),
+        UnitKind::Diplomat | UnitKind::BarbarianLeader => (0, 11),
+        UnitKind::Spy => (2, 1),
         UnitKind::Explorer => (1, 13),
         UnitKind::Warrior => (0, 18),
         UnitKind::Phalanx => (1, 1),
@@ -227,11 +237,32 @@ pub(super) fn unit_sprite(kind: UnitKind) -> (i32, i32) {
         UnitKind::Chariot => (0, 9),
         UnitKind::Catapult => (0, 7),
         UnitKind::Musketeers => (0, 19),
+        UnitKind::Marines => (2, 0),
+        UnitKind::Paratroopers => (2, 9),
         UnitKind::Knights => (0, 15),
         UnitKind::Partisan => (1, 16),
         UnitKind::Cannon => (0, 4),
+        UnitKind::Bomber => (0, 3),
+        UnitKind::Fighter => (0, 12),
+        UnitKind::StealthFighter => (2, 7),
+        UnitKind::StealthBomber => (2, 6),
+        UnitKind::Helicopter => (2, 4),
+        UnitKind::Trireme => (1, 7),
         UnitKind::Caravel => (1, 3),
         UnitKind::Galleon => (1, 15),
+        UnitKind::Transport => (1, 6),
+        UnitKind::Carrier => (0, 6),
+        UnitKind::Frigate => (0, 13),
+        UnitKind::Ironclad => (0, 14),
+        UnitKind::Destroyer => (1, 11),
+        UnitKind::Cruiser => (0, 10),
+        UnitKind::Battleship => (0, 2),
+        UnitKind::Submarine => (1, 5),
+        UnitKind::AegisCruiser => (2, 8),
+        UnitKind::CruiseMissile => (1, 10),
+        UnitKind::Nuclear => (1, 0),
+        UnitKind::Caravan => (0, 5),
+        UnitKind::Freight => (1, 14),
         UnitKind::Horseman => (0, 8),
     }
 }

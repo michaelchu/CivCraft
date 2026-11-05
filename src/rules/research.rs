@@ -1,7 +1,7 @@
 // Catalog transcribed from Freeciv data/civ2civ3/techs.ruleset.
 // Reference unlock labels come from the unit and building rulesets.
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Tech(pub(crate) usize);
 
 pub(crate) struct Advance {
@@ -13,6 +13,18 @@ pub(crate) struct Advance {
 }
 
 impl Tech {
+    pub(crate) const STEALTH: Self = Self(73);
+    pub(crate) const COMBUSTION: Self = Self(14);
+    pub(crate) const COMBINED_ARMS: Self = Self(13);
+    pub(crate) const STEAM_ENGINE: Self = Self(74);
+    pub(crate) const MASS_PRODUCTION: Self = Self(46);
+    pub(crate) const STEEL: Self = Self(75);
+    pub(crate) const FLIGHT: Self = Self(29);
+    pub(crate) const ADVANCED_FLIGHT: Self = Self(0);
+    pub(crate) const ASTRONOMY: Self = Self(3);
+    pub(crate) const CONSTRUCTION: Self = Self(18);
+    pub(crate) const RADIO: Self = Self(63);
+    pub(crate) const AMPHIBIOUS_WARFARE: Self = Self(2);
     pub(crate) const ALPHABET: Self = Self(1);
     pub(crate) const BRIDGE_BUILDING: Self = Self(7);
     pub(crate) const BRONZE_WORKING: Self = Self(8);
@@ -21,6 +33,11 @@ impl Tech {
     pub(crate) const POTTERY: Self = Self(62);
     pub(crate) const IRON_WORKING: Self = Self(37);
     pub(crate) const THE_WHEEL: Self = Self(80);
+    pub(crate) const MAP_MAKING: Self = Self(44);
+    pub(crate) const MASONRY: Self = Self(45);
+    pub(crate) const MAGNETISM: Self = Self(43);
+    pub(crate) const NAVIGATION: Self = Self(55);
+    pub(crate) const MEDICINE: Self = Self(48);
     pub(crate) const MATHEMATICS: Self = Self(47);
     pub(crate) const UNIVERSITY: Self = Self(84);
     pub(crate) const RAILROAD: Self = Self(64);
@@ -30,8 +47,32 @@ impl Tech {
     pub(crate) const CHIVALRY: Self = Self(11);
     pub(crate) const GUNPOWDER: Self = Self(33);
     pub(crate) const GUERILLA_WARFARE: Self = Self(32);
+    pub(crate) const MACHINE_TOOLS: Self = Self(42);
     pub(crate) const METALLURGY: Self = Self(49);
     pub(crate) const FUTURE: Self = Self(ADVANCES.len());
+
+    pub(crate) const COMPUTERS: Self = Self(16);
+    pub(crate) const COMMUNISM: Self = Self(15);
+    pub(crate) const DEMOCRACY: Self = Self(20);
+    pub(crate) const MOBILE_WARFARE: Self = Self(51);
+    pub(crate) const MINIATURIZATION: Self = Self(50);
+    pub(crate) const REFINING: Self = Self(66);
+    pub(crate) const ENGINEERING: Self = Self(24);
+    pub(crate) const INVENTION: Self = Self(36);
+    pub(crate) const ESPIONAGE: Self = Self(26);
+    pub(crate) const EXPLOSIVES: Self = Self(27);
+    pub(crate) const FUSION_POWER: Self = Self(30);
+    pub(crate) const ELECTRICITY: Self = Self(22);
+    pub(crate) const REFRIGERATION: Self = Self(67);
+    pub(crate) const ECONOMICS: Self = Self(21);
+    pub(crate) const MONARCHY: Self = Self(52);
+    pub(crate) const MYSTICISM: Self = Self(54);
+    pub(crate) const NUCLEAR_POWER: Self = Self(57);
+    pub(crate) const NUCLEAR_FISSION: Self = Self(56);
+    pub(crate) const THE_CORPORATION: Self = Self(78);
+    pub(crate) const THE_REPUBLIC: Self = Self(79);
+    pub(crate) const THEOLOGY: Self = Self(81);
+    pub(crate) const TRADE: Self = Self(83);
 
     pub(crate) fn all() -> impl Iterator<Item = Self> {
         (0..ADVANCES.len()).map(Self)

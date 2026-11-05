@@ -9,16 +9,104 @@ impl Game {
             UiAction::RaiseRate(index) => {
                 self.sim.apply(Command::RaiseRate(index));
             }
+            UiAction::CityTiles => self.city_tiles = !self.city_tiles,
+            UiAction::WorkCityTile(city, x, y) => {
+                self.sim.apply(Command::WorkCityTile(city, x, y));
+            }
             UiAction::Specialist(city, index, delta) => {
                 self.sim.apply(Command::Specialist(city, index, delta));
+            }
+            UiAction::Disband(city) => {
+                if let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::Disband(id, city))
+                {
+                    self.select_next_unit();
+                }
+            }
+            UiAction::UpgradeUnit(target, price) => {
+                if let Some(id) = self.selected_unit {
+                    self.sim.apply(Command::UpgradeUnit(id, target, price));
+                }
+            }
+            UiAction::DeliverGoods(city) | UiAction::HelpWonder(city) => {
+                if let Some(id) = self.selected_unit {
+                    let command = if matches!(action, UiAction::DeliverGoods(_)) {
+                        Command::DeliverGoods(id, city)
+                    } else {
+                        Command::HelpWonder(id, city)
+                    };
+                    if self.sim.apply(command) {
+                        self.select_next_unit();
+                    }
+                }
+            }
+            UiAction::BeginParadrop => {
+                self.paradrop_mode = self
+                    .selected_unit_index()
+                    .is_some_and(|index| self.sim.can_begin_paradrop(&self.sim.units()[index]));
+                self.goto_mode = false;
+            }
+            UiAction::ParadropTo(x, y) => {
+                if self.paradrop_mode
+                    && let Some(id) = self.selected_unit
+                {
+                    self.move_selected(Command::Paradrop(id, x, y), id);
+                }
+                self.paradrop_mode = false;
+            }
+            UiAction::Airlift(city) => {
+                if let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::Airlift(id, city))
+                    && let Some(unit) = self.sim.units().iter().find(|unit| unit.id == id)
+                {
+                    self.focus_camera_on(unit.x, unit.y);
+                }
+            }
+            UiAction::JoinCity(city) => {
+                if let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::JoinCity(id, city))
+                {
+                    self.select_next_unit();
+                }
+            }
+            UiAction::Detonate => {
+                if let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::Detonate(id))
+                {
+                    self.select_next_unit();
+                }
+            }
+            UiAction::BoardOrDeboard => {
+                if let Some(id) = self.selected_unit {
+                    self.sim.apply(Command::BoardOrDeboard(id));
+                }
             }
             UiAction::HomeCity => {
                 if let Some(id) = self.selected_unit {
                     self.sim.apply(Command::HomeCity(id));
                 }
             }
+            UiAction::LaunchSpaceship => {
+                if self.sim.apply(Command::LaunchSpaceship) {
+                    self.spaceship_open = false;
+                }
+            }
+            UiAction::ToggleSpaceship => self.spaceship_open = !self.spaceship_open,
+            UiAction::ToggleManualAssembly => {
+                self.sim.apply(Command::ToggleManualAssembly);
+            }
+            UiAction::PlaceShipPart(part) => {
+                self.sim.apply(Command::PlaceShipPart(part));
+            }
             UiAction::EndTurn => {
-                self.sim.apply(Command::EndTurn);
+                if self.sim.apply(Command::EndTurn)
+                    && self.autosave_enabled
+                    && let Err(error) = self
+                        .sim
+                        .save_campaign(std::path::Path::new(crate::AUTOSAVE_PATH))
+                {
+                    self.sim.add_event(format!("Autosave failed. {error}"));
+                }
                 self.select_next_unit();
             }
             UiAction::CloseCity => {
@@ -53,13 +141,26 @@ impl Game {
                 }
             }
             UiAction::Irrigate => {
+                if let Some(index) = self.selected_unit_index() {
+                    let unit = &self.sim.units()[index];
+                    let kind = if self.sim.tile(unit.x, unit.y).irrigation {
+                        WorkKind::Farmland
+                    } else {
+                        WorkKind::Irrigation
+                    };
+                    self.sim.apply(Command::Work(unit.id, kind));
+                }
+            }
+            UiAction::TerrainWork(kind) => {
                 if let Some(id) = self.selected_unit {
-                    self.sim.apply(Command::Work(id, WorkKind::Irrigation));
+                    self.sim.apply(Command::Work(id, kind));
                 }
             }
             UiAction::Mine => {
-                if let Some(id) = self.selected_unit {
-                    self.sim.apply(Command::Work(id, WorkKind::Mine));
+                if let Some(index) = self.selected_unit_index() {
+                    let unit = &self.sim.units()[index];
+                    let kind = self.sim.oil_work(unit).unwrap_or(WorkKind::Mine);
+                    self.sim.apply(Command::Work(unit.id, kind));
                 }
             }
             UiAction::Fortify => {
@@ -78,18 +179,91 @@ impl Game {
                     self.sim.apply(Command::Automate(id));
                 }
             }
+            UiAction::RushProduction(id) => {
+                self.sim.apply(Command::RushProduction(id));
+            }
+            UiAction::SellBuilding(id, building) => {
+                self.sim.apply(Command::SellBuilding(id, building));
+            }
             UiAction::Produce(kind) => {
                 if let Some(id) = self.selected_city {
                     self.sim.apply(Command::Produce(id, kind));
                 }
             }
             UiAction::ProductionPage(page) => self.production_page = page,
+            UiAction::UnitProductionPage(page) => self.unit_production_page = page,
+            UiAction::WorklistPage(page) => self.worklist_page = page,
+            UiAction::EditWorklist(id, edit) => {
+                self.sim.apply(Command::EditWorklist(id, edit));
+            }
             UiAction::ToggleDiplomacy => {
                 self.diplomacy_open = !self.diplomacy_open;
                 self.diplomacy_page = 0;
+                self.city_deals = None;
                 self.reviewed_offer = None;
             }
             UiAction::DiplomacyPage(page) => self.diplomacy_page = page,
+            UiAction::SpyTargets(targets) => self.spy_targets = targets,
+            UiAction::TargetedTheft(..)
+            | UiAction::TargetedSabotage(..)
+            | UiAction::StealTechnology(..)
+            | UiAction::SabotageUnit(..)
+            | UiAction::PoisonCity(..)
+            | UiAction::InciteCity(..)
+            | UiAction::SabotageCity(..) => {
+                if let Some(id) = self.selected_unit {
+                    let command = match action {
+                        UiAction::SabotageUnit(target) => Command::SabotageUnit(id, target),
+                        UiAction::InciteCity(city, price) => Command::InciteCity(id, city, price),
+                        UiAction::PoisonCity(city) => Command::PoisonCity(id, city),
+                        UiAction::SabotageCity(city) => Command::SabotageCity(id, city),
+                        UiAction::StealTechnology(city) => Command::StealTechnology(id, city),
+                        UiAction::TargetedTheft(city, tech) => {
+                            Command::TargetedTheft(id, city, tech)
+                        }
+                        UiAction::TargetedSabotage(city, target) => {
+                            Command::TargetedSabotage(id, city, target)
+                        }
+                        _ => unreachable!(),
+                    };
+                    if self.sim.apply(command) {
+                        self.spy_targets = None;
+                        if self.sim.units().iter().all(|unit| unit.id != id) {
+                            self.select_next_unit();
+                        }
+                    }
+                }
+            }
+            UiAction::BribeUnit(target, price) => {
+                if let Some(id) = self.selected_unit {
+                    self.sim.apply(Command::BribeUnit(id, target, price));
+                }
+            }
+            UiAction::InvestigateCity(city) => {
+                if let Some(id) = self.selected_unit
+                    && let Some(report) = self.sim.investigate_city(id, city)
+                {
+                    self.investigation = Some(report);
+                    self.investigation_page = 0;
+                }
+            }
+            UiAction::CloseInvestigation => self.investigation = None,
+            UiAction::InvestigationPage(page) => self.investigation_page = page,
+            UiAction::EstablishEmbassy(city) => {
+                if let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::EstablishEmbassy(id, city))
+                    && self.sim.units().iter().all(|unit| unit.id != id)
+                {
+                    self.select_next_unit();
+                }
+            }
+            UiAction::CityDeals(selection) => self.city_deals = selection,
+            UiAction::BuyCity(city, price) => {
+                self.sim.apply(Command::BuyCity(city, price));
+            }
+            UiAction::BuyMap(owner, map) => {
+                self.sim.apply(Command::BuyMap(owner, map));
+            }
             UiAction::Negotiate(other, pact) => {
                 self.sim.apply(Command::Negotiate(other, pact));
             }
@@ -136,13 +310,54 @@ impl Game {
     }
 
     pub(crate) fn handle_keyboard(&mut self) {
+        if is_key_pressed(KeyCode::F5) {
+            let message = match self
+                .sim
+                .save_campaign(std::path::Path::new(crate::QUICKSAVE_PATH))
+            {
+                Ok(()) => "Campaign saved.".to_owned(),
+                Err(error) => format!("Save failed. {error}"),
+            };
+            self.sim.add_event(message);
+            return;
+        }
+        if is_key_pressed(KeyCode::F9) {
+            match Simulation::load_campaign(std::path::Path::new(crate::QUICKSAVE_PATH)) {
+                Ok(simulation) => {
+                    let autosave_enabled = self.autosave_enabled;
+                    *self = Self::from_simulation(simulation);
+                    self.autosave_enabled = autosave_enabled;
+                    self.sim.add_event("Campaign loaded.");
+                }
+                Err(error) => self.sim.add_event(format!("Load failed. {error}")),
+            }
+            return;
+        }
+        if self.spy_targets.is_some() {
+            if is_key_pressed(KeyCode::Escape) {
+                self.spy_targets = None;
+            }
+            return;
+        }
+        if self.investigation.is_some() {
+            if is_key_pressed(KeyCode::Escape) {
+                self.investigation = None;
+            }
+            return;
+        }
         if self.government_open || self.diplomacy_open {
             if is_key_pressed(KeyCode::Escape) {
-                if self.reviewed_offer.take().is_some() {
+                if self.reviewed_offer.take().is_some() || self.city_deals.take().is_some() {
                     return;
                 }
                 self.government_open = false;
                 self.diplomacy_open = false;
+            }
+            return;
+        }
+        if self.spaceship_open {
+            if is_key_pressed(KeyCode::Escape) {
+                self.spaceship_open = false;
             }
             return;
         }
@@ -158,6 +373,7 @@ impl Game {
                 self.selected_city = None;
             } else {
                 self.goto_mode = false;
+                self.paradrop_mode = false;
             }
         }
         if is_key_pressed(KeyCode::Tab) {
@@ -166,6 +382,9 @@ impl Game {
         if is_key_pressed(KeyCode::Enter) && shift_down {
             self.perform_action(UiAction::EndTurn);
             return;
+        }
+        if is_key_pressed(KeyCode::L) {
+            self.perform_action(UiAction::BoardOrDeboard);
         }
         if is_key_pressed(KeyCode::B) {
             self.perform_action(UiAction::FoundCity);
@@ -179,6 +398,15 @@ impl Game {
         if is_key_pressed(KeyCode::H) {
             self.perform_action(UiAction::HomeCity);
         }
+        for (key, kind) in [
+            (KeyCode::V, WorkKind::Cultivate),
+            (KeyCode::P, WorkKind::Plant),
+            (KeyCode::T, WorkKind::Transform),
+        ] {
+            if is_key_pressed(key) {
+                self.perform_action(UiAction::TerrainWork(kind));
+            }
+        }
         if is_key_pressed(KeyCode::M) {
             self.perform_action(UiAction::Mine);
         }
@@ -189,6 +417,7 @@ impl Game {
             self.perform_action(UiAction::Automate);
         }
         if is_key_pressed(KeyCode::G) {
+            self.paradrop_mode = false;
             self.goto_mode = !self.goto_mode;
             self.sim.add_event(if self.goto_mode {
                 "Go-to active: choose a destination tile."
@@ -291,11 +520,16 @@ impl Game {
         )
     }
 
-    pub(super) fn minimap_rect() -> Rect {
+    pub(super) fn minimap_rect(&self) -> Rect {
         let top = TOP_H + 38.0;
         let available_width = PANEL_W - 36.0;
         // Leave room for the context text and the two bottom buttons.
-        let available_height = (screen_height() - top - 17.0 - 207.0 - 122.0).max(1.0);
+        let space_row = if self.sim.spaceship_status(HUMAN).is_some() {
+            56.0
+        } else {
+            0.0
+        };
+        let available_height = (screen_height() - top - 17.0 - 207.0 - 122.0 - space_row).max(1.0);
         let natural_size = vec2((2 * MAP_W) as f32, MAP_H as f32);
         let scale = (available_width / natural_size.x).min(available_height / natural_size.y);
         let size = natural_size * scale;
@@ -371,7 +605,12 @@ impl Game {
     }
 
     pub(crate) fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
-        if self.government_open || self.diplomacy_open {
+        if self.spaceship_open
+            || self.government_open
+            || self.diplomacy_open
+            || self.investigation.is_some()
+            || self.spy_targets.is_some()
+        {
             let (x, y) = mouse_position();
             if is_mouse_button_pressed(MouseButton::Left)
                 && let Some((_, action)) =
@@ -425,7 +664,7 @@ impl Game {
         if self.selected_city.is_some() {
             return;
         }
-        let minimap = Self::minimap_rect();
+        let minimap = self.minimap_rect();
         if minimap.contains(mouse) {
             let scale = minimap.h / MAP_H as f32;
             let natural_x = ((mouse.x - minimap.x) / scale).floor() as i32;
@@ -440,6 +679,10 @@ impl Game {
         let Some((x, y)) = self.screen_to_world(mouse) else {
             return;
         };
+        if self.paradrop_mode {
+            self.perform_action(UiAction::ParadropTo(x, y));
+            return;
+        }
         if self.goto_mode {
             if let Some(id) = self.selected_unit {
                 self.move_selected(Command::GoTo(id, x, y), id);
@@ -450,7 +693,7 @@ impl Game {
         self.select_at(x, y);
     }
 
-    pub(super) fn select_at(&mut self, x: i32, y: i32) {
+    pub(crate) fn select_at(&mut self, x: i32, y: i32) {
         // Cities take click priority over their garrisons. Units stationed in
         // a city remain selectable from the city manager.
         if let Some(city) = self
@@ -460,17 +703,28 @@ impl Game {
             .find(|city| city.owner == HUMAN && city.x == x && city.y == y)
         {
             self.production_page = 0;
+            self.unit_production_page = 0;
+            self.worklist_page = None;
+            self.city_tiles = false;
             self.selected_city = Some(city.id);
             self.selected_unit = None;
             return;
         }
-        if let Some(unit) = self
+        let mut stack = self
             .sim
             .units()
             .iter()
             .rev()
-            .find(|u| u.owner == HUMAN && u.x == x && u.y == y)
-        {
+            .filter(|unit| unit.owner == HUMAN && (unit.x, unit.y) == (x, y))
+            .collect::<Vec<_>>();
+        stack.sort_by_key(|unit| unit.transport.is_some());
+        let current = stack
+            .iter()
+            .position(|unit| Some(unit.id) == self.selected_unit);
+        let next = current
+            .and_then(|index| stack.get(index + 1))
+            .or_else(|| stack.first());
+        if let Some(unit) = next {
             self.selected_unit = Some(unit.id);
             self.selected_city = None;
         }

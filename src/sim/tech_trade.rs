@@ -45,13 +45,17 @@ impl Simulation {
         Some(price)
     }
 
-    pub(super) fn ai_accepts_technology_exchange(
+    pub(super) fn ai_accepts_treaty_exchange(
         &self,
         a: usize,
         b: usize,
         terms: &[super::diplomacy::Concessions; 2],
+        after: Pact,
     ) -> bool {
-        if terms.iter().all(|term| term.technology.is_none()) {
+        if terms
+            .iter()
+            .all(|term| term.technology.is_none() && term.map().is_none() && term.city().is_none())
+        {
             return true;
         }
         for (side, (owner, other)) in [(a, b), (b, a)].into_iter().enumerate() {
@@ -61,12 +65,35 @@ impl Simulation {
             }
             let give = terms[side];
             let receive = terms[1 - side];
-            let mut balance = receive.gold - give.gold;
+            let mut balance = i64::from(receive.gold) - i64::from(give.gold);
+            if let Some(map) = give.map() {
+                balance -= i64::from(self.map_trade_price(owner, other, map, after));
+            }
+            if let Some(id) = give.city() {
+                let Some(city) = self
+                    .cities
+                    .iter()
+                    .find(|city| city.id == id && city.owner == owner)
+                else {
+                    return false;
+                };
+                balance -= i64::from(self.city_sale_value(city, other));
+            }
+            if let Some(id) = receive.city() {
+                let Some(city) = self
+                    .cities
+                    .iter()
+                    .find(|city| city.id == id && city.owner == other)
+                else {
+                    return false;
+                };
+                balance += i64::from(self.city_gold_worth(city));
+            }
             if let Some(tech) = give.technology {
                 let Some(price) = self.tech_sell_price(owner, other, tech) else {
                     return false;
                 };
-                balance -= price;
+                balance -= i64::from(price);
             }
             if let Some(tech) = receive.technology {
                 let Some(mut price) = self.tech_sell_price(other, owner, tech) else {
@@ -80,7 +107,7 @@ impl Simulation {
                     }
                     price /= 2;
                 }
-                balance += price;
+                balance += i64::from(price);
             }
             if balance < 0 {
                 return false;

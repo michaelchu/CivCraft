@@ -7,8 +7,11 @@ use assets::{
 mod government_view;
 mod hud;
 mod input;
+mod investigation_view;
 mod research_tree;
 mod research_view;
+mod spaceship_view;
+mod spy_view;
 mod world;
 
 use crate::rules::{Building, Genus, Requirement, Tech};
@@ -28,13 +31,45 @@ const MAX_ZOOM: f32 = 1.35;
 #[derive(Clone, Copy)]
 pub(crate) enum UiAction {
     EndTurn,
+    LaunchSpaceship,
+    ToggleSpaceship,
+    ToggleManualAssembly,
+    PlaceShipPart(ShipPart),
     RaiseRate(usize),
     Specialist(u32, usize, i32),
+    CityTiles,
+    WorkCityTile(u32, i32, i32),
     HomeCity,
+    BoardOrDeboard,
+    Disband(Option<u32>),
+    Detonate,
+    DeliverGoods(u32),
+    HelpWonder(u32),
+    JoinCity(u32),
+    Airlift(u32),
+    BeginParadrop,
+    ParadropTo(i32, i32),
+    UpgradeUnit(UnitKind, i32),
     ToggleGovernment,
     ToggleDiplomacy,
     DiplomacyPage(usize),
     Negotiate(usize, Pact),
+    BuyMap(usize, TreatyMap),
+    CityDeals(Option<(usize, usize)>),
+    BuyCity(u32, i32),
+    EstablishEmbassy(u32),
+    BribeUnit(u32, i32),
+    SabotageUnit(u32),
+    StealTechnology(u32),
+    SabotageCity(u32),
+    PoisonCity(u32),
+    InciteCity(u32, i32),
+    SpyTargets(Option<(u32, usize)>),
+    TargetedTheft(u32, Tech),
+    TargetedSabotage(u32, SabotageTarget),
+    InvestigateCity(u32),
+    CloseInvestigation,
+    InvestigationPage(usize),
     CancelPact(usize),
     DeclineOffer(usize),
     ReviewOffer(usize, TreatyOffer),
@@ -46,12 +81,18 @@ pub(crate) enum UiAction {
     FoundCity,
     Road,
     Irrigate,
+    TerrainWork(WorkKind),
     Mine,
     Fortify,
     Wait,
     Automate,
     Produce(Production),
+    RushProduction(u32),
+    SellBuilding(u32, Building),
     ProductionPage(usize),
+    UnitProductionPage(usize),
+    WorklistPage(Option<usize>),
+    EditWorklist(u32, WorklistEdit),
     OpenResearch,
     CloseResearch,
     CenterResearch,
@@ -63,16 +104,26 @@ pub(crate) enum UiAction {
 
 pub(crate) struct Game {
     pub(crate) sim: Simulation,
+    pub(crate) autosave_enabled: bool,
     pub(crate) selected_unit: Option<u32>,
     selected_city: Option<u32>,
     production_page: usize,
+    unit_production_page: usize,
+    worklist_page: Option<usize>,
+    city_tiles: bool,
     camera: Vec2,
     zoom: f32,
     goto_mode: bool,
+    paradrop_mode: bool,
     research_open: bool,
     government_open: bool,
+    spaceship_open: bool,
+    investigation: Option<CityInvestigation>,
+    investigation_page: usize,
+    spy_targets: Option<(u32, usize)>,
     diplomacy_open: bool,
     reviewed_offer: Option<(usize, TreatyOffer)>,
+    city_deals: Option<(usize, usize)>,
     diplomacy_page: usize,
     research_age: usize,
     research_inspected: Option<Tech>,
@@ -87,26 +138,48 @@ pub(crate) struct Game {
 
 impl Game {
     pub(crate) fn new(map: crate::mapgen::GeneratedMap) -> Self {
-        let sim = Simulation::new(map);
-        let settler = sim
+        Self::from_simulation(Simulation::new(map))
+    }
+
+    pub(crate) fn from_simulation(sim: Simulation) -> Self {
+        let focus = sim
             .units()
             .iter()
             .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers)
-            .unwrap();
-        let selected_unit = Some(settler.id);
-        let (x, y) = native_to_map(settler.x, settler.y);
+            .or_else(|| sim.units().iter().find(|unit| unit.owner == HUMAN));
+        let selected_unit = focus.map(|unit| unit.id);
+        let position = focus
+            .map(|unit| (unit.x, unit.y))
+            .or_else(|| {
+                sim.cities()
+                    .iter()
+                    .find(|city| city.owner == HUMAN)
+                    .map(|city| (city.x, city.y))
+            })
+            .unwrap_or((0, 0));
+        let (x, y) = native_to_map(position.0, position.1);
         Self {
             sim,
+            autosave_enabled: false,
             selected_unit,
             selected_city: None,
             production_page: 0,
+            unit_production_page: 0,
+            worklist_page: None,
+            city_tiles: false,
             camera: vec2(x as f32, y as f32),
             zoom: START_ZOOM,
             goto_mode: false,
+            paradrop_mode: false,
             research_open: false,
             government_open: false,
+            spaceship_open: false,
+            investigation: None,
+            investigation_page: 0,
+            spy_targets: None,
             diplomacy_open: false,
             reviewed_offer: None,
+            city_deals: None,
             diplomacy_page: 0,
             research_age: 0,
             research_inspected: None,
@@ -124,6 +197,9 @@ impl Game {
         if self.sim.apply(Command::FoundCity(id)) {
             self.selected_unit = None;
             self.production_page = 0;
+            self.unit_production_page = 0;
+            self.worklist_page = None;
+            self.city_tiles = false;
             self.selected_city = self.sim.cities().last().map(|city| city.id);
             true
         } else {
@@ -176,7 +252,7 @@ impl Game {
             .filter(|u| {
                 u.owner == HUMAN
                     && u.moves_left > 0
-                    && u.work_remaining == 0
+                    && u.work_left == 0
                     && u.state != UnitState::Sentry
             })
             .map(|u| u.id)
@@ -210,8 +286,17 @@ impl Game {
         if self.research_open {
             return self.draw_research();
         }
+        if self.spaceship_open {
+            return self.draw_spaceship();
+        }
         self.draw_world(assets);
         let mut actions = self.draw_hud();
+        if let Some((city, page)) = self.spy_targets {
+            return self.draw_spy_targets(city, page);
+        }
+        if let Some(report) = &self.investigation {
+            return self.draw_investigation(report);
+        }
         if self.government_open {
             return self.draw_government();
         }
@@ -221,9 +306,13 @@ impl Game {
         if self.selected_city_index().is_some() {
             self.draw_city_manager(assets, &mut actions);
         }
-        if self.goto_mode {
+        if self.goto_mode || self.paradrop_mode {
             let viewport = Self::viewport_rect();
-            let text = "GO-TO: choose a destination";
+            let text = if self.paradrop_mode {
+                "PARADROP: choose a landing tile"
+            } else {
+                "GO-TO: choose a destination"
+            };
             let width = measure_text(text, None, 22, 1.0).width;
             draw_rectangle(
                 viewport.x + viewport.w * 0.5 - width * 0.5 - 14.0,
@@ -250,7 +339,9 @@ impl Game {
         }
         if let Some(message) = self.sim.game_over() {
             let w = 540.0_f32.min(screen_width() - 80.0);
-            let h = 174.0;
+            let standings = self.sim.score_standings();
+            let rows = ((screen_height() - 165.0) / 24.0).max(1.0) as usize;
+            let h = 129.0 + 24.0 * standings.len().min(rows) as f32;
             let x = (screen_width() - w) * 0.5;
             let y = (screen_height() - h) * 0.5;
             draw_rectangle(x - 5.0, y - 5.0, w + 10.0, h + 10.0, BLACK);
@@ -268,12 +359,14 @@ impl Game {
                 21.0,
                 Color::from_rgba(238, 234, 218, 255),
             );
-            centered_text(
-                "The chronicle of this world is now complete.",
-                y + 127.0,
-                17.0,
-                Color::from_rgba(176, 180, 169, 255),
-            );
+            for (index, (owner, score)) in standings.into_iter().take(rows).enumerate() {
+                centered_text(
+                    &format!("{}  ·  {score} points", self.sim.players()[owner].name),
+                    y + 117.0 + index as f32 * 24.0,
+                    17.0,
+                    Color::from_rgba(176, 180, 169, 255),
+                );
+            }
         }
         actions
     }
@@ -401,8 +494,11 @@ fn centered_text(text: &str, y: f32, size: f32, color: Color) {
 fn short_unit_name(kind: UnitKind) -> &'static str {
     match kind {
         UnitKind::Settlers => "Settler",
+        UnitKind::Migrants => "Migrants",
         UnitKind::Worker => "Worker",
+        UnitKind::Engineer => "Engineer",
         UnitKind::Diplomat => "Diplomat",
+        UnitKind::Spy => "Spy",
         UnitKind::Explorer => "Explorer",
         UnitKind::Warrior => "Warrior",
         UnitKind::Phalanx => "Phalanx",
@@ -412,11 +508,33 @@ fn short_unit_name(kind: UnitKind) -> &'static str {
         UnitKind::Chariot => "Chariot",
         UnitKind::Catapult => "Catapult",
         UnitKind::Musketeers => "Musketeers",
+        UnitKind::Marines => "Marines",
+        UnitKind::Paratroopers => "Paratroopers",
         UnitKind::Knights => "Knights",
         UnitKind::Partisan => "Partisan",
         UnitKind::Cannon => "Cannon",
+        UnitKind::Bomber => "Bomber",
+        UnitKind::Fighter => "Fighter",
+        UnitKind::StealthFighter => "Stealth Fighter",
+        UnitKind::StealthBomber => "Stealth Bomber",
+        UnitKind::Helicopter => "Helicopter",
+        UnitKind::Trireme => "Trireme",
         UnitKind::Caravel => "Caravel",
         UnitKind::Galleon => "Galleon",
+        UnitKind::Transport => "Transport",
+        UnitKind::Carrier => "Carrier",
+        UnitKind::Frigate => "Frigate",
+        UnitKind::Ironclad => "Ironclad",
+        UnitKind::Destroyer => "Destroyer",
+        UnitKind::Cruiser => "Cruiser",
+        UnitKind::Battleship => "Battleship",
+        UnitKind::Submarine => "Submarine",
+        UnitKind::AegisCruiser => "AEGIS Cruiser",
+        UnitKind::CruiseMissile => "Cruise Missile",
+        UnitKind::Nuclear => "Nuclear",
+        UnitKind::Caravan => "Caravan",
+        UnitKind::Freight => "Freight",
+        UnitKind::BarbarianLeader => "Barbarian Leader",
     }
 }
 

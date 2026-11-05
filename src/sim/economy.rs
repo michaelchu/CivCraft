@@ -1,5 +1,43 @@
 use super::*;
 
+pub(crate) struct CityForecast {
+    pub(crate) food: i32,
+    pub(crate) shields: i32,
+    pub(crate) trade: i32,
+    pub(crate) science: i32,
+    pub(super) gross_science: i32,
+    pub(super) gross_gold: i32,
+    pub(crate) gold: i32,
+    pub(crate) luxury: i32,
+    pub(crate) support: super::upkeep::UnitUpkeep,
+    pub(crate) building_upkeep: i32,
+    pub(crate) disorder: bool,
+    pub(super) happy: bool,
+}
+
+impl CityForecast {
+    pub(crate) fn food_surplus(&self, size: i32, support_food: i32) -> i32 {
+        let surplus = self.food - size * CITIZEN_FOOD_COST - support_food;
+        if self.disorder {
+            surplus.min(0)
+        } else {
+            surplus
+        }
+    }
+
+    pub(crate) fn shield_surplus(&self) -> i32 {
+        if self.disorder {
+            0
+        } else {
+            (self.shields - self.support.shields).max(0)
+        }
+    }
+
+    pub(crate) fn gold_surplus(&self, unit_gold: i32) -> i32 {
+        self.gold - self.building_upkeep - unit_gold
+    }
+}
+
 impl City {
     pub(crate) fn tile_workers(&self) -> i32 {
         self.size - self.specialists.iter().sum::<i32>()
@@ -14,14 +52,40 @@ impl City {
         }
     }
 
-    pub(super) fn has_building(&self, name: &str) -> bool {
-        self.buildings
-            .iter()
-            .any(|building| building.data().name == name)
+    pub(super) fn has_building(&self, building: Building) -> bool {
+        self.buildings.contains(&building)
     }
 }
 
 impl Simulation {
+    pub(crate) fn city_forecast(&self, city: &City) -> CityForecast {
+        self.city_forecast_with_tech(city, None)
+    }
+
+    pub(super) fn city_forecast_with_tech(
+        &self,
+        city: &City,
+        granted: Option<Tech>,
+    ) -> CityForecast {
+        let (food, shields, trade) = self.city_yields_with_tech(city, granted);
+        let [science, gold, luxury] = self.city_trade(city, trade);
+        let (disorder, happy) = self.city_mood(city, luxury);
+        CityForecast {
+            food,
+            shields,
+            trade,
+            luxury,
+            disorder,
+            happy,
+            gross_science: science,
+            gross_gold: gold,
+            science: if disorder { 0 } else { science },
+            gold: if disorder { 0 } else { gold },
+            support: self.city_unit_upkeep(city),
+            building_upkeep: self.building_upkeep(city),
+        }
+    }
+
     pub(super) fn assign_specialist(&mut self, city_id: u32, index: usize, delta: i32) -> bool {
         let Some(city) = self
             .cities
@@ -38,6 +102,7 @@ impl Simulation {
             return false;
         }
         city.specialists[index] += delta;
+        self.reconcile_city_workers();
         true
     }
 
@@ -63,6 +128,18 @@ impl Simulation {
         self.split_city_trade(city, trade, self.players[city.owner].rates)
     }
 
+    pub(super) fn science_building_bonus(&self, city: &City) -> i32 {
+        [
+            (Building::LIBRARY, Building::GREAT_LIBRARY),
+            (Building::UNIVERSITY, Building::ISAAC_NEWTONS_COLLEGE),
+            (Building::RESEARCH_LAB, Building::INTERNET),
+        ]
+        .into_iter()
+        .filter(|&(building, _)| city.has_building(building))
+        .map(|(_, wonder)| 50 + 50 * i32::from(self.completed_wonders.contains(&wonder)))
+        .sum()
+    }
+
     pub(super) fn split_city_trade(&self, city: &City, trade: i32, rates: [i32; 3]) -> [i32; 3] {
         let government = self.players[city.owner].government;
         let rates = if government == Government::Anarchy {
@@ -83,9 +160,9 @@ impl Simulation {
         }
 
         for (index, wonder) in [
-            "Darwin's Voyage",
-            "A.Smith's Trading Co.",
-            "Shakespeare's Theater",
+            Building::DARWINS_VOYAGE,
+            Building::A_SMITHS_TRADING_CO,
+            Building::SHAKESPEARES_THEATER,
         ]
         .into_iter()
         .enumerate()
@@ -93,37 +170,60 @@ impl Simulation {
             let improved = self
                 .completed_wonders
                 .iter()
-                .any(|building| building.data().name == wonder);
+                .any(|&building| building == wonder);
             output[index] += city.specialists[index] * (2 + i32::from(improved));
         }
 
-        let bonuses = [
-            ["Library", "University", "Research Lab"].as_slice(),
-            ["Marketplace", "Bank", "Stock Exchange"].as_slice(),
-            ["Marketplace", "Bank", "Stock Exchange"].as_slice(),
-        ];
-        for (index, (amount, buildings)) in output.iter_mut().zip(bonuses).enumerate() {
-            let bonus = buildings
-                .iter()
-                .filter(|name| city.has_building(name))
-                .count() as i32;
+        output[0] += 4 * i32::from(city.has_building(Building::GREAT_LIBRARY))
+            + 6 * i32::from(city.has_building(Building::ISAAC_NEWTONS_COLLEGE))
+            + i32::from(self.has_active_wonder(city.owner, Building::DARWINS_VOYAGE));
+        if city.has_building(Building::COPERNICUS_OBSERVATORY)
+            && !self.building_is_obsolete(city, Building::COPERNICUS_OBSERVATORY, None)
+        {
+            output[0] += 1 + city.worked_tiles.len().min(city.tile_workers() as usize) as i32;
+        }
+
+        output[2] +=
+            4 * i32::from(
+                city.has_building(Building::HANGING_GARDENS)
+                    && !self.building_is_obsolete(city, Building::HANGING_GARDENS, None),
+            ) + 2 * i32::from(self.has_active_wonder(city.owner, Building::JS_BACHS_CATHEDRAL))
+                + 2 * i32::from(self.has_active_wonder(city.owner, Building::CURE_FOR_CANCER))
+                + i32::from(self.has_active_wonder(city.owner, Building::SHAKESPEARES_THEATER))
+                + 5 * i32::from(city.has_building(Building::SHAKESPEARES_THEATER));
+
+        let commercial_bonus = 50
+            * [
+                Building::MARKETPLACE,
+                Building::BANK,
+                Building::STOCK_EXCHANGE,
+            ]
+            .into_iter()
+            .filter(|&building| city.has_building(building))
+            .count() as i32;
+        for (index, amount) in output.iter_mut().enumerate() {
+            let bonus = if index == 0 {
+                self.science_building_bonus(city)
+            } else {
+                commercial_bonus
+            };
             let adjustment = match (government, index) {
                 (Government::Anarchy, 2) | (Government::Fundamentalism, 0) => -50,
                 (Government::Despotism, 1)
-                    if city.has_building("Palace")
-                        || city.has_building("Ecclesiastical Palace") =>
+                    if city.has_building(Building::PALACE)
+                        || city.has_building(Building::ECCLESIASTICAL_PALACE) =>
                 {
                     75
                 }
                 (Government::Monarchy, 1)
-                    if city.has_building("Palace")
-                        || city.has_building("Ecclesiastical Palace") =>
+                    if city.has_building(Building::PALACE)
+                        || city.has_building(Building::ECCLESIASTICAL_PALACE) =>
                 {
                     50
                 }
                 _ => 0,
             };
-            *amount = percent_of(*amount, 100 + 50 * bonus + adjustment);
+            *amount = percent_of(*amount, 100 + bonus + adjustment);
         }
         output
     }
@@ -132,7 +232,41 @@ impl Simulation {
         self.city_mood(city, luxury).0
     }
 
+    fn building_content(&self, city: &City) -> i32 {
+        let has = |building| city.has_building(building);
+        let owns = |wonder| self.has_active_wonder(city.owner, wonder);
+        let communist = self.players[city.owner].government == Government::Communism;
+        let mut content = 2 * i32::from(has(Building::POLICE_STATION))
+            + i32::from(has(Building::COURTHOUSE))
+            + i32::from(owns(Building::HANGING_GARDENS));
+        if has(Building::TEMPLE) {
+            content += 1
+                + i32::from(!communist && self.has_tech(city.owner, Tech::MYSTICISM))
+                + 2 * i32::from(owns(Building::TEMPLE_OF_ARTEMIS));
+        }
+        if has(Building::CATHEDRAL) {
+            content += 3
+                + i32::from(!communist && self.has_tech(city.owner, Tech::THEOLOGY))
+                + 3 * i32::from(owns(Building::MICHELANGELOS_CHAPEL));
+        }
+        if has(Building::AMPHITHEATER) {
+            content += 3 + i32::from(self.has_tech(city.owner, Tech::ELECTRICITY));
+        }
+        if owns(Building::MAUSOLEUM_OF_MAUSOLOS) {
+            content += i32::from(has(Building::CITY_WALLS)) + i32::from(has(Building::COURTHOUSE));
+        }
+        content
+    }
+
     pub(super) fn city_mood(&self, city: &City, luxury: i32) -> (bool, bool) {
+        let (happy, unhappy, angry) = self.city_feelings(city, luxury);
+        (
+            happy < unhappy + 2 * angry,
+            city.size >= 3 && unhappy == 0 && angry == 0 && happy >= (city.size + 1) / 2,
+        )
+    }
+
+    pub(super) fn city_feelings(&self, city: &City, luxury: i32) -> (i32, i32, i32) {
         let government = self.players[city.owner].government;
         // Apply luxury before Make_Content.
         let cities = self
@@ -169,10 +303,6 @@ impl Simulation {
             content += promoted;
         }
 
-        let mysticism = self.players[city.owner]
-            .known
-            .iter()
-            .any(|tech| tech.name() == "Mysticism");
         let martial = match government {
             Government::Anarchy | Government::Despotism | Government::Monarchy => 1,
             Government::Communism => 2,
@@ -190,13 +320,7 @@ impl Simulation {
             .min(3) as i32;
         let pacification = i32::from(government == Government::Tribal)
             + martial * garrison
-            + 2 * i32::from(city.has_building("Police Station"))
-            + i32::from(city.has_building("Courthouse"))
-            + if city.has_building("Temple") {
-                1 + i32::from(mysticism && government != Government::Communism)
-            } else {
-                0
-            };
+            + self.building_content(city);
         let calming_angry = pacification.min(angry);
         angry -= calming_angry;
         unhappy += calming_angry;
@@ -204,7 +328,7 @@ impl Simulation {
         unhappy -= promoted;
         content += promoted;
 
-        let suffrage = self.owns_wonder(city.owner, "Women's Suffrage");
+        let suffrage = self.has_active_wonder(city.owner, Building::WOMENS_SUFFRAGE);
         let (factor, allowance) = match government {
             Government::Republic => (1, 1),
             Government::Democracy => (2 - i32::from(suffrage), 3 - i32::from(suffrage)),
@@ -221,21 +345,30 @@ impl Simulation {
                         && unit.owner == city.owner
                         && unit.kind.is_military()
                         && self.tile(unit.x, unit.y).owner != Some(city.owner)
+                        && !(matches!(
+                            self.tile(unit.x, unit.y).base,
+                            Some(Base::Fortress | Base::Airbase)
+                        ) && self.cities.iter().any(|nearby| {
+                            nearby.owner == unit.owner
+                                && self.map_distance(unit.x, unit.y, nearby.x, nearby.y) <= 3
+                        }))
                         && !self
                             .cities
                             .iter()
                             .any(|other| (other.x, other.y) == (unit.x, unit.y))
                 })
                 .count() as i32;
-            let police = i32::from(city.has_building("Police Station"))
+            let police = i32::from(city.has_building(Building::POLICE_STATION))
                 * if government == Government::Democracy && !suffrage {
                     2
                 } else {
                     1
                 };
-            let local_suffrage = i32::from(city.has_building("Women's Suffrage"));
+            let local_suffrage = i32::from(city.has_building(Building::WOMENS_SUFFRAGE));
+            let crusade =
+                i32::from(self.has_active_wonder(city.owner, Building::KING_RICHARDS_CRUSADE));
             let pressure =
-                (deployed * (factor - police - local_suffrage).max(0) - allowance).max(0);
+                (deployed * (factor - police - local_suffrage).max(0) - allowance - crusade).max(0);
             let from_content = content.min(pressure);
             unhappy += from_content;
             let pressure = pressure - from_content;
@@ -243,10 +376,7 @@ impl Simulation {
             unhappy += from_happy;
             happy = (happy - from_happy - pressure % 2).max(0);
         }
-        (
-            happy < unhappy + 2 * angry,
-            city.size >= 3 && unhappy == 0 && angry == 0 && happy >= (city.size + 1) / 2,
-        )
+        (happy, unhappy, angry)
     }
 
     pub(super) fn balance_building_upkeep(&mut self, owner: usize, city_id: u32) {
@@ -291,8 +421,8 @@ impl Simulation {
             Government::Anarchy => 99,
             Government::Communism => 1,
             _ => i32::from(
-                city.has_building("Stock Exchange")
-                    && self.owns_wonder(city.owner, "A.Smith's Trading Co."),
+                city.has_building(Building::STOCK_EXCHANGE)
+                    && self.has_active_wonder(city.owner, Building::A_SMITHS_TRADING_CO),
             ),
         }
     }
@@ -305,12 +435,16 @@ impl Simulation {
     }
 
     pub(crate) fn city_size_limit(city: &City) -> i32 {
-        if !["Aqueduct", "Aqueduct, River", "Aqueduct, Lake"]
-            .iter()
-            .any(|name| city.has_building(name))
+        if ![
+            Building::AQUEDUCT,
+            Building::AQUEDUCT_RIVER,
+            Building::AQUEDUCT_LAKE,
+        ]
+        .iter()
+        .any(|name| city.has_building(*name))
         {
             8
-        } else if city.has_building("Sewer System") {
+        } else if city.has_building(Building::SEWER_SYSTEM) {
             i32::MAX
         } else {
             16
@@ -320,7 +454,7 @@ impl Simulation {
     pub(super) fn food_retained(city: &City) -> i32 {
         match city.size {
             ..=3 => 50,
-            _ if !city.has_building("Granary") => 0,
+            _ if !city.has_building(Building::GRANARY) => 0,
             4 => 50,
             5..=6 => 34,
             _ => 25,

@@ -1,5 +1,21 @@
 use super::*;
 
+impl Government {
+    pub(super) fn civil_war_chance(self) -> i32 {
+        match self {
+            Government::Anarchy => 99,
+            Government::Tribal => 90,
+            Government::Despotism => 80,
+            Government::Monarchy => 70,
+            Government::Communism => 50,
+            Government::Fundamentalism => 60,
+            Government::Federation => 20,
+            Government::Republic => 40,
+            Government::Democracy => 30,
+        }
+    }
+}
+
 impl Simulation {
     pub(super) fn capital_loss_triggers_civil_war(&mut self, owner: usize) -> bool {
         if owner == BARBARIANS || self.players.len() >= PLAYER_SLOTS {
@@ -13,17 +29,7 @@ impl Simulation {
         if cities.len() < 10 {
             return false;
         }
-        let base = match self.players[owner].government {
-            Government::Anarchy => 99,
-            Government::Tribal => 90,
-            Government::Despotism => 80,
-            Government::Monarchy => 70,
-            Government::Communism => 50,
-            Government::Fundamentalism => 60,
-            Government::Federation => 20,
-            Government::Republic => 40,
-            Government::Democracy => 30,
-        };
+        let base = self.players[owner].government.civil_war_chance();
         let modifier: i32 = cities
             .into_iter()
             .map(|city| {
@@ -46,6 +52,7 @@ impl Simulation {
         if candidates.is_empty() {
             return;
         }
+        self.clear_outgoing_embassies(owner);
         let rebel = self.players.len();
         let original = &mut self.players[owner];
         let gold = original.gold / 2;
@@ -64,7 +71,7 @@ impl Simulation {
             "Independent Union",
         ];
         let rebel_player = Player {
-            name: REBEL_NAMES[(rebel - PLAYER_COUNT - 1) % REBEL_NAMES.len()],
+            name: REBEL_NAMES[(rebel - PLAYER_COUNT - 1) % REBEL_NAMES.len()].to_owned(),
             gold,
             rates: [60, 40, 0],
             government: Government::Tribal,
@@ -79,7 +86,8 @@ impl Simulation {
             ai: true,
         };
         self.players.push(rebel_player);
-        self.spaceship_parts.push([0; 3]);
+        self.spaceships.push(Spaceship::default());
+        self.nation_scores.push(NationScore::default());
         for tile in &mut self.tiles {
             tile.known_by[rebel] = tile.known_by[owner];
         }
@@ -90,7 +98,7 @@ impl Simulation {
             if remaining >= candidates.len() - position
                 || (remaining > 0 && self.rand_below(2) == 1)
             {
-                self.cities[index].owner = rebel;
+                self.cities[index].transfer_citizens(rebel);
                 defectors.push(index);
                 remaining -= 1;
             }
@@ -154,13 +162,7 @@ impl Simulation {
                 .cities
                 .iter()
                 .filter(|city| city.owner == unit.owner)
-                .filter(|city| {
-                    unit.kind.transport_capacity() == 0
-                        || ISOHEX_DIRS.iter().any(|&(dx, dy)| {
-                            let (x, y) = offset_native_by_map(city.x, city.y, dx, dy);
-                            self.tile(x, y).terrain.is_water()
-                        })
-                })
+                .filter(|city| !unit.kind.is_naval() || self.naval_city_access(city, unit.kind))
                 .min_by_key(|city| self.map_distance(unit.x, unit.y, city.x, city.y));
             let rival_distance = self
                 .cities
@@ -189,69 +191,10 @@ impl Simulation {
                     unit.transport = None;
                     unit.moves_left = 0;
                 }
-                for cargo in self
-                    .units
-                    .iter_mut()
-                    .filter(|unit| unit.transport == Some(id))
-                {
-                    (cargo.x, cargo.y) = (x, y);
-                }
+                self.move_cargo(id, x, y);
             } else {
-                self.units
-                    .retain(|unit| unit.id != id && unit.transport != Some(id));
+                self.remove_units_with_cargo(vec![id]);
             }
         }
-    }
-}
-
-impl Simulation {
-    /// Set up the late-game conditions used by the desktop self-test.
-    pub(crate) fn civil_war_playtest(&mut self) -> Option<u32> {
-        let city = self.cities.iter().find(|city| city.owner == HUMAN)?;
-        let (x, y) = (city.x, city.y);
-        let (capital_x, capital_y) = offset_native_by_map(x, y, 1, 0);
-        if self
-            .cities
-            .iter()
-            .any(|city| (city.x, city.y) == (capital_x, capital_y))
-        {
-            return None;
-        }
-        self.units
-            .retain(|unit| (unit.x, unit.y) != (capital_x, capital_y));
-        self.tile_mut(capital_x, capital_y).terrain = Terrain::Grassland;
-        // Use a fresh rival so the target is its primary capital.
-        let rival = 1;
-        for city in self.cities.iter_mut().filter(|city| city.owner == rival) {
-            city.buildings
-                .retain(|&building| building != Building::PALACE);
-        }
-        self.create_city(rival, capital_x, capital_y);
-        let capital = self.cities.last_mut()?;
-        if !capital.buildings.contains(&Building::PALACE) {
-            capital.buildings.push(Building::PALACE);
-        }
-        capital.size = 8;
-        for index in 0..self.tiles.len() {
-            if self
-                .cities
-                .iter()
-                .filter(|city| city.owner == rival)
-                .count()
-                >= 10
-            {
-                break;
-            }
-            let (nx, ny) = Self::xy(index);
-            if self.map_distance(x, y, nx, ny) > 5 && self.can_found_at(nx, ny) {
-                self.create_city(rival, nx, ny);
-                self.cities.last_mut()?.size = 8;
-            }
-        }
-        self.players[rival].government = Government::Tribal;
-        self.players[rival].rates = [60, 40, 0];
-        self.players[HUMAN].government = Government::Democracy;
-        self.refresh_visibility();
-        Some(self.spawn_unit(HUMAN, UnitKind::Warrior, x, y))
     }
 }

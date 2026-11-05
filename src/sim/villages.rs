@@ -1,6 +1,6 @@
 use super::*;
 
-const BARBARIAN_ONSET: i32 = 120;
+pub(super) const BARBARIAN_ONSET: i32 = 120;
 
 impl Simulation {
     pub(super) fn enter_village(&mut self, unit_id: u32, x: i32, y: i32) {

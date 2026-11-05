@@ -30,6 +30,16 @@ CivCraft generates a new map locally each time it launches and shows the world s
 cargo run --release -- --seed 12345
 ```
 
+## Save and resume
+
+Press F5 to quicksave and F9 to load the quicksave. CivCraft also writes a separate autosave after each completed turn. The files are stored in the working directory.
+
+To resume the autosave from the command line:
+
+```sh
+cargo run --release -- --load civcraft-autosave.save
+```
+
 ## Research
 
 Lines connect each advance to its prerequisites, and gold highlights the branch leading to your goal. Right or middle drag to pan, scroll to zoom, and use **Fit tree** for an overview or **Find goal** to return to your goal. Hover an advance to see its prerequisites and unlocks. Selecting a new goal only discards accumulated research if it changes the current target. Philosophy gives a free advance to the first civilization to discover it. After the named advances are complete, research continues with repeatable Future Tech.
@@ -48,4 +58,4 @@ The project is hosted at [michaelchu/CivCraft](https://github.com/michaelchu/Civ
 
 ## Focus of this build
 
-This first version is the complete opening-era offline skirmish loop. It does not yet reproduce network multiplayer, every government and historical era, the full diplomacy and espionage dialogs, naval and air warfare, wonders and spaceship victory, save files, scenarios, Lua rulesets, or the map editor. The source tree contains several different desktop clients, so this build uses the normal Amplio2 isometric art with a compact SDL-style game layout rather than copying one operating-system window exactly.
+This first version is the complete opening-era offline skirmish loop. It does not yet reproduce network multiplayer, every government and historical era, the full diplomacy and espionage dialogs, naval and air warfare, wonders and spaceship victory, scenarios, Lua rulesets, or the map editor. The source tree contains several different desktop clients, so this build uses the normal Amplio2 isometric art with a compact SDL-style game layout rather than copying one operating-system window exactly.

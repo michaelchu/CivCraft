@@ -185,6 +185,20 @@ impl Game {
         );
     }
 
+    fn draw_base_sprite(&self, assets: &Assets, center: Vec2, w: f32, h: f32, row: i32, col: i32) {
+        draw_texture_ex(
+            &assets.bases,
+            center.x - w * 0.5,
+            center.y - h,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(w, h * 1.5)),
+                source: Some(bordered_sprite_source(row, col, 96.0, 72.0)),
+                ..Default::default()
+            },
+        );
+    }
+
     fn draw_river(&self, assets: &Assets, x: i32, y: i32, center: Vec2, tile_w: f32, tile_h: f32) {
         let tile = self.sim.tile(x, y);
         let water = tile.terrain.is_water();
@@ -312,7 +326,7 @@ impl Game {
 
         for (edge, (dx, dy)) in edge_neighbors.into_iter().enumerate() {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
-            if self.sim.tile(neighbor_x, neighbor_y).owner == Some(owner) {
+            if self.sim.displayed_tile_owner(neighbor_x, neighbor_y) == Some(owner) {
                 continue;
             }
             let start = points[edge];
@@ -369,6 +383,7 @@ impl Game {
             self.draw_terrain_sprite(assets, x, y, center, tile_w, tile_h, tile.visible);
         }
 
+        let reveal_cities = self.sim.reveals_cities(HUMAN);
         for (x, y, _) in order {
             let center = self.world_to_screen(x, y);
             if center.x < viewport.x - tile_w
@@ -385,43 +400,74 @@ impl Game {
 
             self.draw_terrain_overlay(assets, tile.terrain, center, tile_w, tile_h, tile.visible);
 
-            if let Some(owner) = tile.owner {
+            if let Some(owner) = self.sim.displayed_tile_owner(x, y) {
                 self.draw_territory_border(x, y, owner, center, tile_w, tile_h, tile.visible);
             }
             if tile.road {
                 self.draw_road_sprites(assets, x, y, center, tile_w, tile_h);
             }
-            if tile.irrigation {
+            if tile.farmland {
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 2, 6);
+            } else if tile.irrigation {
                 self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 1, 6);
             }
-            if tile.mine {
+            if tile.oil_platform {
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 7, 6);
+            } else if tile.oil_well {
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 0, 6);
+            } else if tile.mine {
                 self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 3, 6);
             }
             self.draw_river(assets, x, y, center, tile_w, tile_h);
             if tile.hut {
                 self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 5, 6);
             }
-            if let Some(resource) = tile.resource {
+            if let Some(resource) = tile.active_resource() {
                 let (row, col) = resource.sprite(tile.terrain);
                 self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, col);
             }
+            if tile.pollution {
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 4, 6);
+            }
+            if tile.fallout {
+                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 6, 6);
+            }
+            if let Some(base) = tile.base {
+                let (row, col) = match base {
+                    Base::Fort => (1, 4),
+                    Base::Fortress => (0, 4),
+                    Base::Airstrip => (1, 0),
+                    Base::Airbase => (0, 0),
+                };
+                self.draw_base_sprite(assets, center, tile_w, tile_h, row, col);
+                if !tile.visible && col == 4 {
+                    self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
+                }
+            }
             if !tile.visible {
                 draw_diamond(center, tile_w, tile_h, Color::from_rgba(18, 29, 39, 112));
-                continue;
             }
-
-            if let Some(city) = self.sim.cities().iter().find(|c| c.x == x && c.y == y) {
+            if (tile.visible || reveal_cities)
+                && let Some(city) = self.sim.cities().iter().find(|c| c.x == x && c.y == y)
+            {
                 self.draw_city(assets, city, center);
+            }
+            if !tile.visible {
+                continue;
             }
             let mut stack: Vec<&Unit> = self
                 .sim
                 .units()
                 .iter()
-                .filter(|u| u.x == x && u.y == y)
+                .filter(|u| u.x == x && u.y == y && self.sim.unit_visible_to_human(u))
                 .collect();
             stack.sort_by_key(|u| (u.transport.is_some(), Some(u.id) != self.selected_unit));
             if let Some(unit) = stack.first() {
                 self.draw_unit(assets, unit, center, stack.len());
+            }
+            if let Some(Base::Fort | Base::Fortress) = tile.base {
+                let row = i32::from(tile.base == Some(Base::Fort));
+                self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
             }
         }
     }

@@ -47,7 +47,7 @@ impl Game {
         actions.push((diplomacy, UiAction::ToggleDiplomacy));
         draw_circle(483.0, 23.0, 8.0, player_color(HUMAN));
         draw_text(
-            player.name,
+            player.name.as_str(),
             498.0,
             29.0,
             18.0,
@@ -115,10 +115,21 @@ impl Game {
             14.0,
             Color::from_rgba(208, 207, 190, 255),
         );
+        if let Some(status) = self.sim.spaceship_status(HUMAN) {
+            let rect = Rect::new(
+                panel_x + 18.0,
+                screen_height() - 178.0,
+                PANEL_W - 36.0,
+                27.0,
+            );
+            let ready = self.sim.can_launch_spaceship(HUMAN);
+            draw_ui_button(rect, &status, true, ready);
+            actions.push((rect, UiAction::ToggleSpaceship));
+        }
         self.draw_minimap();
         self.hud_elements_drawn += 1;
 
-        let context_y = Self::minimap_rect().bottom() + 17.0;
+        let context_y = self.minimap_rect().bottom() + 17.0;
         draw_line(
             panel_x + 16.0,
             context_y - 9.0,
@@ -192,7 +203,7 @@ impl Game {
     }
 
     fn draw_minimap(&self) {
-        let rect = Self::minimap_rect();
+        let rect = self.minimap_rect();
         draw_rectangle(
             rect.x - 3.0,
             rect.y - 3.0,
@@ -219,8 +230,10 @@ impl Game {
                 }
             }
         }
+        let reveal_cities = self.sim.reveals_cities(HUMAN);
         for city in self.sim.cities() {
-            if self.sim.tile(city.x, city.y).visible {
+            let tile = self.sim.tile(city.x, city.y);
+            if tile.visible || (reveal_cities && tile.seen) {
                 let origin = Self::minimap_tile_origin(rect, city.x, city.y);
                 let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);
                 let color = player_color(city.owner);
@@ -259,6 +272,160 @@ impl Game {
                     draw_line(x, top.max(rect.y), x, bottom.min(rect.bottom()), 1.0, WHITE);
                 }
             }
+        }
+    }
+
+    fn draw_city_tiles(&self, city: &City, panel: Rect, actions: &mut Vec<(Rect, UiAction)>) {
+        draw_text("WORKED TILES", panel.x + 22.0, panel.y + 127.0, 18.0, WHITE);
+        draw_text(
+            "Food / shields / trade. Gold border marks worked tiles.",
+            panel.x + 22.0,
+            panel.y + panel.h - 15.0,
+            16.0,
+            LIGHTGRAY,
+        );
+        let mouse = vec2(mouse_position().0, mouse_position().1);
+        let grid_height = (panel.h - 166.0).min(195.0);
+        let row_height = grid_height / 9.0;
+        for (dx, dy, x, y) in Simulation::city_radius(city) {
+            let center = (dx, dy) == (0, 0);
+            let worked = city.worked_tiles.contains(&(x, y));
+            let enabled = worked
+                || (city.specialists.iter().any(|&count| count > 0)
+                    && self.sim.can_assign_city_tile(city, x, y));
+            let tile = self.sim.tile(x, y);
+            let cell = Rect::new(
+                panel.x + panel.w * 0.5 - 23.0 + (dx - dy) as f32 * 25.0,
+                panel.y + 138.0 + (4 + dx + dy) as f32 * row_height,
+                46.0,
+                row_height - 2.0,
+            );
+            let fill = tile.terrain.minimap_color();
+            let fill = if worked || center || (enabled && cell.contains(mouse)) {
+                fill
+            } else {
+                darken(fill, 0.55)
+            };
+            draw_rectangle(cell.x, cell.y, cell.w, cell.h, fill);
+            let border = if worked || center { GOLD } else { GRAY };
+            draw_rectangle_lines(cell.x, cell.y, cell.w, cell.h, 2.0, border);
+            let (food, shields, trade) = tile.yields();
+            let label = if center {
+                "City".to_owned()
+            } else {
+                format!("{food}/{shields}/{trade}")
+            };
+            draw_text(
+                &label,
+                cell.x + 6.0,
+                cell.y + cell.h - 3.0,
+                cell.h.min(15.0),
+                WHITE,
+            );
+            if enabled {
+                actions.push((cell, UiAction::WorkCityTile(city.id, x, y)));
+            }
+        }
+    }
+
+    fn draw_worklist(
+        &self,
+        city: &City,
+        panel: Rect,
+        requested_page: usize,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
+        let rows = ((panel.h - 148.0) / 34.0).floor().max(1.0) as usize;
+        let last_page = city.worklist.len().saturating_sub(1) / rows;
+        let page = requested_page.min(last_page);
+        draw_text(
+            &format!("WORKLIST  {}/{}", city.worklist.len(), WORKLIST_LIMIT),
+            panel.x + 22.0,
+            panel.y + 127.0,
+            18.0,
+            WHITE,
+        );
+        for (offset, width, label, target, enabled) in [
+            (185.0, 28.0, "<", Some(page.saturating_sub(1)), page > 0),
+            (150.0, 28.0, ">", Some(page + 1), page < last_page),
+            (114.0, 92.0, "Production", None, true),
+        ] {
+            let button = Rect::new(panel.x + panel.w - offset, panel.y + 109.0, width, 25.0);
+            draw_ui_button(button, label, enabled, false);
+            if enabled {
+                actions.push((button, UiAction::WorklistPage(target)));
+            }
+        }
+        if city.worklist.is_empty() {
+            draw_text(
+                "Use + on a production card to add it to the worklist.",
+                panel.x + 22.0,
+                panel.y + 164.0,
+                16.0,
+                LIGHTGRAY,
+            );
+        }
+        for (index, &entry) in city
+            .worklist
+            .iter()
+            .enumerate()
+            .skip(page * rows)
+            .take(rows)
+        {
+            let y = panel.y + 141.0 + (index % rows) as f32 * 34.0;
+            let target = self.sim.worklist_replacement(city, entry);
+            let status = if !self.sim.can_produce(city, target) {
+                "  (unavailable)".to_owned()
+            } else if target != entry {
+                format!("  (upgrades to {})", target.name())
+            } else {
+                String::new()
+            };
+            draw_text(
+                &format!("{}. {}{status}", index + 1, entry.name()),
+                panel.x + 22.0,
+                y + 19.0,
+                16.0,
+                WHITE,
+            );
+            for (offset, label, edit, enabled) in [
+                (
+                    122.0,
+                    "Up",
+                    WorklistEdit::Move(index, index.saturating_sub(1)),
+                    index > 0,
+                ),
+                (
+                    87.0,
+                    "Down",
+                    WorklistEdit::Move(index, index + 1),
+                    index + 1 < city.worklist.len(),
+                ),
+                (48.0, "X", WorklistEdit::Remove(index), true),
+            ] {
+                let button = Rect::new(panel.x + panel.w - offset, y, 32.0, 24.0);
+                draw_ui_button(button, label, enabled, false);
+                if enabled {
+                    actions.push((button, UiAction::EditWorklist(city.id, edit)));
+                }
+            }
+        }
+    }
+
+    fn draw_queue_button(
+        &self,
+        city: &City,
+        card: Rect,
+        target: Production,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
+        if city.worklist.len() < WORKLIST_LIMIT && self.sim.can_produce(city, target) {
+            let button = Rect::new(card.x + card.w - 29.0, card.y + card.h - 23.0, 22.0, 18.0);
+            draw_ui_button(button, "+", true, false);
+            actions.push((
+                button,
+                UiAction::EditWorklist(city.id, WorklistEdit::Append(target)),
+            ));
         }
     }
 
@@ -324,18 +491,14 @@ impl Game {
         draw_ui_button(close_rect, "X", true, false);
         actions.push((close_rect, UiAction::CloseCity));
 
-        let (food, shields, trade) = self.sim.city_yields(city);
-        let support = self.sim.city_unit_upkeep(city);
-        let food_net = food - city.size * CITIZEN_FOOD_COST - support.food;
-        let shields = (shields - support.shields).max(0);
-        let [science, gold, luxury] = self.sim.city_trade(city, trade);
-        let upkeep = self.sim.building_upkeep(city) + support.gold;
-        let disorder = self.sim.city_in_disorder(city, luxury);
-        let (science, gold, shields, food_net) = if disorder {
-            (0, 0, 0, food_net.min(0))
-        } else {
-            (science, gold, shields, food_net)
-        };
+        let forecast = self.sim.city_forecast(city);
+        let support = &forecast.support;
+        let food_net = forecast.food_surplus(city.size, support.food);
+        let shields = forecast.shield_surplus();
+        let science = forecast.science;
+        let luxury = forecast.luxury;
+        let gold = forecast.gold_surplus(support.gold);
+        let disorder = forecast.disorder;
         let growth_box = Simulation::growth_box(city.size);
         let production_cost = city.production.cost();
         let progress_x = rect.x + 205.0;
@@ -343,7 +506,7 @@ impl Game {
         draw_text(
             &format!(
                 "Food {food_net:+}   Shields {shields}   Science {science}   Gold {:+}   Luxury {luxury}",
-                gold - upkeep
+                gold
             ),
             progress_x,
             rect.y + 31.0,
@@ -430,6 +593,26 @@ impl Game {
                 Color::from_rgba(215, 218, 202, 255),
             );
         }
+        if let Some(page) = self.worklist_page {
+            self.draw_worklist(city, rect, page, actions);
+            return;
+        }
+        let tiles_button = Rect::new(rect.x + rect.w - 277.0, rect.y + 109.0, 82.0, 25.0);
+        draw_ui_button(
+            tiles_button,
+            if self.city_tiles {
+                "Production"
+            } else {
+                "City tiles"
+            },
+            true,
+            self.city_tiles,
+        );
+        actions.push((tiles_button, UiAction::CityTiles));
+        if self.city_tiles {
+            self.draw_city_tiles(city, rect, actions);
+            return;
+        }
         draw_text(
             "CHOOSE PRODUCTION",
             rect.x + 22.0,
@@ -438,8 +621,12 @@ impl Game {
             Color::from_rgba(226, 211, 162, 255),
         );
 
-        let choices = [
-            UnitKind::Worker,
+        let roster = [
+            if self.sim.has_tech(city.owner, Tech::EXPLOSIVES) {
+                UnitKind::Engineer
+            } else {
+                UnitKind::Worker
+            },
             UnitKind::Warrior,
             UnitKind::Phalanx,
             UnitKind::Archer,
@@ -447,9 +634,52 @@ impl Game {
             UnitKind::Catapult,
             UnitKind::Chariot,
             UnitKind::Legion,
-            UnitKind::Diplomat,
+            if self.sim.has_tech(city.owner, Tech::ESPIONAGE) {
+                UnitKind::Spy
+            } else {
+                UnitKind::Diplomat
+            },
             UnitKind::Settlers,
+            UnitKind::Trireme,
+            UnitKind::Caravel,
+            if self.sim.has_tech(city.owner, Tech::ENGINEERING) {
+                UnitKind::Transport
+            } else {
+                UnitKind::Galleon
+            },
         ];
+        let mut choices = Vec::new();
+        for kind in roster {
+            let target = self.sim.production_successor(city, kind).unwrap_or(kind);
+            if !choices.contains(&target) {
+                choices.push(target);
+            }
+        }
+        for kind in [
+            UnitKind::Marines,
+            UnitKind::Paratroopers,
+            UnitKind::Fighter,
+            UnitKind::Bomber,
+            UnitKind::Carrier,
+            UnitKind::Frigate,
+            UnitKind::Ironclad,
+            UnitKind::Destroyer,
+            UnitKind::Cruiser,
+            UnitKind::Battleship,
+            UnitKind::AegisCruiser,
+            UnitKind::Submarine,
+            UnitKind::CruiseMissile,
+            UnitKind::Nuclear,
+            UnitKind::Caravan,
+            UnitKind::Migrants,
+            UnitKind::Helicopter,
+            UnitKind::Partisan,
+        ] {
+            let target = self.sim.production_successor(city, kind).unwrap_or(kind);
+            if !choices.contains(&target) && self.sim.can_produce(city, Production::Unit(target)) {
+                choices.push(target);
+            }
+        }
         let columns = 4;
         let gap = 8.0;
         let card_w = (rect.w - 44.0 - gap * 3.0) / 4.0;
@@ -468,6 +698,8 @@ impl Game {
         };
         let last_page = buildings.len().div_ceil(12).max(1);
         let page = self.production_page.min(last_page);
+        let unit_pages = choices.len().div_ceil(12).max(1);
+        let unit_page = self.unit_production_page.min(unit_pages - 1);
         for (offset, width, label, action, enabled) in [
             (
                 0.0,
@@ -480,15 +712,27 @@ impl Game {
                 79.0,
                 39.0,
                 "<",
-                UiAction::ProductionPage(page.saturating_sub(1)),
-                page > 1,
+                if page == 0 {
+                    UiAction::UnitProductionPage(unit_page.saturating_sub(1))
+                } else {
+                    UiAction::ProductionPage(page - 1)
+                },
+                if page == 0 { unit_page > 0 } else { page > 1 },
             ),
             (
                 125.0,
                 39.0,
                 ">",
-                UiAction::ProductionPage(page + 1),
-                page > 0 && page < last_page,
+                if page == 0 {
+                    UiAction::UnitProductionPage(unit_page + 1)
+                } else {
+                    UiAction::ProductionPage(page + 1)
+                },
+                if page == 0 {
+                    unit_page + 1 < unit_pages
+                } else {
+                    page < last_page
+                },
             ),
         ] {
             let button = Rect::new(
@@ -533,7 +777,7 @@ impl Game {
                 );
                 let data = building.data();
                 let target = Production::Building(building);
-                let enabled = blocker.is_none();
+                let enabled = blocker.is_none() && self.sim.can_change_production(city, target);
                 let built = city.buildings.contains(&building);
                 let current = city.production == target;
                 let fill = if current {
@@ -566,12 +810,30 @@ impl Game {
                     }
                 });
                 draw_text(&state, card.x + 8.0, card.y + 57.0, 12.0, LIGHTGRAY);
+                if let Some(price) = Simulation::building_sale_price(city, building) {
+                    let button = Rect::new(card.x + card.w - 69.0, card.y + 44.0, 62.0, 21.0);
+                    draw_ui_button(button, &format!("Sell {price}g"), true, false);
+                    actions.push((button, UiAction::SellBuilding(city.id, building)));
+                }
+                self.draw_queue_button(city, card, target, actions);
                 if enabled {
                     actions.push((card, UiAction::Produce(target)));
                 }
             }
         } else {
-            for (choice_index, kind) in choices.into_iter().enumerate() {
+            draw_text(
+                &format!("Units {}/{}", unit_page + 1, unit_pages),
+                rect.x + 216.0,
+                rect.y + 127.0,
+                15.0,
+                LIGHTGRAY,
+            );
+            for (choice_index, kind) in choices
+                .into_iter()
+                .skip(unit_page * 12)
+                .take(12)
+                .enumerate()
+            {
                 let column = choice_index % columns;
                 let row = choice_index / columns;
                 let card = Rect::new(
@@ -580,7 +842,7 @@ impl Game {
                     card_w,
                     card_h,
                 );
-                let enabled = self.sim.unit_available(HUMAN, kind);
+                let enabled = self.sim.can_change_production(city, Production::Unit(kind));
                 let current = city.production == Production::Unit(kind);
                 let hovered = enabled && card.contains(mouse);
                 let fill = if current {
@@ -661,6 +923,7 @@ impl Game {
                         Color::from_rgba(247, 211, 112, 255),
                     );
                 }
+                self.draw_queue_button(city, card, Production::Unit(kind), actions);
                 if enabled {
                     actions.push((card, UiAction::Produce(Production::Unit(kind))));
                 }
@@ -668,6 +931,31 @@ impl Game {
         }
 
         let garrison_y = rect.y + 395.0;
+        let worklist_button = Rect::new(rect.x + rect.w - 251.0, garrison_y - 18.0, 104.0, 24.0);
+        draw_ui_button(
+            worklist_button,
+            &format!("Worklist ({})", city.worklist.len()),
+            true,
+            false,
+        );
+        actions.push((worklist_button, UiAction::WorklistPage(Some(0))));
+        let buy_button = Rect::new(rect.x + rect.w - 139.0, garrison_y - 18.0, 115.0, 24.0);
+        let cost = self.sim.rush_cost(city);
+        let affordable = cost.is_some_and(|price| price <= self.sim.players()[city.owner].gold);
+        let buy_label = cost.map_or_else(
+            || {
+                if city.bought_production {
+                    "Rushed".to_owned()
+                } else {
+                    "Rush".to_owned()
+                }
+            },
+            |price| format!("Rush {price}g"),
+        );
+        draw_ui_button(buy_button, &buy_label, affordable, city.bought_production);
+        if affordable {
+            actions.push((buy_button, UiAction::RushProduction(city.id)));
+        }
         draw_text(
             &format!(
                 "GARRISON     Unit upkeep  {} food / {} shields / {} gold",
@@ -724,11 +1012,26 @@ impl Game {
         if let Some(index) = self.selected_unit_index() {
             let unit = &self.sim.units()[index];
             let stats = unit.kind.stats();
-            let state = if unit.work_remaining > 0 {
+            let state = if unit.work_left > 0 {
                 format!(
                     "Building {} - {} turns",
                     unit.work_kind.map(|w| w.name()).unwrap_or("improvement"),
-                    unit.work_remaining
+                    self.sim.project_turns_left(unit)
+                )
+            } else if let Some(carrier) = unit.transport {
+                self.sim
+                    .units()
+                    .iter()
+                    .find(|ship| ship.id == carrier)
+                    .map_or_else(
+                        || "Aboard transport".to_owned(),
+                        |ship| format!("Aboard {}", ship.kind.name()),
+                    )
+            } else if unit.kind.transport_capacity() > 0 {
+                format!(
+                    "Cargo {}/{}",
+                    self.sim.cargo_count(unit.id),
+                    unit.kind.transport_capacity()
                 )
             } else if unit.automated {
                 "Automated".to_owned()
@@ -772,7 +1075,7 @@ impl Game {
                     unit.hp,
                     stats.hp,
                     unit.moves_left,
-                    stats.moves * MOVE_FRAGMENTS
+                    self.sim.unit_move_allowance(unit.owner, unit.kind)
                 ),
                 x,
                 y + 99.0,
@@ -790,6 +1093,16 @@ impl Game {
                 17.0,
                 Color::from_rgba(167, 201, 158, 255),
             );
+            let state = if unit.kind.is_aircraft() {
+                format!("{state} · Fuel {}/{}", unit.fuel, unit.kind.fuel_capacity())
+            } else {
+                state
+            };
+            let state = if unit.veteran > 0 {
+                format!("{state} · {}", unit.rank_name())
+            } else {
+                state
+            };
             draw_text(
                 &state,
                 x,
@@ -828,7 +1141,9 @@ impl Game {
             );
         } else if let Some(index) = self.selected_city_index() {
             let city = &self.sim.cities()[index];
-            let (food, shields, trade) = self.sim.city_yields(city);
+            let forecast = self.sim.city_forecast(city);
+            let (food, shields, trade) = (forecast.food, forecast.shields, forecast.trade);
+            let foreign = city.size - city.domestic_citizens();
             let cost = city.production.cost();
             draw_text(
                 &city.name,
@@ -838,7 +1153,11 @@ impl Game {
                 Color::from_rgba(244, 221, 147, 255),
             );
             draw_text(
-                &format!("City size {}", city.size),
+                &format!(
+                    "City size {} ({foreign} foreign)  Plague {:.1}%",
+                    city.size,
+                    f64::from(self.sim.city_illness(city, shields)) / 10.0
+                ),
                 x,
                 y + 48.0,
                 18.0,
@@ -948,14 +1267,150 @@ impl Game {
         if let Some(index) = self.selected_unit_index() {
             let unit = &self.sim.units()[index];
             let stats = unit.kind.stats();
-            if stats.can_found {
+            if let Some((target, price)) = self.sim.paid_upgrade(unit) {
+                entries.push((
+                    format!("Upgrade {price}g"),
+                    UiAction::UpgradeUnit(target, price),
+                    self.sim.players()[unit.owner].gold >= price,
+                ));
+            }
+            for city in self
+                .sim
+                .cities()
+                .iter()
+                .filter(|city| self.sim.can_establish_embassy(unit, city))
+            {
+                entries.push((
+                    format!("Embassy: {}", city.name),
+                    UiAction::EstablishEmbassy(city.id),
+                    true,
+                ));
+            }
+            for city in self
+                .sim
+                .cities()
+                .iter()
+                .filter(|city| self.sim.can_investigate_city(unit, city))
+            {
+                entries.push((
+                    format!("Investigate {}", city.name),
+                    UiAction::InvestigateCity(city.id),
+                    true,
+                ));
+            }
+            if unit.kind == UnitKind::Spy {
+                for city in self.sim.cities().iter().filter(|city| {
+                    self.sim.can_steal_technology(unit, city)
+                        || self.sim.can_sabotage_city(unit, city)
+                }) {
+                    entries.push((
+                        format!("Targets: {}", city.name),
+                        UiAction::SpyTargets(Some((city.id, 0))),
+                        true,
+                    ));
+                }
+            }
+            if unit.kind.is_diplomatic() {
+                for city in self
+                    .sim
+                    .cities()
+                    .iter()
+                    .filter(|city| self.sim.can_steal_technology(unit, city))
+                {
+                    entries.push((
+                        format!("Steal tech: {}", city.name),
+                        UiAction::StealTechnology(city.id),
+                        true,
+                    ));
+                }
+                for city in self
+                    .sim
+                    .cities()
+                    .iter()
+                    .filter(|city| self.sim.can_sabotage_city(unit, city))
+                {
+                    entries.push((
+                        format!("Sabotage {}", city.name),
+                        UiAction::SabotageCity(city.id),
+                        true,
+                    ));
+                }
+                for city in self.sim.cities() {
+                    if let Some(price) = self.sim.incite_price(unit, city) {
+                        entries.push((
+                            format!("Incite {} {price}g", city.name),
+                            UiAction::InciteCity(city.id, price),
+                            self.sim.players()[unit.owner].gold >= price,
+                        ));
+                    }
+                }
+                for target in self.sim.units() {
+                    if !self.sim.unit_visible_to_human(target) {
+                        continue;
+                    }
+                    if self.sim.can_sabotage_unit(unit, target) {
+                        entries.push((
+                            format!("Sabotage {}", target.kind.name()),
+                            UiAction::SabotageUnit(target.id),
+                            true,
+                        ));
+                    }
+                    if let Some(price) = self.sim.bribe_price(unit, target) {
+                        entries.push((
+                            format!("Bribe {} {price}g", target.kind.name()),
+                            UiAction::BribeUnit(target.id, price),
+                            self.sim.players()[unit.owner].gold >= price,
+                        ));
+                    }
+                }
+            }
+            if self.sim.can_begin_paradrop(unit) {
+                entries.insert(0, ("Paradrop".to_owned(), UiAction::BeginParadrop, true));
+            }
+            for city in self.sim.cities() {
+                if self.sim.can_airlift(unit, city) {
+                    entries.push((
+                        format!("Airlift to {}", city.name),
+                        UiAction::Airlift(city.id),
+                        true,
+                    ));
+                }
+                if self.sim.can_join_city(unit, city) {
+                    entries.push((
+                        format!("Join {}", city.name),
+                        UiAction::JoinCity(city.id),
+                        true,
+                    ));
+                }
+                if self.sim.can_deliver_goods(unit, city) && self.sim.tile(city.x, city.y).visible {
+                    entries.push((
+                        format!("Trade: {}", city.name),
+                        UiAction::DeliverGoods(city.id),
+                        true,
+                    ));
+                }
+                if self.sim.can_help_wonder(unit, city) && self.sim.tile(city.x, city.y).visible {
+                    entries.push((
+                        format!("Help wonder: {}", city.name),
+                        UiAction::HelpWonder(city.id),
+                        true,
+                    ));
+                }
+            }
+            if unit.kind == UnitKind::Nuclear {
+                entries.push(("Detonate here".to_owned(), UiAction::Detonate, true));
+            }
+            if let Some(label) = self.sim.transport_action(unit) {
+                entries.push((format!("{label} [L]"), UiAction::BoardOrDeboard, true));
+            }
+            if stats.can_found && unit.transport.is_none() {
                 entries.push((
                     "Found [B]".to_owned(),
                     UiAction::FoundCity,
                     self.sim.can_found_at(unit.x, unit.y),
                 ));
             }
-            if stats.can_work {
+            if stats.can_work && unit.transport.is_none() {
                 let tile = self.sim.tile(unit.x, unit.y);
                 let (label, enabled) = if tile.road && self.sim.has_tech(unit.owner, Tech::RAILROAD)
                 {
@@ -973,19 +1428,81 @@ impl Game {
                     )
                 };
                 entries.push((label.to_owned(), UiAction::Road, enabled));
+                let (label, enabled) = if tile.irrigation {
+                    (
+                        "Farmland [I]",
+                        self.sim.can_farm_at(unit.owner, unit.x, unit.y),
+                    )
+                } else {
+                    (
+                        "Irrigate [I]",
+                        self.sim.can_irrigate_at(unit.owner, unit.x, unit.y),
+                    )
+                };
+                entries.push((label.to_owned(), UiAction::Irrigate, enabled));
+            }
+            if let Some(kind) = self.sim.oil_work(unit) {
                 entries.push((
-                    "Irrigate [I]".to_owned(),
-                    UiAction::Irrigate,
-                    self.sim.can_irrigate_at(unit.x, unit.y),
+                    format!("Build {} [M]", kind.name()),
+                    UiAction::Mine,
+                    unit.work_left == 0,
                 ));
+            } else if stats.can_work && unit.transport.is_none() {
+                let tile = self.sim.tile(unit.x, unit.y);
                 entries.push((
                     "Mine [M]".to_owned(),
                     UiAction::Mine,
-                    !self.sim.tile(unit.x, unit.y).mine
-                        && self.sim.tile(unit.x, unit.y).terrain.mine_time() > 0,
+                    !tile.mine && tile.terrain.mine_time() > 0,
                 ));
             }
-            if unit.kind.is_military() {
+            for (kind, label) in [
+                (WorkKind::Cultivate, "Cultivate [V]"),
+                (WorkKind::Plant, "Plant [P]"),
+                (WorkKind::Transform, "Transform [T]"),
+            ] {
+                if self.sim.terrain_work(unit, kind).is_some() {
+                    entries.push((
+                        label.to_owned(),
+                        UiAction::TerrainWork(kind),
+                        unit.work_left == 0,
+                    ));
+                }
+            }
+            if unit.kind.can_clean() && unit.transport.is_none() {
+                let tile = self.sim.tile(unit.x, unit.y);
+                for target in [Contamination::Pollution, Contamination::Fallout] {
+                    if tile.has_contamination(target) {
+                        entries.insert(
+                            0,
+                            (
+                                format!("Clean {}", target.name()),
+                                UiAction::TerrainWork(WorkKind::Clean(target)),
+                                unit.work_left == 0,
+                            ),
+                        );
+                    }
+                }
+            }
+            for base in [Base::Fort, Base::Fortress, Base::Airstrip, Base::Airbase] {
+                if self.sim.base_work_time(unit, base).is_some() {
+                    entries.push((
+                        format!("Build {}", base.name()),
+                        UiAction::TerrainWork(WorkKind::BuildBase(base)),
+                        unit.work_left == 0,
+                    ));
+                }
+            }
+            let base = self.sim.tile(unit.x, unit.y).base.map(PillageTarget::Base);
+            for target in PillageTarget::ALL.into_iter().chain(base) {
+                if self.sim.can_pillage(unit, target) {
+                    entries.push((
+                        format!("Pillage {}", target.name()),
+                        UiAction::TerrainWork(WorkKind::Pillage(target)),
+                        unit.work_left == 0,
+                    ));
+                }
+            }
+            if unit.kind.is_military() && unit.transport.is_none() {
                 entries.push(("Fortify [F]".to_owned(), UiAction::Fortify, true));
             }
             if self.sim.home_city_target(unit).is_some() {
@@ -993,9 +1510,29 @@ impl Game {
             }
             entries.push(("Automate [A]".to_owned(), UiAction::Automate, true));
             entries.push(("Wait [Space]".to_owned(), UiAction::Wait, true));
-        } else if self.selected_city_index().is_some() {
+            for city in self
+                .sim
+                .cities()
+                .iter()
+                .filter(|city| self.sim.can_disband(unit, Some(city)))
+            {
+                entries.push((
+                    format!("Recycle: {}", city.name),
+                    UiAction::Disband(Some(city.id)),
+                    true,
+                ));
+            }
+            if self.sim.can_disband(unit, None) {
+                entries.push(("Disband".to_owned(), UiAction::Disband(None), true));
+            }
+        } else if let Some(index) = self.selected_city_index() {
+            let city = &self.sim.cities()[index];
             for kind in [
-                UnitKind::Worker,
+                if self.sim.has_tech(city.owner, Tech::EXPLOSIVES) {
+                    UnitKind::Engineer
+                } else {
+                    UnitKind::Worker
+                },
                 UnitKind::Warrior,
                 UnitKind::Phalanx,
                 UnitKind::Archer,
@@ -1008,7 +1545,7 @@ impl Game {
                 entries.push((
                     format!("{} {}", short_unit_name(kind), kind.stats().cost),
                     UiAction::Produce(Production::Unit(kind)),
-                    self.sim.unit_available(HUMAN, kind),
+                    self.sim.can_change_production(city, Production::Unit(kind)),
                 ));
             }
         } else {

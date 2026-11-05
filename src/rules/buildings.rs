@@ -1,5 +1,5 @@
 // Catalog from Freeciv data/civ2civ3/buildings.ruleset, revision eb8c7033.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Building(pub(crate) usize);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,10 +32,121 @@ pub(crate) struct BuildingData {
 }
 
 impl Building {
+    pub(crate) const SUPER_HIGHWAYS: Self = Self(38);
+    pub(crate) const SUPERMARKET: Self = Self(39);
+    pub(crate) const FACTORY: Self = Self(13);
+    pub(crate) const HYDRO_PLANT: Self = Self(16);
+    pub(crate) const MASS_TRANSIT: Self = Self(19);
+    pub(crate) const MFG_PLANT: Self = Self(20);
+    pub(crate) const NUCLEAR_PLANT: Self = Self(21);
+    pub(crate) const OFFSHORE_PLATFORM: Self = Self(22);
+    pub(crate) const RECYCLING_CENTER: Self = Self(28);
+    pub(crate) const SOLAR_PLANT: Self = Self(33);
+    pub(crate) const EIFFEL_TOWER: Self = Self(48);
+    pub(crate) const HOOVER_DAM: Self = Self(52);
+    pub(crate) const MARCO_POLOS_EMBASSY: Self = Self(60);
+    pub(crate) const LEONARDOS_WORKSHOP: Self = Self(56);
+    pub(crate) const LIGHTHOUSE: Self = Self(57);
+    pub(crate) const MAGELLANS_EXPEDITION: Self = Self(58);
+    pub(crate) const PORT_FACILITY: Self = Self(26);
+    pub(crate) const AIRPORT: Self = Self(0);
     pub(crate) const PALACE: Self = Self(23);
     pub(crate) const SPACE_STRUCTURAL: Self = Self(36);
     pub(crate) const SPACE_COMPONENT: Self = Self(34);
     pub(crate) const SPACE_MODULE: Self = Self(35);
+
+    pub(crate) const A_SMITHS_TRADING_CO: Self = Self(43);
+    pub(crate) const COPERNICUS_OBSERVATORY: Self = Self(45);
+    pub(crate) const GREAT_LIBRARY: Self = Self(49);
+    pub(crate) const ISAAC_NEWTONS_COLLEGE: Self = Self(53);
+    pub(crate) const INTERNET: Self = Self(66);
+    pub(crate) const APOLLO_PROGRAM: Self = Self(42);
+    pub(crate) const AQUEDUCT: Self = Self(1);
+    pub(crate) const AQUEDUCT_LAKE: Self = Self(2);
+    pub(crate) const AQUEDUCT_RIVER: Self = Self(3);
+    pub(crate) const BANK: Self = Self(4);
+    pub(crate) const BARRACKS: Self = Self(5);
+    pub(crate) const BARRACKS_II: Self = Self(6);
+    pub(crate) const BARRACKS_III: Self = Self(7);
+    pub(crate) const SUN_TZUS_WAR_ACADEMY: Self = Self(69);
+    pub(crate) const AMPHITHEATER: Self = Self(11);
+    pub(crate) const CATHEDRAL: Self = Self(8);
+    pub(crate) const COLOSSUS: Self = Self(44);
+    pub(crate) const JS_BACHS_CATHEDRAL: Self = Self(54);
+    pub(crate) const HANGING_GARDENS: Self = Self(51);
+    pub(crate) const MICHELANGELOS_CHAPEL: Self = Self(61);
+    pub(crate) const MAUSOLEUM_OF_MAUSOLOS: Self = Self(62);
+    pub(crate) const TEMPLE_OF_ARTEMIS: Self = Self(64);
+    pub(crate) const CITY_WALLS: Self = Self(9);
+    pub(crate) const COASTAL_DEFENSE: Self = Self(10);
+    pub(crate) const SAM_BATTERY: Self = Self(30);
+    pub(crate) const SDI_DEFENSE: Self = Self(31);
+    pub(crate) const GREAT_WALL: Self = Self(50);
+    pub(crate) const COURTHOUSE: Self = Self(12);
+    pub(crate) const CURE_FOR_CANCER: Self = Self(46);
+    pub(crate) const DARWINS_VOYAGE: Self = Self(47);
+    pub(crate) const ECCLESIASTICAL_PALACE: Self = Self(24);
+    pub(crate) const GRANARY: Self = Self(14);
+    pub(crate) const KING_RICHARDS_CRUSADE: Self = Self(55);
+    pub(crate) const LIBRARY: Self = Self(17);
+    pub(crate) const MANHATTAN_PROJECT: Self = Self(59);
+    pub(crate) const MARKETPLACE: Self = Self(18);
+    pub(crate) const POLICE_STATION: Self = Self(25);
+    pub(crate) const PYRAMIDS: Self = Self(65);
+    pub(crate) const RESEARCH_LAB: Self = Self(29);
+    pub(crate) const SEWER_SYSTEM: Self = Self(32);
+    pub(crate) const SHAKESPEARES_THEATER: Self = Self(67);
+    pub(crate) const STATUE_OF_LIBERTY: Self = Self(68);
+    pub(crate) const STATUE_OF_ZEUS: Self = Self(63);
+    pub(crate) const STOCK_EXCHANGE: Self = Self(37);
+    pub(crate) const TEMPLE: Self = Self(40);
+    pub(crate) const UNITED_NATIONS: Self = Self(70);
+    pub(crate) const UNIVERSITY: Self = Self(41);
+    pub(crate) const WOMENS_SUFFRAGE: Self = Self(71);
+
+    pub(crate) fn history_per_turn(self) -> i32 {
+        match self.0 {
+            8 => 3,  // Cathedral
+            11 => 2, // Amphitheater (Colosseum)
+            17 => 1, // Library
+            23 => 1, // Palace
+            24 => 1, // Ecclesiastical Palace
+            29 => 3, // Research Lab
+            40 => 1, // Temple
+            41 => 2, // University
+            42 => 6, // Apollo Program
+            43 => 4, // A.Smith's Trading Co.
+            44 => 2, // Colossus
+            45 => 3, // Copernicus' Observatory
+            46 => 6, // Cure For Cancer
+            47 => 4, // Darwin's Voyage
+            48 => 3, // Eiffel Tower
+            49 => 3, // Great Library
+            50 => 3, // Great Wall
+            51 => 2, // Hanging Gardens
+            52 => 6, // Hoover Dam
+            53 => 4, // Isaac Newton's College
+            54 => 4, // J.S. Bach's Cathedral
+            55 => 3, // King Richard's Crusade
+            56 => 4, // Leonardo's Workshop
+            57 => 2, // Lighthouse
+            58 => 4, // Magellan's Expedition
+            59 => 6, // Manhattan Project
+            60 => 2, // Marco Polo's Embassy
+            61 => 4, // Michelangelo's Chapel
+            62 => 2, // Mausoleum of Mausolos
+            63 => 2, // Statue of Zeus
+            64 => 2, // Temple of Artemis
+            65 => 2, // Pyramids
+            66 => 6, // Internet
+            67 => 3, // Shakespeare's Theater
+            68 => 4, // Statue of Liberty
+            69 => 3, // Sun Tzu's War Academy
+            70 => 6, // United Nations
+            71 => 6, // Women's Suffrage
+            _ => 0,
+        }
+    }
 
     pub(crate) fn all() -> impl Iterator<Item = Self> {
         (0..BUILDINGS.len()).map(Self)

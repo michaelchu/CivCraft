@@ -1,6 +1,9 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+mod offers;
+mod vision;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Pact {
     #[default]
     War,
@@ -22,14 +25,56 @@ impl Pact {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TreatyMap {
+    World,
+    Sea,
+}
+
+impl TreatyMap {
+    fn flag(self) -> u64 {
+        match self {
+            Self::World => 2,
+            Self::Sea => 4,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Concessions {
     pub(crate) gold: i32,
     pub(crate) technology: Option<Tech>,
-    pub(crate) vision: bool,
+    // Low bits retain the vision and map flags. Higher bits store the city ID.
+    access: u64,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+impl Concessions {
+    pub(crate) fn shared_vision(self) -> bool {
+        self.access & 1 != 0
+    }
+
+    pub(crate) fn city(self) -> Option<u32> {
+        let id = (self.access >> 3) as u32;
+        (id != 0).then_some(id)
+    }
+
+    fn with_city(mut self, id: u32) -> Self {
+        self.access = (self.access & 7) | (u64::from(id) << 3);
+        self
+    }
+
+    fn valid_access(self) -> bool {
+        self.access & 7 <= 5 && self.access >> 3 <= u64::from(u32::MAX)
+    }
+
+    pub(crate) fn map(self) -> Option<TreatyMap> {
+        [TreatyMap::World, TreatyMap::Sea]
+            .into_iter()
+            .find(|map| self.access & map.flag() != 0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct TreatyOffer {
     pub(crate) pact: Option<Pact>,
     // Terms are ordered by player ID.
@@ -42,7 +87,7 @@ impl TreatyOffer {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, serde::Serialize, serde::Deserialize)]
 pub(super) struct Relation {
     pact: Pact,
     until: i32,
@@ -51,12 +96,81 @@ pub(super) struct Relation {
     trust: [i32; 2],
     offer: Option<TreatyOffer>,
     vision: [bool; 2],
+    embassy: [bool; 2],
     offer_after: i32,
 }
 
 impl Simulation {
     pub(super) fn relation_key(a: usize, b: usize) -> (usize, usize) {
         (a.min(b), a.max(b))
+    }
+
+    fn has_real_embassy(&self, owner: usize, other: usize) -> bool {
+        self.diplomacy
+            .get(&Self::relation_key(owner, other))
+            .is_some_and(|relation| relation.embassy[usize::from(owner > other)])
+    }
+
+    pub(crate) fn has_embassy(&self, owner: usize, other: usize) -> bool {
+        owner != other
+            && other != BARBARIANS
+            && (self.has_real_embassy(owner, other)
+                || self.has_active_wonder(owner, Building::MARCO_POLOS_EMBASSY))
+    }
+
+    pub(super) fn clear_outgoing_embassies(&mut self, owner: usize) {
+        for (&(a, b), relation) in &mut self.diplomacy {
+            if owner == a {
+                relation.embassy[0] = false;
+            } else if owner == b {
+                relation.embassy[1] = false;
+            }
+        }
+    }
+
+    pub(crate) fn can_establish_embassy(&self, unit: &Unit, city: &City) -> bool {
+        (unit.kind.is_diplomatic() || unit.kind == UnitKind::Explorer)
+            && unit.moves_left > 0
+            && unit.transport.is_none()
+            && city.owner != unit.owner
+            && city.owner != BARBARIANS
+            && self.map_distance(unit.x, unit.y, city.x, city.y) <= 1
+            && !self.has_real_embassy(unit.owner, city.owner)
+    }
+
+    pub(super) fn establish_embassy(&mut self, unit_id: u32, city_id: u32) -> bool {
+        let Some(unit) = self.units.iter().find(|unit| unit.id == unit_id) else {
+            return false;
+        };
+        let Some(city) = self.cities.iter().find(|city| city.id == city_id) else {
+            return false;
+        };
+        if !self.can_establish_embassy(unit, city) {
+            return false;
+        }
+        let (owner, other) = (unit.owner, city.owner);
+        let spy = unit.kind == UnitKind::Spy;
+        let message = format!("An embassy was established in {}.", city.name);
+        let relation = self
+            .diplomacy
+            .entry(Self::relation_key(owner, other))
+            .or_default();
+        relation.embassy[usize::from(owner > other)] = true;
+        relation.first_contact.get_or_insert(self.turn);
+        if spy {
+            self.units
+                .iter_mut()
+                .find(|unit| unit.id == unit_id)
+                .unwrap()
+                .moves_left -= 1;
+        } else {
+            self.units.retain(|unit| unit.id != unit_id);
+        }
+        if owner == HUMAN {
+            self.add_event(message);
+        }
+        self.refresh_visibility();
+        true
     }
 
     pub(crate) fn pact(&self, a: usize, b: usize) -> Pact {
@@ -79,16 +193,6 @@ impl Simulation {
             .map_or(0, |relation| (relation.until - self.turn).max(0))
     }
 
-    pub(crate) fn treaty_offer(&self, other: usize) -> Option<TreatyOffer> {
-        self.diplomacy
-            .get(&Self::relation_key(HUMAN, other))
-            .and_then(|relation| relation.offer)
-    }
-
-    pub(crate) fn pact_offer(&self, other: usize) -> Option<Pact> {
-        self.treaty_offer(other).and_then(|offer| offer.pact)
-    }
-
     pub(crate) fn next_pact(&self, a: usize, b: usize) -> Option<Pact> {
         match self.pact(a, b) {
             Pact::War => Some(Pact::Ceasefire),
@@ -99,7 +203,7 @@ impl Simulation {
     }
 
     pub(crate) fn has_senate(&self, owner: usize) -> bool {
-        if self.owns_wonder(owner, "Statue of Liberty") {
+        if self.has_active_wonder(owner, Building::STATUE_OF_LIBERTY) {
             return false;
         }
         matches!(
@@ -108,16 +212,16 @@ impl Simulation {
         ) || (self
             .cities
             .iter()
-            .any(|city| city.has_building("United Nations"))
+            .any(|city| city.has_building(Building::UNITED_NATIONS))
             && self
                 .completed_wonders
                 .iter()
-                .any(|building| building.data().name == "Manhattan Project")
+                .any(|building| *building == Building::MANHATTAN_PROJECT)
             && !self.apollo_completed
             && self.players[owner]
                 .known
                 .iter()
-                .any(|tech| tech.name() == "Nuclear Fission"))
+                .any(|tech| *tech == Tech::NUCLEAR_FISSION))
     }
 
     pub(crate) fn senate_blocks_cancellation(&self, owner: usize, other: usize) -> bool {
@@ -128,25 +232,6 @@ impl Simulation {
                 .is_none_or(|relation| {
                     relation.cause_until[usize::from(owner > other)] <= self.turn
                 })
-    }
-
-    pub(crate) fn can_negotiate(&self, other: usize) -> bool {
-        other != HUMAN
-            && other != BARBARIANS
-            && other < self.players.len()
-            && (self.cities.iter().any(|city| city.owner == other)
-                || self.units.iter().any(|unit| unit.owner == other))
-            && (self
-                .diplomacy
-                .contains_key(&Self::relation_key(HUMAN, other))
-                || self
-                    .cities
-                    .iter()
-                    .any(|city| city.owner == other && self.tile(city.x, city.y).visible)
-                || self
-                    .units
-                    .iter()
-                    .any(|unit| unit.owner == other && self.tile(unit.x, unit.y).visible))
     }
 
     fn pact_refusal(
@@ -214,196 +299,7 @@ impl Simulation {
         true
     }
 
-    pub(super) fn accept_offer(&mut self, other: usize, offer: TreatyOffer) -> bool {
-        if !self.can_negotiate(other) || self.treaty_offer(other) != Some(offer) {
-            return false;
-        }
-        if !self.execute_offer(HUMAN, other, offer) {
-            self.decline_offer(other);
-            self.add_event("That treaty offer is no longer valid.");
-            return false;
-        }
-        self.add_event(format!(
-            "Treaty terms agreed with {}.",
-            self.players[other].name
-        ));
-        true
-    }
-
-    fn execute_offer(&mut self, a: usize, b: usize, offer: TreatyOffer) -> bool {
-        if offer
-            .pact
-            .is_some_and(|pact| self.pact_refusal(b, a, pact).is_some())
-        {
-            return false;
-        }
-        let key = Self::relation_key(a, b);
-        let after = offer.pact.unwrap_or_else(|| self.pact(a, b));
-        for (index, (giver, receiver)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {
-            let terms = offer.terms[index];
-            if terms.gold < 0
-                || self.players[giver].gold < terms.gold
-                || terms
-                    .technology
-                    .is_some_and(|tech| self.tech_sell_price(giver, receiver, tech).is_none())
-                || (terms.vision && (after != Pact::Alliance || !self.vision_safe(giver, receiver)))
-            {
-                return false;
-            }
-        }
-        if !self.ai_accepts_technology_exchange(key.0, key.1, &offer.terms) {
-            return false;
-        }
-        if let Some(pact) = offer.pact {
-            self.sign_pact(a, b, pact);
-        }
-        let relation = self.diplomacy.get_mut(&key).unwrap();
-        relation.offer = None;
-        for (index, (giver, receiver)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {
-            let terms = offer.terms[index];
-            relation.vision[index] |= terms.vision;
-            self.players[giver].gold -= terms.gold;
-            self.players[receiver].gold += terms.gold;
-        }
-        for (index, receiver) in [key.1, key.0].into_iter().enumerate() {
-            if let Some(tech) = offer.terms[index].technology {
-                self.discover(receiver, tech);
-                if self.players[receiver].researching == tech {
-                    self.players[receiver].researching = self.research_target(receiver);
-                }
-            }
-        }
-        if offer.terms.iter().any(|terms| terms.vision) {
-            self.refresh_visibility();
-        }
-        true
-    }
-
-    pub(super) fn tech_trade_partner_is_dangerous(&self, owner: usize, other: usize) -> bool {
-        let stance = self.pact(owner, other);
-        if stance == Pact::Ceasefire
-            || (stance == Pact::War
-                && self
-                    .diplomacy
-                    .contains_key(&Self::relation_key(owner, other)))
-        {
-            return true;
-        }
-        let has_hostile_ally = (0..self.players.len()).any(|third| {
-            third != owner
-                && third != other
-                && third != BARBARIANS
-                && self.player_alive(third)
-                && self.allied(other, third)
-                && self.at_war(owner, third)
-                && self
-                    .diplomacy
-                    .contains_key(&Self::relation_key(owner, third))
-        });
-        has_hostile_ally
-            || self
-                .diplomacy
-                .get(&Self::relation_key(owner, other))
-                .is_none_or(|relation| {
-                    let side = usize::from(owner > other);
-                    relation.cause_until[side] > self.turn || relation.trust[side] < 1000
-                })
-    }
-
-    fn vision_safe(&self, giver: usize, receiver: usize) -> bool {
-        self.vision_recipients(receiver).into_iter().all(|third| {
-            third == giver
-                || third == receiver
-                || self.allied(giver, third)
-                || !self
-                    .diplomacy
-                    .contains_key(&Self::relation_key(giver, third))
-        })
-    }
-
-    pub(super) fn vision_recipients(&self, giver: usize) -> Vec<usize> {
-        let mut recipients = vec![giver];
-        let mut next = 0;
-        while let Some(&source) = recipients.get(next) {
-            for (&(a, b), relation) in &self.diplomacy {
-                let target = if a == source && relation.vision[0] {
-                    b
-                } else if b == source && relation.vision[1] {
-                    a
-                } else {
-                    continue;
-                };
-                if !recipients.contains(&target) {
-                    recipients.push(target);
-                }
-            }
-            next += 1;
-        }
-        recipients
-    }
-
-    fn build_offer(&self, a: usize, b: usize, pact: Option<Pact>) -> TreatyOffer {
-        let mut offer = TreatyOffer {
-            pact,
-            ..TreatyOffer::default()
-        };
-        let after = pact.unwrap_or_else(|| self.pact(a, b));
-        if matches!(after, Pact::Peace | Pact::Alliance) {
-            // Freeciv scans technologies received by the proposer first.
-            let proposer = if a == HUMAN { b } else { a };
-            let recipient = if proposer == a { b } else { a };
-            let incoming: Vec<_> = Tech::all()
-                .filter_map(|tech| {
-                    self.tech_sell_price(recipient, proposer, tech)
-                        .map(|price| (tech, price))
-                })
-                .collect();
-            let outgoing: Vec<_> = Tech::all()
-                .filter_map(|tech| {
-                    self.tech_sell_price(proposer, recipient, tech)
-                        .map(|price| (tech, price))
-                })
-                .collect();
-            'exchange: for &(received, incoming_value) in &incoming {
-                for &(given, outgoing_value) in &outgoing {
-                    let balance = incoming_value - outgoing_value;
-                    let giver = usize::from(proposer != a);
-                    let mut terms = [Concessions::default(); 2];
-                    terms[giver].technology = Some(given);
-                    terms[1 - giver].technology = Some(received);
-                    terms[giver].gold = balance.max(0);
-                    terms[1 - giver].gold = (-balance).max(0);
-                    if self.players[proposer].gold >= terms[giver].gold
-                        && self.players[recipient].gold >= terms[1 - giver].gold
-                        && self.ai_accepts_technology_exchange(a, b, &terms)
-                    {
-                        offer.terms = terms;
-                        break 'exchange;
-                    }
-                }
-            }
-        }
-        if after == Pact::Alliance {
-            let existing = self
-                .diplomacy
-                .get(&(a, b))
-                .map_or([false; 2], |relation| relation.vision);
-            if self.vision_safe(b, a) && self.vision_safe(a, b) {
-                offer.terms[0].vision = !existing[0];
-                offer.terms[1].vision = !existing[1];
-            }
-        }
-        offer
-    }
-
-    pub(super) fn decline_offer(&mut self, other: usize) -> bool {
-        let Some(relation) = self.diplomacy.get_mut(&Self::relation_key(HUMAN, other)) else {
-            return false;
-        };
-        relation.offer.take().is_some()
-    }
-
-    fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact) {
+    pub(super) fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact) {
         let relation = self.diplomacy.entry(Self::relation_key(a, b)).or_default();
         relation.pact = if proposed == Pact::Peace {
             Pact::Armistice
@@ -482,6 +378,7 @@ impl Simulation {
                 self.cancel_pact(ally, owner);
             }
         }
+        self.prune_trade_routes();
         self.add_event(format!(
             "{} ended the {} with {}.",
             self.players[owner].name,
@@ -499,29 +396,6 @@ impl Simulation {
                 .or_default();
             relation.first_contact.get_or_insert(self.turn);
             relation.cause_until[usize::from(victim > offender)] = self.turn + 2;
-        }
-    }
-
-    pub(super) fn remember_visible_rivals(&mut self) {
-        for owner in self
-            .units
-            .iter()
-            .filter(|unit| self.tiles[Self::idx(unit.x, unit.y)].visible)
-            .map(|unit| unit.owner)
-            .chain(
-                self.cities
-                    .iter()
-                    .filter(|city| self.tiles[Self::idx(city.x, city.y)].visible)
-                    .map(|city| city.owner),
-            )
-        {
-            if owner != HUMAN && owner != BARBARIANS {
-                self.diplomacy
-                    .entry(Self::relation_key(HUMAN, owner))
-                    .or_default()
-                    .first_contact
-                    .get_or_insert(self.turn);
-            }
         }
     }
 
@@ -652,59 +526,6 @@ impl Simulation {
         }
     }
 
-    // The desktop self-test advances treaty timers with the armies held in place.
-    pub(crate) fn diplomacy_playtest_tick(&mut self, turns: i32) {
-        for _ in 0..turns {
-            self.turn += 1;
-            self.advance_diplomacy();
-        }
-    }
-
-    pub(crate) fn diplomacy_playtest_technologies(&mut self, exchange: bool) {
-        self.players[HUMAN].known = vec![Tech::ALPHABET];
-        self.players[1].known = vec![Tech::ALPHABET];
-        if exchange {
-            let writing = Tech::all().find(|tech| tech.name() == "Writing").unwrap();
-            self.players[HUMAN].known.push(Tech::POTTERY);
-            self.players[1].known.push(writing);
-            self.players[HUMAN].gold = 100;
-            self.players[1].last_science = 4;
-        }
-    }
-
-    pub(crate) fn diplomacy_playtest_allied_exchange(&mut self) {
-        let currency = Tech::all().find(|tech| tech.name() == "Currency").unwrap();
-        self.players[HUMAN]
-            .known
-            .extend([Tech::BRONZE_WORKING, currency]);
-        self.players[1]
-            .known
-            .extend([Tech::BRONZE_WORKING, Tech::WARRIOR_CODE]);
-        self.players[1].rates = [40, 60, 0];
-        if let Some(city) = self.cities.iter_mut().find(|city| city.owner == 1) {
-            city.size = 3;
-            city.specialists = [0, 3, 0];
-        }
-        self.diplomacy_playtest_tick(13);
-    }
-
-    pub(crate) fn diplomacy_playtest_hidden_city(&self, owner: usize) -> Option<(i32, i32)> {
-        self.cities
-            .iter()
-            .find(|city| city.owner == owner && !self.tile(city.x, city.y).visible)
-            .map(|city| (city.x, city.y))
-    }
-
-    pub(crate) fn diplomacy_playtest_unit(&mut self, rival: usize) -> Option<(u32, i32, i32)> {
-        let city = self.cities.iter().find(|city| city.owner == rival)?;
-        let (x, y) = (city.x, city.y);
-        let (start_x, start_y) = offset_native_by_map(x, y, -1, 0);
-        self.tile_mut(x, y).terrain = Terrain::Grassland;
-        self.tile_mut(start_x, start_y).terrain = Terrain::Grassland;
-        let id = self.spawn_unit(HUMAN, UnitKind::Warrior, start_x, start_y);
-        Some((id, x, y))
-    }
-
     pub(super) fn treaty_blocks_move(&self, unit: &Unit, x: i32, y: i32) -> bool {
         let blocked = |owner| !self.allied(unit.owner, owner) && !self.at_war(unit.owner, owner);
         let occupied = self
@@ -723,9 +544,101 @@ impl Simulation {
     }
 }
 
+impl Simulation {
+    pub(crate) fn city_bundle_playtest(&mut self) -> bool {
+        self.units.clear();
+        for (owner, (x, y)) in [(HUMAN, (8, 24)), (1, (14, 24)), (HUMAN, (10, 24))] {
+            self.tile_mut(x, y).terrain = Terrain::Grassland;
+            self.create_city(owner, x, y);
+        }
+        self.transfer_traded_city(2, 1);
+        let point = (23, 36);
+        let tile = self.tile_mut(point.0, point.1);
+        tile.known_by[1] = true;
+        tile.known_by[HUMAN] = false;
+        tile.seen = false;
+        let key = (HUMAN, 1);
+        self.diplomacy.entry(key).or_default().pact = Pact::Peace;
+        self.players[HUMAN].known.clear();
+        self.players[1].known.clear();
+        self.players[HUMAN].gold = 20_000;
+        let offer = self.build_offer(HUMAN, 1, None);
+        if offer.terms[1].city() != Some(self.cities[2].id)
+            || offer.terms[1].map() != Some(TreatyMap::World)
+        {
+            return false;
+        }
+
+        self.cities[2].buildings.push(Building::PALACE);
+        self.diplomacy.get_mut(&key).unwrap().offer = Some(offer);
+        let rejected = !self.apply(Command::AcceptOffer(1, offer))
+            && self.players[HUMAN].gold == 20_000
+            && self.cities[2].owner == 1
+            && !self.tile(point.0, point.1).seen;
+        self.cities[2]
+            .buildings
+            .retain(|building| *building != Building::PALACE);
+        self.diplomacy.get_mut(&key).unwrap().offer = Some(offer);
+        rejected
+            && self.apply(Command::AcceptOffer(1, offer))
+            && self.players[HUMAN].gold == 20_000 - offer.terms[0].gold
+            && self.cities[2].owner == HUMAN
+            && self.tile(point.0, point.1).seen
+    }
+
+    pub(crate) fn ai_map_offer_playtest(&mut self) -> bool {
+        self.create_city(HUMAN, 3, 3);
+        self.create_city(1, 18, 32);
+        let point = (11, 24);
+        let tile = self.tile_mut(point.0, point.1);
+        tile.terrain = Terrain::Ocean;
+        tile.known_by[1] = true;
+        tile.known_by[HUMAN] = false;
+        tile.visible = false;
+        tile.seen = false;
+        let relation = self.diplomacy.entry((HUMAN, 1)).or_default();
+        relation.pact = Pact::Peace;
+        relation.trust = [0; 2];
+        self.players[HUMAN].gold = 15;
+        let offer = self.build_offer(HUMAN, 1, None);
+        if offer.terms[1].map() != Some(TreatyMap::Sea) || offer.terms[0].gold != 15 {
+            return false;
+        }
+        self.diplomacy.get_mut(&(HUMAN, 1)).unwrap().offer = Some(offer);
+        self.apply(Command::AcceptOffer(1, offer))
+            && self.players[HUMAN].gold == 0
+            && self.treaty_offer(1).is_none()
+            && self.tile(point.0, point.1).seen
+            && !self.tile(point.0, point.1).visible
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn directional_embassy_consumes_explorer_and_reduces_research_cost() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        let (x, y) = (10, 20);
+        game.create_city(1, x, y);
+        let city = game.cities[0].id;
+        let (nx, ny) = offset_native_by_map(x, y, 1, 0);
+        let explorer = game.spawn_unit(HUMAN, UnitKind::Explorer, nx, ny);
+        let diplomat = game.spawn_unit(HUMAN, UnitKind::Diplomat, nx, ny);
+        game.players[1].known.push(Tech::POTTERY);
+        assert_eq!(game.target_cost(HUMAN, Tech::POTTERY), Tech::POTTERY.cost());
+        assert!(game.apply(Command::EstablishEmbassy(explorer, city)));
+        assert!(game.has_embassy(HUMAN, 1));
+        assert!(!game.has_embassy(1, HUMAN));
+        assert!(!game.apply(Command::EstablishEmbassy(diplomat, city)));
+        assert!(game.units.iter().all(|unit| unit.id != explorer));
+        assert_eq!(
+            game.target_cost(HUMAN, Tech::POTTERY),
+            Tech::POTTERY.cost() / 2
+        );
+    }
 
     #[test]
     fn technology_price_discounts_allies_before_adding_leakage() {
@@ -753,11 +666,11 @@ mod tests {
         game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().pact = Pact::Peace;
         let offer = game.build_offer(HUMAN, 1, None);
         assert!(offer.terms.iter().all(|term| term.technology.is_some()));
-        assert!(game.ai_accepts_technology_exchange(HUMAN, 1, &offer.terms));
+        assert!(game.ai_accepts_treaty_exchange(HUMAN, 1, &offer.terms, Pact::Peace));
         game.players[1].last_science = 0;
-        assert!(!game.ai_accepts_technology_exchange(HUMAN, 1, &offer.terms));
+        assert!(!game.ai_accepts_treaty_exchange(HUMAN, 1, &offer.terms, Pact::Peace));
         game.players[1].research = -1;
-        assert!(!game.ai_accepts_technology_exchange(HUMAN, 1, &offer.terms));
+        assert!(!game.ai_accepts_treaty_exchange(HUMAN, 1, &offer.terms, Pact::Peace));
     }
 
     #[test]
@@ -840,7 +753,7 @@ mod tests {
         game.cities[0].buildings.push(find("United Nations"));
         game.completed_wonders.push(find("Manhattan Project"));
         let fission = Tech::all()
-            .find(|tech| tech.name() == "Nuclear Fission")
+            .find(|tech| *tech == Tech::NUCLEAR_FISSION)
             .unwrap();
         game.players[HUMAN].known.push(fission);
         assert!(game.has_senate(HUMAN));

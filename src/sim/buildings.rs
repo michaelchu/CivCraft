@@ -2,11 +2,161 @@ use super::*;
 use crate::rules::{Genus, Requirement};
 
 impl Simulation {
+    pub(crate) fn can_change_production(&self, city: &City, target: Production) -> bool {
+        (!city.bought_production || city.shields <= 0) && self.can_produce(city, target)
+    }
+
+    pub(crate) fn rush_cost(&self, city: &City) -> Option<i32> {
+        if city.founded_turn == self.turn
+            || city.bought_production
+            || !self.can_produce(city, city.production)
+        {
+            return None;
+        }
+        let missing = city.production.cost() - city.shields;
+        if missing <= 0 {
+            return None;
+        }
+        let cost = match city.production {
+            Production::Unit(_) => {
+                if self.city_forecast(city).disorder {
+                    return None;
+                }
+                2 * missing + missing * missing / 20
+            }
+            Production::Building(building) => match building.data().genus {
+                Genus::Convert => return None,
+                Genus::GreatWonder => 4 * missing,
+                _ => 2 * missing,
+            },
+        };
+        Some(cost * if city.shields == 0 { 2 } else { 1 })
+    }
+
+    pub(super) fn rush_production(&mut self, owner: usize, id: u32) -> bool {
+        let Some(index) = self
+            .cities
+            .iter()
+            .position(|city| city.id == id && city.owner == owner)
+        else {
+            return false;
+        };
+        let Some(cost) = self.rush_cost(&self.cities[index]) else {
+            return false;
+        };
+        if cost > self.players[owner].gold {
+            return false;
+        }
+        self.players[owner].gold -= cost;
+        let city = &mut self.cities[index];
+        city.shields = city.production.cost();
+        city.bought_production = true;
+        let message = format!(
+            "{} rushed {} for {cost} gold.",
+            city.name,
+            city.production.name()
+        );
+        if owner == HUMAN {
+            self.add_event(message);
+        }
+        true
+    }
+
+    pub(crate) fn building_sale_price(city: &City, building: Building) -> Option<i32> {
+        (!city.sold_building
+            && building.data().genus == Genus::Improvement
+            && city.buildings.contains(&building))
+        .then_some(building.data().cost.max(1))
+    }
+
+    pub(super) fn sell_building(&mut self, owner: usize, id: u32, building: Building) -> bool {
+        let Some(city) = self
+            .cities
+            .iter_mut()
+            .find(|city| city.id == id && city.owner == owner)
+        else {
+            return false;
+        };
+        let Some(price) = Self::building_sale_price(city, building) else {
+            return false;
+        };
+        city.buildings.retain(|&built| built != building);
+        city.sold_building = true;
+        self.players[owner].gold += price;
+        let message = format!(
+            "{} sold {} for {price} gold.",
+            city.name,
+            building.data().name
+        );
+        if owner == HUMAN {
+            self.add_event(message);
+        }
+        true
+    }
+
     pub(crate) fn can_produce(&self, city: &City, target: Production) -> bool {
         match target {
-            Production::Unit(kind) => self.unit_available(city.owner, kind),
+            Production::Unit(kind) => {
+                self.unit_buildable(city, kind) && self.production_successor(city, kind).is_none()
+            }
             Production::Building(building) => self.building_blocker(city, building).is_none(),
         }
+    }
+
+    pub(crate) fn production_successor(&self, city: &City, kind: UnitKind) -> Option<UnitKind> {
+        kind.obsolete_by()
+            .iter()
+            .copied()
+            .find(|&candidate| self.unit_buildable(city, candidate))
+    }
+
+    pub(super) fn unit_buildable(&self, city: &City, kind: UnitKind) -> bool {
+        self.unit_available(city.owner, kind)
+            && (!kind.is_naval() || self.naval_city_access(city, kind))
+    }
+
+    fn building_requirement_met(
+        &self,
+        city: &City,
+        requirement: Requirement,
+        present: bool,
+        granted: Option<Tech>,
+    ) -> bool {
+        let nearby = || {
+            std::iter::once((0, 0)).chain(ISOHEX_DIRS).map(|(dx, dy)| {
+                let (x, y) = offset_native_by_map(city.x, city.y, dx, dy);
+                self.tile(x, y)
+            })
+        };
+        let matches = match requirement {
+            Requirement::Tech(id) => {
+                granted == Some(Tech(id)) || self.has_tech(city.owner, Tech(id))
+            }
+            Requirement::Improvement(id) => city.buildings.contains(&Building(id)),
+            Requirement::River => nearby().any(|tile| tile.river),
+            Requirement::Lake => nearby().any(|tile| tile.terrain == Terrain::Lake),
+            Requirement::Sea => {
+                nearby().any(|tile| matches!(tile.terrain, Terrain::Ocean | Terrain::DeepOcean))
+            }
+            Requirement::Water => nearby().any(|tile| tile.terrain.is_water()),
+            Requirement::MinSize(size) => city.size >= size,
+        };
+        matches == present
+    }
+
+    pub(super) fn building_is_obsolete(
+        &self,
+        city: &City,
+        building: Building,
+        granted: Option<Tech>,
+    ) -> bool {
+        building
+            .data()
+            .obsolete
+            .iter()
+            .any(|&(requirement, present)| {
+                self.building_requirement_met(city, requirement, present, granted)
+            })
     }
 
     pub(crate) fn building_blocker(&self, city: &City, building: Building) -> Option<String> {
@@ -26,32 +176,19 @@ impl Simulation {
         if data.genus == Genus::GreatWonder && self.completed_wonders.contains(&building) {
             return Some("Wonder already completed".into());
         }
-        if let Some((part, limit)) = spaceship_part(building)
-            && (city.owner == BARBARIANS || self.spaceship_parts[city.owner][part] >= limit)
-        {
-            return Some("Spaceship part limit reached".into());
+        if let Some((part, limit)) = spaceship_part(building) {
+            if !self.apollo_completed {
+                return Some("Needs the Apollo Program".into());
+            }
+            if city.owner == BARBARIANS
+                || self.spaceships[city.owner].built[part] >= limit
+                || self.spaceships[city.owner].launched()
+            {
+                return Some("Spaceship part unavailable".into());
+            }
         }
-        let nearby = || {
-            std::iter::once((0, 0)).chain(ISOHEX_DIRS).map(|(dx, dy)| {
-                let (x, y) = offset_native_by_map(city.x, city.y, dx, dy);
-                self.tile(x, y)
-            })
-        };
-        let met = |&(requirement, present): &(Requirement, bool)| {
-            let matches = match requirement {
-                Requirement::Tech(id) => {
-                    granted == Some(Tech(id)) || self.has_tech(city.owner, Tech(id))
-                }
-                Requirement::Improvement(id) => city.buildings.contains(&Building(id)),
-                Requirement::River => nearby().any(|tile| tile.river),
-                Requirement::Lake => nearby().any(|tile| tile.terrain == Terrain::Lake),
-                Requirement::Sea => {
-                    nearby().any(|tile| matches!(tile.terrain, Terrain::Ocean | Terrain::DeepOcean))
-                }
-                Requirement::Water => nearby().any(|tile| tile.terrain.is_water()),
-                Requirement::MinSize(size) => city.size >= size,
-            };
-            matches == present
+        let met = |&(requirement, present)| {
+            self.building_requirement_met(city, requirement, present, granted)
         };
         if let Some(&(requirement, _)) = data.obsolete.iter().find(|&req| met(req)) {
             return Some(format!("Obsolete with {}", requirement_name(requirement)));
@@ -83,14 +220,18 @@ impl Simulation {
             }
             Genus::Special => {
                 if let Some((part, _)) = spaceship_part(building) {
-                    self.spaceship_parts[owner][part] += 1;
+                    self.spaceships[owner].add_part(part);
                 }
                 return;
             }
             Genus::GreatWonder => {
                 self.completed_wonders.push(building);
-                if building.data().name == "Apollo Program" {
+                if building == Building::APOLLO_PROGRAM {
                     self.apollo_completed = true;
+                    for tile in &mut self.tiles {
+                        tile.known_by[owner] = true;
+                        tile.seen |= owner == HUMAN;
+                    }
                 }
             }
             Genus::SmallWonder => {
@@ -106,7 +247,12 @@ impl Simulation {
             .find(|city| city.id == city_id)
             .unwrap();
         city.buildings.push(building);
-        city.production = Production::Unit(UnitKind::Warrior);
+        if matches!(
+            building,
+            Building::GREAT_LIBRARY | Building::ISAAC_NEWTONS_COLLEGE | Building::INTERNET
+        ) {
+            self.grant_cheapest_advance(owner);
+        }
     }
 }
 
@@ -245,5 +391,61 @@ mod tests {
             1
         );
         assert!(!game.can_produce(&game.cities[1], target));
+    }
+}
+
+#[cfg(test)]
+mod transaction_tests {
+    use super::*;
+
+    #[test]
+    fn rush_fills_shield_stock_at_reference_prices_and_locks_the_target() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        let id = game.cities[0].id;
+        assert!(!game.apply(Command::RushProduction(id)));
+        game.turn += 1;
+        assert_eq!(game.rush_cost(&game.cities[0]), Some(50));
+        game.players[HUMAN].gold = 49;
+        assert!(!game.apply(Command::RushProduction(id)));
+        assert_eq!(game.cities[0].shields, 0);
+
+        game.players[HUMAN].known.push(Tech::POTTERY);
+        assert!(game.apply(Command::Produce(
+            id,
+            Production::Building(Building::GRANARY)
+        )));
+        let price = Building::GRANARY.data().cost * 4;
+        assert_eq!(game.rush_cost(&game.cities[0]), Some(price));
+        game.players[HUMAN].gold = price;
+        assert!(game.apply(Command::RushProduction(id)));
+        assert_eq!(game.players[HUMAN].gold, 0);
+        assert!(!game.cities[0].has_building(Building::GRANARY));
+        assert!(!game.apply(Command::Produce(id, Production::Unit(UnitKind::Warrior))));
+        assert!(!game.apply(Command::RushProduction(id)));
+        game.process_cities();
+        assert!(game.cities[0].has_building(Building::GRANARY));
+        assert!(game.apply(Command::Produce(id, Production::Unit(UnitKind::Warrior))));
+    }
+
+    #[test]
+    fn only_regular_buildings_can_be_sold_and_only_one_per_turn() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        let id = game.cities[0].id;
+        game.cities[0]
+            .buildings
+            .extend([Building::GRANARY, Building::TEMPLE]);
+        let gold = game.players[HUMAN].gold;
+        assert!(!game.apply(Command::SellBuilding(id, Building::PALACE)));
+        assert!(game.apply(Command::SellBuilding(id, Building::TEMPLE)));
+        assert!(!game.cities[0].has_building(Building::TEMPLE));
+        assert_eq!(
+            game.players[HUMAN].gold,
+            gold + Building::TEMPLE.data().cost
+        );
+        assert!(!game.apply(Command::SellBuilding(id, Building::GRANARY)));
+        game.process_cities();
+        assert!(game.apply(Command::SellBuilding(id, Building::GRANARY)));
     }
 }

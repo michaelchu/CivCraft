@@ -1,27 +1,62 @@
 mod advisors;
 mod ai;
+mod aviation;
+mod bases;
+mod borders;
+mod bribery;
 mod buildings;
+mod nuclear;
+pub(crate) use bases::Base;
 mod cities;
 mod civil_war;
 mod commands;
 mod diplomacy;
 mod tech_trade;
-pub(crate) use diplomacy::{Pact, TreatyOffer};
+pub(crate) use diplomacy::{Pact, TreatyMap, TreatyOffer};
 mod economy;
+mod espionage;
+pub(crate) use espionage::SabotageTarget;
 mod government;
+mod investigation;
 pub(crate) use government::Government;
+pub(crate) use investigation::CityInvestigation;
+mod achievements;
+mod citizens;
+mod climate;
+mod disasters;
+mod illness;
 mod movement;
+mod partisans;
+mod pillage;
+mod pollution;
+mod save;
+mod score;
+mod settlement_ferries;
+mod spaceship;
+use score::NationScore;
+mod trade;
+use climate::ClimatePressure;
+pub(crate) use pillage::PillageTarget;
+pub(crate) use pollution::Contamination;
+use spaceship::Spaceship;
+pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
+mod playtest;
 mod research;
+mod terrain_work;
 pub(crate) use commands::Command;
 use model::research_cost;
 mod model;
 pub(crate) mod topology;
+mod upgrades;
 mod upkeep;
+mod uprisings;
+mod veterancy;
 mod villages;
+mod worklist;
+pub(crate) use worklist::{WORKLIST_LIMIT, WorklistEdit};
 
 use crate::rules::{Building, Tech};
 pub(crate) use model::*;
-use std::collections::VecDeque;
 use topology::*;
 
 pub(crate) const PLAYER_COUNT: usize = 6;
@@ -31,6 +66,7 @@ pub(crate) const BARBARIANS: usize = PLAYER_COUNT;
 const PERCENT_SCALE: i32 = 100;
 const CITY_MIN_DISTANCE: i32 = 3;
 pub(crate) const MOVE_FRAGMENTS: i32 = 6;
+const ACTIVITY_FACTOR: i32 = 10;
 const POWER_FACTOR: i32 = 10;
 const BASE_TECH_COST: i32 = 10;
 const MIN_TECH_COST: i32 = 10;
@@ -55,13 +91,17 @@ pub(crate) enum MoveResult {
     Blocked,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct Simulation {
     pub(crate) world_seed: u64,
     tiles: Vec<Tile>,
     units: Vec<Unit>,
     cities: Vec<City>,
     completed_wonders: Vec<Building>,
-    spaceship_parts: Vec<[usize; 3]>,
+    spaceships: Vec<Spaceship>,
+    nation_scores: Vec<NationScore>,
+    hunter_targets: std::collections::HashMap<u32, u32>,
+    previous_naval_positions: std::collections::HashMap<u32, (i32, i32)>,
     diplomacy: std::collections::BTreeMap<(usize, usize), diplomacy::Relation>,
     apollo_completed: bool,
     players: Vec<Player>,
@@ -73,6 +113,16 @@ pub(crate) struct Simulation {
     rng: u64,
     events: Vec<String>,
     game_over: Option<String>,
+    climate_pressure: [ClimatePressure; 2],
+    trade_routes: Vec<(u32, u32)>,
+    #[serde(skip)]
+    route_memory: Vec<Option<movement::RouteTile>>,
+    #[serde(skip)]
+    ai_purchase_reserve: std::collections::BTreeMap<usize, i32>,
+    #[serde(skip)]
+    agent_city_targets: std::collections::BTreeMap<u32, u32>,
+    #[serde(skip)]
+    city_founders: std::collections::BTreeMap<u32, usize>,
 }
 
 fn percent_of(value: i32, percent: i32) -> i32 {
@@ -120,6 +170,10 @@ impl Simulation {
     pub(crate) fn units(&self) -> &[Unit] {
         &self.units
     }
+    pub(crate) fn reveals_cities(&self, owner: usize) -> bool {
+        self.has_active_wonder(owner, Building::INTERNET)
+    }
+
     pub(crate) fn cities(&self) -> &[City] {
         &self.cities
     }
@@ -173,7 +227,7 @@ impl Simulation {
         let mut players = Vec::new();
         for i in 0..PLAYER_COUNT {
             players.push(Player {
-                name: names[i],
+                name: names[i].to_owned(),
                 gold: 50,
                 rates: [60, 40, 0],
                 government: Government::Tribal,
@@ -197,7 +251,7 @@ impl Simulation {
         }
 
         players.push(Player {
-            name: "Barbarians",
+            name: "Barbarians".to_owned(),
             gold: 0,
             rates: [60, 40, 0],
             government: Government::Tribal,
@@ -223,12 +277,15 @@ impl Simulation {
             ] {
                 let stats = kind.stats();
                 units.push(Unit {
+                    nationality: owner,
                     id: next_unit_id,
                     owner,
                     kind,
                     transport: None,
                     home_city: None,
                     home_order: 0,
+                    veteran: 0,
+                    fuel: 0,
                     x: starts[owner].0,
                     y: starts[owner].1,
                     hp: stats.hp,
@@ -237,7 +294,8 @@ impl Simulation {
                     moved: false,
                     automated: false,
                     work_kind: None,
-                    work_remaining: 0,
+                    work_left: 0,
+                    work_done: 0,
                 });
                 next_unit_id += 1;
             }
@@ -249,7 +307,10 @@ impl Simulation {
             units,
             cities: Vec::new(),
             completed_wonders: Vec::new(),
-            spaceship_parts: vec![[0; 3]; players.len()],
+            spaceships: vec![Spaceship::default(); players.len()],
+            nation_scores: vec![NationScore::default(); players.len()],
+            hunter_targets: Default::default(),
+            previous_naval_positions: Default::default(),
             diplomacy: Default::default(),
             apollo_completed: false,
             players,
@@ -265,6 +326,12 @@ impl Simulation {
                 "Explore, research, grow, and unite the world.".to_owned(),
             ],
             game_over: None,
+            climate_pressure: [ClimatePressure::default(); 2],
+            trade_routes: Vec::new(),
+            route_memory: vec![None; (MAP_W * MAP_H) as usize],
+            ai_purchase_reserve: Default::default(),
+            agent_city_targets: Default::default(),
+            city_founders: Default::default(),
         };
         for owner in 1..PLAYER_COUNT {
             game.players[owner].researching = game.research_target(owner);
@@ -310,7 +377,8 @@ impl Simulation {
     }
 
     pub(crate) fn unit_available(&self, owner: usize, kind: UnitKind) -> bool {
-        kind != UnitKind::Explorer
+        !matches!(kind, UnitKind::Explorer | UnitKind::BarbarianLeader)
+            && (kind != UnitKind::Nuclear || self.manhattan_project_completed())
             && kind
                 .required_tech()
                 .is_none_or(|tech| self.has_tech(owner, tech))
@@ -319,12 +387,21 @@ impl Simulation {
     fn refresh_visibility(&mut self) {
         for tile in &mut self.tiles {
             tile.visible = false;
+            tile.stealth_visible = false;
         }
-        let revealers: Vec<(usize, i32, i32, i32)> = self
+        let revealers: Vec<_> = self
             .units
             .iter()
-            .map(|u| (u.owner, u.x, u.y, u.kind.stats().vision_sq))
-            .chain(self.cities.iter().map(|c| (c.owner, c.x, c.y, 8)))
+            .map(|u| {
+                let vision = match self.tile(u.x, u.y).base {
+                    Some(Base::Fortress) if self.has_tech(u.owner, Tech::ASTRONOMY) => 8,
+                    Some(Base::Airbase) => 8,
+                    _ => 0,
+                };
+                let radius = u.kind.stats().vision_sq + vision;
+                (u.owner, u.x, u.y, radius, radius.clamp(0, 2))
+            })
+            .chain(self.cities.iter().map(|c| (c.owner, c.x, c.y, 8, 2)))
             .collect();
         let recipients: Vec<_> = (0..self.players.len())
             .map(|owner| self.vision_recipients(owner))
@@ -347,7 +424,7 @@ impl Simulation {
                 tile.seen |= tile.known_by[HUMAN];
             }
         }
-        for (owner, x, y, radius_sq) in revealers {
+        for (owner, x, y, radius_sq, stealth_sq) in revealers {
             let radius = (radius_sq as f32).sqrt().ceil() as i32;
             for dy in -radius..=radius {
                 for dx in -radius..=radius {
@@ -362,12 +439,29 @@ impl Simulation {
                         }
                         if recipients[owner].contains(&HUMAN) {
                             self.tiles[idx].visible = true;
+                            self.tiles[idx].stealth_visible |= distance * distance <= stealth_sq;
                             self.tiles[idx].seen = true;
                         }
                     }
                 }
             }
         }
+        let internet_owners: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|city| city.has_building(Building::INTERNET))
+            .map(|city| city.owner)
+            .collect();
+        for owner in internet_owners {
+            for city in &self.cities {
+                let tile = &mut self.tiles[Self::idx(city.x, city.y)];
+                tile.known_by[owner] = true;
+                tile.seen |= owner == HUMAN;
+            }
+        }
+        self.reconcile_city_workers();
+        self.remember_visible_borders();
+        self.remember_route_tiles(false);
         self.remember_visible_rivals();
     }
 
@@ -379,25 +473,34 @@ impl Simulation {
     fn spawn_unit(&mut self, owner: usize, kind: UnitKind, x: i32, y: i32) -> u32 {
         let id = self.next_unit_id;
         self.next_unit_id += 1;
+        self.units.push(self.make_unit(id, owner, kind, x, y));
+        id
+    }
+
+    fn make_unit(&self, id: u32, owner: usize, kind: UnitKind, x: i32, y: i32) -> Unit {
         let stats = kind.stats();
-        self.units.push(Unit {
+        let moves_left = self.unit_move_allowance(owner, kind);
+        Unit {
+            nationality: owner,
             id,
             owner,
             kind,
             transport: None,
             home_city: None,
             home_order: 0,
+            veteran: 0,
+            fuel: kind.fuel_capacity(),
             x,
             y,
             hp: stats.hp,
-            moves_left: stats.moves * MOVE_FRAGMENTS,
+            moves_left,
             state: UnitState::Idle,
             moved: false,
             automated: false,
             work_kind: None,
-            work_remaining: 0,
-        });
-        id
+            work_left: 0,
+            work_done: 0,
+        }
     }
 
     fn advance_calendar(&mut self) {
@@ -439,31 +542,53 @@ impl Simulation {
             if owner == BARBARIANS {
                 continue;
             }
-            let upgrade = match self.players[owner].government {
-                Government::Tribal => Some(Government::Republic),
-                Government::Despotism => Some(Government::Monarchy),
-                _ => None,
-            };
-            if let Some(target) = upgrade {
-                self.change_government(owner, target);
-            }
+            self.choose_ai_government(owner);
             self.run_ai_player(owner);
+            self.prepare_ai_city_defenses(owner);
+            if self.players[owner].research == 0 {
+                self.players[owner].researching = self.next_ai_research_target(owner);
+            }
             self.choose_ai_rates(owner);
+            self.spend_ai_defense_gold(owner);
         }
+        self.summon_barbarians();
         self.run_ai_player(BARBARIANS);
         self.process_cities();
+        self.apply_workshop_upgrades();
+        self.restore_aircraft();
         self.update_activities_and_restore();
+        self.check_disasters();
+        self.update_climate();
         self.turn += 1;
         self.advance_diplomacy();
+        self.prune_trade_routes();
         self.finish_revolutions();
         self.advance_calendar();
+        for city in &mut self.cities {
+            city.airlift_used = false;
+        }
         self.refresh_visibility();
+        self.rebuild_city_ownership();
+        self.previous_naval_positions = self
+            .units
+            .iter()
+            .filter(|unit| unit.kind.is_naval())
+            .map(|unit| (unit.id, (unit.x, unit.y)))
+            .collect();
+        self.hunter_targets.retain(|hunter, target| {
+            self.previous_naval_positions.contains_key(hunter)
+                && self.previous_naval_positions.contains_key(target)
+        });
+        self.check_achievements();
         self.add_event(format!(
             "Turn {} begins - {}.",
             self.turn,
             year_label(self.year)
         ));
         self.check_game_over();
+        if self.game_over.is_none() && !self.check_ranked_endgame() {
+            self.advance_space_race();
+        }
     }
 
     fn check_game_over(&mut self) {
@@ -630,12 +755,15 @@ mod tests {
             .find(|unit| unit.kind == UnitKind::Warrior)
             .cloned()
             .unwrap_or_else(|| Unit {
+                nationality: HUMAN,
                 id: 999,
                 owner: HUMAN,
                 kind: UnitKind::Warrior,
                 transport: None,
                 home_city: None,
                 home_order: 0,
+                veteran: 0,
+                fuel: 0,
                 x: crate::mapgen::generate(42).starts[0].0,
                 y: crate::mapgen::generate(42).starts[0].1,
                 hp: 1,
@@ -644,17 +772,18 @@ mod tests {
                 moved: false,
                 automated: false,
                 work_kind: None,
-                work_remaining: 0,
+                work_left: 0,
+                work_done: 0,
             });
         unit.hp = 1;
         unit.moved = false;
         unit.state = UnitState::Idle;
-        assert_eq!(Simulation::hitpoint_gain(&unit, false), 1);
-        assert_eq!(Simulation::hitpoint_gain(&unit, true), 4);
+        assert_eq!(Simulation::hitpoint_gain(&unit, false, false), 1);
+        assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 4);
         unit.state = UnitState::Fortified;
-        assert_eq!(Simulation::hitpoint_gain(&unit, true), 5);
+        assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 5);
         unit.moved = true;
-        assert_eq!(Simulation::hitpoint_gain(&unit, true), 0);
+        assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 0);
 
         // The compiled hp_gain_coord performs integer max-HP / 10 before
         // applying HP_Regen_2. Settlers have 20 maximum HP, so they gain 2
@@ -663,8 +792,8 @@ mod tests {
         unit.hp = 1;
         unit.state = UnitState::Idle;
         unit.moved = false;
-        assert_eq!(Simulation::hitpoint_gain(&unit, false), 2);
-        assert_eq!(Simulation::hitpoint_gain(&unit, true), 8);
+        assert_eq!(Simulation::hitpoint_gain(&unit, false, false), 2);
+        assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 8);
     }
 
     #[test]
@@ -673,12 +802,15 @@ mod tests {
         let (x, y) = crate::mapgen::generate(42).starts[0];
         game.tile_mut(x, y).terrain = Terrain::Forest;
         let mut defender = Unit {
+            nationality: HUMAN,
             id: 999,
             owner: HUMAN,
             kind: UnitKind::Warrior,
             transport: None,
             home_city: None,
             home_order: 0,
+            veteran: 0,
+            fuel: 0,
             x,
             y,
             hp: 10,
@@ -687,7 +819,8 @@ mod tests {
             moved: false,
             automated: false,
             work_kind: None,
-            work_remaining: 0,
+            work_left: 0,
+            work_done: 0,
         };
 
         // Forest first: 10 * 125% = 12. Field fortification is a later
@@ -710,10 +843,22 @@ mod tests {
             food: 0,
             shields: 0,
             production: Production::Unit(UnitKind::Warrior),
+            founded_turn: game.turn,
+            bought_production: false,
+            sold_building: false,
             production_before_switch: None,
+            protected_shields: 0,
+            caravan_shields: 0,
+            technology_thefts: 0,
+            worklist: Vec::new(),
             buildings: Vec::new(),
             specialists: [0; 3],
+            worked_tiles: Vec::new(),
             was_happy: false,
+            last_plague: None,
+            history: 0,
+            foreign_citizens: Vec::new(),
+            airlift_used: false,
         });
         assert_eq!(game.defense_power(&defender, x, y), 27);
 
@@ -732,12 +877,15 @@ mod tests {
         game.units.clear();
         game.cities.clear();
         let attacker = Unit {
+            nationality: HUMAN,
             id: 1,
             owner: HUMAN,
             kind: UnitKind::Warrior,
             transport: None,
             home_city: None,
             home_order: 0,
+            veteran: 0,
+            fuel: 0,
             x: 0,
             y: 0,
             hp: 10,
@@ -746,7 +894,8 @@ mod tests {
             moved: false,
             automated: false,
             work_kind: None,
-            work_remaining: 0,
+            work_left: 0,
+            work_done: 0,
         };
         let mut fragile_defender = attacker.clone();
         fragile_defender.id = 2;
@@ -790,7 +939,7 @@ mod tests {
     fn irrigation_needs_water_and_conflicts_with_mines() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = crate::mapgen::generate(42).starts[0];
-        game.tile_mut(x, y).terrain = Terrain::Plains;
+        game.tile_mut(x, y).terrain = Terrain::Hills;
         game.tile_mut(x, y).river = false;
         for (dx, dy) in ISOHEX_DIRS {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
@@ -799,10 +948,10 @@ mod tests {
             neighbor.irrigation = false;
             neighbor.river = false;
         }
-        assert!(!game.can_irrigate_at(x, y));
+        assert!(!game.can_irrigate_at(HUMAN, x, y));
         let (water_x, water_y) = offset_native_by_map(x, y, ISOHEX_DIRS[0].0, ISOHEX_DIRS[0].1);
         game.tile_mut(water_x, water_y).terrain = Terrain::Ocean;
-        assert!(game.can_irrigate_at(x, y));
+        assert!(game.can_irrigate_at(HUMAN, x, y));
 
         let worker_index = game
             .units
@@ -812,14 +961,14 @@ mod tests {
         game.units[worker_index].x = x;
         game.units[worker_index].y = y;
         game.units[worker_index].work_kind = Some(WorkKind::Irrigation);
-        game.units[worker_index].work_remaining = 1;
+        game.units[worker_index].work_left = 1;
         game.tile_mut(x, y).mine = true;
         game.update_activities_and_restore();
         assert!(game.tile(x, y).irrigation);
         assert!(!game.tile(x, y).mine);
 
         game.units[worker_index].work_kind = Some(WorkKind::Mine);
-        game.units[worker_index].work_remaining = 1;
+        game.units[worker_index].work_left = 1;
         game.update_activities_and_restore();
         assert!(game.tile(x, y).mine);
         assert!(!game.tile(x, y).irrigation);

@@ -79,12 +79,12 @@ impl Game {
             };
             draw_text(&support, x + 3.0, y + 43.0, 13.0, LIGHTGRAY);
             if let Some(tech) = government.requirement()
-                && !player.known.iter().any(|known| known.name() == tech)
+                && !player.known.contains(&tech)
             {
                 let label = if enabled {
                     "Statue of Liberty".to_owned()
                 } else {
-                    format!("Requires {tech}")
+                    format!("Requires {}", tech.name())
                 };
                 draw_text(&label, x + 3.0, y + 57.0, 13.0, GOLD);
             }
@@ -98,7 +98,10 @@ impl Game {
         if let Some((owner, offer)) = self.reviewed_offer {
             return self.draw_treaty_offer(owner, offer);
         }
-        let width = (screen_width() - 24.0).min(580.0);
+        if let Some((owner, page)) = self.city_deals {
+            return self.draw_city_deals(owner, page);
+        }
+        let width = (screen_width() - 24.0).min(850.0);
         let panel = Rect::new(
             (screen_width() - width) / 2.0,
             (screen_height() - 360.0) / 2.0,
@@ -127,6 +130,9 @@ impl Game {
             let turns = self.sim.pact_turns(HUMAN, owner);
             let offer = self.sim.pact_offer(owner);
             let mut status = pact.name().to_owned();
+            if self.sim.has_embassy(HUMAN, owner) {
+                status.push_str(" · Embassy");
+            }
             if turns > 0 {
                 status.push_str(&format!(" ({turns})"));
             }
@@ -134,7 +140,7 @@ impl Game {
                 status.push_str(" · Senate veto");
             }
             draw_text(
-                self.sim.players()[owner].name,
+                self.sim.players()[owner].name.as_str(),
                 panel.x + 18.0,
                 y + 14.0,
                 17.0,
@@ -159,6 +165,27 @@ impl Game {
             }
             if pact != Pact::War {
                 buttons.push(("Cancel pact".to_owned(), UiAction::CancelPact(owner)));
+            }
+            if self.sim.treaty_offer(owner).is_none() && width >= 660.0 {
+                for (label, map) in [("World", TreatyMap::World), ("Sea", TreatyMap::Sea)] {
+                    let price = self.sim.map_trade_price(owner, HUMAN, map, pact);
+                    buttons.push((
+                        format!("{label} map {price}g"),
+                        UiAction::BuyMap(owner, map),
+                    ));
+                }
+            }
+            if width >= 790.0
+                && self
+                    .sim
+                    .cities()
+                    .iter()
+                    .any(|city| city.owner == owner && self.sim.city_trade_price(city).is_some())
+            {
+                buttons.push((
+                    "City deals".to_owned(),
+                    UiAction::CityDeals(Some((owner, 0))),
+                ));
             }
             for (index, (label, action)) in buttons.into_iter().rev().enumerate() {
                 let button =
@@ -196,6 +223,62 @@ impl Game {
 }
 
 impl Game {
+    fn draw_city_deals(&self, owner: usize, page: usize) -> Vec<(Rect, UiAction)> {
+        let width = (screen_width() - 24.0).min(580.0);
+        let panel = Rect::new(
+            (screen_width() - width) / 2.0,
+            (screen_height() - 360.0) / 2.0,
+            width,
+            360.0,
+        );
+        draw_rectangle(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            Color::from_rgba(42, 44, 40, 255),
+        );
+        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 2.0, GOLD);
+        draw_text("City deals", panel.x + 18.0, panel.y + 31.0, 24.0, WHITE);
+        let back = Rect::new(panel.right() - 88.0, panel.y + 12.0, 72.0, 26.0);
+        draw_ui_button(back, "Back", true, false);
+        let mut actions = vec![(back, UiAction::CityDeals(None))];
+        let cities: Vec<_> = self
+            .sim
+            .cities()
+            .iter()
+            .filter(|city| city.owner == owner)
+            .filter_map(|city| self.sim.city_trade_price(city).map(|price| (city, price)))
+            .collect();
+        let page = page.min(cities.len().saturating_sub(1) / 7);
+        for (row, &(city, price)) in cities.iter().skip(page * 7).take(7).enumerate() {
+            let y = panel.y + 53.0 + row as f32 * 37.0;
+            draw_text(&city.name, panel.x + 18.0, y + 20.0, 17.0, WHITE);
+            let button = Rect::new(panel.right() - 145.0, y, 129.0, 28.0);
+            let affordable = self.sim.players()[HUMAN].gold >= price;
+            draw_ui_button(button, &format!("Buy {price}g"), affordable, false);
+            if affordable {
+                actions.push((button, UiAction::BuyCity(city.id, price)));
+            }
+        }
+        for (enabled, x, label, target) in [
+            (page > 0, panel.x + 18.0, "Previous", page.saturating_sub(1)),
+            (
+                (page + 1) * 7 < cities.len(),
+                panel.right() - 95.0,
+                "Next",
+                page + 1,
+            ),
+        ] {
+            if enabled {
+                let button = Rect::new(x, panel.bottom() - 36.0, 77.0, 25.0);
+                draw_ui_button(button, label, true, false);
+                actions.push((button, UiAction::CityDeals(Some((owner, target)))));
+            }
+        }
+        actions
+    }
+
     fn draw_treaty_offer(&self, owner: usize, offer: TreatyOffer) -> Vec<(Rect, UiAction)> {
         let width = (screen_width() - 24.0).min(560.0);
         let panel = Rect::new(
@@ -239,8 +322,20 @@ impl Game {
             if let Some(tech) = terms.technology {
                 lines.push(tech.name().to_owned());
             }
-            if terms.vision {
+            if terms.shared_vision() {
                 lines.push("Shared vision".to_owned());
+            }
+            if let Some(map) = terms.map() {
+                lines.push(format!("{map:?} map"));
+            }
+            if let Some(id) = terms.city() {
+                let name = self
+                    .sim
+                    .cities()
+                    .iter()
+                    .find(|city| city.id == id)
+                    .map_or("Unavailable city", |city| city.name.as_str());
+                lines.push(name.to_owned());
             }
             if lines.is_empty() {
                 lines.push("No concessions".to_owned());

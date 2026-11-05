@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Government {
     Anarchy,
     Tribal,
@@ -39,15 +39,15 @@ impl Government {
         }
     }
 
-    pub(crate) fn requirement(self) -> Option<&'static str> {
+    pub(crate) fn requirement(self) -> Option<Tech> {
         match self {
             Self::Anarchy | Self::Tribal | Self::Despotism => None,
-            Self::Monarchy => Some("Monarchy"),
-            Self::Communism => Some("Communism"),
-            Self::Fundamentalism => Some("Theology"),
-            Self::Federation => Some("Economics"),
-            Self::Republic => Some("The Republic"),
-            Self::Democracy => Some("Democracy"),
+            Self::Monarchy => Some(Tech::MONARCHY),
+            Self::Communism => Some(Tech::COMMUNISM),
+            Self::Fundamentalism => Some(Tech::THEOLOGY),
+            Self::Federation => Some(Tech::ECONOMICS),
+            Self::Republic => Some(Tech::THE_REPUBLIC),
+            Self::Democracy => Some(Tech::DEMOCRACY),
         }
     }
 
@@ -119,30 +119,28 @@ impl Simulation {
             .iter()
             .filter(|center| {
                 center.owner == city.owner
-                    && (center.has_building("Palace")
-                        || center.has_building("Ecclesiastical Palace"))
+                    && (center.has_building(Building::PALACE)
+                        || center.has_building(Building::ECCLESIASTICAL_PALACE))
             })
             .map(|center| self.map_distance(city.x, city.y, center.x, center.y))
             .min();
-        let has_tech = |name| {
-            granted.is_some_and(|tech| tech.name() == name)
-                || player.known.iter().any(|tech| tech.name() == name)
-        };
+        let has_tech = |tech| granted == Some(tech) || player.known.contains(&tech);
         let shield_distance =
             if matches!(government, Government::Communism | Government::Federation) {
                 0
             } else {
-                1 + i32::from(!has_tech("Trade"))
+                1 + i32::from(!has_tech(Tech::TRADE))
             };
         let trade_distance = match government {
             Government::Communism => 0,
-            Government::Federation => i32::from(!has_tech("The Corporation")),
-            _ => 1 + i32::from(!has_tech("The Corporation")),
+            Government::Federation => i32::from(!has_tech(Tech::THE_CORPORATION)),
+            _ => 1 + i32::from(!has_tech(Tech::THE_CORPORATION)),
         };
         let relief = 50
-            * (i32::from(city.has_building("Courthouse"))
+            * (i32::from(city.has_building(Building::COURTHOUSE))
                 + i32::from(
-                    city.has_building("Palace") || city.has_building("Ecclesiastical Palace"),
+                    city.has_building(Building::PALACE)
+                        || city.has_building(Building::ECCLESIASTICAL_PALACE),
                 ));
         let net = |gross, base, per_tile| {
             if distance.is_none() && per_tile > 0 {
@@ -160,17 +158,19 @@ impl Simulation {
         )
     }
 
-    pub(super) fn owns_wonder(&self, owner: usize, name: &str) -> bool {
-        self.cities
-            .iter()
-            .any(|city| city.owner == owner && city.has_building(name))
+    pub(super) fn has_active_wonder(&self, owner: usize, building: Building) -> bool {
+        self.cities.iter().any(|city| {
+            city.owner == owner
+                && city.has_building(building)
+                && !self.building_is_obsolete(city, building, None)
+        })
     }
 
     pub(super) fn handle_government_tech_loss(&mut self, owner: usize, lost: Tech) {
         let player = &self.players[owner];
         let government = player.revolution_target.unwrap_or(player.government);
-        if government.requirement() != Some(lost.name())
-            || self.owns_wonder(owner, "Statue of Liberty")
+        if government.requirement() != Some(lost)
+            || self.has_active_wonder(owner, Building::STATUE_OF_LIBERTY)
         {
             return;
         }
@@ -184,17 +184,175 @@ impl Simulation {
         }
     }
 
+    pub(super) fn choose_ai_government(&mut self, owner: usize) {
+        if self.players[owner].revolution_target.is_some()
+            || !self.cities.iter().any(|city| city.owner == owner)
+        {
+            return;
+        }
+        let original = self.players[owner].government;
+        let best = self
+            .government_projections(owner, false)
+            .into_iter()
+            .max_by(|(a, _, left), (b, _, right)| {
+                left.total_cmp(right)
+                    .then_with(|| (*a == original).cmp(&(*b == original)))
+            });
+        if let Some((government, _, _)) = best
+            && government != original
+        {
+            self.change_government(owner, government);
+        }
+    }
+
+    pub(super) fn government_research_want(&mut self, owner: usize) -> Option<(Tech, i32)> {
+        if owner == BARBARIANS
+            || !self.players[owner].ai
+            || self.players[owner].revolution_target.is_some()
+            || !self.cities.iter().any(|city| city.owner == owner)
+        {
+            return None;
+        }
+        let projections = self.government_projections(owner, true);
+        let available = projections
+            .iter()
+            .filter(|(_, required, _)| required.is_none())
+            .map(|&(_, _, score)| score)
+            .reduce(f64::max)?;
+        let (_, required, score) = projections
+            .into_iter()
+            .filter(|(_, required, score)| required.is_some() && *score > available)
+            .max_by(|(_, _, a), (_, _, b)| a.total_cmp(b))?;
+        let initial_bonus = if self.players[owner].government == Government::Tribal {
+            25 * self.turn
+        } else {
+            0
+        };
+        Some((
+            required?,
+            ((score - available) as i32).max(100) + initial_bonus,
+        ))
+    }
+
+    fn government_projections(
+        &mut self,
+        owner: usize,
+        include_locked: bool,
+    ) -> Vec<(Government, Option<Tech>, f64)> {
+        let original = self.players[owner].government;
+        let original_rates = self.players[owner].rates;
+        let immediate = self.has_active_wonder(owner, Building::STATUE_OF_LIBERTY);
+        let candidates: Vec<_> = Government::TARGETS
+            .into_iter()
+            .filter_map(|government| {
+                let superseded = match government {
+                    Government::Tribal => {
+                        self.can_change_government(owner, Government::Republic)
+                            || original == Government::Republic
+                    }
+                    Government::Despotism => {
+                        self.can_change_government(owner, Government::Monarchy)
+                            || original == Government::Monarchy
+                    }
+                    _ => false,
+                };
+                if superseded {
+                    return None;
+                }
+                if government == original || self.can_change_government(owner, government) {
+                    return Some((government, None, 0));
+                }
+                let required = government.requirement()?;
+                if !include_locked || self.has_tech(owner, required) {
+                    return None;
+                }
+                Some((
+                    government,
+                    Some(required),
+                    self.research_path(owner, required).len() as i32,
+                ))
+            })
+            .collect();
+        let mut projections = Vec::new();
+        for (government, required, unknown) in candidates {
+            self.players[owner].government = government;
+            self.players[owner].rates = capped_rates(original_rates, government.max_rate());
+            let output = f64::from(self.project_government_output(owner));
+            let delay = if immediate || government == original {
+                0.0
+            } else {
+                f64::from(1 + (5 - self.government_adoptions[government as usize]).max(1)) / 2.0
+            } + f64::from(unknown);
+            let score = output - output.abs() * (1.0 - (23.0_f64 / 24.0).powf(delay));
+            projections.push((government, required, score));
+        }
+        self.players[owner].government = original;
+        self.players[owner].rates = original_rates;
+        projections
+    }
+
+    pub(super) fn government_city_value(&self, city: &City) -> i32 {
+        let forecast = self.city_forecast(city);
+        let food = forecast.food_surplus(city.size, forecast.support.food);
+        let shields = if forecast.disorder {
+            0
+        } else {
+            forecast.shields - forecast.support.shields
+        };
+        let gold = forecast.gold - forecast.building_upkeep - forecast.support.gold;
+        30 * food + 17 * shields + 18 * gold + 21 * forecast.science
+    }
+
+    pub(super) fn project_government_output(&self, owner: usize) -> i32 {
+        use std::collections::HashSet;
+
+        let mut occupied: HashSet<_> = self
+            .cities
+            .iter()
+            .flat_map(|city| city.worked_tiles.iter().copied())
+            .collect();
+        let mut output = 0;
+        for city in self.cities.iter().filter(|city| city.owner == owner) {
+            let mut projected = city.clone();
+            let mut value = self.government_city_value(&projected);
+            let candidates: Vec<_> = Self::city_radius(city)
+                .map(|(_, _, x, y)| (x, y))
+                .filter(|&(x, y)| self.tile_can_support_worker(city, x, y))
+                .collect();
+            for worker in 0..projected.worked_tiles.len() {
+                let original = projected.worked_tiles[worker];
+                occupied.remove(&original);
+                let mut best = original;
+                for &tile in &candidates {
+                    if tile == original || occupied.contains(&tile) {
+                        continue;
+                    }
+                    projected.worked_tiles[worker] = tile;
+                    let score = self.government_city_value(&projected);
+                    if score > value {
+                        best = tile;
+                        value = score;
+                    }
+                }
+                projected.worked_tiles[worker] = best;
+                occupied.insert(best);
+            }
+            output += value;
+        }
+        output
+    }
+
     pub(crate) fn can_change_government(&self, owner: usize, target: Government) -> bool {
         let player = &self.players[owner];
         target != Government::Anarchy
             && target != player.government
             && player.revolution_target != Some(target)
             && (player.revolution_turn != Some(self.turn)
-                || self.owns_wonder(owner, "Statue of Liberty"))
+                || self.has_active_wonder(owner, Building::STATUE_OF_LIBERTY))
             && (target
                 .requirement()
-                .is_none_or(|name| player.known.iter().any(|tech| tech.name() == name))
-                || self.owns_wonder(owner, "Statue of Liberty"))
+                .is_none_or(|tech| player.known.contains(&tech))
+                || self.has_active_wonder(owner, Building::STATUE_OF_LIBERTY))
     }
 
     pub(super) fn change_government(&mut self, owner: usize, target: Government) -> bool {
@@ -202,7 +360,7 @@ impl Simulation {
             return false;
         }
         let player = &self.players[owner];
-        let finish = if self.owns_wonder(owner, "Statue of Liberty") {
+        let finish = if self.has_active_wonder(owner, Building::STATUE_OF_LIBERTY) {
             self.turn
         } else if player.government == Government::Anarchy {
             player.revolution_turn.unwrap()
@@ -237,23 +395,27 @@ impl Simulation {
             {
                 player.government = target;
                 self.government_adoptions[target as usize] += 1;
-                let cap = target.max_rate();
-                let mut surplus = 0;
-                for rate in &mut player.rates {
-                    surplus += (*rate - cap).max(0);
-                    *rate = (*rate).min(cap);
-                }
-                for rate in &mut player.rates {
-                    let added = surplus.min(cap - *rate);
-                    *rate += added;
-                    surplus -= added;
-                }
+                player.rates = capped_rates(player.rates, target.max_rate());
                 if owner == HUMAN {
                     self.add_event(format!("{} is now your government.", target.name()));
                 }
             }
         }
     }
+}
+
+fn capped_rates(mut rates: [i32; 3], cap: i32) -> [i32; 3] {
+    let mut surplus = 0;
+    for rate in &mut rates {
+        surplus += (*rate - cap).max(0);
+        *rate = (*rate).min(cap);
+    }
+    for rate in &mut rates {
+        let added = surplus.min(cap - *rate);
+        *rate += added;
+        surplus -= added;
+    }
+    rates
 }
 
 #[cfg(test)]

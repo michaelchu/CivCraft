@@ -17,7 +17,15 @@ impl Simulation {
                     && unit.owner == city.owner
                     && !matches!(
                         unit.kind,
-                        UnitKind::Worker | UnitKind::Diplomat | UnitKind::Explorer
+                        UnitKind::Worker
+                            | UnitKind::Engineer
+                            | UnitKind::Diplomat
+                            | UnitKind::Spy
+                            | UnitKind::CruiseMissile
+                            | UnitKind::Nuclear
+                            | UnitKind::Caravan
+                            | UnitKind::Freight
+                            | UnitKind::Explorer
                     )
             })
             .collect();
@@ -33,7 +41,7 @@ impl Simulation {
             })
             .count() as i32;
         let (_, free_shields, _) = self.players[city.owner].government.unit_support();
-        let zeus = self.owns_wonder(city.owner, "Statue of Zeus");
+        let zeus = self.has_active_wonder(city.owner, Building::STATUE_OF_ZEUS);
         UnitUpkeep {
             food: food_units.len().saturating_sub(free_food) as i32,
             shields: (shield_units - free_shields - i32::from(zeus)).max(0),
@@ -47,12 +55,18 @@ impl Simulation {
     }
 
     fn unit_shield_cost(&self, unit: &Unit) -> i32 {
-        i32::from(unit.kind != UnitKind::Settlers && self.unit_gold_cost(unit) == 0)
+        i32::from(
+            !matches!(unit.kind, UnitKind::Settlers | UnitKind::Migrants)
+                && self.unit_gold_cost(unit) == 0,
+        )
     }
 
     fn unit_gold_cost(&self, unit: &Unit) -> i32 {
         // Caravel lacks ShieldToGold in Civ2Civ3. Settlers have no base shield cost.
-        if matches!(unit.kind, UnitKind::Caravel | UnitKind::Settlers) {
+        if matches!(
+            unit.kind,
+            UnitKind::Caravel | UnitKind::Settlers | UnitKind::Migrants
+        ) {
             0
         } else {
             self.players[unit.owner].government.unit_support().0
@@ -64,8 +78,8 @@ impl Simulation {
         if conversion == 0 {
             return Vec::new();
         }
-        let mut free =
-            free_gold + 2 * i32::from(self.owns_wonder(city.owner, "King Richard's Crusade"));
+        let mut free = free_gold
+            + 2 * i32::from(self.has_active_wonder(city.owner, Building::KING_RICHARDS_CRUSADE));
         let mut units: Vec<_> = self
             .units
             .iter()
@@ -111,14 +125,13 @@ impl Simulation {
                 );
                 self.add_event(message);
             }
-            self.units
-                .retain(|unit| unit.id != id && unit.transport != Some(id));
+            self.remove_units_with_cargo(vec![id]);
             self.players[owner].gold += paid.iter().find(|&&(paid_id, _)| paid_id == id).unwrap().1;
         }
     }
 
     pub(crate) fn home_city_target(&self, unit: &Unit) -> Option<u32> {
-        if unit.home_city.is_none() && unit.kind != UnitKind::Diplomat {
+        if unit.home_city.is_none() && !unit.kind.is_diplomatic() {
             return None;
         }
         self.cities
@@ -144,11 +157,15 @@ impl Simulation {
     }
 
     pub(super) fn release_city_support(&mut self, city_id: u32) {
+        self.release_city_support_except(city_id, None);
+    }
+
+    pub(super) fn release_city_support_except(&mut self, city_id: u32, keep_owner: Option<usize>) {
         let mut lost = Vec::new();
         for unit in self
             .units
             .iter_mut()
-            .filter(|unit| unit.home_city == Some(city_id))
+            .filter(|unit| unit.home_city == Some(city_id) && Some(unit.owner) != keep_owner)
         {
             if let Some(city) = self.cities.iter().find(|city| {
                 city.id != city_id
@@ -229,8 +246,7 @@ impl Simulation {
             );
             self.add_event(message);
         }
-        self.units
-            .retain(|unit| unit.id != id && unit.transport != Some(id));
+        self.remove_units_with_cargo(vec![id]);
     }
 }
 
