@@ -121,7 +121,9 @@ impl Game {
         draw_ui_button(close, "X", true, false);
         let mut actions = vec![(close, UiAction::ToggleDiplomacy)];
         let rivals: Vec<_> = (1..self.sim.players().len())
-            .filter(|&owner| self.sim.can_negotiate(owner))
+            .filter(|&owner| {
+                self.sim.can_negotiate(owner) || self.sim.treaty_offer(owner).is_some()
+            })
             .collect();
         let page = self.diplomacy_page.min(rivals.len().saturating_sub(1) / 7);
         for (row, &owner) in rivals.iter().skip(page * 7).take(7).enumerate() {
@@ -148,7 +150,11 @@ impl Game {
             );
             draw_text(&status, panel.x + 18.0, y + 30.0, 14.0, LIGHTGRAY);
             let mut buttons = Vec::new();
-            if let Some(bundle) = self.sim.treaty_offer(owner).filter(|offer| offer.bundled()) {
+            if let Some(bundle) = self
+                .sim
+                .treaty_offer(owner)
+                .filter(|offer| offer.bundled() || !self.sim.can_negotiate(owner))
+            {
                 buttons.push((
                     "Review offer".to_owned(),
                     UiAction::ReviewOffer(owner, bundle),
@@ -324,6 +330,9 @@ impl Game {
             }
             if terms.shared_vision() {
                 lines.push("Shared vision".to_owned());
+            }
+            if terms.embassy() {
+                lines.push("Embassy access".to_owned());
             }
             if let Some(map) = terms.map() {
                 lines.push(format!("{map:?} map"));

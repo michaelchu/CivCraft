@@ -621,65 +621,10 @@ impl Game {
             Color::from_rgba(226, 211, 162, 255),
         );
 
-        let roster = [
-            if self.sim.has_tech(city.owner, Tech::EXPLOSIVES) {
-                UnitKind::Engineer
-            } else {
-                UnitKind::Worker
-            },
-            UnitKind::Warrior,
-            UnitKind::Phalanx,
-            UnitKind::Archer,
-            UnitKind::Horseman,
-            UnitKind::Catapult,
-            UnitKind::Chariot,
-            UnitKind::Legion,
-            if self.sim.has_tech(city.owner, Tech::ESPIONAGE) {
-                UnitKind::Spy
-            } else {
-                UnitKind::Diplomat
-            },
-            UnitKind::Settlers,
-            UnitKind::Trireme,
-            UnitKind::Caravel,
-            if self.sim.has_tech(city.owner, Tech::ENGINEERING) {
-                UnitKind::Transport
-            } else {
-                UnitKind::Galleon
-            },
-        ];
-        let mut choices = Vec::new();
-        for kind in roster {
-            let target = self.sim.production_successor(city, kind).unwrap_or(kind);
-            if !choices.contains(&target) {
-                choices.push(target);
-            }
-        }
-        for kind in [
-            UnitKind::Marines,
-            UnitKind::Paratroopers,
-            UnitKind::Fighter,
-            UnitKind::Bomber,
-            UnitKind::Carrier,
-            UnitKind::Frigate,
-            UnitKind::Ironclad,
-            UnitKind::Destroyer,
-            UnitKind::Cruiser,
-            UnitKind::Battleship,
-            UnitKind::AegisCruiser,
-            UnitKind::Submarine,
-            UnitKind::CruiseMissile,
-            UnitKind::Nuclear,
-            UnitKind::Caravan,
-            UnitKind::Migrants,
-            UnitKind::Helicopter,
-            UnitKind::Partisan,
-        ] {
-            let target = self.sim.production_successor(city, kind).unwrap_or(kind);
-            if !choices.contains(&target) && self.sim.can_produce(city, Production::Unit(target)) {
-                choices.push(target);
-            }
-        }
+        let choices: Vec<_> = UnitKind::ALL_NATIVE
+            .into_iter()
+            .filter(|&kind| self.sim.can_produce(city, Production::Unit(kind)))
+            .collect();
         let columns = 4;
         let gap = 8.0;
         let card_w = (rect.w - 44.0 - gap * 3.0) / 4.0;
@@ -1428,6 +1373,9 @@ impl Game {
                     )
                 };
                 entries.push((label.to_owned(), UiAction::Road, enabled));
+            }
+            if stats.can_work && unit.transport.is_none() && !unit.kind.is_naval() {
+                let tile = self.sim.tile(unit.x, unit.y);
                 let (label, enabled) = if tile.irrigation {
                     (
                         "Farmland [I]",
@@ -1447,7 +1395,7 @@ impl Game {
                     UiAction::Mine,
                     unit.work_left == 0,
                 ));
-            } else if stats.can_work && unit.transport.is_none() {
+            } else if stats.can_work && unit.transport.is_none() && !unit.kind.is_naval() {
                 let tile = self.sim.tile(unit.x, unit.y);
                 entries.push((
                     "Mine [M]".to_owned(),
@@ -1508,7 +1456,11 @@ impl Game {
             if self.sim.home_city_target(unit).is_some() {
                 entries.push(("Set home [H]".to_owned(), UiAction::HomeCity, true));
             }
-            entries.push(("Automate [A]".to_owned(), UiAction::Automate, true));
+            if unit.automated
+                || (unit.kind.fuel_capacity() == 0 && unit.kind != UnitKind::Helicopter)
+            {
+                entries.push(("Automate [A]".to_owned(), UiAction::Automate, true));
+            }
             entries.push(("Wait [Space]".to_owned(), UiAction::Wait, true));
             for city in self
                 .sim

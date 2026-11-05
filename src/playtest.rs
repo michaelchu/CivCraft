@@ -212,6 +212,7 @@ impl Playtest {
         }
 
         if frame == 65 && self.act_passed {
+            game.sim.tribal_upkeep_playtest_setup();
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Specialist(_, 0, -1)))
@@ -243,7 +244,7 @@ impl Playtest {
             }
             self.act_passed = verified;
             self.act_detail.push_str(&format!(
-                " Third supported unit charged one shield on the next turn: {verified}."
+                " Under Tribal government, the third supported unit charged one shield on the next turn: {verified}."
             ));
         }
 
@@ -386,6 +387,7 @@ impl Playtest {
             self.act_passed =
                 refused_early_peace && game.sim.pact(HUMAN, 1) == sim::Pact::Ceasefire;
             game.sim.diplomacy_playtest_technologies(false);
+            game.sim.diplomacy_playtest_friendship();
             game.sim.diplomacy_playtest_tick(12);
         }
         if frame == 128 && self.act_passed {
@@ -400,6 +402,7 @@ impl Playtest {
             game.sim.diplomacy_playtest_technologies(true);
             game.sim.diplomacy_playtest_tick(16);
             self.diplomacy_probe = game.sim.diplomacy_playtest_unit(1);
+            game.sim.diplomacy_playtest_tick(1);
             self.act_passed &= game.sim.pact(HUMAN, 1) == sim::Pact::Peace
                 && self
                     .diplomacy_probe
@@ -408,17 +411,22 @@ impl Playtest {
         }
         if frame == 132 && self.act_passed {
             self.vision_probe = game.sim.diplomacy_playtest_hidden_city(1);
-            if let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::ReviewOffer(1, _)))
-            {
+            let offer = game.sim.treaty_offer(1).unwrap_or_default();
+            self.act_passed = offer.pact == Some(sim::Pact::Alliance) && !offer.bundled();
+            self.act_detail.push_str(&format!(
+                " Pure alliance proposal available: {}.",
+                self.act_passed
+            ));
+            if let Some((_, action)) = buttons.iter().find(|(_, action)| {
+                matches!(
+                    action,
+                    UiAction::ReviewOffer(1, _) | UiAction::Negotiate(1, sim::Pact::Alliance)
+                )
+            }) {
                 game.perform_action(*action);
             }
         }
         if frame == 136 && self.act_passed {
-            let human_gold = game.sim.players()[HUMAN].gold;
-            let ai_gold = game.sim.players()[1].gold;
-            let offer = game.sim.treaty_offer(1).unwrap_or_default();
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::AcceptOffer(1, _)))
@@ -427,35 +435,20 @@ impl Playtest {
             }
             let (unit, x, y) = self.diplomacy_probe.unwrap();
             let entered = game.sim.apply(Command::Move(unit, 1, 0));
-            let stayed_allied = game
-                .sim
-                .cities()
-                .iter()
-                .any(|city| (city.x, city.y, city.owner) == (x, y, 1));
-            let gold = offer.terms[0].gold;
-            let exchanged = gold > 0
-                && game.sim.players()[HUMAN].gold == human_gold - gold
-                && game.sim.players()[1].gold == ai_gold + gold
-                && game.sim.players()[HUMAN]
-                    .known
-                    .iter()
-                    .any(|tech| tech.name() == "Writing")
-                && game.sim.players()[1]
-                    .known
-                    .iter()
-                    .any(|tech| tech.name() == "Pottery");
-            let revealed = self
-                .vision_probe
-                .is_some_and(|(x, y)| game.sim.tile(x, y).visible);
             self.act_passed = entered
-                && stayed_allied
                 && game.sim.pact(HUMAN, 1) == sim::Pact::Alliance
-                && exchanged
-                && revealed;
-            self.act_detail.push_str(&format!(" Reviewed and accepted an alliance bundle with Pottery, Writing, {gold} gold and live vision: {}.", self.act_passed));
+                && game
+                    .sim
+                    .cities()
+                    .iter()
+                    .any(|city| (city.x, city.y, city.owner) == (x, y, 1));
+            self.act_detail.push_str(&format!(
+                " Reviewed a pure alliance proposal and entered the allied city peacefully: {}.",
+                self.act_passed
+            ));
         }
         if frame == 138 && self.act_passed {
-            game.sim.diplomacy_playtest_allied_exchange();
+            game.sim.diplomacy_playtest_allied_sharing();
         }
         if frame == 141 && self.act_passed {
             if let Some((_, action)) = buttons
@@ -467,6 +460,49 @@ impl Playtest {
         }
         if frame == 144 && self.act_passed {
             let offer = game.sim.treaty_offer(1).unwrap_or_default();
+            let human_gold = game.sim.players()[HUMAN].gold;
+            let ai_gold = game.sim.players()[1].gold;
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::AcceptOffer(1, _)))
+            {
+                game.perform_action(*action);
+            }
+            let gold = offer.terms[0].gold;
+            self.act_passed = offer.pact.is_none()
+                && gold > 0
+                && game.sim.players()[HUMAN].gold == human_gold - gold
+                && game.sim.players()[1].gold == ai_gold + gold
+                && game.sim.players()[HUMAN]
+                    .known
+                    .iter()
+                    .any(|tech| tech.name() == "Writing")
+                && game.sim.players()[1]
+                    .known
+                    .iter()
+                    .any(|tech| tech.name() == "Pottery")
+                && self
+                    .vision_probe
+                    .is_some_and(|(x, y)| game.sim.tile(x, y).visible);
+            self.act_detail.push_str(&format!(
+                " Established allies exchanged Pottery, Writing, {gold} gold, and live vision: {}.",
+                self.act_passed
+            ));
+        }
+        if frame == 145 && self.act_passed {
+            game.sim.diplomacy_playtest_allied_exchange();
+        }
+        if frame == 146 && self.act_passed {
+            if let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::ReviewOffer(1, _)))
+            {
+                game.perform_action(*action);
+            }
+        }
+        if frame == 147 && self.act_passed {
+            let offer = game.sim.treaty_offer(1).unwrap_or_default();
+            let baseline = game.sim.diplomacy_playtest_allied_trade_baseline();
             let gold = game.sim.players()[HUMAN].gold;
             if let Some((_, action)) = buttons
                 .iter()
@@ -476,7 +512,7 @@ impl Playtest {
             }
             let paid = offer.terms[1].gold;
             self.act_passed = offer.pact.is_none()
-                && paid > 23
+                && baseline.is_some_and(|base| paid > base)
                 && game.sim.players()[HUMAN].gold == gold + paid
                 && game.sim.players()[HUMAN]
                     .known
@@ -486,7 +522,7 @@ impl Playtest {
                     .known
                     .iter()
                     .any(|tech| tech.name() == "Currency");
-            self.act_detail.push_str(&format!(" Allied AI paid Warrior Code plus {paid} gold for Currency, above the 23-gold base difference because it values Marketplace income: {}.", self.act_passed));
+            self.act_detail.push_str(&format!(" Allied AI paid Warrior Code plus {paid} gold for Currency, above the {baseline:?}-gold base difference with current embassy leakage using a controlled retained prior-phase research snapshot: {}.", self.act_passed));
         }
         if frame == 148 && self.act_passed {
             if let Some((_, action)) = buttons
@@ -495,12 +531,17 @@ impl Playtest {
             {
                 game.perform_action(*action);
             }
-            self.act_passed = self.vision_probe.is_some_and(|(x, y)| {
-                let tile = game.sim.tile(x, y);
-                tile.seen && !tile.visible
-            });
+            let explicit_vision_retained = self
+                .vision_probe
+                .is_some_and(|(x, y)| game.sim.tile(x, y).visible);
+            game.sim.diplomacy_playtest_tick(1);
+            self.act_passed = explicit_vision_retained
+                && self.vision_probe.is_some_and(|(x, y)| {
+                    let tile = game.sim.tile(x, y);
+                    tile.seen && !tile.visible
+                });
             self.act_detail.push_str(&format!(
-                " Ending the alliance removed live vision and retained map knowledge: {}.",
+                " Explicit vision survived alliance cancellation, then the AI revoked its own grant on its next diplomacy phase while map knowledge remained: {}.",
                 self.act_passed
             ));
             game.perform_action(UiAction::ToggleDiplomacy);
@@ -1678,31 +1719,14 @@ impl Playtest {
         }
         if frame == 358 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));
-            let (city, target) = game.sim.hunter_production_playtest_setup();
-            let selected = |game: &Game, kind| {
-                game.sim
-                    .cities()
-                    .iter()
-                    .any(|port| port.id == city && port.production == Production::Unit(kind))
-            };
-            let picked_hunter = selected(game, UnitKind::Submarine);
-            game.perform_action(UiAction::EndTurn);
-            let picked_missile = selected(game, UnitKind::CruiseMissile);
-            game.perform_action(UiAction::EndTurn);
-            let built_missile = game.sim.units().iter().any(|unit| {
-                unit.owner == 1
-                    && unit.kind == UnitKind::CruiseMissile
-                    && unit.home_city == Some(city)
-            });
-            game.perform_action(UiAction::EndTurn);
-            let target_destroyed = game.sim.units().iter().all(|unit| unit.id != target)
-                && game
-                    .sim
-                    .units()
-                    .iter()
-                    .any(|unit| unit.owner == 1 && unit.kind == UnitKind::Submarine);
-            self.results.push(("ai_hunter_production", picked_hunter && picked_missile && built_missile && target_destroyed,
-                format!("AI selected a Submarine: {picked_hunter}. It selected and built a Cruise Missile: {}. The strike destroyed the target: {target_destroyed}.", picked_missile && built_missile)));
+            let (target, hull, ammo) = game.sim.normal_hunter_production_playtest();
+            for (name, passed) in [
+                ("native_normal_hunter_worthwhile_target", target),
+                ("native_normal_hunter_hull_production_gate", hull),
+                ("native_normal_hunter_ammunition_production_gate", ammo),
+            ] {
+                self.results.push((name, passed, "Normal AI's H_TARGETS handicap suppressed dedicated hunter and ammunition advice despite a worthwhile existing target and eligible units; existing hunter tactics remain enabled.".to_owned()));
+            }
         }
         if frame == 361 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));
@@ -1715,27 +1739,9 @@ impl Playtest {
                 format!("AI Freight delivered goods and established a route during End Turn: {delivered}.")));
         }
         if frame == 364 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
-            game.perform_action(UiAction::FoundCity);
-            let (home, destination) = game.sim.ai_merchant_production_playtest_setup();
-            let picked = game.sim.cities().iter().any(|city| {
-                city.id == home && city.production == Production::Unit(UnitKind::Freight)
-            });
-            game.perform_action(UiAction::EndTurn);
-            let built = game
-                .sim
-                .units()
-                .iter()
-                .any(|unit| unit.home_city == Some(home) && unit.kind == UnitKind::Freight);
-            for _ in 0..3 {
-                game.perform_action(UiAction::EndTurn);
-                if game.sim.merchant_playtest_route_exists(home, destination) {
-                    break;
-                }
-            }
-            let delivered = game.sim.merchant_playtest_route_exists(home, destination);
-            self.results.push(("ai_merchant_production", picked && built && delivered,
-                format!("AI picked Freight production: {picked}. Freight was built: {built}. It traveled to establish a route: {delivered}.")));
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_merchant_production", sim.ai_trade_production_gate_playtest(),
+                "Civ2Civ3's disabled national trade suppresses the reference regular caravan production advisor, even with five cities and a foreign ally.".to_owned()));
         }
         if frame == 367 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));
@@ -1746,7 +1752,7 @@ impl Playtest {
                 && game.sim.units().iter().all(|unit| unit.id != merchant)
                 && game.sim.units().iter().any(|unit| unit.id == ferry);
             self.results.push(("ai_merchant_ferry", delivered,
-                format!("An AI Transport ferried Freight between islands and established a trade route: {delivered}.")));
+                format!("An AI Galleon ferried Freight between islands and established a trade route: {delivered}.")));
         }
         if frame == 370 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));
@@ -1811,7 +1817,7 @@ impl Playtest {
             game.perform_action(UiAction::FoundCity);
             let (theatre, crusade, obsolete) = game.sim.theatre_and_crusade_playtest();
             self.results.push(("theatre_and_crusade", theatre && crusade && obsolete,
-                format!("Theatre respected local, empire and enduring specialist effects: {theatre}. Crusade offset military unhappiness and gold upkeep: {crusade}. Communism ended both effects: {obsolete}.")));
+                format!("Theatre respected local, empire and enduring specialist effects: {theatre}. Crusade reduced raw military unhappiness by one and removed this gold upkeep: {crusade}. Communism ended both effects: {obsolete}.")));
         }
         if frame == 385 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));
@@ -2024,7 +2030,7 @@ impl Playtest {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (inland, coastal, resumed) = sim.ferry_research_playtest();
             self.results.push(("ferry_research", inland && coastal && resumed,
-                format!("Inland city kept its research goal: {inland}. Port prioritized Map Making and its prerequisites: {coastal}. The AI resumed its original goal once it could build a ferry: {resumed}.")));
+                format!("Inland city kept its research goal: {inland}. Port prioritized Map Making and its prerequisites: {coastal}. The AI selected an available advance toward its newly scored goal after unlocking ferries: {resumed}.")));
         }
         if frame == 437 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
@@ -2062,13 +2068,13 @@ impl Playtest {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (budget, quiet, threatened) = sim.ai_city_defense_playtest();
             self.results.push(("ai_city_defense", budget && quiet && threatened,
-                format!("Defender choice respected shield stock: {budget}. A safe city kept its build: {quiet}. A weak garrison facing an enemy Cannon switched to a defender: {threatened}.")));
+                format!("Native defender priorities held across shield stocks: {budget}. A safe city kept its build: {quiet}. A weak garrison facing an enemy Cannon switched to a defender: {threatened}.")));
         }
         if frame == 455 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (empty, walls, naval) = sim.ai_fortifications_playtest();
             self.results.push(("ai_fortifications", empty && walls && naval,
-                format!("Empty city chose a defender: {empty}. Garrisoned city chose walls against a Cannon: {walls}. Battleship threat did not justify City Walls: {naval}.")));
+                format!("Empty city chose a defender: {empty}. Garrisoned city chose walls against a Cannon: {walls}. Native generic naval-defense choice and actual land/sea effect distinctions matched: {naval}.")));
         }
         if frame == 458 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
@@ -2085,26 +2091,26 @@ impl Playtest {
         if frame == 464 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (bombed, returned, skipped) = sim.ai_bomber_playtest();
-            self.results.push(("ai_bomber_sorties", bombed && returned && skipped,
-                format!("Bomber damaged a reachable enemy: {bombed}. It returned to refuel before running dry: {returned}. It skipped another strike when no refueling site remained: {skipped}.")));
+            self.results.push(("ai_airbase_fighter_sorties", bombed && returned && skipped,
+                format!("Fighter struck a reachable enemy: {bombed}. It returned and refueled: {returned}. It skipped another strike when no refueling site remained: {skipped}.")));
         }
         if frame == 467 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (launched, held, recovered) = sim.ai_carrier_sortie_playtest(false);
             self.results.push(("ai_carrier_sorties", launched && held && recovered,
-                format!("Bomber launched and struck from an offshore carrier: {launched}. Carrier held its recovery position: {held}. Bomber returned and refueled: {recovered}.")));
+                format!("Fighter launched and struck from an offshore carrier: {launched}. Carrier held its recovery position: {held}. Fighter returned and refueled: {recovered}.")));
         }
         if frame == 470 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (intercepted, skipped, refueled) = sim.ai_fighter_playtest();
             self.results.push(("ai_fighter_interception", intercepted && skipped && refueled,
-                format!("Fighter intercepted a nearby bomber: {intercepted}. The distant bomber survived outside safe round-trip range: {skipped}. Fighter returned and refueled: {refueled}.")));
+                format!("Fighter intercepted a nearby bomber: {intercepted}. The fighter waited for full fuel before another sortie: {skipped}. Fighter returned and refueled: {refueled}.")));
         }
         if frame == 473 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (strike, held, recovered) = sim.ai_carrier_sortie_playtest(true);
-            self.results.push(("ai_carrier_positioning", strike && held && recovered,
-                format!("Carrier sailed into strike range and the bomber hit: {strike}. It held the new station: {held}. The bomber recovered aboard: {recovered}.")));
+            self.results.push(("native_carrier_sortie_range", strike && held && recovered,
+                format!("Carrier held its station with a target beyond the boss's sortie range: {strike}. It remained at that station: {held}. Fighter remained aboard and refueled: {recovered}.")));
         }
         if frame == 476 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
@@ -2112,7 +2118,7 @@ impl Playtest {
                 Ok((restored, next, rejected)) => (
                     restored && next && rejected,
                     format!(
-                        "Campaign restored byte-for-byte: {restored}. Next turn matched: {next}. Save replacement and corrupt-file rejection worked: {rejected}."
+                        "Campaign restored preserved state with native task resets: {restored}. Two loaded replays continued identically: {next}. Save replacement, legacy migrations, and corrupt-file rejection worked: {rejected}."
                     ),
                 ),
                 Err(error) => (false, error.to_string()),
@@ -2178,11 +2184,11 @@ impl Playtest {
             self.results.push((
                 "government_research",
                 research,
-                "A stronger locked government raised demand for its first missing prerequisite."
+                "Monarchy at the research frontier became the goal and current subject using cached government values."
                     .to_owned(),
             ));
             self.results.push(("ai_government", locked && chose && finished,
-                format!("Locked government was excluded: {locked}. Trade city favored Republic: {chose}. The AI kept and completed its revolution: {finished}.")));
+                format!("Locked government was excluded: {locked}. The AI chose unlocked Monarchy: {chose}. The AI kept and completed its revolution: {finished}.")));
         }
         if frame == 493 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
@@ -2389,7 +2395,7 @@ impl Playtest {
         if frame == 563 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_defense_route_cost", sim.ai_threat_route_cost_playtest(),
-                "A Horseman was out of range over mountains, two turns away on grassland, and one turn away on roads.".to_owned()));
+                "A Horseman was out of range over mountains, two turns away on grassland, and reachable this turn on roads.".to_owned()));
         }
         if frame == 565 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
@@ -2405,6 +2411,664 @@ impl Playtest {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_map_observation_transfer", sim.map_snapshot_playtest(),
                 "A sea map transferred the seller's observed ocean after the tile changed out of sight.".to_owned()));
+        }
+        if frame == 571 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_war_preparation", sim.ai_war_planning_playtest(),
+                "AI preparation preserved peace until declaration and enforced its post-declaration treaty refusal.".to_owned()));
+        }
+        if frame == 574 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_production_priorities", sim.ai_production_priorities_playtest(),
+                "A growth-capped city prioritized its Aqueduct over expansion and used that priority for production and spending.".to_owned()));
+        }
+        if frame == 577 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_space_strategy", sim.ai_space_strategy_playtest(),
+                "The AI warned an allied spaceship builder once, respected its warning cooldown, then prepared war when the rival launched.".to_owned()));
+        }
+        if frame == 580 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_research_switching", sim.ai_research_switching_playtest(),
+                "The AI preserved nearly completed research, paid for an early switch, and retained discovery overflow bulbs.".to_owned()));
+        }
+        if frame == 583 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_aircraft_advisor", sim.ai_aircraft_advisor_playtest(),
+                "The native HP-loss gate blocked offensive aircraft production while an existing Fighter attacked a profitable surface target.".to_owned()));
+        }
+        if frame == 586 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_nuclear_advisor", sim.ai_nuclear_advisor_playtest(),
+                "Standalone nuclear targeting preserved the reference's strict movement-cost cutoff, despite a valuable target.".to_owned()));
+        }
+        if frame == 589 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_merchant_valuation", sim.ai_merchant_valuation_playtest(),
+                "Trade valuation charged the owned partner's lost back route and valued wonder assistance using its arrival-time rush-price reduction.".to_owned()));
+        }
+        if frame == 592 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_ground_invasion", sim.ai_ground_invasion_playtest(),
+                "A bomber struck a city supported by an explicit distant infantry mission before the infantry could arrive.".to_owned()));
+        }
+        if frame == 595 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_wonder_advisor", sim.ai_wonder_advisor_playtest(),
+                "Empire-wide benefits selected a wonder and its helper advisor stopped requesting caravans when contributions covered construction.".to_owned()));
+        }
+        if frame == 598 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_diplomatic_love", sim.ai_diplomatic_love_playtest(),
+                "Peace improved trust, provocation caused resentment, and an accepted gift changed the relationship using reference valuations.".to_owned()));
+        }
+        if frame == 601 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_settlement_value", sim.ai_settlement_value_playtest(),
+                "Site values matched per-tile rounding, penalized city crowding, and rejected a polluted site that could not grow.".to_owned()));
+        }
+        if frame == 604 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_settlement_goal_government", sim.ai_settlement_goal_government_playtest(),
+                "Settlement projected a locked future government without changing live government or rates.".to_owned()));
+        }
+        if frame == 607 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_settlement_reservations", sim.ai_settlement_reservations_playtest(),
+                "Multiple founders retained separate destinations and released reservations on capture or cancellation.".to_owned()));
+        }
+        if frame == 610 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_future_defenders", sim.ai_defender_forecast_playtest(),
+                "Distant attacks anticipated trained counter-units while preserving stronger veteran garrisons and live hit points.".to_owned()));
+        }
+        if frame == 613 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_observer_diplomacy_cadence", sim.ai_observer_incident_cadence_playtest(),
+                "Diplomatic trespass used observer visibility and offers followed the reference cooldown.".to_owned()));
+        }
+        if frame == 616 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_action_incidents", sim.ai_incident_action_playtest(),
+                "A real bribe changed diplomatic love and casus belli; a stale-price rejection caused no incident.".to_owned()));
+        }
+        if frame == 619 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_merchant_missions", sim.ai_merchant_missions_playtest(),
+                "Merchants applied allied-only searches, retained valid destinations, and gave up waiting for absent boats after the reference deadline.".to_owned()));
+        }
+        if frame == 622 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_merchant_coastal_pickup", sim.ai_merchant_coastal_pickup_playtest(),
+                "A Freight waiting on ordinary coastal land boarded a ferry and delivered to an overseas ally.".to_owned()));
+        }
+        if frame == 625 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_government_reevaluation", sim.ai_government_cache_playtest(),
+                "Government scores stayed cached until their reference deadline while newly researched governments became available immediately.".to_owned()));
+        }
+        if frame == 628 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_embarked_paradrop_danger", sim.ai_embarked_paradrop_danger_playtest(),
+                "City danger included transported armies and paradrop reach without executing illegal moves.".to_owned()));
+        }
+        if frame == 631 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("embassy_contact_lifetime", sim.embassy_contact_playtest(),
+                "Physical contact expired, renewed through interaction, and bilateral embassy clauses kept diplomacy available.".to_owned()));
+        }
+        if frame == 634 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_ferry_assignment_state", sim.ai_ferry_registry_playtest(),
+                "Empty assigned ferries stayed reserved, extra cargo did not steal command, and released or dead passengers freed their boats.".to_owned()));
+        }
+        if frame == 637 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_happiness_effects", sim.ai_happiness_effects_playtest(),
+                "Happiness and health advisor wants followed individual effect values, citizen stages, and wonder ranges.".to_owned()));
+        }
+        if frame == 640 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("industrial_shield_output", sim.industrial_output_playtest(),
+                "Factories and manufacturing plants increased real shield output; power sources amplified industry without stacking.".to_owned()));
+        }
+        if frame == 643 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_diplomatic_intelligence", sim.ai_diplomatic_intelligence_playtest(),
+                "Cached enemy-alliance intelligence blocked peace until the next intelligence refresh, then allowed negotiation.".to_owned()));
+        }
+        if frame == 646 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_city_manager", sim.ai_city_manager_playtest(),
+                "City management chose feasible worker and specialist allocations through the reference constraint relaxation stages.".to_owned()));
+        }
+        if frame == 649 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_treaty_policy", sim.ai_treaty_policy_playtest(),
+                "Human gifts, shared vision, paid direct alliances, and Senate-blocked war preparation followed the reference treaty policies.".to_owned()));
+        }
+        if frame == 652 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("world_seam_work", sim.world_seam_work_playtest(),
+                "City radius, territory, ports, and completed irrigation used neighbors across the wrapped world seam.".to_owned()));
+        }
+        if frame == 655 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (remote, reservations, shelter) = sim.ai_worker_planning_playtest();
+            self.results.extend([
+                (
+                    "ai_worker_remote_work",
+                    remote,
+                    "A worker selected useful remote cleanup instead of building a local road."
+                        .to_owned(),
+                ),
+                (
+                    "ai_worker_reservations",
+                    reservations,
+                    "A closer worker took a work reservation without duplicating an active job."
+                        .to_owned(),
+                ),
+                (
+                    "ai_worker_shelter",
+                    shelter,
+                    "An automated human or displaced worker sought an allied city when no useful work remained."
+                        .to_owned(),
+                ),
+            ]);
+        }
+        if frame == 658 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_exploration", sim.ai_exploration_playtest(),
+                "Automated exploration discovered terrain through known-map frontier scoring and legal routes.".to_owned()));
+        }
+        if frame == 661 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_founder_work_arbitration", sim.founder_work_arbitration_playtest(),
+                "A founder compared city placement against useful terrain work and preserved an existing city mission.".to_owned()));
+        }
+        if frame == 664 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("fundamentalism_tithes", sim.fundamentalism_tithes_playtest(),
+                "Fundamentalism converted uncapped content effects into gold before commercial bonuses.".to_owned()));
+        }
+        if frame == 667 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("city_output_rules", sim.city_output_rules_playtest(),
+                "City-center, Harbour, wonder, commercial, food-waste, and celebration output followed the reference.".to_owned()));
+        }
+        if frame == 670 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push((
+                "ai_barbarian_leader",
+                sim.ai_barbarian_leader_playtest(),
+                "Barbarian leaders sought refuge and fled threats through actual AI dispatch."
+                    .to_owned(),
+            ));
+        }
+        if frame == 673 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("ai_idle_exploration", sim.ai_idle_exploration_playtest(),
+                "Idle military units and ferries explored known frontiers and revealed terrain immediately.".to_owned()));
+        }
+        if frame == 676 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("exploration_legality", sim.ai_exploration_legality_playtest(),
+                "Eligible human ground and naval units explored; fuelled aircraft and helicopters could not enable exploration.".to_owned()));
+        }
+        if frame == 679 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (selected, followed, attacked) = sim.ai_formal_guard_playtest();
+            self.results.extend([
+                (
+                    "ai_guard_selection",
+                    selected,
+                    "Eligible guards accepted requested charges.".to_owned(),
+                ),
+                (
+                    "ai_guard_movement",
+                    followed,
+                    "Charges waited for exhausted guards and guards followed actual movement."
+                        .to_owned(),
+                ),
+                (
+                    "ai_guard_attack",
+                    attacked,
+                    "Guard waiting did not prevent a charge from attacking.".to_owned(),
+                ),
+            ]);
+        }
+        if frame == 682 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (speculative, capacity, retained) = sim.ai_guard_ferry_capacity_playtest();
+            self.results.extend([
+                (
+                    "ai_guard_ferry_estimate",
+                    speculative,
+                    "Speculative city planning used native one-slot boat estimates.".to_owned(),
+                ),
+                (
+                    "ai_guard_ferry_capacity",
+                    capacity,
+                    "Actual guarded trips selected a boat with two available places.".to_owned(),
+                ),
+                (
+                    "ai_guard_ferry_goal",
+                    retained,
+                    "A trip without sufficient ferry capacity retained its destination.".to_owned(),
+                ),
+            ]);
+        }
+        if frame == 685 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("damaged_movement", sim.damaged_movement_playtest(),
+                "Damage-scaled movement used whole-move class minima and added movement effects after damage.".to_owned()));
+        }
+        if frame == 688 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (selected, tax, emergency, native_type) = sim.ai_bodyguard_production_playtest();
+            self.results.extend([
+                ("ai_bodyguard_production", selected, "Production advice supplied a trained guard for a real charge.".to_owned()),
+                ("ai_bodyguard_null_unit_upkeep", tax, "Hypothetical guard upkeep followed the source's unknown-unit requirement context.".to_owned()),
+                ("ai_bodyguard_emergency", emergency, "An urgent local defense retained priority over a guard bid.".to_owned()),
+                ("ai_bodyguard_type_choice", native_type, "Guard advice chose the native best defender before evaluating charge compatibility.".to_owned()),
+            ]);
+        }
+        if frame == 691 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("settlement_worker_order", sim.settlement_reservation_order_playtest(),
+                "Equal-yield future workers and their reservations followed native city-index order.".to_owned()));
+        }
+        if frame == 694 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("barbarian_output_waste", sim.barbarian_output_waste_playtest(),
+                "Barbarian cities kept government base waste while receiving the source distance relief.".to_owned()));
+        }
+        if frame == 697 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("civilian_peace_borders", sim.civilian_border_playtest(),
+                "NonMil civilians crossed peaceful territory; military units and zero-attack carriers remained restricted.".to_owned()));
+        }
+        if frame == 700 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push((
+                "aircraft_fuel_threat_paths",
+                sim.ai_aircraft_fuel_path_playtest(),
+                "Leader escape planning respected aircraft return-fuel and refueling paths."
+                    .to_owned(),
+            ));
+        }
+        if frame == 703 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push((
+                "native_ai_tax_manager",
+                sim.ai_tax_manager_playtest(),
+                "Tax management followed native reserve, science, war and future-tech priorities."
+                    .to_owned(),
+            ));
+        }
+        if frame == 706 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (training, investment, emergency, global) =
+                sim.military_training_advisor_playtest();
+            for (name, passed) in [
+                ("military_training_choice", training),
+                ("military_training_investment", investment),
+                ("military_training_emergency", emergency),
+                ("military_training_global_effect", global),
+            ] {
+                self.results.push((
+                    name,
+                    passed,
+                    "Military advice applied native veteran-building substitution and exceptions."
+                        .to_owned(),
+                ));
+            }
+        }
+        if frame == 709 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("normal_path_actions", sim.ai_normal_path_actions_playtest(),
+                "Normal path planning distinguished civilian transit, military action endpoints and actual movement legality.".to_owned()));
+        }
+        if frame == 712 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (taxes, workers) = sim.ai_tax_phase_playtest();
+            self.results.push((
+                "ai_tax_before_city_advice",
+                taxes,
+                "Building advice used the new tax rates to switch from Library to Marketplace."
+                    .to_owned(),
+            ));
+            self.results.push((
+                "ai_emergency_workers_before_advice",
+                workers,
+                "Emergency citizen allocation ran before military advice.".to_owned(),
+            ));
+        }
+        if frame == 715 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (costs, nativity, zoc) = sim.native_movement_rules_playtest();
+            for (name, passed) in [
+                ("native_infrastructure_costs", costs),
+                ("native_terrain_and_boarding", nativity),
+                ("native_zoc_flags", zoc),
+            ] {
+                self.results.push((name, passed,
+                    "Movement used source infrastructure restrictions, class nativity and explicit ZOC flags.".to_owned()));
+            }
+        }
+        if frame == 718 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("source_ai_goto_profiles", sim.ai_source_goto_playtest(),
+                "AI GOTO used native risk costs, action endpoints, ferry overlap and task restrictions.".to_owned()));
+        }
+        if frame == 721 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("field_unit_unrest", sim.ai_field_unit_unrest_playtest(),
+                "Bombers imposed FieldUnit unrest in their home city and a friendly airbase; fighters did not.".to_owned()));
+        }
+        if frame == 724 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (arrival, owner, cities) = sim.native_list_order_playtest();
+            for (name, passed) in [
+                ("native_player_and_tile_order", arrival),
+                ("native_unit_transfer_order", owner),
+                ("native_city_transfer_order", cities),
+            ] {
+                self.results.push((
+                    name,
+                    passed,
+                    "Player ownership and tile arrivals preserved separate reference list orders."
+                        .to_owned(),
+                ));
+            }
+        }
+        if frame == 727 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("native_city_activity_order", sim.native_city_activity_order_playtest(),
+                "City activity used the player list and reference random swap-removal order after nationality conversion.".to_owned()));
+        }
+        if frame == 730 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("native_fuel_missions", sim.ai_fuel_mission_playtest(),
+                "Aircraft followed native fuel paths, strict attack bounds, return trips and refueling waits.".to_owned()));
+        }
+        if frame == 733 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (quiet, first, defended, police) = sim.native_city_defense_advisor_playtest();
+            for (name, passed) in [
+                ("native_defense_quiet_city", quiet),
+                ("native_defense_first_guard", first),
+                ("native_defense_existing_guard", defended),
+                ("native_defense_martial_law", police),
+            ] {
+                self.results.push((name, passed, "City defense priorities used source danger, urgency, defense and martial-law wants.".to_owned()));
+            }
+        }
+        if frame == 736 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (founding, growth, reduction) = sim.city_worker_lifecycle_playtest();
+            for (name, passed) in [
+                ("native_worker_allocation_founding", founding),
+                ("native_worker_allocation_growth", growth),
+                ("native_worker_allocation_reduction", reduction),
+            ] {
+                self.results.push((name, passed, "City lifecycle events used the native citizen manager and size-dependent priorities.".to_owned()));
+            }
+        }
+        if frame == 739 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("native_gameplay_random_stream", sim.native_random_stream_playtest(),
+                "New games continued the post-start native stream; seeded calls matched literal C oracle values.".to_owned()));
+        }
+        if frame == 742 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("native_cargo_boarding_order", sim.native_cargo_order_playtest(),
+                "Boarding appended cargo independently of unit creation; reboarding moved a unit to the end.".to_owned()));
+        }
+        if frame == 745 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (near, far, nuclear) = sim.ai_source_hunter_launch_playtest();
+            for (name, passed) in [
+                ("native_hunter_near_launch", near),
+                ("native_hunter_far_cutoff", far),
+                ("native_hunter_nuclear_cargo", nuclear),
+            ] {
+                self.results.push((
+                    name,
+                    passed,
+                    "Hunter cargo used native boarding order and missile launch path limits."
+                        .to_owned(),
+                ));
+            }
+        }
+        if frame == 748 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (repair, fortify, exhausted, rescue) = sim.unit_turn_lifecycle_playtest();
+            for (name, passed) in [
+                ("native_repair_before_construction", repair),
+                ("native_fortification_timing", fortify),
+                ("native_exhausted_activity_progress", exhausted),
+                ("native_rescue_movement_state", rescue),
+            ] {
+                self.results.push((name, passed, "Unit restoration preceded city construction; next-phase activity preserved native movement and healing timing.".to_owned()));
+            }
+        }
+        if frame == 751 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("native_actual_turn_repair_order", sim.native_turn_orchestration_playtest(),
+                "A Barracks completed during an actual turn repaired an injured unit only at the following end-phase.".to_owned()));
+        }
+        if frame == 754 && self.act_passed {
+            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (quiet, continent, invasion, research) = sim.native_defensive_effects_playtest();
+            for (name, passed) in [
+                ("native_defense_effect_baseline", quiet),
+                ("native_defense_continent_threats", continent),
+                ("native_defense_invasion_threats", invasion),
+                ("native_defensive_research_feedback", research),
+            ] {
+                self.results.push((name, passed, "Defense effect rows and static defensive research wants followed the native advisor formulas.".to_owned()));
+            }
+        }
+        if frame == 757 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (road, coworkers, precompleted, promotion) =
+                sim.activity_completion_order_playtest();
+            for (name, passed) in [
+                ("native_per_unit_road_completion", road),
+                ("native_cooperative_work_early_stop", coworkers),
+                ("native_precompleted_exhausted_work", precompleted),
+                ("native_worker_promotion_draw_order", promotion),
+            ] {
+                self.results.push((name, passed, "Work completion applied before later units refilled movement or progressed the same project; promotion followed native worker eligibility and random draws.".to_owned()));
+            }
+        }
+        if frame == 760 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (requirements, combat, upkeep, flags) = sim.native_roster_actions_playtest();
+            for (name, passed) in [
+                ("native_roster_requirements_and_obsolescence", requirements),
+                ("native_roster_combat_classes", combat),
+                ("native_fanatic_upkeep_and_join_city", upkeep),
+                ("native_roster_action_flags", flags),
+            ] {
+                self.results.push((name, passed, "The extended unit roster used reference requirements, upgrade chains, combat classes, action flags and government upkeep exemptions.".to_owned()));
+            }
+        }
+        if frame == 763 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (stats, flags, order) = sim.native_unit_catalog_playtest();
+            for (name, passed) in [
+                ("native_complete_unit_catalog_stats", stats),
+                ("native_complete_unit_catalog_flags", flags),
+                ("native_complete_unit_catalog_order", order),
+            ] {
+                self.results.push((name, passed, "Unit catalog fixtures checked source statistics and flags; native rule order was independent of saved enum discriminants.".to_owned()));
+            }
+        }
+        if frame == 766 && self.act_passed {
+            let (sprites, distinct, labels) = crate::client::native_unit_rendering_playtest();
+            for (name, passed) in [
+                ("native_complete_roster_sprites", sprites),
+                ("native_added_unit_sprite_distinction", distinct),
+                ("native_added_unit_labels", labels),
+            ] {
+                self.results.push((name, passed, "All 57 unit sprites were in atlas bounds with visible pixels; added units had distinct native atlas cells and labels.".to_owned()));
+            }
+        }
+        if frame == 769 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("native_all_unit_stats_source_snapshot", sim.native_roster_stats_oracle(),
+                "All eight numeric statistics for every one of 57 unit types matched an independently extracted reference ruleset snapshot.".to_owned()));
+        }
+        if frame == 772 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (work, rejected) = sim.transport_worker_actions_playtest();
+            self.results.push((
+                "native_transport_oil_platform_and_cleanup",
+                work,
+                "A sea Transport performed the source-allowed oil platform and cleanup actions."
+                    .to_owned(),
+            ));
+            self.results.push((
+                "native_transport_land_action_restrictions",
+                rejected,
+                "Sea workers rejected land-only work even at a port.".to_owned(),
+            ));
+            self.results.push(("native_transport_automatic_ocean_cleanup", sim.transport_auto_worker_playtest(),
+                "An automated Transport navigated to a worked polluted ocean tile and completed cleanup.".to_owned()));
+        }
+        if frame == 775 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (land, unknown, king, speed) = sim.native_hunter_tactics_playtest();
+            for (name, passed) in [
+                ("native_land_hunter_dispatch_and_scan", land),
+                ("native_normal_hunter_omniscience", unknown),
+                ("native_hunter_game_loss_target_value", king),
+                ("native_hunter_type_speed_comparison", speed),
+            ] {
+                self.results.push((name, passed, "Existing Hunter-role units followed native PF scan order, Normal knowledge policy, GameLoss value and nominal type-speed comparisons.".to_owned()));
+            }
+        }
+        if frame == 778 && self.act_passed {
+            *game = Game::new(crate::mapgen::generate(42));
+            let id = game.sim.transport_hud_playtest_setup();
+            game.perform_action(UiAction::SelectUnit(id));
+        }
+        if frame == 779 && self.act_passed {
+            let oil = buttons
+                .iter()
+                .any(|(_, action)| matches!(action, UiAction::Mine));
+            let cleanup = buttons.iter().any(|(_, action)| {
+                matches!(
+                    action,
+                    UiAction::TerrainWork(crate::sim::WorkKind::Clean(_))
+                )
+            });
+            let land = buttons.iter().any(|(_, action)| {
+                matches!(
+                    action,
+                    UiAction::Irrigate
+                        | UiAction::TerrainWork(
+                            crate::sim::WorkKind::Cultivate
+                                | crate::sim::WorkKind::Plant
+                                | crate::sim::WorkKind::Transform
+                        )
+                )
+            });
+            self.results.push(("native_transport_worker_hud", oil && cleanup && !land,
+                format!("Actual Transport HUD offered offshore oil work: {oil}; cleanup: {cleanup}; excluded land-only work: {}.", !land)));
+        }
+        if frame == 781 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (quiet, first, context) = sim.counter_defender_research_playtest();
+            for (name, passed) in [
+                ("native_counter_research_quiet_city", quiet),
+                ("native_counter_research_first_missing_defender", first),
+                ("native_counter_research_threat_context", context),
+            ] {
+                self.results.push((name, passed, "A quiet city requested no counter research; a reachable threat requested the native missing defender technology with post-specific urgency.".to_owned()));
+            }
+        }
+        if frame == 784 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (positive, signed, large) = sim.native_research_arithmetic_playtest();
+            for (name, passed) in [
+                ("native_research_positive_float_accumulation", positive),
+                ("native_research_signed_float_accumulation", signed),
+                ("native_research_large_float_rounding", large),
+            ] {
+                self.results.push((name, passed, "Research selection matched independent C vectors with truncation at every int-plus-float assignment.".to_owned()));
+            }
+        }
+        if frame == 787 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (retained, order, copied, loaded) = sim.native_research_phase_playtest();
+            for (name, passed) in [
+                ("native_research_retained_phase_snapshot", retained),
+                ("native_research_ordered_feedback", order),
+                ("native_research_civil_war_copy", copied),
+                ("native_research_load_zero_snapshot", loaded),
+            ] {
+                self.results.push((name, passed, "AI research feedback persisted between phases, accumulated in order, copied on player splits and reset on load.".to_owned()));
+            }
+        }
+        if frame == 790 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("native_raw_military_unhappiness", sim.military_unhappiness_rules_playtest(),
+                "Raw unit unhappiness used native government factors, free allowances, police and wonder effects independently of citizen saturation.".to_owned()));
+        }
+        if frame == 793 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (future, current, hidden, learned) = sim.offensive_research_playtest();
+            for (name, passed) in [
+                ("native_offensive_future_unit_feedback", future),
+                ("native_offensive_buildable_current_choice", current),
+                ("native_offensive_known_target_policy", hidden),
+                ("native_offensive_learned_tech_feedback_ends", learned),
+            ] {
+                self.results.push((name, passed, "Offensive production and future-unit research shared native target, travel, cost and amortization evaluation.".to_owned()));
+            }
+        }
+        if frame == 796 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            let (gift, negative, valid) = sim.native_unset_research_goal_playtest();
+            for (name, passed) in [
+                ("native_research_gift_clears_matching_goal", gift),
+                ("native_research_negative_wants_clear_goal", negative),
+                ("native_unset_goal_stays_out_of_inventions", valid),
+            ] {
+                self.results.push((name, passed, "Unset research goals remained distinct from Future Tech and could not become inventions or active research targets.".to_owned()));
+            }
+        }
+        if frame == 799 && self.act_passed {
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("native_unset_goal_save_and_command_rules", sim.native_unset_goal_save_playtest(),
+                "An unset goal roundtripped in the existing save shape; unset current/known technologies and explicit invalid goal commands were rejected.".to_owned()));
+        }
+        if frame == 802 && self.act_passed {
+            *game = Game::new(crate::mapgen::generate(42));
+            game.sim.unset_goal_hud_playtest_setup();
+            game.perform_action(UiAction::OpenResearch);
+        }
+        if frame == 803 && self.act_passed {
+            let close = buttons.iter().find_map(|(_, action)| {
+                matches!(action, UiAction::CloseResearch).then_some(*action)
+            });
+            let current = buttons.iter().any(|(_, action)| {
+                matches!(action,
+                UiAction::ResearchGoal(tech) if *tech == crate::rules::Tech::ALPHABET)
+            });
+            let phantom = buttons.iter().any(|(_, action)| {
+                matches!(action,
+                UiAction::ResearchGoal(tech) if *tech == crate::rules::Tech::UNSET)
+            });
+            let unset = game.sim.players()[HUMAN].research_goal == crate::rules::Tech::UNSET;
+            self.results.push(("native_unset_goal_research_screen", unset && close.is_some() && current && !phantom,
+                format!("Actual research screen opened with an unset goal: {unset}; current-project node visible: {current}; phantom unset node: {phantom}.")));
+            if let Some(action) = close {
+                game.perform_action(action);
+            }
         }
         if let Some(step) = match frame {
             30 => Some("foundation"),

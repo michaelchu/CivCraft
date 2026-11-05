@@ -175,6 +175,9 @@ impl ResearchTree {
     }
 
     pub(crate) fn ancestors(&self, goal: Tech) -> Vec<Tech> {
+        if goal == Tech::UNSET {
+            return Vec::new();
+        }
         let mut found = vec![goal];
         let mut cursor = 0;
         while cursor < found.len() {

@@ -16,6 +16,7 @@ impl Game {
     }
 
     pub(super) fn focus_research(&mut self, tech: Tech) {
+        let tech = focused_research_tech(tech, self.sim.players()[HUMAN].researching);
         self.research_center = self.research_tree.center(tech);
         self.research_age = self.research_tree.age(self.research_center);
         self.research_zoom = 1.0;
@@ -232,7 +233,9 @@ impl Game {
             actions.push((button, UiAction::ResearchAge(age)));
         }
 
-        let inspected = self.research_inspected.unwrap_or(goal);
+        let inspected = self
+            .research_inspected
+            .unwrap_or_else(|| focused_research_tech(goal, current));
         let tech = hovered.unwrap_or(inspected);
         let requirements = if tech == Tech::FUTURE {
             "Requires all 87 named advances".to_owned()
@@ -250,40 +253,7 @@ impl Game {
             18.0,
             WHITE,
         );
-        let unlocks = match tech {
-            Tech::ALPHABET => "In CivCraft: Diplomat",
-            Tech::BRONZE_WORKING => "In CivCraft: Phalanx",
-            Tech::WARRIOR_CODE => "In CivCraft: Archers",
-            Tech::IRON_WORKING => "In CivCraft: Legion",
-            Tech::HORSEBACK_RIDING => "In CivCraft: Horsemen",
-            Tech::THE_WHEEL => "In CivCraft: Chariot",
-            Tech::MATHEMATICS => "In CivCraft: Catapult",
-            Tech::RAILROAD => "City art: Industrial",
-            Tech::AUTOMOBILE => "City art: Electric Age",
-            Tech::ROCKETRY => "City art: Modern",
-            Tech::SUPERCONDUCTORS => "City art: Postmodern",
-            _ => "",
-        };
-        let buildings = Building::all()
-            .filter_map(|building| {
-                let data = building.data();
-                data.requirements
-                    .contains(&(Requirement::Tech(tech.0), true))
-                    .then_some(data.name)
-            })
-            .collect::<Vec<_>>();
-        let detail = if !buildings.is_empty() {
-            format!("City production: {}", buildings.join(", "))
-        } else if !unlocks.is_empty() {
-            unlocks.to_owned()
-        } else if let Some(data) = tech
-            .data()
-            .filter(|data| !data.reference_unlocks.is_empty())
-        {
-            format!("Reference only: {}", data.reference_unlocks)
-        } else {
-            "Choosing a goal that changes the current target resets research progress.".to_owned()
-        };
+        let detail = research_unlock_detail(tech);
         draw_text(
             &clip_text(&detail, ((screen_width() - 48.0) / 8.0) as usize),
             24.0,
@@ -310,5 +280,77 @@ impl Game {
             x += width + 8.0;
         }
         actions
+    }
+}
+
+fn focused_research_tech(goal: Tech, current: Tech) -> Tech {
+    if goal == Tech::UNSET { current } else { goal }
+}
+
+fn research_unlock_detail(tech: Tech) -> String {
+    let mut unlocks = Simulation::research_unit_unlocks(tech);
+    unlocks.extend(Building::all().filter_map(|building| {
+        let data = building.data();
+        data.requirements
+            .contains(&(Requirement::Tech(tech.0), true))
+            .then_some(data.name)
+    }));
+    let art = match tech {
+        Tech::RAILROAD => Some("Industrial"),
+        Tech::AUTOMOBILE => Some("Electric Age"),
+        Tech::ROCKETRY => Some("Modern"),
+        Tech::SUPERCONDUCTORS => Some("Postmodern"),
+        _ => None,
+    };
+    let mut detail = if unlocks.is_empty() {
+        String::new()
+    } else {
+        format!("Unlocks: {}", unlocks.join(", "))
+    };
+    if let Some(age) = art {
+        if !detail.is_empty() {
+            detail.push_str(" · ");
+        }
+        detail.push_str(&format!("City art: {age}"));
+    }
+    if detail.is_empty() {
+        if let Some(data) = tech
+            .data()
+            .filter(|data| !data.reference_unlocks.is_empty())
+        {
+            format!("Reference: {}", data.reference_unlocks)
+        } else {
+            "Choosing a goal that changes the current target resets research progress.".to_owned()
+        }
+    } else {
+        detail
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn cleared_goal_focuses_current_research_without_a_phantom_future_branch() {
+        let tree = ResearchTree::new();
+        let focus = focused_research_tech(Tech::UNSET, Tech::BRONZE_WORKING);
+        assert_eq!(focus, Tech::BRONZE_WORKING);
+        assert_eq!(tree.center(focus), tree.center(Tech::BRONZE_WORKING));
+        assert!(tree.ancestors(Tech::UNSET).is_empty());
+        assert!(tree.nodes.iter().all(|(tech, _)| *tech != Tech::UNSET));
+        assert_eq!(
+            focused_research_tech(Tech::FUTURE, Tech::BRONZE_WORKING),
+            Tech::FUTURE
+        );
+    }
+
+    #[test]
+    fn research_details_include_new_units_and_buildings_together() {
+        let feudalism = Tech::all().find(|tech| tech.name() == "Feudalism").unwrap();
+        let detail = research_unlock_detail(feudalism);
+        assert!(detail.contains("Pikemen") && detail.contains("Sun Tzu"));
+        assert!(research_unlock_detail(Tech::ADVANCED_FLIGHT).contains("AWACS"));
+        let detail = research_unlock_detail(Tech::ROCKETRY);
+        assert!(detail.contains("Cruise Missile") && detail.contains("City art: Modern"));
     }
 }
