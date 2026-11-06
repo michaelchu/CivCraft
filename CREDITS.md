@@ -11,6 +11,7 @@ The following artwork comes from the local Freeciv source checkout. Original art
 | assets/amplio2_ocean.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/ocean.png | Ocean and coastline terrain sprites |
 | assets/amplio2_water.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/water.png | Retained original four-direction river atlas |
 | assets/hexemplio_rivers.png and .spec | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/hexemplio/rivers.png and rivers.spec | Six-direction river artwork, six outlets and original sprite definitions |
+| assets/amplio2_select.png and .spec | Freeciv data/amplio2/select-alpha.png and select.spec | Four-frame unit selection ring; Jason Dorje Short, Eleazar / J. W. Bjerk, qwm |
 | assets/amplio2_units.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/units.png | Unit sprites |
 | assets/amplio2_cities.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/cities.png | City sprites |
 | assets/amplio2_bases.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/bases.png | Fortifications and airfield sprites |

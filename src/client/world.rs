@@ -345,7 +345,7 @@ impl Game {
         {
             let entry = stacks.entry((unit.x, unit.y)).or_insert((unit, 0));
             entry.1 += 1;
-            let priority = |u: &Unit| (u.transport.is_some(), Some(u.id) != self.selected_unit);
+            let priority = |u: &Unit| (Some(u.id) != self.selected_unit, u.transport.is_some());
             if priority(unit) < priority(entry.0) {
                 entry.0 = unit;
             }
@@ -370,7 +370,7 @@ impl Game {
         }
 
         let reveal_cities = self.sim.reveals_cities(HUMAN);
-        for (x, y, center) in order {
+        for &(x, y, center) in &order {
             let tile = self.sim.tile(x, y);
             if !tile.seen {
                 continue;
@@ -386,11 +386,35 @@ impl Game {
                 continue;
             }
             if let Some(&(unit, count)) = stacks.get(&(x, y)) {
-                self.draw_unit(assets, unit, center, count);
+                // Reference find_visible_unit hides idle city garrisons.
+                // Focused units are drawn in their own final layer below.
+                if !cities.contains_key(&(x, y)) && Some(unit.id) != self.selected_unit {
+                    self.draw_unit(assets, unit, center, count);
+                }
             }
             if let Some(Base::Fort | Base::Fortress) = tile.base {
                 let row = i32::from(tile.base == Some(Base::Fort));
                 self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
+            }
+        }
+        // Freeciv draws city descriptions in a separate CITYBAR layer.
+        // Keep text above units and foreground terrain.
+        for &(x, y, center) in &order {
+            let tile = self.sim.tile(x, y);
+            if tile.seen
+                && (tile.visible || reveal_cities)
+                && let Some(city) = cities.get(&(x, y)).copied()
+            {
+                self.draw_city_label(city, center);
+            }
+        }
+        // Freeciv's FocusUnit layer follows city bars and other map objects.
+        for &(x, y, center) in &order {
+            if self.sim.tile(x, y).visible
+                && let Some(&(unit, count)) = stacks.get(&(x, y))
+                && Some(unit.id) == self.selected_unit
+            {
+                self.draw_unit(assets, unit, center, count);
             }
         }
     }
@@ -537,7 +561,7 @@ impl Game {
             if relevant && self.sim.tile(x, y).seen {
                 self.draw_tile_details(assets, x, y, center, layout.tile_w, layout.tile_h);
                 if (x, y) == (city.x, city.y) {
-                    self.draw_city_at_scale(assets, city, center, layout.tile_w / TILE_W, false);
+                    self.draw_city_at_scale(assets, city, center, layout.tile_w / TILE_W);
                 }
             }
         }
@@ -547,17 +571,10 @@ impl Game {
     }
 
     fn draw_city(&self, assets: &Assets, city: &City, center: Vec2) {
-        self.draw_city_at_scale(assets, city, center, self.zoom, true);
+        self.draw_city_at_scale(assets, city, center, self.zoom);
     }
 
-    fn draw_city_at_scale(
-        &self,
-        assets: &Assets,
-        city: &City,
-        center: Vec2,
-        zoom: f32,
-        label: bool,
-    ) {
+    fn draw_city_at_scale(&self, assets: &Assets, city: &City, center: Vec2, zoom: f32) {
         let style = [
             (Tech::SUPERCONDUCTORS, 9),
             (Tech::ROCKETRY, 8),
@@ -593,31 +610,32 @@ impl Game {
                 ..Default::default()
             },
         );
-        if !label {
-            return;
-        }
-        let label_y = center.y + 10.0 * zoom;
+    }
+
+    fn draw_city_label(&self, city: &City, center: Vec2) {
+        let zoom = self.zoom;
         let label = format!("{}  {}", city.name, city.size);
-        let width = measure_text(&label, None, (14.0 * zoom).max(10.0) as u16, 1.0).width;
+        let font_size = (14.0 * zoom).max(10.0);
+        let metrics = measure_text(&label, None, font_size as u16, 1.0);
+        // Both sprites end at center + 9 * zoom. Keep the entire label
+        // below that footprint with a visible gap even when zoomed out.
+        let top = center.y + 9.0 * zoom + (4.0 * zoom).max(3.0);
+        let padding = 3.0;
+        let height = metrics.height + padding * 2.0;
+        let left = center.x - metrics.width * 0.5 - 6.0;
         draw_rectangle(
-            center.x - width * 0.5 - 6.0,
-            label_y - 13.0,
-            width + 12.0,
-            17.0,
+            left,
+            top,
+            metrics.width + 12.0,
+            height,
             Color::from_rgba(19, 20, 18, 220),
         );
-        draw_rectangle(
-            center.x - width * 0.5 - 6.0,
-            label_y - 13.0,
-            3.0,
-            17.0,
-            player_color(city.owner),
-        );
+        draw_rectangle(left, top, 3.0, height, player_color(city.owner));
         draw_text(
             &label,
-            center.x - width * 0.5,
-            label_y,
-            (14.0 * zoom).max(10.0),
+            center.x - metrics.width * 0.5,
+            top + padding + metrics.offset_y,
+            font_size,
             Color::from_rgba(244, 235, 201, 255),
         );
         if self.selected_city == Some(city.id) {
@@ -637,11 +655,18 @@ impl Game {
         let unit_h = 44.0 * self.zoom;
         let is_selected = self.selected_unit == Some(unit.id);
         if is_selected {
-            draw_diamond(
-                center + vec2(0.0, 4.0 * self.zoom),
-                55.0 * self.zoom,
-                23.0 * self.zoom,
-                Color::from_rgba(255, 235, 112, 185),
+            // Amplio2 unit.select:0..3, animated at Freeciv-web's 6 Hz.
+            let frame = super::ui::selection_animation_frame();
+            draw_texture_ex(
+                &assets.selection,
+                center.x - TILE_W * self.zoom * 0.5,
+                center.y - TILE_H * self.zoom * 0.5,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(TILE_W * self.zoom, TILE_H * self.zoom)),
+                    source: Some(Rect::new(frame as f32 * 96.0, 0.0, 96.0, 48.0)),
+                    ..Default::default()
+                },
             );
         }
         draw_texture_ex(

@@ -107,6 +107,7 @@ pub(crate) struct Assets {
     pub(super) mountains: Texture2D,
     pub(super) ocean_corners: Texture2D,
     pub(super) units: Texture2D,
+    pub(super) selection: Texture2D,
     pub(super) cities: Texture2D,
     pub(super) bases: Texture2D,
 }
@@ -143,6 +144,11 @@ impl Assets {
             include_bytes!("../../assets/amplio2_units.png"),
             None,
         );
+        let selection = Texture2D::from_file_with_format(
+            include_bytes!("../../assets/amplio2_select.png"),
+            None,
+        );
+        selection.set_filter(FilterMode::Nearest);
         let cities = Texture2D::from_file_with_format(
             include_bytes!("../../assets/amplio2_cities.png"),
             None,
@@ -169,6 +175,7 @@ impl Assets {
             mountains,
             ocean_corners,
             units,
+            selection,
             cities,
             bases,
         }

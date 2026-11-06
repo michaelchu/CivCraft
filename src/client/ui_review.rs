@@ -22,6 +22,8 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "rivers-six-directions",
     "rivers-fogged",
     "rivers-generated",
+    "city-garrison-idle",
+    "city-garrison-selected",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -107,6 +109,17 @@ impl Game {
                     1.0
                 };
             }
+            21 | 22 => {
+                self.zoom = 1.5;
+                if scene == 22 {
+                    self.selected_unit = self
+                        .sim
+                        .units()
+                        .iter()
+                        .find(|u| u.owner == HUMAN && u.kind == UnitKind::Engineer)
+                        .map(|u| u.id);
+                }
+            }
             20 => {
                 let (x, y) = self
                     .sim
@@ -162,6 +175,27 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if matches!(scene, 21 | 22) && phase == 1 {
+            let city = self.sim.cities().iter().find(|c| c.owner == HUMAN).unwrap();
+            sequence.check(
+                "city_has_garrison",
+                self.sim
+                    .units()
+                    .iter()
+                    .any(|u| (u.x, u.y) == (city.x, city.y)),
+            )?;
+            sequence.check(
+                "expected_unit_focus",
+                if scene == 21 {
+                    self.selected_unit.is_none()
+                } else {
+                    self.sim
+                        .units()
+                        .iter()
+                        .any(|u| Some(u.id) == self.selected_unit && (u.x, u.y) == (city.x, city.y))
+                },
+            )?;
+        }
         if (15..=17).contains(&scene) {
             if phase == 1 {
                 sequence.click(self, buttons, "found_city_control", |action| {
