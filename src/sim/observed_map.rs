@@ -35,6 +35,16 @@ impl Simulation {
     }
 
     pub(crate) fn observed_city(&self, city: &City) -> ObservedCity {
+        self.observed_city_with_occupancy(
+            city,
+            self.units.iter().any(|u| (u.x, u.y) == (city.x, city.y)),
+        )
+    }
+
+    fn observed_city_with_occupancy(&self, city: &City, occupied: bool) -> ObservedCity {
+        // Appearance needs luxury and mood, but not the forecast's upkeep scans/sorts.
+        let (_, _, trade) = self.city_yields(city);
+        let luxury = self.city_trade(city, trade)[2];
         ObservedCity {
             city: city.clone(),
             art_cell: crate::rules::city_art::city_art_cell(
@@ -43,15 +53,17 @@ impl Simulation {
                 |tech| self.has_tech(city.owner, tech),
                 |building| city.buildings.contains(&building),
             ),
-            occupied: self.units.iter().any(|u| (u.x, u.y) == (city.x, city.y)),
-            disorder: self.city_forecast(city).disorder,
+            occupied,
+            disorder: self.city_in_disorder(city, luxury),
             remembered: false,
         }
     }
 
-    pub(crate) fn render_cities(&self) -> Vec<ObservedCity> {
+    // Resolve live versus remembered cities once, without cloning city state or
+    // computing appearance. Minimap markers only need these borrowed records.
+    fn render_city_sources(&self) -> BTreeMap<u32, (&City, Option<&ObservedCity>)> {
         let reveal = self.reveals_cities(HUMAN);
-        let mut cities: BTreeMap<u32, ObservedCity> = self
+        let mut cities: BTreeMap<_, _> = self
             .observed_map
             .cities
             .iter()
@@ -60,17 +72,42 @@ impl Simulation {
                     && self.tile(c.city.x, c.city.y).seen
                     && !self.tile(c.city.x, c.city.y).visible
             })
-            .map(|((_, id), (_, c))| (*id, c.clone()))
+            .map(|((_, id), (_, c))| (*id, (&c.city, Some(c))))
             .collect();
         for city in &self.cities {
             if city.owner == HUMAN
                 || self.tile(city.x, city.y).visible
                 || (reveal && self.tile(city.x, city.y).seen)
             {
-                cities.insert(city.id, self.observed_city(city));
+                cities.insert(city.id, (city, None));
             }
         }
-        cities.into_values().collect()
+        cities
+    }
+
+    pub(crate) fn render_city_markers(&self) -> Vec<&City> {
+        self.render_city_sources()
+            .into_values()
+            .map(|(city, _)| city)
+            .collect()
+    }
+
+    pub(crate) fn render_cities(&self) -> Vec<ObservedCity> {
+        self.render_cities_where(|_| true)
+    }
+
+    pub(crate) fn render_cities_where(&self, include: impl Fn(&City) -> bool) -> Vec<ObservedCity> {
+        let occupied: std::collections::HashSet<_> =
+            self.units.iter().map(|u| (u.x, u.y)).collect();
+        self.render_city_sources()
+            .into_values()
+            .filter(|(city, _)| include(city))
+            .map(|(city, remembered)| {
+                remembered.cloned().unwrap_or_else(|| {
+                    self.observed_city_with_occupancy(city, occupied.contains(&(city.x, city.y)))
+                })
+            })
+            .collect()
     }
 
     pub(super) fn remember_render_map(&mut self, visible: &[Vec<bool>]) {
@@ -362,6 +399,74 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filtered_city_rendering_and_markers_preserve_live_and_remembered_state() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.ui_review_observed_map();
+        for reobserved in [false, true] {
+            if reobserved {
+                game.ui_review_reobserve_map();
+            }
+            let all = game.render_cities();
+            let filtered = game.render_cities_where(|c| (c.x, c.y) == (20, 24));
+            let expected: Vec<_> = all
+                .iter()
+                .filter(|c| (c.city.x, c.city.y) == (20, 24))
+                .cloned()
+                .collect();
+            assert_eq!(
+                bincode::serialize(&filtered).unwrap(),
+                bincode::serialize(&expected).unwrap()
+            );
+            assert!(game.render_cities_where(|_| false).is_empty());
+            let markers: Vec<_> = game
+                .render_city_markers()
+                .into_iter()
+                .map(|c| (c.id, c.owner, c.x, c.y))
+                .collect();
+            let expected: Vec<_> = all
+                .iter()
+                .map(|c| (c.city.id, c.city.owner, c.city.x, c.city.y))
+                .collect();
+            assert_eq!(markers, expected);
+        }
+    }
+
+    #[test]
+    fn city_appearance_disorder_matches_full_forecast_after_policy_changes() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.ui_review_observed_map();
+        game.ui_review_reobserve_map();
+        let guard = game.spawn_unit(1, UnitKind::Warrior, 20, 24);
+        let city_id = game.cities[0].id;
+        game.units
+            .iter_mut()
+            .find(|u| u.id == guard)
+            .unwrap()
+            .home_city = Some(city_id);
+        for government in [
+            Government::Anarchy,
+            Government::Monarchy,
+            Government::Republic,
+            Government::Democracy,
+        ] {
+            for player in &mut game.players {
+                player.government = government;
+            }
+            for rates in [[100, 0, 0], [0, 0, 100], [40, 30, 30]] {
+                for player in &mut game.players {
+                    player.rates = rates;
+                }
+                for city in &game.cities {
+                    assert_eq!(
+                        game.observed_city(city).disorder,
+                        game.city_forecast(city).disorder
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn fog_preserves_terrain_extras_and_city_graphics_until_reobserved() {

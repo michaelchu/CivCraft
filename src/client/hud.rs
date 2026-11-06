@@ -207,16 +207,11 @@ impl Game {
             }
         }
         let city_overrides = self.playback.city_overrides();
-        let observed = self.sim.render_cities();
-        let overrides: Vec<_> = city_overrides
-            .values()
-            .map(|c| self.sim.observed_city(c))
-            .collect();
+        let observed = self.sim.render_city_markers();
         for city in observed
-            .iter()
-            .filter(|c| !city_overrides.contains_key(&c.city.id))
-            .chain(overrides.iter())
-            .map(|c| &c.city)
+            .into_iter()
+            .filter(|c| !city_overrides.contains_key(&c.id))
+            .chain(city_overrides.values())
         {
             let origin = Self::minimap_tile_origin(rect, city.x, city.y);
             let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);

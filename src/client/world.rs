@@ -268,9 +268,14 @@ impl Game {
         );
         let mut cities = std::collections::HashMap::new();
         let city_overrides = self.playback.city_overrides();
-        let observed_cities = self.sim.render_cities();
+        let visible_tiles: std::collections::HashSet<_> =
+            order.iter().map(|&(x, y, _)| (x, y)).collect();
+        let observed_cities = self.sim.render_cities_where(|city| {
+            visible_tiles.contains(&(city.x, city.y)) && !city_overrides.contains_key(&city.id)
+        });
         let overridden_cities: Vec<_> = city_overrides
             .values()
+            .filter(|city| visible_tiles.contains(&(city.x, city.y)))
             .map(|city| self.sim.observed_city(city))
             .collect();
         for observed in observed_cities
