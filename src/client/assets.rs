@@ -101,6 +101,7 @@ pub(crate) fn window_conf() -> Conf {
 
 pub(crate) struct Assets {
     pub(super) terrain: Texture2D,
+    pub(super) fog: Texture2D,
     pub(super) rivers: Texture2D,
     pub(super) terrain2: Texture2D,
     pub(super) hills: Texture2D,
@@ -121,6 +122,11 @@ impl Assets {
         let terrain_image =
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_terrain1.png"), None)
                 .expect("valid Amplio2 terrain atlas");
+        let fog_image =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_fog.png"), None)
+                .expect("valid reference fog atlas");
+        let fog = Texture2D::from_image(&super::fog::build_atlas(&fog_image));
+        fog.set_filter(FilterMode::Nearest);
         let terrain = Texture2D::from_image(&terrain_image);
         let river_image =
             Image::from_file_with_format(include_bytes!("../../assets/hexemplio_rivers.png"), None)
@@ -193,6 +199,7 @@ impl Assets {
         cities.set_filter(FilterMode::Linear);
         Self {
             terrain,
+            fog,
             terrain2,
             rivers,
             hills,

@@ -6,6 +6,7 @@ use assets::{
 };
 mod city_bar;
 mod city_map;
+mod fog;
 mod government_view;
 mod hud;
 mod input;

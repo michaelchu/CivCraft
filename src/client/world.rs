@@ -71,14 +71,9 @@ impl Game {
         center: Vec2,
         tile_w: f32,
         tile_h: f32,
-        visible: bool,
     ) {
         let terrain = self.sim.tile(x, y).terrain;
-        let tint = if visible {
-            WHITE
-        } else {
-            Color::new(0.54, 0.59, 0.62, 1.0)
-        };
+        let tint = WHITE;
 
         if terrain.is_water() {
             self.draw_ocean_sprite(assets, x, y, center, tile_w, tile_h, tint);
@@ -106,13 +101,8 @@ impl Game {
         center: Vec2,
         tile_w: f32,
         tile_h: f32,
-        visible: bool,
     ) {
-        let tint = if visible {
-            WHITE
-        } else {
-            Color::new(0.54, 0.59, 0.62, 1.0)
-        };
+        let tint = WHITE;
         match terrain {
             Terrain::Forest | Terrain::Jungle => {
                 draw_texture_ex(
@@ -286,7 +276,6 @@ impl Game {
         center: Vec2,
         tile_w: f32,
         tile_h: f32,
-        visible: bool,
     ) {
         let points = [
             vec2(center.x, center.y - tile_h * 0.5),
@@ -295,7 +284,7 @@ impl Game {
             vec2(center.x - tile_w * 0.5, center.y),
         ];
         let edge_neighbors = [(0, -1), (1, 0), (0, 1), (-1, 0)];
-        let opacity = if visible { 0.95 } else { 0.42 };
+        let opacity = 0.95; // The shared fog layer handles remembered borders.
         let color = with_alpha(player_color(owner), opacity);
         let width = (3.5 * tile_w / TILE_W).clamp(2.75, 4.75);
         let shadow = Color::new(0.025, 0.035, 0.04, opacity * 0.9);
@@ -374,17 +363,12 @@ impl Game {
         for &(x, y, center) in &order {
             let tile = self.sim.tile(x, y);
             if !tile.seen {
-                draw_diamond(
-                    center,
-                    tile_w - 1.0,
-                    tile_h - 1.0,
-                    Color::from_rgba(5, 15, 24, 255),
-                );
+                draw_diamond(center, tile_w, tile_h, BLACK);
                 continue;
             }
 
             draw_diamond(center, tile_w, tile_h, tile.terrain.minimap_color());
-            self.draw_terrain_sprite(assets, x, y, center, tile_w, tile_h, tile.visible);
+            self.draw_terrain_sprite(assets, x, y, center, tile_w, tile_h);
         }
 
         let reveal_cities = self.sim.reveals_cities(HUMAN);
@@ -400,6 +384,39 @@ impl Game {
             {
                 self.draw_city(assets, city, center);
             }
+        }
+        // Reference Fog layer: blend corners after terrain/cities and before
+        // units, labels and focus sprites. Out-of-map poles are remembered.
+        for &(x, y, center) in &order {
+            let (mx, my) = native_to_map(x, y);
+            self.draw_corner_fog(assets, center, tile_w, tile_h, |dx, dy| {
+                let (nx, ny) = map_to_native(mx + dx, my + dy);
+                self.fog_knowledge(nx, ny)
+            });
+        }
+        // Bottom polar corners have no south tile to drive the ordinary
+        // loop, but still blend the last row with the off-map remembered edge.
+        for y in MAP_H..MAP_H + 2 {
+            for x in 0..MAP_W {
+                let center = world_screen_position(
+                    viewport,
+                    self.camera_overview_position(),
+                    self.zoom,
+                    x,
+                    y,
+                );
+                if center.y > viewport.bottom() + tile_h || center.y < viewport.y - tile_h {
+                    continue;
+                }
+                let (mx, my) = native_to_map(x, y);
+                self.draw_corner_fog(assets, center, tile_w, tile_h, |dx, dy| {
+                    let (nx, ny) = map_to_native(mx + dx, my + dy);
+                    self.fog_knowledge(nx, ny)
+                });
+            }
+        }
+        for &(x, y, center) in &order {
+            let tile = self.sim.tile(x, y);
             if !tile.visible {
                 continue;
             }
@@ -453,10 +470,10 @@ impl Game {
         tile_h: f32,
     ) {
         let tile = self.sim.tile(x, y);
-        self.draw_terrain_overlay(assets, tile.terrain, center, tile_w, tile_h, tile.visible);
+        self.draw_terrain_overlay(assets, tile.terrain, center, tile_w, tile_h);
 
         if let Some(owner) = self.playback.tile_owner(&self.sim, x, y) {
-            self.draw_territory_border(x, y, owner, center, tile_w, tile_h, tile.visible);
+            self.draw_territory_border(x, y, owner, center, tile_w, tile_h);
         }
         if tile.road {
             self.draw_road_sprites(assets, x, y, center, tile_w, tile_h);
@@ -498,9 +515,6 @@ impl Game {
             if !tile.visible && col == 4 {
                 self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
             }
-        }
-        if !tile.visible {
-            draw_diamond(center, tile_w, tile_h, Color::from_rgba(18, 29, 39, 112));
         }
     }
 
@@ -555,12 +569,7 @@ impl Game {
         tiles.sort_by(|a, b| a.4.y.total_cmp(&b.4.y));
         for &(_, _, x, y, center, relevant) in &tiles {
             if !relevant || !self.sim.tile(x, y).seen {
-                draw_diamond(
-                    center,
-                    layout.tile_w - 1.0,
-                    layout.tile_h - 1.0,
-                    Color::from_rgba(5, 15, 24, 255),
-                );
+                draw_diamond(center, layout.tile_w, layout.tile_h, BLACK);
             } else {
                 let tile = self.sim.tile(x, y);
                 draw_diamond(
@@ -569,15 +578,7 @@ impl Game {
                     layout.tile_h,
                     tile.terrain.minimap_color(),
                 );
-                self.draw_terrain_sprite(
-                    assets,
-                    x,
-                    y,
-                    center,
-                    layout.tile_w,
-                    layout.tile_h,
-                    tile.visible,
-                );
+                self.draw_terrain_sprite(assets, x, y, center, layout.tile_w, layout.tile_h);
             }
         }
         for &(_, _, x, y, center, relevant) in &tiles {
@@ -587,6 +588,17 @@ impl Game {
                     self.draw_city_at_scale(assets, city, center, layout.tile_w / TILE_W);
                 }
             }
+        }
+        for &(dx, dy, _, _, center, _) in &tiles {
+            let (mx, my) = native_to_map(city.x, city.y);
+            self.draw_corner_fog(assets, center, layout.tile_w, layout.tile_h, |ox, oy| {
+                let (nx, ny) = map_to_native(mx + dx + ox, my + dy + oy);
+                if !radius.contains(&(dx + ox, dy + oy)) {
+                    super::fog::Knowledge::Unknown
+                } else {
+                    self.fog_knowledge(nx, ny)
+                }
+            });
         }
         unsafe {
             get_internal_gl().quad_gl.scissor(None);

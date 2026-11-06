@@ -401,3 +401,44 @@ impl Simulation {
         (id, target)
     }
 }
+
+impl Simulation {
+    pub(crate) fn ui_review_fog(&mut self) -> u32 {
+        self.units.clear();
+        self.cities.clear();
+        for tile in &mut self.tiles {
+            tile.seen = false;
+            tile.visible = false;
+            tile.owner = None;
+        }
+        let id = self.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+        self.refresh_visibility();
+        for y in 17..=31 {
+            for x in 15..=25 {
+                let (mx, my) = native_to_map(x, y);
+                let (cx, cy) = native_to_map(20, 24);
+                let tile = self.tile_mut(x, y);
+                tile.terrain = if x < 19 {
+                    Terrain::Forest
+                } else if x > 22 {
+                    Terrain::Ocean
+                } else {
+                    Terrain::Grassland
+                };
+                tile.resource = None;
+                tile.base = None;
+                tile.hut = false;
+                tile.river = false;
+                tile.pollution = false;
+                tile.fallout = false;
+                tile.road = false;
+                tile.railroad = false;
+                let distance = isohex_vector_distance(mx - cx, my - cy);
+                tile.seen = distance <= 6;
+                tile.visible = distance <= 2;
+                tile.known_by[HUMAN] = tile.seen;
+            }
+        }
+        id
+    }
+}

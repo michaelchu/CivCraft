@@ -4,6 +4,7 @@ The following artwork comes from the local Freeciv source checkout. Original art
 
 | Project file | Original source path | Use |
 | --- | --- | --- |
+| assets/amplio2_fog.png and .spec | Freeciv data/amplio2/fog.png and fog.spec | Three-state corner fog transitions; Brendon Oram (Yautja) |
 | assets/amplio2_terrain1.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/terrain1.png | Isometric land tile textures |
 | assets/amplio2_terrain2.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/terrain2.png | Forest terrain overlays |
 | assets/amplio2_hills.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/hills.png | Connected hill terrain sprites |
@@ -19,4 +20,4 @@ The following artwork comes from the local Freeciv source checkout. Original art
 | assets/amplio2_cities.spec, civ2civ3_styles.ruleset, civ2civ3_city_art.ruleset | Freeciv data/amplio2/cities.spec and civ2civ3/styles.ruleset, effects.ruleset | Reference sprite tags, city styles and verbatim City_Image / Visible_Walls effect sections |
 | assets/amplio2_bases.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/bases.png | Fortifications and airfield sprites |
 
-The Amplio2 and Hexemplio specification files in the same checkout identify their artists and license the sheets under GPL v2. No logo, splash screen, flag, nation emblem, music, or sound file is included. The Hexemplio river sheet credits Yautja (pond/river sources) and GriffonSpade. The renderer adapts its hex footprints to the current diamond tiles at asset load. Fog, borders, panels, controls, minimap and faction banners use shapes and colours in Rust. Selection, status markers and battle explosions use the original reference artwork listed above.
+The Amplio2 and Hexemplio specification files in the same checkout identify their artists and license the sheets under GPL v2. No logo, splash screen, flag, nation emblem, music, or sound file is included. The Hexemplio river sheet credits Yautja (pond/river sources) and GriffonSpade. The renderer adapts its hex footprints to the current diamond tiles at asset load. Borders, panels, controls, minimap and faction banners use shapes and colours in Rust. Fog transitions, selection, status markers and battle explosions use the original reference artwork listed above.

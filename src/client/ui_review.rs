@@ -29,6 +29,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "unit-movement",
     "city-combat",
     "city-combat-explosion",
+    "fog-transitions",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -108,6 +109,15 @@ impl Game {
             }
             18 | 19 => {
                 self.sim.ui_review_rivers(scene == 19);
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.625
+                } else {
+                    1.0
+                };
+            }
+            28 => {
+                let unit = self.sim.ui_review_fog();
+                self.selected_unit = Some(unit);
                 self.zoom = if Self::viewport_rect().w < 760.0 {
                     0.625
                 } else {
@@ -202,6 +212,36 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if scene == 28 {
+            let visibility = |game: &Game| {
+                (0..MAP_W * MAP_H)
+                    .map(|i| {
+                        let tile = game.sim.tile(i % MAP_W, i / MAP_W);
+                        (tile.seen, tile.visible)
+                    })
+                    .collect::<Vec<_>>()
+            };
+            if phase == 1 {
+                let states = visibility(self);
+                sequence.check(
+                    "all_three_knowledge_states_present",
+                    states.contains(&(false, false))
+                        && states.contains(&(true, false))
+                        && states.contains(&(true, true)),
+                )?;
+            }
+            if phase == 6 {
+                let before = visibility(self);
+                let id = self.selected_unit.unwrap();
+                sequence.check(
+                    "fog_move_uses_real_command",
+                    self.move_selected(Command::Move(id, 1, 0), id),
+                )?;
+                sequence.check("movement_refreshes_visibility", before != visibility(self))?;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
         if (25..=27).contains(&scene) {
             if phase == 1 {
                 let id = self.selected_unit.unwrap();

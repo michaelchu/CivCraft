@@ -32,7 +32,7 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery covers 28 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 29 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 For a quick on-demand check, select a scene by name:
 
@@ -60,7 +60,7 @@ cargo test --offline
 - Cache border geometry by exact screen vertices and width. The cache is bounded to 4,096 entries; camera/zoom/resize changes use different keys. Ownership, visibility, colors, terrain and worker assignments are read live so rendering cannot retain an old simulation state.
 - Keep the production renderer and simulation commands in the test path. Gallery fixtures complement the desktop gameplay suite; scripted control clicks do not inject OS keyboard/mouse events.
 
-For the original 15 scenarios at 1280x720, two local profiling runs reduced setup from about 31–32 ms to 2.2–2.4 ms and captures from 30 to 18. The comparison run spent about 662 ms capturing/encoding PNGs before and 482 ms afterward, including the new pixel fingerprints. The optimization pass added three campaign flows, bringing that gallery to 23 captures at this size; the subsequent river, garrison and map-presentation cases bring the current gallery to 36. CPU draw submission averaged about 0.57 ms in both versions; these small scenes do not demonstrate a substantial FPS gain. Timings measure CPU submission, not GPU frame time.
+For the original 15 scenarios at 1280x720, two local profiling runs reduced setup from about 31–32 ms to 2.2–2.4 ms and captures from 30 to 18. The comparison run spent about 662 ms capturing/encoding PNGs before and 482 ms afterward, including the new pixel fingerprints. The optimization pass added three campaign flows, bringing that gallery to 23 captures at this size; the subsequent river, garrison and map-presentation cases bring the current gallery to 38. CPU draw submission averaged about 0.57 ms in both versions; these small scenes do not demonstrate a substantial FPS gain. Timings measure CPU submission, not GPU frame time.
 
 ## Validation on 2026-11-05
 
@@ -128,3 +128,18 @@ visible walls effects plus Amplio2 sprite tags. The six fictional factions
 have explicit initial themes; there is no Freeciv nation-selection feature.
 Their banners use the existing faction colors rather than unrelated national
 flags. See `UI_PARITY_AUDIT.md` for source pointers and validation coverage.
+
+
+## Fog transitions
+
+`--ui-scene fog-transitions` captures visible/remembered/unknown boundaries
+using the original Amplio2 corner atlas. Its second capture follows a real
+Move command and checks that simulation visibility changed. The same corner
+pass masks irrelevant tiles in the city worked-tile view. Full-world gallery
+runs also exercise generated maps, rivers, city masks, horizontal wrapping
+and polar limits. The renderer draws each lattice corner once, before units
+and labels; remembered terrain and borders no longer apply a second tint.
+Tests verify all 81 state-to-cell mappings, atlas alpha, horizontal wrapping
+and non-wrapping polar samples. The all-visible cell is intentionally unused,
+as in the reference's sprite spec. Runtime cells have one-pixel gutters,
+so fractional zoom cannot sample adjacent sprites or the unused credits cell.
