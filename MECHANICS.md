@@ -85,7 +85,7 @@ Every function listed above, plus the seven string-trace helpers, was requested 
 | Build map | 32 by 64 wrapped native tiles, 2,048 total | `_get_ratios` at `0x100031e9c` returns 1:1 for two-axis wrap. `_set_sizes` at `0x100031f5c` computes `scale = trunc(sqrt(2000 / (1 × 1 × 2 × 2²)) + 0.49) = 16`, then `width = 1 × 16 × 2` and `height = 1 × 16 × 2 × 2`. |
 | Land target | 30% | CivCraft uses the Civ2Civ3 land percentage when placing the shoreline. |
 | Generator | Local pseudofractal elevation, climate, relief, biome patches, rivers, water smoothing, lakes, resources, villages, and start placement | Reference `server/generator/mapgen.c`, `height_map.c`, and `startpos.c`. The Rust implementation is checked against Freeciv revision eb8c7033 for the default six-player Civ2Civ3 setup, using the same value for mapseed and gameseed. Regression checks cover terrain, elevation, extras, and start allocation. |
-| Wrap | Horizontal and vertical | reference/freeciv/data/civ2civ3/game.ruleset, WRAPX and WRAPY |
+| Wrap | CLI `--wrap x` (default) or `--wrap xy`; per-campaign cylinder or torus | reference/freeciv/data/civ2civ3/game.ruleset, WRAPX and WRAPY |
 | Starting year | 4000 BCE | reference/freeciv/data/civ2civ3/game.ruleset, calendar.start_year = -4000 |
 | Early calendar | 50 years per turn before 1000 BCE | reference/freeciv/data/civ2civ3/effects.ruleset, effect_calendar_base |
 | Later calendar | 25, 20, 10, 5, 2, then 1 year per turn at -1000, 0, 1000, 1500, 1750, 1900 | reference/freeciv/data/civ2civ3/effects.ruleset, effect_calendar_1 through effect_calendar_6 |
@@ -245,3 +245,22 @@ Threat-counter research now uses daitech.c:dai_wants_defender_against, including
 Raw military unhappiness is shared by city feelings and offensive advice. Police Stations increase the free military-content allowance instead of reducing each unit's cost. Government factors and allowances, Women's Suffrage, Statue of Zeus, King Richard's Crusade, FieldUnit behavior and base-class aggression follow the supplied effects and city_unit_unhappiness rules. Raw pressure is evaluated before citizen-feeling saturation. No bundled base has NoStackDeath: under the default killstack setting, only cities protect a stack, and offensive victim counts use that same rule as combat.
 
 Research goals now have an explicit UNSET state distinct from Future Tech. Existing real and Future indices are unchanged; only a goal may store the new sentinel. Matching goals clear when their technology is acquired, and all-negative advisor goals can clear too. The research UI falls back to the current project without drawing a nonexistent node. Save validation rejects the sentinel as an active or known technology, and commands reject it as an explicit human research choice. The existing automatic valid-current-target behavior is retained; the reference's inactive active-research state remains unsupported.
+
+## Configurable wrapping
+
+New games default to Freeciv's `WRAPX` cylinder option; `--wrap xy` retains the
+reference Civ2Civ3 preset's `WRAPX|WRAPY` torus. `MapWrap` is per campaign and is
+stored in new saves. Both modes currently use the existing 32×64 explicit map
+dimensions, rather than changing the size/aspect ratio when changing wrapping.
+Cylinder generation follows the reference's non-wrapped height-map boundary
+initialization and subdivision, singular-edge handling, linear north/south
+latitude, bounded neighbor iteration and zero-edge start-position smoothing.
+Torus exact-seed reference oracles remain unchanged.
+
+Source: `server/settings.c:1609`, `common/map.c:1565`,
+`server/generator/height_map.c:115–267`,
+`server/generator/mapgen_utils.c:186–236`. Gameplay distances, neighbors,
+worker/city radii, visibility and pathfinding share the campaign geometry.
+Cylinder camera bounds limit travel at the poles while preserving clearance
+for tall sprites and city labels; torus
+viewports, fog, artwork neighbors and route/animation seams wrap both axes.

@@ -12,9 +12,10 @@ impl Game {
     fn ocean_neighbor_match(&self, x: i32, y: i32, dx: i32, dy: i32, current: u8) -> u8 {
         let (mx, my) = native_to_map(x, y);
         let (neighbor_x, neighbor_y) = map_to_native(mx + dx, my + dy);
-        if !(0..MAP_H).contains(&neighbor_y) {
+        let Some((neighbor_x, neighbor_y)) = self.sim.map_wrap.normalize(neighbor_x, neighbor_y)
+        else {
             return current;
-        }
+        };
         if self.sim.render_tile(neighbor_x, neighbor_y).seen {
             self.ocean_match_type(neighbor_x, neighbor_y)
         } else {
@@ -145,7 +146,7 @@ impl Game {
         }
 
         let neighbors = ISOHEX_DIRS.map(|(dx, dy)| {
-            let Some((nx, ny)) = render_neighbor(x, y, dx, dy) else {
+            let Some((nx, ny)) = render_neighbor(self.sim.map_wrap, x, y, dx, dy) else {
                 return super::rivers::RiverNeighbor {
                     known: false,
                     river: false,
@@ -195,7 +196,7 @@ impl Game {
         has_city: bool,
     ) {
         let neighbors = ISOHEX_DIRS.map(|(dx, dy)| {
-            render_neighbor(x, y, dx, dy).map_or((false, false), |(nx, ny)| {
+            render_neighbor(self.sim.map_wrap, x, y, dx, dy).map_or((false, false), |(nx, ny)| {
                 let tile = self.sim.render_tile(nx, ny);
                 (tile.seen && tile.road, tile.seen && tile.railroad)
             })
@@ -236,7 +237,7 @@ impl Game {
 
         let mut geometry = self.border_geometry.borrow_mut();
         for (edge, (dx, dy)) in edge_neighbors.into_iter().enumerate() {
-            if render_neighbor(x, y, dx, dy)
+            if render_neighbor(self.sim.map_wrap, x, y, dx, dy)
                 .is_some_and(|(nx, ny)| self.playback.tile_owner(&self.sim, nx, ny) == Some(owner))
             {
                 continue;
@@ -259,7 +260,12 @@ impl Game {
         let tile_h = TILE_H * self.zoom;
         // Native rows are already in painter order. Cull before collecting and
         // project each visible tile once for both terrain passes.
-        let order = visible_world_tiles(viewport, self.camera_overview_position(), self.zoom);
+        let order = visible_world_tiles(
+            self.sim.map_wrap,
+            viewport,
+            self.camera_overview_position(),
+            self.zoom,
+        );
         let mut cities = std::collections::HashMap::new();
         let city_overrides = self.playback.city_overrides();
         let observed_cities = self.sim.render_cities();
@@ -351,9 +357,14 @@ impl Game {
         }
         // Bottom polar corners have no south tile to drive the ordinary
         // loop, but still blend the last row with the off-map remembered edge.
-        for y in MAP_H..MAP_H + 2 {
+        for y in MAP_H..if self.sim.map_wrap.wraps_y() {
+            MAP_H
+        } else {
+            MAP_H + 2
+        } {
             for x in 0..MAP_W {
                 let center = world_screen_position(
+                    self.sim.map_wrap,
                     viewport,
                     self.camera_overview_position(),
                     self.zoom,
@@ -539,7 +550,9 @@ impl Game {
             bounds.h,
             Color::from_rgba(8, 28, 48, 255),
         );
-        let radius: std::collections::HashSet<_> = Simulation::city_radius(city)
+        let radius: std::collections::HashSet<_> = self
+            .sim
+            .map_city_radius(city)
             .map(|(dx, dy, _, _)| (dx, dy))
             .collect();
         let span =
@@ -557,8 +570,9 @@ impl Game {
                 }
                 let (mx, my) = native_to_map(city.x, city.y);
                 let (x, y) = map_to_native(mx + dx, my + dy);
-                let x = x.rem_euclid(MAP_W);
-                let relevant = (0..MAP_H).contains(&y) && radius.contains(&(dx, dy));
+                let normalized = self.sim.map_wrap.normalize(x, y);
+                let relevant = normalized.is_some() && radius.contains(&(dx, dy));
+                let (x, y) = normalized.unwrap_or((x.rem_euclid(MAP_W), y));
                 tiles.push((dx, dy, x, y, center, relevant));
             }
         }
@@ -801,12 +815,8 @@ impl Game {
 }
 
 /// Rendering has horizontal seams and bounded polar rows.
-fn render_neighbor(x: i32, y: i32, dx: i32, dy: i32) -> Option<(i32, i32)> {
-    let (mx, my) = native_to_map(x, y);
-    let (nx, ny) = map_to_native(mx + dx, my + dy);
-    (0..MAP_H)
-        .contains(&ny)
-        .then_some((nx.rem_euclid(MAP_W), ny))
+fn render_neighbor(wrap: MapWrap, x: i32, y: i32, dx: i32, dy: i32) -> Option<(i32, i32)> {
+    wrap.offset(x, y, dx, dy)
 }
 
 fn road_sprite_cells(rail: bool, city: bool, neighbors: [(bool, bool); 6]) -> Vec<(i32, i32)> {
@@ -838,9 +848,12 @@ mod infrastructure_tests {
     use super::*;
     #[test]
     fn map_connections_stop_at_poles_and_still_wrap_horizontally() {
-        assert_eq!(render_neighbor(0, 0, 0, -1), None);
-        assert_eq!(render_neighbor(0, MAP_H - 1, 1, 0), None);
-        assert_eq!(render_neighbor(0, 0, -1, 1), Some((MAP_W - 1, 0)));
+        assert_eq!(render_neighbor(MapWrap::X, 0, 0, 0, -1), None);
+        assert_eq!(render_neighbor(MapWrap::X, 0, MAP_H - 1, 1, 0), None);
+        assert_eq!(
+            render_neighbor(MapWrap::X, 0, 0, -1, 1),
+            Some((MAP_W - 1, 0))
+        );
     }
     #[test]
     fn mixed_rail_junction_finishes_roads_before_rails_and_keeps_isolated_rail() {
@@ -857,6 +870,7 @@ mod infrastructure_tests {
 /// Preserve the original projection and float operation
 /// order so rendering optimizations do not shift existing artwork by a pixel.
 pub(super) fn world_screen_position(
+    wrap: MapWrap,
     viewport: Rect,
     camera: Vec2,
     zoom: f32,
@@ -867,12 +881,22 @@ pub(super) fn world_screen_position(
     let half_width = MAP_W as f32;
     let dx = (tile_x - camera.x + half_width).rem_euclid(2.0 * half_width) - half_width;
     let dy = y as f32 - camera.y;
+    let dy = if wrap.wraps_y() {
+        (dy + MAP_H as f32 * 0.5).rem_euclid(MAP_H as f32) - MAP_H as f32 * 0.5
+    } else {
+        dy
+    };
     vec2(
         viewport.x + viewport.w * 0.5 + dx * TILE_W * 0.5 * zoom,
         viewport.y + viewport.h * 0.47 + dy * TILE_H * 0.5 * zoom,
     )
 }
-fn visible_world_tiles(viewport: Rect, camera: Vec2, zoom: f32) -> Vec<(i32, i32, Vec2)> {
+fn visible_world_tiles(
+    wrap: MapWrap,
+    viewport: Rect,
+    camera: Vec2,
+    zoom: f32,
+) -> Vec<(i32, i32, Vec2)> {
     let origin = viewport.y + viewport.h * 0.47;
     let step = TILE_H * 0.5 * zoom;
     let first = (camera.y + (viewport.y - 80.0 - origin) / step)
@@ -881,10 +905,15 @@ fn visible_world_tiles(viewport: Rect, camera: Vec2, zoom: f32) -> Vec<(i32, i32
     let last = (camera.y + (viewport.bottom() + 80.0 - origin) / step)
         .ceil()
         .min((MAP_H - 1) as f32) as i32;
+    let (first, last) = if wrap.wraps_y() {
+        (0, MAP_H - 1)
+    } else {
+        (first, last)
+    };
     let mut tiles = Vec::with_capacity(((last - first + 1).max(0) * MAP_W) as usize);
     for y in first..=last {
         for x in 0..MAP_W {
-            let center = world_screen_position(viewport, camera, zoom, x, y);
+            let center = world_screen_position(wrap, viewport, camera, zoom, x, y);
             if center.x < viewport.x - TILE_W * zoom
                 || center.x > viewport.right() + TILE_W * zoom
                 || center.y < viewport.y - 80.0
@@ -894,6 +923,9 @@ fn visible_world_tiles(viewport: Rect, camera: Vec2, zoom: f32) -> Vec<(i32, i32
             }
             tiles.push((x, y, center));
         }
+    }
+    if wrap.wraps_y() {
+        tiles.sort_by(|a, b| a.2.y.total_cmp(&b.2.y));
     }
     tiles
 }
@@ -915,7 +947,13 @@ mod visibility_tests {
                 for zoom in [MIN_ZOOM, START_ZOOM, MAX_ZOOM] {
                     let mut reference: Vec<_> = (0..MAP_H)
                         .flat_map(|y| (0..MAP_W).map(move |x| (x, y)))
-                        .map(|(x, y)| (x, y, world_screen_position(viewport, camera, zoom, x, y)))
+                        .map(|(x, y)| {
+                            (
+                                x,
+                                y,
+                                world_screen_position(MapWrap::X, viewport, camera, zoom, x, y),
+                            )
+                        })
                         .collect();
                     reference.sort_by(|a, b| a.2.y.total_cmp(&b.2.y));
                     reference.retain(|(_, _, p)| {
@@ -924,7 +962,10 @@ mod visibility_tests {
                             || p.y < viewport.y - 80.0
                             || p.y > viewport.bottom() + 80.0)
                     });
-                    assert_eq!(visible_world_tiles(viewport, camera, zoom), reference);
+                    assert_eq!(
+                        visible_world_tiles(MapWrap::X, viewport, camera, zoom),
+                        reference
+                    );
                 }
             }
         }
@@ -991,5 +1032,25 @@ mod representative_tests {
                 .id,
             cargo.id
         );
+    }
+}
+
+#[cfg(test)]
+mod wrap_projection_tests {
+    use super::*;
+    #[test]
+    fn torus_rows_cross_the_vertical_seam_in_painter_order() {
+        let viewport = Rect::new(0.0, 46.0, 964.0, 550.0);
+        let camera = vec2(20.0, MAP_H as f32 - 0.2);
+        let torus = visible_world_tiles(MapWrap::XY, viewport, camera, 1.0);
+        assert!(torus.iter().any(|t| t.1 == 0));
+        assert!(torus.iter().any(|t| t.1 == MAP_H - 1));
+        assert!(torus.windows(2).all(|p| p[0].2.y <= p[1].2.y));
+        let cylinder = visible_world_tiles(MapWrap::X, viewport, camera, 1.0);
+        assert!(cylinder.iter().all(|t| t.1 > MAP_H / 2));
+        let a = world_screen_position(MapWrap::XY, viewport, camera, 1.0, 10, MAP_H - 1);
+        let (x, y) = MapWrap::XY.offset(10, MAP_H - 1, 1, 0).unwrap();
+        let b = world_screen_position(MapWrap::XY, viewport, camera, 1.0, x, y);
+        assert!((a.y - b.y).abs() <= TILE_H * 0.5 + 0.01);
     }
 }

@@ -1,4 +1,6 @@
-use super::{terrain_work::neighbors, *};
+#[cfg(test)]
+use super::terrain_work::neighbors;
+use super::*;
 use crate::rules::Genus;
 
 #[derive(Clone, Copy)]
@@ -55,7 +57,10 @@ impl Simulation {
             Disaster::Earthquake => self.tile(city.x, city.y).terrain == Terrain::Hills,
             Disaster::Flood => {
                 self.tile(city.x, city.y).river
-                    || neighbors(city.x, city.y).any(|(x, y)| self.tile(x, y).river)
+                    || self
+                        .map_wrap
+                        .neighbors(city.x, city.y)
+                        .any(|(x, y)| self.tile(x, y).river)
             }
             Disaster::Fire => city.size >= 9,
             Disaster::IndustrialAccident => city.has_building(Building::MFG_PLANT),

@@ -1,4 +1,4 @@
-use super::{terrain_work::neighbors, *};
+use super::*;
 
 const CITY_WORK_RADIUS_SQ: i32 = 5;
 const PERMANENT_RADIUS_SQ: i32 = CITY_WORK_RADIUS_SQ - 3;
@@ -62,7 +62,10 @@ impl Simulation {
             .filter(|(_, tile)| tile.terrain.is_water())
         {
             let region = regions[index];
-            for (x, y) in neighbors(Self::xy(index).0, Self::xy(index).1) {
+            for (x, y) in self
+                .map_wrap
+                .neighbors(Self::xy(index).0, Self::xy(index).1)
+            {
                 let neighbor = Self::idx(x, y);
                 if self.tiles[neighbor].terrain.is_water() {
                     continue;
@@ -97,7 +100,11 @@ impl Simulation {
                 return true;
             }
             let (x, y) = Self::xy(index);
-            let adjacent = || neighbors(x, y).map(|(x, y)| regions[Self::idx(x, y)]);
+            let adjacent = || {
+                self.map_wrap
+                    .neighbors(x, y)
+                    .map(|(x, y)| regions[Self::idx(x, y)])
+            };
             adjacent().any(|region| sizes[region] <= 3)
                 && adjacent().any(|region| region == source)
                 && adjacent().all(|region| region == source || region == target)
@@ -120,7 +127,10 @@ impl Simulation {
             let (mx, my) = native_to_map(city.x, city.y);
             for dy in -radius..=radius {
                 for dx in -radius..=radius {
-                    let (x, y) = map_pos_to_native(mx + dx, my + dy);
+                    let (nx, ny) = map_to_native(mx + dx, my + dy);
+                    let Some((x, y)) = self.map_wrap.normalize(nx, ny) else {
+                        continue;
+                    };
                     let index = Self::idx(x, y);
                     let (distance_sq, strength) = claim_strength(city, index);
                     if claimable(city, index, distance_sq)
@@ -161,7 +171,7 @@ impl Simulation {
             while let Some(tile) = pending.pop() {
                 sizes[region] += 1;
                 let (x, y) = Self::xy(tile);
-                for (nx, ny) in neighbors(x, y) {
+                for (nx, ny) in self.map_wrap.neighbors(x, y) {
                     let next = Self::idx(nx, ny);
                     if regions[next] == usize::MAX && self.tiles[next].terrain.is_water() == water {
                         regions[next] = region;

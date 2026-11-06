@@ -560,3 +560,33 @@ impl Simulation {
         (id, offset_native_by_map(20, 24, 3, 0))
     }
 }
+
+impl Simulation {
+    pub(crate) fn ui_review_reveal_poles(&mut self) {
+        for tile in &mut self.tiles {
+            tile.seen = true;
+            tile.visible = true;
+            tile.known_by[HUMAN] = true;
+        }
+        self.ui_review_record_knowledge();
+    }
+    pub(crate) fn ui_review_wrap_seam(&mut self) -> u32 {
+        self.ui_review_terrain_layers(false);
+        for (index, tile) in self.tiles.iter_mut().enumerate() {
+            let y = index as i32 / MAP_W;
+            tile.terrain = if y == 0 {
+                Terrain::Tundra
+            } else if y == MAP_H - 1 {
+                Terrain::Desert
+            } else {
+                Terrain::Grassland
+            };
+            tile.visible = true;
+            tile.seen = true;
+            tile.owner = None;
+            tile.last_seen_owner = None;
+        }
+        self.ui_review_record_knowledge();
+        self.spawn_unit(HUMAN, UnitKind::Warrior, 12, 0)
+    }
+}

@@ -299,7 +299,7 @@ impl Simulation {
         }
         // A fully occupied island removes expansion bids without changing
         // city or military wants. Its workable radius still has ample land.
-        for (_, _, x, y) in Self::city_radius_at(12, 24) {
+        for (_, _, x, y) in self.map_city_radius_at(12, 24) {
             let tile = self.tile_mut(x, y);
             tile.terrain = Terrain::Grassland;
             tile.river = true;

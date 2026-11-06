@@ -48,7 +48,9 @@ impl Simulation {
                 for dx in -5..=5 {
                     for dy in -5..=5 {
                         if isohex_vector_distance(dx, dy).pow(2) <= 30 {
-                            let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+                            let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+                                continue;
+                            };
                             let tile = self.tile_mut(nx, ny);
                             tile.known_by[owner] = true;
                             if owner == HUMAN {
@@ -116,13 +118,17 @@ impl Simulation {
                 .iter()
                 .copied()
                 .filter(|&(dx, dy)| {
-                    let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+                    let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+                        return false;
+                    };
                     self.units
                         .iter()
                         .all(|unit| (unit.x, unit.y) != (nx, ny) || unit.owner == BARBARIANS)
                 })
                 .partition(|&(dx, dy)| {
-                    let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+                    let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+                        return false;
+                    };
                     !self.tile(nx, ny).terrain.is_water()
                 });
 
@@ -160,7 +166,10 @@ impl Simulation {
 
             let boat = if land.len() < 3 && !water.is_empty() {
                 let (dx, dy) = water[self.rand_below(water.len() as i32) as usize];
-                let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+                let (nx, ny) = self
+                    .map_wrap
+                    .offset(x, y, dx, dy)
+                    .expect("selected valid village neighbor");
                 let kind = [UnitKind::Caravel, UnitKind::Galleon][self.rand_below(2) as usize];
                 Some((self.spawn_unit(BARBARIANS, kind, nx, ny), kind, nx, ny))
             } else {

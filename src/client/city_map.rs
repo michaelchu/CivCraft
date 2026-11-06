@@ -82,9 +82,9 @@ impl Game {
         self.draw_city_map(assets, city, &layout);
         let mouse = ui_pointer();
         let mut outlined_tiles = Vec::new();
-        for (dx, dy, x, y) in Simulation::city_radius(city) {
+        for (dx, dy, x, y) in self.sim.map_city_radius(city) {
             let tile = self.sim.tile(x, y);
-            if !(0..MAP_H).contains(&(city.y + dx + dy)) || !tile.seen {
+            if !tile.seen {
                 continue;
             }
             let is_city = (dx, dy) == (0, 0);

@@ -1,4 +1,6 @@
-use super::{terrain_work::neighbors, *};
+#[cfg(test)]
+use super::terrain_work::neighbors;
+use super::*;
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(super) struct ClimatePressure {
@@ -80,7 +82,7 @@ impl Simulation {
     fn climate_target(&self, x: i32, y: i32, warming: bool) -> Option<Terrain> {
         let tile = self.tile(x, y);
         let wet = tile.river
-            || neighbors(x, y).any(|(nx, ny)| {
+            || self.map_wrap.neighbors(x, y).any(|(nx, ny)| {
                 let adjacent = self.tile(nx, ny);
                 adjacent.terrain.is_water() || adjacent.river
             });

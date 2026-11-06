@@ -1,5 +1,5 @@
 use super::normal_paths::GotoTask;
-use super::{terrain_work::neighbors, *};
+use super::*;
 use crate::rules::Genus;
 use std::collections::BTreeMap;
 
@@ -111,7 +111,7 @@ impl Simulation {
             if (x, y) == (b.x, b.y) {
                 return true;
             }
-            for (nx, ny) in neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.neighbors(x, y) {
                 let index = Self::idx(nx, ny);
                 if !seen[index] && !self.tiles[index].terrain.is_water() {
                     seen[index] = true;
@@ -282,7 +282,9 @@ impl Simulation {
             {
                 continue;
             }
-            let sea_approach = neighbors(lx, ly)
+            let sea_approach = self
+                .map_wrap
+                .neighbors(lx, ly)
                 .filter(|&(x, y)| {
                     self.tile(x, y).terrain.is_water()
                         && !self.units.iter().any(|unit| {
@@ -404,7 +406,7 @@ impl Simulation {
             let foot_allowance = self.unit_move_rate(&passenger).max(1);
             let mut endpoint = (passenger.x, passenger.y);
             for &(dx, dy) in &pickup_walk {
-                endpoint = offset_native_by_map(endpoint.0, endpoint.1, dx, dy);
+                endpoint = self.map_wrap.offset(endpoint.0, endpoint.1, dx, dy)?;
             }
             let walk_cost = self
                 .route_cost_within(&passenger, endpoint.0, endpoint.1, i32::MAX)
@@ -426,7 +428,9 @@ impl Simulation {
                     .get(&merchant.id)
                     .is_some_and(|mission| mission.city == city.id)
             }) {
-                let approach = neighbors(city.x, city.y)
+                let approach = self
+                    .map_wrap
+                    .neighbors(city.x, city.y)
                     .filter(|&(x, y)| {
                         self.tile(x, y).terrain.is_water()
                             && !self.units.iter().any(|unit| {
@@ -579,7 +583,7 @@ impl Simulation {
                     .iter()
                     .any(|unit| unit.id == ship && (unit.x, unit.y) == (x, y));
                 if arrived {
-                    let (dx, dy) = wrapped_map_vector(x, y, lx, ly);
+                    let (dx, dy) = self.map_wrap.vector(x, y, lx, ly);
                     if self.try_move_unit(merchant.id, dx, dy) == MoveResult::Moved
                         && let Some(walker) = self
                             .units
@@ -627,7 +631,8 @@ impl Simulation {
         {
             Some((0, current.0, current.1))
         } else {
-            neighbors(city.x, city.y)
+            self.map_wrap
+                .neighbors(city.x, city.y)
                 .chain([(city.x, city.y)])
                 .filter(|&(x, y)| !self.tile(x, y).terrain.is_water())
                 .filter_map(|(x, y)| {

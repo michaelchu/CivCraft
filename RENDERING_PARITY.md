@@ -66,8 +66,7 @@ used by the GoTo command. Cyan segments, original Amplio2 destination and
 exhausted-movement markers, and zero-based arrival turn digits show the planned
 route. Movement fragments, roads, already-depleted units, impassable destinations
 and visible transport boarding use existing movement rules. Lines are clipped
-to the world viewport and split at horizontal seams; the bounded viewport does
-not repeat vertically. The observed movement-cost helper was aligned with actual execution for river
+to the world viewport and split at horizontal seams; the viewport follows the campaign wrap mode. The observed movement-cost helper was aligned with actual execution for river
 discounts, hostile infrastructure, wheeled terrain access and transport boarding;
 regression tests compare preview positions and movement points with real commands.
 Route markers and digits are copied into a transparent padded atlas so source
@@ -96,3 +95,8 @@ Final validation: 556/556 Rust tests, 278/278 native gameplay checks, and
 captures). The terrain, layer/city-map, remembered-city before/after and route
 captures were visually inspected. The compact route atlas was padded after
 inspection caught source grid-line bleed. Formatting and diff checks pass.
+
+Wrap settings were subsequently made configurable: the default `--wrap x` has
+bounded poles, and `--wrap xy` displays the torus continuously across both seams.
+The earlier horizontal-only rendering boundary is no longer applied to torus
+campaigns. See README.md and MECHANICS.md for the CLI and geometry contract.

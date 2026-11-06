@@ -63,6 +63,7 @@ impl Default for Node {
 }
 
 pub(super) struct FuelPaths {
+    map_wrap: MapWrap,
     actor: Unit,
     rate: i32,
     type_fuel: i32,
@@ -111,6 +112,7 @@ impl FuelPaths {
             .wrapping_add((i32::from(unit.fuel) - 1).wrapping_mul(rate));
         let start = Simulation::idx(unit.x, unit.y);
         let mut map = Self {
+            map_wrap: sim.map_wrap,
             actor: unit.clone(),
             rate,
             type_fuel,
@@ -295,7 +297,9 @@ impl FuelPaths {
             };
             let (x, y) = Simulation::xy(cursor);
             let (dx, dy) = ISOHEX_DIRS[direction];
-            let (px, py) = offset_native_by_map(x, y, -dx, -dy);
+            let Some((px, py)) = self.map_wrap.offset(x, y, -dx, -dy) else {
+                continue;
+            };
             cursor = Simulation::idx(px, py);
             if let Some(position) = self.nodes[cursor].pos
                 && self.same_snapshot(position, cursor)
@@ -367,7 +371,9 @@ impl FuelPaths {
                 }
                 let (x, y) = Simulation::xy(index);
                 for (direction, (dx, dy)) in ISOHEX_DIRS.into_iter().enumerate() {
-                    let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+                    let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+                        continue;
+                    };
                     let next = Simulation::idx(nx, ny);
                     if matches!(self.nodes[next].status, Status::Processed | Status::Waiting)
                         && self.nodes[next].required == 0
@@ -546,7 +552,7 @@ impl FuelPaths {
             let step = ISOHEX_DIRS[direction];
             backwards.push(step);
             let point = Simulation::xy(index);
-            let previous = offset_native_by_map(point.0, point.1, -step.0, -step.1);
+            let previous = self.map_wrap.offset(point.0, point.1, -step.0, -step.1)?;
             index = Simulation::idx(previous.0, previous.1);
             segment = position.previous?;
         }

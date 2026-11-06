@@ -18,7 +18,7 @@ impl Simulation {
                 && self.map_distance(actor.x, actor.y, target.x, target.y)
                     <= actor.moves_left / 2 + 1
         }) {
-            for (x, y) in super::terrain_work::neighbors(target.x, target.y) {
+            for (x, y) in self.map_wrap.neighbors(target.x, target.y) {
                 if self.tile(x, y).terrain.is_water()
                     || self.units.iter().any(|unit| {
                         (unit.x, unit.y) == (x, y) && self.at_war(actor.owner, unit.owner)
@@ -35,7 +35,10 @@ impl Simulation {
                 }
                 let mut projected = actor.clone();
                 for &(dx, dy) in &path {
-                    let next = offset_native_by_map(projected.x, projected.y, dx, dy);
+                    let Some(next) = self.map_wrap.offset(projected.x, projected.y, dx, dy) else {
+                        projected.moves_left = 0;
+                        break;
+                    };
                     let Some(cost) = self.movement_cost_for(&projected, next.0, next.1) else {
                         projected.moves_left = 0;
                         break;
@@ -159,7 +162,9 @@ impl Simulation {
                 false,
             );
         }
-        let (dx, dy) = wrapped_map_vector(diplomat.x, diplomat.y, victim.x, victim.y);
+        let (dx, dy) = self
+            .map_wrap
+            .vector(diplomat.x, diplomat.y, victim.x, victim.y);
         if self.try_move_unit(actor, dx, dy) == MoveResult::Blocked
             && let Some(unit) = self.units.iter_mut().find(|unit| unit.id == actor)
         {

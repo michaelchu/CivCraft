@@ -34,6 +34,9 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "map-layers",
     "remembered-map",
     "goto-preview",
+    "north-pole",
+    "south-pole",
+    "wrap-seam",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -56,7 +59,7 @@ impl UiReviewSources {
 
 impl Game {
     pub(crate) fn prepare_ui_review(&mut self, scene: usize, sources: &UiReviewSources) {
-        let baseline = if matches!(scene, 0 | 15..=17 | 20) {
+        let baseline = if matches!(scene, 0 | 15..=17 | 20 | 33 | 34) {
             &sources.initial
         } else {
             &sources.fixture
@@ -128,6 +131,26 @@ impl Game {
                     1.0
                 };
             }
+            33 | 34 => {
+                self.sim.ui_review_reveal_poles();
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.625
+                } else {
+                    1.0
+                };
+                self.focus_camera_on(MAP_W / 2, if scene == 33 { 0 } else { MAP_H - 1 });
+                return;
+            }
+            35 => {
+                self.selected_unit = Some(self.sim.ui_review_wrap_seam());
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.625
+                } else {
+                    1.0
+                };
+                self.focus_camera_on(12, 0);
+                return;
+            }
             31 => {
                 let (_, focus) = self.sim.ui_review_observed_map();
                 self.zoom = if Self::viewport_rect().w < 760.0 {
@@ -149,6 +172,7 @@ impl Game {
                 };
                 self.focus_camera_on(20, 24);
                 let point = world::world_screen_position(
+                    self.sim.map_wrap,
                     Self::viewport_rect(),
                     self.camera_overview_position(),
                     self.zoom,
@@ -256,6 +280,29 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if scene == 35 {
+            if phase == 6 {
+                let id = self.selected_unit.unwrap();
+                let wrapping = self.sim.map_wrap.wraps_y();
+                let moved = self.move_selected(Command::Move(id, 0, -1), id);
+                sequence.check("movement_obeys_configured_vertical_seam", moved == wrapping)?;
+                let unit = self.sim.units().iter().find(|u| u.id == id).unwrap();
+                sequence.check(
+                    "vertical_seam_has_expected_destination",
+                    unit.y == if wrapping { MAP_H - 1 } else { 0 },
+                )?;
+                if !wrapping {
+                    sequence.check(
+                        "bounded_map_still_accepts_real_move",
+                        self.move_selected(Command::Move(id, 1, 0), id),
+                    )?;
+                }
+                self.sim.take_visual_events();
+                self.playback.finish();
+                return Ok(true);
+            }
+            return Ok(false);
+        }
         if scene == 29 {
             if phase == 1 {
                 sequence.check(

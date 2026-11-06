@@ -156,10 +156,12 @@ impl Simulation {
         granted: Option<Tech>,
     ) -> bool {
         let nearby = || {
-            std::iter::once((0, 0)).chain(ISOHEX_DIRS).map(|(dx, dy)| {
-                let (x, y) = offset_native_by_map(city.x, city.y, dx, dy);
-                self.tile(x, y)
-            })
+            std::iter::once((0, 0))
+                .chain(ISOHEX_DIRS)
+                .filter_map(|(dx, dy)| {
+                    let (x, y) = self.map_wrap.offset(city.x, city.y, dx, dy)?;
+                    Some(self.tile(x, y))
+                })
         };
         let matches = match requirement {
             Requirement::Tech(id) => {

@@ -418,7 +418,7 @@ impl Simulation {
             regions[start] = label;
             let mut pending = vec![Self::xy(start)];
             while let Some((x, y)) = pending.pop() {
-                for (nx, ny) in terrain_work::neighbors(x, y) {
+                for (nx, ny) in self.map_wrap.neighbors(x, y) {
                     let index = Self::idx(nx, ny);
                     if regions[index] == 0 && self.tiles[index].terrain.is_water() == water {
                         regions[index] = label;
@@ -456,7 +456,7 @@ impl Simulation {
                 if label < 0 {
                     threatened_oceans.insert(label);
                 } else {
-                    for (x, y) in terrain_work::neighbors(unit.x, unit.y) {
+                    for (x, y) in self.map_wrap.neighbors(unit.x, unit.y) {
                         let label = regions[Self::idx(x, y)];
                         if label < 0 {
                             threatened_oceans.insert(label);
@@ -465,12 +465,15 @@ impl Simulation {
                 }
             }
         }
-        let coastal =
-            terrain_work::neighbors(city.x, city.y).any(|(x, y)| regions[Self::idx(x, y)] < 0);
+        let coastal = self
+            .map_wrap
+            .neighbors(city.x, city.y)
+            .any(|(x, y)| regions[Self::idx(x, y)] < 0);
         let ocean_threat = if continent < 0 {
             threatened_oceans.contains(&continent)
         } else {
-            terrain_work::neighbors(city.x, city.y)
+            self.map_wrap
+                .neighbors(city.x, city.y)
                 .any(|(x, y)| threatened_oceans.contains(&regions[Self::idx(x, y)]))
         };
         DefenseEffectContext {
@@ -961,7 +964,9 @@ impl Simulation {
                 continue;
             }
             let mut value = self.city_forecast(city).shield_surplus();
-            if super::terrain_work::neighbors(city.x, city.y)
+            if self
+                .map_wrap
+                .neighbors(city.x, city.y)
                 .any(|(x, y)| self.tile(x, y).terrain.is_water())
             {
                 value /= 2;
@@ -1086,7 +1091,7 @@ impl Simulation {
             }
             (actor.x, actor.y) = Self::xy(index);
             let remaining = allowance - spent % allowance;
-            for (x, y) in super::terrain_work::neighbors(actor.x, actor.y) {
+            for (x, y) in self.map_wrap.neighbors(actor.x, actor.y) {
                 let index = Self::idx(x, y);
                 let cost = self.movement_cost_for(&actor, x, y).or_else(|| {
                     // A ship's reverse attack map overlaps the coastal city,

@@ -32,7 +32,7 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery covers 33 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 36 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 For a quick on-demand check, select a scene by name:
 
@@ -153,3 +153,19 @@ a foreign city's former name, walls, style and terrain until vision returns.
 `goto-preview` positions the shared test pointer over a multi-turn destination
 and then executes the real GoTo command. See [RENDERING_PARITY.md](RENDERING_PARITY.md)
 for reference sources, save migration and fidelity boundaries.
+
+### Wrap and polar checks
+
+`north-pole` and `south-pole` reveal the actual generated terrain and focus the
+viewport at its northern/southern limits. `wrap-seam` stages a unit at the top
+edge and executes the same real Move command: it crosses in `--wrap xy`, and is
+rejected in default `--wrap x` before an allowed move confirms input still works.
+Run the gallery separately with each CLI mode; the sidebar identifies the mode.
+
+Wrap validation: 562/562 Rust tests, including reproducible cylinder generation,
+12-turn cylinder campaigns, per-mode movement/sight/path/city-radius checks,
+new-save mode persistence, and unchanged torus seed oracles. Both modes passed
+278/278 native gameplay checks and all 36 gallery scenes at 1280x720 and 800x600
+(49 desktop / 50 compact captures per mode). Polar sprites, camera clearance,
+minimap seam outlines and actual blocked/allowed crossing screenshots were
+visually inspected. Formatting and whitespace checks passed.

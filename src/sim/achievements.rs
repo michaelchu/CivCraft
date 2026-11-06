@@ -1,4 +1,4 @@
-use super::{terrain_work::neighbors, *};
+use super::*;
 
 #[derive(Clone, Copy)]
 pub(super) enum Achievement {
@@ -56,7 +56,7 @@ impl Simulation {
             labels[index] = continent;
             let mut pending = vec![Self::xy(index)];
             while let Some((x, y)) = pending.pop() {
-                for (nx, ny) in neighbors(x, y) {
+                for (nx, ny) in self.map_wrap.neighbors(x, y) {
                     let index = Self::idx(nx, ny);
                     if labels[index] == 0 && !self.tiles[index].terrain.is_water() {
                         labels[index] = continent;

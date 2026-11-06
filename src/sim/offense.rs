@@ -162,7 +162,10 @@ impl Simulation {
 
     fn offensive_native_near(&self, kind: UnitKind, x: i32, y: i32) -> bool {
         self.pf_native_tile(kind, x, y)
-            || super::terrain_work::neighbors(x, y).any(|(x, y)| self.pf_native_tile(kind, x, y))
+            || self
+                .map_wrap
+                .neighbors(x, y)
+                .any(|(x, y)| self.pf_native_tile(kind, x, y))
     }
 
     fn offensive_can_attack(&self, kind: UnitKind, x: i32, y: i32) -> bool {
@@ -184,7 +187,7 @@ impl Simulation {
         let mut best = None;
         let mut best_cost = i32::MAX;
         if cargo.has_marine_attack() {
-            for (x, y) in super::terrain_work::neighbors(x, y) {
+            for (x, y) in self.map_wrap.neighbors(x, y) {
                 if let Some(cost) = map.movement_cost(self, x, y)
                     && cost < best_cost
                 {
@@ -194,11 +197,11 @@ impl Simulation {
             }
         } else {
             let mut checked = std::collections::HashSet::from([(x, y)]);
-            for (bx, by) in super::terrain_work::neighbors(x, y) {
+            for (bx, by) in self.map_wrap.neighbors(x, y) {
                 if !self.pf_native_tile(cargo, bx, by) {
                     continue;
                 }
-                for (sx, sy) in super::terrain_work::neighbors(bx, by) {
+                for (sx, sy) in self.map_wrap.neighbors(bx, by) {
                     if !checked.insert((sx, sy))
                         || self
                             .tile_units_ordered(sx, sy)
@@ -230,7 +233,7 @@ impl Simulation {
             }
             let tiles: Vec<_> = if self.tile(x, y).terrain.is_water() {
                 std::iter::once((x, y))
-                    .chain(super::terrain_work::neighbors(x, y))
+                    .chain(self.map_wrap.neighbors(x, y))
                     .collect()
             } else {
                 vec![(x, y)]
@@ -277,7 +280,8 @@ impl Simulation {
                             .find(|kind| kind.has_role(UnitRole::Ferryboat))
                     })
                     .filter(|_| {
-                        super::terrain_work::neighbors(seed.x, seed.y)
+                        self.map_wrap
+                            .neighbors(seed.x, seed.y)
                             .any(|(x, y)| self.tile(x, y).terrain.is_water())
                     })
                     .map(|kind| self.make_unit(0, seed.owner, kind, seed.x, seed.y))

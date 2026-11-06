@@ -148,7 +148,7 @@ impl Simulation {
             .flat_map(|city| {
                 ISOHEX_DIRS
                     .into_iter()
-                    .map(move |(dx, dy)| offset_native_by_map(city.x, city.y, dx, dy))
+                    .filter_map(move |(dx, dy)| self.map_wrap.offset(city.x, city.y, dx, dy))
             })
             .filter(|&(x, y)| !self.tile(x, y).terrain.is_water())
             .filter(|&(x, y)| {
@@ -161,9 +161,11 @@ impl Simulation {
                         .all(|city| (city.x, city.y) != (x, y) || city.owner == boat.owner)
             })
             .flat_map(|(lx, ly)| {
-                ISOHEX_DIRS
-                    .into_iter()
-                    .map(move |(dx, dy)| (offset_native_by_map(lx, ly, -dx, -dy), (dx, dy)))
+                ISOHEX_DIRS.into_iter().filter_map(move |(dx, dy)| {
+                    self.map_wrap
+                        .offset(lx, ly, -dx, -dy)
+                        .map(|p| (p, (dx, dy)))
+                })
             })
             .filter(|&((x, y), _)| self.tile(x, y).terrain.is_water())
             .filter_map(|((x, y), direction)| {
@@ -422,7 +424,9 @@ impl Simulation {
             assigned.extend(troop_ids.iter().copied());
             for &ship in &ship_ids {
                 self.refresh_ferry_boss(ship);
-                self.ai_ferry_goto_waypoint(ship, (x, y), offset_native_by_map(x, y, dx, dy));
+                if let Some(target) = self.map_wrap.offset(x, y, dx, dy) {
+                    self.ai_ferry_goto_waypoint(ship, (x, y), target);
+                }
             }
             if ship_ids.iter().all(|id| {
                 self.units
@@ -603,9 +607,9 @@ impl Simulation {
         }
 
         if let Some((dx, dy)) = ISOHEX_DIRS.into_iter().find(|&(dx, dy)| {
-            let location = offset_native_by_map(boat.x, boat.y, dx, dy);
+            let location = self.map_wrap.offset(boat.x, boat.y, dx, dy);
             self.cities.iter().any(|city| {
-                (city.x, city.y) == location
+                Some((city.x, city.y)) == location
                     && self.at_war(city.owner, boat.owner)
                     && (boat.owner == BARBARIANS
                         || cargo.iter().any(|id| {
@@ -624,8 +628,8 @@ impl Simulation {
                         && unit.kind.has_marine_attack()
                         && (boat.owner == BARBARIANS
                             || self.cities.iter().any(|city| {
-                                let target = offset_native_by_map(boat.x, boat.y, dx, dy);
-                                (city.x, city.y) == target
+                                let target = self.map_wrap.offset(boat.x, boat.y, dx, dy);
+                                Some((city.x, city.y)) == target
                                     && self.assault_capture_chance(city, &[unit]) >= 0.5
                             }))
                 }) && self.try_move_unit(id, dx, dy) != MoveResult::Blocked
@@ -666,7 +670,9 @@ impl Simulation {
             return;
         };
         if (boat.x, boat.y) != (x, y) {
-            self.ai_ferry_goto_waypoint(boat.id, (x, y), offset_native_by_map(x, y, dx, dy));
+            if let Some(target) = self.map_wrap.offset(x, y, dx, dy) {
+                self.ai_ferry_goto_waypoint(boat.id, (x, y), target);
+            }
         }
         if self
             .units
@@ -1024,7 +1030,7 @@ impl Simulation {
                     {
                         continue;
                     }
-                    for (tx, ty) in super::terrain_work::neighbors(x, y) {
+                    for (tx, ty) in self.map_wrap.neighbors(x, y) {
                         if !self.tile(tx, ty).known_by[owner]
                             || self.treaty_blocks_move(attacker, tx, ty)
                             || self.movement_cost_for(attacker, tx, ty).is_none()
@@ -1059,7 +1065,7 @@ impl Simulation {
                 let Some((id, tx, ty)) = best else {
                     break;
                 };
-                let (dx, dy) = wrapped_map_vector(x, y, tx, ty);
+                let (dx, dy) = self.map_wrap.vector(x, y, tx, ty);
                 committed.insert(id);
                 self.try_move_unit(id, dx, dy);
             }
@@ -1346,7 +1352,7 @@ impl Simulation {
             let target = self
                 .raider_landing(&boat, None, Some(&troops), &[])
                 .and_then(|(_, x, y, (dx, dy))| {
-                    let shore = offset_native_by_map(x, y, dx, dy);
+                    let shore = self.map_wrap.offset(x, y, dx, dy)?;
                     self.cities
                         .iter()
                         .filter(|c| {
@@ -1437,7 +1443,9 @@ impl Simulation {
             return;
         };
         let goal = path.iter().fold((actor.x, actor.y), |(x, y), &(dx, dy)| {
-            offset_native_by_map(x, y, dx, dy)
+            self.map_wrap
+                .offset(x, y, dx, dy)
+                .expect("planned step is real")
         });
         if goal == (actor.x, actor.y) {
             return;
@@ -1452,7 +1460,9 @@ impl Simulation {
             let Some(actor) = self.units.iter().find(|u| u.id == id).cloned() else {
                 return;
             };
-            let target = offset_native_by_map(actor.x, actor.y, dx, dy);
+            let Some(target) = self.map_wrap.offset(actor.x, actor.y, dx, dy) else {
+                break;
+            };
             let enemy =
                 self.units
                     .iter()

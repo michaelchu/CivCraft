@@ -77,7 +77,8 @@ impl Simulation {
     }
 
     pub(super) fn place_contamination(&mut self, city: &City, target: Contamination) -> bool {
-        let candidates: Vec<_> = Self::city_radius(city)
+        let candidates: Vec<_> = self
+            .map_city_radius(city)
             .map(|(_, _, x, y)| (x, y))
             .filter(|&(x, y)| {
                 let tile = self.tile(x, y);

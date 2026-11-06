@@ -92,6 +92,7 @@ impl Default for Node {
 }
 
 pub(super) struct NormalPaths {
+    map_wrap: MapWrap,
     actor: Unit,
     rate: i32,
     start: usize,
@@ -147,6 +148,7 @@ impl NormalPaths {
     ) -> Self {
         let start = Simulation::idx(unit.x, unit.y);
         let mut map = Self {
+            map_wrap: sim.map_wrap,
             actor: unit.clone(),
             rate: sim.unit_move_rate(unit),
             start,
@@ -207,7 +209,10 @@ impl NormalPaths {
             .is_some_and(|city| kind.can_occupy_city() || sim.allied(self.actor.owner, city.owner))
             && (previous & CITY != 0
                 || build_anywhere
-                || terrain_work::neighbors(x, y).any(|(nx, ny)| sim.pf_native_tile(kind, nx, ny)))
+                || self
+                    .map_wrap
+                    .neighbors(x, y)
+                    .any(|(nx, ny)| sim.pf_native_tile(kind, nx, ny)))
         {
             scope |= CITY;
         }
@@ -372,7 +377,9 @@ impl NormalPaths {
             let mut actor = self.actor.clone();
             (actor.x, actor.y) = (x, y);
             for (direction, (dx, dy)) in ISOHEX_DIRS.into_iter().enumerate() {
-                let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+                let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+                    continue;
+                };
                 let next = Simulation::idx(nx, ny);
                 if self.nodes[next].status == Status::Processed {
                     continue;
@@ -500,7 +507,7 @@ impl NormalPaths {
             let (dx, dy) = ISOHEX_DIRS[direction];
             path.push((dx, dy));
             let (x, y) = Simulation::xy(cursor);
-            let (x, y) = offset_native_by_map(x, y, -dx, -dy);
+            let (x, y) = self.map_wrap.offset(x, y, -dx, -dy)?;
             cursor = Simulation::idx(x, y);
         }
         path.reverse();
@@ -684,7 +691,10 @@ impl Simulation {
         }
         let mut destination = (initial.x, initial.y);
         for &(dx, dy) in &path {
-            destination = offset_native_by_map(destination.0, destination.1, dx, dy);
+            destination = self
+                .map_wrap
+                .offset(destination.0, destination.1, dx, dy)
+                .expect("planned step is real");
         }
         let old_goal = self.unit_goto_tiles.insert(id, destination);
         let mut progressed = false;
@@ -698,7 +708,9 @@ impl Simulation {
             let Some(actor) = self.units.iter().find(|unit| unit.id == id).cloned() else {
                 break;
             };
-            let (x, y) = offset_native_by_map(actor.x, actor.y, dx, dy);
+            let Some((x, y)) = self.map_wrap.offset(actor.x, actor.y, dx, dy) else {
+                continue;
+            };
             let enemy =
                 self.units.iter().any(|other| {
                     (other.x, other.y) == (x, y) && self.at_war(actor.owner, other.owner)

@@ -42,6 +42,15 @@ fn ensure_parent(path: &str) {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    let wrap_arg = argument_value("--wrap");
+    let wrap = wrap_arg
+        .as_deref()
+        .unwrap_or("x")
+        .parse::<sim::topology::MapWrap>()
+        .unwrap_or_else(|error| {
+            eprintln!("{error}");
+            std::process::exit(2);
+        });
     let screenshot_path = argument_value("--screenshot");
     let self_test_path = argument_value("--self-test");
     let ui_review = argument_value("--ui-review");
@@ -88,16 +97,27 @@ async fn main() {
                 sim::Simulation::load_campaign(Path::new(path)).map_err(|error| error.to_string())
             });
         match result {
-            Ok(simulation) => Game::from_simulation(simulation),
+            Ok(simulation) => {
+                if wrap_arg.is_some() && simulation.map_wrap != wrap {
+                    eprintln!(
+                        "--wrap conflicts with the saved map's wrapping; start a new game to change topology"
+                    );
+                    std::process::exit(2);
+                }
+                Game::from_simulation(simulation)
+            }
             Err(error) => {
                 eprintln!("Could not load campaign. {error}");
                 std::process::exit(1);
             }
         }
     } else {
-        Game::new(mapgen::generate(seed))
+        Game::new(mapgen::generate_with_wrap(seed, wrap))
     };
-    println!("World seed: {}", game.sim.world_seed);
+    println!(
+        "World seed: {} · wrap: {}",
+        game.sim.world_seed, game.sim.map_wrap
+    );
     game.autosave_enabled = !automated;
     let assets = Assets::new();
     if ui_review.is_some() {

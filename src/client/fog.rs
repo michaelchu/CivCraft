@@ -54,10 +54,10 @@ pub(super) fn build_atlas(source: &Image) -> Image {
 
 impl Game {
     pub(super) fn fog_knowledge(&self, x: i32, y: i32) -> Knowledge {
-        if !(0..MAP_H).contains(&y) {
+        let Some((x, y)) = self.sim.map_wrap.normalize(x, y) else {
             return Knowledge::Remembered;
-        }
-        let tile = self.sim.tile(x.rem_euclid(MAP_W), y);
+        };
+        let tile = self.sim.tile(x, y);
         if !tile.seen {
             Knowledge::Unknown
         } else if tile.visible {
@@ -162,6 +162,7 @@ mod tests {
     fn knowledge_wraps_horizontally_but_does_not_sample_across_poles() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.ui_review_fog();
+        sim.map_wrap = MapWrap::X;
         let game = Game::from_simulation(sim);
         assert_eq!(game.fog_knowledge(20, 24), Knowledge::Visible);
         assert_eq!(game.fog_knowledge(20 + MAP_W, 24), Knowledge::Visible);

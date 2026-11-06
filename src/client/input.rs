@@ -576,9 +576,23 @@ impl Game {
         )
     }
 
-    fn normalize_camera(&mut self) {
+    pub(super) fn normalize_camera(&mut self) {
         let position = self.camera_overview_position();
-        let y = position.y.clamp(0.0, (MAP_H - 1) as f32);
+        let y = if self.sim.map_wrap.wraps_y() {
+            position.y.rem_euclid(MAP_H as f32)
+        } else {
+            let viewport = Self::viewport_rect();
+            let step = TILE_H * 0.5 * self.zoom;
+            // Leave room for city labels and tall sprites on the outermost row.
+            let margin = (60.0 * self.zoom).max(48.0) + 8.0;
+            let min = (viewport.h * 0.47 - margin) / step;
+            let max = (MAP_H - 1) as f32 - (viewport.h * 0.53 - margin) / step;
+            if min <= max {
+                position.y.clamp(min, max)
+            } else {
+                (MAP_H - 1) as f32 * 0.5
+            }
+        };
         let map_x = (position.x + y) * 0.5;
         self.camera = vec2(map_x, y + MAP_W as f32 - map_x);
     }
@@ -595,7 +609,7 @@ impl Game {
             (self.camera.x + dx).round() as i32,
             (self.camera.y + dy).round() as i32,
         );
-        (0..MAP_H).contains(&y).then_some((x.rem_euclid(MAP_W), y))
+        self.sim.map_wrap.normalize(x, y)
     }
 
     pub(crate) fn ui_action_at(point: Vec2, buttons: &[(Rect, UiAction)]) -> Option<UiAction> {

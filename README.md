@@ -43,6 +43,26 @@ CivCraft generates a new map locally each time it launches and shows the world s
 cargo run --release -- --seed 12345
 ```
 
+## Map wrapping
+
+New games wrap horizontally only by default. Choose either mode at launch:
+
+```sh
+cargo run --release -- --wrap x
+cargo run --release -- --wrap xy
+```
+
+`x` creates a cylinder with bounded northern/southern edges and polar climate.
+`xy` wraps both axes and uses the reference preset's torus climate. Both keep
+our existing map dimensions. Use the same seed **and wrap setting** to replay a
+map, for example `cargo run --release -- --seed 42 --wrap xy`. The current mode
+appears next to the seed above the minimap.
+
+The setting applies to generation, movement, pathfinding, city work areas,
+visibility and rendering. Saves record it; loading uses the saved mode. An
+explicit conflicting `--wrap` with `--load` is rejected rather than changing
+an existing world's geography.
+
 ## Save and resume
 
 Press F5 to quicksave and F9 to load the quicksave. CivCraft also writes a separate autosave after each completed turn. The files are stored in the working directory.

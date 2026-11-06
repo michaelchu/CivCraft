@@ -17,6 +17,28 @@ impl Simulation {
         })
     }
 
+    pub(crate) fn map_city_radius(
+        &self,
+        city: &City,
+    ) -> impl Iterator<Item = (i32, i32, i32, i32)> + use<> {
+        self.map_city_radius_at(city.x, city.y)
+    }
+    pub(super) fn map_city_radius_at(
+        &self,
+        x: i32,
+        y: i32,
+    ) -> impl Iterator<Item = (i32, i32, i32, i32)> + use<> {
+        let wrap = self.map_wrap;
+        (-2..=2).flat_map(move |dy| {
+            (-2..=2).filter_map(move |dx| {
+                if isohex_vector_distance(dx, dy).pow(2) > 5 {
+                    return None;
+                }
+                wrap.offset(x, y, dx, dy).map(|(nx, ny)| (dx, dy, nx, ny))
+            })
+        })
+    }
+
     pub(super) fn tile_can_support_worker(&self, city: &City, x: i32, y: i32) -> bool {
         self.tile(x, y)
             .owner
@@ -31,7 +53,8 @@ impl Simulation {
     }
 
     pub(crate) fn can_assign_city_tile(&self, city: &City, x: i32, y: i32) -> bool {
-        Self::city_radius(city).any(|(_, _, tx, ty)| (x, y) == (tx, ty))
+        self.map_city_radius(city)
+            .any(|(_, _, tx, ty)| (x, y) == (tx, ty))
             && self.tile_can_support_worker(city, x, y)
             && !self
                 .cities
@@ -86,7 +109,8 @@ impl Simulation {
             if needed == 0 {
                 continue;
             }
-            let mut candidates: Vec<_> = Self::city_radius(city)
+            let mut candidates: Vec<_> = self
+                .map_city_radius(city)
                 .filter(|&(_, _, x, y)| !occupied.contains(&(x, y)))
                 .filter(|&(_, _, x, y)| self.tile_can_support_worker(city, x, y))
                 .map(|(_, _, x, y)| {
@@ -142,7 +166,7 @@ impl Simulation {
     fn has_irrigation_source(&self, owner: usize, x: i32, y: i32) -> bool {
         self.has_tech(owner, Tech::ELECTRICITY)
             || self.tile(x, y).river
-            || super::terrain_work::neighbors(x, y).any(|(nx, ny)| {
+            || self.map_wrap.neighbors(x, y).any(|(nx, ny)| {
                 let source = self.tile(nx, ny);
                 source.terrain.is_water() || source.river || source.irrigation
             })
@@ -423,7 +447,10 @@ impl Simulation {
                 if (dx, dy) == (0, 0) {
                     continue;
                 }
-                let (x, y) = map_pos_to_native(mx + dx, my + dy);
+                let (nx, ny) = map_to_native(mx + dx, my + dy);
+                let Some((x, y)) = self.map_wrap.normalize(nx, ny) else {
+                    continue;
+                };
                 if self.movement_cost_for(&unit, x, y).is_some()
                     && (!unit.kind.is_aircraft() || self.refuel_site(unit.owner, x, y))
                     && self.cities.iter().all(|city| {

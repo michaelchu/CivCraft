@@ -129,6 +129,8 @@ struct MapObservation {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Simulation {
     pub(crate) world_seed: u64,
+    #[serde(skip, default = "topology::legacy_wrap")]
+    pub(crate) map_wrap: MapWrap,
     tiles: Vec<Tile>,
     units: Vec<Unit>,
     cities: Vec<City>,
@@ -287,6 +289,7 @@ impl Simulation {
     pub(crate) fn new(map: crate::mapgen::GeneratedMap) -> Self {
         let crate::mapgen::GeneratedMap {
             seed,
+            map_wrap,
             tiles,
             starts,
             game_random,
@@ -389,6 +392,7 @@ impl Simulation {
 
         let mut game = Self {
             world_seed: seed,
+            map_wrap,
             tiles,
             units,
             cities: Vec::new(),
@@ -473,10 +477,18 @@ impl Simulation {
     }
 
     pub(crate) fn tile(&self, x: i32, y: i32) -> &Tile {
+        debug_assert!(
+            self.map_wrap.wraps_y() || (0..MAP_H).contains(&y),
+            "off-map cylinder tile ({x},{y})"
+        );
         &self.tiles[Self::idx(x, y)]
     }
 
     fn tile_mut(&mut self, x: i32, y: i32) -> &mut Tile {
+        debug_assert!(
+            self.map_wrap.wraps_y() || (0..MAP_H).contains(&y),
+            "off-map cylinder tile ({x},{y})"
+        );
         let idx = Self::idx(x, y);
         &mut self.tiles[idx]
     }
@@ -514,10 +526,16 @@ impl Simulation {
     }
 
     pub(crate) fn native_random_stream_playtest(&mut self) -> bool {
-        let same = Self::new(crate::mapgen::generate(self.world_seed));
+        let same = Self::new(crate::mapgen::generate_with_wrap(
+            self.world_seed,
+            self.map_wrap,
+        ));
         let reproducible =
             self.native_random.is_some() && self.random_snapshot() == same.random_snapshot();
-        let other = Self::new(crate::mapgen::generate(self.world_seed.wrapping_add(1)));
+        let other = Self::new(crate::mapgen::generate_with_wrap(
+            self.world_seed.wrapping_add(1),
+            self.map_wrap,
+        ));
         let seed_matters = self.random_snapshot() != other.random_snapshot();
         self.set_random_seed(42);
         // Literal fc_srand/fc_rand oracle values, independent of this wrapper.
@@ -599,7 +617,10 @@ impl Simulation {
                 for dx in -radius..=radius {
                     let distance = isohex_vector_distance(dx, dy);
                     if distance * distance <= radius_sq {
-                        let (visible_x, visible_y) = offset_native_by_map(x, y, dx, dy);
+                        let Some((visible_x, visible_y)) = self.map_wrap.offset(x, y, dx, dy)
+                        else {
+                            continue;
+                        };
                         let idx = Self::idx(visible_x, visible_y);
                         if owner != BARBARIANS {
                             for &target in &recipients[owner] {
@@ -643,7 +664,7 @@ impl Simulation {
     }
 
     pub(crate) fn map_distance(&self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
-        let (dx, dy) = wrapped_map_vector(ax, ay, bx, by);
+        let (dx, dy) = self.map_wrap.vector(ax, ay, bx, by);
         isohex_vector_distance(dx, dy)
     }
 

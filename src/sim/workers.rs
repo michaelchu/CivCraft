@@ -168,7 +168,7 @@ impl Simulation {
                 && self.map_distance(x, y, u.x, u.y) <= 2
                 && (self.worker_enemy_native(u.kind, x, y)
                     || (u.kind.is_naval() && u.kind != UnitKind::Submarine
-                        && terrain_work::neighbors(x, y)
+                        && self.map_wrap.neighbors(x, y)
                             .any(|(tx, ty)| self.tile(tx, ty).terrain.is_water())))
         })
     }
@@ -195,7 +195,7 @@ impl Simulation {
             } else {
                 allowance - (spent - unit.moves_left.max(0)) % allowance
             };
-            for (x, y) in terrain_work::neighbors(actor.x, actor.y) {
+            for (x, y) in self.map_wrap.neighbors(actor.x, actor.y) {
                 if self
                     .tile(x, y)
                     .owner
@@ -229,7 +229,7 @@ impl Simulation {
                 if candidate < result.costs[next] {
                     result.costs[next] = candidate;
                     result.previous[next] =
-                        Some((index, wrapped_map_vector(actor.x, actor.y, x, y)));
+                        Some((index, self.map_wrap.vector(actor.x, actor.y, x, y)));
                     sequence += 1;
                     queue.push(Reverse((candidate, sequence, next)));
                 }
@@ -374,7 +374,9 @@ impl Simulation {
         ];
         let mut absent = 0;
         for (dx, dy) in offsets {
-            let (x, y) = offset_native_by_map(position.0, position.1, dx, dy);
+            let Some((x, y)) = self.map_wrap.offset(position.0, position.1, dx, dy) else {
+                continue;
+            };
             let real = {
                 let tile = self.tile(x, y);
                 (if railroad { tile.railroad } else { tile.road })
@@ -491,7 +493,7 @@ impl Simulation {
             .collect();
         let mut best = None;
         for city in cities {
-            for (_, _, x, y) in Self::city_radius(&city) {
+            for (_, _, x, y) in self.map_city_radius(&city) {
                 let position = (x, y);
                 let worked = (city.x, city.y) == position || city.worked_tiles.contains(&position);
                 if (!worked && !self.can_assign_city_tile(&city, x, y))
@@ -604,7 +606,9 @@ impl Simulation {
         if let Some((_, path)) = target {
             if !path.is_empty() && self.ai_worker_tasks.insert(actor.id) {
                 let destination = path.iter().fold((actor.x, actor.y), |(x, y), &(dx, dy)| {
-                    offset_native_by_map(x, y, dx, dy)
+                    self.map_wrap
+                        .offset(x, y, dx, dy)
+                        .expect("planned step is real")
                 });
                 self.unit_goto_tiles.insert(actor.id, destination);
             }

@@ -44,7 +44,9 @@ impl Simulation {
                 remaining = allowance;
             }
             actor.moves_left = remaining;
-            let (x, y) = offset_native_by_map(actor.x, actor.y, dx, dy);
+            let Some((x, y)) = self.map_wrap.offset(actor.x, actor.y, dx, dy) else {
+                continue;
+            };
             let remembered = self.observed_route_tile(x, y);
             // Match search_route's sole non-native destination exception:
             // boarding a visible allied transport on the final tile.

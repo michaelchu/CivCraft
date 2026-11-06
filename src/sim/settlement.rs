@@ -16,7 +16,7 @@ impl Simulation {
     pub(super) fn settlement_citymap(&self, owner: usize, except: Option<u32>) -> Vec<i32> {
         let mut map = vec![0; self.tiles.len()];
         for city in &self.cities {
-            for (_, _, x, y) in Self::city_radius_at(city.x, city.y) {
+            for (_, _, x, y) in self.map_city_radius_at(city.x, city.y) {
                 let index = Self::idx(x, y);
                 if map[index] >= 0 {
                     map[index] += 1;
@@ -38,7 +38,7 @@ impl Simulation {
                 continue;
             }
             for (_, _, x, y) in
-                Self::city_radius_at(reservation.destination.0, reservation.destination.1)
+                self.map_city_radius_at(reservation.destination.0, reservation.destination.1)
             {
                 let index = Self::idx(x, y);
                 if map[index] >= 0 {
@@ -235,7 +235,7 @@ impl Simulation {
                 let next_cost = cost + step.min(remaining);
                 if next_cost < costs[next] {
                     costs[next] = next_cost;
-                    previous[next] = Some((index, wrapped_map_vector(x, y, nx, ny)));
+                    previous[next] = Some((index, self.map_wrap.vector(x, y, nx, ny)));
                     queue.push(Reverse((next_cost, next)));
                 }
             }
@@ -290,7 +290,9 @@ impl Simulation {
     ) -> Option<CitySite> {
         let tile = self.tile(x, y);
         if !self.can_found_at(x, y)
-            || Self::city_radius_at(x, y).any(|(_, _, tx, ty)| reservations[Self::idx(tx, ty)] < 0)
+            || self
+                .map_city_radius_at(x, y)
+                .any(|(_, _, tx, ty)| reservations[Self::idx(tx, ty)] < 0)
             || tile.owner.is_some_and(|other| {
                 other != owner
                     && matches!(
@@ -353,7 +355,7 @@ impl Simulation {
         let center = self.city_tile_yields_under_government(&city, x, y, true, None, government);
         let mut best = None;
         let mut remaining = 0;
-        let mut city_tiles: Vec<_> = Self::city_radius_at(x, y).collect();
+        let mut city_tiles: Vec<_> = self.map_city_radius_at(x, y).collect();
         // daisettler.c:cityresult_fill uses native city indices and only
         // replaces best_other on a strictly greater want. Equal output
         // workers therefore use city.c:compare_iter_index, not row order.
@@ -393,7 +395,10 @@ impl Simulation {
         let mut defense = 10 + tile.terrain.defense_bonus() / 10;
         defense += defense * tile.base.map_or(0, |base| base.defense_bonus()) / 100;
         total += 100.0 / (total + 1.0) * (100 / defense * 20) as f32;
-        if super::terrain_work::neighbors(x, y).any(|(nx, ny)| self.tile(nx, ny).terrain.is_water())
+        if self
+            .map_wrap
+            .neighbors(x, y)
+            .any(|(nx, ny)| self.tile(nx, ny).terrain.is_water())
         {
             total += total * 20.0 / 100.0;
         }

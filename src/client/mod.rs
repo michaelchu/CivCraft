@@ -305,6 +305,7 @@ impl Game {
 
 impl Game {
     pub(crate) fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
+        self.normalize_camera();
         self.playback.update(&mut self.sim, get_time());
         clear_background(Color::from_rgba(7, 20, 31, 255));
         self.hud_elements_drawn = 0;

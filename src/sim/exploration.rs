@@ -110,7 +110,9 @@ impl Simulation {
         }
         // autoexplorer.c deliberately preserved: the native test uses the
         // unknown CENTER, not the known adjacent tile being iterated.
-        let known = terrain_work::neighbors(x, y)
+        let known = self
+            .map_wrap
+            .neighbors(x, y)
             .filter(|&(nx, ny)| self.tile(nx, ny).known_by[owner])
             .count() as i32;
         50 + (50 / ISOHEX_DIRS.len() as i32)
@@ -149,7 +151,9 @@ impl Simulation {
                 if distance * distance > radius_sq {
                     continue;
                 }
-                let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+                let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+                    continue;
+                };
                 let native = self.explorer_likely_native(unit.owner, unit.kind, nx, ny);
                 if !self.tile(nx, ny).known_by[unit.owner] {
                     unknown += 1;
@@ -275,7 +279,9 @@ impl Simulation {
                 rate - (spent - unit.moves_left.max(0)) % rate
             };
             for (dx, dy) in ISOHEX_DIRS {
-                let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+                let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+                    continue;
+                };
                 let Some(cost) = self.explorer_step_cost(&actor, nx, ny, goal.is_none()) else {
                     continue;
                 };
@@ -379,7 +385,9 @@ impl Simulation {
             let Some(actor) = self.units.iter().find(|unit| unit.id == id).cloned() else {
                 return;
             };
-            let (nx, ny) = offset_native_by_map(actor.x, actor.y, dx, dy);
+            let Some((nx, ny)) = self.map_wrap.offset(actor.x, actor.y, dx, dy) else {
+                continue;
+            };
             if actor.moves_left <= 0
                 || !self.explorer_may_visit(&actor, nx, ny)
                 || (actor.owner == BARBARIANS && self.tile(nx, ny).hut)

@@ -152,7 +152,7 @@ impl Simulation {
             }
             let mut staged = unit.clone();
             (staged.x, staged.y) = (x, y);
-            for (tx, ty) in super::terrain_work::neighbors(x, y) {
+            for (tx, ty) in self.map_wrap.neighbors(x, y) {
                 if !self.tile(tx, ty).known_by[owner]
                     || self.tile(tx, ty).terrain.is_water()
                     || self.treaty_blocks_move(&staged, tx, ty)
@@ -183,7 +183,7 @@ impl Simulation {
                     + f64::from(self.tile(x, y).terrain.defense_bonus() / 10);
                 if value > best_value {
                     best_value = value;
-                    best = Some((x, y, wrapped_map_vector(x, y, tx, ty)));
+                    best = Some((x, y, self.map_wrap.vector(x, y, tx, ty)));
                 }
             }
         }
@@ -582,7 +582,7 @@ impl Simulation {
                     if let Some(primary) = self.units.iter().find(|unit| unit.id == primary)
                         && self.map_distance(live.x, live.y, primary.x, primary.y) == 1
                     {
-                        let step = wrapped_map_vector(live.x, live.y, primary.x, primary.y);
+                        let step = self.map_wrap.vector(live.x, live.y, primary.x, primary.y);
                         self.try_move_unit(id, step.0, step.1);
                     }
                 }

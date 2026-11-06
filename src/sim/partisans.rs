@@ -23,7 +23,8 @@ impl Simulation {
         let name = city.name.clone();
         let conqueror = city.owner;
         let center = Self::idx(city.x, city.y);
-        let sites: Vec<_> = Self::city_radius(city)
+        let sites: Vec<_> = self
+            .map_city_radius(city)
             .map(|(_, _, x, y)| (x, y))
             .filter(|&(x, y)| {
                 !self.tile(x, y).terrain.is_water()

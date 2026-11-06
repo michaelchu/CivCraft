@@ -131,7 +131,7 @@ impl Simulation {
             }) {
                 continue;
             }
-            for (x, y) in super::terrain_work::neighbors(city.x, city.y) {
+            for (x, y) in self.map_wrap.neighbors(city.x, city.y) {
                 if self.tile(x, y).terrain.is_water()
                     || self.best_defender_id(agent, x, y).is_some()
                     || self.cities.iter().any(|city| {
@@ -238,12 +238,15 @@ impl Simulation {
         let route = self.plan_city_mission(&agent, budget, false, &reserved)?;
         let target = self.cities.iter().find(|city| city.id == route.city)?;
         let mut projected = agent;
-        (projected.x, projected.y) = route
-            .path
-            .iter()
-            .fold((city.x, city.y), |(x, y), &(dx, dy)| {
-                offset_native_by_map(x, y, dx, dy)
-            });
+        (projected.x, projected.y) =
+            route
+                .path
+                .iter()
+                .fold((city.x, city.y), |(x, y), &(dx, dy)| {
+                    self.map_wrap
+                        .offset(x, y, dx, dy)
+                        .expect("planned step is real")
+                });
         let mut gain = 0;
         if !self.allied(owner, target.owner) && !self.city_has_other_diplomat(target, 0) {
             if (kind == UnitKind::Spy || target.technology_thefts == 0)
@@ -304,7 +307,7 @@ impl Simulation {
             }
             let mut ready = unit.clone();
             ready.moves_left = allowance;
-            super::terrain_work::neighbors(city.x, city.y).any(|(x, y)| {
+            self.map_wrap.neighbors(city.x, city.y).any(|(x, y)| {
                 self.route_cost_within(&ready, x, y, 2 * allowance - 1)
                     .is_some()
             })
@@ -653,7 +656,7 @@ impl Simulation {
                 continue;
             };
             let stationed = (other.x, other.y) == location;
-            let (dx, dy) = wrapped_map_vector(other.x, other.y, city.x, city.y);
+            let (dx, dy) = self.map_wrap.vector(other.x, other.y, city.x, city.y);
             let in_other_friendly_city = self
                 .cities
                 .iter()

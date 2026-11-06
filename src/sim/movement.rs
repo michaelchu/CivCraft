@@ -110,7 +110,8 @@ impl Simulation {
     }
 
     pub(super) fn is_port(&self, city: &City) -> bool {
-        super::terrain_work::neighbors(city.x, city.y)
+        self.map_wrap
+            .neighbors(city.x, city.y)
             .any(|(x, y)| self.tile(x, y).terrain.is_water())
     }
 
@@ -121,7 +122,10 @@ impl Simulation {
         let native =
             |tile: &Tile| matches!(tile.terrain, Terrain::Ocean | Terrain::Lake) || tile.river;
         native(self.tile(city.x, city.y))
-            || super::terrain_work::neighbors(city.x, city.y).any(|(x, y)| native(self.tile(x, y)))
+            || self
+                .map_wrap
+                .neighbors(city.x, city.y)
+                .any(|(x, y)| native(self.tile(x, y)))
     }
 
     pub(crate) fn cargo_count(&self, carrier: u32) -> usize {
@@ -178,7 +182,10 @@ impl Simulation {
             || passenger.work_left > 0
             || passenger.state == UnitState::Sentry
             || passenger.transport.is_some()
-            || !super::terrain_work::neighbors(passenger.x, passenger.y).any(|tile| tile == (x, y))
+            || !self
+                .map_wrap
+                .neighbors(passenger.x, passenger.y)
+                .any(|tile| tile == (x, y))
             || !self.tile(x, y).terrain.is_water()
             || self.treaty_blocks_move(passenger, x, y)
             || !self.can_board_ship(passenger, ship)
@@ -327,7 +334,9 @@ impl Simulation {
             let port = dest
                 .city_owner
                 .is_some_and(|owner| self.allied(owner, unit.owner))
-                && super::terrain_work::neighbors(x, y)
+                && self
+                    .map_wrap
+                    .neighbors(x, y)
                     .any(|(nx, ny)| self.observed_route_tile(nx, ny).is_none_or(native));
             return (native(dest) || port).then_some(MOVE_FRAGMENTS);
         }
@@ -703,7 +712,9 @@ impl Simulation {
         if unit.moves_left <= 0 || unit.work_left > 0 || unit.state == UnitState::Sentry {
             return MoveResult::Blocked;
         }
-        let (nx, ny) = offset_native_by_map(unit.x, unit.y, dx, dy);
+        let Some((nx, ny)) = self.map_wrap.offset(unit.x, unit.y, dx, dy) else {
+            return MoveResult::Blocked;
+        };
         if self.treaty_blocks_move(&unit, nx, ny) {
             if unit.owner == HUMAN {
                 self.add_event("A treaty prevents entry to that tile.");
@@ -1316,7 +1327,9 @@ impl Simulation {
                 allowance - (spent - unit.moves_left.max(0)) % allowance
             };
             for (dx, dy) in ISOHEX_DIRS {
-                let (nx, ny) = offset_native_by_map(cx, cy, dx, dy);
+                let Some((nx, ny)) = self.map_wrap.offset(cx, cy, dx, dy) else {
+                    continue;
+                };
                 let ni = Self::idx(nx, ny);
                 let dest = self.tile(nx, ny);
                 let source = self.tile(cx, cy);

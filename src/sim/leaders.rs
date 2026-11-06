@@ -131,7 +131,9 @@ impl Simulation {
                 rate - (spent - initial) % rate
             };
             for (dx, dy) in ISOHEX_DIRS {
-                let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+                let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+                    continue;
+                };
                 let next = Self::idx(nx, ny);
                 let target = reverse.is_some_and(|(target, _)| next == target);
                 let known = !observed || self.tile(nx, ny).known_by[actor.owner];
@@ -227,7 +229,9 @@ impl Simulation {
             if unit.moves_left <= 0 {
                 break;
             }
-            let (nx, ny) = offset_native_by_map(unit.x, unit.y, dx, dy);
+            let Some((nx, ny)) = self.map_wrap.offset(unit.x, unit.y, dx, dy) else {
+                continue;
+            };
             if self.leader_nonallied_at(unit.owner, nx, ny)
                 || (unit.owner == BARBARIANS && self.tile(nx, ny).hut)
             {
@@ -443,7 +447,9 @@ impl Simulation {
             }
             let mut safest = (actor.x, actor.y);
             for (dx, dy) in ISOHEX_DIRS {
-                let (x, y) = offset_native_by_map(actor.x, actor.y, dx, dy);
+                let Some((x, y)) = self.map_wrap.offset(actor.x, actor.y, dx, dy) else {
+                    continue;
+                };
                 if self.treaty_blocks_move(&actor, x, y)
                     || self.leader_nonallied_at(actor.owner, x, y)
                     || self.zone_blocks_step(&actor, (actor.x, actor.y), (x, y))

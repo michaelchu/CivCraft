@@ -154,7 +154,10 @@ impl Game {
         let (mx, my) = native_to_map(x, y);
         let (nx, ny) = map_to_native(mx + dx, my + dy);
         // build_tile_data repeats current terrain at unknown and unreal edges.
-        if !(0..MAP_H).contains(&ny) || !self.sim.tile(nx, ny).seen {
+        let Some((nx, ny)) = self.sim.map_wrap.normalize(nx, ny) else {
+            return current;
+        };
+        if !self.sim.tile(nx, ny).seen {
             current
         } else {
             self.sim.render_tile(nx, ny).terrain

@@ -120,6 +120,7 @@ impl Game {
         };
         let project = |x, y| {
             world::world_screen_position(
+                self.sim.map_wrap,
                 Self::viewport_rect(),
                 self.camera_overview_position(),
                 self.zoom,
@@ -135,7 +136,14 @@ impl Game {
                     let period = MAP_W as f32 * TILE_W * self.zoom;
                     let dx = (to_center.x - from_center.x + period * 0.5).rem_euclid(period)
                         - period * 0.5;
-                    from_center + vec2(dx, to_center.y - from_center.y) * phase.x
+                    let dy = to_center.y - from_center.y;
+                    let period_y = MAP_H as f32 * TILE_H * 0.5 * self.zoom;
+                    let dy = if self.sim.map_wrap.wraps_y() {
+                        (dy + period_y * 0.5).rem_euclid(period_y) - period_y * 0.5
+                    } else {
+                        dy
+                    };
+                    from_center + vec2(dx, dy) * phase.x
                 }
                 _ => project(unit.x, unit.y),
             };

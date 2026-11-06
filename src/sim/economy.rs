@@ -177,7 +177,7 @@ impl Simulation {
         occupied: &std::collections::HashSet<(i32, i32)>,
     ) -> City {
         let citizens = city.size.max(0) as usize;
-        let mut city_tiles: Vec<_> = Self::city_radius(city).collect();
+        let mut city_tiles: Vec<_> = self.map_city_radius(city).collect();
         // common/city.c:compare_iter_index defines reproducible city indices.
         city_tiles.sort_by_key(|&(dx, dy, _, _)| (isohex_vector_distance(dx, dy).pow(2), dx, dy));
         let mut tiles: Vec<_> = city_tiles

@@ -82,7 +82,7 @@ impl Game {
             18.0,
             Color::from_rgba(227, 211, 164, 255),
         );
-        let seed_label = format!("Seed {}", self.sim.world_seed);
+        let seed_label = format!("Seed {} · Wrap {}", self.sim.world_seed, self.sim.map_wrap);
         text_in(
             &seed_label,
             panel_x + UI_PAD,
@@ -240,19 +240,32 @@ impl Game {
             vec2(rect.x, rect.y) + (self.camera_overview_position() + vec2(1.0, 0.5)) * scale;
         let width = viewport.w * scale / (TILE_W * 0.5 * self.zoom);
         let height = viewport.h * scale / (TILE_H * 0.5 * self.zoom);
-        for wrap_x in [-rect.w, 0.0, rect.w] {
-            let left = camera.x + wrap_x - width * 0.5;
-            let top = camera.y - height * 0.47;
-            let right = left + width;
-            let bottom = top + height;
-            for y in [top, bottom] {
-                if (rect.y..=rect.bottom()).contains(&y) && left < rect.right() && right > rect.x {
-                    draw_line(left.max(rect.x), y, right.min(rect.right()), y, 1.0, WHITE);
+        let shifts_y = if self.sim.map_wrap.wraps_y() {
+            vec![-rect.h, 0.0, rect.h]
+        } else {
+            vec![0.0]
+        };
+        for &wrap_y in &shifts_y {
+            for wrap_x in [-rect.w, 0.0, rect.w] {
+                let left = camera.x + wrap_x - width * 0.5;
+                let top = camera.y + wrap_y - height * 0.47;
+                let right = left + width;
+                let bottom = top + height;
+                for y in [top, bottom] {
+                    if (rect.y..=rect.bottom()).contains(&y)
+                        && left < rect.right()
+                        && right > rect.x
+                    {
+                        draw_line(left.max(rect.x), y, right.min(rect.right()), y, 1.0, WHITE);
+                    }
                 }
-            }
-            for x in [left, right] {
-                if (rect.x..=rect.right()).contains(&x) && top < rect.bottom() && bottom > rect.y {
-                    draw_line(x, top.max(rect.y), x, bottom.min(rect.bottom()), 1.0, WHITE);
+                for x in [left, right] {
+                    if (rect.x..=rect.right()).contains(&x)
+                        && top < rect.bottom()
+                        && bottom > rect.y
+                    {
+                        draw_line(x, top.max(rect.y), x, bottom.min(rect.bottom()), 1.0, WHITE);
+                    }
                 }
             }
         }

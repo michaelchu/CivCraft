@@ -81,6 +81,7 @@ fn wrapped_native_delta(delta: i32, size: i32) -> i32 {
     (delta + size / 2).rem_euclid(size) - size / 2
 }
 
+#[cfg(test)]
 pub(crate) fn wrapped_map_vector(from_x: i32, from_y: i32, to_x: i32, to_y: i32) -> (i32, i32) {
     // Freeciv wraps in native coordinates first, then converts the resulting
     // virtual endpoint back to map coordinates before measuring distance.
@@ -89,4 +90,155 @@ pub(crate) fn wrapped_map_vector(from_x: i32, from_y: i32, to_x: i32, to_y: i32)
     let (from_map_x, from_map_y) = native_to_map(from_x, from_y);
     let (to_map_x, to_map_y) = native_to_map(from_x + native_dx, from_y + native_dy);
     (to_map_x - from_map_x, to_map_y - from_map_y)
+}
+
+/// Per-campaign geometry. Never global: different saves can coexist in tests.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) enum MapWrap {
+    #[default]
+    X,
+    XY,
+}
+impl std::str::FromStr for MapWrap {
+    type Err = String;
+    fn from_str(value: &str) -> Result<Self, String> {
+        match value.to_ascii_lowercase().as_str() {
+            "x" | "wrapx" => Ok(Self::X),
+            "xy" | "wrapx|wrapy" => Ok(Self::XY),
+            _ => Err("--wrap must be x (horizontal only) or xy (both axes)".into()),
+        }
+    }
+}
+impl std::fmt::Display for MapWrap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.wraps_y() { "xy" } else { "x" })
+    }
+}
+impl MapWrap {
+    pub(crate) fn wraps_y(self) -> bool {
+        self == Self::XY
+    }
+    pub(crate) fn normalize(self, x: i32, y: i32) -> Option<(i32, i32)> {
+        if self.wraps_y() {
+            Some(wrap_native(x, y))
+        } else {
+            (0..MAP_H).contains(&y).then_some((x.rem_euclid(MAP_W), y))
+        }
+    }
+    pub(crate) fn offset(self, x: i32, y: i32, dx: i32, dy: i32) -> Option<(i32, i32)> {
+        let (mx, my) = native_to_map(x, y);
+        let (nx, ny) = map_to_native(mx + dx, my + dy);
+        self.normalize(nx, ny)
+    }
+    pub(crate) fn neighbors(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> + use<> {
+        ISOHEX_DIRS
+            .into_iter()
+            .filter_map(move |(dx, dy)| self.offset(x, y, dx, dy))
+    }
+    pub(crate) fn vector(self, ax: i32, ay: i32, bx: i32, by: i32) -> (i32, i32) {
+        let dx = wrapped_native_delta(bx - ax, MAP_W);
+        let dy = if self.wraps_y() {
+            wrapped_native_delta(by - ay, MAP_H)
+        } else {
+            by - ay
+        };
+        let (amx, amy) = native_to_map(ax, ay);
+        let (bmx, bmy) = native_to_map(ax + dx, ay + dy);
+        (bmx - amx, bmy - amy)
+    }
+}
+/// V1–14 were always toroidal, independently of the current CLI default.
+pub(super) fn legacy_wrap() -> MapWrap {
+    MapWrap::XY
+}
+
+#[cfg(test)]
+mod wrap_tests {
+    use super::*;
+    use crate::sim::{Command, HUMAN, Simulation, Terrain, UnitKind};
+    #[test]
+    fn wrap_options_are_explicit_and_cylinder_is_default() {
+        assert_eq!(MapWrap::default(), MapWrap::X);
+        assert_eq!("x".parse::<MapWrap>().unwrap(), MapWrap::X);
+        assert_eq!("xy".parse::<MapWrap>().unwrap(), MapWrap::XY);
+        assert!("y".parse::<MapWrap>().is_err());
+        assert!("none".parse::<MapWrap>().is_err());
+        assert_eq!(MapWrap::X.normalize(-1, 0), Some((MAP_W - 1, 0)));
+        assert_eq!(MapWrap::X.normalize(0, -1), None);
+        assert_eq!(MapWrap::XY.normalize(0, -1), Some((0, MAP_H - 1)));
+    }
+    #[test]
+    fn each_campaign_obeys_its_seams_for_movement_sight_routes_and_city_radius() {
+        for wrap in [MapWrap::X, MapWrap::XY] {
+            let mut sim = Simulation::new(crate::mapgen::generate(42));
+            sim.map_wrap = wrap;
+            sim.units.clear();
+            sim.cities.clear();
+            for tile in &mut sim.tiles {
+                tile.terrain = Terrain::Grassland;
+                tile.road = false;
+                tile.railroad = false;
+                tile.river = false;
+                tile.base = None;
+                tile.hut = false;
+                tile.owner = None;
+                tile.seen = false;
+                tile.visible = false;
+                tile.known_by.fill(false);
+            }
+            let id = sim.spawn_unit(HUMAN, UnitKind::Warrior, 10, 0);
+            sim.refresh_visibility();
+            let other = MapWrap::XY.offset(10, 0, 0, -1).unwrap();
+            assert_eq!(sim.tile(other.0, other.1).visible, wrap.wraps_y());
+            assert_eq!(
+                sim.map_wrap.neighbors(10, 0).any(|p| p == other),
+                wrap.wraps_y()
+            );
+            let actor = sim.units[0].clone();
+            let path = sim.plan_route(&actor, other.0, other.1, true);
+            if wrap.wraps_y() {
+                assert_eq!(path, [(0, -1)]);
+            } else {
+                assert!(path.len() > 20);
+            }
+            assert_eq!(sim.apply(Command::Move(id, 0, -1)), wrap.wraps_y());
+            let city = sim.create_city(HUMAN, 10, 0);
+            let _ = city;
+            let radius: Vec<_> = sim.map_city_radius(sim.cities.last().unwrap()).collect();
+            assert_eq!(radius.iter().any(|p| p.3 >= MAP_H - 2), wrap.wraps_y());
+            assert!(radius.iter().all(|p| (0..MAP_H).contains(&p.3)));
+            // Horizontal wrapping is enabled in both modes.
+            assert_eq!(wrap.offset(0, 20, -1, 1), Some((MAP_W - 1, 20)));
+        }
+    }
+}
+
+#[cfg(test)]
+mod cylinder_campaign_tests {
+    use super::*;
+    use crate::sim::{Command, HUMAN, Simulation, UnitKind};
+    #[test]
+    fn cylinder_campaigns_generate_found_and_advance_with_bounded_geometry() {
+        for seed in [42, 1337] {
+            let mut sim = Simulation::new(crate::mapgen::generate_with_wrap(seed, MapWrap::X));
+            let founder = sim
+                .units
+                .iter()
+                .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers)
+                .unwrap()
+                .id;
+            assert!(sim.apply(Command::FoundCity(founder)));
+            for _ in 0..12 {
+                assert!(sim.apply(Command::EndTurn));
+            }
+            assert_eq!(sim.map_wrap, MapWrap::X);
+            assert!(sim.units.iter().all(|u| (0..MAP_H).contains(&u.y)));
+            for city in &sim.cities {
+                assert!(
+                    sim.map_city_radius(city)
+                        .all(|(_, _, _, y)| (city.y - y).abs() <= 4)
+                );
+            }
+        }
+    }
 }

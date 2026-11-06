@@ -87,6 +87,7 @@ impl Game {
         }
         let project = |point: &GotoPoint| {
             world::world_screen_position(
+                self.sim.map_wrap,
                 viewport,
                 self.camera_overview_position(),
                 self.zoom,
@@ -95,48 +96,54 @@ impl Game {
             )
         };
         let period_x = MAP_W as f32 * TILE_W * self.zoom;
+        let period_y = MAP_H as f32 * TILE_H * 0.5 * self.zoom;
+        let shifts_y = if self.sim.map_wrap.wraps_y() {
+            vec![-period_y, 0.0, period_y]
+        } else {
+            vec![0.0]
+        };
         for pair in preview.points.windows(2) {
             let from = project(&pair[0]);
             let raw_to = project(&pair[1]);
-            // The simulation can contain a step over its north/south seam,
-            // but this map view has bounded poles. Never connect those two
-            // positions with a full-height line or repeat the route in Y.
-            if (raw_to.y - from.y).abs() > TILE_H * self.zoom + 0.01 {
-                continue;
-            }
             // A wrapped edge is two clipped short segments, never a line
             // crossing the complete screen between opposite map edges.
             let to = from
                 + vec2(
                     shortest_delta(raw_to.x - from.x, period_x),
-                    raw_to.y - from.y,
+                    if self.sim.map_wrap.wraps_y() {
+                        shortest_delta(raw_to.y - from.y, period_y)
+                    } else {
+                        raw_to.y - from.y
+                    },
                 );
             for shift_x in [-period_x, 0.0, period_x] {
-                let shift = vec2(shift_x, 0.0);
-                let (a, b) = (from + shift, to + shift);
-                if a.x.max(b.x) < viewport.x
-                    || a.x.min(b.x) > viewport.right()
-                    || a.y.max(b.y) < viewport.y
-                    || a.y.min(b.y) > viewport.bottom()
-                {
-                    continue;
+                for &shift_y in &shifts_y {
+                    let shift = vec2(shift_x, shift_y);
+                    let (a, b) = (from + shift, to + shift);
+                    if a.x.max(b.x) < viewport.x
+                        || a.x.min(b.x) > viewport.right()
+                        || a.y.max(b.y) < viewport.y
+                        || a.y.min(b.y) > viewport.bottom()
+                    {
+                        continue;
+                    }
+                    draw_line(
+                        a.x,
+                        a.y,
+                        b.x,
+                        b.y,
+                        (4.0 * self.zoom).max(2.5),
+                        Color::from_rgba(0, 36, 36, 230),
+                    );
+                    draw_line(
+                        a.x,
+                        a.y,
+                        b.x,
+                        b.y,
+                        (2.0 * self.zoom).max(1.5),
+                        Color::from_rgba(0, 255, 200, 255),
+                    );
                 }
-                draw_line(
-                    a.x,
-                    a.y,
-                    b.x,
-                    b.y,
-                    (4.0 * self.zoom).max(2.5),
-                    Color::from_rgba(0, 36, 36, 230),
-                );
-                draw_line(
-                    a.x,
-                    a.y,
-                    b.x,
-                    b.y,
-                    (2.0 * self.zoom).max(1.5),
-                    Color::from_rgba(0, 255, 200, 255),
-                );
             }
         }
         for (index, point) in preview.points.iter().enumerate().skip(1) {

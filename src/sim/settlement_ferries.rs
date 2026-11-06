@@ -1,5 +1,5 @@
 use super::normal_paths::GotoTask;
-use super::{terrain_work::neighbors, *};
+use super::*;
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BinaryHeap},
@@ -177,16 +177,17 @@ impl Simulation {
                     && (city.x, city.y) == (x, y)
                     && self.is_port(city)
             });
-            for pickup in port
-                .then_some((x, y))
-                .into_iter()
-                .chain(neighbors(x, y).filter(|&(sx, sy)| {
-                    self.tile(sx, sy).terrain.is_water()
-                        && !self.treaty_blocks_move(&traveler, sx, sy)
-                        && !self.units.iter().any(|unit| {
-                            (unit.x, unit.y) == (sx, sy) && !self.allied(unit.owner, founder.owner)
-                        })
-                }))
+            for pickup in
+                port.then_some((x, y))
+                    .into_iter()
+                    .chain(self.map_wrap.neighbors(x, y).filter(|&(sx, sy)| {
+                        self.tile(sx, sy).terrain.is_water()
+                            && !self.treaty_blocks_move(&traveler, sx, sy)
+                            && !self.units.iter().any(|unit| {
+                                (unit.x, unit.y) == (sx, sy)
+                                    && !self.allied(unit.owner, founder.owner)
+                            })
+                    }))
             {
                 let sea_cost = *checked[Self::idx(pickup.0, pickup.1)].get_or_insert_with(|| {
                     self.route_cost_within(ship, pickup.0, pickup.1, i32::MAX)
@@ -209,7 +210,7 @@ impl Simulation {
                 let next_cost = cost + step.min(step_remaining);
                 if next_cost < costs[next] {
                     costs[next] = next_cost;
-                    previous[next] = Some((index, wrapped_map_vector(x, y, nx, ny)));
+                    previous[next] = Some((index, self.map_wrap.vector(x, y, nx, ny)));
                     queue.push(Reverse((next_cost, next)));
                 }
             }
@@ -357,7 +358,7 @@ impl Simulation {
             }
             let (x, y) = Self::xy(tile);
             (staged.x, staged.y) = (x, y);
-            for (nx, ny) in neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.neighbors(x, y) {
                 let index = Self::idx(nx, ny);
                 let blocked = self.units.iter().any(|unit| {
                     (unit.x, unit.y) == (nx, ny) && !self.allied(unit.owner, founder.owner)
@@ -421,7 +422,7 @@ impl Simulation {
                 if cost < land_costs[next] {
                     land_costs[next] = cost;
                     beaches[next] = None;
-                    previous[next] = Some((index, wrapped_map_vector(x, y, nx, ny)));
+                    previous[next] = Some((index, self.map_wrap.vector(x, y, nx, ny)));
                     land_queue.push(Reverse((cost, next)));
                 }
             }
@@ -632,7 +633,7 @@ impl Simulation {
             .iter()
             .any(|unit| unit.id == ship && (unit.x, unit.y) == (x, y))
         {
-            let (dx, dy) = wrapped_map_vector(x, y, plan.landing.0, plan.landing.1);
+            let (dx, dy) = self.map_wrap.vector(x, y, plan.landing.0, plan.landing.1);
             if self.try_move_unit(founder.id, dx, dy) == MoveResult::Moved {
                 self.follow_path(founder.id, plan.inland_path.iter().copied());
                 if self.units.iter().any(|unit| {
