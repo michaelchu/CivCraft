@@ -18,6 +18,7 @@ mod presentation;
 mod research_tree;
 mod research_view;
 mod rivers;
+mod render_backend;
 mod routes;
 mod spaceship_view;
 mod spy_view;
@@ -29,6 +30,7 @@ mod world;
 pub(crate) use ui::set_review_pointer;
 use ui::*;
 pub(crate) use ui_review::{UI_REVIEW_SCENES, UiReviewSequence, UiReviewSources};
+pub(crate) use render_backend::{RenderBackend, create as create_renderer};
 
 use crate::rules::{Building, Genus, Requirement, Tech};
 use crate::sim::{topology::*, *};
@@ -121,6 +123,7 @@ pub(crate) enum UiAction {
 
 pub(crate) struct Game {
     pub(crate) sim: Simulation,
+    renderer: std::rc::Rc<dyn RenderBackend>,
     pub(crate) autosave_enabled: bool,
     pub(crate) selected_unit: Option<u32>,
     selected_city: Option<u32>,
@@ -158,10 +161,24 @@ pub(crate) struct Game {
 
 impl Game {
     pub(crate) fn new(map: crate::mapgen::GeneratedMap) -> Self {
-        Self::from_simulation(Simulation::new(map))
+        Self::new_with_renderer(map, render_backend::default_renderer())
     }
 
-    pub(crate) fn from_simulation(mut sim: Simulation) -> Self {
+    pub(crate) fn new_with_renderer(
+        map: crate::mapgen::GeneratedMap,
+        renderer: std::rc::Rc<dyn RenderBackend>,
+    ) -> Self {
+        Self::from_simulation_with_renderer(Simulation::new(map), renderer)
+    }
+
+    pub(crate) fn from_simulation(sim: Simulation) -> Self {
+        Self::from_simulation_with_renderer(sim, render_backend::default_renderer())
+    }
+
+    pub(crate) fn from_simulation_with_renderer(
+        mut sim: Simulation,
+        renderer: std::rc::Rc<dyn RenderBackend>,
+    ) -> Self {
         sim.enable_visual_events();
         let focus = sim
             .units()
@@ -181,6 +198,7 @@ impl Game {
         let (x, y) = native_to_map(position.0, position.1);
         Self {
             sim,
+            renderer,
             autosave_enabled: false,
             selected_unit,
             selected_city: None,
@@ -316,7 +334,8 @@ impl Game {
         if self.spaceship_open {
             return self.draw_spaceship();
         }
-        self.draw_world(assets);
+        let renderer = std::rc::Rc::clone(&self.renderer);
+        renderer.draw_world(self, assets);
         let mut actions = self.draw_hud();
         if self.spy_targets.is_some()
             || self.investigation.is_some()

@@ -51,6 +51,11 @@ async fn main() {
             eprintln!("{error}");
             std::process::exit(2);
         });
+    let renderer_name = argument_value("--renderer").unwrap_or_else(|| "amplio2".to_owned());
+    let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(2);
+    });
     let screenshot_path = argument_value("--screenshot");
     let self_test_path = argument_value("--self-test");
     let ui_review = argument_value("--ui-review");
@@ -104,7 +109,7 @@ async fn main() {
                     );
                     std::process::exit(2);
                 }
-                Game::from_simulation(simulation)
+                Game::from_simulation_with_renderer(simulation, std::rc::Rc::clone(&renderer))
             }
             Err(error) => {
                 eprintln!("Could not load campaign. {error}");
@@ -112,11 +117,16 @@ async fn main() {
             }
         }
     } else {
-        Game::new(mapgen::generate_with_wrap(seed, wrap))
+        Game::new_with_renderer(
+            mapgen::generate_with_wrap(seed, wrap),
+            std::rc::Rc::clone(&renderer),
+        )
     };
     println!(
-        "World seed: {} · wrap: {}",
-        game.sim.world_seed, game.sim.map_wrap
+        "World seed: {} · wrap: {} · renderer: {}",
+        game.sim.world_seed,
+        game.sim.map_wrap,
+        renderer.name()
     );
     game.autosave_enabled = !automated;
     let assets = Assets::new();

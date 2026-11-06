@@ -246,7 +246,7 @@ impl Game {
         }
     }
 
-    pub(super) fn draw_world(&self, assets: &Assets) {
+    pub(super) fn draw_world_amplio2(&self, assets: &Assets) {
         let viewport = Self::viewport_rect();
         draw_rectangle(
             viewport.x,

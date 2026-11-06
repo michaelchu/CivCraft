@@ -589,18 +589,24 @@ impl Game {
     }
 
     pub(super) fn screen_to_world(&self, point: Vec2) -> Option<(i32, i32)> {
-        let viewport = Self::viewport_rect();
-        let sx = point.x - (viewport.x + viewport.w * 0.5);
-        let sy = point.y - (viewport.y + viewport.h * 0.5);
-        let a = sx / (TILE_W * 0.5 * self.zoom);
-        let b = sy / (TILE_H * 0.5 * self.zoom);
-        let dx = (a + b) * 0.5;
-        let dy = (b - a) * 0.5;
-        let (x, y) = map_to_native(
-            (self.camera.x + dx).round() as i32,
-            (self.camera.y + dy).round() as i32,
-        );
-        self.sim.map_wrap.normalize(x, y)
+        self.renderer.screen_to_world(
+            point,
+            Self::viewport_rect(),
+            self.camera,
+            self.zoom,
+            self.sim.map_wrap,
+        )
+    }
+
+    pub(super) fn world_screen_position(&self, x: i32, y: i32) -> Vec2 {
+        self.renderer.world_screen_position(
+            self.sim.map_wrap,
+            Self::viewport_rect(),
+            self.camera_overview_position(),
+            self.zoom,
+            x,
+            y,
+        )
     }
 
     pub(crate) fn ui_action_at(point: Vec2, buttons: &[(Rect, UiAction)]) -> Option<UiAction> {

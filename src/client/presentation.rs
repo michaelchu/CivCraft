@@ -119,14 +119,7 @@ impl Game {
             return;
         };
         let project = |x, y| {
-            world::world_screen_position(
-                self.sim.map_wrap,
-                Self::viewport_rect(),
-                self.camera_overview_position(),
-                self.zoom,
-                x,
-                y,
-            )
+            self.world_screen_position(x, y)
         };
         for (unit, phase) in self.playback.active() {
             let center = match event {

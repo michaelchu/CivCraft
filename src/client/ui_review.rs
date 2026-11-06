@@ -171,14 +171,7 @@ impl Game {
                     1.0
                 };
                 self.focus_camera_on(20, 24);
-                let point = world::world_screen_position(
-                    self.sim.map_wrap,
-                    Self::viewport_rect(),
-                    self.camera_overview_position(),
-                    self.zoom,
-                    target.0,
-                    target.1,
-                );
+                let point = self.world_screen_position(target.0, target.1);
                 set_review_pointer(Some(point));
                 return;
             }
@@ -286,14 +279,7 @@ impl Game {
             let wrapping = self.sim.map_wrap.wraps_y();
             if phase == 1 {
                 let y = if scene == 33 { 0 } else { MAP_H - 1 };
-                let point = world::world_screen_position(
-                    self.sim.map_wrap,
-                    viewport,
-                    camera,
-                    self.zoom,
-                    MAP_W / 2,
-                    y,
-                );
+                let point = self.world_screen_position(MAP_W / 2, y);
                 let expected = if wrapping {
                     viewport.y + viewport.h * 0.5
                 } else if scene == 33 {

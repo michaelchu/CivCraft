@@ -86,14 +86,7 @@ impl Game {
             )));
         }
         let project = |point: &GotoPoint| {
-            world::world_screen_position(
-                self.sim.map_wrap,
-                viewport,
-                self.camera_overview_position(),
-                self.zoom,
-                point.x,
-                point.y,
-            )
+            self.world_screen_position(point.x, point.y)
         };
         let period_x = MAP_W as f32 * TILE_W * self.zoom;
         let period_y = MAP_H as f32 * TILE_H * 0.5 * self.zoom;
