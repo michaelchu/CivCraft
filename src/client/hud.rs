@@ -764,12 +764,7 @@ impl Game {
                     },
                     DrawTextureParams {
                         dest_size: Some(vec2(52.0, 39.0)),
-                        source: Some(Rect::new(
-                            1.0 + sprite_col as f32 * 65.0,
-                            1.0 + sprite_row as f32 * 49.0,
-                            64.0,
-                            48.0,
-                        )),
+                        source: Some(isolated_sprite_source(sprite_row, sprite_col, 64.0, 48.0)),
                         ..Default::default()
                     },
                 );

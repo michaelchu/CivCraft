@@ -1,7 +1,7 @@
 mod assets;
 pub(crate) use assets::{Assets, native_unit_rendering_playtest, window_conf};
 use assets::{
-    OCEAN_ATLAS_H, TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source, ocean_cell_source,
+    TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source, isolated_sprite_source, ocean_cell_source,
     player_color, unit_sprite,
 };
 mod city_bar;

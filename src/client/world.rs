@@ -55,11 +55,11 @@ impl Game {
                 tint,
                 DrawTextureParams {
                     dest_size: Some(vec2(tile_w, tile_h)),
-                    source: Some(Rect::new(
-                        (source_col * TILE_SPRITE_W) as f32,
-                        (corner * OCEAN_ATLAS_H + source_row * TILE_SPRITE_H) as f32,
-                        TILE_SPRITE_W as f32,
-                        TILE_SPRITE_H as f32,
+                    source: Some(isolated_sprite_source(
+                        (corner * 9 + source_row) as i32,
+                        source_col as i32,
+                        96.0,
+                        48.0,
                     )),
                     ..Default::default()
                 },
@@ -323,7 +323,14 @@ impl Game {
                 continue;
             }
 
-            draw_diamond(center, tile_w, tile_h, tile.terrain.minimap_color());
+            // Match the water artwork beneath transparent mask edges, rather
+            // than exposing the much brighter minimap palette at tile seams.
+            let backing = if tile.terrain.is_water() {
+                assets.ocean_backing[usize::from(tile.terrain != Terrain::DeepOcean)]
+            } else {
+                tile.terrain.minimap_color()
+            };
+            draw_diamond(center, tile_w, tile_h, backing);
             self.draw_terrain_sprite(assets, x, y, center, tile_w, tile_h);
         }
 
@@ -591,7 +598,11 @@ impl Game {
                     center,
                     layout.tile_w,
                     layout.tile_h,
-                    tile.terrain.minimap_color(),
+                    if tile.terrain.is_water() {
+                        assets.ocean_backing[usize::from(tile.terrain != Terrain::DeepOcean)]
+                    } else {
+                        tile.terrain.minimap_color()
+                    },
                 );
                 self.draw_terrain_sprite(assets, x, y, center, layout.tile_w, layout.tile_h);
             }
@@ -670,12 +681,7 @@ impl Game {
             WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(city_w, city_h)),
-                source: Some(Rect::new(
-                    1.0 + col as f32 * 97.0,
-                    1.0 + row as f32 * 73.0,
-                    96.0,
-                    72.0,
-                )),
+                source: Some(isolated_sprite_source(row, col, 96.0, 72.0)),
                 ..Default::default()
             },
         );
@@ -785,12 +791,7 @@ impl Game {
             },
             DrawTextureParams {
                 dest_size: Some(vec2(unit_w, unit_h)),
-                source: Some(Rect::new(
-                    1.0 + sprite_col as f32 * 65.0,
-                    1.0 + sprite_row as f32 * 49.0,
-                    64.0,
-                    48.0,
-                )),
+                source: Some(isolated_sprite_source(sprite_row, sprite_col, 64.0, 48.0)),
                 ..Default::default()
             },
         );

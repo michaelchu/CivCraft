@@ -15,6 +15,59 @@ pub(super) fn bordered_sprite_source(row: i32, col: i32, width: f32, height: f32
     )
 }
 
+fn without_sprite_grid(mut image: Image, width: usize, height: usize) -> Image {
+    let stride = image.width();
+    for (index, pixel) in image.get_image_data_mut().iter_mut().enumerate() {
+        if (index % stride) % (width + 1) == 0 || (index / stride) % (height + 1) == 0 {
+            *pixel = [0; 4];
+        }
+    }
+    image
+}
+
+// Give each sprite its own duplicated edge pixels, as if loaded separately.
+// Source sheets can contain opaque grid lines immediately outside the cells.
+fn isolated_atlas(
+    source: &Image,
+    width: usize,
+    height: usize,
+    cols: usize,
+    rows: usize,
+    bordered: bool,
+) -> Image {
+    let mut atlas = Image::gen_image_color(
+        (cols * (width + 2)) as u16,
+        (rows * (height + 2)) as u16,
+        BLANK,
+    );
+    let stride = atlas.width();
+    let src = source.get_image_data();
+    let dst = atlas.get_image_data_mut();
+    let gap = usize::from(bordered);
+    for row in 0..rows {
+        for col in 0..cols {
+            for y in 0..height + 2 {
+                for x in 0..width + 2 {
+                    let sx = gap + col * (width + gap) + x.saturating_sub(1).min(width - 1);
+                    let sy = gap + row * (height + gap) + y.saturating_sub(1).min(height - 1);
+                    dst[(row * (height + 2) + y) * stride + col * (width + 2) + x] =
+                        src[sy * source.width() + sx];
+                }
+            }
+        }
+    }
+    atlas
+}
+
+pub(super) fn isolated_sprite_source(row: i32, col: i32, width: f32, height: f32) -> Rect {
+    Rect::new(
+        1.0 + col as f32 * (width + 2.0),
+        1.0 + row as f32 * (height + 2.0),
+        width,
+        height,
+    )
+}
+
 pub(super) fn ocean_cell_source(matches: [u8; 4]) -> (usize, usize) {
     let [north, east, south, west] = matches;
     (
@@ -109,6 +162,7 @@ pub(crate) struct Assets {
     pub(super) hills: Texture2D,
     pub(super) mountains: Texture2D,
     pub(super) ocean_corners: Texture2D,
+    pub(super) ocean_backing: [Color; 2],
     pub(super) units: Texture2D,
     pub(super) selection: Texture2D,
     pub(super) cities: Texture2D,
@@ -159,21 +213,46 @@ impl Assets {
         let ocean_image =
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_ocean.png"), None)
                 .expect("valid Amplio2 ocean atlas");
-        let ocean_corners =
-            Texture2D::from_image(&build_ocean_corner_atlas(&ocean_image, &terrain_image));
-        let units = Texture2D::from_file_with_format(
-            include_bytes!("../../assets/amplio2_units.png"),
-            None,
-        );
+        let ocean_backing = [0, 1].map(|kind| {
+            let (row, col) = ocean_cell_source([kind; 4]);
+            let mut sum = [0u32; 3];
+            for y in 0..48 {
+                for x in 0..96 {
+                    let pixel = ocean_image.get_image_data()
+                        [(row * 48 + y) * ocean_image.width() + col * 96 + x];
+                    for i in 0..3 {
+                        sum[i] += u32::from(pixel[i]);
+                    }
+                }
+            }
+            Color::from_rgba(
+                (sum[0] / 4608) as u8,
+                (sum[1] / 4608) as u8,
+                (sum[2] / 4608) as u8,
+                255,
+            )
+        });
+        let ocean_corners = Texture2D::from_image(&isolated_atlas(
+            &build_ocean_corner_atlas(&ocean_image, &terrain_image),
+            96,
+            48,
+            9,
+            36,
+            false,
+        ));
+        let units_image =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_units.png"), None)
+                .expect("valid unit atlas");
+        let units = Texture2D::from_image(&isolated_atlas(&units_image, 64, 48, 20, 3, true));
         let selection = Texture2D::from_file_with_format(
             include_bytes!("../../assets/amplio2_select.png"),
             None,
         );
         selection.set_filter(FilterMode::Nearest);
-        let cities = Texture2D::from_file_with_format(
-            include_bytes!("../../assets/amplio2_cities.png"),
-            None,
-        );
+        let cities_image =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_cities.png"), None)
+                .expect("valid city atlas");
+        let cities = Texture2D::from_image(&isolated_atlas(&cities_image, 96, 72, 10, 10, true));
         let explosions = Texture2D::from_file_with_format(
             include_bytes!("../../assets/amplio2_explosions.png"),
             None,
@@ -182,7 +261,7 @@ impl Assets {
         let status_image =
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_tiles.png"), None)
                 .expect("valid unit status atlas");
-        let status = Texture2D::from_image(&status_image);
+        let status = Texture2D::from_image(&without_sprite_grid(status_image.clone(), 96, 48));
         let goto = Texture2D::from_image(&super::routes::build_goto_atlas(
             &terrain_image,
             &status_image,
@@ -199,10 +278,10 @@ impl Assets {
         for texture in [&status, &veterancy, &activities] {
             texture.set_filter(FilterMode::Nearest);
         }
-        let bases = Texture2D::from_file_with_format(
-            include_bytes!("../../assets/amplio2_bases.png"),
-            None,
-        );
+        let bases_image =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_bases.png"), None)
+                .expect("valid bases atlas");
+        let bases = Texture2D::from_image(&without_sprite_grid(bases_image, 96, 72));
         bases.set_filter(FilterMode::Nearest);
         // These are tightly packed sprite atlases. Nearest filtering keeps a
         // tile from sampling the neighbouring cell at zoom levels below 1x.
@@ -224,6 +303,7 @@ impl Assets {
             hills,
             mountains,
             ocean_corners,
+            ocean_backing,
             units,
             selection,
             cities,
@@ -401,6 +481,47 @@ pub(crate) fn native_unit_rendering_playtest() -> (bool, bool, bool) {
 #[cfg(test)]
 mod native_unit_tests {
     use super::*;
+
+    #[test]
+    fn isolated_cells_exclude_grid_lines_and_duplicate_only_their_own_edges() {
+        for bordered in [false, true] {
+            let gap = usize::from(bordered);
+            let size = 2 * (2 + gap) + gap;
+            let mut source = Image::gen_image_color(size as u16, size as u16, GREEN);
+            let colors = [
+                Color::from_rgba(255, 0, 0, 255),
+                Color::from_rgba(0, 0, 255, 255),
+                Color::from_rgba(255, 255, 0, 255),
+                WHITE,
+            ];
+            for row in 0..2 {
+                for col in 0..2 {
+                    for y in 0..2 {
+                        for x in 0..2 {
+                            source.set_pixel(
+                                (gap + col * (2 + gap) + x) as u32,
+                                (gap + row * (2 + gap) + y) as u32,
+                                colors[row * 2 + col],
+                            );
+                        }
+                    }
+                }
+            }
+            let atlas = isolated_atlas(&source, 2, 2, 2, 2, bordered);
+            for row in 0..2 {
+                for col in 0..2 {
+                    for y in 0..4 {
+                        for x in 0..4 {
+                            assert_eq!(
+                                atlas.get_pixel((col * 4 + x) as u32, (row * 4 + y) as u32),
+                                colors[row * 2 + col]
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn all_native_unit_sprites_have_pixels_and_new_types_have_distinct_atlas_cells() {
