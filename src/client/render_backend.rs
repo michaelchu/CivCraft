@@ -92,7 +92,7 @@ pub(crate) fn default_renderer() -> std::rc::Rc<dyn RenderBackend> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sim::topology::{MAP_H, MAP_W};
+    use crate::sim::topology::MAP_W;
 
     #[test]
     fn startup_selection_registers_the_existing_renderer() {
@@ -107,10 +107,14 @@ mod tests {
         let viewport = Rect::new(0.0, 46.0, 900.0, 600.0);
         let camera = vec2(31.0, 24.0);
         let view_camera = vec2(
-            (camera.x - camera.y + MAP_W as f32).rem_euclid(2.0 * MAP_W as f32),
+            (camera.x - camera.y + MAP_W as f32).rem_euclid(2.0 * MapWrap::X.width() as f32),
             camera.x + camera.y - MAP_W as f32,
         );
-        for (x, y) in [(0, 0), (MAP_W / 2, MAP_H / 2), (MAP_W - 1, MAP_H - 1)] {
+        for (x, y) in [
+            (0, 0),
+            (MapWrap::X.width() / 2, MapWrap::X.height() / 2),
+            (MapWrap::X.width() - 1, MapWrap::X.height() - 1),
+        ] {
             let point =
                 renderer.world_screen_position(MapWrap::X, viewport, view_camera, 1.0, x, y);
             assert_eq!(

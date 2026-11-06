@@ -85,11 +85,9 @@ impl Game {
                 (viewport.h * dpi) as i32,
             )));
         }
-        let project = |point: &GotoPoint| {
-            self.world_screen_position(point.x, point.y)
-        };
-        let period_x = MAP_W as f32 * TILE_W * self.zoom;
-        let period_y = MAP_H as f32 * TILE_H * 0.5 * self.zoom;
+        let project = |point: &GotoPoint| self.world_screen_position(point.x, point.y);
+        let period_x = self.sim.map_wrap.width() as f32 * TILE_W * self.zoom;
+        let period_y = self.sim.map_wrap.height() as f32 * TILE_H * 0.5 * self.zoom;
         let shifts_y = if self.sim.map_wrap.wraps_y() {
             vec![-period_y, 0.0, period_y]
         } else {

@@ -160,14 +160,19 @@ mod tests {
     }
     #[test]
     fn knowledge_wraps_horizontally_but_does_not_sample_across_poles() {
-        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let mut sim = Simulation::new(crate::mapgen::generate_with_wrap(42, MapWrap::X));
         sim.ui_review_fog();
-        sim.map_wrap = MapWrap::X;
         let game = Game::from_simulation(sim);
         assert_eq!(game.fog_knowledge(20, 24), Knowledge::Visible);
-        assert_eq!(game.fog_knowledge(20 + MAP_W, 24), Knowledge::Visible);
+        assert_eq!(
+            game.fog_knowledge(20 + MapWrap::X.width(), 24),
+            Knowledge::Visible
+        );
         assert_eq!(game.fog_knowledge(20, -1), Knowledge::Remembered);
-        assert_eq!(game.fog_knowledge(20, MAP_H), Knowledge::Remembered);
+        assert_eq!(
+            game.fog_knowledge(20, MapWrap::X.height()),
+            Knowledge::Remembered
+        );
     }
     #[test]
     fn atlas_isolates_sprites_and_never_samples_the_unused_credits_cell() {

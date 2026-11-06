@@ -210,14 +210,18 @@ impl Simulation {
     /// Reveals the generated map for visual inspection without changing any
     /// terrain, river flags, extras, RNG or starting positions.
     pub(crate) fn ui_review_generated_river_focus(&mut self) -> Option<(i32, i32)> {
-        let target = (0..MAP_H)
-            .flat_map(|y| (0..MAP_W).map(move |x| (x, y)))
+        let target = (0..self.map_wrap.height())
+            .flat_map(|y| (0..self.map_wrap.width()).map(move |x| (x, y)))
             .filter(|&(x, y)| self.tile(x, y).river)
             .min_by_key(|&(x, y)| {
-                let diagonal = [(1, 1), (-1, -1)].map(|(dx, dy)| {
-                    let p = offset_native_by_map(x, y, dx, dy);
-                    self.tile(p.0, p.1)
-                });
+                let diagonal: Vec<_> = [(1, 1), (-1, -1)]
+                    .into_iter()
+                    .filter_map(|(dx, dy)| {
+                        self.map_wrap
+                            .offset(x, y, dx, dy)
+                            .map(|p| self.tile(p.0, p.1))
+                    })
+                    .collect();
                 let lake = diagonal.iter().any(|t| t.terrain == Terrain::Lake);
                 let link = diagonal.iter().any(|t| t.terrain.is_water() || t.river);
                 (
@@ -568,7 +572,10 @@ impl Simulation {
             Terrain::Tundra,
         ];
         for tile in 0..self.tiles.len() {
-            let (x, y) = (tile as i32 % MAP_W, tile as i32 / MAP_W);
+            let (x, y) = (
+                tile as i32 % self.map_wrap.width(),
+                tile as i32 / self.map_wrap.width(),
+            );
             self.tiles[tile].terrain = kinds[((x / 4 + (y / 4) * 3) as usize) % kinds.len()];
         }
     }
@@ -617,10 +624,10 @@ impl Simulation {
     pub(crate) fn ui_review_wrap_seam(&mut self) -> u32 {
         self.ui_review_terrain_layers(false);
         for (index, tile) in self.tiles.iter_mut().enumerate() {
-            let y = index as i32 / MAP_W;
+            let y = index as i32 / self.map_wrap.width();
             tile.terrain = if y == 0 {
                 Terrain::Tundra
-            } else if y == MAP_H - 1 {
+            } else if y == self.map_wrap.height() - 1 {
                 Terrain::Desert
             } else {
                 Terrain::Grassland

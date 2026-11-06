@@ -141,7 +141,7 @@ impl Simulation {
                 self.at_war(city.owner, boat.owner)
                     && troops.is_none_or(|troops| self.assault_capture_chance(city, troops) >= 0.5)
                     && overseas.is_none_or(|(labels, origin)| {
-                        labels[Self::idx(city.x, city.y)] != origin
+                        labels[self.map_wrap.index(city.x, city.y)] != origin
                             && self.tile(city.x, city.y).known_by[boat.owner]
                     })
             })
@@ -238,7 +238,7 @@ impl Simulation {
         let labels = self.continent_labels();
         for port in ports {
             let city = self.cities.iter().find(|city| city.id == port).unwrap();
-            let origin = labels[Self::idx(city.x, city.y)];
+            let origin = labels[self.map_wrap.index(city.x, city.y)];
             let overseas = Some((labels.as_slice(), origin));
             let boats: Vec<_> = self
                 .units
@@ -533,7 +533,7 @@ impl Simulation {
                     ((pickup_cost - boat.moves_left).max(0) + allowance - 1) / allowance;
                 staged.moves_left =
                     (boat.moves_left + pickup_turns * allowance - pickup_cost).max(0);
-                let origin = labels[Self::idx(port.x, port.y)];
+                let origin = labels[self.map_wrap.index(port.x, port.y)];
                 let Some((distance, _, _, _)) =
                     self.raider_landing(&staged, Some((&labels, origin)), Some(&troops), &[])
                 else {
@@ -650,7 +650,7 @@ impl Simulation {
         let origin = cargo.iter().find_map(|id| {
             let home = self.units.iter().find(|unit| unit.id == *id)?.home_city?;
             let city = self.cities.iter().find(|city| city.id == home)?;
-            Some(labels[Self::idx(city.x, city.y)])
+            Some(labels[self.map_wrap.index(city.x, city.y)])
         });
         let troops: Vec<_> = self
             .units

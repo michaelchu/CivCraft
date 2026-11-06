@@ -285,7 +285,7 @@ impl Simulation {
         self.route_memory.resize(self.tiles.len(), None);
         for (index, tile) in self.tiles.iter().enumerate() {
             if tile.visible || (legacy_save && tile.seen) {
-                let (x, y) = Self::xy(index);
+                let (x, y) = self.map_wrap.position(index);
                 self.route_memory[index] = Some(self.live_route_tile(x, y));
             }
         }
@@ -296,7 +296,7 @@ impl Simulation {
         if tile.visible {
             Some(self.live_route_tile(x, y))
         } else if tile.seen {
-            self.route_memory[Self::idx(x, y)]
+            self.route_memory[self.map_wrap.index(x, y)]
         } else {
             None
         }
@@ -1175,8 +1175,13 @@ impl Simulation {
                 defender: defender.clone(),
                 hp,
                 city: self.cities.iter().find(|c| (c.x, c.y) == (nx, ny)).cloned(),
-                territory: (0..MAP_W * MAP_H)
-                    .map(|i| self.displayed_tile_owner(i % MAP_W, i / MAP_W))
+                territory: (0..self.map_wrap.width() * self.map_wrap.height())
+                    .map(|i| {
+                        self.displayed_tile_owner(
+                            i % self.map_wrap.width(),
+                            i / self.map_wrap.width(),
+                        )
+                    })
                     .collect(),
             });
         }
@@ -1300,8 +1305,8 @@ impl Simulation {
         observed: bool,
         limit: i32,
     ) -> Option<(Vec<(i32, i32)>, i32)> {
-        let start = Self::idx(unit.x, unit.y);
-        let goal = Self::idx(tx, ty);
+        let start = self.map_wrap.index(unit.x, unit.y);
+        let goal = self.map_wrap.index(tx, ty);
         if start == goal {
             return Some((Vec::new(), 0));
         }
@@ -1319,7 +1324,7 @@ impl Simulation {
             if current == goal {
                 break;
             }
-            let (cx, cy) = Self::xy(current);
+            let (cx, cy) = self.map_wrap.position(current);
             (step_unit.x, step_unit.y) = (cx, cy);
             let remaining = if spent < unit.moves_left {
                 unit.moves_left - spent
@@ -1330,7 +1335,7 @@ impl Simulation {
                 let Some((nx, ny)) = self.map_wrap.offset(cx, cy, dx, dy) else {
                     continue;
                 };
-                let ni = Self::idx(nx, ny);
+                let ni = self.map_wrap.index(nx, ny);
                 let dest = self.tile(nx, ny);
                 let source = self.tile(cx, cy);
                 let remembered = observed.then(|| self.observed_route_tile(nx, ny)).flatten();

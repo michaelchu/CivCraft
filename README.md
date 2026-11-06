@@ -53,8 +53,8 @@ cargo run --release -- --wrap xy
 ```
 
 `x` creates a cylinder with bounded northern/southern edges and polar climate.
-`xy` wraps both axes and uses the reference preset's torus climate. Both keep
-our existing map dimensions. Use the same seed **and wrap setting** to replay a
+`xy` wraps both axes and uses the reference preset's torus climate. Native sizing
+for our six-player preset produces 36×48 tiles in `x` and 32×64 in `xy`. Use the same seed **and wrap setting** to replay a
 map, for example `cargo run --release -- --seed 42 --wrap xy`. The current mode
 appears next to the seed above the minimap.
 

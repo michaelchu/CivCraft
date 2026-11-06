@@ -1,8 +1,8 @@
 mod assets;
 pub(crate) use assets::{Assets, native_unit_rendering_playtest, window_conf};
 use assets::{
-    TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source, isolated_sprite_source, ocean_cell_source,
-    player_color, unit_sprite,
+    TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source, isolated_sprite_source,
+    ocean_cell_source, player_color, unit_sprite,
 };
 mod city_bar;
 mod city_map;
@@ -15,10 +15,10 @@ mod map_layers;
 mod map_overlays;
 mod map_view;
 mod presentation;
+mod render_backend;
 mod research_tree;
 mod research_view;
 mod rivers;
-mod render_backend;
 mod routes;
 mod spaceship_view;
 mod spy_view;
@@ -27,10 +27,10 @@ mod territory;
 mod ui;
 mod ui_review;
 mod world;
+pub(crate) use render_backend::{RenderBackend, create as create_renderer};
 pub(crate) use ui::set_review_pointer;
 use ui::*;
 pub(crate) use ui_review::{UI_REVIEW_SCENES, UiReviewSequence, UiReviewSources};
-pub(crate) use render_backend::{RenderBackend, create as create_renderer};
 
 use crate::rules::{Building, Genus, Requirement, Tech};
 use crate::sim::{topology::*, *};

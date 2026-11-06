@@ -2,7 +2,7 @@ use super::*;
 
 impl Simulation {
     pub(in crate::sim) fn live_map_observation(&self, index: usize) -> MapObservation {
-        let (x, y) = Self::xy(index);
+        let (x, y) = self.map_wrap.position(index);
         let tile = &self.tiles[index];
         MapObservation {
             route: self.live_route_tile(x, y),
@@ -58,7 +58,7 @@ impl Simulation {
     pub(crate) fn map_snapshot_playtest(&mut self) -> bool {
         self.units.clear();
         let (x, y) = (23, 36);
-        let index = Self::idx(x, y);
+        let index = self.map_wrap.index(x, y);
         self.tile_mut(x, y).terrain = Terrain::Ocean;
         self.spawn_unit(1, UnitKind::Trireme, x, y);
         self.refresh_visibility();
@@ -129,7 +129,7 @@ impl Simulation {
             .chain(
                 self.cities
                     .iter()
-                    .filter(|city| self.tiles[Self::idx(city.x, city.y)].visible)
+                    .filter(|city| self.tiles[self.map_wrap.index(city.x, city.y)].visible)
                     .map(|city| city.owner),
             )
             .collect();

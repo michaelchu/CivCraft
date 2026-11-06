@@ -228,3 +228,14 @@ Ocean corner drawing is clipped to shared diamond geometry so expanded alpha
 masks cannot paint blue onto neighboring ice. Ice-cliff sprites keep their
 original placement and shadows; only their bright lip extends upward by one
 source pixel into transparency. Lake cells are unchanged.
+
+### Native map dimensions and polar generation
+
+WrapX now uses the reference 36×48 dimensions, while WrapXY uses 32×64.
+Ten native Freeciv goldens cover terrain, elevation, extras and starting sites
+for five seeds in each mode. All 578 Rust tests pass, including concurrent
+12-turn campaigns with both geometries and worker removal across each seam.
+The desktop gameplay suite passed 278/278 checks on both launch modes.
+All 40 gallery scenes pass at 1280×720 and 800×600 in each mode: WrapX produces
+57/58 captures, WrapXY 59/60. Generated north/south polar terrain, seam
+crossing, minimap aspect ratios and compact layouts were visually inspected.

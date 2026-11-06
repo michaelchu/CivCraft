@@ -98,7 +98,7 @@ impl Simulation {
         let surplus = forecast.shields - forecast.support.shields;
         if surplus > 0 && !forecast.disorder {
             let labels = self.continent_labels();
-            let origin = labels[Self::idx(city.x, city.y)];
+            let origin = labels[self.map_wrap.index(city.x, city.y)];
             let new_ferry = SETTLEMENT_FERRIES
                 .into_iter()
                 .filter(|&kind| self.unit_buildable(city, kind))
@@ -135,7 +135,7 @@ impl Simulation {
     }
 
     fn settler_rendezvous_points(&self, founder: &Unit, ship: &Unit) -> Vec<Rendezvous> {
-        let start = Self::idx(founder.x, founder.y);
+        let start = self.map_wrap.index(founder.x, founder.y);
         let ship_speed = self.unit_move_rate(&ship).max(1);
         let land_speed = self.unit_move_rate(&founder).max(1);
         let land_initial = founder.moves_left.max(0);
@@ -169,7 +169,7 @@ impl Simulation {
             } else {
                 land_speed - (cost - land_initial) % land_speed
             };
-            let (x, y) = Self::xy(index);
+            let (x, y) = self.map_wrap.position(index);
             (traveler.x, traveler.y) = (x, y);
             traveler.moves_left = step_remaining;
             let port = self.cities.iter().any(|city| {
@@ -189,9 +189,10 @@ impl Simulation {
                             })
                     }))
             {
-                let sea_cost = *checked[Self::idx(pickup.0, pickup.1)].get_or_insert_with(|| {
-                    self.route_cost_within(ship, pickup.0, pickup.1, i32::MAX)
-                });
+                let sea_cost = *checked[self.map_wrap.index(pickup.0, pickup.1)]
+                    .get_or_insert_with(|| {
+                        self.route_cost_within(ship, pickup.0, pickup.1, i32::MAX)
+                    });
                 if let Some(sea_cost) = sea_cost {
                     let sea_turns = arrival(sea_cost, sea_initial, ship_speed);
                     // Adjacent embark is a move, unlike loading on the same
@@ -199,14 +200,14 @@ impl Simulation {
                     let land_ready =
                         land_turns + i32::from(pickup != (x, y) && arrival_remaining == 0);
                     let turns = land_ready.max(sea_turns);
-                    let meeting = &mut rendezvous[Self::idx(pickup.0, pickup.1)];
+                    let meeting = &mut rendezvous[self.map_wrap.index(pickup.0, pickup.1)];
                     if meeting.is_none_or(|current| (turns, cost, index) < current) {
                         *meeting = Some((turns, cost, index));
                     }
                 }
             }
             for (nx, ny, step) in self.settler_land_steps(&traveler) {
-                let next = Self::idx(nx, ny);
+                let next = self.map_wrap.index(nx, ny);
                 let next_cost = cost + step.min(step_remaining);
                 if next_cost < costs[next] {
                     costs[next] = next_cost;
@@ -227,7 +228,7 @@ impl Simulation {
                 }
                 walk.reverse();
                 Some(Rendezvous {
-                    tile: Self::xy(tile),
+                    tile: self.map_wrap.position(tile),
                     turns,
                     walk,
                 })
@@ -284,9 +285,9 @@ impl Simulation {
                 self.cities
                     .iter()
                     .find(|city| Some(city.id) == founder.home_city)
-                    .map_or(0, |city| labels[Self::idx(city.x, city.y)])
+                    .map_or(0, |city| labels[self.map_wrap.index(city.x, city.y)])
             } else {
-                labels[Self::idx(founder.x, founder.y)]
+                labels[self.map_wrap.index(founder.x, founder.y)]
             };
         let mut best: Option<(u32, SettlementFerry)> = None;
         for ship in self.units.iter().filter(|ship| {
@@ -346,7 +347,7 @@ impl Simulation {
         let mut previous = vec![None; self.tiles.len()];
         let mut land_queue = BinaryHeap::new();
         for (meeting, rendezvous) in rendezvous.iter().enumerate() {
-            let index = Self::idx(rendezvous.tile.0, rendezvous.tile.1);
+            let index = self.map_wrap.index(rendezvous.tile.0, rendezvous.tile.1);
             let cost = rendezvous.turns * turn_cost;
             sea_costs[index] = cost;
             sea_queue.push(Reverse((cost, index, meeting)));
@@ -356,10 +357,10 @@ impl Simulation {
             if cost != sea_costs[tile] {
                 continue;
             }
-            let (x, y) = Self::xy(tile);
+            let (x, y) = self.map_wrap.position(tile);
             (staged.x, staged.y) = (x, y);
             for (nx, ny) in self.map_wrap.neighbors(x, y) {
-                let index = Self::idx(nx, ny);
+                let index = self.map_wrap.index(nx, ny);
                 let blocked = self.units.iter().any(|unit| {
                     (unit.x, unit.y) == (nx, ny) && !self.allied(unit.owner, founder.owner)
                 });
@@ -404,7 +405,7 @@ impl Simulation {
             }
             let turns = cost / turn_cost;
             let discount = (23.0_f64 / 24.0).powi(3 * turns);
-            let (x, y) = Self::xy(index);
+            let (x, y) = self.map_wrap.position(index);
             if assigned.is_none_or(|destination| destination == (x, y))
                 && let Some(site) =
                     self.city_site_result(founder.owner, x, y, government, &reservations)
@@ -417,7 +418,7 @@ impl Simulation {
             }
             (traveler.x, traveler.y) = (x, y);
             for (nx, ny, step) in self.settler_land_steps(&traveler) {
-                let next = Self::idx(nx, ny);
+                let next = self.map_wrap.index(nx, ny);
                 let cost = cost + step * sea_speed;
                 if cost < land_costs[next] {
                     land_costs[next] = cost;
@@ -441,8 +442,8 @@ impl Simulation {
             pickup: rendezvous[meeting].tile,
             pickup_walk: rendezvous[meeting].walk.clone(),
             approach,
-            landing: Self::xy(cursor),
-            destination: Self::xy(destination),
+            landing: self.map_wrap.position(cursor),
+            destination: self.map_wrap.position(destination),
             inland_path,
             value: best_value,
         })

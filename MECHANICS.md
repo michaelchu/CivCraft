@@ -82,7 +82,7 @@ Every function listed above, plus the seven string-trace helpers, was requested 
 | Players | 6 total: one person and five computer rivals | reference/freeciv/data/civ2civ3/game.ruleset, aifill = 6 |
 | Source map target | 100 land tiles per player | reference/freeciv/data/civ2civ3/game.ruleset, tilesperplayer = 100 |
 | Requested map area | 2,000 tiles | `_generator_init_topology` at `0x100031444`: `6 players × 100 land tiles × 100 / 30 land-percent` |
-| Build map | 32 by 64 wrapped native tiles, 2,048 total | `_get_ratios` at `0x100031e9c` returns 1:1 for two-axis wrap. `_set_sizes` at `0x100031f5c` computes `scale = trunc(sqrt(2000 / (1 × 1 × 2 × 2²)) + 0.49) = 16`, then `width = 1 × 16 × 2` and `height = 1 × 16 × 2 × 2`. |
+| Build map | WrapXY: 32×64 (2,048 tiles); WrapX: 36×48 (1,728 tiles) | `_get_ratios` at `0x100031e9c` returns 1:1 for two-axis wrap. `_set_sizes` at `0x100031f5c` computes `scale = trunc(sqrt(2000 / (1 × 1 × 2 × 2²)) + 0.49) = 16`, then `width = 1 × 16 × 2` and `height = 1 × 16 × 2 × 2`. WrapX uses a 3:2 ratio, scale 6, width `3 × 6 × 2` and height `2 × 6 × 2 × 2`. |
 | Land target | 30% | CivCraft uses the Civ2Civ3 land percentage when placing the shoreline. |
 | Generator | Local pseudofractal elevation, climate, relief, biome patches, rivers, water smoothing, lakes, resources, villages, and start placement | Reference `server/generator/mapgen.c`, `height_map.c`, and `startpos.c`. The Rust implementation is checked against Freeciv revision eb8c7033 for the default six-player Civ2Civ3 setup, using the same value for mapseed and gameseed. Regression checks cover terrain, elevation, extras, and start allocation. |
 | Wrap | CLI `--wrap x` (default) or `--wrap xy`; per-campaign cylinder or torus | reference/freeciv/data/civ2civ3/game.ruleset, WRAPX and WRAPY |
@@ -250,12 +250,21 @@ Research goals now have an explicit UNSET state distinct from Future Tech. Exist
 
 New games default to Freeciv's `WRAPX` cylinder option; `--wrap xy` retains the
 reference Civ2Civ3 preset's `WRAPX|WRAPY` torus. `MapWrap` is per campaign and is
-stored in new saves. Both modes currently use the existing 32×64 explicit map
-dimensions, rather than changing the size/aspect ratio when changing wrapping.
+stored in new saves. Native `get_ratios` uses 3:2 for WrapX and 1:1 for WrapXY.
+The six-player, 100-land-tiles/player preset requests 2,000 tiles; native size
+rounding produces 36×48 (1,728 tiles) for WrapX and 32×64 (2,048) for WrapXY.
+Simulation arrays, climate pressure, pathfinding, minimaps and rendering use
+these per-campaign dimensions. New saves use V16; no V15 cylinder migration is
+provided.
 Cylinder generation follows the reference's non-wrapped height-map boundary
 initialization and subdivision, singular-edge handling, linear north/south
 latitude, bounded neighbor iteration and zero-edge start-position smoothing.
-Torus exact-seed reference oracles remain unchanged.
+Start allocation also copies the native integer `efactor` calculation: the
+smaller cylinder uses different continent-quality thresholds from the torus.
+Ten native goldens (five seeds in each mode) verify dimensions, every terrain,
+elevation and extra bit, and starting-position sets. Regenerate them with
+`tools/generate_mapgen_oracles.py` against Freeciv 3.3.90.14-dev (eb8c703), using
+the Civ2Civ3 ruleset. Existing torus creation-order oracles remain unchanged.
 
 Source: `server/settings.c:1609`, `common/map.c:1565`,
 `server/generator/height_map.c:115–267`,

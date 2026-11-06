@@ -62,11 +62,11 @@ impl Simulation {
             .filter(|(_, tile)| tile.terrain.is_water())
         {
             let region = regions[index];
-            for (x, y) in self
-                .map_wrap
-                .neighbors(Self::xy(index).0, Self::xy(index).1)
-            {
-                let neighbor = Self::idx(x, y);
+            for (x, y) in self.map_wrap.neighbors(
+                self.map_wrap.position(index).0,
+                self.map_wrap.position(index).1,
+            ) {
+                let neighbor = self.map_wrap.index(x, y);
                 if self.tiles[neighbor].terrain.is_water() {
                     continue;
                 }
@@ -78,7 +78,7 @@ impl Simulation {
 
         let mut claims = vec![None; self.tiles.len()];
         let claim_strength = |city: &City, index: usize| {
-            let (x, y) = Self::xy(index);
+            let (x, y) = self.map_wrap.position(index);
             let distance_sq = self.map_distance(city.x, city.y, x, y).pow(2);
             (distance_sq, (city.size + 2).pow(2) / distance_sq.max(1))
         };
@@ -91,7 +91,7 @@ impl Simulation {
             {
                 return false;
             }
-            let source = regions[Self::idx(city.x, city.y)];
+            let source = regions[self.map_wrap.index(city.x, city.y)];
             let target = regions[index];
             if source == target
                 || distance_sq <= 2
@@ -99,11 +99,11 @@ impl Simulation {
             {
                 return true;
             }
-            let (x, y) = Self::xy(index);
+            let (x, y) = self.map_wrap.position(index);
             let adjacent = || {
                 self.map_wrap
                     .neighbors(x, y)
-                    .map(|(x, y)| regions[Self::idx(x, y)])
+                    .map(|(x, y)| regions[self.map_wrap.index(x, y)])
             };
             adjacent().any(|region| sizes[region] <= 3)
                 && adjacent().any(|region| region == source)
@@ -131,7 +131,7 @@ impl Simulation {
                     let Some((x, y)) = self.map_wrap.normalize(nx, ny) else {
                         continue;
                     };
-                    let index = Self::idx(x, y);
+                    let index = self.map_wrap.index(x, y);
                     let (distance_sq, strength) = claim_strength(city, index);
                     if claimable(city, index, distance_sq)
                         && (distance_sq == 0
@@ -170,9 +170,9 @@ impl Simulation {
             let mut pending = vec![index];
             while let Some(tile) = pending.pop() {
                 sizes[region] += 1;
-                let (x, y) = Self::xy(tile);
+                let (x, y) = self.map_wrap.position(tile);
                 for (nx, ny) in self.map_wrap.neighbors(x, y) {
-                    let next = Self::idx(nx, ny);
+                    let next = self.map_wrap.index(nx, ny);
                     if regions[next] == usize::MAX && self.tiles[next].terrain.is_water() == water {
                         regions[next] = region;
                         pending.push(next);

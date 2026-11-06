@@ -1,6 +1,7 @@
 use crate::sim::{PLAYER_COUNT, PLAYER_SLOTS, Resource, Terrain, Tile, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
+#[cfg(test)]
 const TILE_COUNT: usize = (MAP_W * MAP_H) as usize;
 const INITIAL_DIVISIONS: i32 = 6;
 
@@ -59,17 +60,13 @@ impl MapRng {
 impl Generator {
     fn index(&self, x: i32, y: i32) -> usize {
         let (x, y) = self.wrap.normalize(x, y).expect("generator tile is real");
-        (y * MAP_W + x) as usize
+        self.wrap.index(x, y)
     }
-}
-
-fn position(index: usize) -> (i32, i32) {
-    (index as i32 % MAP_W, index as i32 / MAP_W)
 }
 
 impl Generator {
     fn neighbors(&self, tile: usize) -> impl Iterator<Item = usize> {
-        let (x, y) = position(tile);
+        let (x, y) = self.wrap.position(tile);
         // Freeciv iterates the valid directions in enum order.
         [(-1, -1), (0, -1), (-1, 0), (1, 0), (0, 1), (1, 1)]
             .into_iter()
@@ -81,7 +78,7 @@ impl Generator {
     }
 
     fn within(&self, tile: usize, radius: i32) -> impl Iterator<Item = usize> {
-        let (x, y) = position(tile);
+        let (x, y) = self.wrap.position(tile);
         (-radius..=radius)
             .flat_map(move |dx| (-radius..=radius).map(move |dy| (dx, dy)))
             .filter(move |&(dx, dy)| isohex_vector_distance(dx, dy) <= radius)
@@ -93,8 +90,8 @@ impl Generator {
     }
 
     fn distance(&self, a: usize, b: usize) -> i32 {
-        let (ax, ay) = position(a);
-        let (bx, by) = position(b);
+        let (ax, ay) = self.wrap.position(a);
+        let (bx, by) = self.wrap.position(b);
         let (dx, dy) = self.wrap.vector(ax, ay, bx, by);
         isohex_vector_distance(dx, dy)
     }
@@ -120,7 +117,7 @@ impl Generator {
             (mx, my, (nw + ne + sw + se) / 4),
         ] {
             let tile = self.index(x, y);
-            let near_edge = !self.wrap.wraps_y() && (y < 4 || y >= MAP_H - 4);
+            let near_edge = !self.wrap.wraps_y() && (y < 4 || y >= self.wrap.height() - 4);
             if self.colatitude(tile) <= ICE_BASE / 2
                 || (!near_edge && heights[tile].is_none_or(|height| height == 0))
             {
@@ -139,20 +136,20 @@ impl Generator {
     }
 
     fn height_field(&self, rng: &mut MapRng) -> Vec<i32> {
-        let mut heights = vec![None; TILE_COUNT];
-        let step = MAP_W + MAP_H;
+        let mut heights = vec![None; self.wrap.tile_count()];
+        let step = self.wrap.width() + self.wrap.height();
         let ymax = if self.wrap.wraps_y() {
-            MAP_H
+            self.wrap.height()
         } else {
-            MAP_H - 1
+            self.wrap.height() - 1
         };
         let grid = |size, axis| size * axis / INITIAL_DIVISIONS;
-        let near_edge = |y: i32| !self.wrap.wraps_y() && (y < 4 || y >= MAP_H - 4);
+        let near_edge = |y: i32| !self.wrap.wraps_y() && (y < 4 || y >= self.wrap.height() - 4);
         let avoid_edge = (100 - LAND_PERCENT) * step / 100 + step / 3;
         for x in 0..INITIAL_DIVISIONS {
             for y in 0..INITIAL_DIVISIONS + i32::from(!self.wrap.wraps_y()) {
                 let y = grid(ymax, y);
-                heights[self.index(grid(MAP_W, x), y)] =
+                heights[self.index(grid(self.wrap.width(), x), y)] =
                     Some(rng.below(2 * step) - step - if near_edge(y) { avoid_edge } else { 0 });
             }
         }
@@ -163,9 +160,9 @@ impl Generator {
                     rng,
                     step,
                     [
-                        grid(MAP_W, x),
+                        grid(self.wrap.width(), x),
                         grid(ymax, y),
-                        grid(MAP_W, x + 1),
+                        grid(self.wrap.width(), x + 1),
                         grid(ymax, y + 1),
                     ],
                 );
@@ -178,9 +175,9 @@ impl Generator {
     }
 
     fn components(&self, terrain: &[Terrain], water: bool) -> Vec<Vec<usize>> {
-        let mut visited = vec![false; TILE_COUNT];
+        let mut visited = vec![false; self.wrap.tile_count()];
         let mut groups = Vec::new();
-        for tile in 0..TILE_COUNT {
+        for tile in 0..self.wrap.tile_count() {
             if visited[tile] || terrain[tile].is_water() != water {
                 continue;
             }
@@ -223,15 +220,16 @@ const TROPICAL: i32 = 572;
 impl Generator {
     fn colatitude(&self, tile: usize) -> i32 {
         if !self.wrap.wraps_y() {
-            let (_, y) = position(tile);
-            let latitude = (1000.0 - 2000.0 * f64::from(y) / f64::from(MAP_H - 1)) as i32;
+            let (_, y) = self.wrap.position(tile);
+            let latitude =
+                (1000.0 - 2000.0 * f64::from(y) / f64::from(self.wrap.height() - 1)) as i32;
             return 1000 - latitude.abs();
         }
         // Freeciv's torus projection folds two circular polar regions around
         // a diagonal equator in natural (staggered) coordinates.
-        let (native_x, native_y) = position(tile);
-        let x = f64::from(2 * native_x + native_y % 2) / f64::from(2 * MAP_W - 1);
-        let y = f64::from(native_y) / f64::from(MAP_H - 1);
+        let (native_x, native_y) = self.wrap.position(tile);
+        let x = f64::from(2 * native_x + native_y % 2) / f64::from(2 * self.wrap.width() - 1);
+        let y = f64::from(native_y) / f64::from(self.wrap.height() - 1);
         let mut x = 1.0 - 2.0 * x.min(1.0 - x);
         let mut y = 2.0 * y.min(1.0 - y);
         let flipped = x + y > 1.0;
@@ -259,14 +257,14 @@ fn ocean_at_depth(depth: i32) -> Terrain {
     }
 }
 
-fn random_tile(rng: &mut MapRng, eligible: impl Fn(usize) -> bool) -> Option<usize> {
-    for _ in 0..TILE_COUNT / 10 {
-        let tile = rng.below(TILE_COUNT as i32) as usize;
+fn random_tile(count: usize, rng: &mut MapRng, eligible: impl Fn(usize) -> bool) -> Option<usize> {
+    for _ in 0..count / 10 {
+        let tile = rng.below(count as i32) as usize;
         if eligible(tile) {
             return Some(tile);
         }
     }
-    let candidates: Vec<_> = (0..TILE_COUNT).filter(|&tile| eligible(tile)).collect();
+    let candidates: Vec<_> = (0..count).filter(|&tile| eligible(tile)).collect();
     if candidates.is_empty() {
         None
     } else {
@@ -326,13 +324,14 @@ impl Generator {
     }
 
     fn terrain_pass(&self, heights: &[i32], rng: &mut MapRng) -> (Vec<Terrain>, Vec<i32>) {
-        let mut dummy_temperature: Vec<_> =
-            (0..TILE_COUNT).map(|tile| self.colatitude(tile)).collect();
+        let mut dummy_temperature: Vec<_> = (0..self.wrap.tile_count())
+            .map(|tile| self.colatitude(tile))
+            .collect();
         rank_field(&mut dummy_temperature, 1000);
         let normalized_height = |tile: usize| {
-            let (_, y) = position(tile);
+            let (_, y) = self.wrap.position(tile);
             if !self.wrap.wraps_y()
-                && (y < 4 || y >= MAP_H - 4)
+                && (y < 4 || y >= self.wrap.height() - 4)
                 && self.colatitude(tile) > ICE_BASE * 5 / 2
             {
                 0
@@ -340,7 +339,7 @@ impl Generator {
                 heights[tile] / self.polar_height_factor(tile)
             }
         };
-        let mut terrain: Vec<_> = (0..TILE_COUNT)
+        let mut terrain: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
                 if normalized_height(tile) >= SHORE {
                     return Terrain::Plains;
@@ -364,11 +363,11 @@ impl Generator {
             })
             .collect();
 
-        let restored: Vec<_> = (0..TILE_COUNT)
+        let restored: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| self.restored_height(heights, tile))
             .collect();
         let heights = &restored;
-        let mut temperature: Vec<_> = (0..TILE_COUNT)
+        let mut temperature: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
                 let latitude = self.colatitude(tile);
                 let coast = self
@@ -389,7 +388,7 @@ impl Generator {
         // Civ2Civ3 has no frozen ocean terrain. Frozen coasts can become
         // glaciers, with a broken margin where cold tiles border frozen ones.
         let original_land: Vec<_> = terrain.iter().map(|tile| !tile.is_water()).collect();
-        for tile in 0..TILE_COUNT {
+        for tile in 0..self.wrap.tile_count() {
             if original_land[tile] {
                 continue;
             }
@@ -402,8 +401,8 @@ impl Generator {
             }
         }
 
-        let mut available = vec![false; TILE_COUNT];
-        for tile in 0..TILE_COUNT {
+        let mut available = vec![false; self.wrap.tile_count()];
+        for tile in 0..self.wrap.tile_count() {
             if terrain[tile] != Terrain::Plains {
                 continue;
             }
@@ -471,7 +470,9 @@ impl Generator {
                         _ => heat >= FROZEN && heights[tile] >= LOWLAND,
                     }
                 };
-                if let Some(seed) = random_tile(rng, |tile| available[tile] && eligible(tile)) {
+                if let Some(seed) = random_tile(self.wrap.tile_count(), rng, |tile| {
+                    available[tile] && eligible(tile)
+                }) {
                     let (biome, weight, spread) = [
                         (Terrain::Forest, 50, 60),
                         (Terrain::Jungle, 50, 50),
@@ -501,7 +502,8 @@ impl Generator {
                 }
             }
             if plains > 0 {
-                let tile = random_tile(rng, |tile| available[tile]).expect("unplaced plains quota");
+                let tile = random_tile(self.wrap.tile_count(), rng, |tile| available[tile])
+                    .expect("unplaced plains quota");
                 terrain[tile] = if temperature[tile] < FROZEN {
                     rng.below(100);
                     Terrain::Glacier
@@ -554,7 +556,7 @@ impl Generator {
             }
         }
 
-        let mut landmass = vec![None; TILE_COUNT];
+        let mut landmass = vec![None; self.wrap.tile_count()];
         for (id, group) in self.components(terrain, false).into_iter().enumerate() {
             for tile in group {
                 landmass[tile] = Some(id);
@@ -590,14 +592,14 @@ impl Generator {
         temperature: &[i32],
         rng: &mut MapRng,
     ) {
-        const TARGET: usize = 6 * TILE_COUNT * LAND_PERCENT as usize / 5325;
+        let target: usize = 6 * self.wrap.tile_count() * LAND_PERCENT as usize / 5325;
         const MAX_TRIES: i32 = 32_767;
         let mut count = 0;
         for attempt in 0..MAX_TRIES {
-            if count >= TARGET {
+            if count >= target {
                 break;
             }
-            let Some(spring) = random_tile(rng, |tile| {
+            let Some(spring) = random_tile(self.wrap.tile_count(), rng, |tile| {
                 !tiles[tile].terrain.is_water()
                     && !tiles[tile].river
                     && temperature[tile] >= FROZEN
@@ -656,7 +658,7 @@ impl Generator {
         rng: &mut MapRng,
     ) -> Option<Vec<usize>> {
         let mut course = Vec::new();
-        let mut blocked = vec![false; TILE_COUNT];
+        let mut blocked = vec![false; self.wrap.tile_count()];
         let mut current = spring;
         let water_count = |tile| {
             self.neighbors(tile)
@@ -762,10 +764,11 @@ impl Generator {
     }
 
     fn place_huts(&self, tiles: &mut [Tile], rng: &mut MapRng) {
-        const TARGET: usize = 15 * TILE_COUNT / 1000;
-        let mut reserved = vec![false; TILE_COUNT];
-        for _ in 0..TARGET {
-            let Some(pick) = random_tile(rng, |tile| !reserved[tile]) else {
+        let target: usize = 15 * self.wrap.tile_count() / 1000;
+        let mut reserved = vec![false; self.wrap.tile_count()];
+        for _ in 0..target {
+            let Some(pick) = random_tile(self.wrap.tile_count(), rng, |tile| !reserved[tile])
+            else {
                 break;
             };
             if !tiles[pick].terrain.is_water() && self.colatitude(pick) >= 20 {
@@ -798,7 +801,7 @@ impl Generator {
                 food + production + trade + (road + improvement) / 2
             })
             .collect();
-        let peaks: Vec<_> = (0..TILE_COUNT)
+        let peaks: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
                 let mut better = 0;
                 let mut worse = 0;
@@ -814,9 +817,9 @@ impl Generator {
             })
             .collect();
         let smooth = |values: &[i32], horizontal: bool, weights: [f32; 5]| -> Vec<i32> {
-            (0..TILE_COUNT)
+            (0..self.wrap.tile_count())
                 .map(|tile| {
-                    let (x, y) = position(tile);
+                    let (x, y) = self.wrap.position(tile);
                     let mut total = 0.0;
                     for (delta, weight) in (-2..=2).zip(weights) {
                         let position = if horizontal {
@@ -841,7 +844,7 @@ impl Generator {
             )
         };
         let groups = self.components(terrain, false);
-        let mut landmass = vec![usize::MAX; TILE_COUNT];
+        let mut landmass = vec![usize::MAX; self.wrap.tile_count()];
         let mut goodness = vec![0; groups.len()];
         for (id, group) in groups.iter().enumerate() {
             for &tile in group {
@@ -855,18 +858,25 @@ impl Generator {
         ranked.sort_by_key(|&id| std::cmp::Reverse(goodness[id]));
         let best = *ranked.first()?;
         let total = goodness.iter().sum::<i32>();
-        let candidates: Vec<_> = (0..TILE_COUNT).filter(|&tile| starter(tile)).collect();
+        let candidates: Vec<_> = (0..self.wrap.tile_count())
+            .filter(|&tile| starter(tile))
+            .collect();
         let mut scores: Vec<_> = candidates.iter().map(|&tile| quality[tile]).collect();
         rank_field(&mut scores, 1000);
-        let mut score_by_tile = vec![0; TILE_COUNT];
+        let mut score_by_tile = vec![0; self.wrap.tile_count()];
         for (&tile, score) in candidates.iter().zip(scores) {
             score_by_tile[tile] = score;
         }
 
+        // startpos.c deliberately divides integers before assigning efactor.
+        let efactor = (PLAYER_COUNT / (self.wrap.tile_count() / 1000).max(1) / 4) as f64;
+        let single_share = (0.5 + 0.8 * efactor) / (1.0 + efactor);
+        let variable_share = (0.65 + 0.8 * efactor) / (1.0 + efactor);
         let mut starts = Vec::with_capacity(PLAYER_COUNT);
         for single_continent in [true, false] {
             if single_continent
-                && (goodness[best] < 1500 * PLAYER_COUNT as i32 || goodness[best] * 2 < total)
+                && (goodness[best] < 1500 * PLAYER_COUNT as i32
+                    || f64::from(goodness[best]) < f64::from(total) * single_share)
             {
                 continue;
             }
@@ -874,7 +884,7 @@ impl Generator {
             if single_continent {
                 allocated[best] = PLAYER_COUNT;
             } else {
-                let per_player = (f64::from(total) * 0.65 / PLAYER_COUNT as f64) as i32;
+                let per_player = (f64::from(total) * variable_share / PLAYER_COUNT as f64) as i32;
                 let mut slots = PLAYER_COUNT;
                 for &id in &ranked {
                     if slots == 0 {
@@ -904,13 +914,13 @@ impl Generator {
                                         > ((groups[id].len() / allocated[id]) as f64).sqrt())
                         })
                 };
-                if let Some(tile) = random_tile(rng, eligible) {
+                if let Some(tile) = random_tile(self.wrap.tile_count(), rng, eligible) {
                     remaining[landmass[tile]] -= 1;
                     starts.push(tile);
                     if starts.len() == PLAYER_COUNT {
                         return starts
                             .into_iter()
-                            .map(position)
+                            .map(|tile| self.wrap.position(tile))
                             .collect::<Vec<_>>()
                             .try_into()
                             .ok();
@@ -958,7 +968,7 @@ impl Generator {
                     known_by: [false; PLAYER_SLOTS],
                 })
                 .collect();
-            let river_heights: Vec<_> = (0..TILE_COUNT)
+            let river_heights: Vec<_> = (0..self.wrap.tile_count())
                 .map(|tile| self.restored_height(&heights, tile))
                 .collect();
             self.place_rivers(&mut tiles, &river_heights, &temperature, &mut rng);
@@ -994,6 +1004,10 @@ impl Generator {
     }
 }
 
+#[cfg(test)]
+fn position(index: usize) -> (i32, i32) {
+    (index as i32 % MAP_W, index as i32 / MAP_W)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1168,20 +1182,80 @@ mod wrap_generation_tests {
             assert!(
                 a.starts
                     .iter()
-                    .all(|&(x, y)| !a.tiles[(y * MAP_W + x) as usize].terrain.is_water())
+                    .all(|&(x, y)| !a.tiles[a.map_wrap.index(x, y)].terrain.is_water())
             );
             let g = Generator { wrap: MapWrap::X };
             assert_eq!(g.colatitude(0), 0);
-            assert_eq!(g.colatitude(TILE_COUNT - 1), 0);
-            assert!(g.colatitude(g.index(10, MAP_H / 2)) > 950);
+            assert_eq!(g.colatitude(g.wrap.tile_count() - 1), 0);
+            assert!(g.colatitude(g.index(10, g.wrap.height() / 2)) > 950);
             assert!(
                 g.neighbors(g.index(10, 0))
-                    .all(|i| position(i).1 < MAP_H / 2)
+                    .all(|i| g.wrap.position(i).1 < g.wrap.height() / 2)
             );
             assert_ne!(
                 bincode::serialize(&a.tiles).unwrap(),
                 bincode::serialize(&generate(seed).tiles).unwrap()
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn generated_worlds_match_native_for_each_wrap() {
+    for line in include_str!("../tests/fixtures/freeciv_mapgen_vectors.tsv")
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.is_empty())
+    {
+        let fields: Vec<_> = line.split('\t').collect();
+        let wrap: MapWrap = fields[0].parse().unwrap();
+        let seed: u64 = fields[1].parse().unwrap();
+        let width: i32 = fields[2].parse().unwrap();
+        let height: i32 = fields[3].parse().unwrap();
+        assert_eq!((wrap.width(), wrap.height()), (width, height));
+        let map = generate_with_wrap(seed, wrap);
+        let mut checksum = 0xcbf29ce484222325u64;
+        for tile in &map.tiles {
+            let id = match tile.terrain {
+                Terrain::Ocean => b' ',
+                Terrain::DeepOcean => b':',
+                Terrain::Lake => b'+',
+                Terrain::Glacier => b'a',
+                Terrain::Desert => b'd',
+                Terrain::Forest => b'f',
+                Terrain::Grassland => b'g',
+                Terrain::Hills => b'h',
+                Terrain::Jungle => b'j',
+                Terrain::Mountains => b'm',
+                Terrain::Plains => b'p',
+                Terrain::Swamp => b's',
+                Terrain::Tundra => b't',
+            };
+            let mut extras = (u64::from(tile.hut) << 5) | (u64::from(tile.river) << 17);
+            if let Some(resource) = tile.resource {
+                extras |= 1 << (18 + resource as u32);
+            }
+            for value in [u64::from(id), tile.altitude as u64, extras] {
+                checksum = (checksum ^ value).wrapping_mul(0x100000001b3);
+            }
+        }
+        assert_eq!(
+            checksum,
+            u64::from_str_radix(fields[4], 16).unwrap(),
+            "terrain/altitude/extras for {wrap} seed {seed}"
+        );
+        let mut starts = map.starts.to_vec();
+        starts.sort_unstable();
+        let expected: Vec<(i32, i32)> = fields[5]
+            .split(';')
+            .map(|pair| {
+                let (x, y) = pair.split_once(',').unwrap();
+                (x.parse().unwrap(), y.parse().unwrap())
+            })
+            .collect();
+        assert_eq!(
+            starts, expected,
+            "starting locations for {wrap} seed {seed}"
+        );
     }
 }

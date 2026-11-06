@@ -231,7 +231,7 @@ impl Simulation {
         unit: &Unit,
         goal: Option<(i32, i32)>,
     ) -> (Option<(i32, i32)>, ExplorerRoutes) {
-        let start = Self::idx(unit.x, unit.y);
+        let start = self.map_wrap.index(unit.x, unit.y);
         let rate = self.unit_move_rate(unit).max(1);
         let mut routes = ExplorerRoutes {
             costs: vec![(i32::MAX, i64::MAX); self.tiles.len()],
@@ -250,7 +250,7 @@ impl Simulation {
             if combined != i64::from(spent) * PF_TURN_FACTOR + i64::from(rate) * extra {
                 continue;
             }
-            let (x, y) = Self::xy(current);
+            let (x, y) = self.map_wrap.position(current);
             if let Some(goal) = goal {
                 if (x, y) == goal {
                     return (Some(goal), routes);
@@ -285,7 +285,7 @@ impl Simulation {
                 let Some(cost) = self.explorer_step_cost(&actor, nx, ny, goal.is_none()) else {
                     continue;
                 };
-                let index = Self::idx(nx, ny);
+                let index = self.map_wrap.index(nx, ny);
                 let movement = spent + cost.min(remaining);
                 let extra = extra
                     + if goal.is_some() {
@@ -367,8 +367,8 @@ impl Simulation {
         if reachable.is_none() {
             return;
         }
-        let start = Self::idx(unit.x, unit.y);
-        let mut cursor = Self::idx(goal.0, goal.1);
+        let start = self.map_wrap.index(unit.x, unit.y);
+        let mut cursor = self.map_wrap.index(goal.0, goal.1);
         let mut path = Vec::new();
         while cursor != start {
             let Some((parent, step)) = routes.previous[cursor] else {

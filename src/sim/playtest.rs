@@ -2431,7 +2431,7 @@ impl Simulation {
             tile.hut = false;
         }
         for city in &self.cities {
-            self.tiles[Self::idx(city.x, city.y)].terrain = Terrain::Grassland;
+            self.tiles[self.map_wrap.index(city.x, city.y)].terrain = Terrain::Grassland;
         }
         let cargo = self
             .units
@@ -3455,7 +3455,7 @@ impl Simulation {
             {
                 break;
             }
-            let (nx, ny) = Self::xy(index);
+            let (nx, ny) = self.map_wrap.position(index);
             if self.map_distance(x, y, nx, ny) > 5 && self.can_found_at(nx, ny) {
                 self.create_city(rival, nx, ny);
                 self.cities.last_mut()?.size = 8;

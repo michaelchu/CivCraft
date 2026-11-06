@@ -20,7 +20,7 @@ pub(crate) struct GotoPreview {
 
 impl Simulation {
     pub(crate) fn preview_goto(&self, unit_id: u32, tx: i32, ty: i32) -> Option<GotoPreview> {
-        if !(0..MAP_H).contains(&ty) {
+        if !(0..self.map_wrap.height()).contains(&ty) {
             return None;
         }
         let unit = self
@@ -53,7 +53,7 @@ impl Simulation {
             let cost = self
                 .observed_move_cost(&actor, x, y, remembered)
                 .or_else(|| {
-                    ((x, y) == (tx.rem_euclid(MAP_W), ty)
+                    ((x, y) == (tx.rem_euclid(self.map_wrap.width()), ty)
                         && self.tile(x, y).visible
                         && self.tile(x, y).terrain.is_water()
                         && self.boarding_target(unit, x, y).is_some())

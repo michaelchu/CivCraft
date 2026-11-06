@@ -59,7 +59,7 @@ impl Simulation {
         // The ruleset uses a squared radius of two. On a hex map that covers
         // the center and its six neighbors.
         let affected: Vec<_> = (0..self.tiles.len())
-            .map(Self::xy)
+            .map(|index| self.map_wrap.position(index))
             .filter(|&(tx, ty)| (y - ty).abs() <= 2 && self.map_distance(x, y, tx, ty) <= 1)
             .collect();
         let losses: Vec<_> = self
@@ -81,7 +81,7 @@ impl Simulation {
                 let city = &mut self.cities[index];
                 let loss = (49 * city.size + 50) / 100;
                 city.size -= loss;
-                city.remove_citizen_assignments(loss);
+                city.remove_citizen_assignments(loss, self.map_wrap);
                 self.remove_citizen_nationalities(index, loss);
                 if loss > 0 {
                     self.rebuild_city_ownership_for_city_event(self.cities[index].id);

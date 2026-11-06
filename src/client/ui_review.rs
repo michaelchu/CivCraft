@@ -155,7 +155,14 @@ impl Game {
                 } else {
                     1.0
                 };
-                self.focus_camera_on(MAP_W / 2, if scene == 33 { 0 } else { MAP_H - 1 });
+                self.focus_camera_on(
+                    self.sim.map_wrap.width() / 2,
+                    if scene == 33 {
+                        0
+                    } else {
+                        self.sim.map_wrap.height() - 1
+                    },
+                );
                 return;
             }
             35 => {
@@ -310,8 +317,12 @@ impl Game {
             let camera = self.camera_overview_position();
             let wrapping = self.sim.map_wrap.wraps_y();
             if phase == 1 {
-                let y = if scene == 33 { 0 } else { MAP_H - 1 };
-                let point = self.world_screen_position(MAP_W / 2, y);
+                let y = if scene == 33 {
+                    0
+                } else {
+                    self.sim.map_wrap.height() - 1
+                };
+                let point = self.world_screen_position(self.sim.map_wrap.width() / 2, y);
                 let expected = if wrapping {
                     viewport.y + viewport.h * 0.5
                 } else if scene == 33 {
@@ -325,17 +336,21 @@ impl Game {
                 )?;
                 sequence.check(
                     "polar_tile_input_matches_rendering",
-                    self.screen_to_world(point) == Some((MAP_W / 2, y)),
+                    self.screen_to_world(point) == Some((self.sim.map_wrap.width() / 2, y)),
                 )?;
             }
             if phase == 6 {
                 // Same camera-coordinate change/normalization as real panning.
                 let delta = if wrapping {
-                    if scene == 33 { -(MAP_H + 1) } else { MAP_H + 1 }
+                    if scene == 33 {
+                        -(self.sim.map_wrap.height() + 1)
+                    } else {
+                        self.sim.map_wrap.height() + 1
+                    }
                 } else if scene == 33 {
-                    -4 * MAP_H
+                    -4 * self.sim.map_wrap.height()
                 } else {
-                    4 * MAP_H
+                    4 * self.sim.map_wrap.height()
                 };
                 self.camera += Vec2::splat(delta as f32 * 0.5);
                 self.normalize_camera();
@@ -362,7 +377,12 @@ impl Game {
                 let unit = self.sim.units().iter().find(|u| u.id == id).unwrap();
                 sequence.check(
                     "vertical_seam_has_expected_destination",
-                    unit.y == if wrapping { MAP_H - 1 } else { 0 },
+                    unit.y
+                        == if wrapping {
+                            self.sim.map_wrap.height() - 1
+                        } else {
+                            0
+                        },
                 )?;
                 if !wrapping {
                     sequence.check(
@@ -435,9 +455,11 @@ impl Game {
         }
         if scene == 28 {
             let visibility = |game: &Game| {
-                (0..MAP_W * MAP_H)
+                (0..game.sim.map_wrap.width() * game.sim.map_wrap.height())
                     .map(|i| {
-                        let tile = game.sim.tile(i % MAP_W, i / MAP_W);
+                        let tile = game
+                            .sim
+                            .tile(i % game.sim.map_wrap.width(), i / game.sim.map_wrap.width());
                         (tile.seen, tile.visible)
                     })
                     .collect::<Vec<_>>()

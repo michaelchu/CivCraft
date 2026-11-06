@@ -419,10 +419,10 @@ impl Simulation {
                 "Explore, research, grow, and unite the world.".to_owned(),
             ],
             game_over: None,
-            climate_pressure: [ClimatePressure::default(); 2],
+            climate_pressure: [ClimatePressure::new(map.map_wrap.tile_count()); 2],
             climate_current: [0; 2],
             trade_routes: Vec::new(),
-            route_memory: vec![None; (MAP_W * MAP_H) as usize],
+            route_memory: vec![None; map.map_wrap.tile_count()],
             observed_map: Default::default(),
             ai_map_memory: Default::default(),
             ai_purchase_reserve: Default::default(),
@@ -466,30 +466,27 @@ impl Simulation {
         game
     }
 
+    #[cfg(test)]
     fn idx(x: i32, y: i32) -> usize {
         let wx = x.rem_euclid(MAP_W);
         let wy = y.rem_euclid(MAP_H);
         (wy * MAP_W + wx) as usize
     }
 
-    fn xy(index: usize) -> (i32, i32) {
-        ((index as i32) % MAP_W, (index as i32) / MAP_W)
-    }
-
     pub(crate) fn tile(&self, x: i32, y: i32) -> &Tile {
         debug_assert!(
-            self.map_wrap.wraps_y() || (0..MAP_H).contains(&y),
+            self.map_wrap.wraps_y() || (0..self.map_wrap.height()).contains(&y),
             "off-map cylinder tile ({x},{y})"
         );
-        &self.tiles[Self::idx(x, y)]
+        &self.tiles[self.map_wrap.index(x, y)]
     }
 
     fn tile_mut(&mut self, x: i32, y: i32) -> &mut Tile {
         debug_assert!(
-            self.map_wrap.wraps_y() || (0..MAP_H).contains(&y),
+            self.map_wrap.wraps_y() || (0..self.map_wrap.height()).contains(&y),
             "off-map cylinder tile ({x},{y})"
         );
-        let idx = Self::idx(x, y);
+        let idx = self.map_wrap.index(x, y);
         &mut self.tiles[idx]
     }
 
@@ -621,7 +618,7 @@ impl Simulation {
                         else {
                             continue;
                         };
-                        let idx = Self::idx(visible_x, visible_y);
+                        let idx = self.map_wrap.index(visible_x, visible_y);
                         if owner != BARBARIANS {
                             for &target in &recipients[owner] {
                                 self.tiles[idx].known_by[target] = true;
@@ -650,7 +647,7 @@ impl Simulation {
             .collect();
         for owner in internet_owners {
             for city in &self.cities {
-                let tile = &mut self.tiles[Self::idx(city.x, city.y)];
+                let tile = &mut self.tiles[self.map_wrap.index(city.x, city.y)];
                 tile.known_by[owner] = true;
                 tile.seen |= owner == HUMAN;
             }

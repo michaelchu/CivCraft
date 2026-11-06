@@ -55,8 +55,7 @@ impl Playback {
                 None
             }
         }) {
-            let index =
-                y.rem_euclid(MAP_H) as usize * MAP_W as usize + x.rem_euclid(MAP_W) as usize;
+            let index = sim.map_wrap.index(x, y);
             owners[index]
         } else {
             sim.displayed_tile_owner(x, y)
@@ -118,19 +117,17 @@ impl Game {
         let Some(event) = self.playback.events.front() else {
             return;
         };
-        let project = |x, y| {
-            self.world_screen_position(x, y)
-        };
+        let project = |x, y| self.world_screen_position(x, y);
         for (unit, phase) in self.playback.active() {
             let center = match event {
                 VisualEvent::Move { from, to, .. } => {
                     let from_center = project(from.0, from.1);
                     let to_center = project(to.0, to.1);
-                    let period = MAP_W as f32 * TILE_W * self.zoom;
+                    let period = self.sim.map_wrap.width() as f32 * TILE_W * self.zoom;
                     let dx = (to_center.x - from_center.x + period * 0.5).rem_euclid(period)
                         - period * 0.5;
                     let dy = to_center.y - from_center.y;
-                    let period_y = MAP_H as f32 * TILE_H * 0.5 * self.zoom;
+                    let period_y = self.sim.map_wrap.height() as f32 * TILE_H * 0.5 * self.zoom;
                     let dy = if self.sim.map_wrap.wraps_y() {
                         (dy + period_y * 0.5).rem_euclid(period_y) - period_y * 0.5
                     } else {

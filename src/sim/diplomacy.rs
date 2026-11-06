@@ -397,7 +397,7 @@ impl Simulation {
     }
 
     fn advance_ai_war_plans(&mut self) {
-        let map_size = ((MAP_W * MAP_H) / 1000).max(1);
+        let map_size = ((self.map_wrap.width() * self.map_wrap.height()) / 1000).max(1);
         let space_leader = self.ai_space_race_leader();
         let pairs: Vec<_> = self.diplomacy.keys().copied().collect();
         for owner in 0..self.players.len() {
@@ -1674,7 +1674,7 @@ impl Simulation {
         relation.trust[1] = -5000;
         self.advance_ai_war_plans();
         let preparing = self.ai_on_war_footing(1) && self.pact(HUMAN, 1) == Pact::Peace;
-        for _ in 0..4 + (MAP_W * MAP_H / 1000).max(1) {
+        for _ in 0..4 + (self.map_wrap.width() * self.map_wrap.height() / 1000).max(1) {
             self.advance_ai_war_plans();
         }
         preparing
@@ -1700,12 +1700,15 @@ impl Simulation {
 
     fn diplomacy_playtest_alternate_contact(&mut self) {
         if !self.player_alive(2) {
-            if let Some((x, y)) = (0..self.tiles.len()).map(Self::xy).find(|&(x, y)| {
-                self.cities
-                    .iter()
-                    .all(|city| self.map_distance(city.x, city.y, x, y) > 5)
-                    && self.units.iter().all(|unit| (unit.x, unit.y) != (x, y))
-            }) {
+            if let Some((x, y)) = (0..self.tiles.len())
+                .map(|index| self.map_wrap.position(index))
+                .find(|&(x, y)| {
+                    self.cities
+                        .iter()
+                        .all(|city| self.map_distance(city.x, city.y, x, y) > 5)
+                        && self.units.iter().all(|unit| (unit.x, unit.y) != (x, y))
+                })
+            {
                 self.tile_mut(x, y).terrain = Terrain::Grassland;
                 self.create_city(2, x, y);
             }

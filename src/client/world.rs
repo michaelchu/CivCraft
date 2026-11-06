@@ -362,12 +362,12 @@ impl Game {
         }
         // Bottom polar corners have no south tile to drive the ordinary
         // loop, but still blend the last row with the off-map remembered edge.
-        for y in MAP_H..if self.sim.map_wrap.wraps_y() {
-            MAP_H
+        for y in self.sim.map_wrap.height()..if self.sim.map_wrap.wraps_y() {
+            self.sim.map_wrap.height()
         } else {
-            MAP_H + 2
+            self.sim.map_wrap.height() + 2
         } {
-            for x in 0..MAP_W {
+            for x in 0..self.sim.map_wrap.width() {
                 let center = world_screen_position(
                     self.sim.map_wrap,
                     viewport,
@@ -577,7 +577,7 @@ impl Game {
                 let (x, y) = map_to_native(mx + dx, my + dy);
                 let normalized = self.sim.map_wrap.normalize(x, y);
                 let relevant = normalized.is_some() && radius.contains(&(dx, dy));
-                let (x, y) = normalized.unwrap_or((x.rem_euclid(MAP_W), y));
+                let (x, y) = normalized.unwrap_or((x.rem_euclid(self.sim.map_wrap.width()), y));
                 tiles.push((dx, dy, x, y, center, relevant));
             }
         }
@@ -853,10 +853,13 @@ mod infrastructure_tests {
     #[test]
     fn map_connections_stop_at_poles_and_still_wrap_horizontally() {
         assert_eq!(render_neighbor(MapWrap::X, 0, 0, 0, -1), None);
-        assert_eq!(render_neighbor(MapWrap::X, 0, MAP_H - 1, 1, 0), None);
+        assert_eq!(
+            render_neighbor(MapWrap::X, 0, MapWrap::X.height() - 1, 1, 0),
+            None
+        );
         assert_eq!(
             render_neighbor(MapWrap::X, 0, 0, -1, 1),
-            Some((MAP_W - 1, 0))
+            Some((MapWrap::X.width() - 1, 0))
         );
     }
     #[test]
@@ -882,11 +885,12 @@ pub(super) fn world_screen_position(
     y: i32,
 ) -> Vec2 {
     let tile_x = (2 * x + y.rem_euclid(2)) as f32;
-    let half_width = MAP_W as f32;
+    let half_width = wrap.width() as f32;
     let dx = (tile_x - camera.x + half_width).rem_euclid(2.0 * half_width) - half_width;
     let dy = y as f32 - camera.y;
     let dy = if wrap.wraps_y() {
-        (dy + MAP_H as f32 * 0.5).rem_euclid(MAP_H as f32) - MAP_H as f32 * 0.5
+        (dy + wrap.height() as f32 * 0.5).rem_euclid(wrap.height() as f32)
+            - wrap.height() as f32 * 0.5
     } else {
         dy
     };
@@ -908,15 +912,15 @@ fn visible_world_tiles(
         .max(0.0) as i32;
     let last = (camera.y + (viewport.bottom() + 80.0 - origin) / step)
         .ceil()
-        .min((MAP_H - 1) as f32) as i32;
+        .min((wrap.height() - 1) as f32) as i32;
     let (first, last) = if wrap.wraps_y() {
-        (0, MAP_H - 1)
+        (0, wrap.height() - 1)
     } else {
         (first, last)
     };
-    let mut tiles = Vec::with_capacity(((last - first + 1).max(0) * MAP_W) as usize);
+    let mut tiles = Vec::with_capacity(((last - first + 1).max(0) * wrap.width()) as usize);
     for y in first..=last {
-        for x in 0..MAP_W {
+        for x in 0..wrap.width() {
             let center = world_screen_position(wrap, viewport, camera, zoom, x, y);
             if center.x < viewport.x - TILE_W * zoom
                 || center.x > viewport.right() + TILE_W * zoom
@@ -949,8 +953,8 @@ mod visibility_tests {
                 vec2(23.4, 18.8),
             ] {
                 for zoom in [MIN_ZOOM, START_ZOOM, MAX_ZOOM] {
-                    let mut reference: Vec<_> = (0..MAP_H)
-                        .flat_map(|y| (0..MAP_W).map(move |x| (x, y)))
+                    let mut reference: Vec<_> = (0..MapWrap::X.height())
+                        .flat_map(|y| (0..MapWrap::X.width()).map(move |x| (x, y)))
                         .map(|(x, y)| {
                             (
                                 x,

@@ -50,6 +50,7 @@ struct WorkMap {
 }
 
 struct WorkerRoutes {
+    map_wrap: MapWrap,
     costs: Vec<i32>,
     previous: Vec<Option<(usize, (i32, i32))>>,
     start: usize,
@@ -57,7 +58,7 @@ struct WorkerRoutes {
 
 impl WorkerRoutes {
     fn path(&self, destination: (i32, i32)) -> Option<Vec<(i32, i32)>> {
-        let mut cursor = Simulation::idx(destination.0, destination.1);
+        let mut cursor = self.map_wrap.index(destination.0, destination.1);
         if self.costs[cursor] == i32::MAX {
             return None;
         }
@@ -174,8 +175,9 @@ impl Simulation {
     }
 
     fn worker_routes(&self, unit: &Unit) -> WorkerRoutes {
-        let start = Self::idx(unit.x, unit.y);
+        let start = self.map_wrap.index(unit.x, unit.y);
         let mut result = WorkerRoutes {
+            map_wrap: self.map_wrap,
             costs: vec![i32::MAX; self.tiles.len()],
             previous: vec![None; self.tiles.len()],
             start,
@@ -189,7 +191,7 @@ impl Simulation {
             if result.costs[index] != spent {
                 continue;
             }
-            (actor.x, actor.y) = Self::xy(index);
+            (actor.x, actor.y) = self.map_wrap.position(index);
             let remaining = if spent < unit.moves_left {
                 unit.moves_left - spent
             } else {
@@ -224,7 +226,7 @@ impl Simulation {
                 let Some(cost) = cost else {
                     continue;
                 };
-                let next = Self::idx(x, y);
+                let next = self.map_wrap.index(x, y);
                 let candidate = spent + cost.min(remaining);
                 if candidate < result.costs[next] {
                     result.costs[next] = candidate;
@@ -451,7 +453,9 @@ impl Simulation {
             {
                 continue;
             }
-            let cost = routes.costs[Self::idx(request.destination.0, request.destination.1)];
+            let cost = routes.costs[self
+                .map_wrap
+                .index(request.destination.0, request.destination.1)];
             if cost == i32::MAX {
                 continue;
             }
@@ -502,7 +506,7 @@ impl Simulation {
                 {
                     continue;
                 }
-                let cost = routes.costs[Self::idx(x, y)];
+                let cost = routes.costs[self.map_wrap.index(x, y)];
                 if cost == i32::MAX {
                     continue;
                 }
@@ -600,7 +604,7 @@ impl Simulation {
             .filter_map(|c| {
                 routes
                     .path((c.x, c.y))
-                    .map(|path| (routes.costs[Self::idx(c.x, c.y)], path))
+                    .map(|path| (routes.costs[self.map_wrap.index(c.x, c.y)], path))
             })
             .min_by_key(|(cost, _)| *cost);
         if let Some((_, path)) = target {

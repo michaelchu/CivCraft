@@ -416,10 +416,10 @@ impl Simulation {
                 lands
             };
             regions[start] = label;
-            let mut pending = vec![Self::xy(start)];
+            let mut pending = vec![self.map_wrap.position(start)];
             while let Some((x, y)) = pending.pop() {
                 for (nx, ny) in self.map_wrap.neighbors(x, y) {
-                    let index = Self::idx(nx, ny);
+                    let index = self.map_wrap.index(nx, ny);
                     if regions[index] == 0 && self.tiles[index].terrain.is_water() == water {
                         regions[index] = label;
                         pending.push((nx, ny));
@@ -427,12 +427,12 @@ impl Simulation {
                 }
             }
         }
-        let continent = regions[Self::idx(city.x, city.y)];
+        let continent = regions[self.map_wrap.index(city.x, city.y)];
         let mut threatened_oceans = std::collections::BTreeSet::new();
         let continent_threat = continent > 0
             && self.cities.iter().any(|other| {
                 self.advisor_player_dangerous(city.owner, other.owner)
-                    && regions[Self::idx(other.x, other.y)] == continent
+                    && regions[self.map_wrap.index(other.x, other.y)] == continent
             });
         let mut invasions = false;
         for unit in self
@@ -452,12 +452,12 @@ impl Simulation {
                 invasions = true;
             }
             if unit.kind.stats().attack > 1 {
-                let label = regions[Self::idx(unit.x, unit.y)];
+                let label = regions[self.map_wrap.index(unit.x, unit.y)];
                 if label < 0 {
                     threatened_oceans.insert(label);
                 } else {
                     for (x, y) in self.map_wrap.neighbors(unit.x, unit.y) {
-                        let label = regions[Self::idx(x, y)];
+                        let label = regions[self.map_wrap.index(x, y)];
                         if label < 0 {
                             threatened_oceans.insert(label);
                         }
@@ -468,13 +468,13 @@ impl Simulation {
         let coastal = self
             .map_wrap
             .neighbors(city.x, city.y)
-            .any(|(x, y)| regions[Self::idx(x, y)] < 0);
+            .any(|(x, y)| regions[self.map_wrap.index(x, y)] < 0);
         let ocean_threat = if continent < 0 {
             threatened_oceans.contains(&continent)
         } else {
             self.map_wrap
                 .neighbors(city.x, city.y)
-                .any(|(x, y)| threatened_oceans.contains(&regions[Self::idx(x, y)]))
+                .any(|(x, y)| threatened_oceans.contains(&regions[self.map_wrap.index(x, y)]))
         };
         DefenseEffectContext {
             capital: city.has_building(Building::PALACE)
@@ -665,13 +665,13 @@ impl Simulation {
             }
             Building::GREAT_WALL => {
                 let labels = self.continent_labels();
-                let continent = labels[Self::idx(city.x, city.y)];
+                let continent = labels[self.map_wrap.index(city.x, city.y)];
                 let threat = self.units.iter().any(|unit| {
                     unit.kind.is_military()
                         && !unit.kind.is_naval()
                         && !unit.kind.is_aircraft()
                         && self.ai_potentially_hostile(city.owner, unit.owner)
-                        && labels[Self::idx(unit.x, unit.y)] == continent
+                        && labels[self.map_wrap.index(unit.x, unit.y)] == continent
                 });
                 // daieffects.c Defend_Bonus50: ranged base plus continental
                 // threat bonus; Unit_No_Lose_Pop adds two per local unit.
@@ -842,14 +842,14 @@ impl Simulation {
             return None;
         }
         let labels = self.continent_labels();
-        let continent = labels[Self::idx(city.x, city.y)];
+        let continent = labels[self.map_wrap.index(city.x, city.y)];
         let existing = self
             .units
             .iter()
             .filter(|unit| {
                 unit.owner == city.owner
                     && matches!(unit.kind, UnitKind::Caravan | UnitKind::Freight)
-                    && labels[Self::idx(unit.x, unit.y)] == continent
+                    && labels[self.map_wrap.index(unit.x, unit.y)] == continent
             })
             .count();
         let building = self
@@ -861,7 +861,7 @@ impl Simulation {
                         other.production,
                         Production::Unit(UnitKind::Caravan | UnitKind::Freight)
                     )
-                    && labels[Self::idx(other.x, other.y)] == continent
+                    && labels[self.map_wrap.index(other.x, other.y)] == continent
             })
             .count();
         if wonder.data().cost - wonder_city.shields
@@ -944,10 +944,10 @@ impl Simulation {
             {
                 continue;
             }
-            let continent = labels[Self::idx(city.x, city.y)];
+            let continent = labels[self.map_wrap.index(city.x, city.y)];
             let count = owned
                 .iter()
-                .filter(|other| labels[Self::idx(other.x, other.y)] == continent)
+                .filter(|other| labels[self.map_wrap.index(other.x, other.y)] == continent)
                 .count() as i32;
             if continent == 0 || count <= 5 {
                 continue;
@@ -977,7 +977,7 @@ impl Simulation {
             let threatened = self.units.iter().any(|unit| {
                 self.ai_potentially_hostile(owner, unit.owner)
                     && unit.kind.is_military()
-                    && labels[Self::idx(unit.x, unit.y)] == continent
+                    && labels[self.map_wrap.index(unit.x, unit.y)] == continent
             });
             if threatened {
                 value -= value / 4;
@@ -1075,8 +1075,8 @@ impl Simulation {
             return None;
         }
         let limit = 4 * allowance - 1; // normal assess_danger horizon: turns0..3
-        let start = Self::idx(unit.x, unit.y);
-        let goal = Self::idx(city.x, city.y);
+        let start = self.map_wrap.index(unit.x, unit.y);
+        let goal = self.map_wrap.index(city.x, city.y);
         let mut distance = vec![i32::MAX; self.tiles.len()];
         let mut queue = BinaryHeap::from([Reverse((0, start))]);
         distance[start] = 0;
@@ -1089,10 +1089,10 @@ impl Simulation {
             if index == goal {
                 return Some(spent / allowance);
             }
-            (actor.x, actor.y) = Self::xy(index);
+            (actor.x, actor.y) = self.map_wrap.position(index);
             let remaining = allowance - spent % allowance;
             for (x, y) in self.map_wrap.neighbors(actor.x, actor.y) {
-                let index = Self::idx(x, y);
+                let index = self.map_wrap.index(x, y);
                 let cost = self.movement_cost_for(&actor, x, y).or_else(|| {
                     // A ship's reverse attack map overlaps the coastal city,
                     // even when the ship cannot enter its land tile normally.

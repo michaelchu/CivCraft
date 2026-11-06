@@ -110,7 +110,7 @@ impl FuelPaths {
         let initial_bundle = unit
             .moves_left
             .wrapping_add((i32::from(unit.fuel) - 1).wrapping_mul(rate));
-        let start = Simulation::idx(unit.x, unit.y);
+        let start = sim.map_wrap.index(unit.x, unit.y);
         let mut map = Self {
             map_wrap: sim.map_wrap,
             actor: unit.clone(),
@@ -182,7 +182,7 @@ impl FuelPaths {
     }
 
     fn required_moves(&self, sim: &Simulation, index: usize) -> i32 {
-        let (x, y) = Simulation::xy(index);
+        let (x, y) = self.map_wrap.position(index);
         if self.possible_base(sim, x, y) {
             return 0;
         }
@@ -196,7 +196,7 @@ impl FuelPaths {
                 if !tile.known_by[self.actor.owner] {
                     return None;
                 }
-                let (nx, ny) = Simulation::xy(candidate);
+                let (nx, ny) = self.map_wrap.position(candidate);
                 let distance = sim.map_distance(x, y, nx, ny);
                 (distance <= maximum && self.possible_base(sim, nx, ny)).then_some(distance)
             })
@@ -225,7 +225,7 @@ impl FuelPaths {
             return self.nodes[index].behavior != Behavior::Ignore;
         }
         self.nodes[index].status = Status::Init;
-        let (x, y) = Simulation::xy(index);
+        let (x, y) = self.map_wrap.position(index);
         let known = self.omniscient || sim.tile(x, y).known_by[self.actor.owner];
         self.nodes[index].known = known;
         if known {
@@ -295,12 +295,12 @@ impl FuelPaths {
             let Some(direction) = self.nodes[cursor].direction else {
                 break;
             };
-            let (x, y) = Simulation::xy(cursor);
+            let (x, y) = self.map_wrap.position(cursor);
             let (dx, dy) = ISOHEX_DIRS[direction];
             let Some((px, py)) = self.map_wrap.offset(x, y, -dx, -dy) else {
                 continue;
             };
-            cursor = Simulation::idx(px, py);
+            cursor = self.map_wrap.index(px, py);
             if let Some(position) = self.nodes[cursor].pos
                 && self.same_snapshot(position, cursor)
             {
@@ -369,12 +369,12 @@ impl FuelPaths {
                     budget = self.full_moves();
                     self.nodes[index].moves = moves_field(budget);
                 }
-                let (x, y) = Simulation::xy(index);
+                let (x, y) = self.map_wrap.position(index);
                 for (direction, (dx, dy)) in ISOHEX_DIRS.into_iter().enumerate() {
                     let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
                         continue;
                     };
-                    let next = Simulation::idx(nx, ny);
+                    let next = self.map_wrap.index(nx, ny);
                     if matches!(self.nodes[next].status, Status::Processed | Status::Waiting)
                         && self.nodes[next].required == 0
                     {
@@ -510,7 +510,7 @@ impl FuelPaths {
     }
 
     pub(super) fn movement_cost(&mut self, sim: &Simulation, x: i32, y: i32) -> Option<i32> {
-        let target = Simulation::idx(x, y);
+        let target = self.map_wrap.index(x, y);
         if target == self.start {
             return Some(0);
         }
@@ -534,7 +534,7 @@ impl FuelPaths {
     // including repeated visits and duplicate refuel positions (waiting).
     pub(super) fn path(&mut self, sim: &Simulation, x: i32, y: i32) -> Option<Vec<(i32, i32)>> {
         self.movement_cost(sim, x, y)?;
-        let mut index = Simulation::idx(x, y);
+        let mut index = self.map_wrap.index(x, y);
         if index == self.start {
             return Some(Vec::new());
         }
@@ -551,9 +551,9 @@ impl FuelPaths {
             };
             let step = ISOHEX_DIRS[direction];
             backwards.push(step);
-            let point = Simulation::xy(index);
+            let point = self.map_wrap.position(index);
             let previous = self.map_wrap.offset(point.0, point.1, -step.0, -step.1)?;
-            index = Simulation::idx(previous.0, previous.1);
+            index = self.map_wrap.index(previous.0, previous.1);
             segment = position.previous?;
         }
         backwards.reverse();
@@ -571,7 +571,7 @@ impl FuelPaths {
     ) -> Vec<(i32, i32, i32)> {
         let mut result = Vec::new();
         if include_start && (!strict && limit >= 0 || strict && limit > 0) {
-            let (x, y) = Simulation::xy(self.start);
+            let (x, y) = self.map_wrap.position(self.start);
             result.push((x, y, 0));
         }
         while self.iterate(sim) {
@@ -586,7 +586,7 @@ impl FuelPaths {
             if cost > limit || strict && cost == limit {
                 break;
             }
-            let (x, y) = Simulation::xy(index);
+            let (x, y) = self.map_wrap.position(index);
             result.push((x, y, cost));
         }
         result

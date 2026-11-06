@@ -13,9 +13,9 @@ const MAP_ISO_FACTOR: i32 = 2;
 // sqrt(size / (xratio * yratio * iso * even^2)) + 0.49.  This integer
 // comparison expresses the same 0.49 threshold at compile time, so the
 // dimensions remain derived from the ruleset inputs instead of copied out.
-const fn source_map_linear_scale(requested_tiles: i32) -> i32 {
+const fn source_map_linear_scale(requested_tiles: i32, x_ratio: i32, y_ratio: i32) -> i32 {
     let denominator =
-        (MAP_X_RATIO * MAP_Y_RATIO * MAP_ISO_FACTOR * MAP_EVEN_FACTOR * MAP_EVEN_FACTOR) as i64;
+        (x_ratio * y_ratio * MAP_ISO_FACTOR * MAP_EVEN_FACTOR * MAP_EVEN_FACTOR) as i64;
     let requested_scaled = requested_tiles as i64 * 10_000;
     let mut scale = 1_i64;
     loop {
@@ -28,7 +28,8 @@ const fn source_map_linear_scale(requested_tiles: i32) -> i32 {
     }
 }
 
-pub(super) const MAP_LINEAR_SCALE: i32 = source_map_linear_scale(MAP_TARGET_TILES);
+pub(super) const MAP_LINEAR_SCALE: i32 =
+    source_map_linear_scale(MAP_TARGET_TILES, MAP_X_RATIO, MAP_Y_RATIO);
 pub(crate) const MAP_W: i32 = MAP_X_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR;
 pub(crate) const MAP_H: i32 = MAP_Y_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR * MAP_ISO_FACTOR;
 
@@ -51,6 +52,8 @@ pub(crate) fn is_isohex_step(dx: i32, dy: i32) -> bool {
     ISOHEX_DIRS.contains(&(dx, dy))
 }
 
+// The fixed map-space origin cancels in coordinate differences and inverse
+// transforms. It is independent of a campaign's width and height.
 pub(crate) fn native_to_map(native_x: i32, native_y: i32) -> (i32, i32) {
     let map_x = (native_y + native_y.rem_euclid(2)) / 2 + native_x;
     let map_y = native_y - map_x + MAP_W;
@@ -115,14 +118,51 @@ impl std::fmt::Display for MapWrap {
     }
 }
 impl MapWrap {
+    pub(crate) const fn width(self) -> i32 {
+        match self {
+            Self::X => 3 * source_map_linear_scale(MAP_TARGET_TILES, 3, 2) * MAP_EVEN_FACTOR,
+            Self::XY => MAP_W,
+        }
+    }
+    pub(crate) const fn height(self) -> i32 {
+        match self {
+            Self::X => {
+                2 * source_map_linear_scale(MAP_TARGET_TILES, 3, 2)
+                    * MAP_EVEN_FACTOR
+                    * MAP_ISO_FACTOR
+            }
+            Self::XY => MAP_H,
+        }
+    }
+    pub(crate) const fn tile_count(self) -> usize {
+        (self.width() * self.height()) as usize
+    }
+    pub(crate) fn index(self, x: i32, y: i32) -> usize {
+        (y.rem_euclid(self.height()) * self.width() + x.rem_euclid(self.width())) as usize
+    }
+    pub(crate) fn position(self, index: usize) -> (i32, i32) {
+        (index as i32 % self.width(), index as i32 / self.width())
+    }
+    pub(crate) fn city_radius(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32, i32, i32)> {
+        (-2..=2).flat_map(move |dy| {
+            (-2..=2).filter_map(move |dx| {
+                if isohex_vector_distance(dx, dy).pow(2) > 5 {
+                    return None;
+                }
+                self.offset(x, y, dx, dy).map(|(nx, ny)| (dx, dy, nx, ny))
+            })
+        })
+    }
     pub(crate) fn wraps_y(self) -> bool {
         self == Self::XY
     }
     pub(crate) fn normalize(self, x: i32, y: i32) -> Option<(i32, i32)> {
         if self.wraps_y() {
-            Some(wrap_native(x, y))
+            Some((x.rem_euclid(self.width()), y.rem_euclid(self.height())))
         } else {
-            (0..MAP_H).contains(&y).then_some((x.rem_euclid(MAP_W), y))
+            (0..self.height())
+                .contains(&y)
+                .then_some((x.rem_euclid(self.width()), y))
         }
     }
     pub(crate) fn offset(self, x: i32, y: i32, dx: i32, dy: i32) -> Option<(i32, i32)> {
@@ -136,9 +176,9 @@ impl MapWrap {
             .filter_map(move |(dx, dy)| self.offset(x, y, dx, dy))
     }
     pub(crate) fn vector(self, ax: i32, ay: i32, bx: i32, by: i32) -> (i32, i32) {
-        let dx = wrapped_native_delta(bx - ax, MAP_W);
+        let dx = wrapped_native_delta(bx - ax, self.width());
         let dy = if self.wraps_y() {
-            wrapped_native_delta(by - ay, MAP_H)
+            wrapped_native_delta(by - ay, self.height())
         } else {
             by - ay
         };
@@ -163,15 +203,17 @@ mod wrap_tests {
         assert_eq!("xy".parse::<MapWrap>().unwrap(), MapWrap::XY);
         assert!("y".parse::<MapWrap>().is_err());
         assert!("none".parse::<MapWrap>().is_err());
-        assert_eq!(MapWrap::X.normalize(-1, 0), Some((MAP_W - 1, 0)));
+        assert_eq!(
+            MapWrap::X.normalize(-1, 0),
+            Some((MapWrap::X.width() - 1, 0))
+        );
         assert_eq!(MapWrap::X.normalize(0, -1), None);
         assert_eq!(MapWrap::XY.normalize(0, -1), Some((0, MAP_H - 1)));
     }
     #[test]
     fn each_campaign_obeys_its_seams_for_movement_sight_routes_and_city_radius() {
         for wrap in [MapWrap::X, MapWrap::XY] {
-            let mut sim = Simulation::new(crate::mapgen::generate(42));
-            sim.map_wrap = wrap;
+            let mut sim = Simulation::new(crate::mapgen::generate_with_wrap(42, wrap));
             sim.units.clear();
             sim.cities.clear();
             for tile in &mut sim.tiles {
@@ -188,7 +230,7 @@ mod wrap_tests {
             }
             let id = sim.spawn_unit(HUMAN, UnitKind::Warrior, 10, 0);
             sim.refresh_visibility();
-            let other = MapWrap::XY.offset(10, 0, 0, -1).unwrap();
+            let other = (10, wrap.height() - 1);
             assert_eq!(sim.tile(other.0, other.1).visible, wrap.wraps_y());
             assert_eq!(
                 sim.map_wrap.neighbors(10, 0).any(|p| p == other),
@@ -205,39 +247,63 @@ mod wrap_tests {
             let city = sim.create_city(HUMAN, 10, 0);
             let _ = city;
             let radius: Vec<_> = sim.map_city_radius(sim.cities.last().unwrap()).collect();
-            assert_eq!(radius.iter().any(|p| p.3 >= MAP_H - 2), wrap.wraps_y());
-            assert!(radius.iter().all(|p| (0..MAP_H).contains(&p.3)));
+            assert_eq!(
+                radius.iter().any(|p| p.3 >= wrap.height() - 2),
+                wrap.wraps_y()
+            );
+            assert!(radius.iter().all(|p| (0..wrap.height()).contains(&p.3)));
+            // Population loss must remove fields across this mode's actual seam.
+            let mut edge_city = sim.cities.last().unwrap().clone();
+            edge_city.x = 0;
+            edge_city.y = 20;
+            edge_city.specialists = [0; 3];
+            edge_city.worked_tiles = vec![(wrap.width() - 1, 20)];
+            edge_city.remove_citizen_assignments(1, wrap);
+            assert!(edge_city.worked_tiles.is_empty());
             // Horizontal wrapping is enabled in both modes.
-            assert_eq!(wrap.offset(0, 20, -1, 1), Some((MAP_W - 1, 20)));
+            assert_eq!(wrap.offset(0, 20, -1, 1), Some((wrap.width() - 1, 20)));
         }
     }
 }
 
 #[cfg(test)]
-mod cylinder_campaign_tests {
+mod campaign_geometry_tests {
     use super::*;
     use crate::sim::{Command, HUMAN, Simulation, UnitKind};
     #[test]
-    fn cylinder_campaigns_generate_found_and_advance_with_bounded_geometry() {
+    fn both_geometries_coexist_while_campaigns_found_and_advance() {
         for seed in [42, 1337] {
-            let mut sim = Simulation::new(crate::mapgen::generate_with_wrap(seed, MapWrap::X));
-            let founder = sim
-                .units
-                .iter()
-                .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers)
-                .unwrap()
-                .id;
-            assert!(sim.apply(Command::FoundCity(founder)));
-            for _ in 0..12 {
-                assert!(sim.apply(Command::EndTurn));
+            let mut games = [MapWrap::X, MapWrap::XY]
+                .map(|wrap| Simulation::new(crate::mapgen::generate_with_wrap(seed, wrap)));
+            for sim in &mut games {
+                assert_eq!(sim.tiles.len(), sim.map_wrap.tile_count());
+                assert_eq!(sim.route_memory.len(), sim.tiles.len());
+                let founder = sim
+                    .units
+                    .iter()
+                    .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers)
+                    .unwrap()
+                    .id;
+                assert!(sim.apply(Command::FoundCity(founder)));
             }
-            assert_eq!(sim.map_wrap, MapWrap::X);
-            assert!(sim.units.iter().all(|u| (0..MAP_H).contains(&u.y)));
-            for city in &sim.cities {
+            for _ in 0..12 {
+                for sim in &mut games {
+                    assert!(sim.apply(Command::EndTurn));
+                }
+            }
+            for sim in &games {
                 assert!(
-                    sim.map_city_radius(city)
-                        .all(|(_, _, _, y)| (city.y - y).abs() <= 4)
+                    sim.units
+                        .iter()
+                        .all(|u| (0..sim.map_wrap.width()).contains(&u.x)
+                            && (0..sim.map_wrap.height()).contains(&u.y))
                 );
+                for city in &sim.cities {
+                    assert!(sim.map_city_radius(city).all(|(_, _, x, y)| {
+                        let (dx, dy) = sim.map_wrap.vector(city.x, city.y, x, y);
+                        isohex_vector_distance(dx, dy) <= 2
+                    }));
+                }
             }
         }
     }

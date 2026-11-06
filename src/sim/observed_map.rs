@@ -29,7 +29,7 @@ impl Simulation {
         } else {
             self.observed_map
                 .tiles
-                .get(&(HUMAN, Self::idx(x, y)))
+                .get(&(HUMAN, self.map_wrap.index(x, y)))
                 .map_or(tile, |(_, remembered)| remembered)
         }
     }
@@ -119,7 +119,7 @@ impl Simulation {
             }
             // Looking at a now-empty city tile removes only that observer's memory.
             self.observed_map.cities.retain(|(viewer, _), (_, c)| {
-                *viewer != owner || !visible[Self::idx(c.city.x, c.city.y)]
+                *viewer != owner || !visible[self.map_wrap.index(c.city.x, c.city.y)]
             });
             for (index, &seen) in visible.iter().enumerate() {
                 if seen {
@@ -133,7 +133,7 @@ impl Simulation {
                 }
             }
             for city in &self.cities {
-                if visible[Self::idx(city.x, city.y)] || self.reveals_cities(owner) {
+                if visible[self.map_wrap.index(city.x, city.y)] || self.reveals_cities(owner) {
                     let mut observed = self.observed_city(city);
                     observed.remembered = true;
                     self.observed_map
@@ -207,7 +207,8 @@ impl Simulation {
                     .cities
                     .iter()
                     .find(|((viewer, _), (_, observed))| {
-                        *viewer == giver && Self::idx(observed.city.x, observed.city.y) == index
+                        *viewer == giver
+                            && self.map_wrap.index(observed.city.x, observed.city.y) == index
                     })
                     .map(|(_, (_, observed))| observed.city.owner);
                 let observation = MapObservation {
@@ -227,14 +228,15 @@ impl Simulation {
         }
         // A newer observation of an empty tile must also clear a stale city.
         self.observed_map.cities.retain(|(viewer, _), (_, city)| {
-            *viewer != receiver || !transferred.contains(&Self::idx(city.city.x, city.city.y))
+            *viewer != receiver
+                || !transferred.contains(&self.map_wrap.index(city.city.x, city.city.y))
         });
         let cities: Vec<_> = self
             .observed_map
             .cities
             .iter()
             .filter(|((owner, _), (_, c))| {
-                *owner == giver && transferred.contains(&Self::idx(c.city.x, c.city.y))
+                *owner == giver && transferred.contains(&self.map_wrap.index(c.city.x, c.city.y))
             })
             .map(|((_, id), entry)| (*id, entry.clone()))
             .collect();
@@ -306,8 +308,8 @@ impl Simulation {
                         && id == city.id
                         && id > 0
                         && id < self.next_city_id
-                        && (0..MAP_W).contains(&city.x)
-                        && (0..MAP_H).contains(&city.y)
+                        && (0..self.map_wrap.width()).contains(&city.x)
+                        && (0..self.map_wrap.height()).contains(&city.y)
                         && city.size > 0
                         && *revision <= self.observed_map.revision
                         && observed.remembered

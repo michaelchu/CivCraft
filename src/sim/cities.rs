@@ -2,6 +2,7 @@ use super::*;
 use crate::rules::Genus;
 
 impl Simulation {
+    // Toroidal fixture convenience; gameplay uses the campaign-aware methods below.
     pub(crate) fn city_radius(city: &City) -> impl Iterator<Item = (i32, i32, i32, i32)> + use<> {
         Self::city_radius_at(city.x, city.y)
     }
@@ -28,15 +29,7 @@ impl Simulation {
         x: i32,
         y: i32,
     ) -> impl Iterator<Item = (i32, i32, i32, i32)> + use<> {
-        let wrap = self.map_wrap;
-        (-2..=2).flat_map(move |dy| {
-            (-2..=2).filter_map(move |dx| {
-                if isohex_vector_distance(dx, dy).pow(2) > 5 {
-                    return None;
-                }
-                wrap.offset(x, y, dx, dy).map(|(nx, ny)| (dx, dy, nx, ny))
-            })
-        })
+        self.map_wrap.city_radius(x, y)
     }
 
     pub(super) fn tile_can_support_worker(&self, city: &City, x: i32, y: i32) -> bool {
@@ -360,7 +353,7 @@ impl Simulation {
         debug_assert!(city.size > 1);
         city.size -= 1;
         city.food = city.food.min(Self::growth_box(city.size));
-        city.remove_citizen_assignments(1);
+        city.remove_citizen_assignments(1, self.map_wrap);
         self.remove_citizen_nationalities(index, 1);
         self.rebuild_city_ownership_for_city_event(self.cities[index].id);
     }
@@ -515,7 +508,7 @@ impl Simulation {
         if self.cities[city_index].size > 1 {
             self.cities[city_index].size -= 1;
             self.remove_citizen_nationalities(city_index, 1);
-            self.cities[city_index].remove_citizen_assignments(1);
+            self.cities[city_index].remove_citizen_assignments(1, self.map_wrap);
         }
         self.release_city_support(self.cities[city_index].id);
         self.cities[city_index].food = 0;
@@ -851,7 +844,7 @@ impl Simulation {
             let surplus = if forecast.disorder { 0 } else { shield_surplus };
             city.shields += recovered + surplus;
             let finished = if can_produce {
-                city.resolve_production()
+                city.resolve_production(self.map_wrap)
             } else {
                 None
             };
@@ -933,6 +926,7 @@ impl Simulation {
             };
             let city = &mut self.cities[index];
             let growth = city.resolve_growth(
+                self.map_wrap,
                 food_surplus,
                 Self::city_size_limit(&populated),
                 Self::food_retained(&populated),
@@ -1023,6 +1017,7 @@ enum Growth {
 impl City {
     fn resolve_growth(
         &mut self,
+        wrap: MapWrap,
         surplus: i32,
         size_limit: i32,
         retained: i32,
@@ -1054,12 +1049,12 @@ impl City {
             return Growth::Destroyed;
         }
         self.size -= 1;
-        self.remove_citizen_assignments(1);
+        self.remove_citizen_assignments(1, wrap);
         self.food = percent_of(Simulation::growth_box(self.size), retained);
         Growth::Starved
     }
 
-    fn resolve_production(&mut self) -> Option<(Production, i32)> {
+    fn resolve_production(&mut self, wrap: MapWrap) -> Option<(Production, i32)> {
         let population = match self.production {
             Production::Unit(kind) => kind.stats().pop_cost,
             Production::Building(_) => 0,
@@ -1077,7 +1072,7 @@ impl City {
         self.size -= population;
         if population > 0 {
             self.food = self.food.min(Simulation::growth_box(self.size));
-            self.remove_citizen_assignments(population);
+            self.remove_citizen_assignments(population, wrap);
         }
         Some((self.production, cost))
     }
@@ -1214,7 +1209,7 @@ mod tests {
         city.specialists = [1, 1, 1];
         city.worked_tiles = vec![second, first];
         city.size -= 4;
-        city.remove_citizen_assignments(4);
+        city.remove_citizen_assignments(4, MapWrap::XY);
         assert_eq!(city.specialists, [0; 3]);
         assert_eq!(city.worked_tiles, vec![second]);
     }
@@ -1248,10 +1243,10 @@ mod tests {
         let city = &mut game.cities[0];
         city.production = Production::Unit(UnitKind::Migrants);
         city.shields = 10;
-        assert!(city.resolve_production().is_none());
+        assert!(city.resolve_production(MapWrap::XY).is_none());
         city.size = 2;
         assert_eq!(
-            city.resolve_production(),
+            city.resolve_production(MapWrap::XY),
             Some((Production::Unit(UnitKind::Migrants), 10))
         );
         assert_eq!(city.size, 1);

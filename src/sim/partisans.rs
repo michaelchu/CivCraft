@@ -22,7 +22,7 @@ impl Simulation {
         }
         let name = city.name.clone();
         let conqueror = city.owner;
-        let center = Self::idx(city.x, city.y);
+        let center = self.map_wrap.index(city.x, city.y);
         let sites: Vec<_> = self
             .map_city_radius(city)
             .map(|(_, _, x, y)| (x, y))
@@ -43,7 +43,7 @@ impl Simulation {
                 let mut value = 10
                     * UnitKind::Partisan.stats().defense
                     * (POWER_FACTOR + terrain.defense_bonus() / (100 / POWER_FACTOR));
-                if labels[Self::idx(x, y)] != labels[center] {
+                if labels[self.map_wrap.index(x, y)] != labels[center] {
                     value /= 2;
                 }
                 value -= self.rand_below(value / 3);

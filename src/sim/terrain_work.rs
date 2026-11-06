@@ -111,7 +111,7 @@ impl Simulation {
         for _ in 0..5 {
             self.update_activities_and_restore();
         }
-        water.1 == MAP_H - 1
+        water.1 == self.map_wrap.height() - 1
             && port
             && radius
             && claimed

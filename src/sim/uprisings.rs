@@ -7,7 +7,9 @@ impl Simulation {
         }
         // Normal barbarian activity makes one attempt per 2,000 tiles.
         for _ in 0..(self.tiles.len() / 2000).max(1) {
-            let (x, y) = Self::xy(self.rand_below(self.tiles.len() as i32) as usize);
+            let (x, y) = self
+                .map_wrap
+                .position(self.rand_below(self.tiles.len() as i32) as usize);
             self.try_uprising_at(x, y);
         }
     }
@@ -42,7 +44,7 @@ impl Simulation {
         let seen = tile.visible;
         if sea {
             if !self.tiles.iter().enumerate().any(|(index, tile)| {
-                let (tx, ty) = Self::xy(index);
+                let (tx, ty) = self.map_wrap.position(index);
                 !tile.terrain.is_water() && self.map_distance(sx, sy, tx, ty) <= 4
             }) {
                 return;
@@ -147,7 +149,7 @@ impl Simulation {
         tile.hut = true;
         let (lx, ly) = neighbors(x, y).next().unwrap();
         self.tile_mut(lx, ly).terrain = Terrain::Grassland;
-        let index = Self::idx(x, y);
+        let index = self.map_wrap.index(x, y);
         // Native C-oracle seed: tile 975 of 2048, uprising gate 0/30,
         // and a successful Despotism unrest roll. Check instead of a costly
         // debug-build seed search (each seed heats the table 10000 times).

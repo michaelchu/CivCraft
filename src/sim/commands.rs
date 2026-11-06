@@ -102,8 +102,8 @@ impl Simulation {
         match command {
             Move(id, dx, dy) => self.try_move_unit(id, dx, dy) != MoveResult::Blocked,
             GoTo(id, x, y) => {
-                (0..super::MAP_W).contains(&x)
-                    && (0..super::MAP_H).contains(&y)
+                (0..self.map_wrap.width()).contains(&x)
+                    && (0..self.map_wrap.height()).contains(&y)
                     && self.player_goto(id, x, y)
             }
             FoundCity(id) => self.found_city(id),

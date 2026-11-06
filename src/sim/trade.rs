@@ -100,19 +100,20 @@ impl Simulation {
     }
 
     fn weighted_trade_distance(&self, a: &City, b: &City) -> i32 {
-        self.map_distance(a.x, a.y, b.x, b.y) * 40 / MAP_W.max(MAP_H)
+        self.map_distance(a.x, a.y, b.x, b.y) * 40
+            / self.map_wrap.width().max(self.map_wrap.height())
     }
 
     fn same_continent(&self, a: &City, b: &City) -> bool {
         let mut seen = vec![false; self.tiles.len()];
         let mut queue = vec![(a.x, a.y)];
-        seen[Self::idx(a.x, a.y)] = true;
+        seen[self.map_wrap.index(a.x, a.y)] = true;
         while let Some((x, y)) = queue.pop() {
             if (x, y) == (b.x, b.y) {
                 return true;
             }
             for (nx, ny) in self.map_wrap.neighbors(x, y) {
-                let index = Self::idx(nx, ny);
+                let index = self.map_wrap.index(nx, ny);
                 if !seen[index] && !self.tiles[index].terrain.is_water() {
                     seen[index] = true;
                     queue.push((nx, ny));
@@ -268,13 +269,13 @@ impl Simulation {
         remaining: i32,
         labels: &[usize],
     ) -> Option<(i32, i32, i32, (i32, i32))> {
-        let destination = labels[Self::idx(city.x, city.y)];
+        let destination = labels[self.map_wrap.index(city.x, city.y)];
         let mut best = None;
         for (index, &label) in labels.iter().enumerate() {
             if label != destination || label == 0 {
                 continue;
             }
-            let (lx, ly) = Self::xy(index);
+            let (lx, ly) = self.map_wrap.position(index);
             if self.treaty_blocks_move(merchant, lx, ly)
                 || self.units.iter().any(|unit| {
                     (unit.x, unit.y) == (lx, ly) && !self.allied(merchant.owner, unit.owner)
@@ -691,12 +692,13 @@ impl Simulation {
         let snapshot;
         let merchant = if self.home_for_merchant(merchant).is_none() {
             let labels = self.continent_labels();
-            let continent = labels[Self::idx(merchant.x, merchant.y)];
+            let continent = labels[self.map_wrap.index(merchant.x, merchant.y)];
             let Some(city) = self
                 .cities
                 .iter()
                 .filter(|city| {
-                    city.owner == merchant.owner && labels[Self::idx(city.x, city.y)] == continent
+                    city.owner == merchant.owner
+                        && labels[self.map_wrap.index(city.x, city.y)] == continent
                 })
                 .min_by_key(|city| self.map_distance(merchant.x, merchant.y, city.x, city.y))
             else {

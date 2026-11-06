@@ -17,15 +17,15 @@ impl Simulation {
         let mut map = vec![0; self.tiles.len()];
         for city in &self.cities {
             for (_, _, x, y) in self.map_city_radius_at(city.x, city.y) {
-                let index = Self::idx(x, y);
+                let index = self.map_wrap.index(x, y);
                 if map[index] >= 0 {
                     map[index] += 1;
                 }
             }
             for &(x, y) in &city.worked_tiles {
-                map[Self::idx(x, y)] = -1;
+                map[self.map_wrap.index(x, y)] = -1;
             }
-            map[Self::idx(city.x, city.y)] = -1;
+            map[self.map_wrap.index(city.x, city.y)] = -1;
         }
         for (&id, reservation) in &self.ai_settlement_targets {
             if reservation.owner != owner
@@ -40,14 +40,16 @@ impl Simulation {
             for (_, _, x, y) in
                 self.map_city_radius_at(reservation.destination.0, reservation.destination.1)
             {
-                let index = Self::idx(x, y);
+                let index = self.map_wrap.index(x, y);
                 if map[index] >= 0 {
                     map[index] += 1;
                 }
             }
-            map[Self::idx(reservation.destination.0, reservation.destination.1)] = -1;
+            map[self
+                .map_wrap
+                .index(reservation.destination.0, reservation.destination.1)] = -1;
             if let Some((x, y)) = reservation.worker {
-                map[Self::idx(x, y)] = -1;
+                map[self.map_wrap.index(x, y)] = -1;
             }
         }
         map
@@ -193,7 +195,7 @@ impl Simulation {
         use std::{cmp::Reverse, collections::BinaryHeap};
         let government = self.ai_goal_government(founder.owner);
         let reservations = self.settlement_citymap(founder.owner, Some(founder.id));
-        let start = Self::idx(founder.x, founder.y);
+        let start = self.map_wrap.index(founder.x, founder.y);
         let mut costs = vec![i32::MAX; self.tiles.len()];
         let mut previous = vec![None; self.tiles.len()];
         costs[start] = 0;
@@ -207,7 +209,7 @@ impl Simulation {
             if cost != costs[index] {
                 continue;
             }
-            let (x, y) = Self::xy(index);
+            let (x, y) = self.map_wrap.position(index);
             let turns = cost / allowance;
             if let Some(site) =
                 self.city_site_result(founder.owner, x, y, government, &reservations)
@@ -231,7 +233,7 @@ impl Simulation {
             };
             traveler.moves_left = remaining;
             for (nx, ny, step) in self.settler_land_steps(&traveler) {
-                let next = Self::idx(nx, ny);
+                let next = self.map_wrap.index(nx, ny);
                 let next_cost = cost + step.min(remaining);
                 if next_cost < costs[next] {
                     costs[next] = next_cost;
@@ -249,7 +251,7 @@ impl Simulation {
             cursor = prior;
         }
         path.reverse();
-        Some((Self::xy(destination), path, best_score))
+        Some((self.map_wrap.position(destination), path, best_score))
     }
 
     pub(super) fn settler_land_steps<'a>(
@@ -292,7 +294,7 @@ impl Simulation {
         if !self.can_found_at(x, y)
             || self
                 .map_city_radius_at(x, y)
-                .any(|(_, _, tx, ty)| reservations[Self::idx(tx, ty)] < 0)
+                .any(|(_, _, tx, ty)| reservations[self.map_wrap.index(tx, ty)] < 0)
             || tile.owner.is_some_and(|other| {
                 other != owner
                     && matches!(
@@ -351,7 +353,7 @@ impl Simulation {
             }
             value
         };
-        let reserved = |tx, ty| reservations[Self::idx(tx, ty)];
+        let reserved = |tx, ty| reservations[self.map_wrap.index(tx, ty)];
         let center = self.city_tile_yields_under_government(&city, x, y, true, None, government);
         let mut best = None;
         let mut remaining = 0;
@@ -476,7 +478,7 @@ impl Simulation {
             .clone();
         let destination = (10, 24);
         let baseline: Vec<_> = (0..self.tiles.len())
-            .map(Self::xy)
+            .map(|index| self.map_wrap.position(index))
             .map(|(x, y)| self.city_site_value(1, x, y))
             .collect();
         self.reserve_settlement_site(&first, destination);
@@ -484,11 +486,11 @@ impl Simulation {
             return false;
         };
         let protected = self.city_site_value(1, 10, 24).is_none()
-            && reservation
-                .worker
-                .is_some_and(|(x, y)| self.settlement_citymap(1, None)[Self::idx(x, y)] < 0);
+            && reservation.worker.is_some_and(|(x, y)| {
+                self.settlement_citymap(1, None)[self.map_wrap.index(x, y)] < 0
+            });
         let crowding = (0..self.tiles.len()).any(|index| {
-            let (x, y) = Self::xy(index);
+            let (x, y) = self.map_wrap.position(index);
             baseline[index]
                 .zip(self.city_site_value(1, x, y))
                 .is_some_and(|(old, new)| new < old)
@@ -657,13 +659,13 @@ impl Simulation {
         let source_first = initial
             .as_ref()
             .is_some_and(|site| site.worker == Some(first));
-        map[Self::idx(first.0, first.1)] = 1;
+        map[self.map_wrap.index(first.0, first.1)] = 1;
         let next = self.city_site_result(1, home.0, home.1, Government::Communism, &map);
         let source_next = next
             .as_ref()
             .is_some_and(|site| site.worker == Some(second))
             && initial.zip(next).is_some_and(|(a, b)| a.value > b.value);
-        map[Self::idx(first.0, first.1)] = -1;
+        map[self.map_wrap.index(first.0, first.1)] = -1;
         let overlap_rejected = self
             .city_site_result(1, home.0, home.1, Government::Communism, &map)
             .is_none();
@@ -674,7 +676,8 @@ impl Simulation {
             .is_some_and(|reservation| {
                 reservation.worker == Some(first) && reservation.destination == home
             });
-        let reserved = self.settlement_citymap(1, None)[Self::idx(first.0, first.1)] == -1;
+        let reserved =
+            self.settlement_citymap(1, None)[self.map_wrap.index(first.0, first.1)] == -1;
         source_first && source_next && overlap_rejected && stored && reserved
     }
 }

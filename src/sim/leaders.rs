@@ -74,7 +74,7 @@ impl Simulation {
         } else {
             unit.moves_left.max(0)
         };
-        let start = Self::idx(unit.x, unit.y);
+        let start = self.map_wrap.index(unit.x, unit.y);
         let mut result = LeaderPaths {
             costs: vec![i32::MAX; self.tiles.len()],
             previous: vec![None; self.tiles.len()],
@@ -101,7 +101,7 @@ impl Simulation {
             if reverse.is_some_and(|(target, _)| current == target) {
                 break;
             }
-            let (x, y) = Self::xy(current);
+            let (x, y) = self.map_wrap.position(current);
             let known_here = !observed || self.tile(x, y).known_by[actor.owner];
             let action_here = if reverse.is_some_and(|(target, _)| current == target) {
                 PfAction::Attack
@@ -134,7 +134,7 @@ impl Simulation {
                 let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
                     continue;
                 };
-                let next = Self::idx(nx, ny);
+                let next = self.map_wrap.index(nx, ny);
                 let target = reverse.is_some_and(|(target, _)| next == target);
                 let known = !observed || self.tile(nx, ny).known_by[actor.owner];
                 if known
@@ -210,7 +210,7 @@ impl Simulation {
             .order
             .into_iter()
             .map(|index| {
-                let (x, y) = Self::xy(index);
+                let (x, y) = self.map_wrap.position(index);
                 (paths.costs[index], x, y)
             })
             .collect()
@@ -274,7 +274,8 @@ impl Simulation {
         self.spawn_unit(HUMAN, UnitKind::Warrior, blocker.0, blocker.1);
         self.spawn_unit(BARBARIANS, UnitKind::Worker, refuge.0, refuge.1);
         let actor = self.units.iter().find(|unit| unit.id == leader).unwrap();
-        let optimistic = self.leader_paths(actor, None).costs[Self::idx(refuge.0, refuge.1)]
+        let optimistic = self.leader_paths(actor, None).costs
+            [self.map_wrap.index(refuge.0, refuge.1)]
             == 2 * MOVE_FRAGMENTS;
         self.run_ai_player(BARBARIANS);
         let stopped = self.units.iter().any(|unit| {
@@ -291,8 +292,8 @@ impl Simulation {
         self.spawn_unit(BARBARIANS, UnitKind::Caravel, blocker.0, blocker.1);
         let actor = self.units.iter().find(|unit| unit.id == carrier).unwrap();
         let paths = self.leader_paths(actor, None);
-        let endpoint = paths.costs[Self::idx(blocker.0, blocker.1)] == MOVE_FRAGMENTS
-            && paths.costs[Self::idx(refuge.0, refuge.1)] == 3 * MOVE_FRAGMENTS;
+        let endpoint = paths.costs[self.map_wrap.index(blocker.0, blocker.1)] == MOVE_FRAGMENTS
+            && paths.costs[self.map_wrap.index(refuge.0, refuge.1)] == 3 * MOVE_FRAGMENTS;
         let execution = !self.apply(Command::Move(carrier, 1, 0))
             && self
                 .units
@@ -385,14 +386,14 @@ impl Simulation {
             .filter(|unit| unit.owner == leader.owner && unit.kind != UnitKind::BarbarianLeader)
             .filter(|unit| {
                 let paths = self.leader_paths_mode(unit, None, true);
-                paths.costs[Self::idx(leader.x, leader.y)] != i32::MAX
+                paths.costs[self.map_wrap.index(leader.x, leader.y)] != i32::MAX
             })
             .map(|unit| unit.id)
             .collect();
         if !guards.is_empty() {
             let paths = self.leader_paths(&leader, None);
             for &tile in paths.order.iter().filter(|&&tile| tile != paths.start) {
-                let point = Self::xy(tile);
+                let point = self.map_wrap.position(tile);
                 if self
                     .units
                     .iter()
@@ -413,7 +414,7 @@ impl Simulation {
                 .player_units_ordered(owner)
                 .filter(|unit| unit.owner == owner && unit.owner != leader.owner)
             {
-                let index = Self::idx(leader.x, leader.y);
+                let index = self.map_wrap.index(leader.x, leader.y);
                 let cost = self.leader_paths(enemy, Some((index, leader.owner))).costs[index];
                 if cost < minimum {
                     minimum = cost;
@@ -473,7 +474,7 @@ impl Simulation {
                 return;
             }
             let paths = self.leader_paths(&actor, None);
-            if let Some(path) = paths.path(Self::idx(safest.0, safest.1)) {
+            if let Some(path) = paths.path(self.map_wrap.index(safest.0, safest.1)) {
                 self.leader_follow_path(id, path);
             }
             if self

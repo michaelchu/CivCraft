@@ -54,10 +54,10 @@ impl Simulation {
             }
             continent += 1;
             labels[index] = continent;
-            let mut pending = vec![Self::xy(index)];
+            let mut pending = vec![self.map_wrap.position(index)];
             while let Some((x, y)) = pending.pop() {
                 for (nx, ny) in self.map_wrap.neighbors(x, y) {
-                    let index = Self::idx(nx, ny);
+                    let index = self.map_wrap.index(nx, ny);
                     if labels[index] == 0 && !self.tiles[index].terrain.is_water() {
                         labels[index] = continent;
                         pending.push((nx, ny));

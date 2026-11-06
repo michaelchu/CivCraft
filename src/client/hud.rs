@@ -187,9 +187,9 @@ impl Game {
             rect.h + 6.0,
             Color::from_rgba(15, 17, 16, 255),
         );
-        let scale = rect.h / MAP_H as f32;
-        for y in 0..MAP_H {
-            for x in 0..MAP_W {
+        let scale = rect.h / self.sim.map_wrap.height() as f32;
+        for y in 0..self.sim.map_wrap.height() {
+            for x in 0..self.sim.map_wrap.width() {
                 let tile = self.sim.render_tile(x, y);
                 let color = if !tile.seen {
                     Color::from_rgba(7, 13, 17, 255)
@@ -198,10 +198,10 @@ impl Game {
                 } else {
                     darken(tile.terrain.minimap_color(), 0.53)
                 };
-                let origin = Self::minimap_tile_origin(rect, x, y);
+                let origin = self.minimap_tile_origin(rect, x, y);
                 let width = (rect.right() - origin.x).min(2.0 * scale);
                 draw_rectangle(origin.x, origin.y, width, scale, color);
-                if y % 2 == 1 && x == MAP_W - 1 {
+                if y % 2 == 1 && x == self.sim.map_wrap.width() - 1 {
                     draw_rectangle(rect.x, origin.y, scale, scale, color);
                 }
             }
@@ -213,7 +213,7 @@ impl Game {
             .filter(|c| !city_overrides.contains_key(&c.id))
             .chain(city_overrides.values())
         {
-            let origin = Self::minimap_tile_origin(rect, city.x, city.y);
+            let origin = self.minimap_tile_origin(rect, city.x, city.y);
             let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);
             let color = player_color(city.owner);
             if let Some(part) = marker.intersect(rect) {

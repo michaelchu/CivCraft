@@ -35,7 +35,7 @@ const HEADER_V11: &[u8] = b"CIVCRAFT\0\x0b";
 const HEADER_V12: &[u8] = b"CIVCRAFT\0\x0c";
 const HEADER_V13: &[u8] = b"CIVCRAFT\0\x0d";
 const HEADER_V14: &[u8] = b"CIVCRAFT\0\x0e";
-const HEADER: &[u8] = b"CIVCRAFT\0\x0f";
+const HEADER: &[u8] = b"CIVCRAFT\0\x10";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -393,11 +393,12 @@ impl Simulation {
                     actor.id == unit
                         && actor.kind == UnitKind::Settlers
                         && actor.owner == reservation.owner
-                }) || !(0..MAP_W).contains(&x)
-                    || !(0..MAP_H).contains(&y)
-                    || reservation
-                        .worker
-                        .is_some_and(|(x, y)| !(0..MAP_W).contains(&x) || !(0..MAP_H).contains(&y))
+                }) || !(0..game.map_wrap.width()).contains(&x)
+                    || !(0..game.map_wrap.height()).contains(&y)
+                    || reservation.worker.is_some_and(|(x, y)| {
+                        !(0..game.map_wrap.width()).contains(&x)
+                            || !(0..game.map_wrap.height()).contains(&y)
+                    })
             }) {
                 return Err(invalid("Invalid AI settlement reservation"));
             }
@@ -489,8 +490,8 @@ impl Simulation {
         }
         if let Some((&id, &(x, y))) = game.unit_goto_tiles.iter().find(|&(&id, &(x, y))| {
             !game.units.iter().any(|unit| unit.id == id)
-                || !(0..MAP_W).contains(&x)
-                || !(0..MAP_H).contains(&y)
+                || !(0..game.map_wrap.width()).contains(&x)
+                || !(0..game.map_wrap.height()).contains(&y)
         }) {
             return Err(invalid(format!(
                 "Invalid unit movement destination for {id}: ({x}, {y}); live unit: {}",
@@ -911,7 +912,9 @@ impl Simulation {
 
     fn validate_campaign(&self) -> io::Result<()> {
         let players = self.players.len();
-        let position = |x, y| (0..MAP_W).contains(&x) && (0..MAP_H).contains(&y);
+        let position = |x, y| {
+            (0..self.map_wrap.width()).contains(&x) && (0..self.map_wrap.height()).contains(&y)
+        };
         let tech = |tech: Tech| tech == Tech::FUTURE || tech.data().is_some();
         let building = |building| Building::all().any(|known| known == building);
         let production = |item| match item {
@@ -919,7 +922,7 @@ impl Simulation {
             Production::Unit(_) => true,
         };
         if !(PLAYER_COUNT + 1..=PLAYER_SLOTS).contains(&players)
-            || self.tiles.len() != (MAP_W * MAP_H) as usize
+            || self.tiles.len() != (self.map_wrap.width() * self.map_wrap.height()) as usize
             || self.nation_scores.len() != players
             || self.spaceships.len() != players
             || self.turn < 1
@@ -927,10 +930,9 @@ impl Simulation {
                 .native_random
                 .as_ref()
                 .map_or(self.rng == 0, |random| !random.is_initialized())
-            || self
-                .climate_current
-                .iter()
-                .any(|&count| !(0..=MAP_W * MAP_H).contains(&count))
+            || self.climate_current.iter().any(|&count| {
+                !(0..=self.map_wrap.width() * self.map_wrap.height()).contains(&count)
+            })
             || self.tiles.iter().any(|tile| {
                 tile.owner.is_some_and(|owner| owner >= players)
                     || tile.last_seen_owner.is_some_and(|owner| owner >= players)

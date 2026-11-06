@@ -6,10 +6,10 @@ use super::*;
 // data/misc/colors.tilespec: mapview_unknown = (0,0,0).
 pub(super) const MAP_UNKNOWN: Color = BLACK;
 
-pub(super) fn vertical_scroll_bounds(view_height: f32, zoom: f32) -> (f32, f32) {
+pub(super) fn vertical_scroll_bounds(wrap: MapWrap, view_height: f32, zoom: f32) -> (f32, f32) {
     let (mx, my) = native_to_map(0, 0);
     let mut min = (mx + my) as f32 * TILE_H * 0.5 * zoom;
-    let (mx, my) = native_to_map(MAP_W - 1, MAP_H - 1);
+    let (mx, my) = native_to_map(wrap.width() - 1, wrap.height() - 1);
     let mut max = (mx + my) as f32 * TILE_H * 0.5 * zoom + TILE_H * zoom;
     // Native uses an integer diff and splits the expansion with integer division.
     let diff = (view_height - (max - min)) as i32;
@@ -26,9 +26,9 @@ pub(super) fn normalize_camera_y(wrap: MapWrap, center_y: f32, view_height: f32,
     let first = MAP_W as f32 * TILE_H * 0.5 * zoom;
     let origin = first + center_y * TILE_H * 0.5 * zoom + TILE_H * zoom * 0.5 - view_height * 0.5;
     let origin = if wrap.wraps_y() {
-        first + (origin - first).rem_euclid(MAP_H as f32 * step)
+        first + (origin - first).rem_euclid(wrap.height() as f32 * step)
     } else {
-        let (min, max) = vertical_scroll_bounds(view_height, zoom);
+        let (min, max) = vertical_scroll_bounds(wrap, view_height, zoom);
         // CLIP is MAX(min, MIN(value,max)), including subpixel oversized maps.
         origin.min(max).max(min)
     };
@@ -44,7 +44,7 @@ mod tests {
     fn reference_scroll_origin(y: f32, view: f32, zoom: f32, wrap: MapWrap) -> f32 {
         let (mx, my) = native_to_map(0, 0);
         let first = (mx + my) as f32 * 24.0 * zoom;
-        let (mx, my) = native_to_map(MAP_W - 1, MAP_H - 1);
+        let (mx, my) = native_to_map(wrap.width() - 1, wrap.height() - 1);
         let mut last = (mx + my) as f32 * 24.0 * zoom + 48.0 * zoom;
         let mut min = first;
         let origin = first + y * 24.0 * zoom + 24.0 * zoom - view / 2.0;
@@ -89,7 +89,9 @@ mod tests {
         let south = normalize_camera_y(MapWrap::X, 1000.0, view, 1.0);
         assert!((view / 2.0 - north * 24.0 - 24.0).abs() < 0.001);
         assert!(
-            (view / 2.0 + (MAP_H - 1) as f32 * 24.0 - south * 24.0 - (view - 24.0)).abs() < 0.001
+            (view / 2.0 + (MapWrap::X.height() - 1) as f32 * 24.0 - south * 24.0 - (view - 24.0))
+                .abs()
+                < 0.001
         );
         assert_eq!(
             (MAP_UNKNOWN.r, MAP_UNKNOWN.g, MAP_UNKNOWN.b, MAP_UNKNOWN.a),

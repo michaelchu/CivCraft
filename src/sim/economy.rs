@@ -52,7 +52,7 @@ impl City {
         }
     }
 
-    pub(super) fn remove_citizen_assignments(&mut self, loss: i32) {
+    pub(super) fn remove_citizen_assignments(&mut self, loss: i32, wrap: MapWrap) {
         let before = self.specialists.iter().sum::<i32>();
         self.remove_specialists(loss);
         let remaining = loss - (before - self.specialists.iter().sum::<i32>());
@@ -61,7 +61,7 @@ impl City {
         }
         // cityturn.c:city_reduce_workers removes the first worked fields in
         // native city-index order, before the whole city is rearranged.
-        let mut order: Vec<_> = Simulation::city_radius(self).collect();
+        let mut order: Vec<_> = wrap.city_radius(self.x, self.y).collect();
         order.sort_by_key(|&(dx, dy, _, _)| (isohex_vector_distance(dx, dy).pow(2), dx, dy));
         let removed: std::collections::HashSet<_> = order
             .into_iter()

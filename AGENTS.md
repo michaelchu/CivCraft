@@ -84,3 +84,25 @@ in the final response.
 For focused screenshot galleries and visual review, see `UI_REVIEW.md` and the
 `--ui-review` instructions in `README.md`. Run that mode separately from
 `--self-test`.
+
+## Checking native map-generation parity
+
+Campaign geometry depends on wrapping: this preset uses 36×48 tiles with
+`--wrap x` and 32×64 with `--wrap xy`. Generate actual maps for each mode in
+tests; changing `sim.map_wrap` after generation leaves arrays inconsistent.
+Run `cargo test --offline generated_worlds_match_native_for_each_wrap` for the
+ten native terrain/elevation/extras/start-location goldens. The existing torus
+oracles additionally check starting-position creation order.
+
+To regenerate the goldens, use an unmodified Freeciv 3.3.90.14-dev (eb8c703)
+server and the reference Civ2Civ3 data:
+
+```sh
+python3 tools/generate_mapgen_oracles.py --server /path/to/freeciv-server \
+  --data /path/to/freeciv/data --work /tmp/civcraft-mapgen-oracles \
+  --output tests/fixtures/freeciv_mapgen_vectors.tsv
+```
+
+The reference server binds localhost even without clients; sandboxed runs may
+need `sandbox_permissions: "require_escalated"`. Compare both wrapping modes
+when running polar/seam galleries; unit goldens do not validate rendering.

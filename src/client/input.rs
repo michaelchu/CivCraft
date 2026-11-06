@@ -538,15 +538,18 @@ impl Game {
         };
         let available_height =
             (screen_height() - top - 17.0 - context_height - 160.0 - space_row).max(1.0);
-        let natural_size = vec2((2 * MAP_W) as f32, MAP_H as f32);
+        let natural_size = vec2(
+            (2 * self.sim.map_wrap.width()) as f32,
+            self.sim.map_wrap.height() as f32,
+        );
         let scale = (available_width / natural_size.x).min(available_height / natural_size.y);
         let size = natural_size * scale;
         let left = screen_width() - PANEL_W + (PANEL_W - size.x) * 0.5;
         Rect::new(left, top, size.x, size.y)
     }
 
-    pub(super) fn minimap_tile_origin(rect: Rect, x: i32, y: i32) -> Vec2 {
-        let scale = rect.h / MAP_H as f32;
+    pub(super) fn minimap_tile_origin(&self, rect: Rect, x: i32, y: i32) -> Vec2 {
+        let scale = rect.h / self.sim.map_wrap.height() as f32;
         vec2(
             rect.x + (2 * x + y.rem_euclid(2)) as f32 * scale,
             rect.y + y as f32 * scale,
@@ -571,7 +574,8 @@ impl Game {
 
     pub(super) fn camera_overview_position(&self) -> Vec2 {
         vec2(
-            (self.camera.x - self.camera.y + MAP_W as f32).rem_euclid(2.0 * MAP_W as f32),
+            (self.camera.x - self.camera.y + MAP_W as f32)
+                .rem_euclid(2.0 * self.sim.map_wrap.width() as f32),
             self.camera.x + self.camera.y - MAP_W as f32,
         )
     }
@@ -682,11 +686,12 @@ impl Game {
         }
         let minimap = self.minimap_rect();
         if minimap.contains(mouse) {
-            let scale = minimap.h / MAP_H as f32;
+            let scale = minimap.h / self.sim.map_wrap.height() as f32;
             let natural_x = ((mouse.x - minimap.x) / scale).floor() as i32;
-            let native_y = (((mouse.y - minimap.y) / scale).floor() as i32).min(MAP_H - 1);
+            let native_y = (((mouse.y - minimap.y) / scale).floor() as i32)
+                .min(self.sim.map_wrap.height() - 1);
             let native_x = (natural_x - native_y.rem_euclid(2)).div_euclid(2);
-            self.focus_camera_on(native_x.rem_euclid(MAP_W), native_y);
+            self.focus_camera_on(native_x.rem_euclid(self.sim.map_wrap.width()), native_y);
             return;
         }
         if !Self::viewport_rect().contains(mouse) {

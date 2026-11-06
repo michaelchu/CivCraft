@@ -10,6 +10,14 @@ pub(super) struct ClimatePressure {
 
 const MAP_AREA: i32 = MAP_W * MAP_H;
 
+impl ClimatePressure {
+    pub(super) fn new(area: usize) -> Self {
+        Self {
+            accumulated: 0,
+            level: (area as i32 + 499) / 500,
+        }
+    }
+}
 impl Default for ClimatePressure {
     fn default() -> Self {
         Self {
@@ -68,11 +76,13 @@ impl Simulation {
                 pressure.accumulated = 0;
             } else {
                 pressure.accumulated -= pressure.level;
-                if self.rand_below((MAP_AREA + 19) / 20) < pressure.accumulated {
-                    let strength = MAP_W / 10 + MAP_H / 10 + pressure.accumulated * 5;
+                if self.rand_below((self.tiles.len() as i32 + 19) / 20) < pressure.accumulated {
+                    let strength = self.map_wrap.width() / 10
+                        + self.map_wrap.height() / 10
+                        + pressure.accumulated * 5;
                     self.change_climate(contamination == Contamination::Pollution, strength);
                     pressure.accumulated = 0;
-                    pressure.level += (MAP_AREA + 999) / 1000;
+                    pressure.level += (self.tiles.len() as i32 + 999) / 1000;
                 }
             }
             self.climate_pressure[index] = pressure;
@@ -106,9 +116,9 @@ impl Simulation {
                 break;
             }
             let (index, x, y) = loop {
-                let x = self.rand_below(MAP_W);
-                let y = self.rand_below(MAP_H);
-                let index = Self::idx(x, y);
+                let x = self.rand_below(self.map_wrap.width());
+                let y = self.rand_below(self.map_wrap.height());
+                let index = self.map_wrap.index(x, y);
                 if !used[index] {
                     break (index, x, y);
                 }

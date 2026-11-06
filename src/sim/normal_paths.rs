@@ -132,7 +132,7 @@ impl NormalPaths {
     pub(super) fn positions(&mut self, sim: &Simulation) -> Vec<(i32, i32, i32, u32)> {
         let mut result = vec![(self.actor.x, self.actor.y, 0, 0)];
         while self.iterate(sim) {
-            let (x, y) = Simulation::xy(self.current);
+            let (x, y) = self.map_wrap.position(self.current);
             let node = &self.nodes[self.current];
             result.push((x, y, node.cost / self.rate, node.extra));
         }
@@ -146,7 +146,7 @@ impl NormalPaths {
         omniscient: bool,
         risk: bool,
     ) -> Self {
-        let start = Simulation::idx(unit.x, unit.y);
+        let start = sim.map_wrap.index(unit.x, unit.y);
         let mut map = Self {
             map_wrap: sim.map_wrap,
             actor: unit.clone(),
@@ -254,7 +254,7 @@ impl NormalPaths {
         if self.nodes[index].status != Status::Uninit {
             return self.nodes[index].behavior != Behavior::Ignore;
         }
-        let (x, y) = Simulation::xy(index);
+        let (x, y) = self.map_wrap.position(index);
         self.nodes[index].status = Status::Init;
         let foreign = self.foreign_at(sim, x, y);
         self.nodes[index].behavior = match self.policy {
@@ -373,14 +373,14 @@ impl NormalPaths {
             && (node.scope != 0 || self.style == Style::FerrySearch)
             && (self.rate > 0 || node.cost < 0)
         {
-            let (x, y) = Simulation::xy(current);
+            let (x, y) = self.map_wrap.position(current);
             let mut actor = self.actor.clone();
             (actor.x, actor.y) = (x, y);
             for (direction, (dx, dy)) in ISOHEX_DIRS.into_iter().enumerate() {
                 let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
                     continue;
                 };
-                let next = Simulation::idx(nx, ny);
+                let next = self.map_wrap.index(nx, ny);
                 if self.nodes[next].status == Status::Processed {
                     continue;
                 }
@@ -453,7 +453,7 @@ impl NormalPaths {
     }
 
     fn reach(&mut self, sim: &Simulation, x: i32, y: i32) -> Option<usize> {
-        let goal = Simulation::idx(x, y);
+        let goal = self.map_wrap.index(x, y);
         if goal == self.start {
             return Some(goal);
         }
@@ -486,7 +486,7 @@ impl NormalPaths {
             if cost > limit {
                 break;
             }
-            positions.push(Simulation::xy(self.current));
+            positions.push(self.map_wrap.position(self.current));
         }
         positions
     }
@@ -506,9 +506,9 @@ impl NormalPaths {
             let direction = self.nodes[cursor].direction?;
             let (dx, dy) = ISOHEX_DIRS[direction];
             path.push((dx, dy));
-            let (x, y) = Simulation::xy(cursor);
+            let (x, y) = self.map_wrap.position(cursor);
             let (x, y) = self.map_wrap.offset(x, y, -dx, -dy)?;
-            cursor = Simulation::idx(x, y);
+            cursor = self.map_wrap.index(x, y);
         }
         path.reverse();
         Some((path, cost))

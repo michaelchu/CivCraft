@@ -69,7 +69,8 @@ impl Simulation {
     }
 
     fn paradrop_tile_legal(&self, unit: &Unit, x: i32, y: i32) -> bool {
-        if !(0..MAP_H).contains(&y) || !(1..=10).contains(&self.map_distance(unit.x, unit.y, x, y))
+        if !(0..self.map_wrap.height()).contains(&y)
+            || !(1..=10).contains(&self.map_distance(unit.x, unit.y, x, y))
         {
             return false;
         }
@@ -126,11 +127,11 @@ impl Simulation {
             return self.paradrop(unit.id, city.x, city.y);
         }
         let labels = self.continent_labels();
-        let origin = labels[Self::idx(unit.x, unit.y)];
+        let origin = labels[self.map_wrap.index(unit.x, unit.y)];
         let conquest = cities
             .filter(|city| self.at_war(owner, city.owner))
             .max_by_key(|city| {
-                let overseas = labels[Self::idx(city.x, city.y)] != origin;
+                let overseas = labels[self.map_wrap.index(city.x, city.y)] != origin;
                 (city.size + i32::from(overseas), std::cmp::Reverse(city.id))
             });
         if let Some(city) = conquest {
@@ -140,7 +141,7 @@ impl Simulation {
         let mut best = None;
         let mut best_value = 0.0;
         for (index, _) in self.tiles.iter().enumerate() {
-            let (x, y) = Self::xy(index);
+            let (x, y) = self.map_wrap.position(index);
             if !empty(x, y)
                 || !self.paradrop_tile_legal(unit, x, y)
                 || self
@@ -203,7 +204,7 @@ impl Simulation {
         if !self.can_begin_paradrop(&unit) {
             return false;
         }
-        let x = x.rem_euclid(MAP_W);
+        let x = x.rem_euclid(self.map_wrap.width());
         if !self.paradrop_tile_legal(&unit, x, y) {
             if unit.owner == HUMAN {
                 self.add_event("Paratroopers need a known land tile and permission to enter.");
@@ -790,7 +791,7 @@ impl Simulation {
         let position = (aircraft.x, aircraft.y);
         let mut bases = Vec::new();
         for (index, _) in self.tiles.iter().enumerate() {
-            let (x, y) = Self::xy(index);
+            let (x, y) = self.map_wrap.position(index);
             if self.refuel_site(aircraft.owner, x, y)
                 && !self.units.iter().any(|unit| {
                     (unit.x, unit.y) == (x, y) && !self.allied(aircraft.owner, unit.owner)
@@ -960,8 +961,13 @@ impl Simulation {
                     defender: target.clone(),
                     hp: hp_steps,
                     city: self.cities.iter().find(|c| (c.x, c.y) == (x, y)).cloned(),
-                    territory: (0..MAP_W * MAP_H)
-                        .map(|i| self.displayed_tile_owner(i % MAP_W, i / MAP_W))
+                    territory: (0..self.map_wrap.width() * self.map_wrap.height())
+                        .map(|i| {
+                            self.displayed_tile_owner(
+                                i % self.map_wrap.width(),
+                                i / self.map_wrap.width(),
+                            )
+                        })
                         .collect(),
                 });
             }

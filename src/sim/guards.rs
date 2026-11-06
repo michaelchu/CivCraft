@@ -340,7 +340,7 @@ impl Simulation {
     fn guard_reachable_sites(&self, guard: &Unit, limit: i32) -> Vec<(i32, i32, i32)> {
         let allowance = self.unit_move_rate(guard).max(1);
         let mut costs = vec![i32::MAX; self.tiles.len()];
-        let start = Self::idx(guard.x, guard.y);
+        let start = self.map_wrap.index(guard.x, guard.y);
         costs[start] = 0;
         let mut queue = exploration::ExplorerQueue::default();
         queue.put(0, start);
@@ -354,7 +354,7 @@ impl Simulation {
             if spent > limit {
                 break;
             }
-            (actor.x, actor.y) = Self::xy(index);
+            (actor.x, actor.y) = self.map_wrap.position(index);
             sites.push((spent, actor.x, actor.y));
             let remaining = if spent < guard.moves_left {
                 guard.moves_left - spent
@@ -378,7 +378,7 @@ impl Simulation {
                 let Some(step) = self.movement_cost_for(&actor, x, y) else {
                     continue;
                 };
-                let next = Self::idx(x, y);
+                let next = self.map_wrap.index(x, y);
                 let candidate = spent + step.min(remaining);
                 if candidate <= limit && candidate < costs[next] {
                     costs[next] = candidate;
