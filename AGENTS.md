@@ -1,5 +1,12 @@
 # CivCraft agent guidance
 
+## Reference source checkout
+
+When the user says “reference” in this project, they mean the Freeciv source
+checkout at `/Users/michaelchu/Documents/projects/civjs/reference`. Use that
+checkout for ruleset and source comparisons; for example, Civ2Civ3 unit rules
+are in `reference/freeciv/data/civ2civ3/units.ruleset` there.
+
 ## Running a requested playtest
 
 When asked to playtest the game, run the built-in desktop gameplay scenarios.

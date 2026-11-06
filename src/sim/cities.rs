@@ -1169,7 +1169,7 @@ mod tests {
         game.units.clear();
         game.cities.clear();
         for tile in &mut game.tiles {
-            tile.terrain = Terrain::Grassland;
+            tile.terrain = Terrain::Plains;
             tile.resource = None;
             tile.river = false;
         }
@@ -1344,6 +1344,69 @@ mod tests {
         game.process_cities();
         assert!(game.cities[0].has_building(Building::AQUEDUCT_LAKE));
         assert_eq!(game.cities[0].size, 9);
+    }
+
+    #[test]
+    fn growth_resolver_applies_surplus_until_city_grows_past_size_sixteen() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        game.create_city(HUMAN, 10, 20);
+        let city = &mut game.cities[0];
+        city.buildings
+            .extend([Building::AQUEDUCT, Building::SEWER_SYSTEM]);
+
+        let mut growth_sizes = vec![city.size];
+        for _ in 0..100 {
+            let limit = Simulation::city_size_limit(city);
+            let retained = Simulation::food_retained(city);
+            if city.resolve_growth(game.map_wrap, 10, limit, retained, false) == Growth::Grew {
+                growth_sizes.push(city.size);
+            }
+            if city.size == 17 {
+                break;
+            }
+        }
+        assert_eq!(growth_sizes, (1..=17).collect::<Vec<_>>());
+        assert_eq!(city.size, 17);
+    }
+
+    #[test]
+    fn ordinary_food_surplus_grows_city_and_food_deficit_shrinks_it() {
+        let mut growing = Simulation::new(crate::mapgen::generate(42));
+        growing.units.clear();
+        growing.cities.clear();
+        for tile in &mut growing.tiles {
+            tile.terrain = Terrain::Mountains;
+            tile.resource = None;
+            tile.river = false;
+        }
+        let (x, y) = (10, 20);
+        growing.tile_mut(x, y).terrain = Terrain::Grassland;
+        let food_tile = offset_native_by_map(x, y, 1, 0);
+        growing.tile_mut(food_tile.0, food_tile.1).terrain = Terrain::Grassland;
+        growing.create_city(HUMAN, x, y);
+        let id = growing.cities[0].id;
+        growing.cities[0].food = Simulation::growth_box(1) - 1;
+        growing.process_cities();
+        let grew = growing.cities.iter().any(|city| city.id == id && city.size == 2);
+        assert!(grew, "ordinary food surplus should grow a city");
+
+        let mut shrinking = Simulation::new(crate::mapgen::generate(42));
+        shrinking.units.clear();
+        shrinking.cities.clear();
+        for tile in &mut shrinking.tiles {
+            tile.terrain = Terrain::Desert;
+            tile.resource = None;
+            tile.river = false;
+        }
+        shrinking.create_city(HUMAN, x, y);
+        let id = shrinking.cities[0].id;
+        shrinking.cities[0].size = 2;
+        shrinking.cities[0].food = 0;
+        shrinking.reconcile_city_workers();
+        shrinking.process_cities();
+        let shrank = shrinking.cities.iter().any(|city| city.id == id && city.size == 1);
+        assert!(shrank, "ordinary food deficit should shrink a city");
     }
 
     #[test]

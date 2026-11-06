@@ -331,6 +331,37 @@ mod tests {
     }
 
     #[test]
+    fn oil_well_requires_refining_and_mined_oil_terrain_then_adds_a_shield() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        let (x, y) = (10, 20);
+        game.tile_mut(x, y).terrain = Terrain::Desert;
+        game.tile_mut(x, y).mine = true;
+        game.tile_mut(x, y).resource = Some(Resource::Oil);
+        let before = game.tile(x, y).yields().1;
+        let worker = game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
+
+        assert!(!game.apply(Command::Work(worker, WorkKind::OilWell)));
+        game.players[HUMAN].known.push(Tech::REFINING);
+        assert!(game.apply(Command::Work(worker, WorkKind::OilWell)));
+        for _ in 0..5 {
+            game.update_activities_and_restore();
+        }
+
+        let tile = game.tile(x, y);
+        assert!(tile.oil_well);
+        assert!(tile.mine);
+        assert_eq!(tile.yields().1, before + 1);
+
+        let glacier = offset_native_by_map(x, y, 1, 0);
+        game.tile_mut(glacier.0, glacier.1).terrain = Terrain::Glacier;
+        game.tile_mut(glacier.0, glacier.1).mine = true;
+        let second_worker = game.spawn_unit(HUMAN, UnitKind::Worker, glacier.0, glacier.1);
+        assert!(game.apply(Command::Work(second_worker, WorkKind::OilWell)));
+    }
+
+    #[test]
     fn workers_cultivate_and_engineers_reclaim_ocean_with_fusion_power() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
