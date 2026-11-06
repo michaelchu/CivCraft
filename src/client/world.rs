@@ -323,8 +323,8 @@ impl Game {
                 continue;
             }
 
-            if tile.terrain.is_water() {
-                assets.draw_water_backing(tile.terrain, center, tile_w, tile_h);
+            if tile.terrain.is_water() || tile.terrain == Terrain::Glacier {
+                assets.draw_masked_terrain_backing(tile.terrain, center, tile_w, tile_h);
             } else {
                 draw_diamond(center, tile_w, tile_h, tile.terrain.minimap_color());
             }
@@ -591,8 +591,13 @@ impl Game {
                 draw_diamond(center, layout.tile_w, layout.tile_h, BLACK);
             } else {
                 let tile = self.sim.render_tile(x, y);
-                if tile.terrain.is_water() {
-                    assets.draw_water_backing(tile.terrain, center, layout.tile_w, layout.tile_h);
+                if tile.terrain.is_water() || tile.terrain == Terrain::Glacier {
+                    assets.draw_masked_terrain_backing(
+                        tile.terrain,
+                        center,
+                        layout.tile_w,
+                        layout.tile_h,
+                    );
                 } else {
                     draw_diamond(
                         center,

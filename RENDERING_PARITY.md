@@ -132,3 +132,14 @@ first/last-row normal-sprite anchor, input hit testing, blocked WrapX panning an
 continuous WrapXY panning through the seam. Existing `wrap-seam` checks continue
 to execute real unit movement at the boundary. This changes presentation only;
 generation, campaign state and gameplay RNG are unchanged.
+
+## Ice transition styling
+
+Ice-to-land boundaries deliberately use a custom narrow stipple after visual
+comparison with the reference one-way blend. A six-source-pixel fade controls
+fixed spatial noise, clipped inside the tile diamond. This uses no gameplay
+RNG. Other terrain pairs retain the native blend mask and eligibility rules.
+
+The glacier's transparent raster edge is backed with matching ice artwork
+instead of a flat minimap color, avoiding a blue-gray fringe. The
+`ice-transitions` gallery scene provides normal and fractional-zoom captures.

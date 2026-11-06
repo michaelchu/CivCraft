@@ -573,6 +573,27 @@ impl Simulation {
         }
     }
 
+    pub(crate) fn ui_review_ice_transitions(&mut self) {
+        self.ui_review_terrain_layers(false);
+        for dy in -8i32..=8 {
+            for dx in -8i32..=8 {
+                let (x, y) = offset_native_by_map(20, 24, dx, dy);
+                let ground = if dx.abs() <= 2 && dy.abs() <= 2 {
+                    Terrain::Glacier
+                } else if dy < -2 {
+                    Terrain::Desert
+                } else if dx > 2 {
+                    Terrain::Grassland
+                } else if dy > 2 {
+                    Terrain::Plains
+                } else {
+                    Terrain::Swamp
+                };
+                self.tile_mut(x, y).terrain = ground;
+            }
+        }
+    }
+
     pub(crate) fn ui_review_route_setup(&mut self) -> (u32, (i32, i32)) {
         self.ui_review_terrain_layers(false);
         for tile in &mut self.tiles {

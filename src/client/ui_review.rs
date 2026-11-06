@@ -40,6 +40,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "terrain-seams-small",
     "terrain-seams-default",
     "terrain-seams-large",
+    "ice-transitions",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -133,6 +134,12 @@ impl Game {
                 } else {
                     1.0
                 };
+            }
+            39 => {
+                self.sim.ui_review_ice_transitions();
+                self.zoom = 1.0;
+                self.focus_camera_on(20, 24);
+                return;
             }
             36..=38 => {
                 self.sim.ui_review_terrain_seams();
@@ -283,6 +290,14 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if scene == 39 {
+            if phase == 6 {
+                self.zoom = 0.82;
+                self.camera += vec2(0.137, 0.213);
+                return Ok(true);
+            }
+            return Ok(false);
+        }
         if (36..=38).contains(&scene) {
             if phase == 6 {
                 self.camera += vec2(0.37, 0.23);

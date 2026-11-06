@@ -71,6 +71,9 @@ fn blend_source(terrain: Terrain) -> Option<(usize, usize)> {
     match terrain {
         Terrain::DeepOcean => None,
         Terrain::Ocean | Terrain::Lake => Some((15, 3)),
+        // terrain1.spec: t.blend.arctic is an explicit blender even though
+        // tile_arctic has blend_layer=0. It paints ice onto neighbors only.
+        Terrain::Glacier => Some((7, 0)),
         _ => terrain.sprite_row().map(|row| (row as usize, 0)),
     }
 }
@@ -79,6 +82,48 @@ fn receives_blending(terrain: Terrain) -> bool {
     // These have blend_layer=0. Arctic nevertheless has an explicit blender,
     // so its ice can extend onto a neighboring land tile.
     !matches!(terrain, Terrain::DeepOcean | Terrain::Glacier)
+}
+
+// Native fill_terrain_sprite_layer + fill_terrain_sprite_blending: the
+// receiving tile must enable blending; the neighbor may supply an explicit
+// blender (arctic does) even when it does not itself receive blends.
+fn blends_neighbor(current: Terrain, other: Terrain) -> bool {
+    receives_blending(current) && current != other && blend_source(other).is_some()
+}
+
+fn custom_ice_pair(current: Terrain, other: Terrain) -> bool {
+    current != other
+        && !current.is_water()
+        && !other.is_water()
+        && (current == Terrain::Glacier || other == Terrain::Glacier)
+}
+
+// Deliberate visual styling: a six-pixel spatial stipple, independent of
+// gameplay RNG. Clip to the diamond to avoid double-blended tile edges.
+fn ice_dither_alpha(direction: usize, x: usize, y: usize) -> u8 {
+    let nx = (x as f32 + 0.5 - 48.0) / 48.0;
+    let ny = (y as f32 + 0.5 - 24.0) / 24.0;
+    if nx.abs() + ny.abs() > 1.0 {
+        return 0;
+    }
+    let toward_neighbor = [nx - ny, ny - nx, nx + ny, -nx - ny][direction];
+    let t = (1.0 - (1.0 - toward_neighbor) * 24.0 / 6.0).clamp(0.0, 1.0);
+    let coverage = (127.5 * t * t * (3.0 - 2.0 * t)).round() as u8;
+    let mut hash = (x as u32).wrapping_mul(0x9e3779b9)
+        ^ (y as u32).wrapping_mul(0x85ebca6b)
+        ^ (direction as u32).wrapping_mul(0xc2b2ae35);
+    hash ^= hash >> 16;
+    hash = hash.wrapping_mul(0x7feb352d);
+    hash ^= hash >> 15;
+    if (hash & 255) < u32::from(coverage) {
+        255
+    } else {
+        0
+    }
+}
+
+pub(super) fn build_ice_blend_atlas(terrain: &Image) -> Image {
+    build_blend_atlas_impl(terrain, true)
 }
 
 fn blend_rect(terrain: Terrain, direction: usize) -> Rect {
@@ -103,6 +148,10 @@ fn water_corner_cell(lake: bool, corner: usize, mask: i32) -> Rect {
 /// Build the exact native dither-masked quadrants once at asset load. Each
 /// generated cell preserves its full tile origin and has a transparent gutter.
 pub(super) fn build_blend_atlas(terrain: &Image) -> Image {
+    build_blend_atlas_impl(terrain, false)
+}
+
+fn build_blend_atlas_impl(terrain: &Image, custom: bool) -> Image {
     let mut atlas = Image::gen_image_color(
         (4 * BLEND_CELL_W) as u16,
         (TERRAIN_ROWS * BLEND_CELL_H) as u16,
@@ -132,12 +181,29 @@ pub(super) fn build_blend_atlas(terrain: &Image) -> Image {
         let sx = 1 + col * 97;
         let sy = 1 + row * 49;
         for (direction, (ox, oy)) in BLEND_OFFSETS.into_iter().enumerate() {
-            for y in oy..oy + 24 {
-                for x in ox..ox + 48 {
+            for y in 0..48 {
+                for x in 0..96 {
+                    if !custom && (!(oy..oy + 24).contains(&y) || !(ox..ox + 48).contains(&x)) {
+                        continue;
+                    }
                     let mut pixel = source_pixels[(sy + y) * terrain.width() + sx + x];
+                    if custom && pixel[3] == 0 {
+                        if let Some(nearest) = (0..96usize)
+                            .filter(|&px| {
+                                source_pixels[(sy + y) * terrain.width() + sx + px][3] > 0
+                            })
+                            .min_by_key(|&px| x.abs_diff(px))
+                        {
+                            pixel = source_pixels[(sy + y) * terrain.width() + sx + nearest];
+                        }
+                    }
                     // t.dither_tile is row 15, col 0. Native crop_sprite applies
                     // its alpha at the source-relative (x,y), not quadrant-local.
-                    let mask = source_pixels[(1 + 15 * 49 + y) * terrain.width() + 1 + x][3];
+                    let mask = if custom {
+                        ice_dither_alpha(direction, x, y)
+                    } else {
+                        source_pixels[(1 + 15 * 49 + y) * terrain.width() + 1 + x][3]
+                    };
                     pixel[3] = ((pixel[3] as u16 * mask as u16) / 255) as u8;
                     let ax = direction * BLEND_CELL_W + 1 + x;
                     let ay = kind as usize * BLEND_CELL_H + 1 + y;
@@ -174,16 +240,18 @@ impl Game {
         tile_h: f32,
     ) {
         let current = self.sim.render_tile(x, y).terrain;
-        if !receives_blending(current) {
-            return;
-        }
         for (direction, (dx, dy)) in BLEND_DIRS.into_iter().enumerate() {
             let other = self.matched_neighbor(x, y, dx, dy, current);
-            if other == current || blend_source(other).is_none() {
+            let custom = custom_ice_pair(current, other);
+            if !custom && !blends_neighbor(current, other) {
                 continue;
             }
             draw_texture_ex(
-                &assets.terrain_blends,
+                if custom {
+                    &assets.terrain_ice_blends
+                } else {
+                    &assets.terrain_blends
+                },
                 center.x - tile_w * 0.5,
                 center.y - tile_h * 0.5,
                 WHITE,
@@ -316,6 +384,55 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn arctic_uses_the_reference_explicit_blender_and_one_way_blending() {
+        // amplio2/terrain1.spec: row 7, col 0 = t.blend.arctic.
+        // amplio2.tilespec: tile_arctic blend_layer=0; grassland blend_layer=1.
+        assert_eq!(blend_source(Terrain::Glacier), Some((7, 0)));
+        for land in [
+            Terrain::Grassland,
+            Terrain::Tundra,
+            Terrain::Desert,
+            Terrain::Swamp,
+            Terrain::Plains,
+        ] {
+            assert!(blends_neighbor(land, Terrain::Glacier));
+            assert!(!blends_neighbor(Terrain::Glacier, land));
+        }
+        assert!(!blends_neighbor(Terrain::Glacier, Terrain::Glacier));
+        assert!(!blends_neighbor(Terrain::DeepOcean, Terrain::Glacier));
+        assert!(blends_neighbor(Terrain::Ocean, Terrain::Glacier));
+    }
+
+    #[test]
+    fn custom_ice_stipple_stays_inside_the_diamond_and_excludes_water() {
+        assert!(custom_ice_pair(Terrain::Glacier, Terrain::Grassland));
+        assert!(custom_ice_pair(Terrain::Tundra, Terrain::Glacier));
+        for water in [Terrain::Ocean, Terrain::DeepOcean, Terrain::Lake] {
+            assert!(!custom_ice_pair(Terrain::Glacier, water));
+            assert!(!custom_ice_pair(water, Terrain::Glacier));
+        }
+        assert!(!custom_ice_pair(Terrain::Glacier, Terrain::Glacier));
+        assert!(!custom_ice_pair(Terrain::Tundra, Terrain::Grassland));
+        let mut opaque = 0;
+        for direction in 0..4 {
+            for y in 0..48 {
+                for x in 0..96 {
+                    let alpha = ice_dither_alpha(direction, x, y);
+                    assert!(alpha == 0 || alpha == 255);
+                    let nx = (x as f32 + 0.5 - 48.0) / 48.0;
+                    let ny = (y as f32 + 0.5 - 24.0) / 24.0;
+                    if nx.abs() + ny.abs() > 1.0 {
+                        assert_eq!(alpha, 0);
+                    }
+                    opaque += usize::from(alpha == 255);
+                }
+            }
+            assert_eq!(ice_dither_alpha(direction, 48, 24), 0);
+        }
+        assert!(opaque > 50 && opaque < 1000, "keep the stipple narrow");
+    }
+
     #[test]
     fn every_connected_sprite_matches_the_original_spec_tag() {
         for terrain in [

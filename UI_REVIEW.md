@@ -32,7 +32,7 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery covers 39 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 40 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 For a quick on-demand check, select a scene by name:
 
@@ -210,3 +210,15 @@ Terrain captures at all three zooms and after fractional panning were inspected,
 along with the city work map. Lake diagonals and enlarged coastline gaps were
 corrected during inspection. These checks cover the listed configurations;
 visual assertions alone do not prove every possible camera/zoom combination.
+
+### Ice transitions
+
+`ice-transitions` surrounds an ice patch with desert, grassland, plains,
+and swamp. Ice-to-land boundaries use a custom six-source-pixel stipple,
+with fixed spatial noise and no gameplay RNG draws. This deliberately differs
+from the native one-way `t.blend.arctic`/`t.dither_tile` blend. Other terrain
+pairs, including ice-to-water boundaries, retain their reference behavior.
+
+The stipple stays inside each tile's diamond. Transparent glacier raster edges
+have matching ice artwork underneath, preventing a blue-gray fallback fringe.
+`ice-transitions-next.png` checks fractional zoom and camera panning.
