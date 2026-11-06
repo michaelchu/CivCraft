@@ -19,6 +19,9 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "campaign-city",
     "campaign-worked-tiles",
     "campaign-after-turn",
+    "rivers-six-directions",
+    "rivers-fogged",
+    "rivers-generated",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -41,14 +44,14 @@ impl UiReviewSources {
 
 impl Game {
     pub(crate) fn prepare_ui_review(&mut self, scene: usize, sources: &UiReviewSources) {
-        let baseline = if scene == 0 || scene >= 15 {
+        let baseline = if matches!(scene, 0 | 15..=17 | 20) {
             &sources.initial
         } else {
             &sources.fixture
         };
         *self = Game::from_simulation(baseline.clone());
         self.autosave_enabled = false;
-        if scene == 0 || scene >= 15 {
+        if matches!(scene, 0 | 15..=17) {
             return;
         }
         let (city, spy, rival) = sources.ids;
@@ -96,6 +99,23 @@ impl Game {
                 self.sim.ui_review_touching_borders();
                 self.zoom = 1.0;
             }
+            18 | 19 => {
+                self.sim.ui_review_rivers(scene == 19);
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.625
+                } else {
+                    1.0
+                };
+            }
+            20 => {
+                let (x, y) = self
+                    .sim
+                    .ui_review_generated_river_focus()
+                    .expect("generated river example");
+                self.focus_camera_on(x, y);
+                self.zoom = 1.15;
+                return;
+            }
             _ => {}
         }
         self.focus_camera_on(20, 24);
@@ -142,7 +162,7 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
-        if scene >= 15 {
+        if (15..=17).contains(&scene) {
             if phase == 1 {
                 sequence.click(self, buttons, "found_city_control", |action| {
                     matches!(action, UiAction::FoundCity)

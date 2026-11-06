@@ -136,3 +136,104 @@ mod clone_tests {
         assert_eq!(bincode::serialize(&initial).unwrap(), original);
     }
 }
+
+impl Simulation {
+    /// Controlled artwork cases: diagonal desert course, bends, forks and a
+    /// lake receiving rivers from each of the six isohex cardinal directions.
+    pub(crate) fn ui_review_rivers(&mut self, fogged: bool) {
+        self.units.clear();
+        self.cities.clear();
+        for tile in &mut self.tiles {
+            tile.owner = None;
+            tile.last_seen_owner = None;
+            tile.river = false;
+        }
+        for dy in -7..=7 {
+            for dx in -7..=7 {
+                let (x, y) = offset_native_by_map(20, 24, dx, dy);
+                let tile = self.tile_mut(x, y);
+                tile.terrain = Terrain::Desert;
+                tile.river = false;
+                tile.resource = None;
+                tile.hut = false;
+                tile.road = false;
+                tile.railroad = false;
+                tile.irrigation = false;
+                tile.farmland = false;
+                tile.mine = false;
+                tile.oil_well = false;
+                tile.oil_platform = false;
+                tile.pollution = false;
+                tile.fallout = false;
+                tile.base = None;
+                tile.seen = true;
+                tile.visible = true;
+                tile.known_by.fill(true);
+            }
+        }
+        let mut rivers = vec![
+            (-4, -4),
+            (-3, -3),
+            (-2, -2),
+            (2, -3),
+            (2, -2),
+            (3, -1),
+            (3, 0),
+            (3, 4),
+            (3, 3),
+            (4, 4),
+            (2, 4),
+        ];
+        rivers.extend(ISOHEX_DIRS.map(|(dx, dy)| (-3 + dx, 2 + dy)));
+        for (dx, dy) in rivers {
+            let (x, y) = offset_native_by_map(20, 24, dx, dy);
+            self.tile_mut(x, y).river = true;
+        }
+        for (dx, dy) in [(-1, -1), (-3, 2), (4, 0), (5, 4)] {
+            let (x, y) = offset_native_by_map(20, 24, dx, dy);
+            self.tile_mut(x, y).terrain = Terrain::Lake;
+        }
+        if fogged {
+            let (x, y) = offset_native_by_map(20, 24, -1, -1);
+            let tile = self.tile_mut(x, y);
+            tile.seen = false;
+            tile.visible = false;
+            tile.known_by[HUMAN] = false;
+            let (x, y) = offset_native_by_map(20, 24, 3, -1);
+            self.tile_mut(x, y).visible = false;
+        }
+        self.events.clear();
+        self.add_event(
+            "River artwork fixture: diagonal desert course, bends, forks and six lake outlets.",
+        );
+    }
+    /// Reveals the generated map for visual inspection without changing any
+    /// terrain, river flags, extras, RNG or starting positions.
+    pub(crate) fn ui_review_generated_river_focus(&mut self) -> Option<(i32, i32)> {
+        let target = (0..MAP_H)
+            .flat_map(|y| (0..MAP_W).map(move |x| (x, y)))
+            .filter(|&(x, y)| self.tile(x, y).river)
+            .min_by_key(|&(x, y)| {
+                let diagonal = [(1, 1), (-1, -1)].map(|(dx, dy)| {
+                    let p = offset_native_by_map(x, y, dx, dy);
+                    self.tile(p.0, p.1)
+                });
+                let lake = diagonal.iter().any(|t| t.terrain == Terrain::Lake);
+                let link = diagonal.iter().any(|t| t.terrain.is_water() || t.river);
+                (
+                    !link,
+                    self.tile(x, y).terrain != Terrain::Desert,
+                    !lake,
+                    y,
+                    x,
+                )
+            });
+        for tile in &mut self.tiles {
+            tile.seen = true;
+            tile.visible = true;
+            tile.known_by[HUMAN] = true;
+            tile.last_seen_owner = tile.owner;
+        }
+        target
+    }
+}

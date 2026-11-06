@@ -207,65 +207,37 @@ impl Game {
             return;
         }
 
-        let mut mask = 0;
-        for (direction, (dx, dy)) in [(0, -1), (1, 0), (0, 1), (-1, 0)].into_iter().enumerate() {
+        let neighbors = ISOHEX_DIRS.map(|(dx, dy)| {
             let (nx, ny) = offset_native_by_map(x, y, dx, dy);
-            let neighbor = self.sim.tile(nx, ny);
-            if neighbor.seen && (neighbor.river || (!water && neighbor.terrain.is_water())) {
-                if water {
-                    self.draw_terrain_extra(
-                        &assets.water,
-                        center,
-                        tile_w,
-                        tile_h,
-                        4,
-                        direction as i32,
-                    );
-                } else {
-                    mask |= 8 >> direction;
+            let tile = self.sim.tile(nx, ny);
+            super::rivers::RiverNeighbor {
+                known: tile.seen,
+                river: tile.river,
+                water: tile.terrain.is_water(),
+            }
+        });
+        let mask = super::rivers::connection_mask(water, neighbors);
+        let draw_sprite = |source| {
+            draw_texture_ex(
+                &assets.rivers,
+                center.x - tile_w * 0.5,
+                center.y - tile_h * 0.5,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(tile_w, tile_h)),
+                    source: Some(source),
+                    ..Default::default()
+                },
+            )
+        };
+        if water {
+            for direction in 0..6 {
+                if mask & (1 << direction) != 0 {
+                    draw_sprite(super::rivers::mouth_sprite(direction));
                 }
             }
-        }
-        if !water {
-            self.draw_terrain_extra(
-                &assets.water,
-                center,
-                tile_w,
-                tile_h,
-                2 + mask / 8,
-                mask % 8,
-            );
-        }
-
-        // Amplio2 has four river exits per diamond. The two additional
-        // isometric-hex neighbors meet this projection at its vertical tips.
-        for step in [-1, 1] {
-            let (nx, ny) = offset_native_by_map(x, y, step, step);
-            let neighbor = self.sim.tile(nx, ny);
-            if neighbor.seen && (neighbor.river || (!water && neighbor.terrain.is_water())) {
-                let tip = center.y + step as f32 * tile_h * 0.5;
-                let end = if water {
-                    center.y + step as f32 * tile_h * 0.23
-                } else {
-                    center.y
-                };
-                draw_line(
-                    center.x,
-                    tip,
-                    center.x,
-                    end,
-                    tile_w * 0.048,
-                    Color::from_rgba(23, 70, 136, 255),
-                );
-                draw_line(
-                    center.x,
-                    tip,
-                    center.x,
-                    end,
-                    tile_w * 0.024,
-                    Color::from_rgba(56, 126, 190, 255),
-                );
-            }
+        } else {
+            draw_sprite(super::rivers::river_sprite(mask));
         }
     }
 

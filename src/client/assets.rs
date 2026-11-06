@@ -101,7 +101,7 @@ pub(crate) fn window_conf() -> Conf {
 
 pub(crate) struct Assets {
     pub(super) terrain: Texture2D,
-    pub(super) water: Texture2D,
+    pub(super) rivers: Texture2D,
     pub(super) terrain2: Texture2D,
     pub(super) hills: Texture2D,
     pub(super) mountains: Texture2D,
@@ -117,11 +117,11 @@ impl Assets {
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_terrain1.png"), None)
                 .expect("valid Amplio2 terrain atlas");
         let terrain = Texture2D::from_image(&terrain_image);
-        let water = Texture2D::from_file_with_format(
-            include_bytes!("../../assets/amplio2_water.png"),
-            None,
-        );
-        water.set_filter(FilterMode::Nearest);
+        let river_image =
+            Image::from_file_with_format(include_bytes!("../../assets/hexemplio_rivers.png"), None)
+                .expect("valid Hexemplio river atlas");
+        let rivers = Texture2D::from_image(&super::rivers::build_river_atlas(&river_image));
+        rivers.set_filter(FilterMode::Nearest);
         let terrain2 = Texture2D::from_file_with_format(
             include_bytes!("../../assets/amplio2_terrain2.png"),
             None,
@@ -164,7 +164,7 @@ impl Assets {
         Self {
             terrain,
             terrain2,
-            water,
+            rivers,
             hills,
             mountains,
             ocean_corners,

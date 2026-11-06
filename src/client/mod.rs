@@ -11,6 +11,7 @@ mod input;
 mod investigation_view;
 mod research_tree;
 mod research_view;
+mod rivers;
 mod spaceship_view;
 mod spy_view;
 mod territory;
