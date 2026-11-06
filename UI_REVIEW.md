@@ -32,25 +32,45 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery renders 15 isolated scenarios with actual game assets and the production renderer. It uses long city names, a large treasury and a full-width seed, populates diplomacy and spy dialogs, includes two civilizations sharing a territorial boundary, exercises available next-page actions, and checks that actionable controls remain inside the window. Each scenario produces a PNG plus a second PNG after pagination. The fixture does not affect normal games and disables autosaving.
+The gallery covers 18 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research and touching national borders; `report.json` identifies each scene as `campaign` or `fixture`.
 
-Repeat at 800x600 and 1600x900 to inspect compact and wide layouts. Run the existing desktop interaction suite separately:
+For a quick on-demand check, select a scene by name:
 
 ```sh
-./target/release/civcraft --seed 42 --self-test /tmp/civcraft-ui-interactions
+./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-borders --ui-scene touching-borders
+./target/release/civcraft --seed 1337 --ui-review /tmp/civcraft-campaign --ui-scene campaign-after-turn
+```
+
+Every scene produces its primary screenshot. A `-next.png` is saved only after a control changes the page or campaign state; the runner verifies that the captured pixels changed too. Managed screenshots from an earlier run are cleared before capture, so old pages cannot masquerade as new results. Autosaves are disabled and the gallery parks its virtual cursor outside the UI to keep captures independent of the OS pointer. Normal interactive play keeps its actual mouse hover behavior.
+
+`report.json` lists screenshots, assertions, CPU draw-submission timings, setup/capture timings and border-cache statistics. Failed checks, missing controls, out-of-window hitboxes, unchanged next-page captures and report-write failures return a nonzero exit status. `--ui-review` runs separately from `--self-test` and `--screenshot` to keep their state mutations independent. Missing automation-flag arguments fail rather than starting interactive play.
+
+Repeat at 800x600 and 1600x900 to inspect compact and wide layouts. Run the desktop interaction suite separately:
+
+```sh
+./target/release/civcraft --seed 42 --self-test /tmp/civcraft-ui-interactions.json
 cargo test --offline
 ```
 
-Screenshots still require visual inspection: control bounds alone cannot prove text readability or pleasing spacing. Windows smaller than 800x600 are outside this review's tested range.
+## Optimization and fidelity
+
+- Generate the campaign once, build the staged fixture once, and clone immutable baselines for independent scenarios. Clone tests verify normal command results and the RNG stream after advancing a turn.
+- Reuse the immutable technology layout across games. The current technology catalog is fixed; player research state and highlighting stay live.
+- Cull world rows before collecting tiles and reuse each visible projection for both terrain passes. Native row order preserves the original painter order, including horizontal wrapping and polar clipping. Cities and unit stacks are indexed once per frame, with the existing selection priority preserved.
+- Cache border geometry by exact screen vertices and width. The cache is bounded to 4,096 entries; camera/zoom/resize changes use different keys. Ownership, visibility, colors, terrain and worker assignments are read live so rendering cannot retain an old simulation state.
+- Keep the production renderer and simulation commands in the test path. Gallery fixtures complement the desktop gameplay suite; scripted control clicks do not inject OS keyboard/mouse events.
+
+For the original 15 scenarios at 1280x720, two local profiling runs reduced setup from about 31–32 ms to 2.2–2.4 ms and captures from 30 to 18. The comparison run spent about 662 ms capturing/encoding PNGs before and 482 ms afterward, including the new pixel fingerprints. Three added campaign flows bring the full gallery to 23 captures at this size. CPU draw submission averaged about 0.57 ms in both versions; these small scenes do not demonstrate a substantial FPS gain. Timings measure CPU submission, not GPU frame time.
 
 ## Validation on 2026-11-05
 
-- 488 Rust tests passed.
-- 278 native desktop interaction checks passed, after updating the script to close the city modal before using the HUD and to navigate action pages.
-- Inspected gallery renders at 800x600, 1280x720 and 1600x900; actionable-control window bounds passed at each size.
+- 506 Rust tests and 278 native desktop interaction checks passed.
+- All 18 retained standard-size screenshots were byte-identical to the original renderer in two comparisons. The three additional campaign flows passed their state and hit-testing assertions.
+- All compact-window flows and control bounds passed. Compact screenshots have small text-sampling differences across processes; repeating the unmodified baseline also reproduces those differences. For example, the baseline-to-optimized world view differed at 448 of 1,920,000 pixels, while two unmodified baseline runs differed at 715 pixels, concentrated in text.
+- The campaign turn flow also passed with seed 1337 using single-scene capture.
 - Formatting and whitespace checks passed.
 
-Parity implementation remains paused during this UI work.
+Screenshots still need visual inspection: bounds and pixel fingerprints alone cannot prove every UI behavior. Windows smaller than 800x600 are outside the tested range. Parity implementation remains paused during this UI work.
 
 ### Isometric worked-tile view
 

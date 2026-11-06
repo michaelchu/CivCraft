@@ -107,3 +107,18 @@ pub(super) fn pager(
     );
     actions
 }
+
+thread_local! {
+    static REVIEW_POINTER: std::cell::Cell<Option<Vec2>> = const { std::cell::Cell::new(None) };
+}
+pub(super) fn ui_pointer() -> Vec2 {
+    REVIEW_POINTER
+        .with(|pointer| pointer.get())
+        .unwrap_or_else(|| {
+            let (x, y) = mouse_position();
+            vec2(x, y)
+        })
+}
+pub(crate) fn set_review_pointer(pointer: Option<Vec2>) {
+    REVIEW_POINTER.with(|value| value.set(pointer));
+}

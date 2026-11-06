@@ -583,19 +583,6 @@ impl Game {
         self.camera = vec2(map_x, y + MAP_W as f32 - map_x);
     }
 
-    pub(super) fn world_to_screen(&self, x: i32, y: i32) -> Vec2 {
-        let viewport = Self::viewport_rect();
-        let camera = self.camera_overview_position();
-        let tile_x = (2 * x + y.rem_euclid(2)) as f32;
-        let half_width = MAP_W as f32;
-        let dx = (tile_x - camera.x + half_width).rem_euclid(2.0 * half_width) - half_width;
-        let dy = y as f32 - camera.y;
-        vec2(
-            viewport.x + viewport.w * 0.5 + dx * TILE_W * 0.5 * self.zoom,
-            viewport.y + viewport.h * 0.47 + dy * TILE_H * 0.5 * self.zoom,
-        )
-    }
-
     fn screen_to_world(&self, point: Vec2) -> Option<(i32, i32)> {
         let viewport = Self::viewport_rect();
         let sx = point.x - (viewport.x + viewport.w * 0.5);
@@ -611,6 +598,17 @@ impl Game {
         (0..MAP_H).contains(&y).then_some((x.rem_euclid(MAP_W), y))
     }
 
+    pub(crate) fn ui_action_at(point: Vec2, buttons: &[(Rect, UiAction)]) -> Option<UiAction> {
+        buttons
+            .iter()
+            .find(|(rect, action)| {
+                rect.contains(point)
+                    && (!matches!(action, UiAction::WorkCityTile(..))
+                        || super::city_map::tile_hit(*rect, point))
+            })
+            .map(|(_, action)| *action)
+    }
+
     pub(crate) fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
         if self.spaceship_open
             || self.government_open
@@ -621,13 +619,9 @@ impl Game {
         {
             let (x, y) = mouse_position();
             if is_mouse_button_pressed(MouseButton::Left)
-                && let Some((_, action)) = buttons.iter().find(|(rect, action)| {
-                    rect.contains(vec2(x, y))
-                        && (!matches!(action, UiAction::WorkCityTile(..))
-                            || super::city_map::tile_hit(*rect, vec2(x, y)))
-                })
+                && let Some(action) = Self::ui_action_at(vec2(x, y), buttons)
             {
-                self.perform_action(*action);
+                self.perform_action(action);
             }
             return;
         }
@@ -668,12 +662,8 @@ impl Game {
         if !is_mouse_button_pressed(MouseButton::Left) {
             return;
         }
-        if let Some((_, action)) = buttons.iter().find(|(rect, action)| {
-            rect.contains(mouse)
-                && (!matches!(action, UiAction::WorkCityTile(..))
-                    || super::city_map::tile_hit(*rect, mouse))
-        }) {
-            self.perform_action(*action);
+        if let Some(action) = Self::ui_action_at(mouse, buttons) {
+            self.perform_action(action);
             return;
         }
         if self.selected_city.is_some() {

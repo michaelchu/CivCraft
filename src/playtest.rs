@@ -3116,7 +3116,11 @@ impl Playtest {
         }
     }
 
-    pub(crate) fn finish(&self, hud_count: usize) {
+    pub(crate) fn finish(&self, hud_count: usize) -> bool {
+        let passed = self.move_passed
+            && self.act_passed
+            && hud_count >= 4
+            && self.results.iter().all(|(_, passed, _)| *passed);
         ensure_parent(&self.path);
         let hud_detail = format!("Drew {hud_count} HUD regions");
         let steps = [
@@ -3141,6 +3145,28 @@ impl Playtest {
         let json = format!("{{\"version\":1,\"steps\":[{steps}]}}");
         if let Err(error) = fs::write(&self.path, json) {
             eprintln!("Could not write playtest report: {error}");
+            return false;
         }
+        passed
+    }
+}
+
+#[cfg(test)]
+mod report_tests {
+    use super::*;
+    #[test]
+    fn failed_checks_return_failure_even_when_report_writes_successfully() {
+        let path = std::env::temp_dir().join(format!(
+            "civcraft-failed-playtest-{}.json",
+            std::process::id()
+        ));
+        let test = Playtest::new(path.to_str().unwrap().into());
+        assert!(!test.finish(4));
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .contains("\"passed\":false")
+        );
+        std::fs::remove_file(path).unwrap();
     }
 }

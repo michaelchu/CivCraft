@@ -536,7 +536,7 @@ impl Game {
         let card_h = 72.0;
         let rows = ((rect.h - 199.0 - 112.0) / (card_h + gap)).floor().max(1.0) as usize;
         let capacity = columns * rows;
-        let mouse = vec2(mouse_position().0, mouse_position().1);
+        let mouse = ui_pointer();
         let buildings: Vec<_> = if self.production_page == 0 {
             Vec::new()
         } else {

@@ -13,11 +13,13 @@ mod research_tree;
 mod research_view;
 mod spaceship_view;
 mod spy_view;
+mod territory;
 mod ui;
 mod ui_review;
 mod world;
+pub(crate) use ui::set_review_pointer;
 use ui::*;
-pub(crate) use ui_review::UI_REVIEW_SCENES;
+pub(crate) use ui_review::{UI_REVIEW_SCENES, UiReviewSequence, UiReviewSources};
 
 use crate::rules::{Building, Genus, Requirement, Tech};
 use crate::sim::{topology::*, *};
@@ -134,7 +136,8 @@ pub(crate) struct Game {
     diplomacy_page: usize,
     research_age: usize,
     research_inspected: Option<Tech>,
-    research_tree: ResearchTree,
+    research_tree: &'static ResearchTree,
+    border_geometry: std::cell::RefCell<territory::BorderGeometryCache>,
     research_center: Vec2,
     research_zoom: f32,
     research_drag: Option<Vec2>,
@@ -191,7 +194,8 @@ impl Game {
             diplomacy_page: 0,
             research_age: 0,
             research_inspected: None,
-            research_tree: ResearchTree::new(),
+            research_tree: research_tree::shared_tree(),
+            border_geometry: Default::default(),
             research_center: Vec2::ZERO,
             research_zoom: 1.0,
             research_drag: None,
@@ -437,7 +441,7 @@ fn darken(color: Color, factor: f32) -> Color {
 }
 
 fn draw_ui_button(rect: Rect, label: &str, enabled: bool, accent: bool) {
-    let mouse = vec2(mouse_position().0, mouse_position().1);
+    let mouse = ui_pointer();
     let hovered = enabled && rect.contains(mouse);
     let fill = if !enabled {
         Color::from_rgba(51, 53, 50, 255)

@@ -80,7 +80,7 @@ impl Game {
         );
         let layout = CityMapLayout::new(bounds);
         self.draw_city_map(assets, city, &layout);
-        let mouse = vec2(mouse_position().0, mouse_position().1);
+        let mouse = ui_pointer();
         let mut outlined_tiles = Vec::new();
         for (dx, dy, x, y) in Simulation::city_radius(city) {
             let tile = self.sim.tile(x, y);

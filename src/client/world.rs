@@ -334,33 +334,13 @@ impl Game {
             opacity,
         );
 
+        let mut geometry = self.border_geometry.borrow_mut();
         for (edge, (dx, dy)) in edge_neighbors.into_iter().enumerate() {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
             if self.sim.displayed_tile_owner(neighbor_x, neighbor_y) == Some(owner) {
                 continue;
             }
-            let start = points[edge];
-            let end = points[(edge + 1) % 4];
-            let tangent = (end - start).normalize();
-            let normal = territory_inward_normal(start, end, center);
-            // Filled bands reach the exact boundary, with the dark outline
-            // only on the terrain-facing side. Tile clipping joins corners
-            // without extending line caps into another civilization.
-            fill_territory_polygon(&territory_edge_band(&points, edge, width + 1.0), shadow);
-            fill_territory_polygon(&territory_edge_band(&points, edge, width), color);
-            let length = start.distance(end);
-            let stitches = (length / 9.0).floor().max(1.0) as usize;
-            for index in 0..stitches {
-                let midpoint = start + tangent * (length * (index as f32 + 0.5) / stitches as f32);
-                let a = midpoint + normal * width * 0.22 - tangent * width * 0.18;
-                let b = midpoint + normal * width * 0.78 + tangent * width * 0.18;
-                let cross = vec2(-(b - a).y, (b - a).x).normalize() * 0.6;
-                let stitch = clip_territory_polygon(
-                    vec![a - cross, b - cross, b + cross, a + cross],
-                    &points,
-                );
-                fill_territory_polygon(&stitch, thread);
-            }
+            geometry.draw(&points, edge, width, color, shadow, thread);
         }
     }
 
@@ -374,29 +354,34 @@ impl Game {
             Color::from_rgba(8, 28, 48, 255),
         );
 
-        let mut order: Vec<(i32, i32, f32)> = (0..MAP_H)
-            .flat_map(|y| (0..MAP_W).map(move |x| (x, y)))
-            .map(|(x, y)| {
-                let p = self.world_to_screen(x, y);
-                (x, y, p.y)
-            })
-            .collect();
-        order.sort_by(|a, b| a.2.total_cmp(&b.2));
-
         let tile_w = TILE_W * self.zoom;
         let tile_h = TILE_H * self.zoom;
+        // Native rows are already in painter order. Cull before collecting and
+        // project each visible tile once for both terrain passes.
+        let order = visible_world_tiles(viewport, self.camera_overview_position(), self.zoom);
+        let mut cities = std::collections::HashMap::new();
+        for city in self.sim.cities() {
+            cities.entry((city.x, city.y)).or_insert(city);
+        }
+        let mut stacks: std::collections::HashMap<(i32, i32), (&Unit, usize)> =
+            std::collections::HashMap::new();
+        for unit in self
+            .sim
+            .units()
+            .iter()
+            .filter(|u| self.sim.unit_visible_to_human(u))
+        {
+            let entry = stacks.entry((unit.x, unit.y)).or_insert((unit, 0));
+            entry.1 += 1;
+            let priority = |u: &Unit| (u.transport.is_some(), Some(u.id) != self.selected_unit);
+            if priority(unit) < priority(entry.0) {
+                entry.0 = unit;
+            }
+        }
         // Draw every tile base first. Tall terrain sprites are a separate
         // layer so later diamond bases cannot cut horizontal bands through
         // forests, hills, and mountains.
-        for &(x, y, _) in &order {
-            let center = self.world_to_screen(x, y);
-            if center.x < viewport.x - tile_w
-                || center.x > viewport.x + viewport.w + tile_w
-                || center.y < viewport.y - 80.0
-                || center.y > viewport.y + viewport.h + 80.0
-            {
-                continue;
-            }
+        for &(x, y, center) in &order {
             let tile = self.sim.tile(x, y);
             if !tile.seen {
                 draw_diamond(
@@ -413,15 +398,7 @@ impl Game {
         }
 
         let reveal_cities = self.sim.reveals_cities(HUMAN);
-        for (x, y, _) in order {
-            let center = self.world_to_screen(x, y);
-            if center.x < viewport.x - tile_w
-                || center.x > viewport.x + viewport.w + tile_w
-                || center.y < viewport.y - 80.0
-                || center.y > viewport.y + viewport.h + 80.0
-            {
-                continue;
-            }
+        for (x, y, center) in order {
             let tile = self.sim.tile(x, y);
             if !tile.seen {
                 continue;
@@ -429,22 +406,15 @@ impl Game {
 
             self.draw_tile_details(assets, x, y, center, tile_w, tile_h);
             if (tile.visible || reveal_cities)
-                && let Some(city) = self.sim.cities().iter().find(|c| c.x == x && c.y == y)
+                && let Some(city) = cities.get(&(x, y)).copied()
             {
                 self.draw_city(assets, city, center);
             }
             if !tile.visible {
                 continue;
             }
-            let mut stack: Vec<&Unit> = self
-                .sim
-                .units()
-                .iter()
-                .filter(|u| u.x == x && u.y == y && self.sim.unit_visible_to_human(u))
-                .collect();
-            stack.sort_by_key(|u| (u.transport.is_some(), Some(u.id) != self.selected_unit));
-            if let Some(unit) = stack.first() {
-                self.draw_unit(assets, unit, center, stack.len());
+            if let Some(&(unit, count)) = stacks.get(&(x, y)) {
+                self.draw_unit(assets, unit, center, count);
             }
             if let Some(Base::Fort | Base::Fortress) = tile.base {
                 let row = i32::from(tile.base == Some(Base::Fort));
@@ -746,122 +716,79 @@ impl Game {
     }
 }
 
-fn territory_inward_normal(start: Vec2, end: Vec2, center: Vec2) -> Vec2 {
-    let tangent = (end - start).normalize();
-    let normal = vec2(-tangent.y, tangent.x);
-    if normal.dot(center - (start + end) * 0.5) < 0.0 {
-        -normal
-    } else {
-        normal
-    }
+/// Preserve the original projection and float operation
+/// order so rendering optimizations do not shift existing artwork by a pixel.
+pub(super) fn world_screen_position(
+    viewport: Rect,
+    camera: Vec2,
+    zoom: f32,
+    x: i32,
+    y: i32,
+) -> Vec2 {
+    let tile_x = (2 * x + y.rem_euclid(2)) as f32;
+    let half_width = MAP_W as f32;
+    let dx = (tile_x - camera.x + half_width).rem_euclid(2.0 * half_width) - half_width;
+    let dy = y as f32 - camera.y;
+    vec2(
+        viewport.x + viewport.w * 0.5 + dx * TILE_W * 0.5 * zoom,
+        viewport.y + viewport.h * 0.47 + dy * TILE_H * 0.5 * zoom,
+    )
 }
-
-/// A band lies completely inside the owning diamond and touches its edge.
-fn territory_edge_band(diamond: &[Vec2; 4], edge: usize, width: f32) -> Vec<Vec2> {
-    let center = diamond.iter().copied().sum::<Vec2>() * 0.25;
-    let (a, b) = (diamond[edge], diamond[(edge + 1) % 4]);
-    let offset = territory_inward_normal(a, b, center) * width;
-    clip_territory_polygon(vec![a, b, b + offset, a + offset], diamond)
-}
-
-/// Clip convex geometry against the four owning half-planes, including corners.
-fn clip_territory_polygon(mut polygon: Vec<Vec2>, diamond: &[Vec2; 4]) -> Vec<Vec2> {
-    let center = diamond.iter().copied().sum::<Vec2>() * 0.25;
-    for edge in 0..4 {
-        let (a, b) = (diamond[edge], diamond[(edge + 1) % 4]);
-        let normal = territory_inward_normal(a, b, center);
-        let input = std::mem::take(&mut polygon);
-        let Some(&last) = input.last() else {
-            break;
-        };
-        let mut previous = last;
-        let mut previous_distance = (previous - a).dot(normal);
-        for current in input {
-            let distance = (current - a).dot(normal);
-            if (distance >= 0.0) != (previous_distance >= 0.0) {
-                let t = previous_distance / (previous_distance - distance);
-                polygon.push(previous + (current - previous) * t);
+fn visible_world_tiles(viewport: Rect, camera: Vec2, zoom: f32) -> Vec<(i32, i32, Vec2)> {
+    let origin = viewport.y + viewport.h * 0.47;
+    let step = TILE_H * 0.5 * zoom;
+    let first = (camera.y + (viewport.y - 80.0 - origin) / step)
+        .floor()
+        .max(0.0) as i32;
+    let last = (camera.y + (viewport.bottom() + 80.0 - origin) / step)
+        .ceil()
+        .min((MAP_H - 1) as f32) as i32;
+    let mut tiles = Vec::with_capacity(((last - first + 1).max(0) * MAP_W) as usize);
+    for y in first..=last {
+        for x in 0..MAP_W {
+            let center = world_screen_position(viewport, camera, zoom, x, y);
+            if center.x < viewport.x - TILE_W * zoom
+                || center.x > viewport.right() + TILE_W * zoom
+                || center.y < viewport.y - 80.0
+                || center.y > viewport.bottom() + 80.0
+            {
+                continue;
             }
-            if distance >= 0.0 {
-                polygon.push(current);
-            }
-            previous = current;
-            previous_distance = distance;
+            tiles.push((x, y, center));
         }
     }
-    polygon
+    tiles
 }
-
-fn fill_territory_polygon(polygon: &[Vec2], color: Color) {
-    for index in 1..polygon.len().saturating_sub(1) {
-        draw_triangle(polygon[0], polygon[index], polygon[index + 1], color);
-    }
-}
-
 #[cfg(test)]
-mod border_tests {
+mod visibility_tests {
     use super::*;
-    fn diamond(center: Vec2) -> [Vec2; 4] {
-        [
-            vec2(0.0, -24.0),
-            vec2(48.0, 0.0),
-            vec2(0.0, 24.0),
-            vec2(-48.0, 0.0),
-        ]
-        .map(|p| p + center)
-    }
-    fn assert_inside(points: &[Vec2], tile: &[Vec2; 4]) {
-        let center = tile.iter().copied().sum::<Vec2>() * 0.25;
-        for edge in 0..4 {
-            let normal = territory_inward_normal(tile[edge], tile[(edge + 1) % 4], center);
-            for point in points {
-                assert!(
-                    (*point - tile[edge]).dot(normal) >= -0.001,
-                    "border protrudes from tile: {point:?}"
-                );
+    #[test]
+    fn row_culling_preserves_original_tiles_and_painter_order_at_wrap_and_poles() {
+        for viewport in [
+            Rect::new(0.0, 46.0, 484.0, 426.0),
+            Rect::new(0.0, 46.0, 1284.0, 726.0),
+            Rect::new(0.0, 46.0, 2800.0, 1700.0),
+        ] {
+            for camera in [
+                vec2(0.0, 0.0),
+                vec2(2.0 * MAP_W as f32 - 0.2, (MAP_H - 1) as f32),
+                vec2(23.4, 18.8),
+            ] {
+                for zoom in [MIN_ZOOM, START_ZOOM, MAX_ZOOM] {
+                    let mut reference: Vec<_> = (0..MAP_H)
+                        .flat_map(|y| (0..MAP_W).map(move |x| (x, y)))
+                        .map(|(x, y)| (x, y, world_screen_position(viewport, camera, zoom, x, y)))
+                        .collect();
+                    reference.sort_by(|a, b| a.2.y.total_cmp(&b.2.y));
+                    reference.retain(|(_, _, p)| {
+                        !(p.x < viewport.x - TILE_W * zoom
+                            || p.x > viewport.right() + TILE_W * zoom
+                            || p.y < viewport.y - 80.0
+                            || p.y > viewport.bottom() + 80.0)
+                    });
+                    assert_eq!(visible_world_tiles(viewport, camera, zoom), reference);
+                }
             }
         }
-    }
-    #[test]
-    fn neighboring_colors_meet_exactly_at_shared_boundary() {
-        let red = diamond(Vec2::ZERO);
-        let gold = diamond(vec2(48.0, 24.0));
-        let red_band = territory_edge_band(&red, 1, 3.5);
-        let gold_band = territory_edge_band(&gold, 3, 3.5);
-        for endpoint in [red[1], red[2]] {
-            assert!(red_band.iter().any(|p| p.distance(endpoint) < 0.001));
-            assert!(gold_band.iter().any(|p| p.distance(endpoint) < 0.001));
-        }
-        assert_inside(&red_band, &red);
-        assert_inside(&gold_band, &gold);
-    }
-    #[test]
-    fn bands_and_outlines_never_protrude_at_any_corner() {
-        let tile = diamond(Vec2::ZERO);
-        for width in [2.75, 3.5, 4.75, 5.75] {
-            for edge in 0..4 {
-                let band = territory_edge_band(&tile, edge, width);
-                assert!(band.len() >= 3);
-                assert_inside(&band, &tile);
-                assert!(band.iter().any(|p| p.distance(tile[edge]) < 0.001));
-                assert!(
-                    band.iter()
-                        .any(|p| p.distance(tile[(edge + 1) % 4]) < 0.001)
-                );
-            }
-        }
-    }
-    #[test]
-    fn patterned_strokes_are_clipped_at_the_tile_corner() {
-        let tile = diamond(Vec2::ZERO);
-        let pattern = vec![
-            vec2(43.0, -4.0),
-            vec2(55.0, -4.0),
-            vec2(55.0, 4.0),
-            vec2(43.0, 4.0),
-        ];
-        let clipped = clip_territory_polygon(pattern, &tile);
-        assert!(clipped.len() >= 3);
-        assert_inside(&clipped, &tile);
     }
 }

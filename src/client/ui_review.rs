@@ -16,15 +16,42 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "investigation",
     "worker-actions",
     "touching-borders",
+    "campaign-city",
+    "campaign-worked-tiles",
+    "campaign-after-turn",
 ];
+/// Cloning preserves the complete RNG and campaign state. Fixtures are built
+/// once and kept immutable; every scenario receives an independent clone.
+pub(crate) struct UiReviewSources {
+    initial: Simulation,
+    fixture: Simulation,
+    ids: (u32, u32, u32),
+}
+impl UiReviewSources {
+    pub(crate) fn new(initial: &Simulation) -> Self {
+        let mut fixture = initial.clone();
+        let ids = fixture.ui_review_fixture();
+        Self {
+            initial: initial.clone(),
+            fixture,
+            ids,
+        }
+    }
+}
+
 impl Game {
-    pub(crate) fn prepare_ui_review(&mut self, scene: usize, seed: u64) {
-        *self = Game::new(crate::mapgen::generate(seed));
+    pub(crate) fn prepare_ui_review(&mut self, scene: usize, sources: &UiReviewSources) {
+        let baseline = if scene == 0 || scene >= 15 {
+            &sources.initial
+        } else {
+            &sources.fixture
+        };
+        *self = Game::from_simulation(baseline.clone());
         self.autosave_enabled = false;
-        if scene == 0 {
+        if scene == 0 || scene >= 15 {
             return;
         }
-        let (city, spy, rival) = self.sim.ui_review_fixture();
+        let (city, spy, rival) = sources.ids;
         self.selected_unit = None;
         match scene {
             1..=4 => {
@@ -75,10 +102,123 @@ impl Game {
     }
 }
 
+#[derive(Default)]
+pub(crate) struct UiReviewSequence {
+    pub(crate) checks: Vec<(&'static str, bool)>,
+    worker: Option<(u32, i32, i32, Vec<(i32, i32)>, [i32; 3])>,
+}
+impl UiReviewSequence {
+    fn check(&mut self, label: &'static str, passed: bool) -> Result<(), &'static str> {
+        self.checks.push((label, passed));
+        if passed { Ok(()) } else { Err(label) }
+    }
+    fn click(
+        &mut self,
+        game: &mut Game,
+        buttons: &[(Rect, UiAction)],
+        label: &'static str,
+        wanted: impl Fn(UiAction) -> bool,
+    ) -> Result<(), &'static str> {
+        let rect = buttons
+            .iter()
+            .find(|(_, action)| wanted(*action))
+            .map(|(rect, _)| *rect);
+        self.check(label, rect.is_some())?;
+        let rect = rect.unwrap();
+        let point = vec2(rect.x + rect.w * 0.5, rect.y + rect.h * 0.5);
+        let actual = Game::ui_action_at(point, buttons).filter(|action| wanted(*action));
+        self.check("click_reaches_requested_control", actual.is_some())?;
+        game.perform_action(actual.unwrap());
+        Ok(())
+    }
+}
 impl Game {
-    /// Exercise real page actions after the first screenshot, then render the new state.
-    pub(crate) fn advance_ui_review(&mut self, scene: usize, buttons: &[(Rect, UiAction)]) {
-        let next = buttons
+    /// Drives controls through the same hit testing and dispatch as real clicks.
+    /// Staged scenes exercise pagination; campaign scenes use no state overrides.
+    pub(crate) fn step_ui_review(
+        &mut self,
+        scene: usize,
+        phase: u32,
+        buttons: &[(Rect, UiAction)],
+        sequence: &mut UiReviewSequence,
+    ) -> Result<bool, &'static str> {
+        if scene >= 15 {
+            if phase == 1 {
+                sequence.click(self, buttons, "found_city_control", |action| {
+                    matches!(action, UiAction::FoundCity)
+                })?;
+                sequence.check(
+                    "city_founded_through_ui",
+                    self.selected_city_index().is_some(),
+                )?;
+            }
+            if phase == 2 && scene == 16 {
+                sequence.click(self, buttons, "worked_tiles_control", |action| {
+                    matches!(action, UiAction::CityTiles)
+                })?;
+                sequence.check("worked_tiles_open", self.city_tiles)?;
+            }
+            if phase == 2 && scene == 17 {
+                sequence.click(self, buttons, "close_city_control", |action| {
+                    matches!(action, UiAction::CloseCity)
+                })?;
+            }
+            if phase == 3 && scene == 17 {
+                let rates = self.sim.players()[HUMAN].rates;
+                sequence.click(self, buttons, "tax_control", |action| {
+                    matches!(action, UiAction::RaiseRate(1))
+                })?;
+                sequence.check(
+                    "rates_changed_through_ui",
+                    self.sim.players()[HUMAN].rates != rates,
+                )?;
+            }
+            if phase == 6 && scene == 16 {
+                let target = buttons.iter().find_map(|(_, action)| {
+                    if let UiAction::WorkCityTile(city, x, y) = action {
+                        Some((*city, *x, *y))
+                    } else {
+                        None
+                    }
+                });
+                sequence.check("worked_tile_available", target.is_some())?;
+                let (id, x, y) = target.unwrap();
+                let city = self.sim.cities().iter().find(|c| c.id == id).unwrap();
+                let before = city.specialists;
+                sequence.worker = Some((id, x, y, city.worked_tiles.clone(), before));
+                sequence.click(self,buttons,"remove_tile_worker",|action|matches!(action,UiAction::WorkCityTile(cid,tx,ty) if (cid,tx,ty)==(id,x,y)))?;
+                let city = self.sim.cities().iter().find(|c| c.id == id).unwrap();
+                sequence.check(
+                    "worker_became_entertainer",
+                    !city.worked_tiles.contains(&(x, y)) && city.specialists[2] == before[2] + 1,
+                )?;
+                return Ok(true);
+            }
+            if phase == 8 && scene == 16 {
+                let (id, x, y, worked, before) = sequence.worker.take().unwrap();
+                sequence.click(self,buttons,"restore_tile_worker",|action|matches!(action,UiAction::WorkCityTile(cid,tx,ty) if (cid,tx,ty)==(id,x,y)))?;
+                let city = self.sim.cities().iter().find(|c| c.id == id).unwrap();
+                sequence.check(
+                    "worker_assignment_restored",
+                    city.specialists == before
+                        && city.worked_tiles.len() == worked.len()
+                        && worked.iter().all(|p| city.worked_tiles.contains(p)),
+                )?;
+            }
+            if phase == 6 && scene == 17 {
+                let turn = self.sim.turn();
+                sequence.click(self, buttons, "end_turn_control", |action| {
+                    matches!(action, UiAction::EndTurn)
+                })?;
+                sequence.check("normal_turn_advanced", self.sim.turn() == turn + 1)?;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
+        if phase != 6 {
+            return Ok(false);
+        }
+        let candidate = buttons
             .iter()
             .find(|(_, action)| match (scene, action) {
                 (1, UiAction::UnitProductionPage(page)) => *page > 0,
@@ -90,9 +230,73 @@ impl Game {
                 (13, UiAction::ActionPage(page)) => *page > 0,
                 _ => false,
             })
-            .map(|(_, action)| *action);
-        if let Some(action) = next {
-            self.perform_action(action);
-        }
+            .map(|(rect, _)| *rect);
+        let Some(rect) = candidate else {
+            return Ok(false);
+        };
+        let before = (
+            self.unit_production_page,
+            self.production_page,
+            self.diplomacy_page,
+            self.city_deals,
+            self.spy_targets,
+            self.investigation_page,
+            self.action_page,
+        );
+        let point = vec2(rect.x + rect.w * 0.5, rect.y + rect.h * 0.5);
+        let actual = Game::ui_action_at(point, buttons);
+        sequence.check("pagination_hit_target", actual.is_some())?;
+        self.perform_action(actual.unwrap());
+        let after = (
+            self.unit_production_page,
+            self.production_page,
+            self.diplomacy_page,
+            self.city_deals,
+            self.spy_targets,
+            self.investigation_page,
+            self.action_page,
+        );
+        sequence.check("page_changed_through_ui", before != after)?;
+        Ok(true)
+    }
+    pub(crate) fn border_cache_stats(&self) -> (u64, u64, usize) {
+        self.border_geometry.borrow().stats()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn scripted_hit_testing_uses_the_actual_diamond() {
+        let buttons = [
+            (
+                Rect::new(0.0, 0.0, 96.0, 48.0),
+                UiAction::WorkCityTile(1, 2, 3),
+            ),
+            (Rect::new(0.0, 0.0, 20.0, 20.0), UiAction::CloseCity),
+        ];
+        assert!(matches!(
+            Game::ui_action_at(vec2(48.0, 24.0), &buttons),
+            Some(UiAction::WorkCityTile(1, 2, 3))
+        ));
+        assert!(matches!(
+            Game::ui_action_at(vec2(1.0, 1.0), &buttons),
+            Some(UiAction::CloseCity)
+        ));
+        assert!(Game::ui_action_at(vec2(200.0, 200.0), &buttons).is_none());
+    }
+    #[test]
+    fn one_scenario_cannot_mutate_its_baseline_or_another_scenario() {
+        let initial = Simulation::new(crate::mapgen::generate(42));
+        let sources = UiReviewSources::new(&initial);
+        let mut a = Game::from_simulation(initial.clone());
+        let mut b = Game::from_simulation(initial);
+        a.prepare_ui_review(15, &sources);
+        b.prepare_ui_review(15, &sources);
+        a.perform_action(UiAction::FoundCity);
+        assert!(a.sim.cities().iter().any(|c| c.owner == HUMAN));
+        assert!(!b.sim.cities().iter().any(|c| c.owner == HUMAN));
+        assert!(!sources.initial.cities().iter().any(|c| c.owner == HUMAN));
     }
 }

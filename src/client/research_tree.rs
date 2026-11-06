@@ -358,3 +358,8 @@ fn route_channel(
         })
         .collect()
 }
+
+pub(super) fn shared_tree() -> &'static ResearchTree {
+    static TREE: std::sync::OnceLock<ResearchTree> = std::sync::OnceLock::new();
+    TREE.get_or_init(ResearchTree::new)
+}
