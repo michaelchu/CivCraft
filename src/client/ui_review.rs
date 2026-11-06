@@ -280,6 +280,61 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if matches!(scene, 33 | 34) {
+            let viewport = Self::viewport_rect();
+            let camera = self.camera_overview_position();
+            let wrapping = self.sim.map_wrap.wraps_y();
+            if phase == 1 {
+                let y = if scene == 33 { 0 } else { MAP_H - 1 };
+                let point = world::world_screen_position(
+                    self.sim.map_wrap,
+                    viewport,
+                    camera,
+                    self.zoom,
+                    MAP_W / 2,
+                    y,
+                );
+                let expected = if wrapping {
+                    viewport.y + viewport.h * 0.5
+                } else if scene == 33 {
+                    viewport.y + TILE_H * self.zoom * 0.5
+                } else {
+                    viewport.bottom() - TILE_H * self.zoom * 0.5
+                };
+                sequence.check(
+                    "native_polar_scroll_anchor",
+                    (point.y - expected).abs() < 0.02,
+                )?;
+                sequence.check(
+                    "polar_tile_input_matches_rendering",
+                    self.screen_to_world(point) == Some((MAP_W / 2, y)),
+                )?;
+            }
+            if phase == 6 {
+                // Same camera-coordinate change/normalization as real panning.
+                let delta = if wrapping {
+                    if scene == 33 { -(MAP_H + 1) } else { MAP_H + 1 }
+                } else if scene == 33 {
+                    -4 * MAP_H
+                } else {
+                    4 * MAP_H
+                };
+                self.camera += Vec2::splat(delta as f32 * 0.5);
+                self.normalize_camera();
+                let after = self.camera_overview_position().y;
+                let expected = if wrapping {
+                    camera.y + if scene == 33 { -1.0 } else { 1.0 }
+                } else {
+                    camera.y
+                };
+                sequence.check(
+                    "camera_clamps_or_wraps_like_native",
+                    (after - expected).abs() < 0.02,
+                )?;
+                return Ok(wrapping);
+            }
+            return Ok(false);
+        }
         if scene == 35 {
             if phase == 6 {
                 let id = self.selected_unit.unwrap();

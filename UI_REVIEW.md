@@ -169,3 +169,20 @@ new-save mode persistence, and unchanged torus seed oracles. Both modes passed
 (49 desktop / 50 compact captures per mode). Polar sprites, camera clearance,
 minimap seam outlines and actual blocked/allowed crossing screenshots were
 visually inspected. Formatting and whitespace checks passed.
+
+### Native polar backing and camera
+
+The polar scenes now assert the reference first/last normal-sprite anchor and
+input inverse projection. In WrapX, attempting to pan beyond either bound keeps
+the camera fixed. In WrapXY, panning across the seam continues one adjacent row
+and produces an additional `-next` capture. World and city work maps clear to
+reference black. Camera geometry tests also cover subpixel zoom and oversized
+viewports; see RENDERING_PARITY.md for source locations and exact policy.
+
+Polar rendering validation: 565/565 Rust tests; 278/278 native gameplay checks
+in each wrap mode; all 36 gallery scenarios at both desktop and compact sizes.
+WrapX produced 49 desktop / 50 compact captures; WrapXY produced 51 / 52,
+including camera-seam before/after views. Pixel sampling of the native north
+boundary confirmed WrapX black (0,0,0), while the same position in WrapXY
+contained real terrain (0,41,136). Polar and city-map captures were visually
+inspected; formatting and whitespace checks passed.

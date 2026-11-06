@@ -13,6 +13,7 @@ mod input;
 mod investigation_view;
 mod map_layers;
 mod map_overlays;
+mod map_view;
 mod presentation;
 mod research_tree;
 mod research_view;

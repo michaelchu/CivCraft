@@ -100,3 +100,35 @@ Wrap settings were subsequently made configurable: the default `--wrap x` has
 bounded poles, and `--wrap xy` displays the torus continuously across both seams.
 The earlier horizontal-only rendering boundary is no longer applied to torus
 campaigns. See README.md and MECHANICS.md for the CLI and geometry contract.
+
+## Polar rendering and native camera limits
+
+The map and city-map backing fill is now the reference `mapview_unknown` color,
+black (`data/misc/colors.tilespec:4–6`). Out-of-map positions receive no terrain
+sprites. Actual generated glacier/tundra tiles use the normal terrain passes;
+there is no invented tundra fill beyond the map.
+
+`src/client/map_view.rs` ports native
+`client/mapview_common.c::get_mapview_scroll_window` (1110–1192) and
+`calc_mapview_origin` (980–998). WrapX clips the GUI origin to the first and last
+normal-tile bounds, expanding the scroll window exactly as native when a viewport
+is larger than the map. The old custom sprite/label margin is removed. Absolute
+GUI float arithmetic and integer division for oversized windows are preserved.
+The map center, input inverse projection and minimap viewport now all use the
+exact viewport midpoint, as in `center_tile_mapcanvas` (1239–1257), instead of
+47 percent height.
+
+WrapXY normalizes the GUI origin modulo the map's vertical pixel period instead
+of clipping it. Map tiles, neighbor-dependent art and corner knowledge wrap
+through that seam, without off-map terrain or polar fog caps. WrapX retains
+reference missing-corner fog semantics (`tilespec.c:5425–5430`): off-map corner
+members count as remembered, and the southern corner pass completes the final
+row. The same fog/terrain renderer serves both modes and the city work map.
+
+Unit checks compare our camera results with an independent literal translation
+of the native absolute GUI calculations, including fractional zoom and viewports
+larger than the map. Native `north-pole` / `south-pole` gallery checks verify the
+first/last-row normal-sprite anchor, input hit testing, blocked WrapX panning and
+continuous WrapXY panning through the seam. Existing `wrap-seam` checks continue
+to execute real unit movement at the boundary. This changes presentation only;
+generation, campaign state and gameplay RNG are unchanged.

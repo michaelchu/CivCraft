@@ -248,7 +248,7 @@ impl Game {
         for &wrap_y in &shifts_y {
             for wrap_x in [-rect.w, 0.0, rect.w] {
                 let left = camera.x + wrap_x - width * 0.5;
-                let top = camera.y + wrap_y - height * 0.47;
+                let top = camera.y + wrap_y - height * 0.5;
                 let right = left + width;
                 let bottom = top + height;
                 for y in [top, bottom] {

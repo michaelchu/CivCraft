@@ -261,6 +261,6 @@ Source: `server/settings.c:1609`, `common/map.c:1565`,
 `server/generator/height_map.c:115–267`,
 `server/generator/mapgen_utils.c:186–236`. Gameplay distances, neighbors,
 worker/city radii, visibility and pathfinding share the campaign geometry.
-Cylinder camera bounds limit travel at the poles while preserving clearance
-for tall sprites and city labels; torus
+Cylinder camera bounds now use the native normal-tile scroll window and
+viewport midpoint, including oversized-view expansion; torus
 viewports, fog, artwork neighbors and route/animation seams wrap both axes.

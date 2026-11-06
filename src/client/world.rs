@@ -253,7 +253,7 @@ impl Game {
             viewport.y,
             viewport.w,
             viewport.h,
-            Color::from_rgba(8, 28, 48, 255),
+            map_view::MAP_UNKNOWN,
         );
 
         let tile_w = TILE_W * self.zoom;
@@ -548,7 +548,7 @@ impl Game {
             bounds.y,
             bounds.w,
             bounds.h,
-            Color::from_rgba(8, 28, 48, 255),
+            map_view::MAP_UNKNOWN,
         );
         let radius: std::collections::HashSet<_> = self
             .sim
@@ -867,8 +867,8 @@ mod infrastructure_tests {
     }
 }
 
-/// Preserve the original projection and float operation
-/// order so rendering optimizations do not shift existing artwork by a pixel.
+/// Isometric normal-tile centers relative to the exact viewport center,
+/// matching mapview_common.c::center_tile_mapcanvas and tile_to_canvas_pos.
 pub(super) fn world_screen_position(
     wrap: MapWrap,
     viewport: Rect,
@@ -888,7 +888,7 @@ pub(super) fn world_screen_position(
     };
     vec2(
         viewport.x + viewport.w * 0.5 + dx * TILE_W * 0.5 * zoom,
-        viewport.y + viewport.h * 0.47 + dy * TILE_H * 0.5 * zoom,
+        viewport.y + viewport.h * 0.5 + dy * TILE_H * 0.5 * zoom,
     )
 }
 fn visible_world_tiles(
@@ -897,7 +897,7 @@ fn visible_world_tiles(
     camera: Vec2,
     zoom: f32,
 ) -> Vec<(i32, i32, Vec2)> {
-    let origin = viewport.y + viewport.h * 0.47;
+    let origin = viewport.y + viewport.h * 0.5;
     let step = TILE_H * 0.5 * zoom;
     let first = (camera.y + (viewport.y - 80.0 - origin) / step)
         .floor()
