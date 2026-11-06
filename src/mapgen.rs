@@ -724,8 +724,8 @@ impl Generator {
 
     fn place_resources(&self, tiles: &mut [Tile], rng: &mut MapRng) {
         use Resource::*;
-        // Civ2Civ3 gives all listed resources equal weight, with no deep-ocean
-        // resources and coastal fish and whales only near safe terrain.
+        // CivCraft's Civ III: Conquests catalog uses terrain-specific resource
+        // pools. There are no deep-ocean resources, and fish/whales stay coastal.
         for tile in 0..tiles.len() {
             if self
                 .neighbors(tile)
@@ -744,16 +744,16 @@ impl Generator {
                     &[Fish, Whales]
                 }
                 Terrain::Ocean | Terrain::DeepOcean => &[],
-                Terrain::Glacier => &[Ivory, Oil],
-                Terrain::Desert => &[Oasis, Oil],
-                Terrain::Forest => &[Pheasant, Silk],
-                Terrain::Grassland => &[Resources],
-                Terrain::Hills => &[Coal, Wine],
-                Terrain::Jungle => &[Gems, Fruit],
-                Terrain::Mountains => &[Gold, Iron],
-                Terrain::Plains => &[Buffalo, Wheat],
-                Terrain::Swamp => &[Peat, Spice],
-                Terrain::Tundra => &[Game, Furs],
+                Terrain::Glacier => &[Oil, Uranium],
+                Terrain::Desert => &[Oasis, Oil, Incense, Saltpeter],
+                Terrain::Forest => &[Furs, Silk, Horses, Coal, Rubber],
+                Terrain::Grassland => &[Cattle, Horses, Wine, Tobacco],
+                Terrain::Hills => &[Coal, Wine, Iron, Aluminum, Saltpeter],
+                Terrain::Jungle => &[Gems, TropicalFruit, Dyes, Rubber, Sugar],
+                Terrain::Mountains => &[Gold, Iron, Aluminum, Uranium],
+                Terrain::Plains => &[Cattle, Wheat, Horses, Iron, Oil],
+                Terrain::Swamp => &[Spice, Oil, Sugar],
+                Terrain::Tundra => &[Game, Furs, Oil],
             };
             for (index, &resource) in choices.iter().enumerate() {
                 if rng.below(index as i32 + 1) == 0 {

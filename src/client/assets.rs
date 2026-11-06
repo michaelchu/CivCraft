@@ -268,6 +268,7 @@ pub(crate) fn window_conf() -> Conf {
 
 pub(crate) struct Assets {
     pub(super) terrain: Texture2D,
+    pub(super) resource_icons: Texture2D,
     pub(super) terrain_blends: Texture2D,
     pub(super) terrain_ice_blends: Texture2D,
     pub(super) water: Texture2D,
@@ -383,6 +384,13 @@ impl Assets {
         let fog = Texture2D::from_image(&super::fog::build_atlas(&fog_image));
         fog.set_filter(FilterMode::Nearest);
         let terrain = Texture2D::from_image(&isolated_atlas(&terrain_image, 96, 48, 9, 16, true));
+        let resource_icon_image = Image::from_file_with_format(
+            include_bytes!("../../assets/civ3_resources_generated.png"),
+            None,
+        )
+        .expect("valid generated resource icon sheet");
+        let resource_icons = Texture2D::from_image(&resource_icon_image);
+        resource_icons.set_filter(FilterMode::Linear);
         let terrain_blends =
             Texture2D::from_image(&super::terrain::build_blend_atlas(&terrain_image));
         terrain_blends.set_filter(FilterMode::Nearest);
@@ -494,6 +502,7 @@ impl Assets {
         Self {
             goto,
             terrain,
+            resource_icons,
             terrain_blends,
             terrain_ice_blends,
             water,
@@ -910,29 +919,34 @@ mod native_unit_tests {
 }
 
 impl Resource {
-    pub(super) fn sprite(self, terrain: Terrain) -> (i32, i32) {
+    pub(super) fn icon_cell(self) -> (i32, i32) {
         match self {
-            Self::Oil if terrain == Terrain::Glacier => (6, 4),
+            Self::Aluminum => (0, 0),
+            Self::Coal => (0, 1),
+            Self::Horses => (0, 2),
+            Self::Iron => (0, 3),
+            Self::Oil => (1, 0),
+            Self::Rubber => (1, 1),
+            Self::Saltpeter => (1, 2),
+            Self::Uranium => (1, 3),
+            Self::Dyes => (2, 0),
+            Self::Furs => (2, 1),
+            Self::Gems => (2, 2),
+            Self::Incense => (2, 3),
+            Self::Ivory => (3, 0),
+            Self::Silk => (3, 1),
+            Self::Spice => (3, 2),
+            Self::Wine => (3, 3),
+            Self::Cattle => (4, 0),
+            Self::Fish => (4, 1),
             Self::Gold => (4, 2),
-            Self::Iron => (4, 4),
-            Self::Game => (5, 2),
-            Self::Furs => (5, 4),
-            Self::Coal => (3, 2),
-            Self::Fish => (9, 2),
-            Self::Fruit => (8, 4),
-            Self::Gems => (8, 2),
-            Self::Buffalo => (1, 2),
-            Self::Wheat => (1, 4),
-            Self::Oasis => (0, 2),
-            Self::Peat => (7, 2),
-            Self::Pheasant => (2, 2),
-            Self::Resources => (11, 4),
-            Self::Ivory => (6, 2),
-            Self::Silk => (2, 4),
-            Self::Spice => (7, 4),
-            Self::Whales => (9, 4),
-            Self::Wine => (3, 4),
-            Self::Oil => (0, 4),
+            Self::Game => (4, 3),
+            Self::Oasis => (5, 0),
+            Self::Sugar => (5, 1),
+            Self::Tobacco => (5, 2),
+            Self::TropicalFruit => (5, 3),
+            Self::Whales => (6, 1),
+            Self::Wheat => (6, 2),
         }
     }
 }

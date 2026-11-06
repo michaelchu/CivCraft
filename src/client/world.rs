@@ -120,6 +120,35 @@ impl Game {
         );
     }
 
+    fn draw_resource_icon(
+        &self,
+        texture: &Texture2D,
+        center: Vec2,
+        tile_w: f32,
+        tile_h: f32,
+        row: i32,
+        col: i32,
+    ) {
+        let size = tile_w * 0.38;
+        let y = center.y - tile_h * 0.50;
+        draw_texture_ex(
+            texture,
+            center.x - size * 0.5,
+            y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(size, size)),
+                source: Some(Rect::new(
+                    col as f32 * 237.0,
+                    row as f32 * 237.0,
+                    237.0,
+                    237.0,
+                )),
+                ..Default::default()
+            },
+        );
+    }
+
     fn draw_base_sprite(&self, assets: &Assets, center: Vec2, w: f32, h: f32, row: i32, col: i32) {
         draw_texture_ex(
             &assets.bases,
@@ -552,8 +581,15 @@ impl Game {
                     self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 5, 6);
                 }
                 if let Some(resource) = tile.active_resource() {
-                    let (row, col) = resource.sprite(tile.terrain);
-                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, col);
+                    let (row, col) = resource.icon_cell();
+                    self.draw_resource_icon(
+                        &assets.resource_icons,
+                        center,
+                        tile_w,
+                        tile_h,
+                        row,
+                        col,
+                    );
                 }
             }
             MapLayer::Grid => {
