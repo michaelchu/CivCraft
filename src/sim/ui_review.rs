@@ -18,7 +18,7 @@ impl Simulation {
         self.tile_mut(20, 24).terrain = Terrain::Grassland;
         self.create_city(HUMAN, 20, 24);
         let city = self.cities[0].id;
-        self.cities[0].name = "Alexandria on the Northern Coast".into();
+        self.cities[0].name = "Rome on the Northern Coast".into();
         self.cities[0].size = 12;
         self.cities[0].specialists = [2, 2, 1];
         self.cities[0].buildings.extend([
@@ -55,7 +55,7 @@ impl Simulation {
         self.world_seed = 18_446_744_073_709_551_615;
         let rival = self.cities.iter().find(|c| c.owner == 1).unwrap().id;
         let c = self.cities.iter_mut().find(|c| c.id == rival).unwrap();
-        c.name = "Constantinople of the Eastern Empire".into();
+        c.name = "Athens of the Eastern Mediterranean".into();
         c.size = 8;
         c.buildings.extend([
             Building::LIBRARY,
@@ -81,7 +81,7 @@ impl Simulation {
     pub(crate) fn ui_review_touching_borders(&mut self) {
         self.units.clear();
         self.cities.clear();
-        for (owner, dx, name) in [(HUMAN, -2, "Crimson City"), (1, 2, "Golden City")] {
+        for (owner, dx, name) in [(HUMAN, -2, "Rome"), (1, 2, "Athens")] {
             let (x, y) = offset_native_by_map(20, 24, dx, 0);
             self.tile_mut(x, y).terrain = Terrain::Grassland;
             self.create_city(owner, x, y);
@@ -320,7 +320,7 @@ impl Simulation {
         }
         for (owner, x, y, size, name, tech, walls) in [
             (0, 17, 21, 4, "Classical", None, false),
-            (1, 22, 21, 5, "Walled European", None, true),
+            (1, 22, 21, 5, "Walled Classical", None, true),
             (2, 17, 27, 9, "Industrial", Some(Tech::RAILROAD), false),
             (
                 3,

@@ -1,5 +1,5 @@
 //! City presentation requirements imported from civ2civ3 and Amplio2.
-//! Synthetic CivCraft factions have explicit initial styles; technology-based
+//! The six civilizations have explicit initial styles; technology-based
 //! replacements, image effects and atlas coordinates come from reference data.
 use super::{Building, Tech};
 use std::{collections::BTreeMap, sync::OnceLock};
@@ -131,21 +131,13 @@ fn rules() -> &'static CityArtRules {
     })
 }
 
-// These are faction themes, not randomly assigned per-city appearances. There
-// is currently no nation selector; this table supplies the six starting styles
-// until that feature exists. Rebel/barbarian factions use European by default.
+// Closest available Amplio2 historical themes; technological replacements
+// continue to follow the imported Civ2Civ3 requirements.
 pub(crate) fn initial_style(owner: usize) -> &'static str {
-    [
-        "Classical",
-        "European",
-        "Asian",
-        "Babylonian",
-        "Celtic",
-        "Tropical",
-    ]
-    .get(owner)
-    .copied()
-    .unwrap_or("European")
+    super::civilizations::CIVILIZATIONS
+        .get(owner)
+        .map(|civ| civ.city_style)
+        .unwrap_or("European")
 }
 
 pub(crate) fn city_art_cell(

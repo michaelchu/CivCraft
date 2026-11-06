@@ -480,7 +480,7 @@ impl Simulation {
             }
 
             // classic/nations.ruleset supplies a fixed default of 50; current
-            // fictional nations have no trait overrides or trait modifiers.
+            // fixed civilization identities have no trait overrides or modifiers.
             let war_threshold = aggression_war_threshold(50);
             let target = contacts
                 .iter()

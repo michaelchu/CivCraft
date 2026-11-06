@@ -2122,7 +2122,7 @@ impl Simulation {
         }
         if let Some(building) = self.military_training_building(city, kind) {
             choice.production = Production::Building(building);
-            // Default fictional nations use Builder50. Native int divisions
+            // All six civilizations use the default Builder50. Native int divisions
             // 50/TRAIT_DEFAULT_VALUE(50)/2 yield0, before adding double0.5.
             choice.want = (f64::from(choice.want as f32) * 0.5) as f32 as f64;
         }

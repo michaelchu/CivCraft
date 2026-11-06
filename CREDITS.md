@@ -21,3 +21,7 @@ The following artwork comes from the local Freeciv source checkout. Original art
 | assets/amplio2_bases.png | /Users/michaelchu/Documents/projects/civjs/reference/freeciv/data/amplio2/bases.png | Fortifications and airfield sprites |
 
 The Amplio2 and Hexemplio specification files in the same checkout identify their artists and license the sheets under GPL v2. No logo, splash screen, flag, nation emblem, music, or sound file is included. The Hexemplio river sheet credits Yautja (pond/river sources) and GriffonSpade. The renderer adapts its hex footprints to the current diamond tiles at asset load. Borders, panels, controls, minimap and faction banners use shapes and colours in Rust. Fog transitions, selection, status markers and battle explosions use the original reference artwork listed above.
+
+## Civilization identities
+
+The six fixed identities and leaders follow [Civilization III’s roster](https://civfanatics.com/civ3/infocenter/). City-name spellings and ordering follow the Civilization Wiki’s Civ III lists for [Romans](https://civilization.fandom.com/wiki/Roman_cities_(Civ3)), [Greeks](https://civilization.fandom.com/wiki/Greek_cities_(Civ3)), [Egyptians](https://civilization.fandom.com/wiki/Egyptian_cities_(Civ3)), [Babylonians](https://civilization.fandom.com/wiki/Babylonian_cities_(Civ3)), [Chinese](https://civilization.fandom.com/wiki/Chinese_cities_(Civ3)) and [Japanese](https://civilization.fandom.com/wiki/Japanese_cities_(Civ3)). No Civ III artwork is used.

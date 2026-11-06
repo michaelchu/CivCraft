@@ -2,6 +2,21 @@
 
 CivCraft is an offline Rust recreation of Freeciv's single-player game using the supplied Civ2Civ3 rules as its reference. Six civilizations explore a horizontally wrapped isometric-hex world, develop cities, research technologies, negotiate treaties, trade, wage land, sea, and air warfare, and pursue conquest or spaceship victory.
 
+## Civilizations
+
+The fixed roster uses six civilizations from Civilization III. You lead the Romans; the other five are AI opponents.
+
+| Civilization | Leader | First capital |
+| --- | --- | --- |
+| Romans | Julius Caesar | Rome |
+| Greeks | Alexander | Athens |
+| Egyptians | Cleopatra | Thebes |
+| Babylonians | Hammurabi | Babylon |
+| Chinese | Mao Zedong | Beijing |
+| Japanese | Tokugawa | Kyoto |
+
+Each civilization has its own ordered city names and an initial Amplio2 city style. City names skip names already used anywhere in the world, then use “New” names when the list runs out. Captured cities keep their names. Existing saves retain their city names; the former six faction labels upgrade when loaded. These identities use the existing Civ2Civ3 gameplay rules, starting technologies, colors and AI defaults; Civ III traits and unique units are not part of this change.
+
 ## Play
 
 Run cargo run --release from this folder. The match opens directly on the map.

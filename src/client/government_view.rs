@@ -16,7 +16,14 @@ impl Game {
         draw_ui_button(close, "X", true, false);
         let mut actions = vec![(close, UiAction::ToggleGovernment)];
 
-        draw_text("Government", panel.x + 18.0, panel.y + 31.0, 24.0, WHITE);
+        text_in(
+            &format!("{} · {}", player.name, player.leader_name()),
+            panel.x + 18.0,
+            panel.y + 31.0,
+            22.0,
+            panel.w - 81.0,
+            WHITE,
+        );
         let status = if let (Some(target), Some(turn)) =
             (player.revolution_target, player.revolution_turn)
         {
@@ -116,7 +123,11 @@ impl Game {
                 status.push_str(" · Senate veto");
             }
             text_in(
-                self.sim.players()[owner].name.as_str(),
+                &format!(
+                    "{} · {}",
+                    self.sim.players()[owner].name,
+                    self.sim.players()[owner].leader_name()
+                ),
                 panel.x + 18.0,
                 y + 14.0,
                 17.0,

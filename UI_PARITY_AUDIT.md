@@ -22,8 +22,9 @@ gallery; ordinary gameplay uses the actual animation clock.
 
 ## Fidelity boundaries
 
-CivCraft has six fictional factions rather than Freeciv nations. Each faction
-has an explicit initial reference city theme and its existing color banner;
+CivCraft has a fixed roster of Romans, Greeks, Egyptians, Babylonians, Chinese
+and Japanese. Each civilization has an explicit initial reference city theme
+and its existing color banner;
 there is no nation-selection feature or borrowed unrelated national flag.
 The imported rules control technology transitions, image levels and walls.
 

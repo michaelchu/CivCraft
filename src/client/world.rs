@@ -697,9 +697,7 @@ impl Game {
                 Color::from_rgba(194, 205, 181, 255),
             );
         }
-        // CivCraft has fictional factions rather than Freeciv nations. Use the
-        // owning faction's actual color for its banner instead of borrowing
-        // an unrelated nation's flag.
+        // Banners use the owning civilization's gameplay color.
         let pole_x = left - 9.0;
         draw_line(pole_x, top + 1.0, pole_x, top + 16.0, 1.0, LIGHTGRAY);
         draw_triangle(

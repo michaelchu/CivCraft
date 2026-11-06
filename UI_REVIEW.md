@@ -124,7 +124,7 @@ observer enabled and disabled. The gallery's fixed progress and selection
 frame are opt-in visual QA controls, not alternate game logic.
 
 City appearance uses the imported civ2civ3 style requirements and city image /
-visible walls effects plus Amplio2 sprite tags. The six fictional factions
+visible walls effects plus Amplio2 sprite tags. The six historical civilizations
 have explicit initial themes; there is no Freeciv nation-selection feature.
 Their banners use the existing faction colors rather than unrelated national
 flags. See `UI_PARITY_AUDIT.md` for source pointers and validation coverage.

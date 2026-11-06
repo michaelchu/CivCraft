@@ -488,6 +488,17 @@ impl Simulation {
         // unless activity is ACTIVITY_GOTO. This engine has no queued native
         // GOTO activity; task destinations are reconstructed by the advisors.
         game.unit_goto_tiles.clear();
+        // Preserve the save layout and custom city names. Only migrate the six
+        // exact former faction labels, leaving rebels and custom names alone.
+        for (player, civ) in game
+            .players
+            .iter_mut()
+            .zip(crate::rules::civilizations::CIVILIZATIONS.iter())
+        {
+            if player.name == civ.legacy_name {
+                player.name = civ.name.to_owned();
+            }
+        }
         game.refresh_diplomatic_intelligence();
         Ok(game)
     }
@@ -1102,6 +1113,39 @@ pub(super) mod known_by {
 #[cfg(test)]
 mod ai_state_tests {
     use super::*;
+
+    #[test]
+    fn old_faction_labels_migrate_without_renaming_existing_cities_or_changing_rng() {
+        let path = std::env::temp_dir().join(format!(
+            "civcraft-roster-{}-{}.save",
+            std::process::id(),
+            NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        for (player, civ) in game
+            .players
+            .iter_mut()
+            .zip(crate::rules::civilizations::CIVILIZATIONS.iter())
+        {
+            player.name = civ.legacy_name.to_owned();
+        }
+        game.create_city(HUMAN, 10, 20);
+        game.cities[0].name = "My Custom Capital".to_owned();
+        let random = game.random_snapshot();
+        game.save_campaign(&path).unwrap();
+        let loaded = Simulation::load_campaign(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        for (player, civ) in loaded
+            .players
+            .iter()
+            .zip(crate::rules::civilizations::CIVILIZATIONS.iter())
+        {
+            assert_eq!(player.name, civ.name);
+            assert_eq!(player.leader_name(), civ.leader);
+        }
+        assert_eq!(loaded.cities[0].name, "My Custom Capital");
+        assert_eq!(loaded.random_snapshot(), random);
+    }
 
     #[test]
     fn v13_preserves_native_rng_and_cargo_and_legacy_campaign_streams() {

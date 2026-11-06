@@ -149,23 +149,25 @@ impl Simulation {
     }
 
     pub(super) fn city_name(&self, owner: usize) -> String {
-        const ROOTS: [[&str; 4]; PLAYER_COUNT] = [
-            ["Aster", "Briar", "Cinder", "Dawn"],
-            ["Gilden", "Hearth", "Ilex", "Jasper"],
-            ["Lumen", "Mere", "Northwind", "Opal"],
-            ["Pine", "Quartz", "Rill", "Solace"],
-            ["Tern", "Umber", "Vale", "Willow"],
-            ["Yarrow", "Zephyr", "Alder", "Brook"],
-        ];
-        let count = self.cities.iter().filter(|c| c.owner == owner).count();
-        if owner >= PLAYER_COUNT {
-            return format!("{} {}", self.players[owner].name, count + 1);
+        if let Some(name) = crate::rules::civilizations::next_city_name(owner, |name| {
+            self.cities
+                .iter()
+                .any(|city| city.name.eq_ignore_ascii_case(name))
+        }) {
+            return name;
         }
-        if count < 4 {
-            ROOTS[owner][count].to_owned()
-        } else {
-            format!("{} {}", ROOTS[owner][count % 4], count + 1)
+        // Rebels/barbarians retain their own identity, without borrowing a nation.
+        for number in 1.. {
+            let name = format!("{} {number}", self.players[owner].name);
+            if !self
+                .cities
+                .iter()
+                .any(|city| city.name.eq_ignore_ascii_case(&name))
+            {
+                return name;
+            }
         }
+        unreachable!()
     }
 
     pub(super) fn found_city(&mut self, unit_id: u32) -> bool {
@@ -1107,6 +1109,31 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn six_civilizations_found_capitals_then_use_unique_names_after_capture_and_loss() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        for owner in 0..PLAYER_COUNT {
+            let civ = &crate::rules::civilizations::CIVILIZATIONS[owner];
+            assert_eq!(game.players[owner].name, civ.name);
+            assert_eq!(game.players[owner].leader_name(), civ.leader);
+            game.create_city(owner, 10 + owner as i32 * 4, 20);
+            let city = game.cities.last().unwrap();
+            assert_eq!(city.name, civ.cities[0]);
+            assert!(city.has_building(Building::PALACE));
+        }
+        // Capturing Rome does not let its former owner found another Rome.
+        game.cities[0].owner = 1;
+        game.create_city(HUMAN, 10, 30);
+        assert_eq!(game.cities.last().unwrap().name, "Veii");
+        game.create_city(HUMAN, 14, 30);
+        assert_eq!(game.cities.last().unwrap().name, "Antium");
+        game.cities.retain(|city| city.name != "Veii");
+        let rng = game.random_snapshot();
+        assert_eq!(game.city_name(HUMAN), "Veii");
+        // Naming consumes no random draws (founding itself has game effects).
+        assert_eq!(game.random_snapshot(), rng);
+    }
 
     #[test]
     fn lifecycle_cm_replaces_existing_workers_when_population_weights_change() {

@@ -1496,6 +1496,20 @@ pub(crate) struct Player {
     pub(crate) ai: bool,
 }
 
+impl Player {
+    pub(crate) fn leader_name(&self) -> &'static str {
+        crate::rules::civilizations::CIVILIZATIONS
+            .iter()
+            .find(|civ| self.name == civ.name || self.name == civ.legacy_name)
+            .map(|civ| civ.leader)
+            .unwrap_or(if self.name == "Barbarians" {
+                "Chieftain"
+            } else {
+                "Rebel Council"
+            })
+    }
+}
+
 #[cfg(test)]
 mod native_type_order_tests {
     use super::*;

@@ -286,14 +286,6 @@ impl Simulation {
             game_random,
         } = map;
 
-        let names = [
-            "Crimson League",
-            "Golden Compact",
-            "Azure Assembly",
-            "Violet Court",
-            "Amber Union",
-            "Rose Confederacy",
-        ];
         let free_techs = [
             Tech::BRONZE_WORKING,
             Tech::ALPHABET,
@@ -313,7 +305,9 @@ impl Simulation {
         let mut players = Vec::new();
         for i in 0..PLAYER_COUNT {
             players.push(Player {
-                name: names[i].to_owned(),
+                name: crate::rules::civilizations::CIVILIZATIONS[i]
+                    .name
+                    .to_owned(),
                 gold: 50,
                 rates: [60, 40, 0],
                 government: Government::Despotism,

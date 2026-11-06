@@ -5,3 +5,5 @@ mod research;
 pub(crate) use research::Tech;
 
 pub(crate) mod city_art;
+
+pub(crate) mod civilizations;
