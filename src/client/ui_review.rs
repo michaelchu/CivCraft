@@ -37,6 +37,9 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "north-pole",
     "south-pole",
     "wrap-seam",
+    "terrain-seams-small",
+    "terrain-seams-default",
+    "terrain-seams-large",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -130,6 +133,13 @@ impl Game {
                 } else {
                     1.0
                 };
+            }
+            36..=38 => {
+                self.sim.ui_review_terrain_seams();
+                self.zoom = [0.625, 0.82, 1.35][scene - 36];
+                self.focus_camera_on(20, 24);
+                self.camera += vec2(0.137, 0.213);
+                return;
             }
             33 | 34 => {
                 self.sim.ui_review_reveal_poles();
@@ -273,6 +283,13 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if (36..=38).contains(&scene) {
+            if phase == 6 {
+                self.camera += vec2(0.37, 0.23);
+                return Ok(true);
+            }
+            return Ok(false);
+        }
         if matches!(scene, 33 | 34) {
             let viewport = Self::viewport_rect();
             let camera = self.camera_overview_position();

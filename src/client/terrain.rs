@@ -223,7 +223,7 @@ impl Game {
                 WHITE,
                 DrawTextureParams {
                     dest_size: Some(vec2(tile_w, source_h * zoom)),
-                    source: Some(bordered_sprite_source(row, col, 96.0, source_h)),
+                    source: Some(isolated_sprite_source(row, col, 96.0, source_h)),
                     ..Default::default()
                 },
             );
@@ -297,7 +297,15 @@ impl Game {
                 WHITE,
                 DrawTextureParams {
                     dest_size: Some(vec2(w * 0.5, h * 0.5)),
-                    source: Some(water_corner_cell(lake, corner, mask)),
+                    source: Some({
+                        let original = water_corner_cell(lake, corner, mask);
+                        isolated_sprite_source(
+                            ((original.y - 437.0) / 25.0) as i32,
+                            ((original.x - 1.0) / 49.0) as i32,
+                            48.0,
+                            24.0,
+                        )
+                    }),
                     ..Default::default()
                 },
             );

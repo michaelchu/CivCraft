@@ -32,7 +32,7 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery covers 36 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 39 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 For a quick on-demand check, select a scene by name:
 
@@ -186,3 +186,27 @@ including camera-seam before/after views. Pixel sampling of the native north
 boundary confirmed WrapX black (0,0,0), while the same position in WrapXY
 contained real terrain (0,41,136). Polar and city-map captures were visually
 inspected; formatting and whitespace checks passed.
+
+### Terrain atlas and seam checks
+
+`terrain-seams-small`, `terrain-seams-default`, and `terrain-seams-large`
+show all terrain types in adjacent patches at 0.625×, 0.82×, and 1.35× zoom.
+Each captures a fractional camera position and a second position after panning.
+Inspect uniform water interiors, coastlines, lake/ice corners, and connected
+forest/jungle and hill/mountain edges for straight grid lines or gaps. Run at
+both desktop and compact sizes and in both wrap modes when changing terrain
+sampling. The gallery assertions check execution and bounds; screenshots still
+require visual inspection.
+
+Land, connected overlays, and lake/ice cells use isolated padded atlas cells.
+Lake and ocean mask edges have textured backing clipped to the tile diamond,
+using the matching water artwork. Ocean masks overlap their raster edges by one texel to prevent coastline gaps
+at fractional zoom. A reusable mesh avoids per-tile allocations.
+This replaces the flat water backing, which could show dark lake diagonals.
+
+Terrain seam validation: 53 client tests passed. All 39 gallery scenes passed
+at 1280x720 with WrapX (55 captures) and 800x600 with WrapXY (58 captures).
+Terrain captures at all three zooms and after fractional panning were inspected,
+along with the city work map. Lake diagonals and enlarged coastline gaps were
+corrected during inspection. These checks cover the listed configurations;
+visual assertions alone do not prove every possible camera/zoom combination.

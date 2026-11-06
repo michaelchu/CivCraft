@@ -35,6 +35,19 @@ fn isolated_atlas(
     rows: usize,
     bordered: bool,
 ) -> Image {
+    let gap = usize::from(bordered);
+    isolated_atlas_at(source, width, height, cols, rows, (gap, gap), gap)
+}
+
+fn isolated_atlas_at(
+    source: &Image,
+    width: usize,
+    height: usize,
+    cols: usize,
+    rows: usize,
+    origin: (usize, usize),
+    gap: usize,
+) -> Image {
     let mut atlas = Image::gen_image_color(
         (cols * (width + 2)) as u16,
         (rows * (height + 2)) as u16,
@@ -43,13 +56,12 @@ fn isolated_atlas(
     let stride = atlas.width();
     let src = source.get_image_data();
     let dst = atlas.get_image_data_mut();
-    let gap = usize::from(bordered);
     for row in 0..rows {
         for col in 0..cols {
             for y in 0..height + 2 {
                 for x in 0..width + 2 {
-                    let sx = gap + col * (width + gap) + x.saturating_sub(1).min(width - 1);
-                    let sy = gap + row * (height + gap) + y.saturating_sub(1).min(height - 1);
+                    let sx = origin.0 + col * (width + gap) + x.saturating_sub(1).min(width - 1);
+                    let sy = origin.1 + row * (height + gap) + y.saturating_sub(1).min(height - 1);
                     dst[(row * (height + 2) + y) * stride + col * (width + 2) + x] =
                         src[sy * source.width() + sx];
                 }
@@ -117,7 +129,18 @@ fn build_ocean_corner_atlas(ocean: &Image, terrain: &Image) -> Image {
                         let ocean_x = cell_col * TILE_SPRITE_W + source_x;
                         let ocean_y = cell_row * TILE_SPRITE_H + source_y;
                         let mut pixel = ocean_pixels[ocean_y * OCEAN_ATLAS_W + ocean_x];
-                        let mask = terrain_pixels[(mask_y + y) * terrain.width() + mask_x + x][3];
+                        // Cover the rasterized diamond edge at fractional zoom. Adjacent
+                        // tiles share this artwork; a one-texel overlap prevents
+                        // transparent mask pixels from exposing the backing.
+                        let mut mask = 0;
+                        for ny in y.saturating_sub(1)..=(y + 1).min(47) {
+                            for nx in x.saturating_sub(1)..=(x + 1).min(95) {
+                                mask = mask.max(
+                                    terrain_pixels[(mask_y + ny) * terrain.width() + mask_x + nx]
+                                        [3],
+                                );
+                            }
+                        }
                         pixel[3] = ((pixel[3] as u16 * mask as u16) / 255) as u8;
 
                         let atlas_y = corner * OCEAN_ATLAS_H + cell_row * TILE_SPRITE_H + y;
@@ -130,6 +153,67 @@ fn build_ocean_corner_atlas(ocean: &Image, terrain: &Image) -> Image {
     }
 
     atlas
+}
+
+// Back transparent mask edges with the matching artwork, clipped by shared
+// diamond geometry. A flat minimap/average color produces visible diagonal seams.
+fn water_backing_atlas(corners: &Image, water: &Image) -> Image {
+    let mut image = Image::gen_image_color(96, 144, BLANK);
+    for kind in 0..3 {
+        for corner in 0..4 {
+            for y in 0..48usize {
+                for x in 0..96usize {
+                    let pixel = if kind < 2 {
+                        let (row, col) = ocean_cell_source([kind as u8; 4]);
+                        corners.get_image_data()
+                            [(corner * OCEAN_ATLAS_H + row * 48 + y) * OCEAN_ATLAS_W + col * 96 + x]
+                    } else {
+                        let (ox, oy, row, col) = [
+                            (24, 0, 9, 0),
+                            (24, 24, 10, 0),
+                            (48, 12, 11, 1),
+                            (0, 12, 11, 0),
+                        ][corner];
+                        if x < ox || x >= ox + 48 || y < oy || y >= oy + 24 {
+                            continue;
+                        }
+                        water.get_image_data()
+                            [(437 + row * 25 + y - oy) * water.width() + 1 + col * 49 + x - ox]
+                    };
+                    if pixel[3] > 0 {
+                        image.get_image_data_mut()[(kind * 48 + y) * 96 + x] = pixel;
+                    }
+                }
+            }
+        }
+        // Extend the nearest artwork across the transparent raster edge. Only
+        // the geometric diamond is drawn, so this cannot cover adjacent tiles.
+        for y in 0..48usize {
+            let start = (kind * 48 + y) * 96;
+            let row = &mut image.get_image_data_mut()[start..start + 96];
+            let visible: Vec<_> = row
+                .iter()
+                .enumerate()
+                .filter(|(_, p)| p[3] > 0)
+                .map(|(x, p)| (x, *p))
+                .collect();
+            assert!(
+                !visible.is_empty(),
+                "water artwork must cover every tile row"
+            );
+            for (x, pixel) in row.iter_mut().enumerate() {
+                if pixel[3] == 0 {
+                    *pixel = visible
+                        .iter()
+                        .min_by_key(|(sx, _)| x.abs_diff(*sx))
+                        .unwrap()
+                        .1;
+                }
+                pixel[3] = 255;
+            }
+        }
+    }
+    isolated_atlas(&image, 96, 48, 1, 3, false)
 }
 
 pub(crate) fn window_conf() -> Conf {
@@ -162,7 +246,7 @@ pub(crate) struct Assets {
     pub(super) hills: Texture2D,
     pub(super) mountains: Texture2D,
     pub(super) ocean_corners: Texture2D,
-    pub(super) ocean_backing: [Color; 2],
+    water_backing: std::cell::RefCell<Mesh>,
     pub(super) units: Texture2D,
     pub(super) selection: Texture2D,
     pub(super) cities: Texture2D,
@@ -175,6 +259,39 @@ pub(crate) struct Assets {
 }
 
 impl Assets {
+    pub(super) fn draw_water_backing(
+        &self,
+        terrain: Terrain,
+        center: Vec2,
+        width: f32,
+        height: f32,
+    ) {
+        let row = match terrain {
+            Terrain::DeepOcean => 0,
+            Terrain::Lake => 2,
+            _ => 1,
+        };
+        let mut mesh = self.water_backing.borrow_mut();
+        let texture = mesh.texture.as_ref().unwrap();
+        let (tw, th) = (texture.width(), texture.height());
+        let source = isolated_sprite_source(row, 0, 96.0, 48.0);
+        for (vertex, (x, y)) in
+            mesh.vertices
+                .iter_mut()
+                .zip([(0.5, 0.0), (1.0, 0.5), (0.5, 1.0), (0.0, 0.5)])
+        {
+            *vertex = Vertex::new(
+                center.x + (x - 0.5) * width,
+                center.y + (y - 0.5) * height,
+                0.0,
+                (source.x + x * source.w) / tw,
+                (source.y + y * source.h) / th,
+                WHITE,
+            );
+        }
+        draw_mesh(&mesh);
+    }
+
     pub(crate) fn new() -> Self {
         let terrain_image =
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_terrain1.png"), None)
@@ -184,62 +301,60 @@ impl Assets {
                 .expect("valid reference fog atlas");
         let fog = Texture2D::from_image(&super::fog::build_atlas(&fog_image));
         fog.set_filter(FilterMode::Nearest);
-        let terrain = Texture2D::from_image(&terrain_image);
+        let terrain = Texture2D::from_image(&isolated_atlas(&terrain_image, 96, 48, 9, 16, true));
         let terrain_blends =
             Texture2D::from_image(&super::terrain::build_blend_atlas(&terrain_image));
         terrain_blends.set_filter(FilterMode::Nearest);
-        let water = Texture2D::from_file_with_format(
-            include_bytes!("../../assets/amplio2_water.png"),
-            None,
-        );
+        let water_image =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_water.png"), None)
+                .expect("valid water atlas");
+        // Coast/lake cells use a separate 48x24 grid starting lower on the sheet.
+        let water = Texture2D::from_image(&isolated_atlas_at(
+            &water_image,
+            48,
+            24,
+            16,
+            12,
+            (1, 437),
+            1,
+        ));
         water.set_filter(FilterMode::Nearest);
         let river_image =
             Image::from_file_with_format(include_bytes!("../../assets/hexemplio_rivers.png"), None)
                 .expect("valid Hexemplio river atlas");
         let rivers = Texture2D::from_image(&super::rivers::build_river_atlas(&river_image));
         rivers.set_filter(FilterMode::Nearest);
-        let terrain2 = Texture2D::from_file_with_format(
+        let load_terrain = |bytes: &[u8], height, cols, rows| {
+            let image = Image::from_file_with_format(bytes, None).expect("valid terrain atlas");
+            Texture2D::from_image(&isolated_atlas(&image, 96, height, cols, rows, true))
+        };
+        let terrain2 = load_terrain(
             include_bytes!("../../assets/amplio2_terrain2.png"),
-            None,
+            48,
+            9,
+            6,
         );
-        let hills = Texture2D::from_file_with_format(
-            include_bytes!("../../assets/amplio2_hills.png"),
-            None,
-        );
-        let mountains = Texture2D::from_file_with_format(
+        let hills = load_terrain(include_bytes!("../../assets/amplio2_hills.png"), 48, 4, 4);
+        let mountains = load_terrain(
             include_bytes!("../../assets/amplio2_mountains.png"),
-            None,
+            66,
+            4,
+            4,
         );
         let ocean_image =
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_ocean.png"), None)
                 .expect("valid Amplio2 ocean atlas");
-        let ocean_backing = [0, 1].map(|kind| {
-            let (row, col) = ocean_cell_source([kind; 4]);
-            let mut sum = [0u32; 3];
-            for y in 0..48 {
-                for x in 0..96 {
-                    let pixel = ocean_image.get_image_data()
-                        [(row * 48 + y) * ocean_image.width() + col * 96 + x];
-                    for i in 0..3 {
-                        sum[i] += u32::from(pixel[i]);
-                    }
-                }
-            }
-            Color::from_rgba(
-                (sum[0] / 4608) as u8,
-                (sum[1] / 4608) as u8,
-                (sum[2] / 4608) as u8,
-                255,
-            )
+        let raw_ocean_corners = build_ocean_corner_atlas(&ocean_image, &terrain_image);
+        let backing_texture =
+            Texture2D::from_image(&water_backing_atlas(&raw_ocean_corners, &water_image));
+        backing_texture.set_filter(FilterMode::Nearest);
+        let water_backing = std::cell::RefCell::new(Mesh {
+            vertices: vec![Vertex::new(0.0, 0.0, 0.0, 0.0, 0.0, WHITE); 4],
+            indices: vec![0, 1, 2, 0, 2, 3],
+            texture: Some(backing_texture),
         });
-        let ocean_corners = Texture2D::from_image(&isolated_atlas(
-            &build_ocean_corner_atlas(&ocean_image, &terrain_image),
-            96,
-            48,
-            9,
-            36,
-            false,
-        ));
+        let ocean_corners =
+            Texture2D::from_image(&isolated_atlas(&raw_ocean_corners, 96, 48, 9, 36, false));
         let units_image =
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_units.png"), None)
                 .expect("valid unit atlas");
@@ -283,8 +398,8 @@ impl Assets {
                 .expect("valid bases atlas");
         let bases = Texture2D::from_image(&without_sprite_grid(bases_image, 96, 72));
         bases.set_filter(FilterMode::Nearest);
-        // These are tightly packed sprite atlases. Nearest filtering keeps a
-        // tile from sampling the neighbouring cell at zoom levels below 1x.
+        // Padding isolates cells; nearest filtering retains the original pixel
+        // artwork at fractional zoom without blending neighboring texels.
         terrain.set_filter(FilterMode::Nearest);
         terrain2.set_filter(FilterMode::Nearest);
         hills.set_filter(FilterMode::Nearest);
@@ -303,7 +418,7 @@ impl Assets {
             hills,
             mountains,
             ocean_corners,
-            ocean_backing,
+            water_backing,
             units,
             selection,
             cities,
@@ -521,6 +636,84 @@ mod native_unit_tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn water_backing_covers_mask_edges_without_changing_opaque_ocean_art() {
+        let ocean =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_ocean.png"), None)
+                .unwrap();
+        let terrain =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_terrain1.png"), None)
+                .unwrap();
+        let water =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_water.png"), None)
+                .unwrap();
+        let corners = build_ocean_corner_atlas(&ocean, &terrain);
+        let backing = water_backing_atlas(&corners, &water);
+        assert!(backing.get_image_data().iter().all(|p| p[3] == 255));
+        for kind in 0..2 {
+            let (row, col) = ocean_cell_source([kind as u8; 4]);
+            for y in 0..48 {
+                for x in 0..96 {
+                    let original = (0..4)
+                        .rev()
+                        .map(|corner| {
+                            corners.get_image_data()[(corner * OCEAN_ATLAS_H + row * 48 + y)
+                                * OCEAN_ATLAS_W
+                                + col * 96
+                                + x]
+                        })
+                        .find(|p| p[3] == 255);
+                    if let Some(pixel) = original {
+                        assert_eq!(
+                            backing.get_image_data()[(kind * 50 + 1 + y) * 98 + 1 + x],
+                            pixel
+                        );
+                    }
+                }
+            }
+        }
+        // Lake edges must use lake blue, independently of ocean colors.
+        let lake_source = water.get_image_data()[(437 + 9 * 25 + 12) * water.width() + 1 + 24];
+        assert_eq!(
+            backing.get_image_data()[(2 * 50 + 1 + 12) * 98 + 1 + 48],
+            lake_source
+        );
+    }
+
+    #[test]
+    fn ocean_mask_overlaps_the_raster_edge_without_holes() {
+        let ocean =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_ocean.png"), None)
+                .unwrap();
+        let terrain =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_terrain1.png"), None)
+                .unwrap();
+        let corners = build_ocean_corner_atlas(&ocean, &terrain);
+        let (row, col) = ocean_cell_source([0; 4]);
+        let mut extended = 0;
+        for y in 0..48usize {
+            for x in 0..96usize {
+                let original = terrain.get_image_data()
+                    [(1 + 15 * 49 + y) * terrain.width() + 1 + 2 * 97 + x][3];
+                let covered = (0..4).any(|corner| {
+                    corners.get_image_data()
+                        [(corner * OCEAN_ATLAS_H + row * 48 + y) * OCEAN_ATLAS_W + col * 96 + x][3]
+                        > 0
+                });
+                if original > 0 {
+                    assert!(covered, "hole at {x},{y}");
+                }
+                if original == 0 && covered {
+                    extended += 1;
+                }
+            }
+        }
+        assert!(
+            extended > 0,
+            "fractional zoom needs coverage beyond the native alpha edge"
+        );
     }
 
     #[test]

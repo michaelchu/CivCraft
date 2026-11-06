@@ -96,7 +96,7 @@ impl Game {
             tint,
             DrawTextureParams {
                 dest_size: Some(vec2(tile_w, tile_h)),
-                source: Some(bordered_sprite_source(row, 0, 96.0, 48.0)),
+                source: Some(isolated_sprite_source(row, 0, 96.0, 48.0)),
                 ..Default::default()
             },
         );
@@ -118,7 +118,7 @@ impl Game {
             WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(tile_w, tile_h)),
-                source: Some(bordered_sprite_source(source_row, source_col, 96.0, 48.0)),
+                source: Some(isolated_sprite_source(source_row, source_col, 96.0, 48.0)),
                 ..Default::default()
             },
         );
@@ -323,14 +323,11 @@ impl Game {
                 continue;
             }
 
-            // Match the water artwork beneath transparent mask edges, rather
-            // than exposing the much brighter minimap palette at tile seams.
-            let backing = if tile.terrain.is_water() {
-                assets.ocean_backing[usize::from(tile.terrain != Terrain::DeepOcean)]
+            if tile.terrain.is_water() {
+                assets.draw_water_backing(tile.terrain, center, tile_w, tile_h);
             } else {
-                tile.terrain.minimap_color()
-            };
-            draw_diamond(center, tile_w, tile_h, backing);
+                draw_diamond(center, tile_w, tile_h, tile.terrain.minimap_color());
+            }
             self.draw_terrain_sprite(assets, x, y, center, tile_w, tile_h);
         }
 
@@ -594,16 +591,16 @@ impl Game {
                 draw_diamond(center, layout.tile_w, layout.tile_h, BLACK);
             } else {
                 let tile = self.sim.render_tile(x, y);
-                draw_diamond(
-                    center,
-                    layout.tile_w,
-                    layout.tile_h,
-                    if tile.terrain.is_water() {
-                        assets.ocean_backing[usize::from(tile.terrain != Terrain::DeepOcean)]
-                    } else {
-                        tile.terrain.minimap_color()
-                    },
-                );
+                if tile.terrain.is_water() {
+                    assets.draw_water_backing(tile.terrain, center, layout.tile_w, layout.tile_h);
+                } else {
+                    draw_diamond(
+                        center,
+                        layout.tile_w,
+                        layout.tile_h,
+                        tile.terrain.minimap_color(),
+                    );
+                }
                 self.draw_terrain_sprite(assets, x, y, center, layout.tile_w, layout.tile_h);
             }
         }

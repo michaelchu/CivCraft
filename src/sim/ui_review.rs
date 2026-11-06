@@ -550,6 +550,29 @@ impl Simulation {
         }
     }
 
+    pub(crate) fn ui_review_terrain_seams(&mut self) {
+        self.ui_review_terrain_layers(false);
+        let kinds = [
+            Terrain::DeepOcean,
+            Terrain::Ocean,
+            Terrain::Lake,
+            Terrain::Glacier,
+            Terrain::Desert,
+            Terrain::Plains,
+            Terrain::Grassland,
+            Terrain::Forest,
+            Terrain::Jungle,
+            Terrain::Hills,
+            Terrain::Mountains,
+            Terrain::Swamp,
+            Terrain::Tundra,
+        ];
+        for tile in 0..self.tiles.len() {
+            let (x, y) = (tile as i32 % MAP_W, tile as i32 / MAP_W);
+            self.tiles[tile].terrain = kinds[((x / 4 + (y / 4) * 3) as usize) % kinds.len()];
+        }
+    }
+
     pub(crate) fn ui_review_route_setup(&mut self) -> (u32, (i32, i32)) {
         self.ui_review_terrain_layers(false);
         for tile in &mut self.tiles {
