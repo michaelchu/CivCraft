@@ -33,7 +33,8 @@ const HEADER_V9: &[u8] = b"CIVCRAFT\0\x09";
 const HEADER_V10: &[u8] = b"CIVCRAFT\0\x0a";
 const HEADER_V11: &[u8] = b"CIVCRAFT\0\x0b";
 const HEADER_V12: &[u8] = b"CIVCRAFT\0\x0c";
-const HEADER: &[u8] = b"CIVCRAFT\0\x0d";
+const HEADER_V13: &[u8] = b"CIVCRAFT\0\x0d";
+const HEADER: &[u8] = b"CIVCRAFT\0\x0e";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -130,6 +131,7 @@ impl Simulation {
                 ),
                 &list_order,
                 (&self.native_random, &cargo_order),
+                &self.observed_map,
             ))
             .map_err(io::Error::other)?;
         let filename = path
@@ -164,6 +166,7 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         if header != HEADER
+            && header != HEADER_V13
             && header != HEADER_V12
             && header != HEADER_V11
             && header != HEADER_V10
@@ -270,7 +273,8 @@ impl Simulation {
                     HEADER_V10 => decode_v10(&payload).map_err(decode_error)?,
                     HEADER_V11 => decode_v11(&payload).map_err(decode_error)?,
                     HEADER_V12 => decode_v12(&payload).map_err(decode_error)?,
-                    _ => decode_v13(&payload).map_err(decode_error)?,
+                    HEADER_V13 => decode_v13(&payload).map_err(decode_error)?,
+                    _ => decode_v14(&payload).map_err(decode_error)?,
                 };
             let (
                 (
@@ -441,17 +445,17 @@ impl Simulation {
             game.ai_government_cache = government_cache;
             game.diplomatic_contact_until = contact_until;
         }
-        if matches!(header.as_slice(), HEADER | HEADER_V12)
+        if matches!(header.as_slice(), HEADER | HEADER_V13 | HEADER_V12)
             && !game.list_order.valid(&game.units, &game.cities)
         {
             return Err(invalid("Invalid native entity list order"));
         }
-        if !matches!(header.as_slice(), HEADER | HEADER_V12) {
+        if !matches!(header.as_slice(), HEADER | HEADER_V13 | HEADER_V12) {
             // Legacy saves did not record arrival/transfer history. Infer
             // creation order; exact historical tile order is unrecoverable.
             game.sync_list_order();
         }
-        if header == HEADER {
+        if matches!(header.as_slice(), HEADER | HEADER_V13) {
             if !game.valid_cargo_order() {
                 return Err(invalid("Invalid transport cargo order"));
             }
@@ -460,7 +464,7 @@ impl Simulation {
         }
         if !matches!(
             header.as_slice(),
-            HEADER | HEADER_V12 | HEADER_V11 | HEADER_V10 | HEADER_V9
+            HEADER | HEADER_V13 | HEADER_V12 | HEADER_V11 | HEADER_V10 | HEADER_V9
         ) {
             game.seed_legacy_diplomatic_contacts();
         }
@@ -498,6 +502,12 @@ impl Simulation {
             if player.name == civ.legacy_name {
                 player.name = civ.name.to_owned();
             }
+        }
+        if header != HEADER {
+            game.migrate_render_memory();
+        }
+        if !game.valid_render_memory() {
+            return Err(invalid("Invalid observed rendering map"));
         }
         game.refresh_diplomatic_intelligence();
         Ok(game)
@@ -659,11 +669,12 @@ impl Simulation {
             self.save_campaign(&path)?;
             let replaced = Self::load_campaign(&path)?.turn == self.turn;
             let current_file = fs::read(&path)?;
-            let (mut previous_state, extra, order, _): (
+            let (mut previous_state, extra, order, _, _): (
                 CampaignPayload<Strategy9>,
                 Extras11,
                 list_order::ListOrder,
                 Extras13,
+                observed_map::ObservedMap,
             ) = codec()
                 .deserialize(&current_file[HEADER.len()..])
                 .map_err(io::Error::other)?;
@@ -1001,6 +1012,32 @@ fn decode_v13(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Err
     Ok(campaign)
 }
 
+fn decode_v14(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Error> {
+    let (
+        mut campaign,
+        (current, guard_targets, unit_guards, city_rapture, goto_tiles),
+        order,
+        (random, cargo),
+        observed,
+    ): (
+        CampaignPayload<Strategy9>,
+        Extras11,
+        list_order::ListOrder,
+        Extras13,
+        observed_map::ObservedMap,
+    ) = codec().deserialize(payload)?;
+    campaign.0.climate_current = current;
+    campaign.0.ai_guard_targets = guard_targets;
+    campaign.0.ai_unit_guards = unit_guards;
+    campaign.0.city_rapture = city_rapture;
+    campaign.0.unit_goto_tiles = goto_tiles;
+    campaign.0.list_order = order;
+    campaign.0.native_random = random;
+    campaign.0.cargo_order = cargo;
+    campaign.0.observed_map = observed;
+    Ok(campaign)
+}
+
 fn decode_v10(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Error> {
     let (mut campaign, current): (CampaignPayload<Strategy9>, [i32; 2]) =
         codec().deserialize(payload)?;
@@ -1173,7 +1210,22 @@ mod ai_state_tests {
             Extras11,
             list_order::ListOrder,
             Extras13,
+            observed_map::ObservedMap,
         ) = codec().deserialize(&data[HEADER.len()..]).unwrap();
+        // V13 remains readable, including its full native RNG and cargo state.
+        let saved_random = Simulation::load_campaign(&path).unwrap().random_snapshot();
+        let mut previous_v13 = HEADER_V13.to_vec();
+        codec()
+            .serialize_into(
+                &mut previous_v13,
+                &(&payload.0, &payload.1, &payload.2, &payload.3),
+            )
+            .unwrap();
+        fs::write(&path, previous_v13).unwrap();
+        let migrated_v13 = Simulation::load_campaign(&path).unwrap();
+        assert_eq!(migrated_v13.random_snapshot(), saved_random);
+        assert_eq!(migrated_v13.cargo_order, loaded.cargo_order);
+        assert!(migrated_v13.valid_render_memory());
         let valid_cargo = payload.3.1.clone();
         let ids = payload.3.1.values_mut().next().unwrap();
         ids.push(ids[0]);
@@ -1247,6 +1299,7 @@ mod ai_state_tests {
             Extras11,
             list_order::ListOrder,
             Extras13,
+            observed_map::ObservedMap,
         ) = codec().deserialize(&data[HEADER.len()..]).unwrap();
         payload.2.next = 0;
         let mut data = HEADER.to_vec();

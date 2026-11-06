@@ -11,8 +11,16 @@ impl Simulation {
         }
     }
 
-    pub(super) fn transfer_treaty_map(&mut self, giver: usize, receiver: usize, map: TreatyMap) {
+    pub(in crate::sim) fn transfer_treaty_map(
+        &mut self,
+        giver: usize,
+        receiver: usize,
+        map: TreatyMap,
+    ) {
         let recipients = self.vision_recipients(receiver);
+        for &recipient in &recipients {
+            self.transfer_render_map(giver, recipient, map);
+        }
         for index in 0..self.tiles.len() {
             let tile = &self.tiles[index];
             if !tile.known_by[giver] {

@@ -74,3 +74,6 @@ The project is hosted at [michaelchu/CivCraft](https://github.com/michaelchu/Civ
 ## Focus of this build
 
 The implementation focuses on local single-player gameplay with the bundled Civ2Civ3 rules. It includes governments, diplomacy and espionage, naval and air warfare, wonders, and spaceship progression. Exact Freeciv equivalence is still under development; see [MECHANICS.md](MECHANICS.md) for reference comparisons and remaining AI differences. Network multiplayer, arbitrary Lua rulesets, scenarios, and the map editor remain outside this build's scope. The source tree contains several different desktop clients, so this build uses the normal Amplio2 isometric art with a compact SDL-style game layout rather than copying one operating-system window exactly.
+
+Map-rendering reference comparisons, remembered-map save compatibility, terrain
+artwork and go-to previews are documented in [RENDERING_PARITY.md](RENDERING_PARITY.md).

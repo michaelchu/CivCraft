@@ -36,11 +36,15 @@ mod movement;
 mod presentation;
 pub(crate) use presentation::VisualEvent;
 mod normal_paths;
+mod observed_map;
+pub(crate) use observed_map::ObservedCity;
 mod output_effects;
 mod partisans;
 mod pf_actions;
 mod pillage;
 mod pollution;
+mod route_preview;
+pub(crate) use route_preview::{GotoPoint, GotoPreview};
 mod random;
 pub(crate) use random::FreecivRng;
 mod save;
@@ -158,6 +162,8 @@ pub(crate) struct Simulation {
     trade_routes: Vec<(u32, u32)>,
     #[serde(skip)]
     route_memory: Vec<Option<movement::RouteTile>>,
+    #[serde(skip)]
+    observed_map: observed_map::ObservedMap,
     #[serde(skip)]
     ai_map_memory: AiMapMemory,
     #[serde(skip)]
@@ -413,6 +419,7 @@ impl Simulation {
             climate_current: [0; 2],
             trade_routes: Vec::new(),
             route_memory: vec![None; (MAP_W * MAP_H) as usize],
+            observed_map: Default::default(),
             ai_map_memory: Default::default(),
             ai_purchase_reserve: Default::default(),
             agent_city_targets: Default::default(),
@@ -585,6 +592,7 @@ impl Simulation {
             }
         }
         let mut observations = vec![None; self.tiles.len()];
+        let mut render_seen = vec![vec![false; self.tiles.len()]; self.players.len()];
         for (owner, x, y, radius_sq, stealth_sq) in revealers {
             let radius = (radius_sq as f32).sqrt().ceil() as i32;
             for dy in -radius..=radius {
@@ -596,6 +604,7 @@ impl Simulation {
                         if owner != BARBARIANS {
                             for &target in &recipients[owner] {
                                 self.tiles[idx].known_by[target] = true;
+                                render_seen[target][idx] = true;
                                 if target != HUMAN && target != BARBARIANS {
                                     let observation = *observations[idx]
                                         .get_or_insert_with(|| self.live_map_observation(idx));
@@ -629,6 +638,8 @@ impl Simulation {
         self.remember_visible_borders();
         self.remember_route_tiles(false);
         self.remember_visible_rivals();
+        self.remember_render_map(&render_seen);
+        self.share_render_memory();
     }
 
     pub(crate) fn map_distance(&self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {

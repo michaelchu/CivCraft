@@ -190,7 +190,7 @@ impl Game {
         let scale = rect.h / MAP_H as f32;
         for y in 0..MAP_H {
             for x in 0..MAP_W {
-                let tile = self.sim.tile(x, y);
+                let tile = self.sim.render_tile(x, y);
                 let color = if !tile.seen {
                     Color::from_rgba(7, 13, 17, 255)
                 } else if tile.visible {
@@ -206,32 +206,32 @@ impl Game {
                 }
             }
         }
-        let reveal_cities = self.sim.reveals_cities(HUMAN);
         let city_overrides = self.playback.city_overrides();
-        for city in self
-            .sim
-            .cities()
+        let observed = self.sim.render_cities();
+        let overrides: Vec<_> = city_overrides
+            .values()
+            .map(|c| self.sim.observed_city(c))
+            .collect();
+        for city in observed
             .iter()
-            .filter(|city| !city_overrides.contains_key(&city.id))
-            .chain(city_overrides.values())
+            .filter(|c| !city_overrides.contains_key(&c.city.id))
+            .chain(overrides.iter())
+            .map(|c| &c.city)
         {
-            let tile = self.sim.tile(city.x, city.y);
-            if tile.visible || (reveal_cities && tile.seen) {
-                let origin = Self::minimap_tile_origin(rect, city.x, city.y);
-                let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);
-                let color = player_color(city.owner);
-                if let Some(part) = marker.intersect(rect) {
-                    draw_rectangle(part.x, part.y, part.w, part.h, color);
-                }
-                if marker.right() > rect.right() {
-                    draw_rectangle(
-                        rect.x,
-                        marker.y,
-                        marker.right() - rect.right(),
-                        marker.h,
-                        color,
-                    );
-                }
+            let origin = Self::minimap_tile_origin(rect, city.x, city.y);
+            let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);
+            let color = player_color(city.owner);
+            if let Some(part) = marker.intersect(rect) {
+                draw_rectangle(part.x, part.y, part.w, part.h, color);
+            }
+            if marker.right() > rect.right() {
+                draw_rectangle(
+                    rect.x,
+                    marker.y,
+                    marker.right() - rect.right(),
+                    marker.h,
+                    color,
+                );
             }
         }
 

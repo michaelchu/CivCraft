@@ -2,19 +2,22 @@ use super::*;
 
 impl Game {
     fn ocean_match_type(&self, x: i32, y: i32) -> u8 {
-        match self.sim.tile(x, y).terrain {
+        match self.sim.render_tile(x, y).terrain {
             Terrain::DeepOcean => 0,
-            Terrain::Ocean | Terrain::Lake => 1,
+            Terrain::Ocean | Terrain::Lake | Terrain::Glacier => 1,
             _ => 2,
         }
     }
 
     fn ocean_neighbor_match(&self, x: i32, y: i32, dx: i32, dy: i32, current: u8) -> u8 {
-        let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
-        if self.sim.tile(neighbor_x, neighbor_y).seen {
+        let (mx, my) = native_to_map(x, y);
+        let (neighbor_x, neighbor_y) = map_to_native(mx + dx, my + dy);
+        if !(0..MAP_H).contains(&neighbor_y) {
+            return current;
+        }
+        if self.sim.render_tile(neighbor_x, neighbor_y).seen {
             self.ocean_match_type(neighbor_x, neighbor_y)
         } else {
-            // Do not reveal a coastline through unexplored terrain.
             current
         }
     }
@@ -72,9 +75,13 @@ impl Game {
         tile_w: f32,
         tile_h: f32,
     ) {
-        let terrain = self.sim.tile(x, y).terrain;
+        let terrain = self.sim.render_tile(x, y).terrain;
         let tint = WHITE;
 
+        if terrain == Terrain::Lake {
+            self.draw_lake_sprite(assets, x, y, center, tile_w, tile_h);
+            return;
+        }
         if terrain.is_water() {
             self.draw_ocean_sprite(assets, x, y, center, tile_w, tile_h, tint);
             return;
@@ -92,66 +99,6 @@ impl Game {
                 ..Default::default()
             },
         );
-    }
-
-    fn draw_terrain_overlay(
-        &self,
-        assets: &Assets,
-        terrain: Terrain,
-        center: Vec2,
-        tile_w: f32,
-        tile_h: f32,
-    ) {
-        let tint = WHITE;
-        match terrain {
-            Terrain::Forest | Terrain::Jungle => {
-                draw_texture_ex(
-                    &assets.terrain2,
-                    center.x - tile_w * 0.5,
-                    center.y - tile_h * 0.5,
-                    tint,
-                    DrawTextureParams {
-                        dest_size: Some(vec2(tile_w, tile_h)),
-                        source: Some(bordered_sprite_source(
-                            if terrain == Terrain::Jungle { 2 } else { 4 },
-                            0,
-                            96.0,
-                            48.0,
-                        )),
-                        ..Default::default()
-                    },
-                );
-            }
-            Terrain::Hills => {
-                draw_texture_ex(
-                    &assets.hills,
-                    center.x - tile_w * 0.5,
-                    center.y - tile_h * 0.5,
-                    tint,
-                    DrawTextureParams {
-                        dest_size: Some(vec2(tile_w, tile_h)),
-                        source: Some(bordered_sprite_source(0, 0, 96.0, 48.0)),
-                        ..Default::default()
-                    },
-                );
-            }
-            Terrain::Mountains => {
-                let zoom = tile_w / TILE_W;
-                let mountain_h = 66.0 * zoom;
-                draw_texture_ex(
-                    &assets.mountains,
-                    center.x - tile_w * 0.5,
-                    center.y + tile_h * 0.5 - mountain_h + 6.0 * zoom,
-                    tint,
-                    DrawTextureParams {
-                        dest_size: Some(vec2(tile_w, mountain_h)),
-                        source: Some(bordered_sprite_source(0, 0, 96.0, 66.0)),
-                        ..Default::default()
-                    },
-                );
-            }
-            _ => {}
-        }
     }
 
     fn draw_terrain_extra(
@@ -191,15 +138,21 @@ impl Game {
     }
 
     fn draw_river(&self, assets: &Assets, x: i32, y: i32, center: Vec2, tile_w: f32, tile_h: f32) {
-        let tile = self.sim.tile(x, y);
+        let tile = self.sim.render_tile(x, y);
         let water = tile.terrain.is_water();
         if !water && !tile.river {
             return;
         }
 
         let neighbors = ISOHEX_DIRS.map(|(dx, dy)| {
-            let (nx, ny) = offset_native_by_map(x, y, dx, dy);
-            let tile = self.sim.tile(nx, ny);
+            let Some((nx, ny)) = render_neighbor(x, y, dx, dy) else {
+                return super::rivers::RiverNeighbor {
+                    known: false,
+                    river: false,
+                    water: false,
+                };
+            };
+            let tile = self.sim.render_tile(nx, ny);
             super::rivers::RiverNeighbor {
                 known: tile.seen,
                 river: tile.river,
@@ -239,32 +192,18 @@ impl Game {
         center: Vec2,
         tile_w: f32,
         tile_h: f32,
+        has_city: bool,
     ) {
-        let mut connected = false;
-        let railroad = self.sim.tile(x, y).railroad;
-        for ((dx, dy), source_col) in [
-            ((0, -1), 1),
-            ((1, 0), 3),
-            ((1, 1), 4),
-            ((0, 1), 5),
-            ((-1, 0), 7),
-            ((-1, -1), 8),
-        ] {
-            let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
-            let neighbor = self.sim.tile(neighbor_x, neighbor_y);
-            if neighbor.seen && neighbor.road {
-                let row = if railroad && neighbor.railroad {
-                    13
-                } else {
-                    12
-                };
-                self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, source_col);
-                connected = true;
-            }
-        }
-        if !connected {
-            let row = if railroad { 13 } else { 12 };
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, 0);
+        let neighbors = ISOHEX_DIRS.map(|(dx, dy)| {
+            render_neighbor(x, y, dx, dy).map_or((false, false), |(nx, ny)| {
+                let tile = self.sim.render_tile(nx, ny);
+                (tile.seen && tile.road, tile.seen && tile.railroad)
+            })
+        });
+        for (row, col) in
+            road_sprite_cells(self.sim.render_tile(x, y).railroad, has_city, neighbors)
+        {
+            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, col);
         }
     }
 
@@ -297,8 +236,9 @@ impl Game {
 
         let mut geometry = self.border_geometry.borrow_mut();
         for (edge, (dx, dy)) in edge_neighbors.into_iter().enumerate() {
-            let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
-            if self.playback.tile_owner(&self.sim, neighbor_x, neighbor_y) == Some(owner) {
+            if render_neighbor(x, y, dx, dy)
+                .is_some_and(|(nx, ny)| self.playback.tile_owner(&self.sim, nx, ny) == Some(owner))
+            {
                 continue;
             }
             geometry.draw(&points, edge, width, color, shadow, thread);
@@ -322,14 +262,19 @@ impl Game {
         let order = visible_world_tiles(viewport, self.camera_overview_position(), self.zoom);
         let mut cities = std::collections::HashMap::new();
         let city_overrides = self.playback.city_overrides();
-        for city in self
-            .sim
-            .cities()
+        let observed_cities = self.sim.render_cities();
+        let overridden_cities: Vec<_> = city_overrides
+            .values()
+            .map(|city| self.sim.observed_city(city))
+            .collect();
+        for observed in observed_cities
             .iter()
-            .filter(|c| !city_overrides.contains_key(&c.id))
-            .chain(city_overrides.values())
+            .filter(|c| !city_overrides.contains_key(&c.city.id))
+            .chain(overridden_cities.iter())
         {
-            cities.entry((city.x, city.y)).or_insert(city);
+            cities
+                .entry((observed.city.x, observed.city.y))
+                .or_insert(observed);
         }
         let mut stacks: std::collections::HashMap<(i32, i32), (&Unit, usize)> =
             std::collections::HashMap::new();
@@ -361,7 +306,7 @@ impl Game {
         // layer so later diamond bases cannot cut horizontal bands through
         // forests, hills, and mountains.
         for &(x, y, center) in &order {
-            let tile = self.sim.tile(x, y);
+            let tile = self.sim.render_tile(x, y);
             if !tile.seen {
                 draw_diamond(center, tile_w, tile_h, BLACK);
                 continue;
@@ -371,18 +316,28 @@ impl Game {
             self.draw_terrain_sprite(assets, x, y, center, tile_w, tile_h);
         }
 
-        let reveal_cities = self.sim.reveals_cities(HUMAN);
-        for &(x, y, center) in &order {
-            let tile = self.sim.tile(x, y);
-            if !tile.seen {
-                continue;
-            }
-
-            self.draw_tile_details(assets, x, y, center, tile_w, tile_h);
-            if (tile.visible || reveal_cities)
-                && let Some(city) = cities.get(&(x, y)).copied()
-            {
-                self.draw_city(assets, city, center);
+        for layer in map_layers::MAP_LAYERS {
+            for &(x, y, center) in &order {
+                if !self.sim.render_tile(x, y).seen {
+                    continue;
+                }
+                let city = cities.get(&(x, y)).copied();
+                if layer == map_layers::MapLayer::City {
+                    if let Some(city) = city {
+                        self.draw_observed_city(assets, city, center, self.zoom);
+                    }
+                } else {
+                    self.draw_map_layer(
+                        assets,
+                        layer,
+                        x,
+                        y,
+                        center,
+                        tile_w,
+                        tile_h,
+                        city.is_some(),
+                    );
+                }
             }
         }
         // Reference Fog layer: blend corners after terrain/cities and before
@@ -416,7 +371,7 @@ impl Game {
             }
         }
         for &(x, y, center) in &order {
-            let tile = self.sim.tile(x, y);
+            let tile = self.sim.render_tile(x, y);
             if !tile.visible {
                 continue;
             }
@@ -430,25 +385,24 @@ impl Game {
                     self.draw_unit(assets, unit, center, count);
                 }
             }
-            if let Some(Base::Fort | Base::Fortress) = tile.base {
-                let row = i32::from(tile.base == Some(Base::Fort));
-                self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
-            }
+        }
+        // Special3 is a complete foreground pass after ordinary units.
+        for &(x, y, center) in &order {
+            self.draw_visible_base_foreground(assets, x, y, center, tile_w, tile_h);
         }
         // Freeciv draws city descriptions in a separate CITYBAR layer.
         // Keep text above units and foreground terrain.
         for &(x, y, center) in &order {
-            let tile = self.sim.tile(x, y);
+            let tile = self.sim.render_tile(x, y);
             if tile.seen
-                && (tile.visible || reveal_cities)
                 && let Some(city) = cities.get(&(x, y)).copied()
             {
-                self.draw_city_label(city, center);
+                self.draw_city_label(&city.city, center);
             }
         }
         // Freeciv's FocusUnit layer follows city bars and other map objects.
         for &(x, y, center) in &order {
-            if self.sim.tile(x, y).visible
+            if self.sim.render_tile(x, y).visible
                 && let Some(&(unit, count)) = stacks.get(&(x, y))
                 && Some(unit.id) == self.selected_unit
                 && !self.playback.is_active(unit.id)
@@ -457,63 +411,105 @@ impl Game {
             }
         }
         self.draw_playback(assets);
+        self.draw_goto_preview(assets);
     }
 
-    /// Shared terrain/improvement pass for both the world and city map views.
-    fn draw_tile_details(
+    fn draw_visible_base_foreground(
         &self,
         assets: &Assets,
         x: i32,
         y: i32,
         center: Vec2,
+        w: f32,
+        h: f32,
+    ) {
+        let tile = self.sim.render_tile(x, y);
+        if tile.visible
+            && let Some(Base::Fort | Base::Fortress) = tile.base
+        {
+            let row = i32::from(tile.base == Some(Base::Fort));
+            self.draw_base_sprite(assets, center, w, h, row, 3);
+        }
+    }
+
+    /// The same ordered passes drive world rendering and the city work map.
+    fn draw_map_layer(
+        &self,
+        assets: &Assets,
+        layer: map_layers::MapLayer,
+        x: i32,
+        y: i32,
+        center: Vec2,
         tile_w: f32,
         tile_h: f32,
+        has_city: bool,
     ) {
-        let tile = self.sim.tile(x, y);
-        self.draw_terrain_overlay(assets, tile.terrain, center, tile_w, tile_h);
-
-        if let Some(owner) = self.playback.tile_owner(&self.sim, x, y) {
-            self.draw_territory_border(x, y, owner, center, tile_w, tile_h);
-        }
-        if tile.road {
-            self.draw_road_sprites(assets, x, y, center, tile_w, tile_h);
-        }
-        if tile.farmland {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 2, 6);
-        } else if tile.irrigation {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 1, 6);
-        }
-        if tile.oil_platform {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 7, 6);
-        } else if tile.oil_well {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 0, 6);
-        } else if tile.mine {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 3, 6);
-        }
-        self.draw_river(assets, x, y, center, tile_w, tile_h);
-        if tile.hut {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 5, 6);
-        }
-        if let Some(resource) = tile.active_resource() {
-            let (row, col) = resource.sprite(tile.terrain);
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, col);
-        }
-        if tile.pollution {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 4, 6);
-        }
-        if tile.fallout {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 6, 6);
-        }
-        if let Some(base) = tile.base {
-            let (row, col) = match base {
-                Base::Fort => (1, 4),
-                Base::Fortress => (0, 4),
-                Base::Airstrip => (1, 0),
-                Base::Airbase => (0, 0),
-            };
-            self.draw_base_sprite(assets, center, tile_w, tile_h, row, col);
-            if !tile.visible && col == 4 {
-                self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
+        use map_layers::MapLayer;
+        let tile = self.sim.render_tile(x, y);
+        match layer {
+            MapLayer::Blend => self.draw_terrain_blending(assets, x, y, center, tile_w, tile_h),
+            MapLayer::Terrain => {
+                self.draw_matched_terrain_overlay(assets, x, y, center, tile_w, tile_h)
+            }
+            MapLayer::Water => {
+                // Native fill_irrigation_sprite_array suppresses fields under cities.
+                if !has_city {
+                    if tile.farmland {
+                        self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 2, 6);
+                    } else if tile.irrigation {
+                        self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 1, 6);
+                    }
+                }
+                self.draw_river(assets, x, y, center, tile_w, tile_h);
+            }
+            MapLayer::Roads => {
+                if tile.road {
+                    self.draw_road_sprites(assets, x, y, center, tile_w, tile_h, has_city);
+                }
+            }
+            MapLayer::Special1 => {
+                if let Some(Base::Fort | Base::Fortress) = tile.base {
+                    let row = i32::from(tile.base == Some(Base::Fort));
+                    self.draw_base_sprite(assets, center, tile_w, tile_h, row, 4);
+                }
+                if tile.oil_platform {
+                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 7, 6);
+                } else if tile.oil_well {
+                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 0, 6);
+                } else if tile.mine {
+                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 3, 6);
+                }
+                if tile.hut {
+                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 5, 6);
+                }
+                if let Some(resource) = tile.active_resource() {
+                    let (row, col) = resource.sprite(tile.terrain);
+                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, col);
+                }
+            }
+            MapLayer::Grid => {
+                if let Some(owner) = self.playback.tile_owner(&self.sim, x, y) {
+                    self.draw_territory_border(x, y, owner, center, tile_w, tile_h);
+                }
+            }
+            MapLayer::City => {}
+            MapLayer::Special2 => {
+                if let Some(Base::Airstrip | Base::Airbase) = tile.base {
+                    let row = i32::from(tile.base == Some(Base::Airstrip));
+                    self.draw_base_sprite(assets, center, tile_w, tile_h, row, 0);
+                }
+                if tile.pollution {
+                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 4, 6);
+                }
+                if tile.fallout {
+                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 6, 6);
+                }
+                if !tile.visible
+                    && let Some(Base::Fort | Base::Fortress) = tile.base
+                {
+                    let row = i32::from(tile.base == Some(Base::Fort));
+                    self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
+                }
             }
         }
     }
@@ -568,10 +564,10 @@ impl Game {
         }
         tiles.sort_by(|a, b| a.4.y.total_cmp(&b.4.y));
         for &(_, _, x, y, center, relevant) in &tiles {
-            if !relevant || !self.sim.tile(x, y).seen {
+            if !relevant || !self.sim.render_tile(x, y).seen {
                 draw_diamond(center, layout.tile_w, layout.tile_h, BLACK);
             } else {
-                let tile = self.sim.tile(x, y);
+                let tile = self.sim.render_tile(x, y);
                 draw_diamond(
                     center,
                     layout.tile_w,
@@ -581,11 +577,27 @@ impl Game {
                 self.draw_terrain_sprite(assets, x, y, center, layout.tile_w, layout.tile_h);
             }
         }
-        for &(_, _, x, y, center, relevant) in &tiles {
-            if relevant && self.sim.tile(x, y).seen {
-                self.draw_tile_details(assets, x, y, center, layout.tile_w, layout.tile_h);
-                if (x, y) == (city.x, city.y) {
-                    self.draw_city_at_scale(assets, city, center, layout.tile_w / TILE_W);
+        for layer in map_layers::MAP_LAYERS {
+            for &(_, _, x, y, center, relevant) in &tiles {
+                if !relevant || !self.sim.render_tile(x, y).seen {
+                    continue;
+                }
+                let is_city = (x, y) == (city.x, city.y);
+                if layer == map_layers::MapLayer::City {
+                    if is_city {
+                        self.draw_city_at_scale(assets, city, center, layout.tile_w / TILE_W);
+                    }
+                } else {
+                    self.draw_map_layer(
+                        assets,
+                        layer,
+                        x,
+                        y,
+                        center,
+                        layout.tile_w,
+                        layout.tile_h,
+                        is_city,
+                    );
                 }
             }
         }
@@ -600,22 +612,36 @@ impl Game {
                 }
             });
         }
+        for &(_, _, x, y, center, relevant) in &tiles {
+            if relevant {
+                self.draw_visible_base_foreground(
+                    assets,
+                    x,
+                    y,
+                    center,
+                    layout.tile_w,
+                    layout.tile_h,
+                );
+            }
+        }
         unsafe {
             get_internal_gl().quad_gl.scissor(None);
         }
     }
 
-    fn draw_city(&self, assets: &Assets, city: &City, center: Vec2) {
-        self.draw_city_at_scale(assets, city, center, self.zoom);
+    fn draw_city_at_scale(&self, assets: &Assets, city: &City, center: Vec2, zoom: f32) {
+        let observed = self.sim.observed_city(city);
+        self.draw_observed_city(assets, &observed, center, zoom);
     }
 
-    fn draw_city_at_scale(&self, assets: &Assets, city: &City, center: Vec2, zoom: f32) {
-        let (row, col) = crate::rules::city_art::city_art_cell(
-            crate::rules::city_art::initial_style(city.owner),
-            city.size,
-            |tech| self.sim.has_tech(city.owner, tech),
-            |building| city.buildings.contains(&building),
-        );
+    fn draw_observed_city(
+        &self,
+        assets: &Assets,
+        observed: &ObservedCity,
+        center: Vec2,
+        zoom: f32,
+    ) {
+        let (row, col) = observed.art_cell;
         let city_w = 69.0 * zoom;
         let city_h = 52.0 * zoom;
         draw_texture_ex(
@@ -634,18 +660,10 @@ impl Game {
                 ..Default::default()
             },
         );
-        // Occupancy is public when observed, but hidden units elsewhere must
-        // not leak through unexplored/remembered tiles.
-        if self.sim.tile(city.x, city.y).visible
-            && self
-                .sim
-                .units()
-                .iter()
-                .any(|u| (u.x, u.y) == (city.x, city.y))
-        {
+        if observed.occupied {
             self.draw_city_overlay(assets, center, zoom, 2);
         }
-        if self.sim.tile(city.x, city.y).visible && self.sim.city_forecast(city).disorder {
+        if observed.disorder {
             self.draw_city_overlay(assets, center, zoom, 5);
         }
     }
@@ -779,6 +797,60 @@ impl Game {
                 WHITE,
             );
         }
+    }
+}
+
+/// Rendering has horizontal seams and bounded polar rows.
+fn render_neighbor(x: i32, y: i32, dx: i32, dy: i32) -> Option<(i32, i32)> {
+    let (mx, my) = native_to_map(x, y);
+    let (nx, ny) = map_to_native(mx + dx, my + dy);
+    (0..MAP_H)
+        .contains(&ny)
+        .then_some((nx.rem_euclid(MAP_W), ny))
+}
+
+fn road_sprite_cells(rail: bool, city: bool, neighbors: [(bool, bool); 6]) -> Vec<(i32, i32)> {
+    let cols = [1, 3, 4, 5, 7, 8];
+    let mut cells = Vec::with_capacity(7);
+    // Native roads are complete before rails; raw road must not cover rail centers.
+    for (index, &(road, other_rail)) in neighbors.iter().enumerate() {
+        if road && !(rail && other_rail) {
+            cells.push((12, cols[index]));
+        }
+    }
+    if rail {
+        for (index, &(_, other_rail)) in neighbors.iter().enumerate() {
+            if other_rail {
+                cells.push((13, cols[index]));
+            }
+        }
+        if !city && !neighbors.iter().any(|n| n.1) {
+            cells.push((13, 0));
+        }
+    } else if !city && !neighbors.iter().any(|n| n.0) {
+        cells.push((12, 0));
+    }
+    cells
+}
+
+#[cfg(test)]
+mod infrastructure_tests {
+    use super::*;
+    #[test]
+    fn map_connections_stop_at_poles_and_still_wrap_horizontally() {
+        assert_eq!(render_neighbor(0, 0, 0, -1), None);
+        assert_eq!(render_neighbor(0, MAP_H - 1, 1, 0), None);
+        assert_eq!(render_neighbor(0, 0, -1, 1), Some((MAP_W - 1, 0)));
+    }
+    #[test]
+    fn mixed_rail_junction_finishes_roads_before_rails_and_keeps_isolated_rail() {
+        let mut near = [(false, false); 6];
+        near[0] = (true, true);
+        near[1] = (true, false);
+        assert_eq!(road_sprite_cells(true, false, near), [(12, 3), (13, 1)]);
+        near[0] = (false, false);
+        assert_eq!(road_sprite_cells(true, false, near), [(12, 3), (13, 0)]);
+        assert!(road_sprite_cells(false, true, [(false, false); 6]).is_empty());
     }
 }
 

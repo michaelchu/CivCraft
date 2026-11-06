@@ -583,7 +583,7 @@ impl Game {
         self.camera = vec2(map_x, y + MAP_W as f32 - map_x);
     }
 
-    fn screen_to_world(&self, point: Vec2) -> Option<(i32, i32)> {
+    pub(super) fn screen_to_world(&self, point: Vec2) -> Option<(i32, i32)> {
         let viewport = Self::viewport_rect();
         let sx = point.x - (viewport.x + viewport.w * 0.5);
         let sy = point.y - (viewport.y + viewport.h * 0.47);

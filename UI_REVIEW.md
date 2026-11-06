@@ -32,7 +32,7 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery covers 29 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 33 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 For a quick on-demand check, select a scene by name:
 
@@ -41,7 +41,7 @@ For a quick on-demand check, select a scene by name:
 ./target/release/civcraft --seed 1337 --ui-review /tmp/civcraft-campaign --ui-scene campaign-after-turn
 ```
 
-Every scene produces its primary screenshot. A `-next.png` is saved only after a control changes the page or campaign state; the runner verifies that the captured pixels changed too. Managed screenshots from an earlier run are cleared before capture, so old pages cannot masquerade as new results. Autosaves are disabled and the gallery parks its virtual cursor outside the UI to keep captures independent of the OS pointer. Normal interactive play keeps its actual mouse hover behavior.
+Every scene produces its primary screenshot. A `-next.png` is saved only after a control changes the page or campaign state; the runner verifies that the captured pixels changed too. Managed screenshots from an earlier run are cleared before capture, so old pages cannot masquerade as new results. Autosaves are disabled and, except for the go-to hover scenario, the gallery parks its virtual cursor outside the UI to keep captures independent of the OS pointer. Normal interactive play keeps its actual mouse hover behavior.
 
 `report.json` lists screenshots, assertions, CPU draw-submission timings, setup/capture timings and border-cache statistics. Failed checks, missing controls, out-of-window hitboxes, unchanged next-page captures and report-write failures return a nonzero exit status. `--ui-review` runs separately from `--self-test` and `--screenshot` to keep their state mutations independent. Missing automation-flag arguments fail rather than starting interactive play.
 
@@ -57,10 +57,10 @@ cargo test --offline
 - Generate the campaign once, build the staged fixture once, and clone immutable baselines for independent scenarios. Clone tests verify normal command results and the RNG stream after advancing a turn.
 - Reuse the immutable technology layout across games. The current technology catalog is fixed; player research state and highlighting stay live.
 - Cull world rows before collecting tiles and reuse each visible projection for both terrain passes. Native row order preserves the original painter order, including horizontal wrapping and polar clipping. Cities and unit stacks are indexed once per frame, with the existing selection priority preserved.
-- Cache border geometry by exact screen vertices and width. The cache is bounded to 4,096 entries; camera/zoom/resize changes use different keys. Ownership, visibility, colors, terrain and worker assignments are read live so rendering cannot retain an old simulation state.
+- Cache border geometry by exact screen vertices and width. The cache is bounded to 4,096 entries; camera/zoom/resize changes use different keys. Ownership, visibility and colors remain current; terrain and city artwork deliberately retain their last observation outside sight.
 - Keep the production renderer and simulation commands in the test path. Gallery fixtures complement the desktop gameplay suite; scripted control clicks do not inject OS keyboard/mouse events.
 
-For the original 15 scenarios at 1280x720, two local profiling runs reduced setup from about 31–32 ms to 2.2–2.4 ms and captures from 30 to 18. The comparison run spent about 662 ms capturing/encoding PNGs before and 482 ms afterward, including the new pixel fingerprints. The optimization pass added three campaign flows, bringing that gallery to 23 captures at this size; the subsequent river, garrison and map-presentation cases bring the current gallery to 38. CPU draw submission averaged about 0.57 ms in both versions; these small scenes do not demonstrate a substantial FPS gain. Timings measure CPU submission, not GPU frame time.
+For the original 15 scenarios at 1280x720, two local profiling runs reduced setup from about 31–32 ms to 2.2–2.4 ms and captures from 30 to 18. The comparison run spent about 662 ms capturing/encoding PNGs before and 482 ms afterward, including the new pixel fingerprints. The optimization pass added three campaign flows, bringing that gallery to 23 captures at this size; the subsequent river, garrison and map-presentation cases bring the gallery at that point to 38. CPU draw submission averaged about 0.57 ms in both versions; these small scenes do not demonstrate a substantial FPS gain. Timings measure CPU submission, not GPU frame time.
 
 ## Validation on 2026-11-05
 
@@ -143,3 +143,13 @@ Tests verify all 81 state-to-cell mappings, atlas alpha, horizontal wrapping
 and non-wrapping polar samples. The all-visible cell is intentionally unused,
 as in the reference's sprite spec. Runtime cells have one-pixel gutters,
 so fractional zoom cannot sample adjacent sprites or the unused credits cell.
+
+### Rendering gap scenarios
+
+`terrain-blending` shows mixed connected forest/jungle and hill/mountain ranges,
+land dither transitions and ice cliffs. `map-layers` shows a river/road crossing
+and pollution over a city, then opens its city work map. `remembered-map` freezes
+a foreign city's former name, walls, style and terrain until vision returns.
+`goto-preview` positions the shared test pointer over a multi-turn destination
+and then executes the real GoTo command. See [RENDERING_PARITY.md](RENDERING_PARITY.md)
+for reference sources, save migration and fidelity boundaries.

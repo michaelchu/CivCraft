@@ -771,8 +771,15 @@ impl Simulation {
             tile.terrain = Terrain::Grassland;
             tile.road = false;
             tile.railroad = false;
+            // The scenario measures a road detour. Generated rivers or
+            // hostile infrastructure ownership would change its real cost.
+            tile.river = false;
+            tile.base = None;
+            tile.owner = None;
+            tile.last_seen_owner = None;
             tile.visible = true;
             tile.seen = true;
+            tile.known_by[HUMAN] = true;
         }
         let start = (10, 24);
         let point = |dx, dy| offset_native_by_map(start.0, start.1, dx, dy);
@@ -784,6 +791,7 @@ impl Simulation {
         self.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
         let warrior = self.units.last().unwrap().clone();
         self.remember_route_tiles(false);
+        self.remember_render_map(&[vec![true; self.tiles.len()]]);
         let route = self.plan_route(&warrior, goal.0, goal.1, true);
         let bridge = point(1, -1);
         let tile = self.tile_mut(bridge.0, bridge.1);

@@ -3,10 +3,10 @@ use std::{cmp::Reverse, collections::BinaryHeap};
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(super) struct RouteTile {
-    terrain: Terrain,
-    road: bool,
-    railroad: bool,
-    river: bool,
+    pub(super) terrain: Terrain,
+    pub(super) road: bool,
+    pub(super) railroad: bool,
+    pub(super) river: bool,
     pub(super) city_owner: Option<usize>,
 }
 
@@ -284,7 +284,7 @@ impl Simulation {
         }
     }
 
-    fn observed_route_tile(&self, x: i32, y: i32) -> Option<RouteTile> {
+    pub(super) fn observed_route_tile(&self, x: i32, y: i32) -> Option<RouteTile> {
         let tile = self.tile(x, y);
         if tile.visible {
             Some(self.live_route_tile(x, y))
@@ -295,7 +295,7 @@ impl Simulation {
         }
     }
 
-    fn observed_move_cost(
+    pub(super) fn observed_move_cost(
         &self,
         unit: &Unit,
         x: i32,
@@ -331,20 +331,58 @@ impl Simulation {
                     .any(|(nx, ny)| self.observed_route_tile(nx, ny).is_none_or(native));
             return (native(dest) || port).then_some(MOVE_FRAGMENTS);
         }
-        Self::land_step_cost(kind, source, dest)
-    }
-
-    fn land_step_cost(kind: UnitKind, source: Option<RouteTile>, dest: RouteTile) -> Option<i32> {
-        if dest.terrain.is_water() {
-            None
-        } else if dest.railroad && source.is_some_and(|tile| tile.railroad) {
-            Some(1)
-        } else if dest.road && source.is_some_and(|tile| tile.road) || kind.stats().ignores_terrain
-        {
-            Some(2)
-        } else {
-            Some(dest.terrain.movement_cost() * MOVE_FRAGMENTS)
+        // common/map.c::tile_move_cost_ptrs and the same class-native rules
+        // used by raw_move_cost_for, evaluated on the player's observations.
+        // RouteTile keeps its historical save layout; base/owner come from
+        // the separately persisted observed map rather than live fogged data.
+        let native = |tile: RouteTile, x, y| {
+            !tile.terrain.is_water()
+                && (!kind.is_big_land()
+                    || !matches!(
+                        tile.terrain,
+                        Terrain::Jungle | Terrain::Mountains | Terrain::Swamp
+                    )
+                    || tile.road
+                    || tile.railroad
+                    || matches!(
+                        self.render_tile(x, y).base,
+                        Some(Base::Fort | Base::Fortress)
+                    ))
+        };
+        let native_dest = native(dest, x, y);
+        let city_access = dest.city_owner.is_some_and(|owner| {
+            self.allied(owner, unit.owner)
+                || self.at_war(owner, unit.owner) && kind.can_occupy_city()
+        });
+        if !native_dest && !city_access {
+            return None;
         }
+        if !kind.unit_class().terrain_speed() {
+            return Some(MOVE_FRAGMENTS);
+        }
+        let ignores = kind.stats().ignores_terrain;
+        if !native_dest || source.is_some_and(|tile| !native(tile, unit.x, unit.y)) {
+            return Some(if ignores { 2 } else { MOVE_FRAGMENTS });
+        }
+        let restricted = [(unit.x, unit.y), (x, y)].into_iter().any(|(x, y)| {
+            self.observed_route_tile(x, y).is_some()
+                && self
+                    .render_tile(x, y)
+                    .owner
+                    .is_some_and(|owner| self.at_war(unit.owner, owner))
+        });
+        let mut cost = dest.terrain.movement_cost() * MOVE_FRAGMENTS;
+        if !restricted {
+            if dest.railroad && source.is_some_and(|tile| tile.railroad) {
+                cost = cost.min(1);
+            }
+            if dest.road && source.is_some_and(|tile| tile.road)
+                || dest.river && !kind.is_big_land() && source.is_some_and(|tile| tile.river)
+            {
+                cost = cost.min(2);
+            }
+        }
+        Some(if ignores { cost.min(2) } else { cost })
     }
 
     pub(super) fn movement_cost_for(&self, unit: &Unit, nx: i32, ny: i32) -> Option<i32> {
@@ -1293,7 +1331,11 @@ impl Simulation {
                         && (!observed || dest.visible)
                         && dest.terrain.is_water()
                         && self.boarding_target(unit, nx, ny).is_some())
-                    .then_some(MOVE_FRAGMENTS)
+                    .then_some(if unit.kind.stats().ignores_terrain {
+                        2
+                    } else {
+                        MOVE_FRAGMENTS
+                    })
                 });
                 let Some(cost) = cost else {
                     continue;

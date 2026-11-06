@@ -30,6 +30,10 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "city-combat",
     "city-combat-explosion",
     "fog-transitions",
+    "terrain-blending",
+    "map-layers",
+    "remembered-map",
+    "goto-preview",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -58,6 +62,7 @@ impl Game {
             &sources.fixture
         };
         *self = Game::from_simulation(baseline.clone());
+        set_review_pointer(Some(vec2(-1.0, -1.0)));
         self.autosave_enabled = false;
         if matches!(scene, 0 | 15..=17) {
             return;
@@ -115,6 +120,44 @@ impl Game {
                     1.0
                 };
             }
+            29 | 30 => {
+                self.sim.ui_review_terrain_layers(scene == 30);
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.625
+                } else {
+                    1.0
+                };
+            }
+            31 => {
+                let (_, focus) = self.sim.ui_review_observed_map();
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.625
+                } else {
+                    1.0
+                };
+                self.focus_camera_on(focus.0, focus.1);
+                return;
+            }
+            32 => {
+                let (id, target) = self.sim.ui_review_route_setup();
+                self.selected_unit = Some(id);
+                self.goto_mode = true;
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.625
+                } else {
+                    1.0
+                };
+                self.focus_camera_on(20, 24);
+                let point = world::world_screen_position(
+                    Self::viewport_rect(),
+                    self.camera_overview_position(),
+                    self.zoom,
+                    target.0,
+                    target.1,
+                );
+                set_review_pointer(Some(point));
+                return;
+            }
             28 => {
                 let unit = self.sim.ui_review_fog();
                 self.selected_unit = Some(unit);
@@ -168,6 +211,7 @@ impl Game {
             }
             _ => {}
         }
+        self.sim.ui_review_record_knowledge();
         self.focus_camera_on(20, 24);
     }
 }
@@ -212,6 +256,63 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if scene == 29 {
+            if phase == 1 {
+                sequence.check(
+                    "terrain_gallery_runs_shared_renderer",
+                    self.selected_city.is_none(),
+                )?;
+            }
+            return Ok(false);
+        }
+        if scene == 30 {
+            if phase == 6 {
+                self.selected_city = self.sim.cities().first().map(|c| c.id);
+                self.city_tiles = true;
+                sequence.check(
+                    "layer_order_shared_with_city_map",
+                    self.selected_city.is_some(),
+                )?;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
+        if scene == 31 {
+            if phase == 1 {
+                sequence.check(
+                    "hidden_changes_keep_last_observed_art",
+                    self.sim.ui_review_observed_map_valid(false),
+                )?;
+            }
+            if phase == 6 {
+                self.sim.ui_review_reobserve_map();
+                sequence.check(
+                    "returning_vision_updates_remembered_art",
+                    self.sim.ui_review_observed_map_valid(true),
+                )?;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
+        if scene == 32 {
+            if phase == 1 {
+                let preview = self.goto_preview();
+                sequence.check("goto_uses_observed_simulation_route", preview.is_some())?;
+            }
+            if phase == 6 {
+                let id = self.selected_unit.unwrap();
+                let target = offset_native_by_map(20, 24, 3, 0);
+                sequence.check(
+                    "goto_preview_executes_real_command",
+                    self.move_selected(Command::GoTo(id, target.0, target.1), id),
+                )?;
+                self.goto_mode = false;
+                self.playback.finish();
+                set_review_pointer(Some(vec2(-1.0, -1.0)));
+                return Ok(true);
+            }
+            return Ok(false);
+        }
         if scene == 28 {
             let visibility = |game: &Game| {
                 (0..MAP_W * MAP_H)

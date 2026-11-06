@@ -37,8 +37,8 @@ completion. Movement defaults to the native client's 30 ms, combat HP steps
 to 10 ms, and casualty explosion frames to 20 ms each.
 
 This work addresses the listed map-presentation issues. It does not reproduce
-all Freeciv dialogs, nation configuration, map-view options or the native
-client's remembered-city/fog database. Gallery fixtures are explicitly staged
+all Freeciv dialogs, nation configuration, map-view options or all native map-view options. Remembered tile/city information was subsequently
+implemented; see [RENDERING_PARITY.md](RENDERING_PARITY.md). Gallery fixtures are explicitly staged
 and never change normal campaign generation or saves.
 
 ## Validation
@@ -56,3 +56,10 @@ captures). Captures were inspected for status-glyph separation, wall/disorder
 art, own/foreign bar contents, label/ring clearance, movement, battle actors,
 pre/post-capture ownership and the casualty explosion. Formatting and diff
 whitespace checks pass.
+
+## Subsequent rendering work
+
+[RENDERING_PARITY.md](RENDERING_PARITY.md) records the separate five-gap audit
+and implementation: observed map/city memory, connected terrain, land blending,
+shared map-wide painter passes and go-to previews. The validation counts above
+refer to the earlier city/unit presentation work.

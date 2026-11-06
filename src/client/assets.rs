@@ -101,6 +101,8 @@ pub(crate) fn window_conf() -> Conf {
 
 pub(crate) struct Assets {
     pub(super) terrain: Texture2D,
+    pub(super) terrain_blends: Texture2D,
+    pub(super) water: Texture2D,
     pub(super) fog: Texture2D,
     pub(super) rivers: Texture2D,
     pub(super) terrain2: Texture2D,
@@ -112,6 +114,7 @@ pub(crate) struct Assets {
     pub(super) cities: Texture2D,
     pub(super) bases: Texture2D,
     pub(super) status: Texture2D,
+    pub(super) goto: Texture2D,
     pub(super) explosions: Texture2D,
     pub(super) veterancy: Texture2D,
     pub(super) activities: Texture2D,
@@ -128,6 +131,14 @@ impl Assets {
         let fog = Texture2D::from_image(&super::fog::build_atlas(&fog_image));
         fog.set_filter(FilterMode::Nearest);
         let terrain = Texture2D::from_image(&terrain_image);
+        let terrain_blends =
+            Texture2D::from_image(&super::terrain::build_blend_atlas(&terrain_image));
+        terrain_blends.set_filter(FilterMode::Nearest);
+        let water = Texture2D::from_file_with_format(
+            include_bytes!("../../assets/amplio2_water.png"),
+            None,
+        );
+        water.set_filter(FilterMode::Nearest);
         let river_image =
             Image::from_file_with_format(include_bytes!("../../assets/hexemplio_rivers.png"), None)
                 .expect("valid Hexemplio river atlas");
@@ -168,10 +179,15 @@ impl Assets {
             None,
         );
         explosions.set_filter(FilterMode::Nearest);
-        let status = Texture2D::from_file_with_format(
-            include_bytes!("../../assets/amplio2_tiles.png"),
-            None,
-        );
+        let status_image =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_tiles.png"), None)
+                .expect("valid unit status atlas");
+        let status = Texture2D::from_image(&status_image);
+        let goto = Texture2D::from_image(&super::routes::build_goto_atlas(
+            &terrain_image,
+            &status_image,
+        ));
+        goto.set_filter(FilterMode::Nearest);
         let veterancy = Texture2D::from_file_with_format(
             include_bytes!("../../assets/amplio2_veterancy.png"),
             None,
@@ -198,7 +214,10 @@ impl Assets {
         units.set_filter(FilterMode::Nearest);
         cities.set_filter(FilterMode::Linear);
         Self {
+            goto,
             terrain,
+            terrain_blends,
+            water,
             fog,
             terrain2,
             rivers,

@@ -442,3 +442,121 @@ impl Simulation {
         id
     }
 }
+
+impl Simulation {
+    /// Staged gallery knowledge is explicit and isolated from campaign sight.
+    /// Freeze the staged art for remembered cells as if the fixture had been seen.
+    pub(crate) fn ui_review_record_knowledge(&mut self) {
+        let visible: Vec<Vec<bool>> = (0..self.players.len())
+            .map(|owner| {
+                self.tiles
+                    .iter()
+                    .map(|tile| owner == HUMAN && tile.seen)
+                    .collect()
+            })
+            .collect();
+        self.remember_render_map(&visible);
+    }
+
+    /// Controlled combinations through the normal shared world/city renderer.
+    pub(crate) fn ui_review_terrain_layers(&mut self, layers: bool) -> Option<u32> {
+        self.units.clear();
+        self.cities.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.road = false;
+            tile.railroad = false;
+            tile.river = false;
+            tile.mine = false;
+            tile.irrigation = false;
+            tile.farmland = false;
+            tile.oil_well = false;
+            tile.oil_platform = false;
+            tile.hut = false;
+            tile.resource = None;
+            tile.base = None;
+            tile.pollution = false;
+            tile.fallout = false;
+            tile.owner = None;
+            tile.last_seen_owner = None;
+            tile.seen = true;
+            tile.visible = true;
+            tile.known_by.fill(true);
+        }
+        if layers {
+            for dx in -4..=4 {
+                let (x, y) = offset_native_by_map(20, 24, dx, 0);
+                let tile = self.tile_mut(x, y);
+                tile.river = true;
+                tile.road = true;
+                tile.irrigation = true;
+                if dx < 0 {
+                    tile.railroad = true;
+                }
+                if dx == 2 {
+                    tile.base = Some(Base::Fortress);
+                }
+            }
+            self.create_city(HUMAN, 20, 24);
+            let city = self.cities.last_mut().unwrap();
+            city.name = "River Crossing".into();
+            city.buildings.push(Building::CITY_WALLS);
+            let id = city.id;
+            self.tile_mut(20, 24).pollution = true;
+            self.tile_mut(20, 24).irrigation = true;
+            self.tile_mut(20, 24).river = true;
+            self.tile_mut(20, 24).road = true;
+            self.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+            Some(id)
+        } else {
+            for dy in -4..=4 {
+                for dx in -4..=4 {
+                    let (x, y) = offset_native_by_map(20, 24, dx, dy);
+                    let terrain = match (dx, dy) {
+                        (_, -4..=-3) => {
+                            if dx < 0 {
+                                Terrain::Ocean
+                            } else {
+                                Terrain::Glacier
+                            }
+                        }
+                        (-4..=-2, -2..=0) => {
+                            if (dx + dy) % 2 == 0 {
+                                Terrain::Forest
+                            } else {
+                                Terrain::Jungle
+                            }
+                        }
+                        (1..=4, -2..=0) => {
+                            if dx % 2 == 0 {
+                                Terrain::Mountains
+                            } else {
+                                Terrain::Hills
+                            }
+                        }
+                        (_, 1..=4) => match dx {
+                            -4..=-3 => Terrain::Desert,
+                            -2..=-1 => Terrain::Plains,
+                            0 => Terrain::Grassland,
+                            1..=2 => Terrain::Swamp,
+                            _ => Terrain::Tundra,
+                        },
+                        _ => Terrain::Grassland,
+                    };
+                    self.tile_mut(x, y).terrain = terrain;
+                }
+            }
+            None
+        }
+    }
+
+    pub(crate) fn ui_review_route_setup(&mut self) -> (u32, (i32, i32)) {
+        self.ui_review_terrain_layers(false);
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+        }
+        let (x, y) = offset_native_by_map(20, 24, -2, 0);
+        let id = self.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
+        (id, offset_native_by_map(20, 24, 3, 0))
+    }
+}
