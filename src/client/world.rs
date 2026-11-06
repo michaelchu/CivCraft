@@ -242,6 +242,61 @@ impl Game {
         }
     }
 
+    fn edge_water_rows(&self) -> impl Iterator<Item = i32> + use<> {
+        let height = self.sim.map_wrap.height();
+        let count = if self.sim.map_wrap.wraps_y() {
+            0
+        } else {
+            map_view::EDGE_WATER_ROWS
+        };
+        (-count..0).chain(height..height + count)
+    }
+
+    fn world_fog_knowledge(&self, x: i32, y: i32) -> fog::Knowledge {
+        // Decorative water inherits knowledge from the closest real polar row.
+        // City work maps keep their ordinary off-map fog behavior.
+        let y = if self.sim.map_wrap.wraps_y() {
+            y
+        } else {
+            y.clamp(0, self.sim.map_wrap.height() - 1)
+        };
+        self.fog_knowledge(x, y)
+    }
+
+    fn draw_edge_water(&self, assets: &Assets, viewport: Rect, tile_w: f32, tile_h: f32) {
+        for y in self.edge_water_rows() {
+            for x in 0..self.sim.map_wrap.width() {
+                let center = self.world_screen_position(x, y);
+                if center.x < viewport.x - tile_w
+                    || center.x > viewport.right() + tile_w
+                    || center.y < viewport.y - tile_h
+                    || center.y > viewport.bottom() + tile_h
+                {
+                    continue;
+                }
+                if !self
+                    .sim
+                    .render_tile(x, y.clamp(0, self.sim.map_wrap.height() - 1))
+                    .seen
+                {
+                    draw_diamond(center, tile_w, tile_h, BLACK);
+                    continue;
+                }
+                assets.draw_masked_terrain_backing(Terrain::DeepOcean, center, tile_w, tile_h);
+                let (row, col) = ocean_cell_source([0; 4]);
+                for corner in 0..4 {
+                    assets.draw_ocean_corner(
+                        center,
+                        tile_w,
+                        tile_h,
+                        isolated_sprite_source(corner * 9 + row as i32, col as i32, 96.0, 48.0),
+                        WHITE,
+                    );
+                }
+            }
+        }
+    }
+
     pub(super) fn draw_world_amplio2(&self, assets: &Assets) {
         let viewport = Self::viewport_rect();
         draw_rectangle(
@@ -309,6 +364,7 @@ impl Game {
                 entry.0 = unit;
             }
         }
+        self.draw_edge_water(assets, viewport, tile_w, tile_h);
         // Draw every tile base first. Tall terrain sprites are a separate
         // layer so later diamond bases cannot cut horizontal bands through
         // forests, hills, and mountains.
@@ -352,21 +408,18 @@ impl Game {
             }
         }
         // Reference Fog layer: blend corners after terrain/cities and before
-        // units, labels and focus sprites. Out-of-map poles are remembered.
+        // units, labels and focus sprites. Visual water inherits polar-row fog.
         for &(x, y, center) in &order {
             let (mx, my) = native_to_map(x, y);
             self.draw_corner_fog(assets, center, tile_w, tile_h, |dx, dy| {
                 let (nx, ny) = map_to_native(mx + dx, my + dy);
-                self.fog_knowledge(nx, ny)
+                self.world_fog_knowledge(nx, ny)
             });
         }
-        // Bottom polar corners have no south tile to drive the ordinary
-        // loop, but still blend the last row with the off-map remembered edge.
-        for y in self.sim.map_wrap.height()..if self.sim.map_wrap.wraps_y() {
-            self.sim.map_wrap.height()
-        } else {
-            self.sim.map_wrap.height() + 2
-        } {
+        // Complete corner fog for the decorative rows and their southern edge.
+        let bottom = self.sim.map_wrap.height() + map_view::EDGE_WATER_ROWS;
+        let bottom_corner = (!self.sim.map_wrap.wraps_y()).then_some(bottom);
+        for y in self.edge_water_rows().chain(bottom_corner) {
             for x in 0..self.sim.map_wrap.width() {
                 let center = world_screen_position(
                     self.sim.map_wrap,
@@ -382,7 +435,7 @@ impl Game {
                 let (mx, my) = native_to_map(x, y);
                 self.draw_corner_fog(assets, center, tile_w, tile_h, |dx, dy| {
                     let (nx, ny) = map_to_native(mx + dx, my + dy);
-                    self.fog_knowledge(nx, ny)
+                    self.world_fog_knowledge(nx, ny)
                 });
             }
         }
@@ -850,6 +903,37 @@ fn road_sprite_cells(rail: bool, city: bool, neighbors: [(bool, bool); 6]) -> Ve
 #[cfg(test)]
 mod infrastructure_tests {
     use super::*;
+    #[test]
+    fn decorative_edge_water_inherits_fog_without_extending_playable_geometry() {
+        for knowledge in [
+            fog::Knowledge::Unknown,
+            fog::Knowledge::Remembered,
+            fog::Knowledge::Visible,
+        ] {
+            let mut map = crate::mapgen::generate_with_wrap(42, MapWrap::X);
+            if knowledge == fog::Knowledge::Remembered {
+                for tile in &mut map.tiles {
+                    tile.seen = true;
+                }
+            }
+            let mut sim = Simulation::new(map);
+            if knowledge == fog::Knowledge::Visible {
+                sim.ui_review_reveal_poles();
+            }
+            let game = Game::from_simulation(sim);
+            assert_eq!(game.edge_water_rows().collect::<Vec<_>>(), [-2, -1, 48, 49]);
+            for padding in [-2, 49] {
+                assert_eq!(game.world_fog_knowledge(2, padding), knowledge);
+                assert!(game.sim.map_wrap.normalize(2, padding).is_none());
+            }
+        }
+        let torus = Game::from_simulation(Simulation::new(crate::mapgen::generate_with_wrap(
+            42,
+            MapWrap::XY,
+        )));
+        assert_eq!(torus.edge_water_rows().count(), 0);
+    }
+
     #[test]
     fn map_connections_stop_at_poles_and_still_wrap_horizontally() {
         assert_eq!(render_neighbor(MapWrap::X, 0, 0, 0, -1), None);

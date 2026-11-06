@@ -581,6 +581,10 @@ impl Game {
     }
 
     pub(super) fn normalize_camera(&mut self) {
+        self.zoom = self.zoom.max(map_view::minimum_zoom(
+            self.sim.map_wrap,
+            Self::viewport_rect().h,
+        ));
         let position = self.camera_overview_position();
         let y = map_view::normalize_camera_y(
             self.sim.map_wrap,

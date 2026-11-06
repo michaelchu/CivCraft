@@ -101,37 +101,45 @@ bounded poles, and `--wrap xy` displays the torus continuously across both seams
 The earlier horizontal-only rendering boundary is no longer applied to torus
 campaigns. See README.md and MECHANICS.md for the CLI and geometry contract.
 
-## Polar rendering and native camera limits
+## Ocean boundaries and native camera limits
 
 The map and city-map backing fill is now the reference `mapview_unknown` color,
-black (`data/misc/colors.tilespec:4–6`). Out-of-map positions receive no terrain
-sprites. Actual generated glacier/tundra tiles use the normal terrain passes;
-there is no invented tundra fill beyond the map.
+black (`data/misc/colors.tilespec:4–6`). The WrapX world view adds decorative
+ocean rows outside the playable map; city work maps keep their ordinary off-map backing. Actual generated
+glacier/tundra tiles use the normal terrain passes.
 
-`src/client/map_view.rs` ports native
+`src/client/map_view.rs` follows native
 `client/mapview_common.c::get_mapview_scroll_window` (1110–1192) and
-`calc_mapview_origin` (980–998). WrapX clips the GUI origin to the first and last
-normal-tile bounds, expanding the scroll window exactly as native when a viewport
-is larger than the map. The old custom sprite/label margin is removed. Absolute
-GUI float arithmetic and integer division for oversized windows are preserved.
-The map center, input inverse projection and minimap viewport now all use the
-exact viewport midpoint, as in `center_tile_mapcanvas` (1239–1257), instead of
-47 percent height.
+`calc_mapview_origin` (980–998) for WrapXY. WrapX adds two visual ocean rows at
+each bounded edge and extends the camera frame through that blue border. Its
+real first and last tile rows remain fully visible. The decorative outermost rows are
+cut at their widest point, with a one-pixel sampling guard hiding the
+staggered outline. A height-dependent minimum zoom keeps that padded extent
+filling the viewport. The decorative rows change no dimensions or gameplay
+bounds. WrapX generation separately removes polar land in favor of ocean; see MECHANICS.md.
+
+The map center, input inverse projection and minimap viewport use the viewport
+midpoint, as in `center_tile_mapcanvas` (1239–1257).
 
 WrapXY normalizes the GUI origin modulo the map's vertical pixel period instead
 of clipping it. Map tiles, neighbor-dependent art and corner knowledge wrap
-through that seam, without off-map terrain or polar fog caps. WrapX retains
-reference missing-corner fog semantics (`tilespec.c:5425–5430`): off-map corner
-members count as remembered, and the southern corner pass completes the final
-row. The same fog/terrain renderer serves both modes and the city work map.
+through that seam, without off-map terrain or polar fog caps. In the WrapX
+world view, decorative ocean and corner fog inherit the closest
+real boundary row's visibility, so unknown land is not revealed and fully visible
+water has no dark join. The city work map retains reference missing-corner fog
+semantics (`tilespec.c:5425–5430`): off-map members count as remembered.
 
-Unit checks compare our camera results with an independent literal translation
-of the native absolute GUI calculations, including fractional zoom and viewports
-larger than the map. Native `north-pole` / `south-pole` gallery checks verify the
-first/last-row normal-sprite anchor, input hit testing, blocked WrapX panning and
-continuous WrapXY panning through the seam. Existing `wrap-seam` checks continue
-to execute real unit movement at the boundary. This changes presentation only;
-generation, campaign state and gameplay RNG are unchanged.
+Unit checks compare torus camera results with an independent literal
+translation of the native absolute GUI calculations. Cylinder checks verify
+that visual water covers both edges while real boundary rows remain visible
+across
+fractional zooms and oversized viewports. The `north-pole` / `south-pole`
+gallery scenes check extended anchors, input hit testing, blocked WrapX
+panning, zoom-out coverage and continuous
+WrapXY panning. WrapX `-next` captures show its minimum permitted zoom.
+Existing `wrap-seam` checks execute real unit movement at the boundary.
+The decorative extension affects presentation only. The WrapX terrain policy
+is described in MECHANICS.md; neither change consumes campaign RNG.
 
 ## Ice transition styling
 

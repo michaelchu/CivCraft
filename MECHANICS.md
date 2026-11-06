@@ -261,8 +261,9 @@ initialization and subdivision, singular-edge handling, linear north/south
 latitude, bounded neighbor iteration and zero-edge start-position smoothing.
 Start allocation also copies the native integer `efactor` calculation: the
 smaller cylinder uses different continent-quality thresholds from the torus.
-Ten native goldens (five seeds in each mode) verify dimensions, every terrain,
-elevation and extra bit, and starting-position sets. Regenerate them with
+Ten raw-generator goldens (five seeds in each mode) verify dimensions, every
+terrain, elevation and extra bit, and starting-position sets before the
+intentional WrapX ocean policy below. Regenerate them with
 `tools/generate_mapgen_oracles.py` against Freeciv 3.3.90.14-dev (eb8c703), using
 the Civ2Civ3 ruleset. Existing torus creation-order oracles remain unchanged.
 
@@ -270,6 +271,16 @@ Source: `server/settings.c:1609`, `common/map.c:1565`,
 `server/generator/height_map.c:115–267`,
 `server/generator/mapgen_utils.c:186–236`. Gameplay distances, neighbors,
 worker/city radii, visibility and pathfinding share the campaign geometry.
-Cylinder camera bounds now use the native normal-tile scroll window and
-viewport midpoint, including oversized-view expansion; torus
-viewports, fog, artwork neighbors and route/animation seams wrap both axes.
+WrapX deliberately removes polar land after reference generation: glacier and
+tundra become ocean, while every tile in the first/last row becomes deep ocean.
+Converted tiles have no huts, resources or rivers, and altitude is kept below
+the shoreline. Water depths are rebuilt against the remaining land to remove
+obsolete shallow coast bands, and invalid ocean resources are cleared.
+Starting sites remain on land and the post-start RNG stream is
+preserved. WrapXY retains the native polar terrain.
+
+The WrapX world renderer extends two decorative ocean rows beyond each edge.
+These inherit the nearest real row's fog visibility and are not playable or
+serialized. Camera framing and a viewport-dependent zoom floor keep the outer
+staggered edge off-screen. Torus viewports, artwork and route/animation seams
+wrap both axes.

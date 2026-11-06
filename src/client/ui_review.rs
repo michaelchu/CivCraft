@@ -326,17 +326,19 @@ impl Game {
                 let expected = if wrapping {
                     viewport.y + viewport.h * 0.5
                 } else if scene == 33 {
-                    viewport.y + TILE_H * self.zoom * 0.5
+                    viewport.y + map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5 - 1.0
                 } else {
-                    viewport.bottom() - TILE_H * self.zoom * 0.5
+                    viewport.bottom() - map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
+                        + 1.0
                 };
-                sequence.check(
-                    "native_polar_scroll_anchor",
-                    (point.y - expected).abs() < 0.02,
-                )?;
+                sequence.check("polar_scroll_anchor", (point.y - expected).abs() < 0.02)?;
+                let input_y = y;
+                let input_point = point;
                 sequence.check(
                     "polar_tile_input_matches_rendering",
-                    self.screen_to_world(point) == Some((self.sim.map_wrap.width() / 2, y)),
+                    viewport.contains(input_point)
+                        && self.screen_to_world(input_point)
+                            == Some((self.sim.map_wrap.width() / 2, input_y)),
                 )?;
             }
             if phase == 6 {
@@ -361,10 +363,34 @@ impl Game {
                     camera.y
                 };
                 sequence.check(
-                    "camera_clamps_or_wraps_like_native",
+                    "camera_stops_or_wraps_at_polar_limit",
                     (after - expected).abs() < 0.02,
                 )?;
-                return Ok(wrapping);
+                if !wrapping {
+                    let previous_zoom = self.zoom;
+                    self.zoom = MIN_ZOOM;
+                    self.normalize_camera();
+                    let y = if scene == 33 {
+                        0
+                    } else {
+                        self.sim.map_wrap.height() - 1
+                    };
+                    let point = self.world_screen_position(self.sim.map_wrap.width() / 2, y);
+                    let expected = if scene == 33 {
+                        viewport.y + map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
+                            - 1.0
+                    } else {
+                        viewport.bottom()
+                            - map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
+                            + 1.0
+                    };
+                    sequence.check(
+                        "zoomed_out_edge_water_fills_viewport",
+                        (point.y - expected).abs() < 0.02,
+                    )?;
+                    return Ok((self.zoom - previous_zoom).abs() > 0.001);
+                }
+                return Ok(true);
             }
             return Ok(false);
         }

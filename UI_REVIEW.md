@@ -172,10 +172,12 @@ visually inspected. Formatting and whitespace checks passed.
 
 ### Native polar backing and camera
 
-The polar scenes now assert the reference first/last normal-sprite anchor and
-input inverse projection. In WrapX, attempting to pan beyond either bound keeps
+The polar scenes assert the extended first/last-row anchor in WrapX, native
+anchors in WrapXY, and input inverse projection. In WrapX, attempting to pan beyond either bound keeps
 the camera fixed. In WrapXY, panning across the seam continues one adjacent row
-and produces an additional `-next` capture. World and city work maps clear to
+and produces an additional `-next` capture. WrapX `-next` captures instead
+show the minimum permitted zoom and check that the ocean fills the viewport.
+World and city work maps clear to
 reference black. Camera geometry tests also cover subpixel zoom and oversized
 viewports; see RENDERING_PARITY.md for source locations and exact policy.
 
@@ -239,3 +241,24 @@ The desktop gameplay suite passed 278/278 checks on both launch modes.
 All 40 gallery scenes pass at 1280×720 and 800×600 in each mode: WrapX produces
 57/58 captures, WrapXY 59/60. Generated north/south polar terrain, seam
 crossing, minimap aspect ratios and compact layouts were visually inspected.
+
+### WrapX ocean boundaries
+
+WrapX now generates ocean instead of glacier/tundra and guarantees deep-water
+first/last rows. Two decorative ocean rows extend beyond those playable edges
+so the viewport shows continuous blue water without black triangles. They
+inherit nearby fog visibility and remain non-playable. WrapXY keeps its native
+polar terrain. The existing `north-pole` / `south-pole` scene names are retained
+for northern/southern boundary checks; `-next` captures show minimum zoom.
+
+Gallery checks cover the extended camera anchors, actual boundary-row input,
+blocked panning and zoom-out coverage. Raw reference goldens still test the
+underlying generator; WrapX gameplay generation has separate ocean-policy and
+valid-start checks. See MECHANICS.md and RENDERING_PARITY.md.
+
+Validation: 579 Rust tests pass, including ocean-only WrapX generation across
+seven seeds with valid starting sites. Both WrapX galleries pass all 40 scenes
+at 1280×720 and 800×600 (59/60 captures); the WrapXY desktop gallery also passes.
+The seed-42 desktop gameplay suite passes 278/278 checks. Generated north/south
+ocean boundaries were visually inspected after rebuilding their water depths;
+there is no residual shallow-water stripe from the removed polar coastline.

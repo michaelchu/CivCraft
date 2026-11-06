@@ -1,16 +1,35 @@
 //! Native mapview_common.c::get_mapview_scroll_window / calc_mapview_origin.
-//! Preserve absolute GUI arithmetic, including native integer rounding when
-//! expanding the scroll window for viewports larger than the map.
+//! Keep native torus scrolling. Cylinders extend their visual ocean border beyond
+//! the playable boundary, with the staggered outer edge kept off-screen.
 use super::*;
 
 // data/misc/colors.tilespec: mapview_unknown = (0,0,0).
 pub(super) const MAP_UNKNOWN: Color = BLACK;
+
+// Visual rows only: these never enter the simulation or save data.
+pub(super) const EDGE_WATER_ROWS: i32 = 2;
+
+pub(super) fn minimum_zoom(wrap: MapWrap, view_height: f32) -> f32 {
+    if wrap.wraps_y() {
+        MIN_ZOOM
+    } else {
+        // Keep the padded ocean filling the viewport at the widest zoom.
+        MIN_ZOOM.max(
+            (view_height + 2.0) / ((wrap.height() - 1 + 2 * EDGE_WATER_ROWS) as f32 * TILE_H * 0.5),
+        )
+    }
+}
 
 pub(super) fn vertical_scroll_bounds(wrap: MapWrap, view_height: f32, zoom: f32) -> (f32, f32) {
     let (mx, my) = native_to_map(0, 0);
     let mut min = (mx + my) as f32 * TILE_H * 0.5 * zoom;
     let (mx, my) = native_to_map(wrap.width() - 1, wrap.height() - 1);
     let mut max = (mx + my) as f32 * TILE_H * 0.5 * zoom + TILE_H * zoom;
+    if !wrap.wraps_y() {
+        let extension = (EDGE_WATER_ROWS - 1) as f32 * TILE_H * 0.5 * zoom - 1.0;
+        min -= extension;
+        max += extension;
+    }
     // Native uses an integer diff and splits the expansion with integer division.
     let diff = (view_height - (max - min)) as i32;
     if diff > 0 {
@@ -60,11 +79,11 @@ mod tests {
     }
 
     #[test]
-    fn polar_scroll_matches_native_absolute_gui_bounds_at_all_sizes_and_zooms() {
+    fn torus_scroll_matches_native_absolute_gui_bounds_at_all_sizes_and_zooms() {
         for view in [426.0, 550.0, 726.0, 1560.0, 1700.0, 2800.0] {
             for zoom in [MIN_ZOOM, START_ZOOM, 1.0, MAX_ZOOM, 1.5] {
                 for y in [-1000.25, -0.2, 0.0, 23.4, 63.0, 64.3, 1000.25] {
-                    for wrap in [MapWrap::X, MapWrap::XY] {
+                    for wrap in [MapWrap::XY] {
                         let result = normalize_camera_y(wrap, y, view, zoom);
                         let actual =
                             MAP_W as f32 * 24.0 * zoom + result * 24.0 * zoom + 24.0 * zoom
@@ -83,20 +102,27 @@ mod tests {
     }
 
     #[test]
-    fn poles_use_half_normal_tile_clearance_and_no_custom_sprite_margin() {
-        let view = 550.0;
-        let north = normalize_camera_y(MapWrap::X, -1000.0, view, 1.0);
-        let south = normalize_camera_y(MapWrap::X, 1000.0, view, 1.0);
-        assert!((view / 2.0 - north * 24.0 - 24.0).abs() < 0.001);
-        assert!(
-            (view / 2.0 + (MapWrap::X.height() - 1) as f32 * 24.0 - south * 24.0 - (view - 24.0))
-                .abs()
-                < 0.001
-        );
-        assert_eq!(
-            (MAP_UNKNOWN.r, MAP_UNKNOWN.g, MAP_UNKNOWN.b, MAP_UNKNOWN.a),
-            (0.0, 0.0, 0.0, 1.0)
-        );
+    fn cylinder_water_padding_covers_edges_and_keeps_real_boundary_rows_visible() {
+        for view in [426.0, 550.0, 726.0, 1560.0, 1700.0, 2800.0] {
+            for requested_zoom in [MIN_ZOOM, START_ZOOM, 1.0, MAX_ZOOM] {
+                let zoom = requested_zoom.max(minimum_zoom(MapWrap::X, view));
+                let step = 24.0 * zoom;
+                let north = normalize_camera_y(MapWrap::X, -10000.0, view, zoom);
+                let south = normalize_camera_y(MapWrap::X, 10000.0, view, zoom);
+                // The two ocean rows fill the edge. The real first/last rows
+                // remain fully inside the viewport, instead of being cropped.
+                let north_center = view / 2.0 - north * step;
+                let south_center =
+                    view / 2.0 + (MapWrap::X.height() - 1) as f32 * step - south * step;
+                assert!((north_center - (2.0 * step - 1.0)).abs() < 0.002);
+                assert!(north_center - step > 0.0);
+                assert!((south_center - (view - 2.0 * step + 1.0)).abs() < 0.002);
+                assert!(south_center + step < view);
+                assert!((normalize_camera_y(MapWrap::X, north, view, zoom) - north).abs() < 0.001);
+                assert!((normalize_camera_y(MapWrap::X, south, view, zoom) - south).abs() < 0.001);
+            }
+            assert_eq!(minimum_zoom(MapWrap::XY, view), MIN_ZOOM);
+        }
     }
 
     #[test]

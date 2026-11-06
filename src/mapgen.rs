@@ -1161,15 +1161,63 @@ pub(crate) fn generate(seed: u64) -> GeneratedMap {
     generate_with_wrap(seed, MapWrap::XY)
 }
 pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
-    Generator { wrap }.generate(seed)
+    let mut map = Generator { wrap }.generate(seed);
+    if wrap == MapWrap::X {
+        // Deliberate WrapX policy: replace polar land with water after the
+        // reference generator, preserving its start allocation and RNG stream.
+        for (index, tile) in map.tiles.iter_mut().enumerate() {
+            let (_, y) = wrap.position(index);
+            let edge = y == 0 || y == wrap.height() - 1;
+            if edge || matches!(tile.terrain, Terrain::Glacier | Terrain::Tundra) {
+                tile.terrain = Terrain::DeepOcean;
+                tile.altitude = tile.altitude.min(SHORE - 1);
+                tile.resource = None;
+                tile.river = false;
+                tile.hut = false;
+            }
+        }
+        // The old ice counted as coast. Rebuild depths against the remaining
+        // land so its former shoreline does not leave a shallow-water stripe.
+        // This local map stream does not consume the campaign RNG.
+        let generator = Generator { wrap };
+        let mut terrain: Vec<_> = map
+            .tiles
+            .iter()
+            .map(|t| {
+                if t.terrain.is_water() {
+                    Terrain::DeepOcean
+                } else {
+                    t.terrain
+                }
+            })
+            .collect();
+        generator.finish_water(&mut terrain, &mut MapRng::new(seed));
+        for (index, tile) in map.tiles.iter_mut().enumerate() {
+            let (_, y) = wrap.position(index);
+            tile.terrain = if y == 0 || y == wrap.height() - 1 {
+                Terrain::DeepOcean
+            } else {
+                terrain[index]
+            };
+            if tile.terrain == Terrain::DeepOcean
+                || (tile.terrain == Terrain::Ocean
+                    && !generator
+                        .neighbors(index)
+                        .any(|n| !matches!(terrain[n], Terrain::Ocean | Terrain::DeepOcean)))
+            {
+                tile.resource = None;
+            }
+        }
+    }
+    map
 }
 
 #[cfg(test)]
 mod wrap_generation_tests {
     use super::*;
     #[test]
-    fn cylinders_have_real_poles_and_reproducible_post_generation_starts() {
-        for seed in [0, 42, 1337] {
+    fn cylinders_have_ocean_edges_without_polar_land_or_invalid_start_positions() {
+        for seed in [0, 1, 42, 1337, 12345, 700001, 2147483647] {
             let a = generate_with_wrap(seed, MapWrap::X);
             let b = generate_with_wrap(seed, MapWrap::X);
             assert_eq!(a.map_wrap, MapWrap::X);
@@ -1178,7 +1226,18 @@ mod wrap_generation_tests {
                 bincode::serialize(&a.tiles).unwrap(),
                 bincode::serialize(&b.tiles).unwrap()
             );
-            assert!(a.tiles.iter().any(|t| t.terrain == Terrain::Glacier));
+            assert!(
+                a.tiles
+                    .iter()
+                    .all(|t| !matches!(t.terrain, Terrain::Glacier | Terrain::Tundra))
+            );
+            for y in [0, a.map_wrap.height() - 1] {
+                for x in 0..a.map_wrap.width() {
+                    let tile = &a.tiles[a.map_wrap.index(x, y)];
+                    assert_eq!(tile.terrain, Terrain::DeepOcean);
+                    assert!(!tile.hut && !tile.river && tile.resource.is_none());
+                }
+            }
             assert!(
                 a.starts
                     .iter()
@@ -1202,7 +1261,7 @@ mod wrap_generation_tests {
 
 #[cfg(test)]
 #[test]
-fn generated_worlds_match_native_for_each_wrap() {
+fn reference_worlds_match_native_for_each_wrap() {
     for line in include_str!("../tests/fixtures/freeciv_mapgen_vectors.tsv")
         .lines()
         .filter(|line| !line.starts_with('#') && !line.is_empty())
@@ -1213,7 +1272,7 @@ fn generated_worlds_match_native_for_each_wrap() {
         let width: i32 = fields[2].parse().unwrap();
         let height: i32 = fields[3].parse().unwrap();
         assert_eq!((wrap.width(), wrap.height()), (width, height));
-        let map = generate_with_wrap(seed, wrap);
+        let map = Generator { wrap }.generate(seed);
         let mut checksum = 0xcbf29ce484222325u64;
         for tile in &map.tiles {
             let id = match tile.terrain {

@@ -52,7 +52,9 @@ cargo run --release -- --wrap x
 cargo run --release -- --wrap xy
 ```
 
-`x` creates a cylinder with bounded northern/southern edges and polar climate.
+`x` creates a cylinder with bounded northern/southern ocean edges and no
+generated glacier or tundra. The blue ocean extends visually past the boundary
+to hide its staggered outline.
 `xy` wraps both axes and uses the reference preset's torus climate. Native sizing
 for our six-player preset produces 36×48 tiles in `x` and 32×64 in `xy`. Use the same seed **and wrap setting** to replay a
 map, for example `cargo run --release -- --seed 42 --wrap xy`. The current mode
