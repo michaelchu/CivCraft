@@ -2106,11 +2106,7 @@ impl Simulation {
         } else if kind.is_naval() {
             &[Building::PORT_FACILITY]
         } else {
-            &[
-                Building::BARRACKS,
-                Building::BARRACKS_II,
-                Building::BARRACKS_III,
-            ]
+            &[Building::BARRACKS]
         };
         candidates.iter().copied().find(|&building| {
             building.data().genus == Genus::Improvement
@@ -3049,12 +3045,12 @@ mod tests {
         game.players[1].known.push(Tech::GUNPOWDER);
         assert_eq!(
             choose(&game, UnitKind::Musketeers).production,
-            Production::Building(Building::BARRACKS_II)
+            Production::Building(Building::BARRACKS)
         );
         game.players[1].known.push(Tech::MOBILE_WARFARE);
         assert_eq!(
             choose(&game, UnitKind::Marines).production,
-            Production::Building(Building::BARRACKS_III)
+            Production::Building(Building::BARRACKS)
         );
         assert_eq!(
             choose(&game, UnitKind::Fighter).production,

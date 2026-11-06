@@ -89,13 +89,16 @@ impl Simulation {
     }
 
     pub(super) fn active_barracks(&self, city: &City) -> bool {
-        let modern = city.has_building(Building::BARRACKS_III);
-        let industrial = city.has_building(Building::BARRACKS_II);
-        modern
-            || (industrial && !self.has_tech(city.owner, Tech::MOBILE_WARFARE))
-            || (city.has_building(Building::BARRACKS)
-                && !industrial
-                && !self.has_tech(city.owner, Tech::GUNPOWDER))
+        // CivCraft's barracks are permanent infrastructure: one Barracks
+        // continues training veterans as technology advances. The legacy II/III
+        // catalog entries remain recognized for cities loaded from older saves.
+        [
+            Building::BARRACKS,
+            Building::BARRACKS_II,
+            Building::BARRACKS_III,
+        ]
+        .into_iter()
+        .any(|building| city.has_building(building))
     }
 
     pub(super) fn trained_rank(&self, city: &City, kind: UnitKind) -> usize {

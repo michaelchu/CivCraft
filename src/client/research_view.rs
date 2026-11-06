@@ -293,9 +293,11 @@ fn research_unlock_detail(tech: Tech) -> String {
     let mut unlocks = Simulation::research_unit_unlocks(tech);
     unlocks.extend(Building::all().filter_map(|building| {
         let data = building.data();
-        data.requirements
-            .contains(&(Requirement::Tech(tech.0), true))
-            .then_some(data.name)
+        (!matches!(building, Building::BARRACKS_II | Building::BARRACKS_III)
+            && data
+                .requirements
+                .contains(&(Requirement::Tech(tech.0), true)))
+        .then_some(data.name)
     }));
     let art = match tech {
         Tech::RAILROAD => Some("Industrial"),

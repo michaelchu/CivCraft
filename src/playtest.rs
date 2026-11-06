@@ -1826,9 +1826,9 @@ impl Playtest {
         if frame == 376 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));
             game.perform_action(UiAction::FoundCity);
-            let (stacked, healed, obsolete) = game.sim.barracks_playtest();
-            self.results.push(("barracks", stacked && healed && obsolete,
-                format!("Barracks and Sun Tzu granted two ranks: {stacked}. Barracks fully healed a stationary unit: {healed}. Gunpowder removed the obsolete Barracks bonus: {obsolete}.")));
+            let (stacked, healed, retained) = game.sim.barracks_playtest();
+            self.results.push(("barracks", stacked && healed && retained,
+                format!("Barracks and Sun Tzu granted two ranks: {stacked}. Barracks fully healed a stationary unit: {healed}. Barracks training remained active after Gunpowder: {retained}.")));
         }
         if frame == 379 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));

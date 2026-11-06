@@ -2394,9 +2394,9 @@ impl Simulation {
             .iter()
             .any(|unit_info| unit_info.id == unit && unit_info.hp == 10);
         self.players[HUMAN].known.push(Tech::GUNPOWDER);
-        let obsolete = !self.active_barracks(&self.cities[index])
-            && self.trained_rank(&self.cities[index], UnitKind::Warrior) == 1;
-        (stacked, healed, obsolete)
+        let retained = self.active_barracks(&self.cities[index])
+            && self.trained_rank(&self.cities[index], UnitKind::Warrior) == 2;
+        (stacked, healed, retained)
     }
 
     pub(crate) fn ai_inland_ferry_playtest_setup(&mut self) -> (u32, u32, u32, u32) {

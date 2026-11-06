@@ -208,6 +208,9 @@ impl Simulation {
         if city.buildings.contains(&building) {
             return Some("Built".into());
         }
+        if matches!(building, Building::BARRACKS_II | Building::BARRACKS_III) {
+            return Some("Barracks training upgrades automatically with technology".into());
+        }
         if data.genus == Genus::GreatWonder && self.completed_wonders.contains(&building) {
             return Some("Wonder already completed".into());
         }
