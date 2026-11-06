@@ -24,6 +24,11 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "rivers-generated",
     "city-garrison-idle",
     "city-garrison-selected",
+    "unit-status",
+    "city-appearance",
+    "unit-movement",
+    "city-combat",
+    "city-combat-explosion",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -109,6 +114,28 @@ impl Game {
                     1.0
                 };
             }
+            25..=27 => {
+                let (unit, _) = self.sim.ui_review_animation_setup(scene != 25);
+                self.selected_unit = Some(unit);
+                self.playback.review_progress = Some(if scene == 27 { 0.9 } else { 0.5 });
+                self.zoom = 1.35;
+            }
+            24 => {
+                self.sim.ui_review_city_appearance();
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.625
+                } else {
+                    1.0
+                };
+            }
+            23 => {
+                self.sim.ui_review_unit_status();
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.625
+                } else {
+                    1.0
+                };
+            }
             21 | 22 => {
                 self.zoom = 1.5;
                 if scene == 22 {
@@ -175,6 +202,27 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if (25..=27).contains(&scene) {
+            if phase == 1 {
+                let id = self.selected_unit.unwrap();
+                sequence.check(
+                    "real_move_command_accepted",
+                    self.move_selected(Command::Move(id, 1, 0), id),
+                )?;
+            }
+            if phase == 2 {
+                sequence.check(
+                    "real_simulation_animation_event",
+                    self.playback.active().len() == if scene != 25 { 2 } else { 1 },
+                )?;
+            }
+            if phase == 6 {
+                self.playback.finish();
+                sequence.check("animation_finished", self.playback.active().is_empty())?;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
         if matches!(scene, 21 | 22) && phase == 1 {
             let city = self.sim.cities().iter().find(|c| c.owner == HUMAN).unwrap();
             sequence.check(

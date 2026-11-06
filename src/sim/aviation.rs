@@ -953,6 +953,18 @@ impl Simulation {
             let hp = (defender.hp - hits * firepower).max(1);
             damage += defender.hp - hp;
             defender.hp = hp;
+            if self.visual_events.enabled {
+                let hp_steps = (hp..=target.hp).rev().map(|hp| (attacker.hp, hp)).collect();
+                self.publish_visual_event(VisualEvent::Combat {
+                    attacker: attacker.clone(),
+                    defender: target.clone(),
+                    hp: hp_steps,
+                    city: self.cities.iter().find(|c| (c.x, c.y) == (x, y)).cloned(),
+                    territory: (0..MAP_W * MAP_H)
+                        .map(|i| self.displayed_tile_owner(i % MAP_W, i / MAP_W))
+                        .collect(),
+                });
+            }
         }
         let bomber = self
             .units

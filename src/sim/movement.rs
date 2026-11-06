@@ -807,6 +807,11 @@ impl Simulation {
         {
             self.release_ai_ferry(unit_id);
         }
+        let visual_mover = self
+            .visual_events
+            .enabled
+            .then(|| self.units.iter().find(|u| u.id == unit_id).cloned())
+            .flatten();
         if let Some(mover) = self.units.iter_mut().find(|u| u.id == unit_id) {
             mover.x = nx;
             mover.y = ny;
@@ -826,6 +831,14 @@ impl Simulation {
         // Native movement updates the moving player's vision immediately,
         // including AI discovery, before contact callbacks and hut outcomes.
         self.refresh_visibility();
+        if let Some(unit) = visual_mover {
+            let from = (unit.x, unit.y);
+            self.publish_visual_event(VisualEvent::Move {
+                unit,
+                from,
+                to: (nx, ny),
+            });
+        }
         self.capture_city_if_needed(unit_id, nx, ny);
         if let Some(owner) = owner {
             self.refresh_diplomatic_contact_at(owner, nx, ny);
@@ -1090,6 +1103,10 @@ impl Simulation {
         } else if defense_power <= 0 {
             def_hp = 0;
         }
+        let mut visual_hp = self
+            .visual_events
+            .enabled
+            .then(|| vec![(attacker.hp, defender.hp)]);
         let mut rounds = 0;
         while att_hp > 0 && def_hp > 0 {
             if self.rand_below(attack_power + defense_power) >= defense_power {
@@ -1098,6 +1115,21 @@ impl Simulation {
                 att_hp -= defense_firepower;
             }
             rounds += 1;
+            if let Some(hp) = &mut visual_hp {
+                hp.push((att_hp.max(0), def_hp.max(0)));
+            }
+        }
+        if let Some(mut hp) = visual_hp {
+            hp.push((att_hp.max(0), def_hp.max(0)));
+            self.publish_visual_event(VisualEvent::Combat {
+                attacker: attacker.clone(),
+                defender: defender.clone(),
+                hp,
+                city: self.cities.iter().find(|c| (c.x, c.y) == (nx, ny)).cloned(),
+                territory: (0..MAP_W * MAP_H)
+                    .map(|i| self.displayed_tile_owner(i % MAP_W, i / MAP_W))
+                    .collect(),
+            });
         }
         att_hp = att_hp.max(0);
         def_hp = def_hp.max(0);

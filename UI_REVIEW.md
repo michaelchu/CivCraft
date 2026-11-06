@@ -32,7 +32,7 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery covers 23 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 28 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 For a quick on-demand check, select a scene by name:
 
@@ -60,7 +60,7 @@ cargo test --offline
 - Cache border geometry by exact screen vertices and width. The cache is bounded to 4,096 entries; camera/zoom/resize changes use different keys. Ownership, visibility, colors, terrain and worker assignments are read live so rendering cannot retain an old simulation state.
 - Keep the production renderer and simulation commands in the test path. Gallery fixtures complement the desktop gameplay suite; scripted control clicks do not inject OS keyboard/mouse events.
 
-For the original 15 scenarios at 1280x720, two local profiling runs reduced setup from about 31–32 ms to 2.2–2.4 ms and captures from 30 to 18. The comparison run spent about 662 ms capturing/encoding PNGs before and 482 ms afterward, including the new pixel fingerprints. The optimization pass added three campaign flows, bringing that gallery to 23 captures at this size; the subsequent river-art cases bring the current gallery to 28. CPU draw submission averaged about 0.57 ms in both versions; these small scenes do not demonstrate a substantial FPS gain. Timings measure CPU submission, not GPU frame time.
+For the original 15 scenarios at 1280x720, two local profiling runs reduced setup from about 31–32 ms to 2.2–2.4 ms and captures from 30 to 18. The comparison run spent about 662 ms capturing/encoding PNGs before and 482 ms afterward, including the new pixel fingerprints. The optimization pass added three campaign flows, bringing that gallery to 23 captures at this size; the subsequent river, garrison and map-presentation cases bring the current gallery to 36. CPU draw submission averaged about 0.57 ms in both versions; these small scenes do not demonstrate a substantial FPS gain. Timings measure CPU submission, not GPU frame time.
 
 ## Validation on 2026-11-05
 
@@ -102,3 +102,29 @@ and `--ui-scene city-garrison-selected`. These use the same city and garrison;
 only unit focus changes. Idle garrisons are hidden, focused units draw above
 the city in a final focus layer. The original Amplio2 selection ring animates
 at 6 Hz during gameplay and holds frame zero for deterministic gallery captures.
+
+
+## City and unit presentation
+
+- `unit-status` stages healthy/damaged units, veteran ranks, fortification,
+  sentry, worker jobs, automation, exploration and stacked-unit markers.
+- `city-appearance` stages small classical, walled European, industrial, and
+  postmodern/disordered cities. Own-city bars include production turns and
+  growth/famine; foreign-city bars exclude private stock information.
+- `unit-movement`, `city-combat`, and `city-combat-explosion` stage only their initial conditions, then
+  issue real Move commands. The primary capture holds actual event playback
+  midway (or during the casualty explosion); `-next.png` captures the final state after playback finishes.
+
+Normal gameplay uses Freeciv's default 30 ms movement and 10 ms per lost HP,
+followed by five 20 ms explosion frames for a casualty. Playback is a bounded,
+non-persistent observer of simulation movement/combat/bombardment results.
+It never makes gameplay decisions or consumes random draws. Native tests
+compare complete saved campaign bytes and the full gameplay RNG with the
+observer enabled and disabled. The gallery's fixed progress and selection
+frame are opt-in visual QA controls, not alternate game logic.
+
+City appearance uses the imported civ2civ3 style requirements and city image /
+visible walls effects plus Amplio2 sprite tags. The six fictional factions
+have explicit initial themes; there is no Freeciv nation-selection feature.
+Their banners use the existing faction colors rather than unrelated national
+flags. See `UI_PARITY_AUDIT.md` for source pointers and validation coverage.

@@ -4,11 +4,14 @@ use assets::{
     OCEAN_ATLAS_H, TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source, ocean_cell_source,
     player_color, unit_sprite,
 };
+mod city_bar;
 mod city_map;
 mod government_view;
 mod hud;
 mod input;
 mod investigation_view;
+mod map_overlays;
+mod presentation;
 mod research_tree;
 mod research_view;
 mod rivers;
@@ -143,6 +146,7 @@ pub(crate) struct Game {
     research_zoom: f32,
     research_drag: Option<Vec2>,
     pub(crate) hud_elements_drawn: usize,
+    playback: presentation::Playback,
     dragging: bool,
     drag_last: Vec2,
 }
@@ -152,7 +156,8 @@ impl Game {
         Self::from_simulation(Simulation::new(map))
     }
 
-    pub(crate) fn from_simulation(sim: Simulation) -> Self {
+    pub(crate) fn from_simulation(mut sim: Simulation) -> Self {
+        sim.enable_visual_events();
         let focus = sim
             .units()
             .iter()
@@ -201,6 +206,7 @@ impl Game {
             research_zoom: 1.0,
             research_drag: None,
             hud_elements_drawn: 0,
+            playback: Default::default(),
             dragging: false,
             drag_last: vec2(0.0, 0.0),
         }
@@ -295,6 +301,7 @@ impl Game {
 
 impl Game {
     pub(crate) fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
+        self.playback.update(&mut self.sim, get_time());
         clear_background(Color::from_rgba(7, 20, 31, 255));
         self.hud_elements_drawn = 0;
         if self.research_open {
@@ -365,7 +372,9 @@ impl Game {
                 Color::from_rgba(255, 237, 170, 255),
             );
         }
-        if let Some(message) = self.sim.game_over() {
+        if let Some(message) = self.sim.game_over()
+            && !self.playback.pending()
+        {
             let w = 540.0_f32.min(screen_width() - 80.0);
             let standings = self.sim.score_standings();
             let rows = ((screen_height() - 165.0) / 24.0).max(1.0) as usize;

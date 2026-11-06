@@ -1,0 +1,44 @@
+; Verbatim City_Image and Visible_Walls sections from civ2civ3/effects.ruleset.
+
+[effect_city_walls_visible]
+type    = "Visible_Walls"
+value   = 1
+reqs    =
+    { "type", "name", "range"
+      "Building", "City Walls", "City"
+    }
+
+
+[effect_city_image_1]
+type    = "City_Image"
+value   = 1
+reqs    =
+    { "type", "name", "range"
+      "MinSize", "5", "City"
+    }
+
+[effect_city_image_2]
+type    = "City_Image"
+value   = 1
+reqs    =
+    { "type", "name", "range"
+      "MinSize", "9", "City"
+    }
+
+
+[effect_city_image_3]
+type    = "City_Image"
+value   = 1
+reqs    =
+    { "type", "name", "range"
+      "MinSize", "13", "City"
+    }
+
+[effect_city_image_4]
+type    = "City_Image"
+value   = 1
+reqs    =
+    { "type", "name", "range"
+      "MinSize", "17", "City"
+    }
+

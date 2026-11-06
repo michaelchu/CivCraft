@@ -309,7 +309,7 @@ impl Game {
         let mut geometry = self.border_geometry.borrow_mut();
         for (edge, (dx, dy)) in edge_neighbors.into_iter().enumerate() {
             let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
-            if self.sim.displayed_tile_owner(neighbor_x, neighbor_y) == Some(owner) {
+            if self.playback.tile_owner(&self.sim, neighbor_x, neighbor_y) == Some(owner) {
                 continue;
             }
             geometry.draw(&points, edge, width, color, shadow, thread);
@@ -332,20 +332,38 @@ impl Game {
         // project each visible tile once for both terrain passes.
         let order = visible_world_tiles(viewport, self.camera_overview_position(), self.zoom);
         let mut cities = std::collections::HashMap::new();
-        for city in self.sim.cities() {
+        let city_overrides = self.playback.city_overrides();
+        for city in self
+            .sim
+            .cities()
+            .iter()
+            .filter(|c| !city_overrides.contains_key(&c.id))
+            .chain(city_overrides.values())
+        {
             cities.entry((city.x, city.y)).or_insert(city);
         }
         let mut stacks: std::collections::HashMap<(i32, i32), (&Unit, usize)> =
             std::collections::HashMap::new();
+        let overrides = self.playback.overrides();
         for unit in self
             .sim
             .units()
             .iter()
-            .filter(|u| self.sim.unit_visible_to_human(u))
+            .filter(|u| !overrides.contains_key(&u.id))
+            .chain(overrides.values())
+            .filter(|u| {
+                self.sim.unit_visible_to_human(u)
+                    && (u.transport.is_none() || Some(u.id) == self.selected_unit)
+            })
         {
             let entry = stacks.entry((unit.x, unit.y)).or_insert((unit, 0));
             entry.1 += 1;
-            let priority = |u: &Unit| (Some(u.id) != self.selected_unit, u.transport.is_some());
+            let priority = |u: &Unit| {
+                (
+                    u8::from(!self.playback.is_active(u.id)),
+                    unit_draw_priority(u, self.selected_unit),
+                )
+            };
             if priority(unit) < priority(entry.0) {
                 entry.0 = unit;
             }
@@ -388,7 +406,10 @@ impl Game {
             if let Some(&(unit, count)) = stacks.get(&(x, y)) {
                 // Reference find_visible_unit hides idle city garrisons.
                 // Focused units are drawn in their own final layer below.
-                if !cities.contains_key(&(x, y)) && Some(unit.id) != self.selected_unit {
+                if !cities.contains_key(&(x, y))
+                    && Some(unit.id) != self.selected_unit
+                    && !self.playback.is_active(unit.id)
+                {
                     self.draw_unit(assets, unit, center, count);
                 }
             }
@@ -413,10 +434,12 @@ impl Game {
             if self.sim.tile(x, y).visible
                 && let Some(&(unit, count)) = stacks.get(&(x, y))
                 && Some(unit.id) == self.selected_unit
+                && !self.playback.is_active(unit.id)
             {
                 self.draw_unit(assets, unit, center, count);
             }
         }
+        self.draw_playback(assets);
     }
 
     /// Shared terrain/improvement pass for both the world and city map views.
@@ -432,7 +455,7 @@ impl Game {
         let tile = self.sim.tile(x, y);
         self.draw_terrain_overlay(assets, tile.terrain, center, tile_w, tile_h, tile.visible);
 
-        if let Some(owner) = self.sim.displayed_tile_owner(x, y) {
+        if let Some(owner) = self.playback.tile_owner(&self.sim, x, y) {
             self.draw_territory_border(x, y, owner, center, tile_w, tile_h, tile.visible);
         }
         if tile.road {
@@ -575,23 +598,12 @@ impl Game {
     }
 
     fn draw_city_at_scale(&self, assets: &Assets, city: &City, center: Vec2, zoom: f32) {
-        let style = [
-            (Tech::SUPERCONDUCTORS, 9),
-            (Tech::ROCKETRY, 8),
-            (Tech::AUTOMOBILE, 7),
-            (Tech::RAILROAD, 6),
-        ]
-        .into_iter()
-        .find(|&(tech, _)| self.sim.has_tech(city.owner, tech));
-        let (row, col) = if let Some((_, row)) = style {
-            let size_band = [5, 9, 13, 17]
-                .into_iter()
-                .filter(|&size| city.size >= size)
-                .count();
-            (row, size_band)
-        } else {
-            (2, (city.id as usize + city.owner * 2) % 11)
-        };
+        let (row, col) = crate::rules::city_art::city_art_cell(
+            crate::rules::city_art::initial_style(city.owner),
+            city.size,
+            |tech| self.sim.has_tech(city.owner, tech),
+            |building| city.buildings.contains(&building),
+        );
         let city_w = 69.0 * zoom;
         let city_h = 52.0 * zoom;
         draw_texture_ex(
@@ -610,6 +622,20 @@ impl Game {
                 ..Default::default()
             },
         );
+        // Occupancy is public when observed, but hidden units elsewhere must
+        // not leak through unexplored/remembered tiles.
+        if self.sim.tile(city.x, city.y).visible
+            && self
+                .sim
+                .units()
+                .iter()
+                .any(|u| (u.x, u.y) == (city.x, city.y))
+        {
+            self.draw_city_overlay(assets, center, zoom, 2);
+        }
+        if self.sim.tile(city.x, city.y).visible && self.sim.city_forecast(city).disorder {
+            self.draw_city_overlay(assets, center, zoom, 5);
+        }
     }
 
     fn draw_city_label(&self, city: &City, center: Vec2) {
@@ -617,16 +643,27 @@ impl Game {
         let label = format!("{}  {}", city.name, city.size);
         let font_size = (14.0 * zoom).max(10.0);
         let metrics = measure_text(&label, None, font_size as u16, 1.0);
-        // Both sprites end at center + 9 * zoom. Keep the entire label
-        // below that footprint with a visible gap even when zoomed out.
-        let top = center.y + 9.0 * zoom + (4.0 * zoom).max(3.0);
+        // The reference selection ring is tile-sized; its bottom must clear
+        // the label too, regardless of which unit is currently focused.
+        let top = super::city_bar::label_top(center.y, zoom);
         let padding = 3.0;
-        let height = metrics.height + padding * 2.0;
-        let left = center.x - metrics.width * 0.5 - 6.0;
+        let detail = self.city_bar_detail(city);
+        let detail_font = (11.0 * zoom).max(9.0);
+        let detail_width = detail.as_ref().map_or(0.0, |text| {
+            measure_text(text, None, detail_font as u16, 1.0).width
+        });
+        let width = metrics.width.max(detail_width);
+        let detail_height = if detail.is_some() {
+            detail_font + padding
+        } else {
+            0.0
+        };
+        let height = metrics.height + padding * 2.0 + detail_height;
+        let left = center.x - width * 0.5 - 6.0;
         draw_rectangle(
             left,
             top,
-            metrics.width + 12.0,
+            width + 12.0,
             height,
             Color::from_rgba(19, 20, 18, 220),
         );
@@ -637,6 +674,27 @@ impl Game {
             top + padding + metrics.offset_y,
             font_size,
             Color::from_rgba(244, 235, 201, 255),
+        );
+        if let Some(detail) = detail {
+            text_in(
+                &detail,
+                center.x - detail_width * 0.5,
+                top + metrics.height + padding * 2.0 + detail_font * 0.8,
+                detail_font,
+                width,
+                Color::from_rgba(194, 205, 181, 255),
+            );
+        }
+        // CivCraft has fictional factions rather than Freeciv nations. Use the
+        // owning faction's actual color for its banner instead of borrowing
+        // an unrelated nation's flag.
+        let pole_x = left - 9.0;
+        draw_line(pole_x, top + 1.0, pole_x, top + 16.0, 1.0, LIGHTGRAY);
+        draw_triangle(
+            vec2(pole_x, top + 1.0),
+            vec2(pole_x + 8.0, top + 4.5),
+            vec2(pole_x, top + 8.0),
+            player_color(city.owner),
         );
         if self.selected_city == Some(city.id) {
             draw_diamond_lines(
@@ -649,7 +707,7 @@ impl Game {
         }
     }
 
-    fn draw_unit(&self, assets: &Assets, unit: &Unit, center: Vec2, stack_count: usize) {
+    pub(super) fn draw_unit(&self, assets: &Assets, unit: &Unit, center: Vec2, stack_count: usize) {
         let (sprite_row, sprite_col) = unit_sprite(unit.kind);
         let unit_w = 58.0 * self.zoom;
         let unit_h = 44.0 * self.zoom;
@@ -689,6 +747,7 @@ impl Game {
                 ..Default::default()
             },
         );
+        self.draw_unit_status(assets, unit, center);
         draw_circle(
             center.x - 21.0 * self.zoom,
             center.y - 25.0 * self.zoom,
@@ -697,15 +756,15 @@ impl Game {
         );
         if stack_count > 1 {
             draw_circle(
-                center.x + 19.0 * self.zoom,
-                center.y - 21.0 * self.zoom,
+                center.x + 31.0 * self.zoom,
+                center.y - 8.0 * self.zoom,
                 (8.0 * self.zoom).max(6.0),
                 Color::from_rgba(25, 24, 21, 235),
             );
             draw_text(
                 &stack_count.to_string(),
-                center.x + 15.0 * self.zoom,
-                center.y - 17.0 * self.zoom,
+                center.x + 27.0 * self.zoom,
+                center.y - 4.0 * self.zoom,
                 (13.0 * self.zoom).max(10.0),
                 WHITE,
             );
@@ -787,5 +846,68 @@ mod visibility_tests {
                 }
             }
         }
+    }
+}
+
+// control.c::find_visible_unit: focus first, then owned transporter, owned
+// unit, other transporter, other unit. Carried units are never representatives.
+fn unit_draw_priority(unit: &Unit, selected: Option<u32>) -> u8 {
+    if Some(unit.id) == selected {
+        0
+    } else if unit.transport.is_some() {
+        5
+    } else if unit.owner == HUMAN && unit.kind.transport_capacity() > 0 {
+        1
+    } else if unit.owner == HUMAN {
+        2
+    } else if unit.kind.transport_capacity() > 0 {
+        3
+    } else {
+        4
+    }
+}
+
+#[cfg(test)]
+mod representative_tests {
+    use super::*;
+    #[test]
+    fn reference_stack_order_prefers_focus_then_owned_transports_then_owned_units() {
+        let sim = Simulation::new(crate::mapgen::generate(42));
+        let mut own_unit = sim.units()[0].clone();
+        own_unit.owner = HUMAN;
+        own_unit.kind = UnitKind::Warrior;
+        let mut own_ship = own_unit.clone();
+        own_ship.id += 1;
+        own_ship.kind = UnitKind::Transport;
+        let mut other_unit = own_unit.clone();
+        other_unit.owner = 1;
+        other_unit.id += 2;
+        let mut other_ship = other_unit.clone();
+        other_ship.id += 1;
+        other_ship.kind = UnitKind::Transport;
+        let mut cargo = own_unit.clone();
+        cargo.id += 4;
+        cargo.transport = Some(own_ship.id);
+        let units = [&cargo, &other_unit, &other_ship, &own_unit, &own_ship];
+        let mut sorted = units.to_vec();
+        sorted.sort_by_key(|u| unit_draw_priority(u, None));
+        assert_eq!(
+            sorted.iter().map(|u| u.id).collect::<Vec<_>>(),
+            vec![
+                own_ship.id,
+                own_unit.id,
+                other_ship.id,
+                other_unit.id,
+                cargo.id
+            ]
+        );
+        assert_eq!(
+            units
+                .iter()
+                .min_by_key(|u| unit_draw_priority(u, Some(cargo.id)))
+                .unwrap()
+                .id,
+            cargo.id
+        );
     }
 }

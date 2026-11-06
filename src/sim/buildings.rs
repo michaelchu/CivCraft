@@ -2,6 +2,10 @@ use super::*;
 use crate::rules::{Genus, Requirement};
 
 impl Simulation {
+    pub(crate) fn great_wonder_available(&self, building: Building) -> bool {
+        building.data().genus == Genus::GreatWonder && !self.completed_wonders.contains(&building)
+    }
+
     pub(crate) fn can_change_production(&self, city: &City, target: Production) -> bool {
         (!city.bought_production || city.shields <= 0) && self.can_produce(city, target)
     }

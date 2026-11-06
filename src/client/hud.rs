@@ -207,7 +207,14 @@ impl Game {
             }
         }
         let reveal_cities = self.sim.reveals_cities(HUMAN);
-        for city in self.sim.cities() {
+        let city_overrides = self.playback.city_overrides();
+        for city in self
+            .sim
+            .cities()
+            .iter()
+            .filter(|city| !city_overrides.contains_key(&city.id))
+            .chain(city_overrides.values())
+        {
             let tile = self.sim.tile(city.x, city.y);
             if tile.visible || (reveal_cities && tile.seen) {
                 let origin = Self::minimap_tile_origin(rect, city.x, city.y);
@@ -884,6 +891,13 @@ impl Game {
         };
         if let Some(index) = self.selected_unit_index() {
             let unit = &self.sim.units()[index];
+            let animated = self
+                .playback
+                .active()
+                .into_iter()
+                .map(|(unit, _)| unit)
+                .find(|shown| shown.id == unit.id);
+            let unit = animated.as_ref().unwrap_or(unit);
             let stats = unit.kind.stats();
             let state = if unit.work_left > 0 {
                 format!(

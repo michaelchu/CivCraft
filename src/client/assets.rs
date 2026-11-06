@@ -110,6 +110,10 @@ pub(crate) struct Assets {
     pub(super) selection: Texture2D,
     pub(super) cities: Texture2D,
     pub(super) bases: Texture2D,
+    pub(super) status: Texture2D,
+    pub(super) explosions: Texture2D,
+    pub(super) veterancy: Texture2D,
+    pub(super) activities: Texture2D,
 }
 
 impl Assets {
@@ -153,6 +157,26 @@ impl Assets {
             include_bytes!("../../assets/amplio2_cities.png"),
             None,
         );
+        let explosions = Texture2D::from_file_with_format(
+            include_bytes!("../../assets/amplio2_explosions.png"),
+            None,
+        );
+        explosions.set_filter(FilterMode::Nearest);
+        let status = Texture2D::from_file_with_format(
+            include_bytes!("../../assets/amplio2_tiles.png"),
+            None,
+        );
+        let veterancy = Texture2D::from_file_with_format(
+            include_bytes!("../../assets/amplio2_veterancy.png"),
+            None,
+        );
+        let activities = Texture2D::from_file_with_format(
+            include_bytes!("../../assets/amplio2_activities.png"),
+            None,
+        );
+        for texture in [&status, &veterancy, &activities] {
+            texture.set_filter(FilterMode::Nearest);
+        }
         let bases = Texture2D::from_file_with_format(
             include_bytes!("../../assets/amplio2_bases.png"),
             None,
@@ -178,6 +202,10 @@ impl Assets {
             selection,
             cities,
             bases,
+            status,
+            explosions,
+            veterancy,
+            activities,
         }
     }
 }

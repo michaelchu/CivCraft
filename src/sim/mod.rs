@@ -33,6 +33,8 @@ mod illness;
 mod leaders;
 mod list_order;
 mod movement;
+mod presentation;
+pub(crate) use presentation::VisualEvent;
 mod normal_paths;
 mod output_effects;
 mod partisans;
@@ -147,6 +149,8 @@ pub(crate) struct Simulation {
     #[serde(skip)]
     cargo_order: std::collections::BTreeMap<u32, Vec<u32>>,
     events: Vec<String>,
+    #[serde(skip)]
+    visual_events: presentation::VisualEvents,
     game_over: Option<String>,
     climate_pressure: [ClimatePressure; 2],
     #[serde(skip)]
@@ -404,6 +408,7 @@ impl Simulation {
             rng: 0x9e37_79b9_7f4a_7c15,
             native_random: Some(game_random),
             cargo_order: Default::default(),
+            visual_events: Default::default(),
             events: vec![
                 "4000 BCE - Your people are ready to settle.".to_owned(),
                 "Choose the Settlers and press B to found a city.".to_owned(),

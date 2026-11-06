@@ -237,3 +237,167 @@ impl Simulation {
         target
     }
 }
+
+impl Simulation {
+    pub(crate) fn ui_review_unit_status(&mut self) {
+        self.units.clear();
+        self.cities.clear();
+        for y in 18..=33 {
+            for x in 15..=25 {
+                let tile = self.tile_mut(x, y);
+                tile.terrain = Terrain::Grassland;
+                tile.resource = None;
+                tile.hut = false;
+                tile.base = None;
+                tile.owner = None;
+                tile.seen = true;
+                tile.visible = true;
+            }
+        }
+        for (i, (hp, veteran, state, work)) in [
+            (20, 0, UnitState::Idle, None),
+            (10, 1, UnitState::Fortified, None),
+            (2, 2, UnitState::Sentry, None),
+            (20, 0, UnitState::Idle, Some(WorkKind::Road)),
+            (20, 0, UnitState::Idle, Some(WorkKind::Mine)),
+            (20, 0, UnitState::Idle, Some(WorkKind::Irrigation)),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let kind = if work.is_some() {
+                UnitKind::Engineer
+            } else {
+                UnitKind::Riflemen
+            };
+            let id = self.spawn_unit(
+                HUMAN,
+                kind,
+                17 + (i % 3) as i32 * 3,
+                21 + (i / 3) as i32 * 5,
+            );
+            let u = self.units.iter_mut().find(|u| u.id == id).unwrap();
+            u.hp = hp.min(kind.stats().hp);
+            u.veteran = veteran;
+            u.state = state;
+            u.work_kind = work;
+            u.work_left = i32::from(work.is_some()) * 3;
+        }
+        for (kind, x, automated) in [
+            (UnitKind::Engineer, 17, true),
+            (UnitKind::Warrior, 20, true),
+            (UnitKind::Riflemen, 23, false),
+        ] {
+            let id = self.spawn_unit(HUMAN, kind, x, 31);
+            let unit = self.units.iter_mut().find(|u| u.id == id).unwrap();
+            unit.automated = automated;
+            if !automated {
+                unit.state = UnitState::Fortifying;
+                unit.veteran = 1;
+            }
+            if !automated {
+                self.spawn_unit(HUMAN, UnitKind::Warrior, x, 31);
+            }
+        }
+    }
+}
+
+impl Simulation {
+    pub(crate) fn ui_review_city_appearance(&mut self) {
+        self.units.clear();
+        self.cities.clear();
+        for y in 18..=29 {
+            for x in 15..=25 {
+                let tile = self.tile_mut(x, y);
+                tile.terrain = Terrain::Grassland;
+                tile.resource = None;
+                tile.hut = false;
+                tile.base = None;
+                tile.owner = None;
+                tile.seen = true;
+                tile.visible = true;
+            }
+        }
+        for (owner, x, y, size, name, tech, walls) in [
+            (0, 17, 21, 4, "Classical", None, false),
+            (1, 22, 21, 5, "Walled European", None, true),
+            (2, 17, 27, 9, "Industrial", Some(Tech::RAILROAD), false),
+            (
+                3,
+                22,
+                27,
+                17,
+                "Modern disorder",
+                Some(Tech::SUPERCONDUCTORS),
+                true,
+            ),
+        ] {
+            self.players[owner].known.clear();
+            if let Some(tech) = tech {
+                self.players[owner].known.push(tech);
+            }
+            self.create_city(owner, x, y);
+            let c = self.cities.last_mut().unwrap();
+            c.size = size;
+            c.name = name.into();
+            if walls {
+                c.buildings.push(Building::CITY_WALLS);
+            }
+            if owner != 3 {
+                c.buildings.push(Building::SHAKESPEARES_THEATER);
+            }
+            self.spawn_unit(owner, UnitKind::Warrior, x, y);
+        }
+        self.reconcile_city_workers();
+        self.refresh_visibility();
+        for tile in &mut self.tiles {
+            tile.seen = true;
+            tile.visible = true;
+        }
+    }
+}
+
+impl Simulation {
+    /// Real commands drive both cases; only their initial battle/map is staged.
+    pub(crate) fn ui_review_animation_setup(&mut self, combat: bool) -> (u32, (i32, i32)) {
+        self.units.clear();
+        self.cities.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.owner = None;
+            tile.base = None;
+            tile.river = false;
+            tile.resource = None;
+            tile.hut = false;
+            tile.pollution = false;
+            tile.fallout = false;
+            tile.road = false;
+            tile.railroad = false;
+            tile.visible = true;
+            tile.seen = true;
+        }
+        let target = offset_native_by_map(20, 24, 1, 0);
+        let id = self.spawn_unit(
+            HUMAN,
+            if combat {
+                UnitKind::Riflemen
+            } else {
+                UnitKind::Warrior
+            },
+            20,
+            24,
+        );
+        if combat {
+            self.create_city(1, target.0, target.1);
+            self.cities.last_mut().unwrap().name = "Battlefield".into();
+            self.spawn_unit(1, UnitKind::Warrior, target.0, target.1);
+            self.cancel_pact(HUMAN, 1);
+        }
+        // Keep an independent rival settlement so this visual battle does
+        // not trigger the game's victory modal before it can be inspected.
+        self.create_city(1, 40, 40);
+        self.spawn_unit(1, UnitKind::Warrior, 40, 40);
+        self.enable_visual_events();
+        (id, target)
+    }
+}
