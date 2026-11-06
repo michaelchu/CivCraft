@@ -48,21 +48,17 @@ impl Game {
 
         for (corner, matches) in groups.into_iter().enumerate() {
             let (source_row, source_col) = ocean_cell_source(matches);
-            draw_texture_ex(
-                &assets.ocean_corners,
-                center.x - tile_w * 0.5,
-                center.y - tile_h * 0.5,
+            assets.draw_ocean_corner(
+                center,
+                tile_w,
+                tile_h,
+                isolated_sprite_source(
+                    (corner * 9 + source_row) as i32,
+                    source_col as i32,
+                    96.0,
+                    48.0,
+                ),
                 tint,
-                DrawTextureParams {
-                    dest_size: Some(vec2(tile_w, tile_h)),
-                    source: Some(isolated_sprite_source(
-                        (corner * 9 + source_row) as i32,
-                        source_col as i32,
-                        96.0,
-                        48.0,
-                    )),
-                    ..Default::default()
-                },
             );
         }
     }

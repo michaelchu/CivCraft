@@ -155,6 +155,34 @@ fn build_ocean_corner_atlas(ocean: &Image, terrain: &Image) -> Image {
     atlas
 }
 
+fn build_water_corner_atlas(water: &Image) -> Image {
+    let mut atlas = isolated_atlas_at(water, 48, 24, 16, 12, (1, 437), 1);
+    // Extend only the bright ice lip upward into transparent pixels. Moving
+    // the entire cliff would move its shadows onto the back of the ice tile.
+    let original = atlas.get_image_data().to_vec();
+    let stride = atlas.width();
+    let pixels = atlas.get_image_data_mut();
+    for row in 0..3 {
+        for col in 0..16 {
+            for y in 0..25 {
+                for x in 0..50 {
+                    let at = (row * 26 + y) * stride + col * 50 + x;
+                    let below = original[at + stride];
+                    if original[at][3] == 0
+                        && below[3] == 255
+                        && below[0] >= 190
+                        && below[1] >= 190
+                        && below[2] >= 190
+                    {
+                        pixels[at] = below;
+                    }
+                }
+            }
+        }
+    }
+    atlas
+}
+
 // Back transparent mask edges with the matching artwork, clipped by shared
 // diamond geometry. A flat minimap/average color produces visible diagonal seams.
 fn masked_terrain_backing_atlas(corners: &Image, water: &Image, terrain: &Image) -> Image {
@@ -248,7 +276,7 @@ pub(crate) struct Assets {
     pub(super) terrain2: Texture2D,
     pub(super) hills: Texture2D,
     pub(super) mountains: Texture2D,
-    pub(super) ocean_corners: Texture2D,
+    ocean_corners: std::cell::RefCell<Mesh>,
     masked_terrain_backing: std::cell::RefCell<Mesh>,
     pub(super) units: Texture2D,
     pub(super) selection: Texture2D,
@@ -259,6 +287,52 @@ pub(crate) struct Assets {
     pub(super) explosions: Texture2D,
     pub(super) veterancy: Texture2D,
     pub(super) activities: Texture2D,
+}
+
+fn textured_diamond(
+    mesh: &std::cell::RefCell<Mesh>,
+    center: Vec2,
+    width: f32,
+    height: f32,
+    source: Rect,
+    tint: Color,
+) {
+    let mut mesh = mesh.borrow_mut();
+    let texture = mesh.texture.as_ref().unwrap();
+    let (tw, th) = (texture.width(), texture.height());
+    set_diamond_vertices(
+        &mut mesh.vertices,
+        center,
+        vec2(width, height),
+        source,
+        vec2(tw, th),
+        tint,
+    );
+    draw_mesh(&mesh);
+}
+
+fn set_diamond_vertices(
+    vertices: &mut [Vertex],
+    center: Vec2,
+    size: Vec2,
+    source: Rect,
+    texture_size: Vec2,
+    tint: Color,
+) {
+    for (vertex, (x, y)) in
+        vertices
+            .iter_mut()
+            .zip([(0.5, 0.0), (1.0, 0.5), (0.5, 1.0), (0.0, 0.5)])
+    {
+        *vertex = Vertex::new(
+            center.x + (x - 0.5) * size.x,
+            center.y + (y - 0.5) * size.y,
+            0.0,
+            (source.x + x * source.w) / texture_size.x,
+            (source.y + y * source.h) / texture_size.y,
+            tint,
+        );
+    }
 }
 
 impl Assets {
@@ -275,25 +349,28 @@ impl Assets {
             Terrain::Glacier => 3,
             _ => 1,
         };
-        let mut mesh = self.masked_terrain_backing.borrow_mut();
-        let texture = mesh.texture.as_ref().unwrap();
-        let (tw, th) = (texture.width(), texture.height());
         let source = isolated_sprite_source(row, 0, 96.0, 48.0);
-        for (vertex, (x, y)) in
-            mesh.vertices
-                .iter_mut()
-                .zip([(0.5, 0.0), (1.0, 0.5), (0.5, 1.0), (0.0, 0.5)])
-        {
-            *vertex = Vertex::new(
-                center.x + (x - 0.5) * width,
-                center.y + (y - 0.5) * height,
-                0.0,
-                (source.x + x * source.w) / tw,
-                (source.y + y * source.h) / th,
-                WHITE,
-            );
-        }
-        draw_mesh(&mesh);
+        textured_diamond(
+            &self.masked_terrain_backing,
+            center,
+            width,
+            height,
+            source,
+            WHITE,
+        );
+    }
+
+    pub(super) fn draw_ocean_corner(
+        &self,
+        center: Vec2,
+        width: f32,
+        height: f32,
+        source: Rect,
+        tint: Color,
+    ) {
+        // The raster mask overlaps by one texel to cover sampling gaps. Clip
+        // that overlap to the geometric tile so it cannot paint over ice.
+        textured_diamond(&self.ocean_corners, center, width, height, source, tint);
     }
 
     pub(crate) fn new() -> Self {
@@ -316,15 +393,7 @@ impl Assets {
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_water.png"), None)
                 .expect("valid water atlas");
         // Coast/lake cells use a separate 48x24 grid starting lower on the sheet.
-        let water = Texture2D::from_image(&isolated_atlas_at(
-            &water_image,
-            48,
-            24,
-            16,
-            12,
-            (1, 437),
-            1,
-        ));
+        let water = Texture2D::from_image(&build_water_corner_atlas(&water_image));
         water.set_filter(FilterMode::Nearest);
         let river_image =
             Image::from_file_with_format(include_bytes!("../../assets/hexemplio_rivers.png"), None)
@@ -365,6 +434,12 @@ impl Assets {
         });
         let ocean_corners =
             Texture2D::from_image(&isolated_atlas(&raw_ocean_corners, 96, 48, 9, 36, false));
+        ocean_corners.set_filter(FilterMode::Nearest);
+        let ocean_corners = std::cell::RefCell::new(Mesh {
+            vertices: vec![Vertex::new(0.0, 0.0, 0.0, 0.0, 0.0, WHITE); 4],
+            indices: vec![0, 1, 2, 0, 2, 3],
+            texture: Some(ocean_corners),
+        });
         let units_image =
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_units.png"), None)
                 .expect("valid unit atlas");
@@ -414,7 +489,6 @@ impl Assets {
         terrain2.set_filter(FilterMode::Nearest);
         hills.set_filter(FilterMode::Nearest);
         mountains.set_filter(FilterMode::Nearest);
-        ocean_corners.set_filter(FilterMode::Nearest);
         units.set_filter(FilterMode::Nearest);
         cities.set_filter(FilterMode::Linear);
         Self {
@@ -750,6 +824,81 @@ mod native_unit_tests {
                 } else {
                     assert!(pixel[0] > 200 && pixel[1] > 200, "edge must be ice-colored");
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn cliff_rim_extension_preserves_shadows_and_lake_cells() {
+        let water =
+            Image::from_file_with_format(include_bytes!("../../assets/amplio2_water.png"), None)
+                .unwrap();
+        let original = isolated_atlas_at(&water, 48, 24, 16, 12, (1, 437), 1);
+        let fixed = build_water_corner_atlas(&water);
+        let before = original.get_image_data();
+        let after = fixed.get_image_data();
+        let stride = fixed.width();
+        let mut changed = 0;
+        for (i, (&a, &b)) in before.iter().zip(after).enumerate() {
+            if a != b {
+                changed += 1;
+                assert_eq!(a[3], 0, "opaque artwork/shadows must not move");
+                assert!(i / stride < 3 * 26, "only ice-cliff rows may change");
+                assert_eq!(
+                    b,
+                    before[i + stride],
+                    "new rim pixel must come from directly below"
+                );
+                assert!(b[0] >= 190 && b[1] >= 190 && b[2] >= 190 && b[3] == 255);
+            }
+        }
+        assert!(changed > 0);
+    }
+
+    #[test]
+    fn ocean_diamond_geometry_cannot_cover_an_adjacent_ice_tile() {
+        fn cross(a: Vec2, b: Vec2) -> f32 {
+            a.x * b.y - a.y * b.x
+        }
+        fn in_triangle(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
+            let signs = [
+                cross(b - a, p - a),
+                cross(c - b, p - b),
+                cross(a - c, p - c),
+            ];
+            signs.iter().all(|s| *s >= 0.0) || signs.iter().all(|s| *s <= 0.0)
+        }
+        for zoom in [0.625, 0.82, 1.0, 1.35] {
+            let center = vec2(311.137, 127.213);
+            let size = vec2(96.0, 48.0) * zoom;
+            let mut vertices = vec![Vertex::new(0.0, 0.0, 0.0, 0.0, 0.0, WHITE); 4];
+            set_diamond_vertices(
+                &mut vertices,
+                center,
+                size,
+                isolated_sprite_source(0, 0, 96.0, 48.0),
+                vec2(882.0, 1800.0),
+                WHITE,
+            );
+            let positions: Vec<_> = vertices
+                .iter()
+                .map(|v| vec2(v.position.x, v.position.y))
+                .collect();
+            let covered = |point| {
+                in_triangle(point, positions[0], positions[1], positions[2])
+                    || in_triangle(point, positions[0], positions[2], positions[3])
+            };
+            assert!(covered(center + size * vec2(0.2, -0.2)));
+            for delta in [
+                vec2(0.3, -0.3),
+                vec2(0.3, 0.3),
+                vec2(-0.3, 0.3),
+                vec2(-0.3, -0.3),
+            ] {
+                assert!(
+                    !covered(center + size * delta),
+                    "ocean must not cover neighboring ice at fractional zoom"
+                );
             }
         }
     }

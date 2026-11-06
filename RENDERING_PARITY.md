@@ -143,3 +143,12 @@ RNG. Other terrain pairs retain the native blend mask and eligibility rules.
 The glacier's transparent raster edge is backed with matching ice artwork
 instead of a flat minimap color, avoiding a blue-gray fringe. The
 `ice-transitions` gallery scene provides normal and fractional-zoom captures.
+
+## Polar shoreline coverage
+
+Ocean corner sprites are geometrically clipped to their own tile diamond,
+preventing expanded alpha masks from painting onto neighboring ice. The bright
+ice-cliff lip extends one source pixel upward into transparent pixels to meet
+the ice surface without a blue line. Original opaque cliff pixels and shadow
+placement are preserved; lake cells are unchanged. This small coverage fix is
+validated against the actual generated seed-42 polar shoreline.

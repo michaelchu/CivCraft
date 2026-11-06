@@ -361,18 +361,23 @@ impl Game {
             draw_texture_ex(
                 &assets.water,
                 center.x - w * 0.5 + ox * w / TILE_W,
-                center.y - h * 0.5 + oy * h / TILE_H,
+                center.y - h * 0.5 + oy * h / TILE_H - if lake { 0.0 } else { h / TILE_H },
                 WHITE,
                 DrawTextureParams {
-                    dest_size: Some(vec2(w * 0.5, h * 0.5)),
+                    dest_size: Some(vec2(w * 0.5, h * 0.5 + if lake { 0.0 } else { h / TILE_H })),
                     source: Some({
                         let original = water_corner_cell(lake, corner, mask);
-                        isolated_sprite_source(
+                        let mut source = isolated_sprite_source(
                             ((original.y - 437.0) / 25.0) as i32,
                             ((original.x - 1.0) / 49.0) as i32,
                             48.0,
                             24.0,
-                        )
+                        );
+                        if !lake {
+                            source.y -= 1.0;
+                            source.h += 1.0;
+                        }
+                        source
                     }),
                     ..Default::default()
                 },

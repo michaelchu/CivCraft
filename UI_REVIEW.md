@@ -222,3 +222,9 @@ pairs, including ice-to-water boundaries, retain their reference behavior.
 The stipple stays inside each tile's diamond. Transparent glacier raster edges
 have matching ice artwork underneath, preventing a blue-gray fallback fringe.
 `ice-transitions-next.png` checks fractional zoom and camera panning.
+
+Polar shoreline checks also inspect the actual seed-42 `north-pole` capture.
+Ocean corner drawing is clipped to shared diamond geometry so expanded alpha
+masks cannot paint blue onto neighboring ice. Ice-cliff sprites keep their
+original placement and shadows; only their bright lip extends upward by one
+source pixel into transparency. Lake cells are unchanged.
