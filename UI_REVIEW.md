@@ -15,7 +15,7 @@ This is deliberately a small shared UI layer rather than a retained widget frame
 | Production cards | Names, cost and status fit their cards; pagination uses the actual grid capacity. |
 | Worklist / worked tiles | Queue labels leave space for editing controls. Worked tiles use an isometric map with shared world terrain, improvements and city artwork; surrounding tiles are fogged, with diamond-shaped worker hit targets. |
 | Government | Common frame, bounded prose, existing two-column government choices. |
-| Diplomacy | Rival details sit above wrapping action rows; map and city offers remain available in narrower windows. |
+| Diplomacy | The negotiation meeting centers the leader portrait and deal table, with tradable items on each civilization's side; map and city offers remain available in narrower windows. |
 | City deals / treaties | Names stay clear of purchase controls; treaty columns fit independently and reserve footer space. |
 | Spy / investigation | Common frame, bounded titles and content, shared Previous/Next footer with page count. |
 | Research tree | Pixel-bounded summaries and details, consistent tab gutters; tree drawing is unchanged. |
@@ -32,7 +32,7 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery covers 43 scenarios, including the campaign intro and three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, first contact and war status, leader avatars, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 44 scenarios, including the campaign intro and three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The `diplomacy-negotiation` fixture first offers peace without compensation and verifies the rejection, then adds gold, resubmits, and checks that peace is signed and gold deducted. Other scenarios provide controlled examples for developed cities, diplomacy, first contact and war status, leader avatars, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 For a quick on-demand check, select a scene by name:
 
@@ -41,6 +41,7 @@ For a quick on-demand check, select a scene by name:
 ./target/release/civcraft --seed 1337 --ui-review /tmp/civcraft-campaign --ui-scene campaign-after-turn
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-first-contact --ui-scene first-contact
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-leader-diplomacy --ui-scene leader-diplomacy
+./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-negotiation --ui-scene diplomacy-negotiation
 ```
 
 Every scene produces its primary screenshot. A `-next.png` is saved only after a control changes the page or campaign state; the runner verifies that the captured pixels changed too. Managed screenshots from an earlier run are cleared before capture, so old pages cannot masquerade as new results. Autosaves are disabled and, except for the go-to hover scenario, the gallery parks its virtual cursor outside the UI to keep captures independent of the OS pointer. Normal interactive play keeps its actual mouse hover behavior.

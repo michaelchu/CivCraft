@@ -336,8 +336,17 @@ impl Playtest {
         if frame == 101 && self.act_passed {
             if let Some((_, action)) = buttons
                 .iter()
-                .find(|(_, action)| matches!(action, UiAction::Negotiate(1, sim::Pact::Ceasefire)))
+                .find(|(_, action)| matches!(action, UiAction::OpenDiplomacyWith(1)))
             {
+                game.perform_action(*action);
+            }
+            self.act_passed = game.sim.pact(HUMAN, 1) == sim::Pact::War;
+        }
+        if frame == 102 && self.act_passed {
+            if let Some((_, action)) = buttons.iter().find(|(_, action)| {
+                matches!(action, UiAction::ProposeTreaty(1, offer)
+                    if offer.pact == Some(sim::Pact::Ceasefire))
+            }) {
                 game.perform_action(*action);
             }
             self.act_passed = game.sim.pact_turns(HUMAN, 1) == 16;
@@ -394,7 +403,7 @@ impl Playtest {
         if frame == 125 && self.act_passed {
             if let Some((_, action)) = buttons
                 .iter()
-                .find(|(_, action)| matches!(action, UiAction::Negotiate(1, sim::Pact::Ceasefire)))
+                .find(|(_, action)| matches!(action, UiAction::OpenDiplomacyWith(1)))
             {
                 game.perform_action(*action);
             }
@@ -407,10 +416,10 @@ impl Playtest {
         }
         if frame == 128 && self.act_passed {
             let offered = game.sim.pact_offer(1) == Some(sim::Pact::Peace);
-            if let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::Negotiate(1, sim::Pact::Peace)))
-            {
+            if let Some((_, action)) = buttons.iter().find(|(_, action)| {
+                matches!(action, UiAction::AcceptOffer(1, offer)
+                    if offer.pact == Some(sim::Pact::Peace))
+            }) {
                 game.perform_action(*action);
             }
             self.act_passed = offered && game.sim.pact(HUMAN, 1) == sim::Pact::Armistice;
@@ -432,14 +441,6 @@ impl Playtest {
                 " Pure alliance proposal available: {}.",
                 self.act_passed
             ));
-            if let Some((_, action)) = buttons.iter().find(|(_, action)| {
-                matches!(
-                    action,
-                    UiAction::ReviewOffer(1, _) | UiAction::Negotiate(1, sim::Pact::Alliance)
-                )
-            }) {
-                game.perform_action(*action);
-            }
         }
         if frame == 136 && self.act_passed {
             if let Some((_, action)) = buttons

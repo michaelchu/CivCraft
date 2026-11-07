@@ -203,6 +203,8 @@ impl Game {
             UiAction::ToggleDiplomacy => {
                 self.diplomacy_open = !self.diplomacy_open;
                 self.diplomacy_target = None;
+                self.treaty_draft = None;
+                self.treaty_feedback = None;
                 self.diplomacy_page = 0;
                 self.city_deals = None;
                 self.reviewed_offer = None;
@@ -210,6 +212,10 @@ impl Game {
             UiAction::OpenDiplomacyWith(owner) => {
                 self.diplomacy_open = true;
                 self.diplomacy_target = Some(owner);
+                self.treaty_draft = None;
+                self.treaty_feedback = None;
+                self.treaty_item_page = [0; PLAYER_COUNT];
+                self.treaty_item_group = [0; PLAYER_COUNT];
                 self.diplomacy_page = 0;
                 self.city_deals = None;
                 self.reviewed_offer = None;
@@ -217,11 +223,58 @@ impl Game {
             UiAction::OpenDiplomacyOverview => {
                 self.diplomacy_open = true;
                 self.diplomacy_target = None;
+                self.treaty_draft = None;
+                self.treaty_feedback = None;
                 self.diplomacy_page = 0;
                 self.city_deals = None;
                 self.reviewed_offer = None;
             }
             UiAction::DiplomacyPage(page) => self.diplomacy_page = page,
+            UiAction::EditTreatyDraft(owner, offer) => {
+                self.treaty_draft = Some((owner, offer));
+                self.treaty_feedback = None;
+            }
+            UiAction::TreatyItemsPage(owner, page) => {
+                if owner < self.treaty_item_page.len() {
+                    self.treaty_item_page[owner] = page;
+                }
+            }
+            UiAction::TreatyItemGroup(side, group) => {
+                if side < self.treaty_item_group.len() {
+                    self.treaty_item_group[side] = group;
+                    self.treaty_item_page[side] = 0;
+                }
+            }
+            UiAction::AdjustTreatyGold(owner, delta) => {
+                if owner < self.sim.players().len() {
+                    let treasury = self.sim.players()[owner].gold.max(0);
+                    self.treaty_gold_amount[owner] = self.treaty_gold_amount[owner]
+                        .saturating_add(delta)
+                        .clamp(0, treasury);
+                    self.treaty_feedback = None;
+                }
+            }
+            UiAction::AddTreatyGold(target, side, mut offer) => {
+                let term_side = usize::from(side != HUMAN);
+                if side < self.sim.players().len() && term_side < offer.terms.len() {
+                    let amount =
+                        self.treaty_gold_amount[side].min(self.sim.players()[side].gold.max(0));
+                    offer.terms[term_side] = offer.terms[term_side].set_gold(amount);
+                    self.treaty_draft = Some((target, offer));
+                    self.treaty_feedback = None;
+                }
+            }
+            UiAction::ProposeTreaty(owner, offer) => {
+                let accepted = self.sim.apply(Command::ProposeTreaty(owner, offer));
+                let message =
+                    self.sim.events().last().cloned().unwrap_or_else(|| {
+                        "The treaty proposal could not be delivered.".to_owned()
+                    });
+                self.treaty_feedback = Some((owner, message));
+                if accepted {
+                    self.treaty_draft = Some((owner, offer));
+                }
+            }
             UiAction::SpyTargets(targets) => self.spy_targets = targets,
             UiAction::TargetedTheft(..)
             | UiAction::TargetedSabotage(..)
@@ -283,17 +336,31 @@ impl Game {
             UiAction::BuyMap(owner, map) => {
                 self.sim.apply(Command::BuyMap(owner, map));
             }
-            UiAction::Negotiate(other, pact) => {
-                self.sim.apply(Command::Negotiate(other, pact));
-            }
             UiAction::CancelPact(other) => {
                 self.sim.apply(Command::CancelPact(other));
             }
-            UiAction::ReviewOffer(other, offer) => self.reviewed_offer = Some((other, offer)),
+            UiAction::ReviewOffer(other, offer) => {
+                self.diplomacy_open = true;
+                self.diplomacy_target = Some(other);
+                self.treaty_draft = Some((other, offer));
+                self.treaty_feedback = None;
+                self.reviewed_offer = None;
+            }
             UiAction::CloseOffer => self.reviewed_offer = None,
             UiAction::AcceptOffer(other, offer) => {
-                self.sim.apply(Command::AcceptOffer(other, offer));
+                let accepted = self.sim.apply(Command::AcceptOffer(other, offer));
                 self.reviewed_offer = None;
+                self.treaty_draft = None;
+                self.treaty_feedback = accepted.then(|| {
+                    (
+                        other,
+                        self.sim
+                            .events()
+                            .last()
+                            .cloned()
+                            .unwrap_or_else(|| "Treaty terms agreed.".to_owned()),
+                    )
+                });
             }
             UiAction::DeclineOffer(other) => {
                 self.reviewed_offer = None;

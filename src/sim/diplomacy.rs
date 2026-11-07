@@ -60,6 +60,49 @@ impl Concessions {
         self.access & 1 != 0
     }
 
+    pub(crate) fn set_gold(mut self, gold: i32) -> Self {
+        self.gold = gold.max(0);
+        self
+    }
+
+    pub(crate) fn set_technology(mut self, technology: Option<Tech>) -> Self {
+        self.technology = technology;
+        self
+    }
+
+    pub(crate) fn set_shared_vision(mut self, enabled: bool) -> Self {
+        self.access = if enabled {
+            self.access | 1
+        } else {
+            self.access & !1
+        };
+        self
+    }
+
+    pub(crate) fn set_map(mut self, map: Option<TreatyMap>) -> Self {
+        self.access &= !(TreatyMap::World.flag() | TreatyMap::Sea.flag());
+        if let Some(map) = map {
+            self.access |= map.flag();
+        }
+        self
+    }
+
+    pub(crate) fn set_embassy(mut self, enabled: bool) -> Self {
+        if enabled {
+            self.access |= Self::EMBASSY_FLAG;
+        } else {
+            self.access &= !Self::EMBASSY_FLAG;
+        }
+        self
+    }
+
+    pub(crate) fn set_city(mut self, city: Option<u32>) -> Self {
+        self.access = city.map_or(self.access & !Self::CITY_MASK, |id| {
+            (self.access & !Self::CITY_MASK) | (u64::from(id) << Self::CITY_SHIFT)
+        });
+        self
+    }
+
     pub(crate) fn embassy(self) -> bool {
         self.access & Self::EMBASSY_FLAG != 0
     }
@@ -2915,6 +2958,37 @@ mod tests {
     }
 
     #[test]
+    fn human_counteroffer_pays_gold_to_sign_peace_through_command() {
+        let mut game = war_planning_game();
+        let relation = game.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
+        relation.pact = Pact::Ceasefire;
+        relation.until = game.turn + 4;
+        relation.trust[1] = 1000;
+        game.players[HUMAN].gold = 250;
+        let mut offer = TreatyOffer {
+            pact: Some(Pact::Peace),
+            ..TreatyOffer::default()
+        };
+        assert!(!game.apply(Command::ProposeTreaty(1, offer)));
+        assert!(
+            game.events()
+                .last()
+                .unwrap()
+                .contains("requires at least 62"),
+            "event: {:?}",
+            game.events().last()
+        );
+        assert_eq!(game.pact(HUMAN, 1), Pact::Ceasefire);
+        assert_eq!(game.players[HUMAN].gold, 250);
+
+        offer.terms[HUMAN].gold = 75;
+
+        assert!(game.apply(Command::ProposeTreaty(1, offer)));
+        assert_eq!(game.pact(HUMAN, 1), Pact::Armistice);
+        assert_eq!(game.players[HUMAN].gold, 175);
+    }
+
+    #[test]
     fn profitable_war_target_loses_love_while_expansion_suppresses_war_desire() {
         let mut game = war_planning_game();
         game.tile_mut(14, 26).terrain = Terrain::Grassland;
@@ -3450,6 +3524,18 @@ mod tests {
 }
 
 impl Simulation {
+    /// Controlled war-ending scenario for the diplomacy interaction gallery.
+    pub(crate) fn ui_review_compensation_negotiation(&mut self, other: usize) {
+        self.players[HUMAN].gold = 250;
+        let relation = self
+            .diplomacy
+            .get_mut(&Self::relation_key(HUMAN, other))
+            .expect("the diplomacy fixture establishes contact");
+        relation.pact = Pact::Ceasefire;
+        relation.until = self.turn + 4;
+        relation.trust[usize::from(other > HUMAN)] = 1000;
+    }
+
     /// Worst-case concessions for the isolated, opt-in screenshot gallery.
     pub(crate) fn ui_review_offer(&mut self) -> TreatyOffer {
         let mut terms = Concessions {

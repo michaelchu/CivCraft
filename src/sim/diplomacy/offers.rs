@@ -15,6 +15,93 @@ impl Simulation {
         self.diplomatic_meeting_possible(HUMAN, other)
     }
 
+    pub(crate) fn treaty_trade_technologies(&self, seller: usize, buyer: usize) -> Vec<Tech> {
+        Tech::all()
+            .filter(|&tech| self.tech_sell_price(seller, buyer, tech).is_some())
+            .collect()
+    }
+
+    pub(crate) fn treaty_trade_cities(&self, seller: usize, pact: Pact) -> Vec<u32> {
+        if !matches!(pact, Pact::Peace | Pact::Alliance)
+            || self
+                .cities
+                .iter()
+                .filter(|city| city.owner == seller)
+                .count()
+                <= 3
+        {
+            return Vec::new();
+        }
+        self.cities
+            .iter()
+            .filter(|city| {
+                city.owner == seller
+                    && !city.has_building(Building::PALACE)
+                    && !city.has_building(Building::ECCLESIASTICAL_PALACE)
+            })
+            .map(|city| city.id)
+            .collect()
+    }
+
+    pub(crate) fn treaty_can_offer_embassy(&self, giver: usize, receiver: usize) -> bool {
+        !self.has_real_embassy(receiver, giver)
+    }
+
+    pub(crate) fn treaty_can_offer_vision(
+        &self,
+        giver: usize,
+        receiver: usize,
+        pact: Pact,
+    ) -> bool {
+        pact == Pact::Alliance && self.vision_safe(giver, receiver)
+    }
+
+    pub(in crate::sim) fn propose_treaty(&mut self, other: usize, offer: TreatyOffer) -> bool {
+        if other == HUMAN || other >= self.players.len() || !self.can_negotiate(other) {
+            return false;
+        }
+        if offer.terms[0].gold > self.players[HUMAN].gold {
+            self.add_event("Your treasury cannot cover that treaty offer.");
+            return false;
+        }
+        if let Some(pact) = offer.pact
+            && let Some(reason) = self.pact_refusal(other, HUMAN, pact)
+        {
+            self.add_event(format!("{} declined. {reason}", self.players[other].name));
+            return false;
+        }
+        if !self.execute_offer(HUMAN, other, offer) {
+            if let Some(pact) = offer.pact
+                && let Some((terms_balance, _)) = self.ai_treaty_clause_balance(
+                    other,
+                    HUMAN,
+                    offer.terms[1],
+                    offer.terms[0],
+                    pact,
+                )
+                && let balance = terms_balance + self.pact_clause_value(other, HUMAN, pact)
+                && balance < 0
+            {
+                let additional = (-balance).min(i64::from(i32::MAX));
+                self.add_event(format!(
+                    "{} requires at least {additional} more gold or equivalent concessions for that treaty.",
+                    self.players[other].name
+                ));
+                return false;
+            }
+            self.add_event(format!(
+                "{} rejected your treaty terms.",
+                self.players[other].name
+            ));
+            return false;
+        }
+        self.add_event(format!(
+            "{} accepted your treaty terms.",
+            self.players[other].name
+        ));
+        true
+    }
+
     pub(in crate::sim) fn accept_offer(&mut self, other: usize, offer: TreatyOffer) -> bool {
         // Native acceptance looks up the existing meeting; contact expiry
         // prevents opening a new meeting, not concluding an existing one.

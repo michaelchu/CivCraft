@@ -44,6 +44,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "first-contact",
     "leader-diplomacy",
     "campaign-intro",
+    "diplomacy-negotiation",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -97,6 +98,11 @@ impl Game {
             }
             41 => {
                 self.sim.ui_review_first_contact();
+            }
+            43 => {
+                self.sim.ui_review_compensation_negotiation(1);
+                self.diplomacy_open = true;
+                self.diplomacy_target = Some(1);
             }
             7 => {
                 self.diplomacy_open = true;
@@ -334,6 +340,60 @@ impl Game {
                 self.diplomacy_open && self.diplomacy_target == Some(1),
             )?;
             return Ok(true);
+        }
+        if scene == 43 {
+            if phase == 1 {
+                sequence.click(
+                    self,
+                    buttons,
+                    "offer_peace_without_compensation",
+                    |action| {
+                        matches!(action, UiAction::ProposeTreaty(1, offer)
+                        if offer.pact == Some(Pact::Peace) && offer.terms[HUMAN].gold == 0)
+                    },
+                )?;
+            } else if phase == 2 {
+                sequence.check(
+                    "ai_requires_compensation",
+                    self.sim.pact(HUMAN, 1) == Pact::Ceasefire
+                        && self.sim.players()[HUMAN].gold == 250
+                        && self
+                            .treaty_feedback
+                            .as_ref()
+                            .is_some_and(|(_, message)| message.contains("requires at least 62")),
+                )?;
+                sequence.click(self, buttons, "increase_compensation_amount", |action| {
+                    matches!(action, UiAction::AdjustTreatyGold(HUMAN, 25))
+                })?;
+                sequence.check(
+                    "gold_amount_increased",
+                    self.treaty_gold_amount[HUMAN] == 75,
+                )?;
+            } else if phase == 3 {
+                sequence.click(self, buttons, "add_gold_to_treaty_table", |action| {
+                    matches!(action, UiAction::AddTreatyGold(1, HUMAN, _))
+                })?;
+                sequence.check(
+                    "compensation_added_to_rome_offer",
+                    self.treaty_draft
+                        .is_some_and(|(owner, offer)| owner == 1 && offer.terms[HUMAN].gold == 75),
+                )?;
+            } else if phase == 6 {
+                sequence.click(self, buttons, "propose_compensated_peace", |action| {
+                    matches!(action, UiAction::ProposeTreaty(1, offer)
+                        if offer.pact == Some(Pact::Peace) && offer.terms[HUMAN].gold == 75)
+                })?;
+                sequence.check(
+                    "ai_accepts_compensated_peace",
+                    self.sim.pact(HUMAN, 1) == Pact::Armistice,
+                )?;
+                sequence.check(
+                    "compensation_paid_once",
+                    self.sim.players()[HUMAN].gold == 175,
+                )?;
+                return Ok(true);
+            }
+            return Ok(false);
         }
         if scene == 39 {
             if phase == 6 {
