@@ -227,14 +227,17 @@ impl Tile {
             Terrain::Lake => matches!(resource, Fish),
             Terrain::Ocean => matches!(resource, Fish | Whales),
             Terrain::DeepOcean => false,
-            Terrain::Glacier => matches!(resource, Oil | Uranium),
+            // Glacier keeps the reference's "icy ivory" placement; Plains
+            // also support the land-animal version used by WrapX campaigns,
+            // which deliberately have no glacial terrain.
+            Terrain::Glacier => matches!(resource, Ivory | Oil | Uranium),
             Terrain::Desert => matches!(resource, Oasis | Oil | Incense | Saltpeter),
             Terrain::Forest => matches!(resource, Furs | Silk | Horses | Coal | Rubber),
             Terrain::Grassland => matches!(resource, Cattle | Horses | Wine | Tobacco),
             Terrain::Hills => matches!(resource, Coal | Wine | Iron | Aluminum | Saltpeter),
             Terrain::Jungle => matches!(resource, Gems | TropicalFruit | Dyes | Rubber | Sugar),
             Terrain::Mountains => matches!(resource, Gold | Iron | Aluminum | Uranium),
-            Terrain::Plains => matches!(resource, Cattle | Wheat | Horses | Iron | Oil),
+            Terrain::Plains => matches!(resource, Cattle | Wheat | Horses | Iron | Oil | Ivory),
             Terrain::Swamp => matches!(resource, Spice | Oil | Sugar),
             Terrain::Tundra => matches!(resource, Game | Furs | Oil),
         })
@@ -1521,6 +1524,28 @@ impl Player {
             } else {
                 "Rebel Council"
             })
+    }
+}
+
+#[cfg(test)]
+mod resource_terrain_tests {
+    use super::*;
+    use crate::sim::Simulation;
+
+    #[test]
+    fn ivory_is_active_on_plains_and_glaciers_but_not_unrelated_terrain() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let tile = sim.tile_mut(10, 10);
+        tile.resource = Some(Resource::Ivory);
+
+        tile.terrain = Terrain::Plains;
+        assert_eq!(tile.active_resource(), Some(Resource::Ivory));
+
+        tile.terrain = Terrain::Glacier;
+        assert_eq!(tile.active_resource(), Some(Resource::Ivory));
+
+        tile.terrain = Terrain::Hills;
+        assert_eq!(tile.active_resource(), None);
     }
 }
 

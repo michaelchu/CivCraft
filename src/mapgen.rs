@@ -744,14 +744,16 @@ impl Generator {
                     &[Fish, Whales]
                 }
                 Terrain::Ocean | Terrain::DeepOcean => &[],
-                Terrain::Glacier => &[Oil, Uranium],
+                Terrain::Glacier => &[Oil, Uranium, Ivory],
                 Terrain::Desert => &[Oasis, Oil, Incense, Saltpeter],
                 Terrain::Forest => &[Furs, Silk, Horses, Coal, Rubber],
                 Terrain::Grassland => &[Cattle, Horses, Wine, Tobacco],
                 Terrain::Hills => &[Coal, Wine, Iron, Aluminum, Saltpeter],
                 Terrain::Jungle => &[Gems, TropicalFruit, Dyes, Rubber, Sugar],
                 Terrain::Mountains => &[Gold, Iron, Aluminum, Uranium],
-                Terrain::Plains => &[Cattle, Wheat, Horses, Iron, Oil],
+                // Ivory also appears on plains so the default WrapX map can
+                // spawn it after its glacial terrain is converted to ocean.
+                Terrain::Plains => &[Cattle, Wheat, Horses, Iron, Oil, Ivory],
                 Terrain::Swamp => &[Spice, Oil, Sugar],
                 Terrain::Tundra => &[Game, Furs, Oil],
             };
@@ -1215,6 +1217,15 @@ pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
 #[cfg(test)]
 mod wrap_generation_tests {
     use super::*;
+
+    #[test]
+    fn ivory_can_spawn_on_plains_in_default_wrap_x_campaigns() {
+        let map = generate_with_wrap(42, MapWrap::X);
+        assert!(map.tiles.iter().any(|tile| {
+            tile.terrain == Terrain::Plains && tile.resource == Some(Resource::Ivory)
+        }));
+    }
+
     #[test]
     fn cylinders_have_ocean_edges_without_polar_land_or_invalid_start_positions() {
         for seed in [0, 1, 42, 1337, 12345, 700001, 2147483647] {
