@@ -69,8 +69,8 @@ an existing world's geography.
 
 ## Map tilesets
 
-Amplio2 is the default. Use the Civ III artwork from the adjacent
-`civ3-png/Art` directory with:
+Amplio2 is the default. To use the Civ III artwork in
+[`tilesets/civ3/`](tilesets/README.md), launch with:
 
 ```sh
 cargo run --release -- --tileset civ3 --seed 42 --wrap x

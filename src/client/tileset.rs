@@ -73,11 +73,11 @@ impl Tileset {
                 let exe = std::env::current_exe().map_err(|error| error.to_string())?;
                 cwd.ancestors()
                     .chain(exe.ancestors().skip(1))
-                    .map(|parent| parent.join("civ3-png/Art"))
+                    .map(|parent| parent.join("tilesets/civ3"))
                     .find(|path| path.join("Terrain").is_dir())
                     .map(Self::Civ3)
                     .ok_or_else(|| {
-                        "Civ III art directory not found. Use --tileset-theme PATH.".into()
+                        "Civ III art not found. Install it under tilesets/civ3 or use --tileset-theme PATH.".into()
                     })
             }
             ("amplio2", Some(_)) => Err("--tileset-theme requires --tileset civ3".into()),
