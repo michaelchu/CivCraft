@@ -78,8 +78,9 @@ cargo run --release -- --tileset civ3 --seed 42 --wrap x
 
 The selection applies to the world map and the city work map. It is independent
 of `--renderer` and works with new maps and existing saves. The Civ III tileset
-uses the shared river, unit, and city art, and falls back to the existing icons
-for resources without a mapped Civ III sprite.
+uses the shared river, unit, and city art. Resource icons come from the selected
+theme’s `resources.png`. A missing sheet or a transparent icon cell uses the
+existing Amplio2-mode resource icon.
 
 Use `--tileset-theme PATH` with `--tileset civ3` to select a local art directory
 or a manifest file. An art directory can follow the original filenames, with

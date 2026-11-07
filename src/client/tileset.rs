@@ -408,7 +408,7 @@ pub(super) struct Civ3 {
     atlas: RefCell<Atlas>,
     overlays: Vec<Option<Texture2D>>,
     irrigation: Vec<Option<Texture2D>>,
-    resources: Option<Texture2D>,
+    resources: Option<ResourceArt>,
 }
 
 impl Civ3 {
@@ -454,10 +454,10 @@ impl Civ3 {
             false,
         )?;
         let resources = resources.map(|mut image| {
-            prepare_resource_sheet(&mut image, shadows.as_ref());
+            let present = prepare_resource_sheet(&mut image, shadows.as_ref());
             let texture = Texture2D::from_image(&image);
             texture.set_filter(FilterMode::Nearest);
-            texture
+            ResourceArt { texture, present }
         });
         Ok(Self {
             art,
@@ -641,23 +641,16 @@ impl Civ3 {
     }
 
     pub(super) fn draw_resource(&self, resource: Resource, center: Vec2, size: Vec2) -> bool {
-        let Some(texture) = &self.resources else {
+        let Some(art) = &self.resources else {
             return false;
         };
-        let (row, col) = match resource {
-            Resource::Horses => (0, 0),
-            Resource::Wheat => (3, 2),
-            Resource::Fish => (1, 3),
-            Resource::Gold => (3, 3),
-            Resource::TropicalFruit => (3, 4),
-            Resource::Oil => (0, 4),
-            Resource::Gems => (2, 3),
-            Resource::Whales => (2, 4),
-            _ => return false,
-        };
+        let (row, col) = resource_cell(resource);
+        if !art.present[row][col] {
+            return false;
+        }
         let width = size.x * 0.44;
         draw_sprite(
-            texture,
+            &art.texture,
             center - vec2(0.0, size.y * 0.05),
             vec2(width, width),
             Rect::new((col * 50 + 1) as f32, (row * 50 + 1) as f32, 49.0, 49.0),
@@ -666,7 +659,45 @@ impl Civ3 {
     }
 }
 
-fn prepare_resource_sheet(image: &mut Image, shadows: Option<&Image>) {
+struct ResourceArt {
+    texture: Texture2D,
+    present: [[bool; 6]; 6],
+}
+
+fn resource_cell(resource: Resource) -> (usize, usize) {
+    use Resource::*;
+    match resource {
+        Horses => (0, 0),
+        Iron => (0, 1),
+        Saltpeter => (0, 2),
+        Coal => (0, 3),
+        Oil => (0, 4),
+        Rubber => (0, 5),
+        Aluminum => (1, 0),
+        Uranium => (1, 1),
+        Wine => (1, 2),
+        Furs => (1, 3),
+        Dyes => (1, 4),
+        Incense => (1, 5),
+        Spice => (2, 0),
+        Ivory => (2, 1),
+        Silk => (2, 2),
+        Gems => (2, 3),
+        Whales => (2, 4),
+        Game => (2, 5),
+        Fish => (3, 0),
+        Cattle => (3, 1),
+        Wheat => (3, 2),
+        Gold => (3, 3),
+        TropicalFruit => (3, 4),
+        Oasis => (3, 5),
+        Sugar => (4, 0),
+        Tobacco => (4, 1),
+    }
+}
+
+fn prepare_resource_sheet(image: &mut Image, shadows: Option<&Image>) -> [[bool; 6]; 6] {
+    let mut present = [[false; 6]; 6];
     let width = image.width();
     let pixels = image.get_image_data_mut();
     for y in 0..300 {
@@ -676,13 +707,14 @@ fn prepare_resource_sheet(image: &mut Image, shadows: Option<&Image>) {
                 // The original atlas grid is opaque. Clear its pixels before
                 // upload so exact UV endpoints cannot sample a magenta line.
                 *pixel = [0; 4];
-            } else if pixel[3] == 0
-                && let Some(shadows) = shadows
-            {
+            } else if pixel[3] != 0 {
+                present[y / 50][x / 50] = true;
+            } else if let Some(shadows) = shadows {
                 *pixel = shadows.get_image_data()[y * shadows.width() + x];
             }
         }
     }
+    present
 }
 
 fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
@@ -709,11 +741,56 @@ mod tests {
         let shadows = Image::gen_image_color(300, 300, BLACK);
         image.get_image_data_mut()[50] = [200, 0, 200, 255];
         image.get_image_data_mut()[301] = [23, 44, 55, 255];
-        prepare_resource_sheet(&mut image, Some(&shadows));
+        let present = prepare_resource_sheet(&mut image, Some(&shadows));
+        assert!(present[0][0]);
+        assert!(!present[0][1], "a shadow alone cannot supply an icon");
         let pixels = image.get_image_data();
         assert_eq!(pixels[50], [0; 4]);
         assert_eq!(pixels[350], [0; 4]);
         assert_eq!(pixels[301], [23, 44, 55, 255]);
         assert_eq!(pixels[302], [0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn bundled_civ3_sheet_supplies_each_resource_in_its_own_cell() {
+        use Resource::*;
+        let resources = [
+            Horses,
+            Iron,
+            Saltpeter,
+            Coal,
+            Oil,
+            Rubber,
+            Aluminum,
+            Uranium,
+            Wine,
+            Furs,
+            Dyes,
+            Incense,
+            Spice,
+            Ivory,
+            Silk,
+            Gems,
+            Whales,
+            Game,
+            Fish,
+            Cattle,
+            Wheat,
+            Gold,
+            TropicalFruit,
+            Oasis,
+            Sugar,
+            Tobacco,
+        ];
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tilesets/civ3/resources.png");
+        let mut image =
+            Image::from_file_with_format(&fs::read(path).unwrap(), Some(ImageFormat::Png)).unwrap();
+        let present = prepare_resource_sheet(&mut image, None);
+        let mut seen = std::collections::HashSet::new();
+        for resource in resources {
+            let (row, col) = resource_cell(resource);
+            assert!(present[row][col], "{resource:?}");
+            assert!(seen.insert((row, col)), "{resource:?}");
+        }
     }
 }
