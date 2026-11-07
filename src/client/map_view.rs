@@ -9,6 +9,10 @@ pub(super) const MAP_UNKNOWN: Color = BLACK;
 // Visual rows only: these never enter the simulation or save data.
 pub(super) const EDGE_WATER_ROWS: i32 = 2;
 
+pub(super) fn shortest_wrapped_delta(delta: f32, period: f32) -> f32 {
+    (delta + period * 0.5).rem_euclid(period) - period * 0.5
+}
+
 pub(super) fn minimum_zoom(wrap: MapWrap, view_height: f32) -> f32 {
     if wrap.wraps_y() {
         MIN_ZOOM

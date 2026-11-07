@@ -973,16 +973,30 @@ impl Simulation {
     }
 }
 
+fn apply_extras11(sim: &mut Simulation, extras: Extras11) {
+    let (current, guard_targets, unit_guards, city_rapture, goto_tiles) = extras;
+    sim.climate_current = current;
+    sim.ai_guard_targets = guard_targets;
+    sim.ai_unit_guards = unit_guards;
+    sim.city_rapture = city_rapture;
+    sim.unit_goto_tiles = goto_tiles;
+}
+
 fn decode_v11(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Error> {
     let (mut campaign, (current, guard_targets, unit_guards, city_rapture, goto_tiles)): (
         CampaignPayload<Strategy9>,
         Extras11,
     ) = codec().deserialize(payload)?;
-    campaign.0.climate_current = current;
-    campaign.0.ai_guard_targets = guard_targets;
-    campaign.0.ai_unit_guards = unit_guards;
-    campaign.0.city_rapture = city_rapture;
-    campaign.0.unit_goto_tiles = goto_tiles;
+    apply_extras11(
+        &mut campaign.0,
+        (
+            current,
+            guard_targets,
+            unit_guards,
+            city_rapture,
+            goto_tiles,
+        ),
+    );
     Ok(campaign)
 }
 
@@ -992,11 +1006,16 @@ fn decode_v12(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Err
         Extras11,
         list_order::ListOrder,
     ) = codec().deserialize(payload)?;
-    campaign.0.climate_current = current;
-    campaign.0.ai_guard_targets = guard_targets;
-    campaign.0.ai_unit_guards = unit_guards;
-    campaign.0.city_rapture = city_rapture;
-    campaign.0.unit_goto_tiles = goto_tiles;
+    apply_extras11(
+        &mut campaign.0,
+        (
+            current,
+            guard_targets,
+            unit_guards,
+            city_rapture,
+            goto_tiles,
+        ),
+    );
     campaign.0.list_order = order;
     Ok(campaign)
 }
@@ -1013,11 +1032,16 @@ fn decode_v13(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Err
         list_order::ListOrder,
         Extras13,
     ) = codec().deserialize(payload)?;
-    campaign.0.climate_current = current;
-    campaign.0.ai_guard_targets = guard_targets;
-    campaign.0.ai_unit_guards = unit_guards;
-    campaign.0.city_rapture = city_rapture;
-    campaign.0.unit_goto_tiles = goto_tiles;
+    apply_extras11(
+        &mut campaign.0,
+        (
+            current,
+            guard_targets,
+            unit_guards,
+            city_rapture,
+            goto_tiles,
+        ),
+    );
     campaign.0.list_order = order;
     campaign.0.native_random = random;
     campaign.0.cargo_order = cargo;
@@ -1038,11 +1062,16 @@ fn decode_v14(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Err
         Extras13,
         observed_map::ObservedMap,
     ) = codec().deserialize(payload)?;
-    campaign.0.climate_current = current;
-    campaign.0.ai_guard_targets = guard_targets;
-    campaign.0.ai_unit_guards = unit_guards;
-    campaign.0.city_rapture = city_rapture;
-    campaign.0.unit_goto_tiles = goto_tiles;
+    apply_extras11(
+        &mut campaign.0,
+        (
+            current,
+            guard_targets,
+            unit_guards,
+            city_rapture,
+            goto_tiles,
+        ),
+    );
     campaign.0.list_order = order;
     campaign.0.native_random = random;
     campaign.0.cargo_order = cargo;
@@ -1066,11 +1095,16 @@ fn decode_v15(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Err
         observed_map::ObservedMap,
         MapWrap,
     ) = codec().deserialize(payload)?;
-    campaign.0.climate_current = current;
-    campaign.0.ai_guard_targets = guard_targets;
-    campaign.0.ai_unit_guards = unit_guards;
-    campaign.0.city_rapture = city_rapture;
-    campaign.0.unit_goto_tiles = goto_tiles;
+    apply_extras11(
+        &mut campaign.0,
+        (
+            current,
+            guard_targets,
+            unit_guards,
+            city_rapture,
+            goto_tiles,
+        ),
+    );
     campaign.0.list_order = order;
     campaign.0.native_random = random;
     campaign.0.cargo_order = cargo;

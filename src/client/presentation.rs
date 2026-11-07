@@ -124,12 +124,11 @@ impl Game {
                     let from_center = project(from.0, from.1);
                     let to_center = project(to.0, to.1);
                     let period = self.sim.map_wrap.width() as f32 * TILE_W * self.zoom;
-                    let dx = (to_center.x - from_center.x + period * 0.5).rem_euclid(period)
-                        - period * 0.5;
+                    let dx = map_view::shortest_wrapped_delta(to_center.x - from_center.x, period);
                     let dy = to_center.y - from_center.y;
                     let period_y = self.sim.map_wrap.height() as f32 * TILE_H * 0.5 * self.zoom;
                     let dy = if self.sim.map_wrap.wraps_y() {
-                        (dy + period_y * 0.5).rem_euclid(period_y) - period_y * 0.5
+                        map_view::shortest_wrapped_delta(dy, period_y)
                     } else {
                         dy
                     };

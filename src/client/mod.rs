@@ -5,6 +5,7 @@ use assets::{
     ocean_cell_source, player_color, unit_sprite,
 };
 mod city_bar;
+mod city_manager;
 mod city_map;
 mod fog;
 mod government_view;

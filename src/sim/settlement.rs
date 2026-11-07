@@ -1,5 +1,19 @@
 use super::*;
 
+pub(super) fn reconstruct_path(
+    previous: &[Option<(usize, (i32, i32))>],
+    destination: usize,
+) -> Vec<(i32, i32)> {
+    let mut cursor = destination;
+    let mut path = Vec::new();
+    while let Some((prior, step)) = previous[cursor] {
+        path.push(step);
+        cursor = prior;
+    }
+    path.reverse();
+    path
+}
+
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub(super) struct SettlementReservation {
     pub(super) owner: usize,
@@ -244,13 +258,7 @@ impl Simulation {
         }
 
         let destination = best?;
-        let mut cursor = destination;
-        let mut path = Vec::new();
-        while let Some((prior, step)) = previous[cursor] {
-            path.push(step);
-            cursor = prior;
-        }
-        path.reverse();
+        let path = reconstruct_path(&previous, destination);
         Some((self.map_wrap.position(destination), path, best_score))
     }
 

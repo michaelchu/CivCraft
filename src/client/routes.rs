@@ -46,10 +46,6 @@ pub(super) fn build_goto_atlas(terrain: &Image, status: &Image) -> Image {
     atlas
 }
 
-fn shortest_delta(delta: f32, period: f32) -> f32 {
-    (delta + period * 0.5).rem_euclid(period) - period * 0.5
-}
-
 pub(super) fn marker_cell(destination: bool, moves_left: i32) -> Option<(i32, i32)> {
     if destination {
         Some(if moves_left > 0 { (15, 7) } else { (14, 8) })
@@ -100,9 +96,9 @@ impl Game {
             // crossing the complete screen between opposite map edges.
             let to = from
                 + vec2(
-                    shortest_delta(raw_to.x - from.x, period_x),
+                    map_view::shortest_wrapped_delta(raw_to.x - from.x, period_x),
                     if self.sim.map_wrap.wraps_y() {
-                        shortest_delta(raw_to.y - from.y, period_y)
+                        map_view::shortest_wrapped_delta(raw_to.y - from.y, period_y)
                     } else {
                         raw_to.y - from.y
                     },
@@ -220,8 +216,8 @@ mod tests {
     }
     #[test]
     fn seam_segments_take_the_short_adjacent_route() {
-        assert_eq!(shortest_delta(990.0, 1000.0), -10.0);
-        assert_eq!(shortest_delta(-990.0, 1000.0), 10.0);
-        assert_eq!(shortest_delta(24.0, 1000.0), 24.0);
+        assert_eq!(map_view::shortest_wrapped_delta(990.0, 1000.0), -10.0);
+        assert_eq!(map_view::shortest_wrapped_delta(-990.0, 1000.0), 10.0);
+        assert_eq!(map_view::shortest_wrapped_delta(24.0, 1000.0), 24.0);
     }
 }

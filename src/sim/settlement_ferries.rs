@@ -220,13 +220,8 @@ impl Simulation {
             .into_iter()
             .enumerate()
             .filter_map(|(tile, meeting)| {
-                let (turns, _, mut cursor) = meeting?;
-                let mut walk = Vec::new();
-                while let Some((prior, direction)) = previous[cursor] {
-                    walk.push(direction);
-                    cursor = prior;
-                }
-                walk.reverse();
+                let (turns, _, cursor) = meeting?;
+                let walk = super::settlement::reconstruct_path(&previous, cursor);
                 Some(Rendezvous {
                     tile: self.map_wrap.position(tile),
                     turns,
@@ -430,12 +425,10 @@ impl Simulation {
         }
         let destination = best?;
         let mut cursor = destination;
-        let mut inland_path = Vec::new();
-        while let Some((prior, direction)) = previous[cursor] {
-            inland_path.push(direction);
-            cursor = prior;
+        let inland_path = super::settlement::reconstruct_path(&previous, cursor);
+        while previous[cursor].is_some() {
+            cursor = previous[cursor].unwrap().0;
         }
-        inland_path.reverse();
         let (approach, meeting) = beaches[cursor]?;
         Some(SettlementFerry {
             founder: founder.id,
