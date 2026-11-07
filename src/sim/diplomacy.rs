@@ -979,6 +979,41 @@ impl Simulation {
             })
     }
 
+    pub(crate) fn contacted_civilizations(&self, owner: usize) -> Vec<usize> {
+        let mut contacts: Vec<_> = self
+            .diplomacy
+            .iter()
+            .filter_map(|(&(a, b), relation)| {
+                let other = if a == owner {
+                    b
+                } else if b == owner {
+                    a
+                } else {
+                    return None;
+                };
+                (other != owner
+                    && other != BARBARIANS
+                    && self.player_alive(other)
+                    && relation.first_contact.is_some())
+                .then_some((relation.first_contact.unwrap_or_default(), other))
+            })
+            .collect();
+        contacts.sort_unstable();
+        contacts.into_iter().map(|(_, other)| other).collect()
+    }
+
+    pub(crate) fn diplomatic_attitude(&self, owner: usize, other: usize) -> &'static str {
+        // UI bands summarize the reference AI's [-1000, 1000] love scale.
+        // They are display labels; the underlying diplomacy score is unchanged.
+        match self.diplomatic_love(owner, other) {
+            love if love <= -600 => "Furious",
+            love if love <= -200 => "Annoyed",
+            love if love < 200 => "Cautious",
+            love if love < 600 => "Polite",
+            _ => "Gracious",
+        }
+    }
+
     pub(super) fn diplomatic_meeting_possible(&self, owner: usize, other: usize) -> bool {
         owner != other
             && owner < self.players.len()
@@ -1053,7 +1088,7 @@ impl Simulation {
         }
     }
 
-    fn make_diplomatic_contact(&mut self, a: usize, b: usize) {
+    pub(super) fn make_diplomatic_contact(&mut self, a: usize, b: usize) {
         if a == b
             || a == BARBARIANS
             || b == BARBARIANS
@@ -1062,7 +1097,19 @@ impl Simulation {
         {
             return;
         }
+        let first_contact = self
+            .diplomacy
+            .get(&Self::relation_key(a, b))
+            .is_none_or(|relation| relation.first_contact.is_none());
         self.initialize_diplomatic_contact(a, b);
+        if first_contact && (a == HUMAN || b == HUMAN) {
+            let other = if a == HUMAN { b } else { a };
+            self.add_event(format!(
+                "You have made contact with the {}, ruled by {}.",
+                self.players[other].name,
+                self.players[other].leader_name()
+            ));
+        }
         // Native decrements before advancing the turn and exempts the first
         // contact turn. Later physical contacts refresh the ordinary20 turns.
         let first_turn = self.diplomacy[&Self::relation_key(a, b)].first_contact == Some(self.turn);
@@ -2935,6 +2982,24 @@ mod tests {
         game.make_diplomatic_contact(2, 1);
         assert_eq!(game.diplomacy[&(1, 2)].trust, before);
         assert_eq!(game.random_snapshot(), rng);
+    }
+
+    #[test]
+    fn first_contact_notifies_the_human_once_and_diplomacy_exposes_war_status() {
+        let mut game = war_planning_game();
+        game.events.clear();
+        game.diplomacy.remove(&(HUMAN, 2));
+
+        game.make_diplomatic_contact(HUMAN, 2);
+
+        assert_eq!(game.pact(HUMAN, 2), Pact::War);
+        assert_eq!(game.events.len(), 1);
+        assert!(game.events[0].contains("You have made contact with the"));
+        assert!(game.events[0].contains(&game.players[2].name));
+        assert!(game.events[0].contains(game.players[2].leader_name()));
+
+        game.make_diplomatic_contact(2, HUMAN);
+        assert_eq!(game.events.len(), 1);
     }
 
     #[test]

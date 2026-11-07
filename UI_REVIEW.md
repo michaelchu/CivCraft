@@ -32,13 +32,15 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery covers 40 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 42 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, first contact and war status, leader avatars, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 For a quick on-demand check, select a scene by name:
 
 ```sh
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-borders --ui-scene touching-borders
 ./target/release/civcraft --seed 1337 --ui-review /tmp/civcraft-campaign --ui-scene campaign-after-turn
+./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-first-contact --ui-scene first-contact
+./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-leader-diplomacy --ui-scene leader-diplomacy
 ```
 
 Every scene produces its primary screenshot. A `-next.png` is saved only after a control changes the page or campaign state; the runner verifies that the captured pixels changed too. Managed screenshots from an earlier run are cleared before capture, so old pages cannot masquerade as new results. Autosaves are disabled and, except for the go-to hover scenario, the gallery parks its virtual cursor outside the UI to keep captures independent of the OS pointer. Normal interactive play keeps its actual mouse hover behavior.

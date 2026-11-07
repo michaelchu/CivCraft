@@ -41,6 +41,8 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "terrain-seams-default",
     "terrain-seams-large",
     "ice-transitions",
+    "first-contact",
+    "leader-diplomacy",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -85,6 +87,12 @@ impl Game {
             }
             5 => self.government_open = true,
             6 => self.diplomacy_open = true,
+            40 => {
+                self.sim.ui_review_first_contact();
+            }
+            41 => {
+                self.sim.ui_review_first_contact();
+            }
             7 => {
                 self.diplomacy_open = true;
                 self.city_deals = Some((1, 0));
@@ -297,6 +305,16 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if scene == 41 && phase == 1 {
+            sequence.click(self, buttons, "leader_avatar_opens_diplomacy", |action| {
+                matches!(action, UiAction::OpenDiplomacyWith(1))
+            })?;
+            sequence.check(
+                "selected_leader_screen_opened",
+                self.diplomacy_open && self.diplomacy_target == Some(1),
+            )?;
+            return Ok(true);
+        }
         if scene == 39 {
             if phase == 6 {
                 self.zoom = 0.82;

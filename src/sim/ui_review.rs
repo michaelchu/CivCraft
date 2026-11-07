@@ -1,6 +1,12 @@
 //! Deterministic data for the opt-in UI screenshot gallery; never used in play.
 use super::*;
 impl Simulation {
+    pub(crate) fn ui_review_first_contact(&mut self) {
+        self.events.clear();
+        self.diplomacy.remove(&(HUMAN, 1));
+        self.make_diplomatic_contact(HUMAN, 1);
+    }
+
     pub(crate) fn ui_review_spy_war(&mut self) {
         self.cancel_pact(HUMAN, 1);
     }

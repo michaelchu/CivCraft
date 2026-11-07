@@ -1,7 +1,7 @@
 use super::*;
 
 impl Game {
-    pub(super) fn draw_hud(&mut self) -> Vec<(Rect, UiAction)> {
+    pub(super) fn draw_hud(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         let mut actions = Vec::new();
         let viewport = Self::viewport_rect();
         let panel_x = screen_width() - PANEL_W;
@@ -42,6 +42,12 @@ impl Game {
         let diplomacy = Rect::new(424.0, 8.0, 90.0, 30.0);
         draw_ui_button(diplomacy, "Diplomacy", true, false);
         actions.push((diplomacy, UiAction::ToggleDiplomacy));
+        let contacts = self.sim.contacted_civilizations(HUMAN);
+        let avatar_size = 56.0;
+        let avatar_gap = 5.0;
+        let avatar_strip_w = contacts.len() as f32 * avatar_size
+            + contacts.len().saturating_sub(1) as f32 * avatar_gap;
+        let avatar_start = (panel_x - 12.0 - avatar_strip_w).max(0.0);
         let treasury = format!("Gold {}", player.gold);
         let treasury_w = measure_text(&treasury, None, 16, 1.0).width.min(180.0);
         text_in(&treasury, 530.0, 29.0, 16.0, treasury_w, GOLD);
@@ -56,9 +62,30 @@ impl Game {
             546.0 + treasury_w,
             29.0,
             16.0,
-            screen_width() - 564.0 - treasury_w,
+            (screen_width() - 10.0 - (546.0 + treasury_w)).max(0.0),
             Color::from_rgba(151, 210, 231, 255),
         );
+        for (index, owner) in contacts.iter().copied().enumerate() {
+            if let Some(badge) = assets.leader_avatar_badges.get(owner) {
+                let rect = Rect::new(
+                    avatar_start + index as f32 * (avatar_size + avatar_gap),
+                    TOP_H + 10.0,
+                    avatar_size,
+                    avatar_size,
+                );
+                draw_texture_ex(
+                    badge,
+                    rect.x,
+                    rect.y,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(vec2(avatar_size, avatar_size)),
+                        ..Default::default()
+                    },
+                );
+                actions.push((rect, UiAction::OpenDiplomacyWith(owner)));
+            }
+        }
         self.hud_elements_drawn += 1;
 
         draw_rectangle(

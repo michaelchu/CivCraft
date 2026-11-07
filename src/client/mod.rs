@@ -71,6 +71,8 @@ pub(crate) enum UiAction {
     UpgradeUnit(UnitKind, i32),
     ToggleGovernment,
     ToggleDiplomacy,
+    OpenDiplomacyWith(usize),
+    OpenDiplomacyOverview,
     DiplomacyPage(usize),
     Negotiate(usize, Pact),
     BuyMap(usize, TreatyMap),
@@ -143,6 +145,7 @@ pub(crate) struct Game {
     investigation_page: usize,
     spy_targets: Option<(u32, usize)>,
     diplomacy_open: bool,
+    diplomacy_target: Option<usize>,
     reviewed_offer: Option<(usize, TreatyOffer)>,
     city_deals: Option<(usize, usize)>,
     diplomacy_page: usize,
@@ -218,6 +221,7 @@ impl Game {
             investigation_page: 0,
             spy_targets: None,
             diplomacy_open: false,
+            diplomacy_target: None,
             reviewed_offer: None,
             city_deals: None,
             diplomacy_page: 0,
@@ -336,7 +340,7 @@ impl Game {
         }
         let renderer = std::rc::Rc::clone(&self.renderer);
         renderer.draw_world(self, assets);
-        let mut actions = self.draw_hud();
+        let mut actions = self.draw_hud(assets);
         if self.spy_targets.is_some()
             || self.investigation.is_some()
             || self.government_open
@@ -360,7 +364,7 @@ impl Game {
             return self.draw_government();
         }
         if self.diplomacy_open {
-            return self.draw_diplomacy();
+            return self.draw_diplomacy(assets);
         }
         if self.selected_city_index().is_some() {
             actions.clear();

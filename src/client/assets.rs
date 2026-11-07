@@ -288,6 +288,8 @@ pub(crate) struct Assets {
     pub(super) explosions: Texture2D,
     pub(super) veterancy: Texture2D,
     pub(super) activities: Texture2D,
+    pub(super) leader_avatar_badges: Vec<Texture2D>,
+    pub(super) leader_portraits: Vec<Vec<Texture2D>>,
 }
 
 fn textured_diamond(
@@ -337,6 +339,18 @@ fn set_diamond_vertices(
 }
 
 impl Assets {
+    pub(super) fn leader_portrait(&self, owner: usize, attitude: &str) -> Option<&Texture2D> {
+        let attitude_index = match attitude {
+            "Furious" => 0,
+            "Annoyed" => 1,
+            "Cautious" => 2,
+            "Polite" => 3,
+            "Gracious" => 4,
+            _ => 2,
+        };
+        self.leader_portraits.get(owner)?.get(attitude_index)
+    }
+
     pub(super) fn draw_masked_terrain_backing(
         &self,
         terrain: Terrain,
@@ -499,6 +513,77 @@ impl Assets {
         mountains.set_filter(FilterMode::Nearest);
         units.set_filter(FilterMode::Nearest);
         cities.set_filter(FilterMode::Linear);
+        let leader_portraits = [
+            [
+                include_bytes!("../../assets/leader_portraits/rome/furious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/rome/annoyed.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/rome/cautious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/rome/polite.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/rome/gracious.png").as_slice(),
+            ],
+            [
+                include_bytes!("../../assets/leader_portraits/greece/furious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/greece/annoyed.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/greece/cautious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/greece/polite.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/greece/gracious.png").as_slice(),
+            ],
+            [
+                include_bytes!("../../assets/leader_portraits/egypt/furious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/egypt/annoyed.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/egypt/cautious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/egypt/polite.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/egypt/gracious.png").as_slice(),
+            ],
+            [
+                include_bytes!("../../assets/leader_portraits/babylon/furious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/babylon/annoyed.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/babylon/cautious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/babylon/polite.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/babylon/gracious.png").as_slice(),
+            ],
+            [
+                include_bytes!("../../assets/leader_portraits/china/furious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/china/annoyed.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/china/cautious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/china/polite.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/china/gracious.png").as_slice(),
+            ],
+            [
+                include_bytes!("../../assets/leader_portraits/japan/furious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/japan/annoyed.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/japan/cautious.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/japan/polite.png").as_slice(),
+                include_bytes!("../../assets/leader_portraits/japan/gracious.png").as_slice(),
+            ],
+        ]
+        .into_iter()
+        .map(|portraits| {
+            portraits
+                .into_iter()
+                .map(|bytes| Texture2D::from_file_with_format(bytes, None))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+        let leader_avatar_badges = [
+            include_bytes!("../../assets/leader_avatars/rome.png").as_slice(),
+            include_bytes!("../../assets/leader_avatars/greece.png").as_slice(),
+            include_bytes!("../../assets/leader_avatars/egypt.png").as_slice(),
+            include_bytes!("../../assets/leader_avatars/babylon.png").as_slice(),
+            include_bytes!("../../assets/leader_avatars/china.png").as_slice(),
+            include_bytes!("../../assets/leader_avatars/japan.png").as_slice(),
+        ]
+        .into_iter()
+        .map(|bytes| Texture2D::from_file_with_format(bytes, None))
+        .collect::<Vec<_>>();
+        for badge in &leader_avatar_badges {
+            badge.set_filter(FilterMode::Linear);
+        }
+        for portraits in &leader_portraits {
+            for portrait in portraits {
+                portrait.set_filter(FilterMode::Linear);
+            }
+        }
         Self {
             goto,
             terrain,
@@ -521,6 +606,8 @@ impl Assets {
             explosions,
             veterancy,
             activities,
+            leader_avatar_badges,
+            leader_portraits,
         }
     }
 }

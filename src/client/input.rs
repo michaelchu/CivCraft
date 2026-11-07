@@ -200,6 +200,21 @@ impl Game {
             }
             UiAction::ToggleDiplomacy => {
                 self.diplomacy_open = !self.diplomacy_open;
+                self.diplomacy_target = None;
+                self.diplomacy_page = 0;
+                self.city_deals = None;
+                self.reviewed_offer = None;
+            }
+            UiAction::OpenDiplomacyWith(owner) => {
+                self.diplomacy_open = true;
+                self.diplomacy_target = Some(owner);
+                self.diplomacy_page = 0;
+                self.city_deals = None;
+                self.reviewed_offer = None;
+            }
+            UiAction::OpenDiplomacyOverview => {
+                self.diplomacy_open = true;
+                self.diplomacy_target = None;
                 self.diplomacy_page = 0;
                 self.city_deals = None;
                 self.reviewed_offer = None;

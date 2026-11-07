@@ -81,7 +81,10 @@ impl Game {
 }
 
 impl Game {
-    pub(super) fn draw_diplomacy(&self) -> Vec<(Rect, UiAction)> {
+    pub(super) fn draw_diplomacy(&self, assets: &Assets) -> Vec<(Rect, UiAction)> {
+        if let Some(owner) = self.diplomacy_target {
+            return self.draw_diplomacy_meeting(owner, assets);
+        }
         if let Some((owner, offer)) = self.reviewed_offer {
             return self.draw_treaty_offer(owner, offer);
         }
@@ -206,6 +209,231 @@ impl Game {
             rivals.len().saturating_sub(1) / 4,
             UiAction::DiplomacyPage,
         ));
+        actions
+    }
+
+    fn draw_diplomacy_meeting(&self, owner: usize, assets: &Assets) -> Vec<(Rect, UiAction)> {
+        if owner >= self.sim.players().len() || owner == HUMAN {
+            return vec![];
+        }
+        let width = (screen_width() - 32.0).min(930.0);
+        let height = (screen_height() - 64.0).min(560.0);
+        let panel = Rect::new(
+            (screen_width() - width) / 2.0,
+            (screen_height() - height) / 2.0,
+            width,
+            height,
+        );
+        panel_frame(panel);
+        let draw_text = panel_text(panel);
+        draw_text("Diplomacy", panel.x + 20.0, panel.y + 31.0, 24.0, WHITE);
+        let close = Rect::new(panel.right() - 46.0, panel.y + 12.0, 32.0, 26.0);
+        draw_ui_button(close, "X", true, false);
+        let mut actions = vec![(close, UiAction::ToggleDiplomacy)];
+
+        let portrait_rect = Rect::new(panel.x + 20.0, panel.y + 56.0, 219.0, 292.0);
+        draw_rectangle(
+            portrait_rect.x - 2.0,
+            portrait_rect.y - 2.0,
+            portrait_rect.w + 4.0,
+            portrait_rect.h + 4.0,
+            Color::from_rgba(16, 17, 16, 255),
+        );
+        let attitude = self.sim.diplomatic_attitude(owner, HUMAN);
+        if let Some(portrait) = assets.leader_portrait(owner, attitude) {
+            draw_texture_ex(
+                portrait,
+                portrait_rect.x,
+                portrait_rect.y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(portrait_rect.w, portrait_rect.h)),
+                    ..Default::default()
+                },
+            );
+        }
+        draw_rectangle_lines(
+            portrait_rect.x - 2.0,
+            portrait_rect.y - 2.0,
+            portrait_rect.w + 4.0,
+            portrait_rect.h + 4.0,
+            2.0,
+            Color::from_rgba(194, 160, 82, 255),
+        );
+        text_in(
+            &self.sim.players()[owner].name,
+            panel.x + 338.0,
+            panel.y + 84.0,
+            25.0,
+            panel.w - 370.0,
+            WHITE,
+        );
+        draw_text(
+            &format!("Leader: {}", self.sim.players()[owner].leader_name()),
+            panel.x + 338.0,
+            panel.y + 108.0,
+            16.0,
+            LIGHTGRAY,
+        );
+
+        let pact = self.sim.pact(HUMAN, owner);
+        let turns = self.sim.pact_turns(HUMAN, owner);
+        let mut status = pact.name().to_owned();
+        if turns > 0 {
+            status.push_str(&format!(" · {turns} turns"));
+        }
+        if self.sim.has_embassy(HUMAN, owner) {
+            status.push_str(" · Embassy");
+        }
+        let attitude = self.sim.diplomatic_attitude(owner, HUMAN);
+        let status_y = panel.y + 144.0;
+        let status_rect = Rect::new(panel.x + 338.0, status_y - 20.0, panel.w - 370.0, 74.0);
+        draw_rectangle(
+            status_rect.x,
+            status_rect.y,
+            status_rect.w,
+            status_rect.h,
+            Color::from_rgba(35, 38, 35, 255),
+        );
+        draw_rectangle_lines(
+            status_rect.x,
+            status_rect.y,
+            status_rect.w,
+            status_rect.h,
+            1.0,
+            Color::from_rgba(112, 108, 91, 255),
+        );
+        draw_text(
+            &format!("Attitude: {attitude}"),
+            status_rect.x + 14.0,
+            status_rect.y + 24.0,
+            17.0,
+            Color::from_rgba(230, 208, 151, 255),
+        );
+        draw_text(
+            &format!("Treaty: {status}"),
+            status_rect.x + 14.0,
+            status_rect.y + 51.0,
+            16.0,
+            WHITE,
+        );
+        if self.sim.can_negotiate(owner) {
+            let dialogue = match pact {
+                Pact::War => "Our nations are at war. We can discuss a ceasefire.",
+                Pact::Ceasefire | Pact::Armistice => {
+                    "Our forces are holding their positions. What terms do you propose?"
+                }
+                Pact::Peace => "Our diplomats are ready to discuss our relations.",
+                Pact::Alliance => "Our alliance joins our fortunes. What shall we discuss?",
+            };
+            let dialogue_rect = Rect::new(panel.x + 338.0, panel.y + 235.0, panel.w - 370.0, 66.0);
+            draw_rectangle(
+                dialogue_rect.x,
+                dialogue_rect.y,
+                dialogue_rect.w,
+                dialogue_rect.h,
+                Color::from_rgba(35, 38, 35, 255),
+            );
+            draw_rectangle_lines(
+                dialogue_rect.x,
+                dialogue_rect.y,
+                dialogue_rect.w,
+                dialogue_rect.h,
+                1.0,
+                Color::from_rgba(112, 108, 91, 255),
+            );
+            text_in(
+                dialogue,
+                dialogue_rect.x + 14.0,
+                dialogue_rect.y + 40.0,
+                15.0,
+                dialogue_rect.w - 28.0,
+                WHITE,
+            );
+        } else {
+            text_in(
+                "Diplomatic contact has lapsed. Meet them again to negotiate.",
+                panel.x + 338.0,
+                panel.y + 260.0,
+                15.0,
+                panel.w - 370.0,
+                LIGHTGRAY,
+            );
+        }
+
+        let offer = self.sim.pact_offer(owner);
+        let treaty_offer = self.sim.treaty_offer(owner);
+        let mut buttons = Vec::new();
+        if let Some(bundle) =
+            treaty_offer.filter(|offer| offer.bundled() || !self.sim.can_negotiate(owner))
+        {
+            buttons.push((
+                "Review offer".to_owned(),
+                UiAction::ReviewOffer(owner, bundle),
+            ));
+        } else if self.sim.can_negotiate(owner)
+            && let Some(next) = offer.or_else(|| self.sim.next_pact(HUMAN, owner))
+        {
+            let verb = if offer.is_some() { "Accept" } else { "Propose" };
+            buttons.push((
+                format!("{verb} {}", next.name().to_lowercase()),
+                UiAction::Negotiate(owner, next),
+            ));
+        }
+        if treaty_offer.is_some() {
+            buttons.push(("Decline".to_owned(), UiAction::DeclineOffer(owner)));
+        }
+        if pact != Pact::War && self.sim.can_negotiate(owner) {
+            buttons.push(("Cancel pact".to_owned(), UiAction::CancelPact(owner)));
+        }
+        if treaty_offer.is_none() && self.sim.can_negotiate(owner) {
+            for (label, map) in [("World", TreatyMap::World), ("Sea", TreatyMap::Sea)] {
+                let price = self.sim.map_trade_price(owner, HUMAN, map, pact);
+                buttons.push((
+                    format!("{label} map {price}g"),
+                    UiAction::BuyMap(owner, map),
+                ));
+            }
+        }
+        if self.sim.can_negotiate(owner)
+            && self
+                .sim
+                .cities()
+                .iter()
+                .any(|city| city.owner == owner && self.sim.city_trade_price(city).is_some())
+        {
+            buttons.push((
+                "City deals".to_owned(),
+                UiAction::CityDeals(Some((owner, 0))),
+            ));
+        }
+
+        if !buttons.is_empty() {
+            draw_text(
+                "DISCUSS",
+                panel.x + 338.0,
+                panel.y + 330.0,
+                14.0,
+                Color::from_rgba(227, 211, 164, 255),
+            );
+        }
+        let button_y = panel.y + 345.0;
+        let columns = 2usize;
+        let gap = 8.0;
+        let button_w = (panel.w - 370.0 - gap) / columns as f32;
+        for (index, (label, action)) in buttons.into_iter().enumerate() {
+            let rect = Rect::new(
+                panel.x + 338.0 + (index % columns) as f32 * (button_w + gap),
+                button_y + (index / columns) as f32 * 38.0,
+                button_w,
+                30.0,
+            );
+            draw_ui_button(rect, &label, true, false);
+            actions.push((rect, action));
+        }
+        let back = Rect::new(panel.x + 20.0, panel.bottom() - 42.0, 190.0, 28.0);
+        draw_ui_button(back, "All civilizations", true, false);
+        actions.push((back, UiAction::OpenDiplomacyOverview));
         actions
     }
 }
