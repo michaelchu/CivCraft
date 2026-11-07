@@ -2108,7 +2108,11 @@ impl Simulation {
         } else if kind.is_naval() {
             &[Building::PORT_FACILITY]
         } else {
-            &[Building::BARRACKS]
+            &[
+                Building::BARRACKS_III,
+                Building::BARRACKS_II,
+                Building::BARRACKS,
+            ]
         };
         candidates.iter().copied().find(|&building| {
             building.data().genus == Genus::Improvement
@@ -2847,12 +2851,14 @@ mod tests {
         game.players[1].known.push(Tech::GUNPOWDER);
         assert_eq!(
             choose(&game, UnitKind::Musketeers).production,
-            Production::Building(Building::BARRACKS)
+            Production::Unit(UnitKind::Musketeers),
+            "obsolete Barracks cannot be selected after Gunpowder"
         );
         game.players[1].known.push(Tech::MOBILE_WARFARE);
         assert_eq!(
             choose(&game, UnitKind::Marines).production,
-            Production::Building(Building::BARRACKS)
+            Production::Unit(UnitKind::Marines),
+            "obsolete Barracks cannot be selected after Mobile Warfare"
         );
         assert_eq!(
             choose(&game, UnitKind::Fighter).production,

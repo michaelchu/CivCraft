@@ -1091,36 +1091,36 @@ mod tests {
 
 #[cfg(test)]
 #[test]
-fn default_worlds_match_reference() {
-    // Freeciv eb8c7033, default Civ2Civ3 six-player setup with mapseed and
-    // gameseed both set to the seed below. Checksums cover each native
-    // tile's saved terrain identifier, altitude, and complete extras mask.
-    // The coordinates are in creation order, before the save table's reordering.
+fn default_worlds_match_civcraft_resource_goldens() {
+    // CivCraft keeps Freeciv's terrain generation but uses its own resource
+    // catalog and terrain pools. Resource placement affects both the extras
+    // checksums and start-site scoring, so these goldens capture current
+    // CivCraft output. Coordinates are in creation order.
     let cases = [
         (
             1,
-            0x1ed9cb2004a3fa85,
-            [(27, 7), (0, 12), (23, 25), (28, 23), (5, 3), (20, 2)],
+            0x6214fdbf48571f05,
+            [(22, 15), (20, 2), (27, 16), (1, 25), (4, 8), (24, 31)],
         ),
         (
             42,
-            0x075636906e371f20,
-            [(9, 9), (5, 43), (27, 21), (8, 25), (14, 18), (1, 24)],
+            0x5a61be89c37ce1c0,
+            [(9, 26), (12, 6), (2, 37), (27, 25), (8, 6), (4, 26)],
         ),
         (
             12345,
-            0xe4beee0725f81cd8,
-            [(11, 25), (23, 11), (18, 5), (15, 20), (29, 23), (4, 16)],
+            0x28eb54b184b571d8,
+            [(15, 19), (22, 12), (29, 23), (25, 22), (11, 23), (18, 5)],
         ),
         (
             700001,
-            0x4c4726d779e9aedf,
-            [(2, 10), (23, 3), (29, 1), (20, 41), (19, 3), (15, 55)],
+            0x8c1b425ae87e347f,
+            [(28, 57), (23, 3), (20, 46), (26, 13), (22, 56), (2, 12)],
         ),
         (
             2147483647,
-            0x8f5e4f7938dafbaf,
-            [(3, 16), (12, 57), (26, 32), (25, 57), (10, 32), (18, 40)],
+            0xc9f5f1b2c9d04e2f,
+            [(12, 57), (20, 40), (2, 20), (27, 35), (9, 31), (26, 54)],
         ),
     ];
     for (seed, expected, starts) in cases {
@@ -1272,7 +1272,7 @@ mod wrap_generation_tests {
 
 #[cfg(test)]
 #[test]
-fn reference_worlds_match_native_for_each_wrap() {
+fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
     for line in include_str!("../tests/fixtures/freeciv_mapgen_vectors.tsv")
         .lines()
         .filter(|line| !line.starts_with('#') && !line.is_empty())

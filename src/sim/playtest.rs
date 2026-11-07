@@ -289,6 +289,8 @@ impl Simulation {
     }
 
     pub(crate) fn treaty_map_playtest(&mut self) -> bool {
+        // Generated starting units can reveal the probe tiles during contact setup.
+        self.units.clear();
         self.sign_pact(HUMAN, 1, Pact::Ceasefire);
         let land = (10, 24);
         let sea = (11, 24);
