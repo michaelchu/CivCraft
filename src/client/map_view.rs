@@ -87,7 +87,8 @@ mod tests {
         for view in [426.0, 550.0, 726.0, 1560.0, 1700.0, 2800.0] {
             for zoom in [MIN_ZOOM, START_ZOOM, 1.0, MAX_ZOOM, 1.5] {
                 for y in [-1000.25, -0.2, 0.0, 23.4, 63.0, 64.3, 1000.25] {
-                    for wrap in [MapWrap::XY] {
+                    {
+                        let wrap = MapWrap::XY;
                         let result = normalize_camera_y(wrap, y, view, zoom);
                         let actual =
                             MAP_W as f32 * 24.0 * zoom + result * 24.0 * zoom + 24.0 * zoom

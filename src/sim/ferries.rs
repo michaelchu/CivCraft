@@ -153,10 +153,10 @@ impl Simulation {
     }
 
     pub(super) fn ferry_can_take(&self, boat: u32, passenger: u32) -> bool {
-        let Some(ship) = self.units.iter().find(|unit| unit.id == boat) else {
+        let Some(ship) = self.unit_by_id(boat) else {
             return false;
         };
-        let Some(unit) = self.units.iter().find(|unit| unit.id == passenger) else {
+        let Some(unit) = self.unit_by_id(passenger) else {
             return false;
         };
         self.ferry_can_take_unit(ship, unit)
@@ -173,12 +173,12 @@ impl Simulation {
     }
 
     pub(super) fn request_ai_ferry(&mut self, id: u32) {
-        if let Some(unit) = self.units.iter().find(|unit| unit.id == id) {
+        if let Some(owner) = self.unit_by_id(id).map(|unit| unit.owner) {
             self.ai_ferries
                 .passengers
                 .entry(id)
                 .or_insert(PassengerRecord {
-                    owner: unit.owner,
+                    owner,
                     request: FerryRequest::Wanted,
                 });
         }
@@ -267,45 +267,6 @@ impl Simulation {
             );
             self.assign_ai_ferry(boat, candidate);
         }
-    }
-}
-
-impl Simulation {
-    pub(crate) fn ai_ferry_registry_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.cities.clear();
-        self.ai_ferries = Default::default();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
-            tile.hut = false;
-        }
-        let ship = self.spawn_unit(1, UnitKind::Transport, 10, 24);
-        let first = self.spawn_unit(1, UnitKind::Settlers, 10, 24);
-        let second = self.spawn_unit(1, UnitKind::Freight, 10, 24);
-        self.request_ai_ferry(first);
-        let available = self.ferry_available_count(1) == 1;
-        let assigned = self.assign_ai_ferry(ship, first)
-            && self.ferry_available_count(1) == 0
-            && !self.ferry_can_take(ship, second)
-            && self.cargo_count(ship) == 0;
-        self.board_specific_ship(first, ship);
-        self.board_specific_ship(second, ship);
-        let kept_boss = self.ferry_boss(ship) == Some(first);
-        self.release_ai_ferry(first);
-        let released = self.ferry_available_count(1) == 1 && self.cargo_count(ship) == 2;
-        // A released boat can appoint carried cargo rather than remain idle.
-        self.refresh_ferry_boss(ship);
-        let appointed = self.ferry_boss(ship).is_some() && self.ferry_available_count(1) == 0;
-        let boss = self.ferry_boss(ship).unwrap();
-        self.remove_units_with_cargo(vec![boss]);
-        let death_released = self.ferry_available_count(1) == 1;
-        available
-            && assigned
-            && kept_boss
-            && released
-            && appointed
-            && death_released
-            && self.ai_ferries.valid(&self.units)
     }
 }
 

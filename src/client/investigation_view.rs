@@ -56,7 +56,7 @@ impl Game {
             16.0,
             LIGHTGRAY,
         );
-        let close = Rect::new(panel.right() - 45.0, panel.y + 12.0, 32.0, 26.0);
+        let close = panel_close_rect(panel);
         draw_ui_button(close, "X", true, false);
         let mut actions = vec![(close, UiAction::CloseInvestigation)];
         let mut lines = Vec::new();

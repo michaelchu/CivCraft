@@ -117,7 +117,7 @@ impl Simulation {
             }) {
                 id = cargo.id;
             }
-            let unit = self.units.iter().find(|unit| unit.id == id).unwrap();
+            let unit = self.unit_by_id(id).unwrap();
             if owner == HUMAN {
                 let message = format!(
                     "Not enough gold to support {}. The unit was disbanded.",
@@ -235,7 +235,7 @@ impl Simulation {
     }
 
     pub(super) fn remove_unsupported_unit(&mut self, id: u32, city: &City, resource: &str) {
-        let Some(unit) = self.units.iter().find(|unit| unit.id == id) else {
+        let Some(unit) = self.unit_by_id(id) else {
             return;
         };
         if city.owner == HUMAN {

@@ -27,7 +27,7 @@ impl Simulation {
             .units
             .iter()
             .position(|unit| unit.id == unit_id && unit.owner == HUMAN)?;
-        let city = self.cities.iter().find(|city| city.id == city_id)?;
+        let city = self.city_by_id(city_id)?;
         if !self.can_investigate_city(&self.units[index], city) {
             return None;
         }

@@ -48,7 +48,7 @@ impl Simulation {
     }
 
     pub(super) fn upgrade_unit(&mut self, id: u32, target: UnitKind, quoted_price: i32) -> bool {
-        let Some(index) = self.units.iter().position(|unit| unit.id == id) else {
+        let Some(index) = self.unit_index_by_id(id) else {
             return false;
         };
         let owner = self.units[index].owner;
@@ -80,7 +80,7 @@ impl Simulation {
             .collect();
         if !candidates.is_empty() {
             let (id, target) = candidates[self.rand_below(candidates.len() as i32) as usize];
-            let index = self.units.iter().position(|unit| unit.id == id).unwrap();
+            let index = self.unit_index_by_id(id).unwrap();
             self.transform_upgraded_unit(index, target, 0);
         }
     }

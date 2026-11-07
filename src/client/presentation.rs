@@ -49,8 +49,8 @@ impl Playback {
     }
     pub(super) fn tile_owner(&self, sim: &Simulation, x: i32, y: i32) -> Option<usize> {
         if let Some(owners) = self.events.iter().find_map(|event| {
-            if let VisualEvent::Combat { territory, .. } = event {
-                Some(territory)
+            if let VisualEvent::Combat(combat) = event {
+                Some(&combat.territory)
             } else {
                 None
             }
@@ -64,9 +64,8 @@ impl Playback {
     pub(super) fn city_overrides(&self) -> BTreeMap<u32, City> {
         let mut cities = BTreeMap::new();
         for event in &self.events {
-            if let VisualEvent::Combat {
-                city: Some(city), ..
-            } = event
+            if let VisualEvent::Combat(combat) = event
+                && let Some(city) = &combat.city
             {
                 cities.entry(city.id).or_insert_with(|| city.clone());
             }
@@ -94,19 +93,14 @@ impl Playback {
         let p = self.progress();
         match event {
             VisualEvent::Move { unit, .. } => vec![(unit.clone(), vec2(p, 0.0))],
-            VisualEvent::Combat {
-                attacker,
-                defender,
-                hp,
-                ..
-            } => {
+            VisualEvent::Combat(combat) => {
                 // Keep the last 100 ms for the reference five-frame explosion.
                 let battle_fraction = ((event.duration() - 0.100) / event.duration()) as f32;
                 let phase = (p / battle_fraction.max(0.01)).min(1.0);
-                let index = ((hp.len() - 1) as f32 * phase).floor() as usize;
-                let mut a = attacker.clone();
-                let mut d = defender.clone();
-                (a.hp, d.hp) = hp[index];
+                let index = ((combat.hp.len() - 1) as f32 * phase).floor() as usize;
+                let mut a = combat.attacker.clone();
+                let mut d = combat.defender.clone();
+                (a.hp, d.hp) = combat.hp[index];
                 vec![(a, Vec2::ZERO), (d, Vec2::ZERO)]
             }
         }
@@ -138,22 +132,16 @@ impl Game {
             };
             self.draw_unit(assets, &unit, center, 1);
         }
-        if let VisualEvent::Combat {
-            attacker,
-            defender,
-            hp,
-            ..
-        } = event
-        {
+        if let VisualEvent::Combat(combat) = event {
             let elapsed = self.playback.progress() as f64 * event.duration();
             let explosion_start = event.duration() - 0.100;
             if elapsed >= explosion_start {
-                let final_hp = hp.last().unwrap();
+                let final_hp = combat.hp.last().unwrap();
                 // Bombardment may leave both alive; it has no death explosion.
                 let loser = if final_hp.0 == 0 {
-                    Some(attacker)
+                    Some(&combat.attacker)
                 } else if final_hp.1 == 0 {
-                    Some(defender)
+                    Some(&combat.defender)
                 } else {
                     None
                 };
@@ -184,7 +172,7 @@ mod tests {
     fn playback_is_clock_driven_and_drops_all_overrides_at_completion() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let (id, target) = sim.ui_review_animation_setup(false);
-        let before = sim.units().iter().find(|u| u.id == id).unwrap().clone();
+        let before = sim.unit_by_id(id).unwrap().clone();
         assert!(sim.apply(Command::Move(id, 1, 0)));
         let mut playback = Playback::default();
         playback.update(&mut sim, 10.0);
@@ -194,10 +182,10 @@ mod tests {
             (before.x, before.y)
         );
         assert_eq!(
-            (
-                sim.units().iter().find(|u| u.id == id).unwrap().x,
-                sim.units().iter().find(|u| u.id == id).unwrap().y
-            ),
+            {
+                let unit = sim.unit_by_id(id).unwrap();
+                (unit.x, unit.y)
+            },
             target
         );
         playback.update(&mut sim, 10.015);

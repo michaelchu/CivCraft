@@ -24,7 +24,7 @@ pub(super) fn fit_text(text: &str, size: f32, width: f32) -> String {
     format!("{}...", chars[..lo].iter().collect::<String>())
 }
 pub(super) fn text_in(text: &str, x: f32, y: f32, size: f32, width: f32, color: Color) {
-    draw_text(&fit_text(text, size, width), x, y, size, color);
+    draw_text(fit_text(text, size, width), x, y, size, color);
 }
 pub(super) fn panel_frame(panel: Rect) {
     draw_rectangle(
@@ -42,6 +42,9 @@ pub(super) fn panel_frame(panel: Rect) {
         2.0,
         Color::from_rgba(206, 165, 72, 255),
     );
+}
+pub(super) fn panel_close_rect(panel: Rect) -> Rect {
+    Rect::new(panel.right() - 45.0, panel.y + 12.0, 32.0, 26.0)
 }
 /// Fixed-width columns with consistent gutters; never places a control outside its row.
 pub(super) fn grid_columns(width: f32, minimum: f32) -> usize {

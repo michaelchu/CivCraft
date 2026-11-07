@@ -58,21 +58,13 @@ impl Simulation {
     }
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
         let tile = self.tile(x, y);
-        if kind.is_aircraft() {
-            true
-        } else if kind == UnitKind::Trireme {
-            matches!(tile.terrain, Terrain::Ocean | Terrain::Lake) || tile.river
-        } else {
-            tile.terrain.is_water() == kind.is_naval()
-                && (!kind.is_big_land()
-                    || !matches!(
-                        tile.terrain,
-                        Terrain::Jungle | Terrain::Mountains | Terrain::Swamp
-                    )
-                    || tile.road
-                    || tile.railroad
-                    || matches!(tile.base, Some(Base::Fort | Base::Fortress)))
-        }
+        kind.is_native_on(
+            tile.terrain,
+            tile.river,
+            tile.road,
+            tile.railroad,
+            tile.base,
+        )
     }
 
     pub(super) fn pf_main_sight(&self, observer: usize, x: i32, y: i32) -> bool {
@@ -143,12 +135,12 @@ impl Simulation {
         &self,
         kind: UnitKind,
         owner: usize,
-        x: i32,
-        y: i32,
+        position: (i32, i32),
         known: bool,
         seen: bool,
         city_attack: bool,
     ) -> PfAction {
+        let (x, y) = position;
         if !known {
             return PfAction::None;
         }
@@ -306,29 +298,29 @@ mod tests {
             UnitKind::Caravan,
         ] {
             assert_eq!(
-                sim.pf_default_action(kind, HUMAN, 10, 20, true, true, true),
+                sim.pf_default_action(kind, HUMAN, (10, 20), true, true, true),
                 PfAction::None
             );
         }
         for kind in [UnitKind::Explorer, UnitKind::Diplomat, UnitKind::Spy] {
             assert_eq!(
-                sim.pf_default_action(kind, HUMAN, 10, 20, true, true, true),
+                sim.pf_default_action(kind, HUMAN, (10, 20), true, true, true),
                 PfAction::Diplomat
             );
         }
         assert_eq!(
-            sim.pf_default_action(UnitKind::Carrier, HUMAN, 10, 20, true, true, true),
+            sim.pf_default_action(UnitKind::Carrier, HUMAN, (10, 20), true, true, true),
             PfAction::Impossible
         );
         sim.tile_mut(10, 20).terrain = Terrain::Ocean;
         assert_eq!(
-            sim.pf_default_action(UnitKind::Carrier, HUMAN, 10, 20, true, true, true),
+            sim.pf_default_action(UnitKind::Carrier, HUMAN, (10, 20), true, true, true),
             PfAction::Attack
         );
         sim.tile_mut(10, 20).terrain = Terrain::Grassland;
         sim.create_city(1, 10, 20);
         assert_eq!(
-            sim.pf_default_action(UnitKind::Caravan, HUMAN, 10, 20, true, true, true),
+            sim.pf_default_action(UnitKind::Caravan, HUMAN, (10, 20), true, true, true),
             PfAction::Trade
         );
     }

@@ -31,7 +31,7 @@ impl Unit {
 
 impl Simulation {
     pub(super) fn promote_unit(&mut self, id: u32, modifier: i32) {
-        let Some(index) = self.units.iter().position(|unit| unit.id == id) else {
+        let Some(index) = self.unit_index_by_id(id) else {
             return;
         };
         let unit = &self.units[index];
@@ -51,7 +51,7 @@ impl Simulation {
     }
 
     pub(super) fn promote_worker(&mut self, id: u32) {
-        let Some(index) = self.units.iter().position(|unit| unit.id == id) else {
+        let Some(index) = self.unit_index_by_id(id) else {
             return;
         };
         let unit = &self.units[index];
@@ -150,7 +150,7 @@ mod tests {
             game.promote_unit(id, 0);
             let tribal_land = kind.unit_class() == super::super::unit_catalog::UnitClass::Land
                 && !kind.is_civilian();
-            let unit = game.units.iter().find(|unit| unit.id == id).unwrap();
+            let unit = game.unit_by_id(id).unwrap();
             assert_eq!(
                 unit.veteran,
                 usize::from(eligible && tribal_land),

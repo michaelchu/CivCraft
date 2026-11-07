@@ -75,31 +75,31 @@ mod tests {
         let mut game = observers();
         let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 26, 24);
         game.tile_mut(26, 24).known_by[1] = true;
-        assert!(!game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(!game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
         let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 18, 24);
-        assert!(game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
         let city = game.cities.iter_mut().find(|city| city.owner == 1).unwrap();
         city.owner = 2;
         game.spawn_unit(1, UnitKind::Warrior, 17, 23);
-        assert!(!game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(!game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
     }
 
     #[test]
     fn stealth_needs_detection_and_cargo_requires_an_alliance() {
         let mut game = observers();
         let id = game.spawn_unit(HUMAN, UnitKind::Submarine, 20, 24);
-        assert!(!game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(!game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
         game.spawn_unit(1, UnitKind::Destroyer, 19, 23);
-        assert!(game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
         let transport = game.spawn_unit(HUMAN, UnitKind::Transport, 20, 24);
         game.units
             .iter_mut()
             .find(|u| u.id == id)
             .unwrap()
             .transport = Some(transport);
-        assert!(!game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(!game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
         game.sign_pact(HUMAN, 1, Pact::Alliance);
-        assert!(game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
     }
 
     #[test]
@@ -107,19 +107,19 @@ mod tests {
         let mut game = observers();
         let id = game.spawn_unit(1, UnitKind::Warrior, 8, 24);
         // common/player.c checks city visibility before its allied-unit return.
-        assert!(!game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(!game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
         game.sign_pact(HUMAN, 1, Pact::Alliance);
-        assert!(game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
     }
 
     #[test]
     fn shared_vision_supplies_both_observer_layers() {
         let mut game = observers();
         let id = game.spawn_unit(HUMAN, UnitKind::Submarine, 28, 24);
-        assert!(!game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(!game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
         game.sign_pact(1, 2, Pact::Alliance);
         let relation = game.diplomacy.get_mut(&(1, 2)).unwrap();
         relation.vision[1] = true;
-        assert!(game.unit_visible_to(1, game.units.iter().find(|u| u.id == id).unwrap()));
+        assert!(game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
     }
 }

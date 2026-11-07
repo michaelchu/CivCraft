@@ -220,14 +220,16 @@ mod tests {
         for dy in -4..=4 {
             for dx in -4..=4 {
                 let (x, y) = (x + dx, y + dy);
-                if x >= 0 && y >= 0 && x < WIDTH as i32 && y < HEIGHT as i32 {
-                    if pixels[(sprite.y as usize + y as usize) * atlas.width()
+                if x >= 0
+                    && y >= 0
+                    && x < WIDTH as i32
+                    && y < HEIGHT as i32
+                    && pixels[(sprite.y as usize + y as usize) * atlas.width()
                         + sprite.x as usize
                         + x as usize][3]
                         > 0
-                    {
-                        count += 1;
-                    }
+                {
+                    count += 1;
                 }
             }
         }

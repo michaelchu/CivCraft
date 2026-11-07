@@ -238,7 +238,7 @@ impl Game {
         }
         if page > 0 {
             draw_text(
-                &format!("Buildings {page}/{last_page}"),
+                format!("Buildings {page}/{last_page}"),
                 rect.x + 216.0,
                 rect.y + 187.0,
                 15.0,
@@ -327,7 +327,7 @@ impl Game {
             }
         } else {
             draw_text(
-                &format!("Units {}/{}", unit_page + 1, unit_pages),
+                format!("Units {}/{}", unit_page + 1, unit_pages),
                 rect.x + 216.0,
                 rect.y + 187.0,
                 15.0,
@@ -405,7 +405,7 @@ impl Game {
                     },
                 );
                 draw_text(
-                    &format!("{} shields", stats.cost),
+                    format!("{} shields", stats.cost),
                     card.x + 62.0,
                     card.y + 47.0,
                     13.0,
@@ -458,7 +458,7 @@ impl Game {
             actions.push((buy_button, UiAction::RushProduction(city.id)));
         }
         draw_text(
-            &format!(
+            format!(
                 "Upkeep: {} food / {} shields / {} gold",
                 support.food, support.shields, support.gold
             ),
@@ -499,6 +499,118 @@ impl Game {
                 );
                 actions.push((unit_rect, UiAction::SelectUnit(unit.id)));
             }
+        }
+    }
+
+    fn draw_city_tiles(
+        &self,
+        assets: &Assets,
+        city: &City,
+        panel: Rect,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
+        self.draw_city_tiles_map(assets, city, panel, actions);
+    }
+
+    fn draw_worklist(
+        &self,
+        city: &City,
+        panel: Rect,
+        requested_page: usize,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
+        let rows = ((panel.h - 208.0) / 34.0).floor().max(1.0) as usize;
+        let last_page = city.worklist.len().saturating_sub(1) / rows;
+        let page = requested_page.min(last_page);
+        draw_text(
+            format!("WORKLIST  {}/{}", city.worklist.len(), WORKLIST_LIMIT),
+            panel.x + 22.0,
+            panel.y + 187.0,
+            18.0,
+            WHITE,
+        );
+        for (offset, width, label, target, enabled) in [
+            (185.0, 28.0, "<", Some(page.saturating_sub(1)), page > 0),
+            (150.0, 28.0, ">", Some(page + 1), page < last_page),
+            (114.0, 92.0, "Production", None, true),
+        ] {
+            let button = Rect::new(panel.x + panel.w - offset, panel.y + 169.0, width, 25.0);
+            draw_ui_button(button, label, enabled, false);
+            if enabled {
+                actions.push((button, UiAction::WorklistPage(target)));
+            }
+        }
+        if city.worklist.is_empty() {
+            draw_text(
+                "Use + on a production card to add it to the worklist.",
+                panel.x + 22.0,
+                panel.y + 224.0,
+                16.0,
+                LIGHTGRAY,
+            );
+        }
+        for (index, &entry) in city
+            .worklist
+            .iter()
+            .enumerate()
+            .skip(page * rows)
+            .take(rows)
+        {
+            let y = panel.y + 201.0 + (index % rows) as f32 * 34.0;
+            let target = self.sim.worklist_replacement(city, entry);
+            let status = if !self.sim.can_produce(city, target) {
+                "  (unavailable)".to_owned()
+            } else if target != entry {
+                format!("  (upgrades to {})", target.name())
+            } else {
+                String::new()
+            };
+            text_in(
+                &format!("{}. {}{status}", index + 1, entry.name()),
+                panel.x + 22.0,
+                y + 19.0,
+                16.0,
+                panel.w - 158.0,
+                WHITE,
+            );
+            for (offset, label, edit, enabled) in [
+                (
+                    122.0,
+                    "^",
+                    WorklistEdit::Move(index, index.saturating_sub(1)),
+                    index > 0,
+                ),
+                (
+                    87.0,
+                    "v",
+                    WorklistEdit::Move(index, index + 1),
+                    index + 1 < city.worklist.len(),
+                ),
+                (48.0, "X", WorklistEdit::Remove(index), true),
+            ] {
+                let button = Rect::new(panel.x + panel.w - offset, y, 32.0, 24.0);
+                draw_ui_button(button, label, enabled, false);
+                if enabled {
+                    actions.push((button, UiAction::EditWorklist(city.id, edit)));
+                }
+            }
+        }
+    }
+
+    fn draw_queue_button(
+        &self,
+        city: &City,
+        card: Rect,
+        target: Production,
+        actions: &mut Vec<(Rect, UiAction)>,
+    ) {
+        if city.worklist.len() < WORKLIST_LIMIT && self.sim.can_produce(city, target) {
+            let button = Rect::new(card.x + card.w - 29.0, card.y + card.h - 23.0, 22.0, 18.0);
+            draw_ui_button(button, "+", true, false);
+            actions.push((
+                button,
+                UiAction::EditWorklist(city.id, WorklistEdit::Append(target)),
+            ));
         }
     }
 }

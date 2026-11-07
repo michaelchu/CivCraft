@@ -33,10 +33,10 @@ fn argument_value(flag: &str) -> Option<String> {
 }
 
 fn ensure_parent(path: &str) {
-    if let Some(parent) = Path::new(path).parent() {
-        if !parent.as_os_str().is_empty() {
-            let _ = fs::create_dir_all(parent);
-        }
+    if let Some(parent) = Path::new(path).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        let _ = fs::create_dir_all(parent);
     }
 }
 
@@ -181,7 +181,7 @@ async fn main() {
             .as_ref()
             .map(|_| review_scenes[(frame / 10) as usize]);
         if let Some(scene) = scene {
-            if frame % 10 == 0 {
+            if frame.is_multiple_of(10) {
                 changed_page = false;
                 sequence = client::UiReviewSequence::default();
                 let started = std::time::Instant::now();
@@ -290,13 +290,13 @@ async fn main() {
                 break;
             }
         }
-        if let Some(path) = &screenshot_path {
-            if frame == 120 {
-                ensure_parent(path);
-                get_screen_data().export_png(path);
-                if self_test_path.is_none() {
-                    break;
-                }
+        if let Some(path) = &screenshot_path
+            && frame == 120
+        {
+            ensure_parent(path);
+            get_screen_data().export_png(path);
+            if self_test_path.is_none() {
+                break;
             }
         }
         if frame >= 805

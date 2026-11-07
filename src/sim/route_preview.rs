@@ -193,7 +193,7 @@ mod tests {
             let last = preview.points.last().unwrap();
             assert_eq!((last.turn, last.moves_left), (0, remaining));
             assert!(sim.apply(Command::GoTo(id, target.0, target.1)));
-            let unit = sim.units.iter().find(|u| u.id == id).unwrap();
+            let unit = sim.unit_by_id(id).unwrap();
             assert_eq!(
                 (unit.x, unit.y, unit.moves_left),
                 (last.x, last.y, last.moves_left)
@@ -216,7 +216,7 @@ mod tests {
         let first = &preview.points[1];
         assert_eq!(first.moves_left, 0);
         assert!(sim.apply(Command::GoTo(id, target.0, target.1)));
-        let unit = sim.units.iter().find(|u| u.id == id).unwrap();
+        let unit = sim.unit_by_id(id).unwrap();
         assert_eq!(
             (unit.x, unit.y, unit.moves_left),
             (first.x, first.y, first.moves_left)
@@ -244,7 +244,7 @@ mod tests {
                 let preview = allowed.preview_goto(id, target.0, target.1).unwrap();
                 let last = preview.points.last().unwrap();
                 assert!(allowed.apply(Command::GoTo(id, target.0, target.1)));
-                let unit = allowed.units.iter().find(|u| u.id == id).unwrap();
+                let unit = allowed.unit_by_id(id).unwrap();
                 assert_eq!(
                     (unit.x, unit.y, unit.moves_left),
                     (last.x, last.y, last.moves_left)
@@ -299,7 +299,7 @@ mod tests {
             let preview = sim.preview_goto(id, target.0, target.1).unwrap();
             let last = preview.points.last().unwrap();
             assert!(sim.apply(Command::GoTo(id, target.0, target.1)));
-            let unit = sim.units.iter().find(|u| u.id == id).unwrap();
+            let unit = sim.unit_by_id(id).unwrap();
             assert_eq!(unit.transport, Some(carrier));
             assert_eq!(
                 (unit.x, unit.y, unit.moves_left),

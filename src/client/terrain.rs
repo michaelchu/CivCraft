@@ -14,7 +14,8 @@ const BLEND_OFFSETS: [(usize, usize); 4] = [(48, 0), (0, 24), (48, 24), (0, 0)];
 const BLEND_CELL_W: usize = 98;
 const BLEND_CELL_H: usize = 50;
 const TERRAIN_ROWS: usize = 13;
-const CORNERS: [([(i32, i32); 3], (f32, f32)); 4] = [
+type TerrainCorner = ([(i32, i32); 3], (f32, f32));
+const CORNERS: [TerrainCorner; 4] = [
     ([(-1, 0), (-1, -1), (0, -1)], (24.0, 0.0)),
     ([(1, 0), (1, 1), (0, 1)], (24.0, 24.0)),
     ([(0, -1), (1, -1), (1, 0)], (48.0, 12.0)),
@@ -187,15 +188,15 @@ fn build_blend_atlas_impl(terrain: &Image, custom: bool) -> Image {
                         continue;
                     }
                     let mut pixel = source_pixels[(sy + y) * terrain.width() + sx + x];
-                    if custom && pixel[3] == 0 {
-                        if let Some(nearest) = (0..96usize)
+                    if custom
+                        && pixel[3] == 0
+                        && let Some(nearest) = (0..96usize)
                             .filter(|&px| {
                                 source_pixels[(sy + y) * terrain.width() + sx + px][3] > 0
                             })
                             .min_by_key(|&px| x.abs_diff(px))
-                        {
-                            pixel = source_pixels[(sy + y) * terrain.width() + sx + nearest];
-                        }
+                    {
+                        pixel = source_pixels[(sy + y) * terrain.width() + sx + nearest];
                     }
                     // t.dither_tile is row 15, col 0. Native crop_sprite applies
                     // its alpha at the source-relative (x,y), not quadrant-local.
@@ -297,7 +298,13 @@ impl Game {
             );
         }
         if matches!(terrain, Terrain::Ocean | Terrain::DeepOcean) {
-            self.draw_ice_cliffs(assets, x, y, center, tile_w, tile_h, terrain);
+            self.draw_ice_cliffs(
+                assets,
+                x,
+                y,
+                TileGeometry::new(center, tile_w, tile_h),
+                terrain,
+            );
         }
     }
 
@@ -310,7 +317,14 @@ impl Game {
         w: f32,
         h: f32,
     ) {
-        self.draw_water_corners(assets, x, y, center, w, h, Terrain::Lake, true);
+        self.draw_water_corners(
+            assets,
+            x,
+            y,
+            TileGeometry::new(center, w, h),
+            Terrain::Lake,
+            true,
+        );
     }
 
     fn draw_ice_cliffs(
@@ -318,12 +332,10 @@ impl Game {
         assets: &Assets,
         x: i32,
         y: i32,
-        center: Vec2,
-        w: f32,
-        h: f32,
+        geometry: TileGeometry,
         current: Terrain,
     ) {
-        self.draw_water_corners(assets, x, y, center, w, h, current, false);
+        self.draw_water_corners(assets, x, y, geometry, current, false);
     }
 
     fn draw_water_corners(
@@ -331,12 +343,15 @@ impl Game {
         assets: &Assets,
         x: i32,
         y: i32,
-        center: Vec2,
-        w: f32,
-        h: f32,
+        geometry: TileGeometry,
         current: Terrain,
         lake: bool,
     ) {
+        let TileGeometry {
+            center,
+            width: w,
+            height: h,
+        } = geometry;
         // Native CELL_CORNER / MATCH_PAIR: m0, m1, m2 follow the three
         // neighbors clockwise around each of u,d,r,l corners. Missing/unknown
         // neighbors repeat the water tile and therefore never reveal ice.

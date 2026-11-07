@@ -55,24 +55,6 @@ impl Simulation {
         }
     }
 
-    pub(crate) fn map_snapshot_playtest(&mut self) -> bool {
-        self.units.clear();
-        let (x, y) = (23, 36);
-        let index = self.map_wrap.index(x, y);
-        self.tile_mut(x, y).terrain = Terrain::Ocean;
-        self.spawn_unit(1, UnitKind::Trireme, x, y);
-        self.refresh_visibility();
-        self.units.clear();
-        self.tile_mut(x, y).terrain = Terrain::Grassland;
-        self.refresh_visibility();
-        self.tile_mut(x, y).seen = false;
-        self.tile_mut(x, y).known_by[HUMAN] = false;
-        self.transfer_treaty_map(1, HUMAN, TreatyMap::Sea);
-        self.tile(x, y).seen
-            && !self.tile(x, y).visible
-            && self.route_memory[index].is_some_and(|tile| tile.is_water())
-    }
-
     pub(crate) fn unit_visible_to_human(&self, unit: &Unit) -> bool {
         let tile = self.tile(unit.x, unit.y);
         if !tile.visible

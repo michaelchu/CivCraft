@@ -67,7 +67,7 @@ impl Simulation {
 
     fn pillage_target_present(&self, x: i32, y: i32, target: PillageTarget) -> bool {
         let tile = self.tile(x, y);
-        let city = self.cities.iter().find(|city| (city.x, city.y) == (x, y));
+        let city = self.city_at(x, y);
         match target {
             PillageTarget::Road => tile.road && !tile.railroad && city.is_none(),
             PillageTarget::Railroad => {

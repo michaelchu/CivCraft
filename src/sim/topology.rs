@@ -48,6 +48,10 @@ pub(crate) fn isohex_vector_distance(dx: i32, dy: i32) -> i32 {
     }
 }
 
+pub(crate) fn city_radius_order_key(dx: i32, dy: i32) -> (i32, i32, i32) {
+    (isohex_vector_distance(dx, dy).pow(2), dx, dy)
+}
+
 pub(crate) fn is_isohex_step(dx: i32, dy: i32) -> bool {
     ISOHEX_DIRS.contains(&(dx, dy))
 }

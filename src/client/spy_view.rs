@@ -12,7 +12,7 @@ impl Game {
         else {
             return Vec::new();
         };
-        let Some(city) = self.sim.cities().iter().find(|city| city.id == city_id) else {
+        let Some(city) = self.sim.city_by_id(city_id) else {
             return Vec::new();
         };
         let w = (screen_width() - 24.0).min(500.0);
@@ -39,7 +39,7 @@ impl Game {
             15.0,
             LIGHTGRAY,
         );
-        let close = Rect::new(panel.right() - 45.0, panel.y + 12.0, 32.0, 26.0);
+        let close = panel_close_rect(panel);
         draw_ui_button(close, "X", true, false);
         let mut actions = vec![(close, UiAction::SpyTargets(None))];
         let mut targets = Vec::new();

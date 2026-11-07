@@ -32,93 +32,6 @@ pub(super) fn neighbors(x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> {
 }
 
 impl Simulation {
-    pub(crate) fn transport_worker_actions_playtest(&self) -> (bool, bool) {
-        let mut game = self.clone();
-        game.units.clear();
-        game.cities.clear();
-        game.players[HUMAN].known.clear();
-        for tile in &mut game.tiles {
-            tile.terrain = Terrain::DeepOcean;
-            tile.oil_platform = false;
-            tile.pollution = false;
-            tile.fallout = false;
-            tile.hut = false;
-            tile.owner = None;
-            tile.base = None;
-        }
-        let ship = game.spawn_unit(HUMAN, UnitKind::Transport, 10, 24);
-        let gated = !game.apply(Command::Work(ship, WorkKind::OilPlatform));
-        game.players[HUMAN].known.push(Tech::MINIATURIZATION);
-        let started = game.apply(Command::Work(ship, WorkKind::OilPlatform));
-        for _ in 0..2 {
-            game.progress_player_unit_activities(HUMAN);
-        }
-        let built = gated
-            && started
-            && game.tile(10, 24).oil_platform
-            && game.units.last().unwrap().work_kind.is_none()
-            && game.units.last().unwrap().veteran == 0;
-        game.tile_mut(10, 24).pollution = true;
-        let clean = game.apply(Command::Work(
-            ship,
-            WorkKind::Clean(Contamination::Pollution),
-        ));
-        game.progress_player_unit_activities(HUMAN);
-        let cleaned = clean && !game.tile(10, 24).pollution;
-
-        // A real port allows a Sea actor onto land, but its action enablers
-        // still exclude land mining, irrigation, cultivation and planting.
-        game.tile_mut(10, 24).terrain = Terrain::Grassland;
-        game.create_city(HUMAN, 10, 24);
-        game.players[HUMAN]
-            .known
-            .extend([Tech::ELECTRICITY, Tech::FUSION_POWER]);
-        let rejects_land = [
-            WorkKind::Mine,
-            WorkKind::Irrigation,
-            WorkKind::Farmland,
-            WorkKind::Plant,
-            WorkKind::Cultivate,
-            WorkKind::Transform,
-        ]
-        .into_iter()
-        .all(|kind| !game.apply(Command::Work(ship, kind)));
-        (built && cleaned, rejects_land)
-    }
-
-    pub(crate) fn world_seam_work_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.cities.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.resource = None;
-            tile.hut = false;
-            tile.river = false;
-            tile.irrigation = false;
-            tile.owner = None;
-        }
-        let home = (10, 0);
-        let site = (10, 1);
-        let water = offset_native_by_map(site.0, site.1, -1, -1);
-        self.tile_mut(water.0, water.1).terrain = Terrain::Ocean;
-        self.create_city(HUMAN, home.0, home.1);
-        let port = self.is_port(&self.cities[0]);
-        let radius =
-            Self::city_radius(&self.cities[0]).count() == Self::city_radius_at(10, 24).count();
-        let claimed = self.tile(water.0, water.1).owner == Some(HUMAN);
-        let worker = self.spawn_unit(HUMAN, UnitKind::Worker, site.0, site.1);
-        let started = self.apply(Command::Work(worker, WorkKind::Irrigation));
-        for _ in 0..5 {
-            self.update_activities_and_restore();
-        }
-        water.1 == self.map_wrap.height() - 1
-            && port
-            && radius
-            && claimed
-            && started
-            && self.tile(site.0, site.1).irrigation
-    }
-
     pub(crate) fn oil_work(&self, unit: &Unit) -> Option<WorkKind> {
         let tile = self.tile(unit.x, unit.y);
         if tile.terrain == Terrain::DeepOcean
@@ -235,7 +148,7 @@ impl Simulation {
             .map(|unit| unit.id)
             .collect();
         for id in stranded {
-            let Some(unit) = self.units.iter().find(|unit| unit.id == id) else {
+            let Some(unit) = self.unit_by_id(id) else {
                 continue;
             };
             let destination = self.map_wrap.neighbors(x, y).find(|&(nx, ny)| {
@@ -396,9 +309,9 @@ mod tests {
         assert_eq!(game.tile(x, y).terrain, Terrain::Ocean);
         game.update_activities_and_restore();
         assert_eq!(game.tile(x, y).terrain, Terrain::Grassland);
-        let engineer = game.units.iter().find(|unit| unit.id == engineer).unwrap();
+        let engineer = game.unit_by_id(engineer).unwrap();
         assert_eq!((engineer.x, engineer.y, engineer.transport), (x, y, None));
-        let ship = game.units.iter().find(|unit| unit.id == ship).unwrap();
+        let ship = game.unit_by_id(ship).unwrap();
         assert!(game.tile(ship.x, ship.y).terrain.is_water());
     }
 }

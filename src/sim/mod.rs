@@ -37,6 +37,7 @@ mod presentation;
 pub(crate) use presentation::VisualEvent;
 mod normal_paths;
 mod observed_map;
+mod pathfinding;
 pub(crate) use observed_map::ObservedCity;
 mod output_effects;
 mod partisans;
@@ -54,6 +55,8 @@ mod settlement_ferries;
 mod spaceship;
 use score::NationScore;
 mod trade;
+mod turn;
+mod unit_lifecycle;
 use climate::ClimatePressure;
 pub(crate) use pillage::PillageTarget;
 pub(crate) use pollution::Contamination;
@@ -61,6 +64,7 @@ use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
 mod playtest;
 mod research;
+#[cfg(test)]
 mod research_phase;
 mod terrain_work;
 mod ui_review;
@@ -72,6 +76,7 @@ mod offense;
 mod roster_actions;
 pub(crate) mod topology;
 mod unit_catalog;
+mod unit_catalog_data;
 mod upgrades;
 mod upkeep;
 mod uprisings;
@@ -263,12 +268,34 @@ impl Simulation {
     pub(crate) fn units(&self) -> &[Unit] {
         &self.units
     }
-    pub(crate) fn reveals_cities(&self, owner: usize) -> bool {
-        self.has_active_wonder(owner, Building::INTERNET)
+    pub(crate) fn units_owned_by(&self, owner: usize) -> impl Iterator<Item = &Unit> {
+        self.units.iter().filter(move |unit| unit.owner == owner)
     }
-
+    pub(crate) fn unit_by_id(&self, id: u32) -> Option<&Unit> {
+        self.units.iter().find(|unit| unit.id == id)
+    }
+    pub(crate) fn unit_index_by_id(&self, id: u32) -> Option<usize> {
+        self.units.iter().position(|unit| unit.id == id)
+    }
     pub(crate) fn cities(&self) -> &[City] {
         &self.cities
+    }
+    pub(crate) fn cities_owned_by(&self, owner: usize) -> impl Iterator<Item = &City> {
+        self.cities.iter().filter(move |city| city.owner == owner)
+    }
+    pub(crate) fn city_by_id(&self, id: u32) -> Option<&City> {
+        self.cities.iter().find(|city| city.id == id)
+    }
+    pub(crate) fn city_at(&self, x: i32, y: i32) -> Option<&City> {
+        self.cities.iter().find(|city| (city.x, city.y) == (x, y))
+    }
+    pub(crate) fn city_index_at(&self, x: i32, y: i32) -> Option<usize> {
+        self.cities
+            .iter()
+            .position(|city| (city.x, city.y) == (x, y))
+    }
+    pub(crate) fn city_index_by_id(&self, id: u32) -> Option<usize> {
+        self.cities.iter().position(|city| city.id == id)
     }
     pub(crate) fn players(&self) -> &[Player] {
         &self.players
@@ -357,35 +384,16 @@ impl Simulation {
 
         let mut units = Vec::new();
         let mut next_unit_id = 1;
-        for owner in 0..PLAYER_COUNT {
+        for (owner, start) in starts.iter().take(PLAYER_COUNT).enumerate() {
             for kind in [
                 UnitKind::Settlers,
                 UnitKind::Worker,
                 UnitKind::Explorer,
                 UnitKind::Diplomat,
             ] {
-                let stats = kind.stats();
-                units.push(Unit {
-                    nationality: owner,
-                    id: next_unit_id,
-                    owner,
-                    kind,
-                    transport: None,
-                    home_city: None,
-                    home_order: 0,
-                    veteran: 0,
-                    fuel: 0,
-                    x: starts[owner].0,
-                    y: starts[owner].1,
-                    hp: stats.hp,
-                    moves_left: stats.moves * MOVE_FRAGMENTS,
-                    state: UnitState::Idle,
-                    moved: false,
-                    automated: false,
-                    work_kind: None,
-                    work_left: 0,
-                    work_done: 0,
-                });
+                let mut unit = Unit::new(next_unit_id, owner, kind, start.0, start.1);
+                unit.moves_left = kind.stats().moves * MOVE_FRAGMENTS;
+                units.push(unit);
                 next_unit_id += 1;
             }
         }
@@ -566,142 +574,9 @@ impl Simulation {
                 .is_none_or(|tech| self.has_tech(owner, tech))
     }
 
-    fn refresh_visibility(&mut self) {
-        for tile in &mut self.tiles {
-            tile.visible = false;
-            tile.stealth_visible = false;
-        }
-        let revealers: Vec<_> = self
-            .units
-            .iter()
-            .map(|u| {
-                let vision = match self.tile(u.x, u.y).base {
-                    Some(Base::Fortress) if self.has_tech(u.owner, Tech::ASTRONOMY) => 8,
-                    Some(Base::Airbase) => 8,
-                    _ => 0,
-                };
-                let radius = u.kind.stats().vision_sq + vision;
-                (u.owner, u.x, u.y, radius, radius.clamp(0, 2))
-            })
-            .chain(self.cities.iter().map(|c| (c.owner, c.x, c.y, 8, 2)))
-            .collect();
-        let recipients: Vec<_> = (0..self.players.len())
-            .map(|owner| self.vision_recipients(owner))
-            .collect();
-        let sharing: Vec<_> = recipients
-            .iter()
-            .enumerate()
-            .filter(|(_, targets)| targets.len() > 1)
-            .collect();
-        if !sharing.is_empty() {
-            for tile in &mut self.tiles {
-                let known = tile.known_by;
-                for &(owner, targets) in &sharing {
-                    if known[owner] {
-                        for &target in targets {
-                            tile.known_by[target] = true;
-                        }
-                    }
-                }
-                tile.seen |= tile.known_by[HUMAN];
-            }
-        }
-        let mut observations = vec![None; self.tiles.len()];
-        let mut render_seen = vec![vec![false; self.tiles.len()]; self.players.len()];
-        for (owner, x, y, radius_sq, stealth_sq) in revealers {
-            let radius = (radius_sq as f32).sqrt().ceil() as i32;
-            for dy in -radius..=radius {
-                for dx in -radius..=radius {
-                    let distance = isohex_vector_distance(dx, dy);
-                    if distance * distance <= radius_sq {
-                        let Some((visible_x, visible_y)) = self.map_wrap.offset(x, y, dx, dy)
-                        else {
-                            continue;
-                        };
-                        let idx = self.map_wrap.index(visible_x, visible_y);
-                        if owner != BARBARIANS {
-                            for &target in &recipients[owner] {
-                                self.tiles[idx].known_by[target] = true;
-                                render_seen[target][idx] = true;
-                                if target != HUMAN && target != BARBARIANS {
-                                    let observation = *observations[idx]
-                                        .get_or_insert_with(|| self.live_map_observation(idx));
-                                    self.ai_map_memory.insert((target, idx), observation);
-                                }
-                            }
-                        }
-                        if recipients[owner].contains(&HUMAN) {
-                            self.tiles[idx].visible = true;
-                            self.tiles[idx].stealth_visible |= distance * distance <= stealth_sq;
-                            self.tiles[idx].seen = true;
-                        }
-                    }
-                }
-            }
-        }
-        let internet_owners: Vec<_> = self
-            .cities
-            .iter()
-            .filter(|city| city.has_building(Building::INTERNET))
-            .map(|city| city.owner)
-            .collect();
-        for owner in internet_owners {
-            for city in &self.cities {
-                let tile = &mut self.tiles[self.map_wrap.index(city.x, city.y)];
-                tile.known_by[owner] = true;
-                tile.seen |= owner == HUMAN;
-            }
-        }
-        self.reconcile_city_workers();
-        self.remember_visible_borders();
-        self.remember_route_tiles(false);
-        self.remember_visible_rivals();
-        self.remember_render_map(&render_seen);
-        self.share_render_memory();
-    }
-
     pub(crate) fn map_distance(&self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
         let (dx, dy) = self.map_wrap.vector(ax, ay, bx, by);
         isohex_vector_distance(dx, dy)
-    }
-
-    fn prune_unit_ai_state(&mut self) {
-        let ids: std::collections::BTreeSet<_> = self
-            .ai_ground_targets
-            .keys()
-            .chain(self.agent_city_targets.keys())
-            .chain(self.ai_merchant_missions.keys())
-            .chain(self.merchant_birth_turns.keys())
-            .chain(self.ai_settlement_targets.keys())
-            .chain(self.ai_ferries.boats.keys())
-            .chain(self.ai_ferries.passengers.keys())
-            .chain(self.ai_guard_targets.keys())
-            .chain(self.ai_unit_guards.keys())
-            .chain(self.unit_goto_tiles.keys())
-            .chain(self.ai_worker_tasks.iter())
-            .copied()
-            .filter(|id| !self.units.iter().any(|unit| unit.id == *id))
-            .collect();
-        for id in ids {
-            self.discard_unit_ai(id);
-        }
-        self.refresh_ai_ferries();
-        self.refresh_ai_guards();
-        self.sync_list_order();
-    }
-
-    fn discard_unit_ai(&mut self, id: u32) {
-        self.list_order.forget_unit(id);
-        self.unit_goto_tiles.remove(&id);
-        self.ai_worker_tasks.remove(&id);
-        self.forget_ai_guard_unit(id);
-        self.ai_ferries.forget(id);
-        self.ai_ground_targets.remove(&id);
-        self.agent_city_targets.remove(&id);
-        self.ai_merchant_missions.remove(&id);
-        self.merchant_birth_turns.remove(&id);
-        self.merchant_mission_attempts.remove(&id);
-        self.ai_settlement_targets.remove(&id);
     }
 
     fn run_ai_last_activities(&mut self, owner: usize) {
@@ -720,170 +595,6 @@ impl Simulation {
         self.record_ai_tech_effect_wants(owner);
         self.manage_ai_research(owner);
     }
-
-    fn spawn_unit(&mut self, owner: usize, kind: UnitKind, x: i32, y: i32) -> u32 {
-        let id = self.next_unit_id;
-        self.next_unit_id += 1;
-        self.units.push(self.make_unit(id, owner, kind, x, y));
-        self.list_order.unit(self.units.last().unwrap());
-        if Self::is_ai_ferry(kind) {
-            self.ai_ferries.boats.insert(
-                id,
-                ferries::BoatRecord {
-                    owner,
-                    state: ferries::FerryState::Available,
-                },
-            );
-        }
-        if matches!(kind, UnitKind::Caravan | UnitKind::Freight) {
-            self.merchant_birth_turns.insert(id, self.turn);
-        }
-        self.refresh_diplomatic_contact_at(owner, x, y);
-        id
-    }
-
-    fn make_unit(&self, id: u32, owner: usize, kind: UnitKind, x: i32, y: i32) -> Unit {
-        let stats = kind.stats();
-        let mut unit = Unit {
-            nationality: owner,
-            id,
-            owner,
-            kind,
-            transport: None,
-            home_city: None,
-            home_order: 0,
-            veteran: 0,
-            fuel: kind.fuel_capacity(),
-            x,
-            y,
-            hp: stats.hp,
-            moves_left: 0,
-            state: UnitState::Idle,
-            moved: false,
-            automated: false,
-            work_kind: None,
-            work_left: 0,
-            work_done: 0,
-        };
-        unit.moves_left = self.unit_move_rate(&unit);
-        unit
-    }
-
-    fn advance_calendar(&mut self) {
-        let step = if self.year < -1000 {
-            50
-        } else if self.year < 0 {
-            25
-        } else if self.year < 1000 {
-            20
-        } else if self.year < 1500 {
-            10
-        } else if self.year < 1750 {
-            5
-        } else if self.year < 1900 {
-            2
-        } else {
-            1
-        };
-        self.year += step;
-        if self.year == 0 {
-            self.year = 1;
-        }
-    }
-
-    fn end_turn(&mut self) {
-        if self.game_over.is_some() {
-            return;
-        }
-        // srv_main:end_phase also enacts changes made during this phase.
-        self.finish_revolutions();
-        self.run_ai_worker_phase(HUMAN);
-        let automated: Vec<u32> = self
-            .player_units_ordered(HUMAN)
-            .filter(|u| u.automated && !u.kind.stats().can_work)
-            .map(|u| u.id)
-            .collect();
-        for id in automated {
-            self.run_automated_unit(id);
-        }
-        for owner in 1..self.players.len() {
-            if owner == BARBARIANS {
-                continue;
-            }
-            self.run_ai_player(owner);
-            self.run_ai_last_activities(owner);
-        }
-        self.summon_barbarians();
-        self.run_ai_player(BARBARIANS);
-        self.ai_free_bulbs.clear();
-        for owner in 0..self.players.len() {
-            self.restore_player_units(owner);
-            let income = self.process_player_cities(owner);
-            self.finish_player_national_activities(owner, income);
-        }
-        self.check_disasters();
-        self.update_climate();
-        self.refresh_diplomatic_contact_effects();
-        self.turn += 1;
-        self.advance_diplomacy();
-        self.prune_trade_routes();
-        self.advance_calendar();
-        // srv_main:begin_phase progresses activities with the previous
-        // movement budget, then refills MP. Revolution completion is also
-        // checked here, after activities (update_revolution at line 1381).
-        for owner in 0..self.players.len() {
-            self.progress_player_unit_activities(owner);
-        }
-        self.finish_revolutions();
-        for city in &mut self.cities {
-            city.airlift_used = false;
-        }
-        self.refresh_visibility();
-        self.rebuild_city_ownership();
-        // Historical field name is retained for save compatibility; hunter
-        // interception needs previous positions of land and sea units alike.
-        self.previous_naval_positions = self
-            .units
-            .iter()
-            .map(|unit| (unit.id, (unit.x, unit.y)))
-            .collect();
-        self.hunter_targets.retain(|hunter, target| {
-            self.previous_naval_positions.contains_key(hunter)
-                && self.previous_naval_positions.contains_key(target)
-        });
-        self.check_achievements();
-        self.add_event(format!(
-            "Turn {} begins - {}.",
-            self.turn,
-            year_label(self.year)
-        ));
-        self.check_game_over();
-        if self.game_over.is_none() && !self.check_ranked_endgame() {
-            self.advance_space_race();
-        }
-    }
-
-    fn check_game_over(&mut self) {
-        let human_survives = self.cities.iter().any(|c| c.owner == HUMAN)
-            || self
-                .units
-                .iter()
-                .any(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers);
-        if !human_survives {
-            self.game_over = Some("Your civilization has passed into history.".to_owned());
-            return;
-        }
-        let rival_survives =
-            self.cities
-                .iter()
-                .any(|c| c.owner != HUMAN && c.owner != BARBARIANS)
-                || self.units.iter().any(|u| {
-                    u.owner != HUMAN && u.owner != BARBARIANS && u.kind == UnitKind::Settlers
-                });
-        if !rival_survives {
-            self.game_over = Some("The world is united beneath your banner.".to_owned());
-        }
-    }
 }
 
 pub(crate) fn year_label(year: i32) -> String {
@@ -895,354 +606,5 @@ pub(crate) fn year_label(year: i32) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn railroad_research_upgrades_centers_and_enables_worker_tracks() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        let worker = game
-            .units
-            .iter()
-            .find(|u| u.owner == HUMAN && u.kind == UnitKind::Worker)
-            .unwrap()
-            .clone();
-        let (x, y) = (worker.x, worker.y);
-        let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-        game.tile_mut(nx, ny).terrain = Terrain::Grassland;
-        game.create_city(HUMAN, nx, ny);
-        let tile = game.tile_mut(x, y);
-        tile.terrain = Terrain::Hills;
-        tile.road = true;
-        tile.river = false;
-        tile.mine = true;
-        let initial = tile.yields();
-        assert!(!game.apply(Command::Work(worker.id, WorkKind::Railroad)));
-        game.discover(HUMAN, Tech::RAILROAD);
-        assert!(game.tile(nx, ny).railroad);
-        assert!(game.apply(Command::Work(worker.id, WorkKind::Railroad)));
-        for _ in 0..2 {
-            game.update_activities_and_restore();
-            assert!(!game.tile(x, y).railroad);
-        }
-        game.update_activities_and_restore();
-        assert!(game.tile(x, y).railroad);
-        assert_eq!(
-            game.tile(x, y).yields(),
-            (initial.0, initial.1 + initial.1 / 2, initial.2)
-        );
-        assert_eq!(game.movement_cost_for(&worker, nx, ny), Some(1));
-    }
-
-    use super::*;
-
-    #[test]
-    fn native_and_map_coordinates_round_trip() {
-        for native_y in 0..MAP_H {
-            for native_x in 0..MAP_W {
-                let (map_x, map_y) = native_to_map(native_x, native_y);
-                assert_eq!(map_to_native(map_x, map_y), (native_x, native_y));
-            }
-        }
-    }
-
-    #[test]
-    fn isohex_neighbors_and_wrapping_match_freeciv_distance() {
-        assert!(!is_isohex_step(1, -1));
-        assert!(!is_isohex_step(-1, 1));
-        assert!(!is_isohex_step(2, 0));
-
-        for &(start_x, start_y) in &[
-            (0, 0),
-            (MAP_W - 1, MAP_H - 1),
-            crate::mapgen::generate(42).starts[0],
-        ] {
-            let mut neighbors = Vec::new();
-            for (dx, dy) in ISOHEX_DIRS {
-                let neighbor = offset_native_by_map(start_x, start_y, dx, dy);
-                assert_eq!(
-                    isohex_vector_distance(
-                        wrapped_map_vector(start_x, start_y, neighbor.0, neighbor.1).0,
-                        wrapped_map_vector(start_x, start_y, neighbor.0, neighbor.1).1,
-                    ),
-                    1
-                );
-                neighbors.push(neighbor);
-            }
-            neighbors.sort_unstable();
-            neighbors.dedup();
-            assert_eq!(neighbors.len(), 6);
-        }
-    }
-
-    #[test]
-    fn generated_world_uses_reference_dimensions_and_start_positions() {
-        assert_eq!(MAP_TARGET_TILES, 2_000);
-        assert_eq!(MAP_LINEAR_SCALE, 16);
-        assert_eq!((MAP_W, MAP_H), (32, 64));
-        let first = crate::mapgen::generate(42);
-        let terrain = |map: &crate::mapgen::GeneratedMap| {
-            map.tiles
-                .iter()
-                .map(|tile| (tile.terrain, tile.river, tile.resource))
-                .collect::<Vec<_>>()
-        };
-        let replay = crate::mapgen::generate(42);
-        assert_eq!(terrain(&first), terrain(&replay));
-        assert_eq!(first.starts, replay.starts);
-        assert_ne!(terrain(&first), terrain(&crate::mapgen::generate(12345)));
-
-        for seed in 0..32 {
-            let map = crate::mapgen::generate(seed);
-            let starts = map.starts;
-            let game = Simulation::new(map);
-            assert_eq!(game.tiles.len(), (MAP_W * MAP_H) as usize);
-            for (i, &(x, y)) in starts.iter().enumerate() {
-                assert!(game.can_found_at(x, y));
-                assert!(starts[..i].iter().all(|&(other_x, other_y)| {
-                    game.map_distance(x, y, other_x, other_y) >= CITY_MIN_DISTANCE
-                }));
-            }
-        }
-    }
-
-    #[test]
-    fn wrapped_path_uses_one_legal_hex_step() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        for tile in &mut game.tiles {
-            tile.terrain = Terrain::Grassland;
-        }
-        let unit_id = game.units[0].id;
-        game.units[0].x = 0;
-        game.units[0].y = 0;
-        let (target_x, target_y) = offset_native_by_map(0, 0, -1, -1);
-        assert_eq!(game.path_to(unit_id, target_x, target_y), vec![(-1, -1)]);
-        assert_eq!(game.map_distance(0, 0, target_x, target_y), 1);
-    }
-
-    #[test]
-    fn healing_uses_city_minimum_and_fortified_regeneration() {
-        let game = Simulation::new(crate::mapgen::generate(42));
-        let mut unit = game
-            .units
-            .iter()
-            .find(|unit| unit.kind == UnitKind::Warrior)
-            .cloned()
-            .unwrap_or_else(|| Unit {
-                nationality: HUMAN,
-                id: 999,
-                owner: HUMAN,
-                kind: UnitKind::Warrior,
-                transport: None,
-                home_city: None,
-                home_order: 0,
-                veteran: 0,
-                fuel: 0,
-                x: crate::mapgen::generate(42).starts[0].0,
-                y: crate::mapgen::generate(42).starts[0].1,
-                hp: 1,
-                moves_left: 0,
-                state: UnitState::Idle,
-                moved: false,
-                automated: false,
-                work_kind: None,
-                work_left: 0,
-                work_done: 0,
-            });
-        unit.hp = 1;
-        unit.moved = false;
-        unit.state = UnitState::Idle;
-        assert_eq!(Simulation::hitpoint_gain(&unit, false, false), 1);
-        assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 4);
-        unit.state = UnitState::Fortified;
-        assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 5);
-        unit.moved = true;
-        assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 0);
-
-        // The compiled hp_gain_coord performs integer max-HP / 10 before
-        // applying HP_Regen_2. Settlers have 20 maximum HP, so they gain 2
-        // in the field and 6 minimum-city HP plus 2 regeneration in a city.
-        unit.kind = UnitKind::Settlers;
-        unit.hp = 1;
-        unit.state = UnitState::Idle;
-        unit.moved = false;
-        assert_eq!(Simulation::hitpoint_gain(&unit, false, false), 2);
-        assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 8);
-    }
-
-    #[test]
-    fn defense_stages_and_research_costs_match_civ2civ3() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        let (x, y) = crate::mapgen::generate(42).starts[0];
-        game.tile_mut(x, y).terrain = Terrain::Forest;
-        let mut defender = Unit {
-            nationality: HUMAN,
-            id: 999,
-            owner: HUMAN,
-            kind: UnitKind::Warrior,
-            transport: None,
-            home_city: None,
-            home_order: 0,
-            veteran: 0,
-            fuel: 0,
-            x,
-            y,
-            hp: 10,
-            moves_left: MOVE_FRAGMENTS,
-            state: UnitState::Idle,
-            moved: false,
-            automated: false,
-            work_kind: None,
-            work_left: 0,
-            work_done: 0,
-        };
-
-        // Forest first: 10 * 125% = 12. Field fortification is a later
-        // stage: 12 * 150% = 18.
-        assert_eq!(game.defense_power(&defender, x, y), 12);
-        defender.state = UnitState::Fortified;
-        assert_eq!(game.defense_power(&defender, x, y), 18);
-
-        // A city adds a 50% Defend_Bonus and gives can-fortify ground units
-        // an automatic 50% Fortify_Defense_Bonus. Integer stages are
-        // 12 * 150% = 18, then 18 * 150% = 27.
-        defender.state = UnitState::Idle;
-        game.cities.push(City {
-            id: 999,
-            owner: HUMAN,
-            x,
-            y,
-            name: "Test".to_owned(),
-            size: 1,
-            food: 0,
-            shields: 0,
-            production: Production::Unit(UnitKind::Warrior),
-            founded_turn: game.turn,
-            bought_production: false,
-            sold_building: false,
-            production_before_switch: None,
-            protected_shields: 0,
-            caravan_shields: 0,
-            technology_thefts: 0,
-            worklist: Vec::new(),
-            buildings: Vec::new(),
-            specialists: [0; 3],
-            worked_tiles: Vec::new(),
-            was_happy: false,
-            last_plague: None,
-            history: 0,
-            foreign_citizens: Vec::new(),
-            airlift_used: false,
-        });
-        assert_eq!(game.defense_power(&defender, x, y), 27);
-
-        // Linear precalculation is 10 bulbs per recursive requirement; the
-        // ruleset's unconditional 300% Tech_Cost_Pct effect is then applied.
-        assert_eq!(Tech::ALPHABET.cost(), 30);
-        assert_eq!(Tech::IRON_WORKING.cost(), 90);
-    }
-
-    #[test]
-    fn combat_odds_and_defender_selection_match_native_rules() {
-        let even_fight = combat_win_chance(10, 10, 1, 10, 10, 1);
-        assert!((even_fight - 0.5).abs() < 1.0e-12);
-
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        game.units.clear();
-        game.cities.clear();
-        let attacker = Unit {
-            nationality: HUMAN,
-            id: 1,
-            owner: HUMAN,
-            kind: UnitKind::Warrior,
-            transport: None,
-            home_city: None,
-            home_order: 0,
-            veteran: 0,
-            fuel: 0,
-            x: 0,
-            y: 0,
-            hp: 10,
-            moves_left: MOVE_FRAGMENTS,
-            state: UnitState::Idle,
-            moved: false,
-            automated: false,
-            work_kind: None,
-            work_left: 0,
-            work_done: 0,
-        };
-        let mut fragile_defender = attacker.clone();
-        fragile_defender.id = 2;
-        fragile_defender.owner = 1;
-        fragile_defender.x = 1;
-        fragile_defender.hp = 1;
-        let mut healthy_defender = fragile_defender.clone();
-        healthy_defender.id = 3;
-        healthy_defender.hp = 10;
-        game.units = vec![attacker.clone(), fragile_defender, healthy_defender];
-        game.tile_mut(1, 0).terrain = Terrain::Grassland;
-
-        assert_eq!(game.best_defender_id(&attacker, 1, 0), Some(3));
-    }
-
-    #[test]
-    fn granary_formula_uses_ruleset_initial_values_and_foodbox() {
-        assert_eq!(Simulation::growth_box(0), 0);
-        assert_eq!(Simulation::growth_box(1), 20);
-        assert_eq!(Simulation::growth_box(6), 30);
-        assert_eq!(Simulation::growth_box(8), 40);
-        assert_eq!(Simulation::growth_box(20), 40);
-    }
-
-    #[test]
-    fn famine_destroys_size_one_city() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        let settler = game
-            .units
-            .iter()
-            .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settlers)
-            .map(|unit| unit.id)
-            .expect("human settler");
-        assert!(game.found_city(settler));
-        game.cities[0].food = -100;
-        game.process_cities();
-        assert!(game.cities.iter().all(|city| city.owner != HUMAN));
-    }
-
-    #[test]
-    fn irrigation_needs_water_and_conflicts_with_mines() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        let (x, y) = crate::mapgen::generate(42).starts[0];
-        game.tile_mut(x, y).terrain = Terrain::Hills;
-        game.tile_mut(x, y).river = false;
-        for (dx, dy) in ISOHEX_DIRS {
-            let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
-            let neighbor = game.tile_mut(neighbor_x, neighbor_y);
-            neighbor.terrain = Terrain::Grassland;
-            neighbor.irrigation = false;
-            neighbor.river = false;
-        }
-        assert!(!game.can_irrigate_at(HUMAN, x, y));
-        let (water_x, water_y) = offset_native_by_map(x, y, ISOHEX_DIRS[0].0, ISOHEX_DIRS[0].1);
-        game.tile_mut(water_x, water_y).terrain = Terrain::Ocean;
-        assert!(game.can_irrigate_at(HUMAN, x, y));
-
-        let worker_index = game
-            .units
-            .iter()
-            .position(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Worker)
-            .expect("human worker");
-        game.units[worker_index].x = x;
-        game.units[worker_index].y = y;
-        game.units[worker_index].work_kind = Some(WorkKind::Irrigation);
-        game.units[worker_index].work_left = 1;
-        game.tile_mut(x, y).mine = true;
-        game.update_activities_and_restore();
-        assert!(game.tile(x, y).irrigation);
-        assert!(!game.tile(x, y).mine);
-
-        game.units[worker_index].work_kind = Some(WorkKind::Mine);
-        game.units[worker_index].work_left = 1;
-        game.update_activities_and_restore();
-        assert!(game.tile(x, y).mine);
-        assert!(!game.tile(x, y).irrigation);
-    }
-}
+#[path = "tests.rs"]
+mod tests;

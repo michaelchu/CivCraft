@@ -40,7 +40,7 @@ fn choose_counter(candidates: &[CounterCandidate], mut want: i32) -> Option<(Tec
 }
 
 impl Simulation {
-    fn counter_defender_request(
+    pub(super) fn counter_defender_request(
         &self,
         city: &City,
         attacker: UnitKind,
@@ -108,38 +108,6 @@ impl Simulation {
             wants[tech.0] += delta;
         }
         wants
-    }
-
-    pub(crate) fn counter_defender_research_playtest(&self) -> (bool, bool, bool) {
-        let mut game = self.clone();
-        game.units.clear();
-        game.cities.clear();
-        game.diplomacy.clear();
-        game.players[1].known.clear();
-        for tile in &mut game.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.road = false;
-            tile.railroad = false;
-            tile.river = false;
-            tile.hut = false;
-            tile.base = None;
-            tile.owner = None;
-        }
-        game.create_city(1, 10, 24);
-        game.sign_pact(1, HUMAN, Pact::War);
-        let quiet = game
-            .counter_defender_tech_wants(&game.cities[0])
-            .into_iter()
-            .all(|want| want == 0.0);
-        let target = offset_native_by_map(10, 24, 1, 0);
-        game.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
-        let request = game.counter_defender_request(&game.cities[0], UnitKind::Warrior, 101);
-        let first = request == Some((Tech::BRONZE_WORKING, 101));
-        let threats = game.counter_defender_tech_wants(&game.cities[0]);
-        let expected =
-            game.advisor_threat_vulnerability(&game.cities[0], game.units.last().unwrap());
-        let feedback = threats[Tech::BRONZE_WORKING.0] == expected as f32 && expected > 0;
-        (quiet, first, feedback)
     }
 }
 

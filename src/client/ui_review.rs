@@ -1,5 +1,7 @@
 //! Opt-in visual QA through the actual renderer, using isolated fixture games.
 use super::*;
+
+type WorkerAssignmentSnapshot = (u32, i32, i32, Vec<(i32, i32)>, [i32; 3]);
 pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "world",
     "city-units",
@@ -66,6 +68,14 @@ impl UiReviewSources {
 }
 
 impl Game {
+    fn ui_review_map_zoom() -> f32 {
+        if Self::viewport_rect().w < 760.0 {
+            0.625
+        } else {
+            1.0
+        }
+    }
+
     pub(crate) fn prepare_ui_review(&mut self, scene: usize, sources: &UiReviewSources) {
         let baseline = if matches!(scene, 0 | 15..=17 | 20 | 33 | 34 | 42) {
             &sources.initial
@@ -140,19 +150,11 @@ impl Game {
             }
             18 | 19 => {
                 self.sim.ui_review_rivers(scene == 19);
-                self.zoom = if Self::viewport_rect().w < 760.0 {
-                    0.625
-                } else {
-                    1.0
-                };
+                self.zoom = Self::ui_review_map_zoom();
             }
             29 | 30 => {
                 self.sim.ui_review_terrain_layers(scene == 30);
-                self.zoom = if Self::viewport_rect().w < 760.0 {
-                    0.625
-                } else {
-                    1.0
-                };
+                self.zoom = Self::ui_review_map_zoom();
             }
             39 => {
                 self.sim.ui_review_ice_transitions();
@@ -169,11 +171,7 @@ impl Game {
             }
             33 | 34 => {
                 self.sim.ui_review_reveal_poles();
-                self.zoom = if Self::viewport_rect().w < 760.0 {
-                    0.625
-                } else {
-                    1.0
-                };
+                self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(
                     self.sim.map_wrap.width() / 2,
                     if scene == 33 {
@@ -186,21 +184,13 @@ impl Game {
             }
             35 => {
                 self.selected_unit = Some(self.sim.ui_review_wrap_seam());
-                self.zoom = if Self::viewport_rect().w < 760.0 {
-                    0.625
-                } else {
-                    1.0
-                };
+                self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(12, 0);
                 return;
             }
             31 => {
                 let (_, focus) = self.sim.ui_review_observed_map();
-                self.zoom = if Self::viewport_rect().w < 760.0 {
-                    0.625
-                } else {
-                    1.0
-                };
+                self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(focus.0, focus.1);
                 return;
             }
@@ -208,11 +198,7 @@ impl Game {
                 let (id, target) = self.sim.ui_review_route_setup();
                 self.selected_unit = Some(id);
                 self.goto_mode = true;
-                self.zoom = if Self::viewport_rect().w < 760.0 {
-                    0.625
-                } else {
-                    1.0
-                };
+                self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(20, 24);
                 let point = self.world_screen_position(target.0, target.1);
                 set_review_pointer(Some(point));
@@ -221,11 +207,7 @@ impl Game {
             28 => {
                 let unit = self.sim.ui_review_fog();
                 self.selected_unit = Some(unit);
-                self.zoom = if Self::viewport_rect().w < 760.0 {
-                    0.625
-                } else {
-                    1.0
-                };
+                self.zoom = Self::ui_review_map_zoom();
             }
             25..=27 => {
                 let (unit, _) = self.sim.ui_review_animation_setup(scene != 25);
@@ -235,19 +217,11 @@ impl Game {
             }
             24 => {
                 self.sim.ui_review_city_appearance();
-                self.zoom = if Self::viewport_rect().w < 760.0 {
-                    0.625
-                } else {
-                    1.0
-                };
+                self.zoom = Self::ui_review_map_zoom();
             }
             23 => {
                 self.sim.ui_review_unit_status();
-                self.zoom = if Self::viewport_rect().w < 760.0 {
-                    0.625
-                } else {
-                    1.0
-                };
+                self.zoom = Self::ui_review_map_zoom();
             }
             21 | 22 => {
                 self.zoom = 1.5;
@@ -279,7 +253,7 @@ impl Game {
 #[derive(Default)]
 pub(crate) struct UiReviewSequence {
     pub(crate) checks: Vec<(&'static str, bool)>,
-    worker: Option<(u32, i32, i32, Vec<(i32, i32)>, [i32; 3])>,
+    worker: Option<WorkerAssignmentSnapshot>,
 }
 impl UiReviewSequence {
     fn check(&mut self, label: &'static str, passed: bool) -> Result<(), &'static str> {
@@ -498,7 +472,7 @@ impl Game {
                 let wrapping = self.sim.map_wrap.wraps_y();
                 let moved = self.move_selected(Command::Move(id, 0, -1), id);
                 sequence.check("movement_obeys_configured_vertical_seam", moved == wrapping)?;
-                let unit = self.sim.units().iter().find(|u| u.id == id).unwrap();
+                let unit = self.sim.unit_by_id(id).unwrap();
                 sequence.check(
                     "vertical_seam_has_expected_destination",
                     unit.y
@@ -631,7 +605,7 @@ impl Game {
             return Ok(false);
         }
         if matches!(scene, 21 | 22) && phase == 1 {
-            let city = self.sim.cities().iter().find(|c| c.owner == HUMAN).unwrap();
+            let city = self.sim.cities_owned_by(HUMAN).next().unwrap();
             sequence.check(
                 "city_has_garrison",
                 self.sim
@@ -692,11 +666,11 @@ impl Game {
                 });
                 sequence.check("worked_tile_available", target.is_some())?;
                 let (id, x, y) = target.unwrap();
-                let city = self.sim.cities().iter().find(|c| c.id == id).unwrap();
+                let city = self.sim.city_by_id(id).unwrap();
                 let before = city.specialists;
                 sequence.worker = Some((id, x, y, city.worked_tiles.clone(), before));
                 sequence.click(self,buttons,"remove_tile_worker",|action|matches!(action,UiAction::WorkCityTile(cid,tx,ty) if (cid,tx,ty)==(id,x,y)))?;
-                let city = self.sim.cities().iter().find(|c| c.id == id).unwrap();
+                let city = self.sim.city_by_id(id).unwrap();
                 sequence.check(
                     "worker_became_entertainer",
                     !city.worked_tiles.contains(&(x, y)) && city.specialists[2] == before[2] + 1,
@@ -706,7 +680,7 @@ impl Game {
             if phase == 8 && scene == 16 {
                 let (id, x, y, worked, before) = sequence.worker.take().unwrap();
                 sequence.click(self,buttons,"restore_tile_worker",|action|matches!(action,UiAction::WorkCityTile(cid,tx,ty) if (cid,tx,ty)==(id,x,y)))?;
-                let city = self.sim.cities().iter().find(|c| c.id == id).unwrap();
+                let city = self.sim.city_by_id(id).unwrap();
                 sequence.check(
                     "worker_assignment_restored",
                     city.specialists == before

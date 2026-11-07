@@ -1,5 +1,9 @@
 //! Deterministic data for the opt-in UI screenshot gallery; never used in play.
 use super::*;
+
+#[cfg(test)]
+#[path = "ui_review/tests.rs"]
+mod tests;
 impl Simulation {
     pub(crate) fn ui_review_first_contact(&mut self) {
         self.events.clear();
@@ -59,7 +63,7 @@ impl Simulation {
             self.create_city(1, x, 40);
         }
         self.world_seed = 18_446_744_073_709_551_615;
-        let rival = self.cities.iter().find(|c| c.owner == 1).unwrap().id;
+        let rival = self.cities_owned_by(1).next().unwrap().id;
         let c = self.cities.iter_mut().find(|c| c.id == rival).unwrap();
         c.name = "Athens of the Eastern Mediterranean".into();
         c.size = 8;
@@ -110,36 +114,6 @@ impl Simulation {
                 tile.known_by.fill(true);
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod clone_tests {
-    use super::*;
-    #[test]
-    fn baseline_clones_preserve_rng_and_normal_campaign_results() {
-        let initial = Simulation::new(crate::mapgen::generate(42));
-        let original = bincode::serialize(&initial).unwrap();
-        let mut a = initial.clone();
-        let mut b = initial.clone();
-        let founder = initial
-            .units
-            .iter()
-            .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers)
-            .unwrap()
-            .id;
-        assert!(a.apply(Command::FoundCity(founder)));
-        assert!(b.apply(Command::FoundCity(founder)));
-        assert!(a.apply(Command::EndTurn));
-        assert!(b.apply(Command::EndTurn));
-        assert_eq!(
-            bincode::serialize(&a).unwrap(),
-            bincode::serialize(&b).unwrap()
-        );
-        for _ in 0..32 {
-            assert_eq!(a.rand_below(1_000_000), b.rand_below(1_000_000));
-        }
-        assert_eq!(bincode::serialize(&initial).unwrap(), original);
     }
 }
 

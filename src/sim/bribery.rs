@@ -137,10 +137,10 @@ impl Simulation {
     }
 
     pub(super) fn bribe_unit(&mut self, actor: u32, target: u32, offered_price: i32) -> bool {
-        let Some(diplomat) = self.units.iter().find(|unit| unit.id == actor).cloned() else {
+        let Some(diplomat) = self.unit_by_id(actor).cloned() else {
             return false;
         };
-        let Some(victim) = self.units.iter().find(|unit| unit.id == target).cloned() else {
+        let Some(victim) = self.unit_by_id(target).cloned() else {
             return false;
         };
         let Some(price) = self.bribe_price(&diplomat, &victim) else {
@@ -212,7 +212,7 @@ mod tests {
         assert_eq!(gained.owner, HUMAN);
         assert_eq!(gained.hp, 5);
         assert_eq!(gained.home_city, Some(game.cities[0].id));
-        let diplomat = game.units.iter().find(|unit| unit.id == actor).unwrap();
+        let diplomat = game.unit_by_id(actor).unwrap();
         assert_eq!((diplomat.x, diplomat.y), (original.x, original.y));
     }
 }

@@ -1,8 +1,10 @@
+mod actions;
 mod assets;
+mod sprite_metadata;
 pub(crate) use assets::{Assets, native_unit_rendering_playtest, window_conf};
-use assets::{
-    TILE_SPRITE_H, TILE_SPRITE_W, bordered_sprite_source, isolated_sprite_source,
-    ocean_cell_source, player_color, unit_sprite,
+use assets::{TILE_SPRITE_H, TILE_SPRITE_W};
+use sprite_metadata::{
+    bordered_sprite_source, isolated_sprite_source, ocean_cell_source, player_color, unit_sprite,
 };
 mod city_bar;
 mod city_manager;
@@ -29,6 +31,7 @@ pub(crate) use tileset::Tileset;
 mod territory;
 mod ui;
 mod ui_review;
+mod unit_actions;
 mod world;
 pub(crate) use render_backend::{RenderBackend, create as create_renderer};
 pub(crate) use ui::set_review_pointer;
@@ -47,6 +50,27 @@ const HUD_MARGIN: f32 = 14.0;
 const START_ZOOM: f32 = 0.82;
 const MIN_ZOOM: f32 = 0.55;
 const MAX_ZOOM: f32 = 1.35;
+
+#[derive(Clone, Copy)]
+pub(crate) struct TileGeometry {
+    pub(crate) center: Vec2,
+    pub(crate) width: f32,
+    pub(crate) height: f32,
+}
+
+impl TileGeometry {
+    pub(crate) fn new(center: Vec2, width: f32, height: f32) -> Self {
+        Self {
+            center,
+            width,
+            height,
+        }
+    }
+
+    pub(crate) fn size(self) -> Vec2 {
+        vec2(self.width, self.height)
+    }
+}
 
 #[derive(Clone, Copy)]
 pub(crate) enum UiAction {
@@ -199,17 +223,15 @@ impl Game {
     ) -> Self {
         sim.enable_visual_events();
         let focus = sim
-            .units()
-            .iter()
-            .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers)
-            .or_else(|| sim.units().iter().find(|unit| unit.owner == HUMAN));
+            .units_owned_by(HUMAN)
+            .find(|unit| unit.kind == UnitKind::Settlers)
+            .or_else(|| sim.units_owned_by(HUMAN).next());
         let selected_unit = focus.map(|unit| unit.id);
         let position = focus
             .map(|unit| (unit.x, unit.y))
             .or_else(|| {
-                sim.cities()
-                    .iter()
-                    .find(|city| city.owner == HUMAN)
+                sim.cities_owned_by(HUMAN)
+                    .next()
                     .map(|city| (city.x, city.y))
             })
             .unwrap_or((0, 0));
@@ -302,12 +324,12 @@ impl Game {
 
     fn selected_unit_index(&self) -> Option<usize> {
         let id = self.selected_unit?;
-        self.sim.units().iter().position(|u| u.id == id)
+        self.sim.unit_index_by_id(id)
     }
 
     fn selected_city_index(&self) -> Option<usize> {
         let id = self.selected_city?;
-        self.sim.cities().iter().position(|c| c.id == id)
+        self.sim.city_index_by_id(id)
     }
 
     fn select_next_unit(&mut self) {
@@ -333,16 +355,15 @@ impl Game {
         self.action_page = 0;
         self.selected_unit = next;
         self.selected_city = None;
-        if let Some(id) = next {
-            if let Some((x, y)) = self
+        if let Some(id) = next
+            && let Some((x, y)) = self
                 .sim
                 .units()
                 .iter()
                 .find(|u| u.id == id)
                 .map(|unit| (unit.x, unit.y))
-            {
-                self.focus_camera_on(x, y);
-            }
+        {
+            self.focus_camera_on(x, y);
         }
     }
 }

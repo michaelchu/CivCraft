@@ -7,7 +7,7 @@ impl Simulation {
     }
 
     pub(super) fn nuclear_target_is_hostile(&self, unit: &Unit, x: i32, y: i32) -> bool {
-        if let Some(city) = self.cities.iter().find(|city| (city.x, city.y) == (x, y)) {
+        if let Some(city) = self.city_at(x, y) {
             return self.at_war(unit.owner, city.owner);
         }
         self.units
@@ -73,11 +73,7 @@ impl Simulation {
         self.remove_units_with_cargo(losses);
 
         for (tx, ty) in affected {
-            if let Some(index) = self
-                .cities
-                .iter()
-                .position(|city| (city.x, city.y) == (tx, ty))
-            {
+            if let Some(index) = self.city_index_at(tx, ty) {
                 let city = &mut self.cities[index];
                 let loss = (49 * city.size + 50) / 100;
                 city.size -= loss;

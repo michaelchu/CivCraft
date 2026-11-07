@@ -48,16 +48,16 @@ impl Simulation {
         self.ai_purchase_reserve.remove(&owner);
         let emergency_cities: Vec<_> = priorities.iter().map(|&(_, city, _)| city).collect();
         for (_, id, target) in priorities {
-            let city = self.cities.iter().find(|city| city.id == id).unwrap();
+            let city = self.city_by_id(id).unwrap();
             let position = (city.x, city.y);
             self.spend_ai_upgrade_gold(owner, Some(position), expenses);
-            let city = self.cities.iter().find(|city| city.id == id).unwrap();
+            let city = self.city_by_id(id).unwrap();
             // Upgrading a garrison may change speculative new advice. Native
             // spending still uses its cached choice from city management.
             if city.production != target {
                 continue;
             }
-            let city = self.cities.iter().find(|city| city.id == id).unwrap();
+            let city = self.city_by_id(id).unwrap();
             if city.shields + self.city_forecast(city).shield_surplus() >= city.production.cost() {
                 continue;
             }

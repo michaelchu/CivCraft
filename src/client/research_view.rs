@@ -65,10 +65,10 @@ impl Game {
                 self.research_zoom = (old_zoom * 1.15_f32.powf(wheel)).clamp(0.02, 1.7);
                 self.research_center +=
                     (mouse - viewport.center()) * (1.0 / old_zoom - 1.0 / self.research_zoom);
-            } else if is_mouse_button_pressed(MouseButton::Left) {
-                if let Some((_, action)) = buttons.iter().find(|(rect, _)| rect.contains(mouse)) {
-                    self.perform_action(*action);
-                }
+            } else if is_mouse_button_pressed(MouseButton::Left)
+                && let Some((_, action)) = buttons.iter().find(|(rect, _)| rect.contains(mouse))
+            {
+                self.perform_action(*action);
             }
         }
         self.clamp_research_center();
@@ -178,7 +178,7 @@ impl Game {
                     WHITE,
                 );
                 draw_text(
-                    &format!("{status} · {} bulbs", self.sim.target_cost(HUMAN, tech)),
+                    format!("{status} · {} bulbs", self.sim.target_cost(HUMAN, tech)),
                     card.x + 8.0 * zoom,
                     card.y + 43.0 * zoom,
                     15.0 * zoom,

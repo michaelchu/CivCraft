@@ -3,36 +3,37 @@ use super::*;
 use std::collections::VecDeque;
 
 #[derive(Clone)]
+pub(crate) struct CombatVisual {
+    pub(crate) attacker: Unit,
+    pub(crate) defender: Unit,
+    pub(crate) hp: Vec<(i32, i32)>,
+    pub(crate) city: Option<City>,
+    pub(crate) territory: Vec<Option<usize>>,
+}
+
+#[derive(Clone)]
 pub(crate) enum VisualEvent {
     Move {
         unit: Unit,
         from: (i32, i32),
         to: (i32, i32),
     },
-    Combat {
-        attacker: Unit,
-        defender: Unit,
-        hp: Vec<(i32, i32)>,
-        city: Option<City>,
-        territory: Vec<Option<usize>>,
-    },
+    Combat(Box<CombatVisual>),
 }
 impl VisualEvent {
     pub(crate) fn actors(&self) -> impl Iterator<Item = &Unit> {
         let (first, second) = match self {
             Self::Move { unit, .. } => (unit, None),
-            Self::Combat {
-                attacker, defender, ..
-            } => (attacker, Some(defender)),
+            Self::Combat(combat) => (&combat.attacker, Some(&combat.defender)),
         };
         std::iter::once(first).chain(second)
     }
     pub(crate) fn duration(&self) -> f64 {
         match self {
             Self::Move { .. } => 0.030, // native smooth_move_unit_msec
-            Self::Combat { hp, .. } => {
-                let first = hp.first().copied().unwrap_or_default();
-                let last = hp.last().copied().unwrap_or_default();
+            Self::Combat(combat) => {
+                let first = combat.hp.first().copied().unwrap_or_default();
+                let last = combat.hp.last().copied().unwrap_or_default();
                 ((first.0 - last.0 + first.1 - last.1).max(1) as f64 * 0.010) + 0.100
             }
         }
@@ -64,9 +65,9 @@ impl Simulation {
                 observed.transport = None;
                 unit.owner == HUMAN || self.unit_visible_to_human(&observed)
             }
-            VisualEvent::Combat {
-                attacker, defender, ..
-            } => {
+            VisualEvent::Combat(combat) => {
+                let attacker = &combat.attacker;
+                let defender = &combat.defender;
                 attacker.owner == HUMAN
                     || defender.owner == HUMAN
                     || (self.unit_visible_to_human(attacker)
@@ -116,15 +117,15 @@ mod tests {
             let events = observed.take_visual_events();
             assert!(!events.is_empty());
             if combat {
-                let VisualEvent::Combat {
+                let VisualEvent::Combat(combat) = &events[0] else {
+                    panic!("combat event first")
+                };
+                let CombatVisual {
                     attacker,
                     defender,
                     hp,
                     ..
-                } = &events[0]
-                else {
-                    panic!("combat event first")
-                };
+                } = combat.as_ref();
                 assert_eq!(hp[0], (attacker.hp, defender.hp));
                 let (a, d) = hp.last().copied().unwrap();
                 assert!(a == 0 || d == 0);

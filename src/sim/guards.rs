@@ -49,7 +49,7 @@ impl Simulation {
     }
 
     pub(super) fn assign_ai_guard(&mut self, guard: u32, target: GuardTarget) -> bool {
-        let Some(actor) = self.units.iter().find(|u| u.id == guard) else {
+        let Some(actor) = self.unit_by_id(guard) else {
             return false;
         };
         let valid = match target {
@@ -85,7 +85,7 @@ impl Simulation {
 
     pub(super) fn validate_ai_guards(&self) -> bool {
         self.ai_guard_targets.iter().all(|(&guard, &target)| {
-            let Some(actor) = self.units.iter().find(|u| u.id == guard) else {
+            let Some(actor) = self.unit_by_id(guard) else {
                 return false;
             };
             match target {
@@ -118,7 +118,7 @@ impl Simulation {
             .ai_guard_targets
             .iter()
             .filter_map(|(&guard, &target)| {
-                let owner = self.units.iter().find(|u| u.id == guard).map(|u| u.owner);
+                let owner = self.unit_by_id(guard).map(|u| u.owner);
                 let valid = owner.is_some_and(|owner| match target {
                     GuardTarget::Unit(id) => {
                         id != guard
@@ -207,7 +207,7 @@ impl Simulation {
     /// dai_gothere_bodyguard: requests are based on the final destination,
     /// including a city's potential freshly trained counter-defender.
     pub(super) fn ai_guard_for_destination(&mut self, id: u32, x: i32, y: i32) -> bool {
-        let Some(actor) = self.units.iter().find(|u| u.id == id).cloned() else {
+        let Some(actor) = self.unit_by_id(id).cloned() else {
             return false;
         };
         if actor.owner == BARBARIANS {
@@ -215,7 +215,7 @@ impl Simulation {
             return false;
         }
         let existing = match self.ai_guard_state(id) {
-            GuardState::Assigned(guard) => self.units.iter().find(|u| u.id == guard),
+            GuardState::Assigned(guard) => self.unit_by_id(guard),
             _ => None,
         };
         if existing.is_some_and(|u| (u.x, u.y) == (actor.x, actor.y)) {
@@ -267,7 +267,7 @@ impl Simulation {
     }
 
     pub(super) fn ai_guard_follow_step(&mut self, charge: u32, old_position: (i32, i32)) {
-        let Some(actor) = self.units.iter().find(|u| u.id == charge).cloned() else {
+        let Some(actor) = self.unit_by_id(charge).cloned() else {
             return;
         };
         if !self.players[actor.owner].ai || (actor.x, actor.y) == old_position {
@@ -276,7 +276,7 @@ impl Simulation {
         let GuardState::Assigned(id) = self.ai_guard_state(charge) else {
             return;
         };
-        let Some(guard) = self.units.iter().find(|u| u.id == id).cloned() else {
+        let Some(guard) = self.unit_by_id(id).cloned() else {
             return;
         };
         if guard.moves_left <= 0 || self.map_distance(guard.x, guard.y, actor.x, actor.y) != 1 {
@@ -293,7 +293,7 @@ impl Simulation {
         self.unit_goto_tiles.get(&charge.id).copied().or_else(|| {
             self.ai_ground_targets
                 .get(&charge.id)
-                .and_then(|id| self.cities.iter().find(|c| c.id == *id))
+                .and_then(|id| self.city_by_id(*id))
                 .map(|c| (c.x, c.y))
                 .or_else(|| {
                     self.ai_settlement_targets
@@ -303,7 +303,7 @@ impl Simulation {
                 .or_else(|| {
                     self.ai_merchant_missions
                         .get(&charge.id)
-                        .and_then(|mission| self.cities.iter().find(|c| c.id == mission.city))
+                        .and_then(|mission| self.city_by_id(mission.city))
                         .map(|city| (city.x, city.y))
                 })
         })
@@ -311,17 +311,17 @@ impl Simulation {
 
     fn ai_guard_rendezvous(&self, guard: &Unit, target: GuardTarget) -> Option<(i32, i32)> {
         match target {
-            GuardTarget::City(id) => self.cities.iter().find(|c| c.id == id).map(|c| (c.x, c.y)),
+            GuardTarget::City(id) => self.city_by_id(id).map(|c| (c.x, c.y)),
             GuardTarget::Unit(id) => {
-                let charge = self.units.iter().find(|u| u.id == id)?;
+                let charge = self.unit_by_id(id)?;
                 let Some(goal) = self.ai_charge_goal(charge) else {
                     return Some((charge.x, charge.y));
                 };
                 let me_them = self.map_distance(guard.x, guard.y, charge.x, charge.y);
                 let me_goal = self.map_distance(guard.x, guard.y, goal.0, goal.1);
                 let them_goal = self.map_distance(charge.x, charge.y, goal.0, goal.1);
-                let mine = self.unit_move_rate(&guard).max(1);
-                let theirs = self.unit_move_rate(&charge).max(1);
+                let mine = self.unit_move_rate(guard).max(1);
+                let theirs = self.unit_move_rate(charge).max(1);
                 Some(
                     if me_goal < me_them
                         || (me_goal / mine < them_goal / theirs
@@ -394,7 +394,7 @@ impl Simulation {
         if toughness == 0 {
             return None;
         }
-        let allowance = self.unit_move_rate(&guard).max(1);
+        let allowance = self.unit_move_rate(guard).max(1);
         let limit = 3 * allowance;
         let reachable = self.guard_reachable_sites(guard, limit);
         let mut best = None;
@@ -405,7 +405,7 @@ impl Simulation {
                 if buddy.owner != guard.owner
                     || self.ai_guard_state(buddy.id) != GuardState::Wanted
                     || !Self::guard_can_follow(guard.kind, buddy.kind)
-                    || self.unit_move_rate(&buddy) > allowance
+                    || self.unit_move_rate(buddy) > allowance
                     || buddy.kind.stats().defense >= guard.kind.stats().defense
                     || (buddy.kind.stats().attack > 0
                         && buddy.kind.transport_capacity() == 0
@@ -457,13 +457,13 @@ impl Simulation {
     fn ai_guard_rampage(&mut self, id: u32) {
         // dai_military_rampage(BODYGUARD_RAMPAGE_THRESHOLD=17*4,
         // RAMPAGE_FREE_CITY_OR_BETTER=99999), default occupychance=0.
-        let Some(initial) = self.units.iter().find(|u| u.id == id) else {
+        let Some(initial) = self.unit_by_id(id) else {
             return;
         };
         let mut attempts = initial.moves_left + 1;
         while attempts > 0 {
             attempts -= 1;
-            let Some(actor) = self.units.iter().find(|u| u.id == id).cloned() else {
+            let Some(actor) = self.unit_by_id(id).cloned() else {
                 return;
             };
             if actor.moves_left <= 0 || actor.kind.stats().attack <= 0 {
@@ -538,7 +538,7 @@ impl Simulation {
     /// The native manager retains an escort only while its charge still
     /// needs it. Fuelled escorts move only in their charge's movement hook.
     pub(super) fn run_ai_guard(&mut self, id: u32) -> bool {
-        let Some(actor) = self.units.iter().find(|u| u.id == id).cloned() else {
+        let Some(actor) = self.unit_by_id(id).cloned() else {
             return false;
         };
         if actor.owner == BARBARIANS {
@@ -549,12 +549,10 @@ impl Simulation {
         }
         if let Some(target) = self.ai_guard_targets.get(&id).copied() {
             let keep = match target {
-                GuardTarget::Unit(charge) => {
-                    self.units.iter().find(|u| u.id == charge).is_some_and(|u| {
-                        u.owner == actor.owner
-                            && Self::guard_basic_defense(&actor) > Self::guard_basic_defense(u)
-                    })
-                }
+                GuardTarget::Unit(charge) => self.unit_by_id(charge).is_some_and(|u| {
+                    u.owner == actor.owner
+                        && Self::guard_basic_defense(&actor) > Self::guard_basic_defense(u)
+                }),
                 GuardTarget::City(city) => self
                     .cities
                     .iter()
@@ -610,7 +608,7 @@ impl Simulation {
                 // dai_gothere also returns false for a living guard which
                 // has not reached the rendezvous or an adjacent tile yet.
                 if !result.alive
-                    || self.units.iter().find(|u| u.id == id).is_none_or(|u| {
+                    || self.unit_by_id(id).is_none_or(|u| {
                         self.map_distance(u.x, u.y, destination.0, destination.1) > 1
                     })
                 {
@@ -626,67 +624,16 @@ impl Simulation {
         true
     }
 
-    pub(crate) fn ai_formal_guard_playtest(&mut self) -> (bool, bool, bool) {
-        self.units.clear();
-        self.cities.clear();
-        self.diplomacy.clear();
-        self.ai_guard_targets.clear();
-        self.ai_unit_guards.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.owner = None;
-            tile.hut = false;
-            tile.river = false;
-            tile.road = false;
-            tile.railroad = false;
-            tile.base = None;
-        }
-        let charge = self.spawn_unit(1, UnitKind::Catapult, 10, 20);
-        let guard = self.spawn_unit(1, UnitKind::Musketeers, 10, 20);
-        self.request_ai_guard(charge);
-        let selected =
-            self.run_ai_guard(guard) && self.ai_guard_state(charge) == GuardState::Assigned(guard);
-        self.units
-            .iter_mut()
-            .find(|u| u.id == guard)
-            .unwrap()
-            .moves_left = 0;
-        let waited = self.try_move_unit(charge, 1, 0) == MoveResult::Blocked;
-        self.units
-            .iter_mut()
-            .find(|u| u.id == guard)
-            .unwrap()
-            .moves_left = 6;
-        self.try_move_unit(charge, 1, 0);
-        let actor = self.units.iter().find(|u| u.id == charge).unwrap().clone();
-        let followed = self
-            .units
-            .iter()
-            .any(|u| u.id == guard && (u.x, u.y) == (actor.x, actor.y));
-        self.units
-            .iter_mut()
-            .find(|u| u.id == charge)
-            .unwrap()
-            .moves_left = 6;
-        let target = offset_native_by_map(actor.x, actor.y, 1, 0);
-        let enemy = self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
-        self.units.last_mut().unwrap().hp = 1;
-        self.set_random_seed(1);
-        let attack = self.try_move_unit(charge, 1, 0) == MoveResult::Fought
-            && self.units.iter().all(|u| u.id != enemy);
-        (selected, waited && followed, attack)
-    }
-
     /// daiferry.c:aiferry_gobyboat gathers the boss's guard, waits if it
     /// exhausted movement trying to catch up, and loads it before sailing.
     pub(super) fn ai_guard_prepare_ferry(&mut self, boss: u32, boat: u32) -> bool {
         let GuardState::Assigned(id) = self.ai_guard_state(boss) else {
             return true;
         };
-        let Some(passenger) = self.units.iter().find(|u| u.id == boss).cloned() else {
+        let Some(passenger) = self.unit_by_id(boss).cloned() else {
             return true;
         };
-        let Some(guard) = self.units.iter().find(|u| u.id == id).cloned() else {
+        let Some(guard) = self.unit_by_id(id).cloned() else {
             self.request_ai_guard(boss);
             return true;
         };
@@ -698,7 +645,7 @@ impl Simulation {
                 self.request_ai_guard(boss);
                 return true;
             }
-            let Some(current) = self.units.iter().find(|u| u.id == id).cloned() else {
+            let Some(current) = self.unit_by_id(id).cloned() else {
                 self.request_ai_guard(boss);
                 return true;
             };
@@ -718,310 +665,5 @@ impl Simulation {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    fn game() -> Simulation {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        game.units.clear();
-        game.cities.clear();
-        game.diplomacy.clear();
-        game.ai_guard_targets.clear();
-        game.ai_unit_guards.clear();
-        for tile in &mut game.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.owner = None;
-            tile.hut = false;
-            tile.road = false;
-            tile.railroad = false;
-            tile.base = None;
-        }
-        game
-    }
-
-    #[test]
-    fn sane_rendezvous_retains_escort_when_omniscient_policy_cannot_pass_enemy() {
-        let mut game = game();
-        for tile in &mut game.tiles {
-            tile.terrain = Terrain::Ocean;
-            tile.known_by[1] = false;
-        }
-        let start = (10, 24);
-        let point = |step| offset_native_by_map(start.0, start.1, step, 0);
-        for step in 0..=4 {
-            let p = point(step);
-            game.tile_mut(p.0, p.1).terrain = Terrain::Grassland;
-        }
-        let finish = point(4);
-        let charge = game.spawn_unit(1, UnitKind::Catapult, finish.0, finish.1);
-        let guard = game.spawn_unit(1, UnitKind::Musketeers, start.0, start.1);
-        let barrier = point(2);
-        game.spawn_unit(HUMAN, UnitKind::Warrior, barrier.0, barrier.1);
-        game.tile_mut(barrier.0, barrier.1).known_by[1] = false;
-        assert!(game.assign_ai_guard(guard, GuardTarget::Unit(charge)));
-        let actor = game.units.iter().find(|u| u.id == guard).unwrap();
-        assert!(game.ai_goto_is_sane(actor, finish));
-        assert!(game.ai_goto_path(actor, finish, GotoTask::Escort).is_none());
-        assert!(game.run_ai_guard(guard));
-        assert_eq!(
-            game.ai_guard_targets.get(&guard),
-            Some(&GuardTarget::Unit(charge))
-        );
-        assert_eq!(game.unit_goto_tiles.get(&guard), Some(&finish));
-        assert!(
-            game.units
-                .iter()
-                .any(|u| u.id == guard && (u.x, u.y) == start)
-        );
-    }
-
-    #[test]
-    fn guard_links_are_typed_reciprocal_and_dismissed_after_death_or_transfer() {
-        let mut game = game();
-        let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
-        let guard = game.spawn_unit(1, UnitKind::Phalanx, 10, 20);
-        game.create_city(1, 10, 20);
-        game.cities.last_mut().unwrap().id = charge; // local unit/city IDs overlap
-        game.request_ai_guard(charge);
-        assert!(game.assign_ai_guard(guard, GuardTarget::Unit(charge)));
-        assert!(game.validate_ai_guards());
-        assert!(game.assign_ai_guard(guard, GuardTarget::City(charge)));
-        assert_eq!(game.ai_guard_state(charge), GuardState::None);
-        assert!(game.validate_ai_guards());
-        game.cities.last_mut().unwrap().owner = HUMAN;
-        game.refresh_ai_guards();
-        assert!(!game.ai_guard_targets.contains_key(&guard));
-        game.assign_ai_guard(guard, GuardTarget::Unit(charge));
-        game.forget_ai_guard_unit(guard);
-        assert_eq!(
-            game.ai_guard_state(charge),
-            GuardState::None,
-            "native clears rather than re-requests when guard dies"
-        );
-        assert!(game.validate_ai_guards());
-    }
-
-    #[test]
-    fn charge_selection_obeys_role_speed_native_classes_and_defense_delta() {
-        let mut game = game();
-        let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
-        let guard = game.spawn_unit(1, UnitKind::Musketeers, 10, 20);
-        game.request_ai_guard(charge);
-        let actor = game.units.last().unwrap().clone();
-        assert_eq!(
-            game.look_for_ai_charge(&actor),
-            Some((GuardTarget::Unit(charge), 91.0))
-        );
-        assert!(game.run_ai_guard(guard));
-        assert_eq!(game.ai_guard_state(charge), GuardState::Assigned(guard));
-        assert!(!Simulation::guard_can_follow(
-            UnitKind::Cannon,
-            UnitKind::Settlers
-        ));
-        assert!(
-            !Simulation::guard_can_follow(UnitKind::AegisCruiser, UnitKind::Trireme),
-            "Trireme's River-native extra is not native to Sea"
-        );
-        assert!(Simulation::guard_can_follow(
-            UnitKind::AegisCruiser,
-            UnitKind::Transport
-        ));
-        assert!(
-            !Simulation::guard_can_follow(UnitKind::StealthFighter, UnitKind::Settlers),
-            "terrain coverage alone does not imply native-extra coverage"
-        );
-        game.clear_ai_charge(guard);
-        game.request_ai_guard(charge);
-        game.units.iter_mut().find(|u| u.id == charge).unwrap().kind = UnitKind::Diplomat;
-        assert!(
-            game.look_for_ai_charge(&actor).is_none(),
-            "a one-move guard cannot follow a two-move charge"
-        );
-    }
-
-    #[test]
-    fn stored_generic_goal_wins_and_guard_intercepts_ahead_of_naval_charge() {
-        let mut game = game();
-        for tile in &mut game.tiles {
-            tile.terrain = Terrain::Ocean;
-        }
-        let point = |step| offset_native_by_map(10, 20, step, 0);
-        let charge_at = point(5);
-        let goal = point(1);
-        let charge = game.spawn_unit(1, UnitKind::Transport, charge_at.0, charge_at.1);
-        let guard = game.spawn_unit(1, UnitKind::AegisCruiser, 10, 20);
-        game.assign_ai_guard(guard, GuardTarget::Unit(charge));
-        let old_mission = point(9);
-        game.tile_mut(old_mission.0, old_mission.1).terrain = Terrain::Grassland;
-        game.create_city(HUMAN, old_mission.0, old_mission.1);
-        game.ai_ground_targets
-            .insert(charge, game.cities.last().unwrap().id);
-        game.unit_goto_tiles.insert(charge, goal);
-        let actor = game.units.iter().find(|u| u.id == guard).unwrap().clone();
-        assert_eq!(
-            game.ai_guard_rendezvous(&actor, GuardTarget::Unit(charge)),
-            Some(goal)
-        );
-        assert!(game.run_ai_guard(guard));
-        assert!(
-            game.units
-                .iter()
-                .any(|u| u.id == guard && (u.x, u.y) == goal)
-        );
-        assert_eq!(game.unit_goto_tiles.get(&guard), Some(&goal));
-    }
-
-    #[test]
-    fn city_rescue_competes_by_danger_deficit_and_dismisses_when_defended() {
-        let mut game = game();
-        game.create_city(1, 10, 20);
-        let city = game.cities.last().unwrap().id;
-        let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
-        let guard = game.spawn_unit(1, UnitKind::Musketeers, 10, 20);
-        let near = offset_native_by_map(10, 20, 1, 0);
-        for _ in 0..2 {
-            game.spawn_unit(HUMAN, UnitKind::Marines, near.0, near.1);
-        }
-        game.request_ai_guard(charge);
-        let actor = game.units.iter().find(|u| u.id == guard).unwrap().clone();
-        assert_eq!(
-            game.look_for_ai_charge(&actor).map(|(target, _)| target),
-            Some(GuardTarget::City(city))
-        );
-        assert!(game.run_ai_guard(guard));
-        assert_eq!(
-            game.ai_guard_targets.get(&guard),
-            Some(&GuardTarget::City(city))
-        );
-        game.spawn_unit(1, UnitKind::Musketeers, 10, 20);
-        assert!(game.run_ai_guard(guard));
-        assert_eq!(
-            game.ai_guard_targets.get(&guard),
-            Some(&GuardTarget::Unit(charge)),
-            "enough quadratic city defense releases rescue guard to wanted charge"
-        );
-    }
-
-    #[test]
-    fn injured_charge_speed_uses_native_current_unit_rate() {
-        let mut game = game();
-        let charge = game.spawn_unit(1, UnitKind::Horseman, 10, 20);
-        game.spawn_unit(1, UnitKind::Phalanx, 10, 20);
-        let actor = game.units.last().unwrap().clone();
-        game.request_ai_guard(charge);
-        assert!(game.look_for_ai_charge(&actor).is_none());
-        game.units.iter_mut().find(|u| u.id == charge).unwrap().hp = 1;
-        assert_eq!(
-            game.look_for_ai_charge(&actor).map(|(target, _)| target),
-            Some(GuardTarget::Unit(charge))
-        );
-    }
-
-    #[test]
-    fn destination_danger_requests_a_guard_and_safe_destination_releases_it() {
-        let mut game = game();
-        let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
-        let enemy = game.spawn_unit(HUMAN, UnitKind::Legion, 11, 20);
-        assert!(game.ai_guard_for_destination(charge, 11, 20));
-        assert_eq!(game.ai_guard_state(charge), GuardState::Wanted);
-        game.units.retain(|u| u.id != enemy);
-        assert!(!game.ai_guard_for_destination(charge, 11, 20));
-        assert_eq!(game.ai_guard_state(charge), GuardState::None);
-        let guard = game.spawn_unit(1, UnitKind::Phalanx, 10, 20);
-        game.assign_ai_guard(guard, GuardTarget::Unit(charge));
-        assert!(
-            game.ai_guard_for_destination(charge, 11, 20),
-            "colocated guard remains wanted even when destination becomes safe"
-        );
-    }
-
-    #[test]
-    fn guard_city_assessment_uses_integer_vulnerability_and_quadratic_defense() {
-        let mut game = game();
-        game.create_city(1, 10, 20);
-        let near = offset_native_by_map(10, 20, 1, 0);
-        game.spawn_unit(HUMAN, UnitKind::Warrior, near.0, near.1);
-        let city = game.cities.last().unwrap().clone();
-        let data = game.advisor_guard_city_assessment(&city);
-        assert_eq!(
-            (data.danger, data.urgency, data.grave, data.defense),
-            (4, 11, 1, 0)
-        );
-        game.spawn_unit(1, UnitKind::Phalanx, 10, 20);
-        let data = game.advisor_guard_city_assessment(&city);
-        assert_eq!(
-            data.defense, 100,
-            "native fortified rating10 squared; class-specific effects are uncertain in generic city query"
-        );
-        game.units.retain(|u| u.owner == HUMAN);
-        game.cities
-            .last_mut()
-            .unwrap()
-            .buildings
-            .push(Building::CITY_WALLS);
-        let city = game.cities.last().unwrap();
-        assert_eq!(game.advisor_guard_city_assessment(city).danger, 1);
-    }
-
-    #[test]
-    fn movement_waits_for_guard_follows_it_and_attacks_before_waiting() {
-        let mut game = game();
-        let charge = game.spawn_unit(1, UnitKind::Catapult, 10, 20);
-        let guard = game.spawn_unit(1, UnitKind::Musketeers, 10, 20);
-        game.assign_ai_guard(guard, GuardTarget::Unit(charge));
-        game.units
-            .iter_mut()
-            .find(|u| u.id == guard)
-            .unwrap()
-            .moves_left = 0;
-        assert_eq!(game.try_move_unit(charge, 1, 0), MoveResult::Blocked);
-        game.units
-            .iter_mut()
-            .find(|u| u.id == guard)
-            .unwrap()
-            .moves_left = 6;
-        assert_eq!(game.try_move_unit(charge, 1, 0), MoveResult::Moved);
-        let actor = game.units.iter().find(|u| u.id == charge).unwrap().clone();
-        assert!(
-            game.units
-                .iter()
-                .any(|u| u.id == guard && (u.x, u.y) == (actor.x, actor.y))
-        );
-        game.units
-            .iter_mut()
-            .find(|u| u.id == charge)
-            .unwrap()
-            .moves_left = 6;
-        let target = offset_native_by_map(actor.x, actor.y, 1, 0);
-        let enemy = game.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
-        game.units.last_mut().unwrap().hp = 1;
-        game.set_random_seed(1);
-        assert_eq!(game.try_move_unit(charge, 1, 0), MoveResult::Fought);
-        assert!(
-            game.units.iter().all(|u| u.id != enemy),
-            "stationary exhausted guard does not block legal attack"
-        );
-    }
-
-    #[test]
-    fn ferry_waits_for_guard_then_loads_it_with_the_boss() {
-        let mut game = game();
-        game.create_city(1, 10, 20);
-        let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
-        let boat = game.spawn_unit(1, UnitKind::Caravel, 10, 20);
-        let guard = game.spawn_unit(1, UnitKind::Phalanx, 12, 20);
-        game.assign_ai_guard(guard, GuardTarget::Unit(charge));
-        assert!(game.board_specific_ship(charge, boat));
-        assert!(
-            !game.ai_guard_prepare_ferry(charge, boat),
-            "guard used its movement to approach, so boss waits"
-        );
-        let actor = game.units.iter_mut().find(|u| u.id == guard).unwrap();
-        (actor.x, actor.y) = (10, 20);
-        actor.moves_left = 6;
-        assert!(game.ai_guard_prepare_ferry(charge, boat));
-        assert_eq!(
-            game.units.iter().find(|u| u.id == guard).unwrap().transport,
-            Some(boat)
-        );
-    }
-}
+#[path = "guards/tests.rs"]
+mod tests;

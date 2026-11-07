@@ -29,7 +29,7 @@ impl Simulation {
 
     pub(crate) fn civilization_score(&self, owner: usize) -> i32 {
         let (mut population, mut wonders, mut culture) = (0, 0, 0);
-        for city in self.cities.iter().filter(|city| city.owner == owner) {
+        for city in self.cities_owned_by(owner) {
             population += city.size;
             wonders += city
                 .buildings

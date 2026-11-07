@@ -92,18 +92,21 @@ For focused screenshot galleries and visual review, see `UI_REVIEW.md` and the
 `--ui-review` instructions in `README.md`. Run that mode separately from
 `--self-test`.
 
-## Checking native map-generation parity
+## Checking map-generation goldens
 
-Campaign geometry depends on wrapping: this preset uses 36×48 tiles with
+Campaign geometry depends on wrapping. This preset uses 36×48 tiles with
 `--wrap x` and 32×64 with `--wrap xy`. Generate actual maps for each mode in
-tests; changing `sim.map_wrap` after generation leaves arrays inconsistent.
-Run `cargo test --offline reference_worlds_match_native_for_each_wrap` for the
-ten native terrain/elevation/extras/start-location goldens of the underlying
-reference generator. The existing torus
-oracles additionally check starting-position creation order.
+tests. Changing `sim.map_wrap` after generation leaves arrays inconsistent.
 
-To regenerate the goldens, use an unmodified Freeciv 3.3.90.14-dev (eb8c703)
-server and the reference Civ2Civ3 data:
+`tests/fixtures/freeciv_mapgen_vectors.tsv` contains raw Freeciv 3.3.90.14-dev
+(eb8c703) reference terrain, altitude, extras and starting locations. The
+reference parity test compares the unmodified generator against this file.
+`tests/fixtures/civcraft_mapgen_vectors.tsv` contains checked CivCraft output
+using the Civ III resource catalog. Resource placement changes extras and start
+site scoring, so keep these goldens separate from the native reference.
+
+Regenerate the native vectors with an unmodified Freeciv 3.3.90.14-dev
+(eb8c703) server and the reference Civ2Civ3 data:
 
 ```sh
 python3 tools/generate_mapgen_oracles.py --server /path/to/freeciv-server \
@@ -111,16 +114,6 @@ python3 tools/generate_mapgen_oracles.py --server /path/to/freeciv-server \
   --output tests/fixtures/freeciv_mapgen_vectors.tsv
 ```
 
-The reference server binds localhost even without clients; sandboxed runs may
-need `sandbox_permissions: "require_escalated"`. Compare both wrapping modes
-when running polar/seam galleries; unit goldens do not validate rendering.
-
-WrapX deliberately overrides the reference's polar terrain after generation:
-glacier and tundra become ocean, and the top/bottom rows become deep ocean.
-Converted tiles lose rivers, huts and resources. This preserves native start
-allocation and the post-start RNG stream; the resulting WrapX terrain is
-intentionally different from the raw native goldens. Its own generation test
-checks water boundaries, absence of polar land, reproducibility and valid
-starting positions. Keep this ocean policy when adjusting the reference port.
-The renderer extends ocean beyond the non-playable boundary to hide its
-staggered outline; WrapXY retains reference polar generation.
+The reference server binds localhost even without clients, so sandboxed runs may
+need desktop/network approval. Compare both wrapping modes when running
+polar/seam galleries. Unit goldens do not validate rendering.
