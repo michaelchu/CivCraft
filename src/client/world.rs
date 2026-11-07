@@ -580,7 +580,10 @@ impl Game {
                 if tile.hut {
                     self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 5, 6);
                 }
-                if let Some(resource) = tile.active_resource() {
+                if let Some(resource) = tile
+                    .active_resource()
+                    .filter(|&resource| self.sim.resource_visible_to(HUMAN, resource))
+                {
                     let (row, col) = resource.icon_cell();
                     self.draw_resource_icon(
                         &assets.resource_icons,

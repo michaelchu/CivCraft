@@ -161,6 +161,40 @@ pub(crate) enum Resource {
 }
 
 impl Resource {
+    /// Strategic resources are present from map generation, but their map icon
+    /// stays hidden until the civilization discovers the revealing technology.
+    /// Bonus and luxury resources are visible from the start.
+    pub(crate) fn visibility_tech(self) -> Option<Tech> {
+        match self {
+            Self::Aluminum => Some(Tech::FLIGHT),
+            Self::Coal => Some(Tech::STEAM_ENGINE),
+            Self::Horses => Some(Tech::HORSEBACK_RIDING),
+            Self::Iron => Some(Tech::IRON_WORKING),
+            Self::Oil => Some(Tech::REFINING),
+            Self::Rubber => Some(Tech::INDUSTRIALIZATION),
+            Self::Saltpeter => Some(Tech::GUNPOWDER),
+            Self::Uranium => Some(Tech::NUCLEAR_FISSION),
+            Self::Dyes
+            | Self::Furs
+            | Self::Gems
+            | Self::Incense
+            | Self::Ivory
+            | Self::Silk
+            | Self::Spice
+            | Self::Wine
+            | Self::Cattle
+            | Self::Fish
+            | Self::Gold
+            | Self::Game
+            | Self::Oasis
+            | Self::Sugar
+            | Self::Tobacco
+            | Self::TropicalFruit
+            | Self::Whales
+            | Self::Wheat => None,
+        }
+    }
+
     pub(crate) fn bonus(self) -> (i32, i32, i32) {
         match self {
             Self::Aluminum => (0, 2, 0),

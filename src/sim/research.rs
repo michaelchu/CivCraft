@@ -13,6 +13,12 @@ impl Simulation {
         self.players[owner].known.contains(&tech)
     }
 
+    pub(crate) fn resource_visible_to(&self, owner: usize, resource: Resource) -> bool {
+        resource
+            .visibility_tech()
+            .is_none_or(|tech| self.has_tech(owner, tech))
+    }
+
     pub(crate) fn tech_available(&self, owner: usize, tech: Tech) -> bool {
         if tech.data().is_none() && tech != Tech::FUTURE {
             return false;
@@ -546,6 +552,18 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gated_resource_becomes_visible_after_required_technology_is_discovered() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.players[HUMAN].known.clear();
+
+        assert!(!sim.resource_visible_to(HUMAN, Resource::Oil));
+
+        sim.discover(HUMAN, Tech::REFINING);
+
+        assert!(sim.resource_visible_to(HUMAN, Resource::Oil));
+    }
 
     #[test]
     fn unset_goal_is_distinct_and_clears_on_gift_and_negative_advisor_values() {

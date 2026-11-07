@@ -16,7 +16,6 @@ impl Tech {
     pub(crate) const STEALTH: Self = Self(73);
     pub(crate) const COMBUSTION: Self = Self(14);
     pub(crate) const COMBINED_ARMS: Self = Self(13);
-    pub(crate) const STEAM_ENGINE: Self = Self(74);
     pub(crate) const MASS_PRODUCTION: Self = Self(46);
     pub(crate) const STEEL: Self = Self(75);
     pub(crate) const FLIGHT: Self = Self(29);
@@ -30,6 +29,7 @@ impl Tech {
     pub(crate) const BRONZE_WORKING: Self = Self(8);
     pub(crate) const WARRIOR_CODE: Self = Self(85);
     pub(crate) const HORSEBACK_RIDING: Self = Self(34);
+    pub(crate) const INDUSTRIALIZATION: Self = Self(35);
     pub(crate) const POTTERY: Self = Self(62);
     pub(crate) const IRON_WORKING: Self = Self(37);
     pub(crate) const THE_WHEEL: Self = Self(80);
@@ -60,6 +60,7 @@ impl Tech {
     pub(crate) const MOBILE_WARFARE: Self = Self(51);
     pub(crate) const MINIATURIZATION: Self = Self(50);
     pub(crate) const REFINING: Self = Self(66);
+    pub(crate) const STEAM_ENGINE: Self = Self(74);
     pub(crate) const ENGINEERING: Self = Self(24);
     pub(crate) const INVENTION: Self = Self(36);
     pub(crate) const ESPIONAGE: Self = Self(26);
