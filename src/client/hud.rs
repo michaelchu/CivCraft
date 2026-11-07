@@ -3,217 +3,280 @@ use super::*;
 impl Game {
     pub(super) fn draw_hud(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         let mut actions = Vec::new();
-        let viewport = Self::viewport_rect();
-        let panel_x = screen_width() - PANEL_W;
-
-        draw_rectangle(
-            0.0,
-            0.0,
-            screen_width(),
-            TOP_H,
-            Color::from_rgba(29, 31, 28, 255),
-        );
-        draw_rectangle(
-            0.0,
-            TOP_H - 3.0,
-            screen_width(),
-            3.0,
-            Color::from_rgba(171, 133, 55, 255),
-        );
-        draw_text(
-            "CivCraft",
-            18.0,
-            31.0,
-            25.0,
-            Color::from_rgba(244, 220, 143, 255),
-        );
-        let player = &self.sim.players()[HUMAN];
-        let government_button = Rect::new(118.0, 8.0, 108.0, 30.0);
-        draw_ui_button(government_button, player.government.name(), true, false);
-        actions.push((government_button, UiAction::ToggleGovernment));
-        text_in(
-            &format!("Turn {} · {}", self.sim.turn(), year_label(self.sim.year())),
-            238.0,
-            29.0,
-            17.0,
-            178.0,
-            WHITE,
-        );
-        let diplomacy = Rect::new(424.0, 8.0, 90.0, 30.0);
-        draw_ui_button(diplomacy, "Diplomacy", true, false);
-        actions.push((diplomacy, UiAction::ToggleDiplomacy));
-        let contacts = self.sim.contacted_civilizations(HUMAN);
-        let avatar_size = 56.0;
-        let avatar_gap = 5.0;
-        let avatar_strip_w = contacts.len() as f32 * avatar_size
-            + contacts.len().saturating_sub(1) as f32 * avatar_gap;
-        let avatar_start = (panel_x - 12.0 - avatar_strip_w).max(0.0);
-        let treasury = format!("Gold {}", player.gold);
-        let treasury_w = measure_text(&treasury, None, 16, 1.0).width.min(180.0);
-        text_in(&treasury, 530.0, 29.0, 16.0, treasury_w, GOLD);
-        let research = player.researching;
-        text_in(
-            &format!(
-                "{}  {}/{}",
-                research.name(),
-                player.research,
-                self.sim.target_cost(HUMAN, research)
-            ),
-            546.0 + treasury_w,
-            29.0,
-            16.0,
-            (screen_width() - 10.0 - (546.0 + treasury_w)).max(0.0),
-            Color::from_rgba(151, 210, 231, 255),
-        );
-        for (index, owner) in contacts.iter().copied().enumerate() {
-            if let Some(badge) = assets.leader_avatar_badges.get(owner) {
-                let rect = Rect::new(
-                    avatar_start + index as f32 * (avatar_size + avatar_gap),
-                    TOP_H + 10.0,
-                    avatar_size,
-                    avatar_size,
-                );
-                draw_texture_ex(
-                    badge,
-                    rect.x,
-                    rect.y,
-                    WHITE,
-                    DrawTextureParams {
-                        dest_size: Some(vec2(avatar_size, avatar_size)),
-                        ..Default::default()
-                    },
-                );
-                actions.push((rect, UiAction::OpenDiplomacyWith(owner)));
-            }
-        }
-        self.hud_elements_drawn += 1;
-
-        draw_rectangle(
-            panel_x,
-            TOP_H,
-            PANEL_W,
-            screen_height() - TOP_H,
-            Color::from_rgba(38, 40, 37, 255),
-        );
-        draw_rectangle(
-            panel_x,
-            TOP_H,
-            4.0,
-            screen_height() - TOP_H,
-            Color::from_rgba(133, 104, 47, 255),
-        );
-        draw_text(
-            "WORLD MAP",
-            panel_x + 18.0,
-            TOP_H + 26.0,
-            18.0,
-            Color::from_rgba(227, 211, 164, 255),
-        );
-        let seed_label = format!("Seed {} · Wrap {}", self.sim.world_seed, self.sim.map_wrap);
-        text_in(
-            &seed_label,
-            panel_x + UI_PAD,
-            TOP_H + 46.0,
-            14.0,
-            PANEL_W - 2.0 * UI_PAD,
-            LIGHTGRAY,
-        );
-        if let Some(status) = self.sim.spaceship_status(HUMAN) {
-            let rect = Rect::new(
-                panel_x + 18.0,
-                screen_height() - 178.0,
-                PANEL_W - 36.0,
-                27.0,
-            );
-            let ready = self.sim.can_launch_spaceship(HUMAN);
-            draw_ui_button(rect, &status, true, ready);
-            actions.push((rect, UiAction::ToggleSpaceship));
-        }
         self.draw_minimap();
         self.hud_elements_drawn += 1;
 
-        let context_y = self.minimap_rect().bottom() + 17.0;
-        draw_line(
-            panel_x + 16.0,
-            context_y - 9.0,
-            screen_width() - 16.0,
-            context_y - 9.0,
-            1.0,
-            Color::from_rgba(112, 108, 91, 255),
+        let context = self.context_rect();
+        draw_hud_card(context);
+        let end = Rect::new(
+            context.x + 10.0,
+            context.bottom() - 38.0,
+            context.w - 20.0,
+            28.0,
         );
-        self.draw_context_panel(panel_x + 18.0, context_y);
+        self.draw_context_panel(assets, context, end.y);
+        draw_ui_button(end, "", true, true);
+        let shortcut = "Shift+Enter";
+        let shortcut_width = measure_text(shortcut, None, 11, 1.0).width;
+        draw_text("End Turn", end.x + 8.0, end.y + 18.0, 13.0, WHITE);
+        draw_text(
+            shortcut,
+            end.right() - 8.0 - shortcut_width,
+            end.y + 18.0,
+            11.0,
+            Color::from_rgba(241, 223, 189, 255),
+        );
+        actions.push((end, UiAction::EndTurn));
+        actions.push((context, UiAction::BlockMapClick));
         self.hud_elements_drawn += 1;
 
-        for (index, label) in ["Science", "Tax", "Luxury"].into_iter().enumerate() {
-            let player = &self.sim.players()[HUMAN];
-            let in_anarchy = player.government == Government::Anarchy;
-            let rate = if in_anarchy {
-                [0, 0, 100][index]
-            } else {
-                player.rates[index]
-            };
+        let action_width = screen_width() - 2.0 * (Self::corner_width() + 2.0 * HUD_MARGIN);
+        self.draw_action_strip(&mut actions, action_width);
+        let portraits_left = self.draw_leader_portraits(assets, &mut actions);
+        self.draw_messages(&mut actions, portraits_left - 2.0 * HUD_MARGIN);
+        self.draw_top_bar(&mut actions);
+        self.hud_elements_drawn += 1;
+        self.hud_elements_drawn += 1;
+        actions
+    }
+
+    fn draw_top_bar(&self, actions: &mut Vec<(Rect, UiAction)>) {
+        let width = screen_width();
+        draw_rectangle(0.0, 0.0, width, TOP_H, Color::from_rgba(29, 31, 28, 255));
+        draw_rectangle(
+            0.0,
+            TOP_H - 3.0,
+            width,
+            3.0,
+            Color::from_rgba(171, 133, 55, 255),
+        );
+
+        let player = &self.sim.players()[HUMAN];
+        let status = self.sim.spaceship_status(HUMAN);
+        let button_count = 6 + usize::from(status.is_some());
+        let button_width = 38.0;
+        let step = button_width + 4.0;
+        let button_start = width - HUD_MARGIN - button_count as f32 * step + 4.0;
+        let research = player.researching;
+        let displays = [
+            (
+                format!("Turn {} · {}", self.sim.turn(), year_label(self.sim.year())),
+                WHITE,
+            ),
+            (format!("Gold {}", player.gold), GOLD),
+            (player.government.name().to_owned(), LIGHTGRAY),
+            (
+                format!(
+                    "{} {}/{}",
+                    research.name(),
+                    player.research,
+                    self.sim.target_cost(HUMAN, research)
+                ),
+                Color::from_rgba(151, 210, 231, 255),
+            ),
+        ];
+        let mut x = HUD_MARGIN;
+        if width >= 950.0 {
+            text_in("CivCraft", x, 29.0, 24.0, 100.0, GOLD);
+            x += 112.0;
+        }
+        let available = (button_start - x - HUD_MARGIN).max(0.0);
+        let measured = displays
+            .each_ref()
+            .map(|(label, _)| measure_text(label, None, 16, 1.0).width);
+        let scale = ((available - 36.0) / measured.iter().sum::<f32>()).clamp(0.0, 1.0);
+        for ((label, color), measured) in displays.iter().zip(measured) {
+            let slot = (measured * scale).ceil();
+            text_in(label, x, 27.0, 16.0, slot, *color);
+            x += slot + 11.0;
+        }
+
+        let in_anarchy = player.government == Government::Anarchy;
+        let rates = if in_anarchy {
+            [0, 0, 100]
+        } else {
+            player.rates
+        };
+        let mut controls = vec![
+            (
+                HudIcon::Government,
+                UiAction::ToggleGovernment,
+                "Government".to_owned(),
+                None,
+                true,
+                false,
+            ),
+            (
+                HudIcon::Diplomacy,
+                UiAction::ToggleDiplomacy,
+                "Diplomacy".to_owned(),
+                None,
+                true,
+                false,
+            ),
+            (
+                HudIcon::Research,
+                UiAction::OpenResearch,
+                "Research tree".to_owned(),
+                None,
+                true,
+                false,
+            ),
+        ];
+        for (index, (icon, label)) in [
+            (HudIcon::Science, "Science"),
+            (HudIcon::Tax, "Tax"),
+            (HudIcon::Luxury, "Luxury"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let rate = rates[index];
             let enabled = !in_anarchy && rate < player.government.max_rate();
-            let rect = Rect::new(
-                panel_x + UI_PAD + index as f32 * ((PANEL_W - 2.0 * UI_PAD + UI_GAP) / 3.0),
-                screen_height() - 146.0,
-                (PANEL_W - 2.0 * UI_PAD - 2.0 * UI_GAP) / 3.0,
-                28.0,
+            controls.push((
+                icon,
+                UiAction::RaiseRate(index),
+                format!("{label} {rate}%"),
+                Some(rate),
+                enabled,
+                false,
+            ));
+        }
+        if let Some(status) = status {
+            controls.push((
+                HudIcon::Spaceship,
+                UiAction::ToggleSpaceship,
+                status,
+                None,
+                true,
+                self.sim.can_launch_spaceship(HUMAN),
+            ));
+        }
+
+        let mut tooltip = None;
+        for (index, (icon, action, label, rate, enabled, accent)) in
+            controls.into_iter().enumerate()
+        {
+            let rect = Rect::new(button_start + index as f32 * step, 5.0, button_width, 33.0);
+            draw_ui_button(rect, "", enabled, accent);
+            let color = if enabled {
+                Color::from_rgba(241, 238, 218, 255)
+            } else {
+                GRAY
+            };
+            let center = vec2(
+                rect.x + rect.w * 0.5,
+                rect.y + if rate.is_some() { 11.0 } else { 16.5 },
             );
-            draw_ui_button(rect, &format!("{label} {rate}%"), enabled, false);
+            draw_hud_icon(
+                icon,
+                center,
+                if rate.is_some() { 15.0 } else { 21.0 },
+                color,
+            );
+            if let Some(rate) = rate {
+                let label = format!("{rate}%");
+                let w = measure_text(&label, None, 12, 1.0).width;
+                draw_text(&label, center.x - w * 0.5, rect.bottom() - 4.0, 12.0, color);
+            }
             if enabled {
-                actions.push((rect, UiAction::RaiseRate(index)));
+                actions.push((rect, action));
+            }
+            if rect.contains(ui_pointer()) {
+                tooltip = Some((rect, label));
             }
         }
-        let research_rect = Rect::new(
-            panel_x + 18.0,
-            screen_height() - 112.0,
-            PANEL_W - 36.0,
-            34.0,
-        );
-        draw_ui_button(
-            research_rect,
-            &format!(
-                "Research tree: {}",
-                self.sim.players()[HUMAN].researching.name()
-            ),
-            true,
-            false,
-        );
-        actions.push((research_rect, UiAction::OpenResearch));
-        let end_rect = Rect::new(panel_x + 18.0, screen_height() - 65.0, PANEL_W - 36.0, 44.0);
-        draw_ui_button(end_rect, "END TURN  [Shift+Enter]", true, true);
-        actions.push((end_rect, UiAction::EndTurn));
+        if let Some((button, label)) = tooltip {
+            let width = measure_text(&label, None, 15, 1.0).width + 16.0;
+            let rect = Rect::new(
+                (button.right() - width).max(HUD_MARGIN),
+                TOP_H + 3.0,
+                width,
+                24.0,
+            );
+            draw_hud_card(rect);
+            draw_text(&label, rect.x + 8.0, rect.y + 17.0, 15.0, WHITE);
+        }
+    }
 
+    fn draw_leader_portraits(&self, assets: &Assets, actions: &mut Vec<(Rect, UiAction)>) -> f32 {
+        let portraits: Vec<_> = self
+            .sim
+            .contacted_civilizations(HUMAN)
+            .into_iter()
+            .filter_map(|owner| Some((owner, assets.leader_avatar_badges.get(owner)?)))
+            .collect();
+        let size = 56.0;
+        let step = size + 5.0;
+        let left = screen_width() - HUD_MARGIN - portraits.len() as f32 * step;
+        for (index, (owner, badge)) in portraits.into_iter().enumerate() {
+            let rect = Rect::new(left + 5.0 + index as f32 * step, TOP_H + 10.0, size, size);
+            draw_texture_ex(
+                badge,
+                rect.x,
+                rect.y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(size, size)),
+                    ..Default::default()
+                },
+            );
+            actions.push((rect, UiAction::OpenDiplomacyWith(owner)));
+        }
+        left
+    }
+
+    pub(super) fn draw_intro(&self) -> Vec<(Rect, UiAction)> {
         draw_rectangle(
             0.0,
-            screen_height() - BOTTOM_H,
-            viewport.w,
-            BOTTOM_H,
-            Color::from_rgba(28, 30, 28, 248),
-        );
-        draw_rectangle(
             0.0,
-            screen_height() - BOTTOM_H,
-            viewport.w,
-            3.0,
-            Color::from_rgba(133, 104, 47, 255),
+            screen_width(),
+            screen_height(),
+            Color::from_rgba(4, 9, 12, 178),
         );
-        self.draw_action_strip(&mut actions, viewport.w);
-        self.draw_messages(viewport.w);
-        self.hud_elements_drawn += 1;
-
-        actions
+        let width = (screen_width() - 2.0 * HUD_MARGIN).min(470.0);
+        let height = 254.0;
+        let panel = Rect::new(
+            (screen_width() - width) * 0.5,
+            (screen_height() - height) * 0.5,
+            width,
+            height,
+        );
+        panel_frame(panel);
+        text_in(
+            "Your Chronicle",
+            panel.x + 22.0,
+            panel.y + 41.0,
+            27.0,
+            width - 44.0,
+            GOLD,
+        );
+        for (index, line) in [
+            "Found a city with your Settlers.",
+            "Explore the fog and improve the land.",
+            "Research stronger units.",
+            "Unite the rival nations.",
+            "Click a unit or city for details.",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            text_in(
+                line,
+                panel.x + 22.0,
+                panel.y + 75.0 + index as f32 * 25.0,
+                17.0,
+                width - 44.0,
+                WHITE,
+            );
+        }
+        let button = Rect::new(panel.right() - 172.0, panel.bottom() - 52.0, 150.0, 34.0);
+        draw_ui_button(button, "Begin [Enter]", true, true);
+        vec![(button, UiAction::DismissIntro)]
     }
 
     fn draw_minimap(&self) {
         let rect = self.minimap_rect();
-        draw_rectangle(
-            rect.x - 3.0,
-            rect.y - 3.0,
-            rect.w + 6.0,
-            rect.h + 6.0,
-            Color::from_rgba(15, 17, 16, 255),
-        );
         let scale = rect.h / self.sim.map_wrap.height() as f32;
         for y in 0..self.sim.map_wrap.height() {
             for x in 0..self.sim.map_wrap.width() {
@@ -291,6 +354,14 @@ impl Game {
                 }
             }
         }
+        draw_rectangle_lines(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            2.0,
+            Color::from_rgba(160, 126, 61, 255),
+        );
     }
 
     fn draw_city_tiles(
@@ -906,16 +977,17 @@ impl Game {
         }
     }
 
-    fn draw_context_panel(&self, x: f32, y: f32) {
-        let compact = screen_height() < 700.0;
+    fn draw_context_panel(&self, assets: &Assets, card: Rect, button_y: f32) {
+        let x = card.x + 10.0;
+        let y = card.y + 4.0;
+        let spacing = ((button_y - y - 6.0) / 156.0).clamp(0.0, 1.0);
         let context_text = |text: &str, tx: f32, ty: f32, size: f32, color: Color| {
-            let baseline = y + (ty - y) * if compact { 0.72 } else { 1.0 };
             text_in(
                 text,
                 tx,
-                baseline,
-                if compact { size.min(17.0) } else { size },
-                PANEL_W - 36.0,
+                y + (ty - y) * spacing,
+                size.min(17.0),
+                card.w - 20.0,
                 color,
             );
         };
@@ -960,56 +1032,24 @@ impl Game {
                     UnitState::Sentry => "Sentry".to_owned(),
                 }
             };
-            context_text(
-                unit.kind.name(),
+            let (sprite_row, sprite_col) = unit_sprite(unit.kind);
+            draw_texture_ex(
+                &assets.units,
                 x,
-                y + 23.0,
-                25.0,
-                Color::from_rgba(244, 221, 147, 255),
+                card.y + 8.0,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(36.0, 27.0)),
+                    source: Some(isolated_sprite_source(sprite_row, sprite_col, 64.0, 48.0)),
+                    ..Default::default()
+                },
             );
-            context_text(
-                &format!(
-                    "{} at {}, {}",
-                    self.sim.players()[unit.owner].name,
-                    unit.x,
-                    unit.y
-                ),
-                x,
-                y + 46.0,
-                16.0,
-                Color::from_rgba(180, 185, 176, 255),
-            );
-            context_text(
-                &format!("Attack {}   Defense {}", stats.attack, stats.defense),
-                x,
-                y + 75.0,
-                18.0,
-                Color::from_rgba(229, 226, 209, 255),
-            );
-            context_text(
-                &format!(
-                    "Health {}/{}   Moves {}/{}",
-                    unit.hp,
-                    stats.hp,
-                    unit.moves_left,
-                    self.sim.unit_move_allowance(unit.owner, unit.kind)
-                ),
-                x,
-                y + 99.0,
-                18.0,
-                Color::from_rgba(229, 226, 209, 255),
-            );
-            context_text(
-                &format!(
-                    "{}   Elevation {}",
-                    self.sim.tile(unit.x, unit.y).terrain.name(),
-                    self.sim.tile(unit.x, unit.y).altitude,
-                ),
-                x,
-                y + 123.0,
-                17.0,
-                Color::from_rgba(167, 201, 158, 255),
-            );
+
+            let width = card.w - 20.0;
+            let right = x + width;
+            let identity_x = x + 41.0;
+            let muted = Color::from_rgba(181, 190, 174, 255);
+            let status_color = Color::from_rgba(188, 219, 175, 255);
             let state = if unit.kind.is_aircraft() {
                 format!("{state} · Fuel {}/{}", unit.fuel, unit.kind.fuel_capacity())
             } else {
@@ -1020,42 +1060,76 @@ impl Game {
             } else {
                 state
             };
-            context_text(
-                &state,
-                x,
-                y + 148.0,
-                17.0,
-                Color::from_rgba(145, 204, 224, 255),
+            let state_width = measure_text(&state, None, 12, 1.0).width;
+            let name_width = measure_text(unit.kind.name(), None, 14, 1.0).width;
+            let inline_status = identity_x + name_width + state_width + 8.0 <= right;
+            let title_y = card.y + 20.0;
+            text_in(
+                unit.kind.name(),
+                identity_x,
+                title_y,
+                14.0,
+                right - identity_x,
+                Color::from_rgba(244, 221, 147, 255),
             );
-            let home = self
-                .sim
-                .cities()
-                .iter()
-                .find(|city| Some(city.id) == unit.home_city);
-            let support = home.map_or("No home city".to_owned(), |city| {
-                format!("Home city: {}", city.name)
-            });
-            context_text(
-                &support,
-                x,
-                y + 168.0,
-                15.0,
-                Color::from_rgba(177, 177, 164, 255),
+            text_in(
+                &format!(
+                    "{} · {}",
+                    self.sim.players()[unit.owner].name,
+                    self.sim.tile(unit.x, unit.y).terrain.name(),
+                ),
+                identity_x,
+                title_y + 14.0,
+                12.0,
+                right - identity_x,
+                muted,
             );
-            context_text(
-                "Move: arrows / 2 3 4 6 7 8",
-                x,
-                y + 184.0,
-                16.0,
-                Color::from_rgba(177, 177, 164, 255),
-            );
-            context_text(
-                "G: go-to   Space: wait   Tab: next",
-                x,
-                y + 207.0,
-                15.0,
-                Color::from_rgba(177, 177, 164, 255),
-            );
+            if inline_status {
+                draw_text(&state, right - state_width, title_y, 12.0, status_color);
+            } else {
+                text_in(&state, x, title_y + 29.0, 12.0, width, status_color);
+            }
+
+            let gap = 4.0;
+            let cell_width = (width - gap) * 0.5;
+            let moves = self.sim.unit_move_allowance(unit.owner, unit.kind);
+            let metrics = [
+                ("Health", format!("{}/{}", unit.hp, stats.hp)),
+                ("Moves", format!("{}/{moves}", unit.moves_left)),
+                ("Attack", stats.attack.to_string()),
+                ("Defense", stats.defense.to_string()),
+            ];
+            for (index, (label, value)) in metrics.iter().enumerate() {
+                let cell_x = x + (index % 2) as f32 * (cell_width + gap);
+                let grid_y = if inline_status {
+                    card.y + 44.0
+                } else {
+                    card.y + 56.0
+                };
+                let cell_y = grid_y + (index / 2) as f32 * 21.0;
+                let cell = Rect::new(cell_x, cell_y, cell_width, 18.0);
+                draw_rectangle(
+                    cell.x,
+                    cell.y,
+                    cell.w,
+                    cell.h,
+                    Color::from_rgba(41, 48, 42, 255),
+                );
+
+                let value_size = measure_text(value, None, 12, 1.0);
+                let label = fit_text(label, 12.0, cell.w - value_size.width - 13.0);
+                let label_size = measure_text(&label, None, 12, 1.0);
+                let baseline =
+                    |size: TextDimensions| cell.y + (cell.h - size.height) * 0.5 + size.offset_y;
+                draw_text(&label, cell.x + 5.0, baseline(label_size), 12.0, muted);
+                draw_text(
+                    value,
+                    cell.right() - value_size.width - 5.0,
+                    baseline(value_size),
+                    12.0,
+                    WHITE,
+                );
+            }
         } else if let Some(index) = self.selected_city_index() {
             let city = &self.sim.cities()[index];
             let forecast = self.sim.city_forecast(city);
@@ -1111,70 +1185,6 @@ impl Game {
                 y + 156.0,
                 17.0,
                 Color::from_rgba(229, 226, 209, 255),
-            );
-            context_text(
-                "Choose a unit below to change production.",
-                x,
-                y + 192.0,
-                15.0,
-                Color::from_rgba(177, 177, 164, 255),
-            );
-        } else {
-            context_text(
-                "YOUR CHRONICLE",
-                x,
-                y + 22.0,
-                22.0,
-                Color::from_rgba(244, 221, 147, 255),
-            );
-            context_text(
-                "Found a city with your Settlers.",
-                x,
-                y + 55.0,
-                17.0,
-                Color::from_rgba(225, 224, 208, 255),
-            );
-            context_text(
-                "Explore the fog and improve the land.",
-                x,
-                y + 80.0,
-                17.0,
-                Color::from_rgba(225, 224, 208, 255),
-            );
-            context_text(
-                "Research stronger units and unite",
-                x,
-                y + 105.0,
-                17.0,
-                Color::from_rgba(225, 224, 208, 255),
-            );
-            context_text(
-                "the rival civilizations.",
-                x,
-                y + 128.0,
-                17.0,
-                Color::from_rgba(225, 224, 208, 255),
-            );
-            let living = (1..self.sim.players().len())
-                .filter(|&owner| owner != BARBARIANS)
-                .filter(|owner| {
-                    self.sim.cities().iter().any(|c| c.owner == *owner)
-                        || self.sim.units().iter().any(|u| u.owner == *owner)
-                })
-                .count();
-            context_text(
-                &format!("Rivals remaining: {living}"),
-                x,
-                y + 172.0,
-                18.0,
-                Color::from_rgba(236, 183, 117, 255),
-            );
-            context_text(
-                "Click a unit or city for details.",
-                x,
-                y + 208.0,
-                15.0,
-                Color::from_rgba(174, 177, 168, 255),
             );
         }
     }
@@ -1322,7 +1332,7 @@ impl Game {
             }
             if stats.can_found && unit.transport.is_none() {
                 entries.push((
-                    "Found [B]".to_owned(),
+                    "Found city [B]".to_owned(),
                     UiAction::FoundCity,
                     self.sim.can_found_at(unit.x, unit.y),
                 ));
@@ -1332,12 +1342,12 @@ impl Game {
                 let (label, enabled) = if tile.road && self.sim.has_tech(unit.owner, Tech::RAILROAD)
                 {
                     (
-                        "Railroad [R]",
+                        "Build railroad [R]",
                         self.sim.can_railroad_at(unit.owner, unit.x, unit.y),
                     )
                 } else {
                     (
-                        "Road [R]",
+                        "Build road [R]",
                         !tile.road
                             && tile.terrain.road_time() > 0
                             && (!tile.river
@@ -1350,7 +1360,7 @@ impl Game {
                 let tile = self.sim.tile(unit.x, unit.y);
                 let (label, enabled) = if tile.irrigation {
                     (
-                        "Farmland [I]",
+                        "Build farmland [I]",
                         self.sim.can_farm_at(unit.owner, unit.x, unit.y),
                     )
                 } else {
@@ -1426,12 +1436,12 @@ impl Game {
                 entries.push(("Fortify [F]".to_owned(), UiAction::Fortify, true));
             }
             if self.sim.home_city_target(unit).is_some() {
-                entries.push(("Set home [H]".to_owned(), UiAction::HomeCity, true));
+                entries.push(("Set home city [H]".to_owned(), UiAction::HomeCity, true));
             }
             if unit.automated
                 || (unit.kind.fuel_capacity() == 0 && unit.kind != UnitKind::Helicopter)
             {
-                entries.push(("Automate [A]".to_owned(), UiAction::Automate, true));
+                entries.push(("Automate [A / X]".to_owned(), UiAction::Automate, true));
             }
             entries.push(("Wait [Space]".to_owned(), UiAction::Wait, true));
             for city in self
@@ -1472,60 +1482,523 @@ impl Game {
                     self.sim.can_change_production(city, Production::Unit(kind)),
                 ));
             }
-        } else {
-            entries.push(("Next ready unit [Tab]".to_owned(), UiAction::Wait, false));
         }
 
-        let columns = grid_columns(available_width - 24.0, 112.0);
-        let capacity = columns * 2;
+        if entries.is_empty() {
+            return;
+        }
+        let width = 34.0_f32.min(available_width.max(1.0));
+        let gap = 5.0;
+        let step = width + gap;
+        let capacity = (((available_width + gap) / step).floor() as usize).max(2);
         let paginated = entries.len() > capacity;
         let page_size = capacity - usize::from(paginated);
-        let pages = entries.len().div_ceil(page_size).max(1);
+        let pages = entries.len().div_ceil(page_size);
         let page = self.action_page.min(pages - 1);
-        let width = (available_width - 24.0 - UI_GAP * (columns - 1) as f32) / columns as f32;
-        let origin_y = screen_height() - BOTTOM_H + 8.0;
-        for (slot, (label, action, enabled)) in entries
+        let mut visible: Vec<_> = entries
             .into_iter()
             .skip(page * page_size)
             .take(page_size)
-            .enumerate()
-        {
-            let rect = Rect::new(
-                12.0 + (slot % columns) as f32 * (width + UI_GAP),
-                origin_y + (slot / columns) as f32 * 36.0,
-                width,
-                28.0,
-            );
-            draw_ui_button(rect, &label, enabled, false);
-            if enabled {
-                actions.push((rect, action));
-            }
-        }
+            .collect();
         if paginated {
-            let slot = capacity - 1;
-            let rect = Rect::new(
-                12.0 + (slot % columns) as f32 * (width + UI_GAP),
-                origin_y + 36.0,
-                width,
-                28.0,
+            visible.push((
+                format!("More actions ({}/{})", page + 1, pages),
+                UiAction::ActionPage((page + 1) % pages),
+                true,
+            ));
+        }
+        let row_width = visible.len() as f32 * step - gap;
+        let x = (screen_width() - row_width) * 0.5;
+        let y = screen_height() - HUD_MARGIN - 34.0;
+        let mut tooltip = None;
+        for (column, (label, action, enabled)) in visible.into_iter().enumerate() {
+            let rect = Rect::new(x + column as f32 * step, y, width, 34.0);
+            draw_ui_button(rect, "", enabled, false);
+            let color = if enabled {
+                Color::from_rgba(241, 238, 218, 255)
+            } else {
+                GRAY
+            };
+            draw_hud_icon(unit_action_icon(action), rect.center(), 21.0, color);
+            if rect.contains(ui_pointer()) {
+                tooltip = Some((rect, label));
+            }
+            actions.push((
+                rect,
+                if enabled {
+                    action
+                } else {
+                    UiAction::BlockMapClick
+                },
+            ));
+        }
+        if let Some((button, label)) = tooltip {
+            let label = fit_text(
+                &label,
+                15.0,
+                (screen_width() - 2.0 * HUD_MARGIN - 16.0).max(0.0),
             );
-            draw_ui_button(rect, &format!("More {}/{} >", page + 1, pages), true, false);
-            actions.push((rect, UiAction::ActionPage((page + 1) % pages)));
+            let width = measure_text(&label, None, 15, 1.0).width + 16.0;
+            let x = (button.center().x - width * 0.5)
+                .max(HUD_MARGIN)
+                .min(screen_width() - HUD_MARGIN - width);
+            let rect = Rect::new(x, button.y - 30.0, width, 24.0);
+            draw_hud_card(rect);
+            draw_text(&label, rect.x + 8.0, rect.y + 17.0, 15.0, WHITE);
         }
     }
 
-    fn draw_messages(&self, available_width: f32) {
-        let latest: Vec<&String> = self.sim.events().iter().rev().take(2).collect();
-        let mut y = screen_height() - 11.0;
-        for (i, message) in latest.iter().enumerate() {
+    fn draw_messages(&self, actions: &mut Vec<(Rect, UiAction)>, available: f32) {
+        let width = (screen_width() * 0.65).min(620.0).min(available);
+        let latest = self.sim.events().iter().rev().take(2);
+        for (i, message) in latest.enumerate() {
             let color = if i == 0 {
                 Color::from_rgba(230, 228, 211, 255)
             } else {
-                Color::from_rgba(154, 158, 151, 255)
+                Color::from_rgba(174, 177, 171, 255)
             };
-            let clipped = fit_text(message, 15.0, available_width - 36.0);
-            draw_text(&clipped, 18.0, y, 15.0, color);
-            y -= 19.0;
+            let clipped = fit_text(message, 15.0, width - 16.0);
+            let rect = Rect::new(
+                HUD_MARGIN,
+                TOP_H + 10.0 + (1 - i) as f32 * 21.0,
+                measure_text(&clipped, None, 15, 1.0).width + 16.0,
+                21.0,
+            );
+            draw_rectangle(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                Color::from_rgba(16, 20, 20, 218),
+            );
+            draw_text(&clipped, rect.x + 8.0, rect.y + 15.0, 15.0, color);
+            actions.push((rect, UiAction::BlockMapClick));
+        }
+    }
+}
+
+fn draw_hud_card(card: Rect) {
+    draw_rectangle(
+        card.x,
+        card.y,
+        card.w,
+        card.h,
+        Color::from_rgba(26, 29, 26, 237),
+    );
+    draw_rectangle_lines(
+        card.x,
+        card.y,
+        card.w,
+        card.h,
+        2.0,
+        Color::from_rgba(160, 126, 61, 255),
+    );
+}
+
+fn unit_action_icon(action: UiAction) -> HudIcon {
+    match action {
+        UiAction::FoundCity | UiAction::JoinCity(_) | UiAction::Produce(_) => HudIcon::City,
+        UiAction::Road => HudIcon::Road,
+        UiAction::Irrigate => HudIcon::Water,
+        UiAction::Mine => HudIcon::Pickaxe,
+        UiAction::TerrainWork(WorkKind::Cultivate) => HudIcon::Wheat,
+        UiAction::TerrainWork(WorkKind::Plant) => HudIcon::Tree,
+        UiAction::TerrainWork(WorkKind::Transform) | UiAction::Disband(Some(_)) => HudIcon::Cycle,
+        UiAction::TerrainWork(WorkKind::Clean(_)) => HudIcon::Broom,
+        UiAction::TerrainWork(WorkKind::BuildBase(_)) | UiAction::Fortify => HudIcon::Shield,
+        UiAction::TerrainWork(WorkKind::Pillage(_))
+        | UiAction::Detonate
+        | UiAction::SabotageCity(_)
+        | UiAction::SabotageUnit(_) => HudIcon::Burst,
+        UiAction::HomeCity => HudIcon::Home,
+        UiAction::Automate => HudIcon::Gear,
+        UiAction::Wait => HudIcon::Pause,
+        UiAction::UpgradeUnit(..) => HudIcon::Upgrade,
+        UiAction::EstablishEmbassy(_) => HudIcon::Government,
+        UiAction::InvestigateCity(_) => HudIcon::Search,
+        UiAction::SpyTargets(_) => HudIcon::Target,
+        UiAction::StealTechnology(_) => HudIcon::Research,
+        UiAction::BribeUnit(..) | UiAction::InciteCity(..) => HudIcon::Tax,
+        UiAction::BeginParadrop => HudIcon::Parachute,
+        UiAction::Airlift(_) => HudIcon::Plane,
+        UiAction::BoardOrDeboard => HudIcon::Boat,
+        UiAction::DeliverGoods(_) => HudIcon::Crate,
+        UiAction::HelpWonder(_) => HudIcon::Wonder,
+        UiAction::Disband(None) => HudIcon::Cross,
+        _ => HudIcon::More,
+    }
+}
+
+enum HudIcon {
+    Government,
+    Diplomacy,
+    Research,
+    Science,
+    Tax,
+    Luxury,
+    Spaceship,
+    City,
+    Road,
+    Water,
+    Pickaxe,
+    Wheat,
+    Tree,
+    Cycle,
+    Broom,
+    Shield,
+    Burst,
+    Home,
+    Gear,
+    Pause,
+    Upgrade,
+    Search,
+    Target,
+    Parachute,
+    Plane,
+    Boat,
+    Crate,
+    Wonder,
+    Cross,
+    More,
+}
+
+fn draw_hud_icon(icon: HudIcon, center: Vec2, size: f32, color: Color) {
+    // Coordinates use a shared 24 by 24 canvas so the icons scale together.
+    let paths: &[&[(f32, f32)]] = match icon {
+        HudIcon::Government => &[
+            &[(2., 8.), (12., 2.), (22., 8.), (2., 8.)],
+            &[(5., 11.), (5., 19.)],
+            &[(12., 11.), (12., 19.)],
+            &[(19., 11.), (19., 19.)],
+            &[(2., 22.), (22., 22.)],
+        ],
+        HudIcon::Diplomacy => &[
+            &[
+                (2., 3.),
+                (17., 3.),
+                (17., 12.),
+                (8., 12.),
+                (4., 16.),
+                (4., 12.),
+                (2., 12.),
+                (2., 3.),
+            ],
+            &[
+                (20., 8.),
+                (22., 8.),
+                (22., 18.),
+                (20., 18.),
+                (20., 22.),
+                (15., 18.),
+                (10., 18.),
+                (10., 15.),
+            ],
+        ],
+        HudIcon::Research => &[&[
+            (12., 6.),
+            (8., 3.),
+            (2., 3.),
+            (2., 18.),
+            (8., 18.),
+            (12., 21.),
+            (16., 18.),
+            (22., 18.),
+            (22., 3.),
+            (16., 3.),
+            (12., 6.),
+            (12., 21.),
+        ]],
+        HudIcon::Science => &[
+            &[(8., 2.), (16., 2.)],
+            &[
+                (9., 2.),
+                (9., 10.),
+                (3., 20.),
+                (5., 22.),
+                (19., 22.),
+                (21., 20.),
+                (15., 10.),
+                (15., 2.),
+            ],
+            &[(6., 15.), (18., 15.)],
+        ],
+        HudIcon::Tax => &[
+            &[
+                (3., 6.),
+                (7., 3.),
+                (17., 3.),
+                (21., 6.),
+                (17., 9.),
+                (7., 9.),
+                (3., 6.),
+                (3., 18.),
+                (7., 21.),
+                (17., 21.),
+                (21., 18.),
+                (21., 6.),
+            ],
+            &[(3., 12.), (7., 15.), (17., 15.), (21., 12.)],
+        ],
+        HudIcon::Luxury => &[
+            &[
+                (2., 8.),
+                (6., 3.),
+                (18., 3.),
+                (22., 8.),
+                (12., 22.),
+                (2., 8.),
+                (22., 8.),
+            ],
+            &[(9., 3.), (7., 8.), (12., 22.), (17., 8.), (15., 3.)],
+        ],
+        HudIcon::Spaceship => &[
+            &[
+                (12., 2.),
+                (16., 7.),
+                (17., 15.),
+                (20., 19.),
+                (15., 18.),
+                (9., 18.),
+                (4., 19.),
+                (7., 15.),
+                (8., 7.),
+                (12., 2.),
+            ],
+            &[(10., 9.), (14., 9.)],
+            &[(12., 19.), (12., 23.)],
+        ],
+        HudIcon::City => &[
+            &[
+                (2., 21.),
+                (2., 9.),
+                (7., 9.),
+                (7., 14.),
+                (10., 14.),
+                (10., 4.),
+                (15., 4.),
+                (15., 11.),
+                (21., 11.),
+                (21., 21.),
+                (2., 21.),
+            ],
+            &[(6., 17.), (6., 18.)],
+            &[(16., 15.), (16., 18.)],
+        ],
+        HudIcon::Road => &[
+            &[(3., 22.), (9., 2.)],
+            &[(21., 22.), (15., 2.)],
+            &[(12., 3.), (12., 7.)],
+            &[(12., 10.), (12., 14.)],
+            &[(12., 17.), (12., 22.)],
+        ],
+        HudIcon::Water => &[&[
+            (12., 2.),
+            (6., 10.),
+            (5., 15.),
+            (7., 20.),
+            (12., 22.),
+            (17., 20.),
+            (19., 15.),
+            (18., 10.),
+            (12., 2.),
+        ]],
+        HudIcon::Pickaxe => &[
+            &[(4., 21.), (16., 7.)],
+            &[(5., 4.), (11., 3.), (17., 6.), (21., 12.)],
+        ],
+        HudIcon::Wheat => &[
+            &[(12., 22.), (12., 3.)],
+            &[(12., 9.), (7., 5.)],
+            &[(12., 13.), (17., 8.)],
+            &[(12., 17.), (6., 12.)],
+            &[(12., 19.), (18., 14.)],
+        ],
+        HudIcon::Tree => &[
+            &[
+                (12., 2.),
+                (5., 11.),
+                (8., 11.),
+                (3., 18.),
+                (21., 18.),
+                (16., 11.),
+                (19., 11.),
+                (12., 2.),
+            ],
+            &[(12., 18.), (12., 23.)],
+        ],
+        HudIcon::Cycle => &[
+            &[(3., 10.), (6., 5.), (15., 4.), (20., 8.)],
+            &[(15., 8.), (20., 8.), (20., 3.)],
+            &[(21., 14.), (18., 19.), (9., 20.), (4., 16.)],
+            &[(9., 16.), (4., 16.), (4., 21.)],
+        ],
+        HudIcon::Broom => &[
+            &[(11., 13.), (20., 3.)],
+            &[(8., 10.), (14., 15.), (10., 22.), (3., 16.), (8., 10.)],
+            &[(6., 19.), (10., 14.)],
+        ],
+        HudIcon::Shield => &[
+            &[
+                (3., 4.),
+                (21., 4.),
+                (21., 13.),
+                (18., 18.),
+                (12., 22.),
+                (6., 18.),
+                (3., 13.),
+                (3., 4.),
+            ],
+            &[(12., 7.), (12., 17.)],
+        ],
+        HudIcon::Burst => &[&[
+            (12., 2.),
+            (14., 8.),
+            (21., 5.),
+            (18., 11.),
+            (23., 13.),
+            (17., 15.),
+            (20., 22.),
+            (13., 18.),
+            (9., 22.),
+            (8., 16.),
+            (2., 17.),
+            (6., 12.),
+            (2., 7.),
+            (9., 9.),
+            (12., 2.),
+        ]],
+        HudIcon::Home => &[
+            &[(2., 11.), (12., 3.), (22., 11.)],
+            &[(5., 9.), (5., 21.), (19., 21.), (19., 9.)],
+            &[(10., 21.), (10., 15.), (14., 15.), (14., 21.)],
+        ],
+        HudIcon::Gear => &[
+            &[
+                (9., 2.),
+                (15., 2.),
+                (16., 6.),
+                (21., 6.),
+                (22., 11.),
+                (19., 14.),
+                (20., 19.),
+                (15., 22.),
+                (12., 19.),
+                (8., 22.),
+                (4., 19.),
+                (5., 14.),
+                (2., 11.),
+                (3., 6.),
+                (8., 6.),
+                (9., 2.),
+            ],
+            &[(9., 12.), (12., 9.), (15., 12.), (12., 15.), (9., 12.)],
+        ],
+        HudIcon::Pause => &[&[(9., 5.), (9., 19.)], &[(15., 5.), (15., 19.)]],
+        HudIcon::Upgrade => &[
+            &[(4., 10.), (12., 3.), (20., 10.)],
+            &[(4., 17.), (12., 10.), (20., 17.)],
+            &[(12., 11.), (12., 22.)],
+        ],
+        HudIcon::Search => &[
+            &[
+                (4., 4.),
+                (10., 2.),
+                (16., 5.),
+                (18., 11.),
+                (15., 16.),
+                (9., 18.),
+                (3., 15.),
+                (2., 9.),
+                (4., 4.),
+            ],
+            &[(16., 16.), (22., 22.)],
+        ],
+        HudIcon::Target => &[
+            &[
+                (12., 4.),
+                (18., 6.),
+                (20., 12.),
+                (18., 18.),
+                (12., 20.),
+                (6., 18.),
+                (4., 12.),
+                (6., 6.),
+                (12., 4.),
+            ],
+            &[(12., 1.), (12., 8.)],
+            &[(12., 16.), (12., 23.)],
+            &[(1., 12.), (8., 12.)],
+            &[(16., 12.), (23., 12.)],
+        ],
+        HudIcon::Parachute => &[
+            &[
+                (2., 10.),
+                (4., 6.),
+                (8., 3.),
+                (16., 3.),
+                (20., 6.),
+                (22., 10.),
+                (2., 10.),
+                (12., 21.),
+                (22., 10.),
+            ],
+            &[(8., 10.), (12., 21.), (16., 10.)],
+        ],
+        HudIcon::Plane => &[&[
+            (12., 2.),
+            (14., 4.),
+            (14., 9.),
+            (22., 15.),
+            (22., 17.),
+            (14., 14.),
+            (14., 19.),
+            (17., 22.),
+            (7., 22.),
+            (10., 19.),
+            (10., 14.),
+            (2., 17.),
+            (2., 15.),
+            (10., 9.),
+            (10., 4.),
+            (12., 2.),
+        ]],
+        HudIcon::Boat => &[
+            &[(2., 15.), (22., 15.), (18., 21.), (6., 21.), (2., 15.)],
+            &[(12., 15.), (12., 3.), (19., 12.), (12., 12.)],
+        ],
+        HudIcon::Crate => &[
+            &[
+                (3., 7.),
+                (12., 3.),
+                (21., 7.),
+                (21., 17.),
+                (12., 21.),
+                (3., 17.),
+                (3., 7.),
+                (12., 11.),
+                (21., 7.),
+            ],
+            &[(12., 11.), (12., 21.)],
+            &[(7., 5.), (16., 9.)],
+        ],
+        HudIcon::Wonder => &[
+            &[(2., 21.), (12., 3.), (22., 21.), (2., 21.)],
+            &[(6., 14.), (18., 14.)],
+            &[(4., 18.), (20., 18.)],
+        ],
+        HudIcon::Cross => &[&[(5., 5.), (19., 19.)], &[(19., 5.), (5., 19.)]],
+        HudIcon::More => &[
+            &[(5., 11.), (5., 13.)],
+            &[(12., 11.), (12., 13.)],
+            &[(19., 11.), (19., 13.)],
+        ],
+    };
+    let point = |(x, y)| center + vec2(x - 12.0, y - 12.0) * (size / 24.0);
+    for path in paths {
+        for pair in path.windows(2) {
+            let a = point(pair[0]);
+            let b = point(pair[1]);
+            draw_line(a.x, a.y, b.x, b.y, 1.6, color);
         }
     }
 }

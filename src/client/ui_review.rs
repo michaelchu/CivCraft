@@ -43,6 +43,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "ice-transitions",
     "first-contact",
     "leader-diplomacy",
+    "campaign-intro",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -65,7 +66,7 @@ impl UiReviewSources {
 
 impl Game {
     pub(crate) fn prepare_ui_review(&mut self, scene: usize, sources: &UiReviewSources) {
-        let baseline = if matches!(scene, 0 | 15..=17 | 20 | 33 | 34) {
+        let baseline = if matches!(scene, 0 | 15..=17 | 20 | 33 | 34 | 42) {
             &sources.initial
         } else {
             &sources.fixture
@@ -73,6 +74,10 @@ impl Game {
         *self = Game::from_simulation(baseline.clone());
         set_review_pointer(Some(vec2(-1.0, -1.0)));
         self.autosave_enabled = false;
+        if scene == 42 {
+            self.intro_open = true;
+            return;
+        }
         if matches!(scene, 0 | 15..=17) {
             return;
         }
@@ -305,6 +310,21 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
+        if scene == 13 && phase == 1 {
+            let irrigate = buttons
+                .iter()
+                .find_map(|(rect, action)| matches!(action, UiAction::Irrigate).then_some(*rect));
+            sequence.check("worker_action_available_for_hover", irrigate.is_some())?;
+            set_review_pointer(Some(irrigate.unwrap().center()));
+        }
+        if scene == 42 && phase == 6 {
+            sequence.check("intro_captures_map_controls", buttons.len() == 1)?;
+            sequence.click(self, buttons, "begin_campaign", |action| {
+                matches!(action, UiAction::DismissIntro)
+            })?;
+            sequence.check("intro_dismissed", !self.intro_open)?;
+            return Ok(true);
+        }
         if scene == 41 && phase == 1 {
             sequence.click(self, buttons, "leader_avatar_opens_diplomacy", |action| {
                 matches!(action, UiAction::OpenDiplomacyWith(1))

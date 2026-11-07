@@ -39,15 +39,16 @@ use research_tree::{NODE_SIZE, RESEARCH_AGES, ResearchTree};
 
 const TILE_W: f32 = 96.0;
 const TILE_H: f32 = 48.0;
-const PANEL_W: f32 = 316.0;
 const TOP_H: f32 = 46.0;
-const BOTTOM_H: f32 = 128.0;
+const HUD_MARGIN: f32 = 14.0;
 const START_ZOOM: f32 = 0.82;
 const MIN_ZOOM: f32 = 0.55;
 const MAX_ZOOM: f32 = 1.35;
 
 #[derive(Clone, Copy)]
 pub(crate) enum UiAction {
+    BlockMapClick,
+    DismissIntro,
     ActionPage(usize),
     EndTurn,
     LaunchSpaceship,
@@ -127,6 +128,7 @@ pub(crate) struct Game {
     pub(crate) sim: Simulation,
     renderer: std::rc::Rc<dyn RenderBackend>,
     pub(crate) autosave_enabled: bool,
+    pub(crate) intro_open: bool,
     pub(crate) selected_unit: Option<u32>,
     selected_city: Option<u32>,
     action_page: usize,
@@ -203,6 +205,7 @@ impl Game {
             sim,
             renderer,
             autosave_enabled: false,
+            intro_open: false,
             selected_unit,
             selected_city: None,
             action_page: 0,
@@ -341,6 +344,9 @@ impl Game {
         let renderer = std::rc::Rc::clone(&self.renderer);
         renderer.draw_world(self, assets);
         let mut actions = self.draw_hud(assets);
+        if self.intro_open {
+            return self.draw_intro();
+        }
         if self.spy_targets.is_some()
             || self.investigation.is_some()
             || self.government_open
@@ -380,14 +386,14 @@ impl Game {
             let width = measure_text(text, None, 22, 1.0).width;
             draw_rectangle(
                 viewport.x + viewport.w * 0.5 - width * 0.5 - 14.0,
-                viewport.y + 14.0,
+                viewport.y + 66.0,
                 width + 28.0,
                 34.0,
                 Color::from_rgba(25, 23, 18, 230),
             );
             draw_rectangle_lines(
                 viewport.x + viewport.w * 0.5 - width * 0.5 - 14.0,
-                viewport.y + 14.0,
+                viewport.y + 66.0,
                 width + 28.0,
                 34.0,
                 2.0,
@@ -396,7 +402,7 @@ impl Game {
             draw_text(
                 text,
                 viewport.x + viewport.w * 0.5 - width * 0.5,
-                viewport.y + 38.0,
+                viewport.y + 90.0,
                 22.0,
                 Color::from_rgba(255, 237, 170, 255),
             );

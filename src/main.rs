@@ -129,6 +129,7 @@ async fn main() {
         renderer.name()
     );
     game.autosave_enabled = !automated;
+    game.intro_open = !automated && !args.iter().any(|arg| arg == "--load");
     let assets = Assets::new();
     if ui_review.is_some() {
         client::set_review_pointer(Some(vec2(-1.0, -1.0)));

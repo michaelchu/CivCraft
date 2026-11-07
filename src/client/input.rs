@@ -6,6 +6,8 @@ impl Game {
             return;
         }
         match action {
+            UiAction::BlockMapClick => {}
+            UiAction::DismissIntro => self.intro_open = false,
             UiAction::RaiseRate(index) => {
                 self.sim.apply(Command::RaiseRate(index));
             }
@@ -327,6 +329,12 @@ impl Game {
     }
 
     pub(crate) fn handle_keyboard(&mut self) {
+        if self.intro_open {
+            if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Escape) {
+                self.perform_action(UiAction::DismissIntro);
+            }
+            return;
+        }
         if is_key_pressed(KeyCode::F5) {
             let message = match self
                 .sim
@@ -532,35 +540,42 @@ impl Game {
         Rect::new(
             0.0,
             TOP_H,
-            (screen_width() - PANEL_W).max(320.0),
-            (screen_height() - TOP_H - BOTTOM_H).max(220.0),
+            screen_width(),
+            (screen_height() - TOP_H).max(0.0),
         )
     }
 
+    pub(super) fn context_rect(&self) -> Rect {
+        let width = Self::corner_width();
+        let height = if self.selected_unit_index().is_some() {
+            140.0
+        } else if self.selected_city_index().is_some() {
+            174.0
+        } else {
+            54.0
+        };
+        Rect::new(
+            screen_width() - HUD_MARGIN - width,
+            screen_height() - HUD_MARGIN - height,
+            width,
+            height,
+        )
+    }
+
+    pub(super) fn corner_width() -> f32 {
+        (screen_width() * 0.27).min(252.0)
+    }
+
     pub(super) fn minimap_rect(&self) -> Rect {
-        let top = TOP_H + 58.0;
-        let available_width = PANEL_W - 36.0;
-        // Leave room for the context text and the two bottom buttons.
-        let space_row = if self.sim.spaceship_status(HUMAN).is_some() {
-            34.0
-        } else {
-            0.0
-        };
-        let context_height = if screen_height() < 700.0 {
-            168.0
-        } else {
-            214.0
-        };
-        let available_height =
-            (screen_height() - top - 17.0 - context_height - 160.0 - space_row).max(1.0);
-        let natural_size = vec2(
-            (2 * self.sim.map_wrap.width()) as f32,
-            self.sim.map_wrap.height() as f32,
-        );
-        let scale = (available_width / natural_size.x).min(available_height / natural_size.y);
-        let size = natural_size * scale;
-        let left = screen_width() - PANEL_W + (PANEL_W - size.x) * 0.5;
-        Rect::new(left, top, size.x, size.y)
+        let aspect = (2 * self.sim.map_wrap.width()) as f32 / self.sim.map_wrap.height() as f32;
+        let width = Self::corner_width().min(174.0 * aspect);
+        let height = width / aspect;
+        Rect::new(
+            HUD_MARGIN,
+            screen_height() - HUD_MARGIN - height,
+            width,
+            height,
+        )
     }
 
     pub(super) fn minimap_tile_origin(&self, rect: Rect, x: i32, y: i32) -> Vec2 {
@@ -644,7 +659,8 @@ impl Game {
     }
 
     pub(crate) fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
-        if self.spaceship_open
+        if self.intro_open
+            || self.spaceship_open
             || self.government_open
             || self.diplomacy_open
             || self.investigation.is_some()

@@ -8,9 +8,9 @@ This is deliberately a small shared UI layer rather than a retained widget frame
 
 | Surface | Cleanup |
 | --- | --- |
-| Top bar | Distinct turn, government, diplomacy, treasury and research regions; measured text bounds prevent collisions. |
-| Sidebar | Seed gets its own row; context text stays inside the column; compact windows use tighter context spacing; rate controls share equal gutters. |
-| Action strip | Two rows and a More control expose overflow actions instead of dropping them. |
+| Top bar | Status displays sit on the left. Government, diplomacy, research, rate and spaceship icons sit on the right. |
+| Map overlays | The map fills the space below the top bar. The minimap sits in the lower left, context and End Turn sit in the lower right, and recent messages and leader portraits occupy the upper corners. |
+| Action strip | One centered row of icons. Hover shows the action and its shortcut when available. More opens the next page of actions. |
 | City manager | Wider responsive modal; separate name, forecast, progress and specialist rows; production grid adapts rows and columns to available space. |
 | Production cards | Names, cost and status fit their cards; pagination uses the actual grid capacity. |
 | Worklist / worked tiles | Queue labels leave space for editing controls. Worked tiles use an isometric map with shared world terrain, improvements and city artwork; surrounding tiles are fogged, with diamond-shaped worker hit targets. |
@@ -32,7 +32,7 @@ cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
 
-The gallery covers 42 scenarios, including three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, first contact and war status, leader avatars, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
+The gallery covers 43 scenarios, including the campaign intro and three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The other scenarios provide controlled examples for developed cities, diplomacy, first contact and war status, leader avatars, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
 For a quick on-demand check, select a scene by name:
 
