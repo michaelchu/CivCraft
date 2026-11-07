@@ -23,6 +23,8 @@ mod routes;
 mod spaceship_view;
 mod spy_view;
 mod terrain;
+mod tileset;
+pub(crate) use tileset::Tileset;
 mod territory;
 mod ui;
 mod ui_review;

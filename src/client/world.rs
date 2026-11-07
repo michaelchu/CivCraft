@@ -63,6 +63,20 @@ impl Game {
         }
     }
 
+    fn draw_map_base(&self, assets: &Assets, x: i32, y: i32, center: Vec2, width: f32, height: f32) {
+        if let Some(tileset) = &assets.civ3 {
+            tileset.draw_base(self, x, y, center, vec2(width, height));
+            return;
+        }
+        let terrain = self.sim.render_tile(x, y).terrain;
+        if terrain.is_water() || terrain == Terrain::Glacier {
+            assets.draw_masked_terrain_backing(terrain, center, width, height);
+        } else {
+            draw_diamond(center, width, height, terrain.minimap_color());
+        }
+        self.draw_terrain_sprite(assets, x, y, center, width, height);
+    }
+
     fn draw_terrain_sprite(
         &self,
         assets: &Assets,
@@ -311,6 +325,10 @@ impl Game {
                     draw_diamond(center, tile_w, tile_h, BLACK);
                     continue;
                 }
+                if let Some(tileset) = &assets.civ3 {
+                    tileset.draw_base(self, x, y, center, vec2(tile_w, tile_h));
+                    continue;
+                }
                 assets.draw_masked_terrain_backing(Terrain::DeepOcean, center, tile_w, tile_h);
                 let (row, col) = ocean_cell_source([0; 4]);
                 for corner in 0..4 {
@@ -404,12 +422,7 @@ impl Game {
                 continue;
             }
 
-            if tile.terrain.is_water() || tile.terrain == Terrain::Glacier {
-                assets.draw_masked_terrain_backing(tile.terrain, center, tile_w, tile_h);
-            } else {
-                draw_diamond(center, tile_w, tile_h, tile.terrain.minimap_color());
-            }
-            self.draw_terrain_sprite(assets, x, y, center, tile_w, tile_h);
+            self.draw_map_base(assets, x, y, center, tile_w, tile_h);
         }
 
         for layer in map_layers::MAP_LAYERS {
@@ -545,16 +558,28 @@ impl Game {
         use map_layers::MapLayer;
         let tile = self.sim.render_tile(x, y);
         match layer {
-            MapLayer::Blend => self.draw_terrain_blending(assets, x, y, center, tile_w, tile_h),
+            MapLayer::Blend => {
+                if assets.civ3.is_none() {
+                    self.draw_terrain_blending(assets, x, y, center, tile_w, tile_h);
+                }
+            }
             MapLayer::Terrain => {
-                self.draw_matched_terrain_overlay(assets, x, y, center, tile_w, tile_h)
+                if !assets.civ3.as_ref().is_some_and(|tileset| {
+                    tileset.draw_overlay(tile.terrain, (x, y), center, vec2(tile_w, tile_h))
+                }) {
+                    self.draw_matched_terrain_overlay(assets, x, y, center, tile_w, tile_h);
+                }
             }
             MapLayer::Water => {
                 // Native fill_irrigation_sprite_array suppresses fields under cities.
                 if !has_city {
                     if tile.farmland {
                         self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 2, 6);
-                    } else if tile.irrigation {
+                    } else if tile.irrigation
+                        && !assets.civ3.as_ref().is_some_and(|tileset| {
+                            tileset.draw_irrigation(tile.terrain, center, vec2(tile_w, tile_h))
+                        })
+                    {
                         self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 1, 6);
                     }
                 }
@@ -583,6 +608,9 @@ impl Game {
                 if let Some(resource) = tile
                     .active_resource()
                     .filter(|&resource| self.sim.resource_visible_to(HUMAN, resource))
+                    && !assets.civ3.as_ref().is_some_and(|tileset| {
+                        tileset.draw_resource(resource, center, vec2(tile_w, tile_h))
+                    })
                 {
                     let (row, col) = resource.icon_cell();
                     self.draw_resource_icon(
@@ -678,23 +706,7 @@ impl Game {
             if !relevant || !self.sim.render_tile(x, y).seen {
                 draw_diamond(center, layout.tile_w, layout.tile_h, BLACK);
             } else {
-                let tile = self.sim.render_tile(x, y);
-                if tile.terrain.is_water() || tile.terrain == Terrain::Glacier {
-                    assets.draw_masked_terrain_backing(
-                        tile.terrain,
-                        center,
-                        layout.tile_w,
-                        layout.tile_h,
-                    );
-                } else {
-                    draw_diamond(
-                        center,
-                        layout.tile_w,
-                        layout.tile_h,
-                        tile.terrain.minimap_color(),
-                    );
-                }
-                self.draw_terrain_sprite(assets, x, y, center, layout.tile_w, layout.tile_h);
+                self.draw_map_base(assets, x, y, center, layout.tile_w, layout.tile_h);
             }
         }
         for layer in map_layers::MAP_LAYERS {

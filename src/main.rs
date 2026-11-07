@@ -5,7 +5,7 @@ mod rules;
 mod sim;
 mod visual_test;
 
-use client::{Assets, Game, UiAction, window_conf};
+use client::{Assets, Game, Tileset, UiAction, window_conf};
 use macroquad::prelude::*;
 use std::{env, fs, path::Path};
 
@@ -53,6 +53,12 @@ async fn main() {
         });
     let renderer_name = argument_value("--renderer").unwrap_or_else(|| "amplio2".to_owned());
     let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(2);
+    });
+    let tileset_name = argument_value("--tileset").unwrap_or_else(|| "amplio2".to_owned());
+    let theme = argument_value("--tileset-theme");
+    let tileset = Tileset::select(&tileset_name, theme.as_deref()).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(2);
     });
@@ -122,15 +128,19 @@ async fn main() {
             std::rc::Rc::clone(&renderer),
         )
     };
+    let assets = Assets::new(&tileset).unwrap_or_else(|error| {
+        eprintln!("Could not load {} tileset. {error}", tileset.name());
+        std::process::exit(2);
+    });
     println!(
-        "World seed: {} · wrap: {} · renderer: {}",
+        "World seed: {} · wrap: {} · renderer: {} · tileset: {}",
         game.sim.world_seed,
         game.sim.map_wrap,
-        renderer.name()
+        renderer.name(),
+        tileset.name()
     );
     game.autosave_enabled = !automated;
     game.intro_open = !automated && !args.iter().any(|arg| arg == "--load");
-    let assets = Assets::new();
     if ui_review.is_some() {
         client::set_review_pointer(Some(vec2(-1.0, -1.0)));
     }

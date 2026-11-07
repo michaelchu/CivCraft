@@ -67,6 +67,40 @@ visibility and rendering. Saves record it; loading uses the saved mode. An
 explicit conflicting `--wrap` with `--load` is rejected rather than changing
 an existing world's geography.
 
+## Map tilesets
+
+Amplio2 is the default. Use the Civ III artwork from the adjacent
+`civ3-png/Art` directory with:
+
+```sh
+cargo run --release -- --tileset civ3 --seed 42 --wrap x
+```
+
+The selection applies to the world map and the city work map. It is independent
+of `--renderer` and works with new maps and existing saves. The Civ III tileset
+uses the shared river, unit, and city art, and falls back to the existing icons
+for resources without a mapped Civ III sprite.
+
+Use `--tileset-theme PATH` with `--tileset civ3` to select a local art directory
+or a manifest file. An art directory can follow the original filenames, with
+`Terrain/` and the resource sheets at its root. A directory may also contain a
+`tileset.conf` file. Entries are `role = path`, with relative paths resolved from
+the manifest's directory. Sheets retain the Civ III cell layout.
+
+| Roles | Default PNGs under the art directory |
+| --- | --- |
+| `desert-grass-plains`, `desert-grass-coast`, `desert-plains-coast`, `plains-grass-coast`, `tundra-grass-coast`, `grass-coast` | `Terrain/XDGP.png`, `XDGC.png`, `XDPC.png`, `XPGC.png`, `XTGC.png`, `XGGC.png` |
+| `water`, `ocean`, `polar` | `Terrain/wCSO.png`, `wOOO.png`, `polarICEcaps-final.png` |
+| `vegetation`, `marsh`, `hills`, `mountains` | `Terrain/grassland forests (normal).png`, `marsh.png`, `XHILLS.png`, `Mountains.png` |
+| `irrigation`, `irrigation-plains`, `irrigation-desert`, `irrigation-tundra` | `Terrain/irrigation.png`, `irrigation PLAINS.png`, `irrigation DESETT.png`, `irrigation TUNDRA.png` |
+| `resources`, `resource-shadows` | `resources.png`, `resources_shadows.png` |
+
+The ground, water, and polar sheets are required. The other groups are optional.
+For two interactive windows, launch the binary from separate working
+directories so each instance has its own saves. For screenshot comparisons,
+use the same seed, wrap mode, window size, and scene with different
+`--ui-review` output directories.
+
 ## Save and resume
 
 Press F5 to quicksave and F9 to load the quicksave. CivCraft also writes a separate autosave after each completed turn. The files are stored in the working directory.

@@ -267,6 +267,7 @@ pub(crate) fn window_conf() -> Conf {
 }
 
 pub(crate) struct Assets {
+    pub(super) civ3: Option<super::tileset::Civ3>,
     pub(super) terrain: Texture2D,
     pub(super) resource_icons: Texture2D,
     pub(super) terrain_blends: Texture2D,
@@ -388,7 +389,11 @@ impl Assets {
         textured_diamond(&self.ocean_corners, center, width, height, source, tint);
     }
 
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(tileset: &super::Tileset) -> Result<Self, String> {
+        let civ3 = match tileset {
+            super::Tileset::Amplio2 => None,
+            super::Tileset::Civ3(path) => Some(super::tileset::Civ3::load(path)?),
+        };
         let terrain_image =
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_terrain1.png"), None)
                 .expect("valid Amplio2 terrain atlas");
@@ -584,7 +589,8 @@ impl Assets {
                 portrait.set_filter(FilterMode::Linear);
             }
         }
-        Self {
+        Ok(Self {
+            civ3,
             goto,
             terrain,
             resource_icons,
@@ -608,7 +614,7 @@ impl Assets {
             activities,
             leader_avatar_badges,
             leader_portraits,
-        }
+        })
     }
 }
 
