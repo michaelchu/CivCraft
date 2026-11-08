@@ -2,12 +2,15 @@
 //! Native server/maphand.c copies the giver's private tile, while
 //! server/citytools.c::update_dumb_city retains public city graphics until seen again.
 use super::*;
+use crate::rules::TechEra;
 use std::collections::BTreeMap;
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct ObservedCity {
     pub(crate) city: City,
     pub(crate) art_cell: (i32, i32),
+    pub(crate) civ3_style: u8,
+    pub(crate) civ3_era: u8,
     pub(crate) occupied: bool,
     pub(crate) disorder: bool,
     pub(crate) remembered: bool,
@@ -161,6 +164,26 @@ impl Simulation {
                 |tech| self.has_tech(city.owner, tech),
                 |building| city.buildings.contains(&building),
             ),
+            // Civ III supplies five cultural sheets and four historical rows.
+            // Our six-civilization roster maps Romans/Greeks, Egypt/Babylon,
+            // and China/Japan onto the corresponding supplied cultures.
+            civ3_style: match city.owner {
+                0 => 4, // Roman
+                1 => 2, // European
+                2 | 3 => 3, // Middle Eastern
+                4 | 5 => 0, // Asian
+                _ => 2,
+            },
+            civ3_era: Tech::all()
+                .filter(|&tech| self.has_tech(city.owner, tech))
+                .map(|tech| match tech.era() {
+                    TechEra::Ancient => 0,
+                    TechEra::MiddleAges => 1,
+                    TechEra::Industrial => 2,
+                    TechEra::Modern => 3,
+                })
+                .max()
+                .unwrap_or(0),
             occupied,
             disorder: self.city_in_disorder(city, luxury),
             remembered: false,
@@ -423,6 +446,8 @@ impl Simulation {
                         && observed.remembered
                         && (0..20).contains(&observed.art_cell.0)
                         && (0..10).contains(&observed.art_cell.1)
+                        && observed.civ3_style < 5
+                        && observed.civ3_era < 4
                 })
     }
 }

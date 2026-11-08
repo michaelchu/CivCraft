@@ -124,17 +124,38 @@ impl Game {
         center: Vec2,
         zoom: f32,
     ) {
-        let (row, col) = observed.art_cell;
-        let city_w = 69.0 * zoom;
-        let city_h = 52.0 * zoom;
+        let (texture, source, city_w, city_h) = if let Some(civ3) = &assets.civ3 {
+            // Civ III sheets are four eras by three population bands:
+            // ancient/medieval/industrial/modern, then small/medium/large.
+            let col = match observed.city.size {
+                1..=6 => 0,
+                7..=12 => 1,
+                _ => 2,
+            };
+            let row = i32::from(observed.civ3_era.min(3));
+            (
+                civ3.city_texture_at(observed.civ3_style),
+                Rect::new(col as f32 * 167.0, row as f32 * 95.0, 167.0, 95.0),
+                90.0 * zoom,
+                54.0 * zoom,
+            )
+        } else {
+            let (row, col) = observed.art_cell;
+            (
+                &assets.cities,
+                isolated_sprite_source(row, col, 96.0, 72.0),
+                69.0 * zoom,
+                52.0 * zoom,
+            )
+        };
         draw_texture_ex(
-            &assets.cities,
+            texture,
             center.x - city_w * 0.5,
             center.y - city_h + 9.0 * zoom,
             WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(city_w, city_h)),
-                source: Some(isolated_sprite_source(row, col, 96.0, 72.0)),
+                source: Some(source),
                 ..Default::default()
             },
         );

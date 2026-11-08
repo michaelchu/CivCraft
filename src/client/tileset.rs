@@ -409,7 +409,16 @@ pub(super) struct Civ3 {
     overlays: Vec<Option<Texture2D>>,
     irrigation: Vec<Option<Texture2D>>,
     resources: Option<ResourceArt>,
+    cities: HashMap<&'static str, Texture2D>,
 }
+
+const CITY_STYLES: [(&str, &str); 5] = [
+    ("asian", "rASIAN"),
+    ("american", "rAMER"),
+    ("european", "rEURO"),
+    ("middle_eastern", "rMIDEAST"),
+    ("roman", "rROMAN"),
+];
 
 impl Civ3 {
     pub(super) fn load(path: &Path) -> Result<Self, String> {
@@ -459,13 +468,45 @@ impl Civ3 {
             texture.set_filter(FilterMode::Nearest);
             ResourceArt { texture, present }
         });
+        let mut cities = HashMap::new();
+        for (style, file) in CITY_STYLES {
+            let path = path.join("Cities").join(format!("{file}.png"));
+            let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+            let mut image = Image::from_file_with_format(&bytes, Some(ImageFormat::Png))
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            if image.width() < 501 || image.height() < 380 {
+                return Err(format!("{}: expected at least 501×380 pixels", path.display()));
+            }
+            // Civ III city sheets use the bright magenta key color for transparency.
+            for pixel in image.get_image_data_mut() {
+                if pixel[0] > 200 && pixel[1] < 40 && pixel[2] > 200 {
+                    pixel[3] = 0;
+                }
+            }
+            let texture = Texture2D::from_image(&image);
+            texture.set_filter(FilterMode::Nearest);
+            cities.insert(style, texture);
+        }
         Ok(Self {
             art,
             atlas: RefCell::default(),
             overlays,
             irrigation,
             resources,
+            cities,
         })
+    }
+
+    pub(super) fn city_texture(&self, style: &str) -> &Texture2D {
+        self.cities.get(style).unwrap_or(&self.cities["european"])
+    }
+
+    pub(super) fn city_texture_at(&self, style: u8) -> &Texture2D {
+        let style = ["asian", "american", "european", "middle_eastern", "roman"]
+            .get(style as usize)
+            .copied()
+            .unwrap_or("european");
+        self.city_texture(style)
     }
 
     fn draw_corner(&self, key: Junction, side: usize, center: Vec2, size: Vec2) {

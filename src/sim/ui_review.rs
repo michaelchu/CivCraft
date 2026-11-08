@@ -287,6 +287,43 @@ impl Simulation {
 }
 
 impl Simulation {
+    /// Four cultural sheets currently represented by the playable roster,
+    /// with one city in each supported population band per style.
+    pub(crate) fn ui_review_civ3_city_sprites(&mut self) {
+        self.units.clear();
+        self.cities.clear();
+        for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.resource = None;
+            tile.hut = false;
+            tile.base = None;
+            tile.owner = None;
+            tile.seen = true;
+            tile.visible = true;
+        }
+        let styles = [(0, "Roman"), (1, "European"), (2, "Middle Eastern"), (4, "Asian")];
+        for (row, (owner, style)) in styles.into_iter().enumerate() {
+            self.players[owner].known.clear();
+            for (col, (size, band)) in [(3, "Small"), (9, "Medium"), (15, "Large")]
+                .into_iter()
+                .enumerate()
+            {
+                let x = 15 + col as i32 * 5;
+                let y = 17 + row as i32 * 6;
+                self.create_city(owner, x, y);
+                let city = self.cities.last_mut().unwrap();
+                city.size = size;
+                city.name = format!("{style} {band}");
+            }
+        }
+        self.reconcile_city_workers();
+        self.refresh_visibility();
+        for tile in &mut self.tiles {
+            tile.seen = true;
+            tile.visible = true;
+        }
+    }
+
     pub(crate) fn ui_review_city_appearance(&mut self) {
         self.units.clear();
         self.cities.clear();

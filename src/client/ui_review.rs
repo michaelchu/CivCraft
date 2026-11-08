@@ -48,6 +48,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "campaign-intro",
     "diplomacy-negotiation",
     "resource-shadows",
+    "civ3-city-sprites",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -88,6 +89,12 @@ impl Game {
         self.autosave_enabled = false;
         if scene == 42 {
             self.intro_open = true;
+            return;
+        }
+        if scene == 45 {
+            self.sim.ui_review_civ3_city_sprites();
+            self.zoom = 0.78;
+            self.focus_camera_on(20, 24);
             return;
         }
         if matches!(scene, 0 | 15..=17) {
