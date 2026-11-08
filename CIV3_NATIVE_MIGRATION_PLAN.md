@@ -82,8 +82,11 @@ intended end state; a completed phase requires the evidence listed below.
 - The Civ III geometry backend controls projection, tile picking,
   visible-tile placement, and edge-water placement. `Civ3WorldPainter` in
   `src/client/world/civ3.rs` owns ordered world-pass orchestration and receives
-  game state and assets explicitly, but still calls shared map-drawing helpers.
-  The full Civ III renderer phase is incomplete.
+  game state and assets explicitly. It now owns base-art selection for both
+  the world map and city work map; shared `Game` drawing remains as the fallback
+  when no Civ III tileset is loaded. Other feature and overlay passes still
+  call shared map-drawing helpers. The full Civ III renderer phase is
+  incomplete.
 - The full UI review under `--renderer civ3` passed at seed 42: 47 scenes,
   146/146 checks, and 68 captures. The report is
   `/tmp/civ3-renderer-gallery-final/report.json`. Terrain blending, resources,
@@ -131,6 +134,12 @@ intended end state; a completed phase requires the evidence listed below.
   `/tmp/civ3-world-painter-final-review/report.json`. The world, city sprites,
   water-depth, and both pole captures were inspected. This structural change
   does not complete renderer independence.
+- After moving base-art selection into `Civ3WorldPainter` for the world and
+  city work maps, `cargo check --offline` and `cargo test --offline` (620/620)
+  pass. The release build and seed-42 Civ III UI review pass; report:
+  `/tmp/civ3-base-painter-review/report.json` (47 scenes, 146 checks, 68
+  captures). The city work-map and terrain-blending captures were inspected.
+  The no-tileset compatibility fallback remains in `Game` during migration.
 - The latest seed-42 desktop self-test passes 271/278 checks. The previously
   failing civil-war capture, diplomacy/armistice, Farmland, Airstrip, and
   Airbase scenarios now pass. Seven unrelated gameplay checks remain failing:

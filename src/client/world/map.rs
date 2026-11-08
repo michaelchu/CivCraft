@@ -74,7 +74,7 @@ impl Game {
         }
     }
 
-    pub(super) fn draw_map_base(
+    pub(super) fn draw_map_base_fallback(
         &self,
         assets: &Assets,
         x: i32,
@@ -83,10 +83,6 @@ impl Game {
         width: f32,
         height: f32,
     ) {
-        if let Some(tileset) = &assets.civ3 {
-            tileset.draw_base(self, x, y, center, vec2(width, height));
-            return;
-        }
         let terrain = self.sim.render_tile(x, y).terrain;
         if terrain.is_water() || terrain == Terrain::Glacier {
             assets.draw_masked_terrain_backing(terrain, center, width, height);

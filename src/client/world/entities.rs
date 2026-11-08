@@ -55,11 +55,12 @@ impl Game {
             }
         }
         tiles.sort_by(|a, b| a.4.y.total_cmp(&b.4.y));
+        let painter = super::civ3::Civ3WorldPainter::new(self, assets);
         for &(_, _, x, y, center, relevant) in &tiles {
             if !relevant || !self.sim.render_tile(x, y).seen {
                 draw_diamond(center, layout.tile_w, layout.tile_h, BLACK);
             } else {
-                self.draw_map_base(assets, x, y, center, layout.tile_w, layout.tile_h);
+                painter.draw_map_base(x, y, center, layout.tile_w, layout.tile_h);
             }
         }
         for layer in map_layers::MAP_LAYERS {

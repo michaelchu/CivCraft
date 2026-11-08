@@ -22,6 +22,16 @@ impl<'a> Civ3WorldPainter<'a> {
         self.draw_ordered_world_passes(assets);
     }
 
+    pub(super) fn draw_map_base(&self, x: i32, y: i32, center: Vec2, width: f32, height: f32) {
+        let game = self.game;
+        let assets = self.assets;
+        if let Some(tileset) = &assets.civ3 {
+            tileset.draw_base(game, x, y, center, vec2(width, height));
+        } else {
+            game.draw_map_base_fallback(assets, x, y, center, width, height);
+        }
+    }
+
     fn draw_ordered_world_passes(&self, assets: &Assets) {
         let game = self.game;
         let viewport = Game::viewport_rect();
@@ -102,7 +112,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 continue;
             }
 
-            game.draw_map_base(assets, x, y, center, tile_w, tile_h);
+            self.draw_map_base(x, y, center, tile_w, tile_h);
         }
 
         for layer in map_layers::MAP_LAYERS {
