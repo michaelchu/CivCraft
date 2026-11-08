@@ -21,6 +21,7 @@ pub(crate) struct Advance {
     pub(crate) prerequisites: &'static [Tech],
     pub(crate) requirement_count: i32,
     pub(crate) first_discovery_bonus: bool,
+    #[allow(dead_code)] // Reference-only labels retained alongside the catalog data.
     pub(crate) reference_unlocks: &'static str,
 }
 
@@ -59,6 +60,7 @@ impl TechEra {
     }
 }
 
+#[allow(dead_code)] // Includes aliases and advances reserved for the Civ III ruleset.
 impl Tech {
     pub(crate) const FREE_ARTISTRY: Self = Self(87);
     pub(crate) const GENETICS: Self = Self(88);

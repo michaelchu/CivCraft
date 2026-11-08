@@ -45,6 +45,7 @@ pub(crate) struct BuildingData {
     pub(crate) obsolete: &'static [(Requirement, bool)],
 }
 
+#[allow(dead_code)] // The catalog includes entries reserved for the Civ III ruleset.
 impl Building {
     pub(crate) const SUPER_HIGHWAYS: Self = Self(38);
     pub(crate) const SUPERMARKET: Self = Self(39);
