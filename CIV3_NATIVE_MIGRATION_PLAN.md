@@ -29,11 +29,11 @@ intended end state; a completed phase requires the evidence listed below.
   accepts city-style manifest roles. Default tileset selection prefers the
   neighboring Sn00py `Art` directory when present and falls back to the bundled
   Civ III sheets.
-- Civ III artwork is the CLI's default tileset. The default backend still
-  reports `amplio2`; an opt-in `civ3` backend now uses staggered-grid
-  projection and picking but shares the old painter. Simulation tile indexing,
-  topology, and most terrain choices remain legacy. This is not yet a native
-  Civ III renderer or world model.
+- Civ III artwork and the Civ III geometry backend are now the CLI defaults.
+  `--renderer amplio2` remains available for comparison. The Civ III backend
+  uses staggered-grid projection and picking but still shares the old painter.
+  Simulation tile indexing, topology, and most terrain choices remain legacy.
+  This is not yet a native Civ III renderer or world model.
 - Five focused PCX/tileset tests passed, the debug build succeeded, and the
   `civ3-city-sprites` UI review passed with the default tileset at seed 42.
 - `src/client/civ3_geometry.rs` holds a first-pass Civ III grid contract:
@@ -50,12 +50,18 @@ intended end state; a completed phase requires the evidence listed below.
   both poles, city sprites, and map layers were visually inspected. The painter
   still exposes visible transition/layer mismatches that need to be addressed
   in the dedicated painter phase.
+- After making Civ III the default, the full 47-scene gallery passed at seed
+  42 with `renderer: civ3`; report and captures are in
+  `/tmp/civ3-default-review/`. The terrain-blending screenshot reproduces
+  hard-edged, saturated water-depth wedges and an overly uniform grass base
+  beneath varied overlays. This confirms the shared painter/model mismatch is
+  visible even when automated gallery assertions pass.
 - Two stale visual fixtures assumed vertical wrapping despite the bounded-pole
   default. The remembered-map scout now moves to another valid tile, and the
   water-depth fixture uses campaign-aware offsets and stays inside the map.
-- The full Rust suite passed 610/610 before the final wrapped-center
-  normalization tweak; after that tweak, the seven focused geometry tests and
-  debug build passed. `git diff --check` is clean.
+- The full Rust suite passed 610/610 after making the Civ III backend the
+  default. The release build and complete default-backend UI gallery passed;
+  `git diff --check` is clean.
 
 ## Phases and completion criteria
 
@@ -91,7 +97,8 @@ Complete when:
   back to Amplio2 projection or tile indexing.
 - Screenshot review covers land/water transitions, Sn00py PCX art, resources,
   cities, units, polar edges, wrapped horizontal seams, and the city work map.
-- The Civ III renderer becomes the default only after these paths use it.
+- The Civ III renderer is now the default. Complete the remaining paths before
+  removing the Amplio2 comparison backend.
 
 ### 3. Mod-ready PCX asset pipeline
 
