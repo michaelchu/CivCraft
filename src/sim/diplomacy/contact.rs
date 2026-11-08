@@ -121,7 +121,9 @@ impl Simulation {
             .map(|unit| (unit.owner, unit.x, unit.y))
             .chain(self.cities.iter().map(|city| (city.owner, city.x, city.y)))
             .filter_map(|(other, tx, ty)| {
-                (other != owner && other != BARBARIANS && self.map_distance(x, y, tx, ty) <= 1)
+                (other != owner
+                    && other != BARBARIANS
+                    && self.map_wrap.civ3_distance(x, y, tx, ty) <= 1)
                     .then_some(other)
             })
             .collect();
@@ -234,7 +236,7 @@ impl Simulation {
             && unit.transport.is_none()
             && city.owner != unit.owner
             && city.owner != BARBARIANS
-            && self.map_distance(unit.x, unit.y, city.x, city.y) <= 1
+            && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
             && !self.has_real_embassy(unit.owner, city.owner)
     }
 

@@ -163,8 +163,7 @@ impl Simulation {
             UnitKind::Migrants | UnitKind::Settlers | UnitKind::Fanatics
         ) && unit.owner == city.owner
             && unit.moves_left > 0
-            && (unit.y - city.y).abs() <= 2
-            && self.map_distance(unit.x, unit.y, city.x, city.y) <= 1
+            && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
             && city.size + unit.kind.stats().pop_cost <= Self::city_size_limit(city)
     }
 

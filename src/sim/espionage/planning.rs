@@ -123,7 +123,7 @@ impl Simulation {
                 other.id != agent.id
                     && other.owner == agent.owner
                     && other.kind.is_diplomatic()
-                    && self.map_distance(other.x, other.y, city.x, city.y) <= 1
+                    && self.map_wrap.civ3_distance(other.x, other.y, city.x, city.y) <= 1
             }) {
                 continue;
             }

@@ -87,7 +87,7 @@ impl Simulation {
             || actor.moves_left < 1
             || self.tile(actor.x, actor.y).terrain.is_water()
             || self.allied(actor.owner, target.owner)
-            || self.map_distance(actor.x, actor.y, target.x, target.y) > 1
+            || self.map_wrap.civ3_distance(actor.x, actor.y, target.x, target.y) > 1
             || target.transport.is_some()
             || self
                 .cities

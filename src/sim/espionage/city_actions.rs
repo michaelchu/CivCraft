@@ -12,7 +12,7 @@ impl Simulation {
             && unit.moves_left > 0
             && !self.tile(unit.x, unit.y).terrain.is_water()
             && city.owner != unit.owner
-            && self.map_distance(unit.x, unit.y, city.x, city.y) <= 1
+            && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
     }
 
     pub(crate) fn can_sabotage_city(&self, unit: &Unit, city: &City) -> bool {
@@ -57,7 +57,7 @@ impl Simulation {
             && !self.tile(spy.x, spy.y).terrain.is_water()
             && self.at_war(spy.owner, target.owner)
             && target.hp >= 2
-            && self.map_distance(spy.x, spy.y, target.x, target.y) <= 1
+            && self.map_wrap.civ3_distance(spy.x, spy.y, target.x, target.y) <= 1
             && !self
                 .cities
                 .iter()

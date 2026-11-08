@@ -14,7 +14,7 @@ impl Simulation {
         (unit.kind.is_diplomatic() || unit.kind == UnitKind::Explorer)
             && unit.moves_left >= 1
             && city.owner != unit.owner
-            && self.map_distance(unit.x, unit.y, city.x, city.y) <= 1
+            && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
     }
 
     pub(crate) fn investigate_city(

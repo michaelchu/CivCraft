@@ -178,6 +178,12 @@ intended end state; a completed phase requires the evidence listed below.
   now use `civ3_distance`; the full 645-test suite and offline release build
   pass. Other uses of the legacy `map_distance` API remain to be audited for
   topology-sensitive gameplay behavior.
+- City and unit interaction ranges in population joining, disbanding, embassy
+  establishment, city investigation and covert actions, bribery, diplomatic
+  contact, and AI counterintelligence now use `civ3_distance`. This removes
+  the old vertical-row adjustment from one-tile action ranges; the gameplay
+  suite passes with these checks on the Civ III grid. Wider strategic ranges
+  and remaining AI distance heuristics are still unaudited.
 - Human directional movement now has a Civ III direction-index command for all
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction

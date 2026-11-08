@@ -85,8 +85,7 @@ impl Simulation {
         unit.kind != UnitKind::BarbarianLeader
             && city.is_none_or(|city| {
                 self.allied(unit.owner, city.owner)
-                    && (unit.y - city.y).abs() <= 2
-                    && self.map_distance(unit.x, unit.y, city.x, city.y) <= 1
+                    && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
             })
     }
 
