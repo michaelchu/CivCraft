@@ -487,7 +487,7 @@ impl Simulation {
         self.refresh_visibility();
         let unit = self.units.iter_mut().find(|u| u.id == scout).unwrap();
         unit.x = 4;
-        unit.y = 48;
+        unit.y = 24;
         self.refresh_visibility();
         let c = self.cities.last_mut().unwrap();
         c.name = "Rebuilt Athens".into();

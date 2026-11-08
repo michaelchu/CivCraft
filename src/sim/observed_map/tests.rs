@@ -144,7 +144,7 @@ fn improvements_and_occupancy_are_frozen_outside_sight() {
     game.refresh_visibility();
     if let Some(unit) = game.units.iter_mut().find(|u| u.owner == HUMAN) {
         unit.x = 4;
-        unit.y = 48;
+        unit.y = 24;
     }
     game.refresh_visibility();
     game.units.retain(|u| u.id != guard);

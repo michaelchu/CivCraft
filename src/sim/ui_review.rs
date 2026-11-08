@@ -662,8 +662,8 @@ impl Simulation {
         for tile in 0..self.tiles.len() {
             self.tiles[tile].terrain = Terrain::Ocean;
         }
-        for dy in -12i32..=12 {
-            for dx in -12i32..=12 {
+        for dy in -8i32..=8 {
+            for dx in -8i32..=8 {
                 let distance = crate::sim::topology::isohex_vector_distance(dx, dy);
                 let terrain = match distance {
                     0..=3 => Terrain::Grassland,
@@ -671,7 +671,10 @@ impl Simulation {
                     6..=8 => Terrain::Sea,
                     _ => Terrain::Ocean,
                 };
-                let (x, y) = offset_native_by_map(20, 24, dx, dy);
+                let (x, y) = self
+                    .map_wrap
+                    .offset(20, 24, dx, dy)
+                    .expect("the water-depth bands stay inside the bounded map");
                 self.tile_mut(x, y).terrain = terrain;
             }
         }
