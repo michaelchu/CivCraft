@@ -25,13 +25,13 @@ impl Simulation {
             .iter()
             .find(|u| u.id == unit_id)
             .is_some_and(|u| u.moves_left > 0)
-            && safety < 6
+            && safety < CIV3_DIRS.len()
         {
-            let start = self.rand_below(6) as usize;
+            let start = self.rand_below(CIV3_DIRS.len() as i32) as usize;
             let mut moved = false;
-            for offset in 0..6 {
-                let (dx, dy) = ISOHEX_DIRS[(start + offset) % 6];
-                if self.try_move_unit(unit_id, dx, dy) != MoveResult::Blocked {
+            for offset in 0..CIV3_DIRS.len() {
+                let direction = (start + offset) % CIV3_DIRS.len();
+                if self.try_move_unit_civ3(unit_id, direction) != MoveResult::Blocked {
                     moved = true;
                     break;
                 }

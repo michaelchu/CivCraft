@@ -179,7 +179,11 @@ intended end state; a completed phase requires the evidence listed below.
   costs. PF_FUEL expansion, segment reconstruction, return-to-base distance,
   and the shared AI path executor now use the Civ III graph. Refuel wait
   markers remain explicit and stop execution at the planned refuel boundary.
-  Unit automation and remaining `search_route` callers have not migrated.
+  Automated exploration, its movement follower, unknown-tile adjacency
+  scoring, and generic unit wandering now use Civ III neighbors. The
+  uncertainty weight is scaled over eight neighbors; that behavior is an
+  implementation inference, not a manual-documented Civ III AI rule. Other AI
+  planners and remaining `search_route` callers have not migrated.
   Tests cover direct movement, route preview, wrapped seams, FLC facing rows,
   and migrated AI routes; `cargo test --offline` passes 644/644 and the
   offline release build succeeds. The Civ III distance formula used for fuel

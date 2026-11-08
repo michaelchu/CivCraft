@@ -161,7 +161,7 @@ fn native_heap_ties_and_unsigned_short_extra_cost_are_preserved() {
 fn likely_native_keeps_reference_unknown_center_quirk() {
     let mut game = world();
     let point = (10, 20);
-    for (x, y) in terrain_work::neighbors(point.0, point.1) {
+    for (x, y) in game.map_wrap.civ3_neighbors(point.0, point.1) {
         game.tile_mut(x, y).known_by[HUMAN] = true;
     }
     assert_eq!(

@@ -115,10 +115,10 @@ impl Simulation {
         // unknown CENTER, not the known adjacent tile being iterated.
         let known = self
             .map_wrap
-            .neighbors(x, y)
+            .civ3_neighbors(x, y)
             .filter(|&(nx, ny)| self.tile(nx, ny).known_by[owner])
             .count() as i32;
-        50 + (50 / ISOHEX_DIRS.len() as i32)
+        50 + (50 / CIV3_DIRS.len() as i32)
             * known
             * if self.explorer_native(kind, x, y) {
                 1
@@ -281,8 +281,8 @@ impl Simulation {
             } else {
                 rate - (spent - unit.moves_left.max(0)) % rate
             };
-            for (dx, dy) in ISOHEX_DIRS {
-                let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+            for (dx, dy) in CIV3_DIRS {
+                let Some((nx, ny)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
                     continue;
                 };
                 let Some(cost) = self.explorer_step_cost(&actor, nx, ny, goal.is_none()) else {
@@ -382,7 +382,7 @@ impl Simulation {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 return;
             };
-            let Some((nx, ny)) = self.map_wrap.offset(actor.x, actor.y, dx, dy) else {
+            let Some((nx, ny)) = self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy) else {
                 continue;
             };
             if actor.moves_left <= 0
@@ -399,7 +399,10 @@ impl Simulation {
             {
                 break;
             }
-            if self.try_move_unit(id, dx, dy) == MoveResult::Blocked {
+            let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
+                break;
+            };
+            if self.try_move_unit_civ3(id, direction) == MoveResult::Blocked {
                 break;
             }
         }
