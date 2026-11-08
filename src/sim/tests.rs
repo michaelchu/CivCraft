@@ -39,6 +39,48 @@ fn railroad_research_upgrades_centers_and_enables_worker_tracks() {
 use super::*;
 
 #[test]
+fn newly_founded_city_claims_only_its_center_and_nearest_eight_tiles() {
+    for wrap in [MapWrap::X, MapWrap::XY] {
+        let mut game = Simulation::new(crate::mapgen::generate_with_wrap(42, wrap));
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.known_by = [true; PLAYER_SLOTS];
+            tile.owner = None;
+            tile.border_city = None;
+        }
+        let (cx, cy) = (10, 24);
+        game.create_city(HUMAN, cx, cy);
+
+        let distances = game.map_wrap.civ3_distances_from(cx, cy);
+        let mut first_ring = 0;
+        let mut worked_candidate = None;
+        for (index, tile) in game.tiles.iter().enumerate() {
+            let rank = distances[index];
+            if rank == 1 {
+                first_ring += 1;
+                assert_eq!(tile.owner, Some(HUMAN), "wrap {wrap:?}");
+                worked_candidate.get_or_insert(game.map_wrap.position(index));
+            } else if rank > 1 {
+                assert_eq!(
+                    tile.owner, None,
+                    "unexpected claim at index {index}, rank {rank}, wrap {wrap:?}"
+                );
+            }
+        }
+        assert_eq!(first_ring, 8, "wrap {wrap:?}");
+        let (inside_x, inside_y) = worked_candidate.unwrap();
+        assert!(game.can_assign_city_tile(&game.cities[0], inside_x, inside_y));
+        let outside = distances
+            .iter()
+            .position(|&rank| rank == 2)
+            .map(|index| game.map_wrap.position(index))
+            .unwrap();
+        assert!(!game.can_assign_city_tile(&game.cities[0], outside.0, outside.1));
+    }
+}
+
+#[test]
 fn native_and_map_coordinates_round_trip() {
     for native_y in 0..MAP_H {
         for native_x in 0..MAP_W {

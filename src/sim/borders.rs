@@ -2,8 +2,7 @@
 
 use super::*;
 
-const CITY_WORK_RADIUS_SQ: i32 = 5;
-const PERMANENT_RADIUS_SQ: i32 = CITY_WORK_RADIUS_SQ - 3;
+const INITIAL_CITY_BORDER_RANK: i32 = 1;
 
 impl Simulation {
     pub(crate) fn displayed_tile_owner(&self, x: i32, y: i32) -> Option<usize> {
@@ -64,7 +63,7 @@ impl Simulation {
             .filter(|(_, tile)| tile.terrain.is_water())
         {
             let region = regions[index];
-            for (x, y) in self.map_wrap.neighbors(
+            for (x, y) in self.map_wrap.civ3_neighbors(
                 self.map_wrap.position(index).0,
                 self.map_wrap.position(index).1,
             ) {
@@ -79,24 +78,35 @@ impl Simulation {
         }
 
         let mut claims = vec![None; self.tiles.len()];
-        let claim_strength = |city: &City, index: usize| {
-            let (x, y) = self.map_wrap.position(index);
-            let distance_sq = self.map_distance(city.x, city.y, x, y).pow(2);
-            (distance_sq, (city.size + 2).pow(2) / distance_sq.max(1))
+        let city_distances: Vec<_> = self
+            .cities
+            .iter()
+            .map(|city| self.map_wrap.civ3_distances_from(city.x, city.y))
+            .collect();
+        let claim_strength = |city_index: usize, city: &City, index: usize| {
+            let rank = city_distances[city_index][index];
+            (rank, (city.size + 2).pow(2) / rank.max(1))
         };
-        let claimable = |city: &City, index: usize, distance_sq: i32| {
-            if distance_sq == 0 {
+        let claimable = |city: &City, index: usize, rank: i32| {
+            if rank == 0 {
                 return true;
             }
-            if distance_sq > CITY_WORK_RADIUS_SQ + city.size.min(26)
-                || !self.tiles[index].known_by[city.owner]
-            {
+            // The manual describes a new city's initial area as its center plus
+            // the nearest eight surrounding squares. City-size expansion below
+            // retains the existing gameplay approximation until culture borders
+            // are migrated from a size proxy to documented culture rules.
+            let max_rank = if city.size <= 1 {
+                INITIAL_CITY_BORDER_RANK
+            } else {
+                (5 + city.size.min(26)).isqrt()
+            };
+            if rank == i32::MAX || rank > max_rank || !self.tiles[index].known_by[city.owner] {
                 return false;
             }
             let source = regions[self.map_wrap.index(city.x, city.y)];
             let target = regions[index];
             if source == target
-                || distance_sq <= 2
+                || rank <= INITIAL_CITY_BORDER_RANK
                 || (sizes[target] <= 20 && !mixed[target] && surrounders[target] == Some(source))
             {
                 return true;
@@ -104,7 +114,7 @@ impl Simulation {
             let (x, y) = self.map_wrap.position(index);
             let adjacent = || {
                 self.map_wrap
-                    .neighbors(x, y)
+                    .civ3_neighbors(x, y)
                     .map(|(x, y)| regions[self.map_wrap.index(x, y)])
             };
             adjacent().any(|region| sizes[region] <= 3)
@@ -118,14 +128,24 @@ impl Simulation {
                 .iter()
                 .find(|city| Some(city.id) == tile.border_city)
             {
-                let (distance_sq, strength) = claim_strength(city, index);
-                if claimable(city, index, distance_sq) {
-                    claims[index] = Some((city.id, city.owner, distance_sq, strength));
+                let (city_index, city) = self
+                    .cities
+                    .iter()
+                    .enumerate()
+                    .find(|(_, candidate)| candidate.id == city.id)
+                    .unwrap();
+                let (rank, strength) = claim_strength(city_index, city, index);
+                if claimable(city, index, rank) {
+                    claims[index] = Some((city.id, city.owner, rank, strength));
                 }
             }
         }
-        for city in &self.cities {
-            let radius = (CITY_WORK_RADIUS_SQ + city.size.min(26)).isqrt();
+        for (city_index, city) in self.cities.iter().enumerate() {
+            let radius = if city.size <= 1 {
+                INITIAL_CITY_BORDER_RANK * 2 + 1
+            } else {
+                (5 + city.size.min(26)).isqrt() * 2 + 1
+            };
             let (mx, my) = native_to_map(city.x, city.y);
             for dy in -radius..=radius {
                 for dx in -radius..=radius {
@@ -134,14 +154,14 @@ impl Simulation {
                         continue;
                     };
                     let index = self.map_wrap.index(x, y);
-                    let (distance_sq, strength) = claim_strength(city, index);
-                    if claimable(city, index, distance_sq)
-                        && (distance_sq == 0
-                            || claims[index].is_none_or(|(_, _, old_distance, old_strength)| {
-                                old_distance > PERMANENT_RADIUS_SQ && strength > old_strength
+                    let (rank, strength) = claim_strength(city_index, city, index);
+                    if claimable(city, index, rank)
+                        && (rank == 0
+                            || claims[index].is_none_or(|(_, _, old_rank, old_strength)| {
+                                old_rank > INITIAL_CITY_BORDER_RANK && strength > old_strength
                             }))
                     {
-                        claims[index] = Some((city.id, city.owner, distance_sq, strength));
+                        claims[index] = Some((city.id, city.owner, rank, strength));
                     }
                 }
             }
@@ -173,7 +193,7 @@ impl Simulation {
             while let Some(tile) = pending.pop() {
                 sizes[region] += 1;
                 let (x, y) = self.map_wrap.position(tile);
-                for (nx, ny) in self.map_wrap.neighbors(x, y) {
+                for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
                     let next = self.map_wrap.index(nx, ny);
                     if regions[next] == usize::MAX && self.tiles[next].terrain.is_water() == water {
                         regions[next] = region;

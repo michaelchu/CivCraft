@@ -511,6 +511,12 @@ impl Simulation {
         let point = |step| offset_native_by_map(start.0, start.1, step, 0);
         let city = point(4);
         self.create_city(1, city.0, city.1);
+        // Keep the three intermediate road steps neutral so this fixture tests
+        // the hostile city-entry surcharge independently of city borders.
+        for step in 1..4 {
+            let (x, y) = point(step);
+            self.tile_mut(x, y).owner = None;
+        }
         let enemy = self.spawn_unit(HUMAN, UnitKind::Horseman, start.0, start.1);
         let arrival = |sim: &Self| {
             sim.city_threat_arrivals(&sim.cities[0])

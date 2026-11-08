@@ -10,6 +10,7 @@
 //! before generation rather than changed after tiles and features are built.
 
 use super::{PERCENT_SCALE, PLAYER_COUNT, Tile};
+use std::collections::VecDeque;
 
 const TILES_PER_PLAYER: i32 = 100;
 pub(crate) const LAND_PERCENT: i32 = 30;
@@ -230,6 +231,23 @@ impl MapWrap {
     /// Neighbors in Civ III direction order, across the staggered-grid adapter.
     pub(crate) fn civ3_neighbors(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> + use<> {
         (0..CIV3_DIRS.len()).filter_map(move |direction| self.civ3_neighbor(x, y, direction))
+    }
+    pub(crate) fn civ3_distances_from(self, x: i32, y: i32) -> Vec<i32> {
+        let mut distances = vec![i32::MAX; (self.width() * self.height()) as usize];
+        let origin = self.index(x, y);
+        distances[origin] = 0;
+        let mut pending = VecDeque::from([(x, y)]);
+        while let Some((cx, cy)) = pending.pop_front() {
+            let next_distance = distances[self.index(cx, cy)] + 1;
+            for (nx, ny) in self.civ3_neighbors(cx, cy) {
+                let index = self.index(nx, ny);
+                if distances[index] == i32::MAX {
+                    distances[index] = next_distance;
+                    pending.push_back((nx, ny));
+                }
+            }
+        }
+        distances
     }
     pub(crate) fn vector(self, ax: i32, ay: i32, bx: i32, by: i32) -> (i32, i32) {
         let dx = wrapped_native_delta(bx - ax, self.width());

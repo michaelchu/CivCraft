@@ -235,6 +235,7 @@ fn city_manager_matches_small_city_lattice_oracle_across_rates_and_governments()
     let allowed = &all[..6];
     for (index, &(x, y)) in allowed.iter().enumerate() {
         let tile = game.tile_mut(x, y);
+        tile.owner = Some(1);
         tile.terrain = [
             Terrain::Grassland,
             Terrain::Plains,

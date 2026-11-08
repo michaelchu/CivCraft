@@ -184,13 +184,21 @@ intended end state; a completed phase requires the evidence listed below.
   OpenCiv3 `Tile_Math.cs` (`RankDistanceTo`) and is an implementation
   reference, not verified original-engine source. The manual documents the
   count and shape, but not the formula. Both map wrap modes and the city-map
-  panel use the same rank-two selection. The manual's initial nearest-eight
-  workable-tile limit is not yet enforced; border ownership and work eligibility
-  still need a coordinated Civ III migration. Full `cargo test --offline`
-  passes 639/639. The focused `campaign-worked-tiles` UI review passed all 12
-  checks at seed 42 and its radius screenshot was inspected:
-  `/tmp/civ3-city-radius-review/campaign-worked-tiles.png` (report:
-  `/tmp/civ3-city-radius-review/report.json`).
+  panel use the same rank-two selection. Border and work eligibility now map
+  the manual-described initial nearest-eight workable area to a rank-one
+  claimed area using shortest paths over the Civ III eight-neighbor graph;
+  interpreting that as initial ownership is inferred. City work eligibility
+  requires the tile to belong to that city owner. Larger border expansion still uses city
+  size as an explicit approximation because the current model does not yet
+  implement Civ III culture thresholds. The manual documents the initial
+  nearest-eight workable area and larger city radius; shortest-path rank and
+  the size proxy are implementation choices. Focused
+  regression coverage verifies the eight claims and rejects working an
+  unowned rank-two tile in both wrap modes. Full `cargo test --offline` passes
+  640/640. The focused `campaign-worked-tiles` UI review passed all 12 checks
+  at seed 42 and its Civ III city radius screenshot was inspected:
+  `/tmp/civ3-border-review/campaign-worked-tiles.png` (report:
+  `/tmp/civ3-border-review/report.json`).
 - The Civ III geometry backend controls projection, tile picking,
   visible-tile placement, and edge-water placement. `Civ3WorldPainter` in
   `src/client/world/civ3.rs` owns ordered world-pass orchestration and receives

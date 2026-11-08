@@ -721,9 +721,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn tile_can_support_worker(&self, city: &City, x: i32, y: i32) -> bool {
-        self.tile(x, y)
-            .owner
-            .is_none_or(|owner| owner == city.owner)
+        self.tile(x, y).owner == Some(city.owner)
             && !self.cities.iter().any(|other| (other.x, other.y) == (x, y))
             && !self.units.iter().any(|unit| {
                 (unit.x, unit.y) == (x, y)
