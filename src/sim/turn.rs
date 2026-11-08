@@ -97,6 +97,7 @@ impl Simulation {
             city.airlift_used = false;
         }
         self.refresh_visibility();
+        self.continue_player_gotos();
         self.rebuild_city_ownership();
         // Historical field name is retained for save compatibility; hunter
         // interception needs previous positions of land and sea units alike.

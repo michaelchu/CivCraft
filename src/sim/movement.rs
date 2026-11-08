@@ -583,7 +583,54 @@ impl Simulation {
             return false;
         };
         let path = self.plan_route(unit, x, y, true);
-        self.follow_path(id, path)
+        if path.is_empty() {
+            let at_destination = (unit.x, unit.y) == (x, y);
+            if at_destination {
+                self.unit_goto_tiles.remove(&id);
+            }
+            return at_destination;
+        }
+        self.unit_goto_tiles.insert(id, (x, y));
+        let moved = self.follow_path(id, path);
+        if self
+            .unit_by_id(id)
+            .is_some_and(|unit| (unit.x, unit.y) == (x, y))
+        {
+            self.unit_goto_tiles.remove(&id);
+        }
+        moved
+    }
+
+    pub(super) fn continue_player_gotos(&mut self) {
+        let orders: Vec<_> = self
+            .unit_goto_tiles
+            .iter()
+            .filter_map(|(&id, &goal)| {
+                self.unit_by_id(id)
+                    .filter(|unit| unit.owner == HUMAN)
+                    .map(|_| (id, goal))
+            })
+            .collect();
+        for (id, (x, y)) in orders {
+            let Some(unit) = self.unit_by_id(id) else {
+                continue;
+            };
+            if (unit.x, unit.y) == (x, y) {
+                self.unit_goto_tiles.remove(&id);
+                continue;
+            }
+            let path = self.plan_route(unit, x, y, true);
+            if path.is_empty() {
+                continue;
+            }
+            self.follow_path(id, path);
+            if self
+                .unit_by_id(id)
+                .is_some_and(|unit| (unit.x, unit.y) == (x, y))
+            {
+                self.unit_goto_tiles.remove(&id);
+            }
+        }
     }
 
     pub(super) fn follow_path(

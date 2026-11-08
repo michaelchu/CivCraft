@@ -36,6 +36,60 @@ fn next_phase_refills_use_live_mountain_movement_effects() {
 }
 
 #[test]
+fn player_goto_continues_across_turns_until_destination() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.river = false;
+        tile.road = false;
+        tile.railroad = false;
+        tile.base = None;
+        tile.hut = false;
+        tile.visible = true;
+        tile.seen = true;
+    }
+    let start = (10, 24);
+    let destination = game.map_wrap.offset(start.0, start.1, 4, 0).unwrap();
+    let id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
+    game.remember_route_tiles(false);
+
+    assert!(game.player_goto(id, destination.0, destination.1));
+    let first_turn_position = {
+        let unit = game.unit_by_id(id).unwrap();
+        (unit.x, unit.y)
+    };
+    assert_ne!(first_turn_position, start);
+    assert_ne!(first_turn_position, destination);
+    assert_eq!(game.unit_goto_tiles.get(&id), Some(&destination));
+
+    game.units.iter_mut().find(|unit| unit.id == id).unwrap().moves_left = 0;
+    game.progress_player_unit_activities(HUMAN);
+    game.continue_player_gotos();
+
+    let second_turn_position = {
+        let unit = game.unit_by_id(id).unwrap();
+        (unit.x, unit.y)
+    };
+    assert_ne!(second_turn_position, first_turn_position);
+    assert_ne!(second_turn_position, destination);
+    assert_eq!(game.unit_goto_tiles.get(&id), Some(&destination));
+
+    for _ in 0..4 {
+        game.units.iter_mut().find(|unit| unit.id == id).unwrap().moves_left = 0;
+        game.progress_player_unit_activities(HUMAN);
+        game.continue_player_gotos();
+        if (game.unit_by_id(id).unwrap().x, game.unit_by_id(id).unwrap().y) == destination {
+            break;
+        }
+    }
+    let unit = game.unit_by_id(id).unwrap();
+    assert_eq!((unit.x, unit.y), destination);
+    assert!(!game.unit_goto_tiles.contains_key(&id));
+}
+
+#[test]
 fn end_phase_repairs_precede_city_builds_and_next_phase_activities() {
     let game = Simulation::new(crate::mapgen::generate(42));
     assert_eq!(
