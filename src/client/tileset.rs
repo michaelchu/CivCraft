@@ -14,6 +14,8 @@ const CELL_W: usize = WIDTH + 2;
 const CELL_H: usize = HEIGHT + 2;
 const PAGE: usize = 12;
 const SIDES: [(i32, i32); 4] = [(0, -1), (1, 0), (0, 1), (-1, 0)];
+// OpenCiv3's PCX loader uses the same default palette transparency indices.
+const DEFAULT_PCX_TRANSPARENT_INDICES: [u8; 2] = [254, 255];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Ground {
@@ -94,6 +96,7 @@ impl Tileset {
 struct Theme {
     root: PathBuf,
     paths: HashMap<String, String>,
+    transparent_indices: HashMap<String, Vec<u8>>,
 }
 
 impl Theme {
@@ -104,6 +107,7 @@ impl Theme {
             (path.parent().unwrap_or(Path::new(".")), path.to_owned())
         };
         let mut paths = HashMap::new();
+        let mut transparent_indices = HashMap::new();
         if !path.is_dir() || manifest.exists() {
             let contents = fs::read_to_string(&manifest)
                 .map_err(|error| format!("{}: {error}", manifest.display()))?;
@@ -136,11 +140,36 @@ impl Theme {
                                 | "city-roman"
                         )
                 };
-                if let Some((key, value)) = entry
-                    && valid(key)
-                    && !value.is_empty()
-                    && !paths.contains_key(key)
-                {
+                let Some((key, value)) = entry else {
+                    return Err(format!(
+                        "{}:{}: expected a unique sheet role and path",
+                        manifest.display(),
+                        index + 1
+                    ));
+                };
+                if let Some(role) = key.strip_prefix("transparent-") {
+                    let parsed = value
+                        .split(',')
+                        .map(str::trim)
+                        .map(str::parse::<u8>)
+                        .collect::<Result<Vec<_>, _>>();
+                    match parsed {
+                        Ok(indices)
+                            if valid(role)
+                                && !indices.is_empty()
+                                && !transparent_indices.contains_key(role) =>
+                        {
+                            transparent_indices.insert(role.to_owned(), indices);
+                        }
+                        _ => {
+                            return Err(format!(
+                                "{}:{}: expected unique transparent palette indices 0–255 for a sheet role",
+                                manifest.display(),
+                                index + 1
+                            ));
+                        }
+                    }
+                } else if valid(key) && !value.is_empty() && !paths.contains_key(key) {
                     paths.insert(key.to_owned(), value.to_owned());
                 } else {
                     return Err(format!(
@@ -154,6 +183,7 @@ impl Theme {
         Ok(Self {
             root: root.to_owned(),
             paths,
+            transparent_indices,
         })
     }
 
@@ -168,7 +198,12 @@ impl Theme {
         let path = self
             .root
             .join(override_path.map_or(default, String::as_str));
-        let (path, image) = match read_theme_image(&path) {
+        let transparent_indices = self
+            .transparent_indices
+            .get(key)
+            .map(Vec::as_slice)
+            .unwrap_or(&DEFAULT_PCX_TRANSPARENT_INDICES);
+        let (path, image) = match read_theme_image(&path, transparent_indices) {
             Ok(image) => image,
             Err(error)
                 if !required
@@ -191,7 +226,10 @@ impl Theme {
     }
 }
 
-fn read_theme_image(path: &Path) -> Result<(PathBuf, Image), std::io::Error> {
+fn read_theme_image(
+    path: &Path,
+    transparent_indices: &[u8],
+) -> Result<(PathBuf, Image), std::io::Error> {
     let mut candidates = vec![path.to_owned()];
     if path
         .extension()
@@ -208,7 +246,7 @@ fn read_theme_image(path: &Path) -> Result<(PathBuf, Image), std::io::Error> {
                     .extension()
                     .is_some_and(|ext| ext.eq_ignore_ascii_case("pcx"))
                 {
-                    decode_pcx(&bytes).map_err(|message| {
+                    decode_pcx(&bytes, transparent_indices).map_err(|message| {
                         std::io::Error::new(std::io::ErrorKind::InvalidData, message)
                     })?
                 } else {
@@ -228,7 +266,7 @@ fn read_theme_image(path: &Path) -> Result<(PathBuf, Image), std::io::Error> {
 }
 
 /// Decode the 8-bit, one-plane, indexed RLE PCX form used by Civ III terrain mods.
-fn decode_pcx(bytes: &[u8]) -> Result<Image, String> {
+fn decode_pcx(bytes: &[u8], transparent_indices: &[u8]) -> Result<Image, String> {
     if bytes.len() < 897 || bytes[0] != 0x0a || bytes[2] != 1 || bytes[3] != 8 || bytes[65] != 1 {
         return Err("unsupported PCX: expected 8-bit, single-plane RLE image".into());
     }
@@ -291,7 +329,9 @@ fn decode_pcx(bytes: &[u8]) -> Result<Image, String> {
         for &index in &indices[y * bytes_per_line..y * bytes_per_line + width] {
             let p = palette_at + 1 + usize::from(index) * 3;
             let (red, green, blue) = (bytes[p], bytes[p + 1], bytes[p + 2]);
-            let alpha = if red > 200 && green < 40 && blue > 200 {
+            let alpha = if transparent_indices.contains(&index)
+                || (red > 200 && green < 40 && blue > 200)
+            {
                 0 // Civ III PCX magenta color key.
             } else {
                 255
@@ -682,14 +722,7 @@ impl Civ3 {
         self.city_texture(style)
     }
 
-    pub(super) fn draw_river(
-        &self,
-        game: &Game,
-        x: i32,
-        y: i32,
-        center: Vec2,
-        size: Vec2,
-    ) {
+    pub(super) fn draw_river(&self, game: &Game, x: i32, y: i32, center: Vec2, size: Vec2) {
         use super::rivers::Civ3RiverSheet;
 
         let wrap = game.sim.map_wrap;
@@ -1062,7 +1095,7 @@ mod tests {
         palette[9..12].copy_from_slice(&[255, 0, 255]);
         bytes.extend_from_slice(&palette);
 
-        let image = decode_pcx(&bytes).unwrap();
+        let image = decode_pcx(&bytes, &DEFAULT_PCX_TRANSPARENT_INDICES).unwrap();
         assert_eq!((image.width, image.height), (3, 1));
         assert_eq!(
             image.get_image_data(),
@@ -1071,11 +1104,31 @@ mod tests {
     }
 
     #[test]
+    fn pcx_transparency_can_use_palette_indices_with_nonmagenta_colors() {
+        let mut bytes = vec![0u8; 128];
+        bytes[0] = 0x0a;
+        bytes[2] = 1;
+        bytes[3] = 8;
+        bytes[8..10].copy_from_slice(&0u16.to_le_bytes());
+        bytes[10..12].copy_from_slice(&0u16.to_le_bytes());
+        bytes[65] = 1;
+        bytes[66..68].copy_from_slice(&1u16.to_le_bytes());
+        bytes.push(1);
+        bytes.push(0x0c);
+        let mut palette = vec![0u8; 768];
+        palette[3..6].copy_from_slice(&[0, 255, 0]);
+        bytes.extend_from_slice(&palette);
+
+        let image = decode_pcx(&bytes, &[1]).unwrap();
+        assert_eq!(image.get_image_data(), &[[0, 255, 0, 0]]);
+    }
+
+    #[test]
     fn rejects_non_indexed_pcx() {
         let mut bytes = vec![0u8; 897];
         bytes[0] = 0x0a;
         assert!(
-            decode_pcx(&bytes)
+            decode_pcx(&bytes, &DEFAULT_PCX_TRANSPARENT_INDICES)
                 .unwrap_err()
                 .contains("8-bit, single-plane")
         );
@@ -1092,7 +1145,7 @@ mod tests {
         let manifest = directory.join("tileset.conf");
         fs::write(
             &manifest,
-            "river-delta = Terrain/deltaRivers.pcx\nriver-mountain = Terrain/mtnRivers.pcx\n",
+            "river-delta = Terrain/deltaRivers.pcx\nriver-mountain = Terrain/mtnRivers.pcx\ntransparent-river-delta = 254,255\ntransparent-river-mountain = 254,255\n",
         )
         .unwrap();
         let theme = Theme::read(&directory).unwrap();
@@ -1104,6 +1157,8 @@ mod tests {
             theme.paths.get("river-mountain").map(String::as_str),
             Some("Terrain/mtnRivers.pcx")
         );
+        assert_eq!(theme.transparent_indices["river-delta"], [254, 255]);
+        assert_eq!(theme.transparent_indices["river-mountain"], [254, 255]);
         fs::remove_file(manifest).unwrap();
         fs::remove_dir(directory).unwrap();
     }
