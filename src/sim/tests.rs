@@ -162,6 +162,8 @@ fn defense_stages_and_research_costs_match_civ2civ3() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     let (x, y) = crate::mapgen::generate(42).starts[0];
     game.tile_mut(x, y).terrain = Terrain::Forest;
+    game.tile_mut(x, y).river = false;
+    game.tile_mut(x, y).river_edges = 0;
     let mut defender = Unit::new(999, HUMAN, UnitKind::Warrior, x, y);
     defender.hp = 10;
     defender.moves_left = MOVE_FRAGMENTS;

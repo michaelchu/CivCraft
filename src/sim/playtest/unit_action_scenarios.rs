@@ -1,7 +1,7 @@
 //! Automated gameplay scenarios covering unit action behavior.
 
-use super::*;
 use super::super::workers::WorkerRequest;
+use super::*;
 
 impl Simulation {
     // The desktop self-test advances treaty timers with the armies held in place.
@@ -108,7 +108,7 @@ impl Simulation {
         let (x, y) = offset_native_by_map(city.x, city.y, 1, 0);
         self.players[HUMAN]
             .known
-            .extend([Tech::CONSTRUCTION, Tech::RADIO]);
+            .extend([Tech::CONSTRUCTION, Tech::FLIGHT]);
         let tile = self.tile_mut(x, y);
         tile.terrain = Terrain::Plains;
         tile.river = false;

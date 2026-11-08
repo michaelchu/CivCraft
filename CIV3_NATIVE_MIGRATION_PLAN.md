@@ -29,11 +29,13 @@ intended end state; a completed phase requires the evidence listed below.
 ## Current verified baseline
 
 - Civ III terrain art can be loaded through the existing shared map draw path.
-- `src/client/tileset.rs` now decodes 8-bit, one-plane RLE PCX, treats magenta
-  as transparent, checks PCX extensions when PNG defaults are absent, and
-  accepts city-style manifest roles. Default tileset selection prefers the
-  neighboring Sn00py `Art` directory when present and falls back to the bundled
-  Civ III sheets.
+- `src/client/tileset.rs` decodes 8-bit, one-plane RLE PCX and applies palette
+  indices 254 and 255 as transparent by default, following OpenCiv3's loader
+  configuration. Theme manifests can override transparent indices per sheet
+  role; magenta RGB keys remain supported. The decoder checks PCX extensions
+  when PNG defaults are absent and accepts city-style manifest roles. Default
+  tileset selection prefers the neighboring Sn00py `Art` directory when
+  present and falls back to the bundled Civ III sheets.
 - Civ III artwork and the Civ III geometry backend are now the CLI defaults.
   `--renderer amplio2` remains available for comparison. The Civ III backend
   uses staggered-grid projection and picking but still shares the old painter.
@@ -45,15 +47,23 @@ intended end state; a completed phase requires the evidence listed below.
   infers these bases from broad temperature bands because it does not yet
   generate Civ III base terrain and overlays independently. This mapping is
   explicitly provisional and must be replaced by the native generator.
-- Tiles now retain reciprocal eight-direction `river_edges`. The generator
-  writes edges from each traced river-course step and its outlet; `MapWrap`
-  adapts those links to Civ III staggered neighbors. Civ III rendering reads
-  the four-tile junction flags and loads Sn00py's `deltaRivers.pcx` and
-  `mtnRivers.pcx` through the `river-delta` and `river-mountain` manifest
-  roles. The existing river course selection still comes from the old
-  six-direction generator, so this is an intermediate topology conversion.
-- Five focused PCX/tileset tests passed, the debug build succeeded, and the
-  `civ3-city-sprites` UI review passed with the default tileset at seed 42.
+- Tiles retain reciprocal eight-direction `river_edges`. River source checks,
+  course tracing, drainage scoring, merging, and outlets now use Civ III
+  staggered neighbors through the storage adapter; generated edges are written
+  directly from each course step. Civ III rendering reads the four-tile
+  junction flags and loads Sn00py's `deltaRivers.pcx` and `mtnRivers.pcx`
+  through the `river-delta` and `river-mountain` manifest roles. The drainage
+  scoring remains a provisional heuristic over the current elevation field;
+  it is not evidence of the original Civ III generator.
+- River sheets previously displayed their index-254 bright-green background
+  because the decoder only recognized magenta RGB. A focused capture after
+  applying the PCX palette transparency indices shows the background removed;
+  report and image: `/tmp/civ3-river-native-pcx-review/report.json` and
+  `/tmp/civ3-river-native-pcx-review/rivers-generated.png`.
+- The PCX checks cover palette-index transparency, magenta keys, row padding,
+  resource shadows, and river-role overrides. The default PCX indices are
+  based on OpenCiv3's loader configuration, not confirmed original-engine
+  internals.
 - `src/client/civ3_geometry.rs` holds a first-pass Civ III grid contract:
   parity-valid staggered coordinates, flat indexing, eight reciprocal
   neighbors, horizontal wrapping, pixel centers, and diamond picking.
@@ -78,16 +88,28 @@ intended end state; a completed phase requires the evidence listed below.
 - The focused generated-river capture is
   `/tmp/civ3-generated-river-review/rivers-generated.png`. The full default
   Civ III gallery then passed all 47 scenes, 146 checks and 68 captures at seed
-  42; report: `/tmp/civ3-river-gallery/report.json`. Rivers use Civ III source
-  art in both fixture and generated-map scenes. Their placement is still
-  approximate because the generator does not yet choose Civ III river edges
-  while tracing drainage.
+  42; report: `/tmp/civ3-river-gallery/report.json`. The focused review using
+  the Sn00py `Art` directory passed at
+  `/tmp/civ3-river-native-pcx-review/report.json`. The river-sheet capture was
+  visually inspected after fixing its palette transparency. Rivers use Civ III
+  source art in both fixture and generated-map scenes. Their placement remains
+  approximate because both the elevation field and drainage score need Civ
+  III-native evidence and implementation.
 - Two stale visual fixtures assumed vertical wrapping despite the bounded-pole
   default. The remembered-map scout now moves to another valid tile, and the
   water-depth fixture uses campaign-aware offsets and stays inside the map.
-- The full Rust suite passed 618/618 after adding base-ground and Civ III river
-  edge checks. The release build and full default-backend gallery passed;
-  `git diff --check` is clean.
+- CivCraft's seeded map vectors are kept separate from raw Freeciv vectors and
+  now use `generate_with_wrap` for both wrap modes, including the cylinder's
+  polar-row postprocessing. River topology changes intentionally update these
+  CivCraft vectors; they do not alter the raw Freeciv parity fixture.
+- River topology and the campaign-aware settlement-neighbor fix pass the full
+  Rust suite (619/619); the offline release build and focused rendered river
+  review also pass. The generated river scene is at
+  `/tmp/civ3-river-native-pcx-review/rivers-generated.png`.
+- The desktop self-test (seed 42) still has open scenario failures. Movement,
+  foundation, city tiles, economy, and government pass; the civil-war
+  revolution/capital-capture check fails, and the Airstrip/Airbase UI controls
+  are unavailable. Full report: `/tmp/civcraft-playtest-NSIbFz/report.json`.
 
 ## Phases and completion criteria
 

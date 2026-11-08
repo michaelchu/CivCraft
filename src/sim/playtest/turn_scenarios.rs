@@ -45,6 +45,22 @@ impl Simulation {
         self.players[HUMAN].government = Government::Tribal;
         self.players[HUMAN].revolution_target = None;
         self.players[HUMAN].revolution_turn = None;
+        let Some(city) = self.cities.iter().find(|city| city.owner == HUMAN) else {
+            return;
+        };
+        let (city_id, x, y) = (city.id, city.x, city.y);
+        // Keep this scenario independent of whether the generated opening map
+        // happened to produce a third unit before the upkeep checkpoint.
+        for _ in 0..3 {
+            let city = self.cities.iter().find(|city| city.id == city_id).unwrap();
+            if self.city_unit_upkeep(city).shields >= 1 {
+                break;
+            }
+            let id = self.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
+            let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
+            unit.home_city = Some(city_id);
+            unit.home_order = id;
+        }
         self.reconcile_city_workers();
     }
 }

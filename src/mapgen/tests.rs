@@ -69,7 +69,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                 let current = course[cursor];
                 assert!(!tiles[current].terrain.is_water());
                 has_outlet |= tiles[current].terrain == Terrain::Tundra;
-                for next in (Generator { wrap: MapWrap::XY }).neighbors(current) {
+                for next in (Generator { wrap: MapWrap::XY }).civ3_neighbors(current) {
                     has_outlet |= tiles[next].terrain.is_water();
                     if tiles[next].river && !visited[next] {
                         visited[next] = true;
@@ -89,9 +89,11 @@ fn civ3_world_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
     for wrap in [MapWrap::X, MapWrap::XY] {
         for seed in [42, 12345] {
             let map = generate_with_wrap(seed, wrap);
-            assert!(map.tiles.iter().all(|tile| {
-                !matches!(tile.terrain, Terrain::Glacier | Terrain::Lake)
-            }));
+            assert!(
+                map.tiles
+                    .iter()
+                    .all(|tile| { !matches!(tile.terrain, Terrain::Glacier | Terrain::Lake) })
+            );
         }
     }
 }
@@ -138,28 +140,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases = [
         (
             1,
-            0xc457d1ccc44dc098,
-            [(5, 20), (19, 16), (0, 20), (21, 42), (30, 6), (5, 2)],
+            0x74b667dbc574f2f3,
+            [(0, 15), (27, 20), (20, 24), (21, 42), (5, 2), (29, 6)],
         ),
         (
             42,
-            0x253a9947b757bc9f,
-            [(2, 23), (12, 6), (7, 24), (17, 7), (5, 34), (24, 17)],
+            0xcb548b7e55bad9b6,
+            [(8, 17), (12, 6), (7, 37), (17, 10), (1, 25), (30, 13)],
         ),
         (
             12345,
-            0xbbb2f9ecee28b51b,
-            [(7, 42), (5, 13), (12, 14), (26, 8), (17, 38), (30, 23)],
+            0x6291fd28c20d4982,
+            [(7, 42), (14, 18), (3, 14), (24, 7), (30, 23), (14, 45)],
         ),
         (
             700001,
-            0xb88aca3766aa48a2,
-            [(18, 13), (22, 35), (28, 50), (9, 49), (6, 11), (31, 9)],
+            0x3e3fd24bb10a5116,
+            [(22, 35), (16, 12), (22, 1), (28, 50), (9, 49), (6, 11)],
         ),
         (
             2147483647,
-            0x580f7baa49ce27c7,
-            [(28, 10), (3, 49), (24, 39), (15, 54), (8, 50), (11, 28)],
+            0xa4a06e2fc3f2bcba,
+            [(27, 39), (3, 49), (20, 44), (4, 18), (11, 32), (8, 48)],
         ),
     ];
     for (seed, expected, starts) in cases {
@@ -265,7 +267,7 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
         let width: i32 = fields[2].parse().unwrap();
         let height: i32 = fields[3].parse().unwrap();
         assert_eq!((wrap.width(), wrap.height()), (width, height));
-        let map = Generator { wrap }.generate(seed);
+        let map = generate_with_wrap(seed, wrap);
         let checksum = map_checksum(&map.tiles);
         assert_eq!(
             checksum,

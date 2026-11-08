@@ -5,6 +5,18 @@ use super::*;
 impl super::Generator {
     // The target counts river tiles, not river systems.
 
+    /// Enumerate adjacent map tiles using Civ III's eight-direction grid.
+    /// Terrain and elevation still use transitional rectangular storage, so
+    /// this adapter converts positions at the generator boundary.
+    pub(super) fn civ3_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
+        let (x, y) = self.wrap.position(tile);
+        (0..CIV3_DIRS.len()).filter_map(move |direction| {
+            self.wrap
+                .civ3_neighbor(x, y, direction)
+                .map(|(nx, ny)| self.wrap.index(nx, ny))
+        })
+    }
+
     pub(super) fn place_rivers(
         &self,
         tiles: &mut [Tile],
@@ -28,11 +40,11 @@ impl super::Generator {
                 break;
             };
             if self
-                .neighbors(spring)
+                .civ3_neighbors(spring)
                 .all(|next| Self::mountainous(tiles[next].terrain) > 0)
                 && attempt < MAX_TRIES / 10 * 5
                 || self
-                    .neighbors(spring)
+                    .civ3_neighbors(spring)
                     .filter(|&tile| tiles[tile].river || tiles[tile].terrain.is_water())
                     .count()
                     > 1
@@ -60,7 +72,7 @@ impl super::Generator {
             return;
         };
         let outlet = self
-            .neighbors(last)
+            .civ3_neighbors(last)
             .filter(|&next| tiles[next].terrain.is_water() || tiles[next].river)
             .min_by_key(|&next| (heights[next], next));
         if let Some(outlet) = outlet {
@@ -71,8 +83,7 @@ impl super::Generator {
     fn connect_river_edge(&self, tiles: &mut [Tile], from: usize, to: usize) {
         let (x, y) = self.wrap.position(from);
         let direction = (0..CIV3_DIRS.len()).find(|&direction| {
-            self.wrap.civ3_neighbor(x, y, direction)
-                == Some(self.wrap.position(to))
+            self.wrap.civ3_neighbor(x, y, direction) == Some(self.wrap.position(to))
         });
         let Some(direction) = direction else {
             return;
@@ -109,12 +120,12 @@ impl super::Generator {
         let mut blocked = vec![false; self.wrap.tile_count()];
         let mut current = spring;
         let water_count = |tile| {
-            self.neighbors(tile)
+            self.civ3_neighbors(tile)
                 .filter(|&next| tiles[next].terrain.is_water())
                 .count()
         };
         let river_count = |tile| {
-            self.neighbors(tile)
+            self.civ3_neighbors(tile)
                 .filter(|&next| tiles[next].river)
                 .count()
         };
@@ -128,18 +139,20 @@ impl super::Generator {
                 return Some(course);
             }
 
-            // Compare in the same priority order as Freeciv's river tests.
+            // Prefer low, wet routes and merge into existing rivers or water.
+            // The scoring is an interim heuristic; it is not evidence of
+            // Civ III's original drainage algorithm.
             let score = |next: usize| {
                 (
                     Self::mountainous(tiles[next].terrain),
                     std::cmp::Reverse(water_count(next)),
                     std::cmp::Reverse(river_count(next)),
-                    self.neighbors(next)
+                    self.civ3_neighbors(next)
                         .map(|tile| Self::mountainous(tiles[tile].terrain))
                         .sum::<i32>(),
                     std::cmp::Reverse(Self::wet(tiles[next].terrain)),
                     std::cmp::Reverse(
-                        self.neighbors(next)
+                        self.civ3_neighbors(next)
                             .map(|tile| Self::wet(tiles[tile].terrain))
                             .sum::<i32>(),
                     ),
@@ -147,11 +160,11 @@ impl super::Generator {
                 )
             };
             let mut candidates: Vec<_> = self
-                .neighbors(current)
+                .civ3_neighbors(current)
                 .filter(|&next| {
                     !blocked[next]
                         && river_count(next) <= 1
-                        && self.neighbors(next).any(|tile| !blocked[tile])
+                        && self.civ3_neighbors(next).any(|tile| !blocked[tile])
                 })
                 .map(|next| (score(next), next))
                 .collect();
@@ -163,7 +176,7 @@ impl super::Generator {
                 .count();
             let next = candidates[rng.below(ties as i32) as usize].1;
             blocked[current] = true;
-            for neighbor in self.neighbors(current) {
+            for neighbor in self.civ3_neighbors(current) {
                 blocked[neighbor] = true;
             }
             current = next;

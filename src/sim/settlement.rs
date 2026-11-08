@@ -254,21 +254,23 @@ impl Simulation {
         &'a self,
         traveler: &'a Unit,
     ) -> impl Iterator<Item = (i32, i32, i32)> + 'a {
-        super::terrain_work::neighbors(traveler.x, traveler.y).filter_map(move |(nx, ny)| {
-            if self.treaty_blocks_move(traveler, nx, ny)
-                || self.zone_blocks_step(traveler, (traveler.x, traveler.y), (nx, ny))
-                || self.units.iter().any(|other| {
-                    (other.x, other.y) == (nx, ny) && !self.allied(other.owner, traveler.owner)
-                })
-                || self.cities.iter().any(|city| {
-                    (city.x, city.y) == (nx, ny) && !self.allied(city.owner, traveler.owner)
-                })
-            {
-                return None;
-            }
-            self.movement_cost_for(traveler, nx, ny)
-                .map(|step| (nx, ny, step))
-        })
+        self.map_wrap
+            .neighbors(traveler.x, traveler.y)
+            .filter_map(move |(nx, ny)| {
+                if self.treaty_blocks_move(traveler, nx, ny)
+                    || self.zone_blocks_step(traveler, (traveler.x, traveler.y), (nx, ny))
+                    || self.units.iter().any(|other| {
+                        (other.x, other.y) == (nx, ny) && !self.allied(other.owner, traveler.owner)
+                    })
+                    || self.cities.iter().any(|city| {
+                        (city.x, city.y) == (nx, ny) && !self.allied(city.owner, traveler.owner)
+                    })
+                {
+                    return None;
+                }
+                self.movement_cost_for(traveler, nx, ny)
+                    .map(|step| (nx, ny, step))
+            })
     }
 
     pub(super) fn city_site_value(&self, owner: usize, x: i32, y: i32) -> Option<f64> {

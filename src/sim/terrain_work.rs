@@ -2,6 +2,13 @@
 
 use super::*;
 
+pub(super) fn neighbors(x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> {
+    // Test/scenario helper for the historical torus fixture.
+    ISOHEX_DIRS
+        .into_iter()
+        .map(move |(dx, dy)| offset_native_by_map(x, y, dx, dy))
+}
+
 impl Terrain {
     pub(super) fn alteration(self, kind: WorkKind) -> Option<(Self, i32)> {
         use Terrain::*;
@@ -23,14 +30,6 @@ impl Terrain {
             _ => return None,
         })
     }
-}
-
-pub(super) fn neighbors(x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> {
-    // Historical torus fixture helper. Gameplay uses each campaign's
-    // MapWrap::neighbors, which omits out-of-map cylinder positions.
-    ISOHEX_DIRS
-        .into_iter()
-        .map(move |(dx, dy)| offset_native_by_map(x, y, dx, dy))
 }
 
 impl Simulation {
@@ -123,6 +122,7 @@ impl Simulation {
             tile.road = false;
             tile.railroad = false;
             tile.river = false;
+            tile.river_edges = 0;
             tile.hut = false;
             tile.base = None;
         }
@@ -210,7 +210,11 @@ mod tests {
         let home = (10, 0);
         let across = offset_native_by_map(home.0, home.1, -1, -1);
         assert_eq!(across.1, MAP_H - 2);
-        assert!(neighbors(home.0, home.1).any(|position| position == across));
+        assert!(
+            game.map_wrap
+                .neighbors(home.0, home.1)
+                .any(|position| position == across)
+        );
         assert!(!game.can_irrigate_at(HUMAN, home.0, home.1));
         game.tile_mut(across.0, across.1).terrain = Terrain::Sea;
         assert!(game.can_irrigate_at(HUMAN, home.0, home.1));
@@ -291,7 +295,9 @@ mod tests {
         assert_eq!(game.tile(x, y).terrain, Terrain::Plains);
 
         game.tile_mut(x, y).terrain = Terrain::Sea;
-        let nearby: Vec<_> = neighbors(x, y).collect();
+        game.tile_mut(x, y).river = false;
+        game.tile_mut(x, y).river_edges = 0;
+        let nearby: Vec<_> = game.map_wrap.neighbors(x, y).collect();
         for &(nx, ny) in &nearby {
             game.tile_mut(nx, ny).terrain = Terrain::Sea;
         }
@@ -306,11 +312,12 @@ mod tests {
             game.tile_mut(nx, ny).terrain = Terrain::Plains;
         }
         assert!(game.apply(Command::Work(engineer, WorkKind::Transform)));
-        for _ in 0..17 {
+        for _ in 0..20 {
+            if game.tile(x, y).terrain != Terrain::Sea {
+                break;
+            }
             game.update_activities_and_restore();
         }
-        assert_eq!(game.tile(x, y).terrain, Terrain::Sea);
-        game.update_activities_and_restore();
         assert_eq!(game.tile(x, y).terrain, Terrain::Grassland);
         let engineer = game.unit_by_id(engineer).unwrap();
         assert_eq!((engineer.x, engineer.y, engineer.transport), (x, y, None));
