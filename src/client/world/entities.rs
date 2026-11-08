@@ -74,8 +74,7 @@ impl Game {
                         self.draw_city_at_scale(assets, city, center, layout.tile_w / TILE_W);
                     }
                 } else {
-                    self.draw_map_layer(
-                        assets,
+                    painter.draw_map_layer(
                         layer,
                         x,
                         y,

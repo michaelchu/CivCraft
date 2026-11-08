@@ -82,11 +82,11 @@ intended end state; a completed phase requires the evidence listed below.
 - The Civ III geometry backend controls projection, tile picking,
   visible-tile placement, and edge-water placement. `Civ3WorldPainter` in
   `src/client/world/civ3.rs` owns ordered world-pass orchestration and receives
-  game state and assets explicitly. It now owns base-art selection for both
-  the world map and city work map; shared `Game` drawing remains as the fallback
-  when no Civ III tileset is loaded. Other feature and overlay passes still
-  call shared map-drawing helpers. The full Civ III renderer phase is
-  incomplete.
+  game state and assets explicitly. It owns base-art selection and the native
+  Blend/Terrain layer decisions for both the world map and city work map; shared
+  `Game` drawing remains as the fallback when no Civ III tileset is loaded or
+  an overlay is missing. Other feature and overlay passes still call shared
+  map-drawing helpers. The full Civ III renderer phase is incomplete.
 - The full UI review under `--renderer civ3` passed at seed 42: 47 scenes,
   146/146 checks, and 68 captures. The report is
   `/tmp/civ3-renderer-gallery-final/report.json`. Terrain blending, resources,
@@ -140,6 +140,13 @@ intended end state; a completed phase requires the evidence listed below.
   `/tmp/civ3-base-painter-review/report.json` (47 scenes, 146 checks, 68
   captures). The city work-map and terrain-blending captures were inspected.
   The no-tileset compatibility fallback remains in `Game` during migration.
+- After moving native Blend/Terrain layer dispatch into `Civ3WorldPainter`,
+  `cargo check --offline`, `cargo test --offline` (620/620), and the release
+  build pass. The seed-42 gallery passes 47 scenes, 146 checks, and 68 captures;
+  report: `/tmp/civ3-layer-painter-review/report.json`. World, terrain-blending,
+  water-depth, and polar captures match the prior review fingerprints. City
+  work-map checks pass; the capture varies between runs as its scripted state
+  advances.
 - The latest seed-42 desktop self-test passes 271/278 checks. The previously
   failing civil-war capture, diplomacy/armistice, Farmland, Airstrip, and
   Airbase scenarios now pass. Seven unrelated gameplay checks remain failing:

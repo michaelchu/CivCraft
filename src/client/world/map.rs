@@ -397,7 +397,7 @@ impl Game {
     }
 
     /// The same ordered passes drive world rendering and the city work map.
-    pub(super) fn draw_map_layer(
+    pub(super) fn draw_map_layer_fallback(
         &self,
         assets: &Assets,
         layer: map_layers::MapLayer,

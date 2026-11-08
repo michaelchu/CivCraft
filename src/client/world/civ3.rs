@@ -32,6 +32,32 @@ impl<'a> Civ3WorldPainter<'a> {
         }
     }
 
+    pub(super) fn draw_map_layer(
+        &self,
+        layer: map_layers::MapLayer,
+        x: i32,
+        y: i32,
+        geometry: TileGeometry,
+        has_city: bool,
+    ) {
+        match layer {
+            map_layers::MapLayer::Blend if self.assets.civ3.is_some() => {}
+            map_layers::MapLayer::Terrain => {
+                let tile = self.game.sim.render_tile(x, y);
+                let drawn = self.assets.civ3.as_ref().is_some_and(|tileset| {
+                    tileset.draw_overlay(tile.terrain, (x, y), geometry.center, geometry.size())
+                });
+                if !drawn {
+                    self.game
+                        .draw_map_layer_fallback(self.assets, layer, x, y, geometry, has_city);
+                }
+            }
+            _ => self
+                .game
+                .draw_map_layer_fallback(self.assets, layer, x, y, geometry, has_city),
+        }
+    }
+
     fn draw_ordered_world_passes(&self, assets: &Assets) {
         let game = self.game;
         let viewport = Game::viewport_rect();
@@ -126,8 +152,7 @@ impl<'a> Civ3WorldPainter<'a> {
                         game.draw_observed_city(assets, city, center, game.zoom);
                     }
                 } else {
-                    game.draw_map_layer(
-                        assets,
+                    self.draw_map_layer(
                         layer,
                         x,
                         y,
