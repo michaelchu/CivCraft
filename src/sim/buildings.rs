@@ -200,12 +200,11 @@ impl Simulation {
         granted: Option<Tech>,
     ) -> bool {
         let nearby = || {
-            std::iter::once((0, 0))
-                .chain(ISOHEX_DIRS)
-                .filter_map(|(dx, dy)| {
-                    let (x, y) = self.map_wrap.offset(city.x, city.y, dx, dy)?;
-                    Some(self.tile(x, y))
-                })
+            std::iter::once(self.tile(city.x, city.y)).chain(
+                self.map_wrap
+                    .civ3_neighbors(city.x, city.y)
+                    .map(|(x, y)| self.tile(x, y)),
+            )
         };
         let matches = match requirement {
             Requirement::Tech(id) => {
@@ -214,11 +213,8 @@ impl Simulation {
             Requirement::Improvement(id) => city.buildings.contains(&Building(id)),
             Requirement::River => nearby().any(|tile| tile.river),
             Requirement::Lake => nearby().any(|tile| tile.terrain == Terrain::Lake),
-            Requirement::Sea => {
-                nearby().any(|tile| {
-                    matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Ocean)
-                })
-            }
+            Requirement::Sea => nearby()
+                .any(|tile| matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Ocean)),
             Requirement::Water => nearby().any(|tile| tile.terrain.is_water()),
             Requirement::MinSize(size) => city.size >= size,
             Requirement::OwnerCityCount(count) => {
@@ -462,8 +458,8 @@ mod tests {
         let (x, y) = map.starts[0];
         let mut game = Simulation::new(map);
         game.create_city(HUMAN, x, y);
-        for (dx, dy) in std::iter::once((0, 0)).chain(ISOHEX_DIRS) {
-            let (nx, ny) = offset_native_by_map(x, y, dx, dy);
+        let adjacent: Vec<_> = game.map_wrap.civ3_neighbors(x, y).collect();
+        for (nx, ny) in std::iter::once((x, y)).chain(adjacent.iter().copied()) {
             let tile = game.tile_mut(nx, ny);
             tile.terrain = Terrain::Plains;
             tile.river = false;
@@ -475,7 +471,8 @@ mod tests {
         let aqueduct = building("Aqueduct");
         let lake_aqueduct = building("Aqueduct, Lake");
         let river_aqueduct = building("Aqueduct, River");
-        let (nx, ny) = offset_native_by_map(x, y, 1, 0);
+        // A diagonal Civ III neighbor also satisfies city-local terrain rules.
+        let (nx, ny) = adjacent[1];
         assert!(game.building_blocker(&game.cities[0], aqueduct).is_none());
         game.tile_mut(nx, ny).terrain = Terrain::Lake;
         game.tile_mut(x, y).river = true;

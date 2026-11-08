@@ -167,6 +167,12 @@ intended end state; a completed phase requires the evidence listed below.
   merchant ferry routing still expands legacy offsets, so mixing the two
   coordinate systems breaks that route. Movement/pathfinding and other callers
   must migrate together before the legacy iterator can be retired.
+- City-local building requirements (coast, river, lake, water) now traverse
+  the explicit Civ III neighbor graph. Road connectivity for unit resources
+  still follows the legacy iterator because route expansion has not migrated.
+  The city requirement fixture includes a diagonal neighbor, and the AI
+  city-defense fixture clears adjacent rivers so it tests a landlocked city on
+  the expanded neighborhood. Full `cargo test --offline` passes 638/638.
 - The Civ III geometry backend controls projection, tile picking,
   visible-tile placement, and edge-water placement. `Civ3WorldPainter` in
   `src/client/world/civ3.rs` owns ordered world-pass orchestration and receives
