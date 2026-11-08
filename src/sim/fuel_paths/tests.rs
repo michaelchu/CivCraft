@@ -22,6 +22,12 @@ fn actor(sim: &mut Simulation, kind: UnitKind, position: (i32, i32)) -> Unit {
     sim.unit_by_id(id).unwrap().clone()
 }
 
+fn civ3_east(sim: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
+    (0..tiles).fold(point, |(x, y), _| {
+        sim.map_wrap.civ3_neighbor(x, y, 2).unwrap()
+    })
+}
+
 #[test]
 fn desktop_fuel_fixture_observes_real_leader_dispatch_before_and_after_a_refuel_point() {
     assert!(world().ai_aircraft_fuel_path_playtest());
@@ -57,12 +63,12 @@ fn an_isolated_aircraft_without_any_refuel_point_cannot_leave_its_start() {
 fn waiting_and_revisiting_preserve_the_earliest_position_separately_from_more_fuel() {
     let mut sim = world();
     sim.create_city(HUMAN, 10, 20);
-    let start = offset_native_by_map(10, 20, 1, 0);
+    let start = civ3_east(&sim, (10, 20), 1);
     let mut plane = actor(&mut sim, UnitKind::Fighter, start);
     plane.fuel = 1;
     plane.moves_left = 3 * MOVE_FRAGMENTS;
-    let target = offset_native_by_map(10, 20, 4, 0);
-    let earlier = offset_native_by_map(10, 20, 2, 0);
+    let target = civ3_east(&sim, (10, 20), 4);
+    let earlier = civ3_east(&sim, (10, 20), 2);
     let mut map = FuelPaths::new(&sim, &plane, true).unwrap();
     // Return one step, spend two MP waiting, then fly four steps.
     assert_eq!(
@@ -84,7 +90,9 @@ fn waiting_and_revisiting_preserve_the_earliest_position_separately_from_more_fu
     let mut point = start;
     let mut visited = Vec::new();
     for &(dx, dy) in &path {
-        point = offset_native_by_map(point.0, point.1, dx, dy);
+        if (dx, dy) != (0, 0) {
+            point = sim.map_wrap.civ3_offset(point.0, point.1, dx, dy).unwrap();
+        }
         visited.push(point);
     }
     assert_eq!(point, target);

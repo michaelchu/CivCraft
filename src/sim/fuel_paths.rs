@@ -41,7 +41,7 @@ struct Node {
     attack: bool,
     known: bool,
     required: i32,       // Native signed 13-bit field.
-    step_cost: [u16; 6], // Cached MC + 2, zero means not yet computed.
+    step_cost: [u16; 8], // Cached MC + 2, zero means not yet computed.
     pos: Option<usize>,
     segment: Option<usize>,
 }
@@ -57,7 +57,7 @@ impl Default for Node {
             attack: false,
             known: false,
             required: 0,
-            step_cost: [0; 6],
+            step_cost: [0; 8],
             pos: None,
             segment: None,
         }
@@ -189,17 +189,17 @@ impl FuelPaths {
             return 0;
         }
         let maximum = self.initial_bundle.max(self.full_moves()) / MOVE_FRAGMENTS;
+        // Deliberate pf_tools.c quirk: this test still applies when
+        // omniscience is TRUE in the enclosing PF parameters.
         sim.tiles
             .iter()
             .enumerate()
             .filter_map(|(candidate, tile)| {
-                // Deliberate pf_tools.c quirk: this test still applies when
-                // omniscience is TRUE in the enclosing PF parameters.
                 if !tile.known_by[self.actor.owner] {
                     return None;
                 }
                 let (nx, ny) = self.map_wrap.position(candidate);
-                let distance = sim.map_distance(x, y, nx, ny);
+                let distance = self.map_wrap.civ3_distance(x, y, nx, ny);
                 (distance <= maximum && self.possible_base(sim, nx, ny)).then_some(distance)
             })
             .min()
@@ -297,8 +297,8 @@ impl FuelPaths {
                 break;
             };
             let (x, y) = self.map_wrap.position(cursor);
-            let (dx, dy) = ISOHEX_DIRS[direction];
-            let Some((px, py)) = self.map_wrap.offset(x, y, -dx, -dy) else {
+            let (dx, dy) = CIV3_DIRS[direction];
+            let Some((px, py)) = self.map_wrap.civ3_offset(x, y, -dx, -dy) else {
                 continue;
             };
             cursor = self.map_wrap.index(px, py);
@@ -371,8 +371,8 @@ impl FuelPaths {
                     self.nodes[index].moves = moves_field(budget);
                 }
                 let (x, y) = self.map_wrap.position(index);
-                for (direction, (dx, dy)) in ISOHEX_DIRS.into_iter().enumerate() {
-                    let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+                for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+                    let Some((nx, ny)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
                         continue;
                     };
                     let next = self.map_wrap.index(nx, ny);
@@ -550,10 +550,12 @@ impl FuelPaths {
             let Some(direction) = position.direction else {
                 break;
             };
-            let step = ISOHEX_DIRS[direction];
+            let step = CIV3_DIRS[direction];
             backwards.push(step);
             let point = self.map_wrap.position(index);
-            let previous = self.map_wrap.offset(point.0, point.1, -step.0, -step.1)?;
+            let previous = self
+                .map_wrap
+                .civ3_offset(point.0, point.1, -step.0, -step.1)?;
             index = self.map_wrap.index(previous.0, previous.1);
             segment = position.previous?;
         }

@@ -245,6 +245,29 @@ impl MapWrap {
     pub(crate) fn civ3_neighbors(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> + use<> {
         (0..CIV3_DIRS.len()).filter_map(move |direction| self.civ3_neighbor(x, y, direction))
     }
+    /// Shortest step count on the Civ III neighbor graph, including this
+    /// campaign's horizontal and optional vertical seams.
+    pub(crate) fn civ3_distance(self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
+        let start_x = 2 * ax + ay.rem_euclid(2);
+        let target_x = 2 * bx + by.rem_euclid(2);
+        let vertical_wraps = if self.wraps_y() {
+            [-self.height(), 0, self.height()]
+        } else {
+            [0, 0, 0]
+        };
+        let horizontal_period = 2 * self.width();
+        let mut distance = i32::MAX;
+        for horizontal_wrap in -1..=1 {
+            for vertical_wrap in vertical_wraps {
+                let dx = target_x + horizontal_wrap * horizontal_period - start_x;
+                let dy = by + vertical_wrap - ay;
+                // The eight legal generators change the doubled-grid
+                // Manhattan norm by two, so this is their exact step count.
+                distance = distance.min((dx.abs() + dy.abs()) / 2);
+            }
+        }
+        distance
+    }
     pub(crate) fn civ3_distances_from(self, x: i32, y: i32) -> Vec<i32> {
         let mut distances = vec![i32::MAX; (self.width() * self.height()) as usize];
         let origin = self.index(x, y);
@@ -453,6 +476,29 @@ mod wrap_tests {
                 .collect();
             assert_eq!(neighbors, expected);
             assert_eq!(neighbors.len(), 8);
+        }
+    }
+
+    #[test]
+    fn civ3_distance_matches_neighbor_graph_with_horizontal_and_vertical_wraps() {
+        for wrap in [MapWrap::X, MapWrap::XY] {
+            let origins = [
+                (0, 0),
+                (wrap.width() - 1, 1),
+                (wrap.width() / 2, wrap.height() / 2),
+                (wrap.width() / 3, wrap.height() - 1),
+            ];
+            for (x, y) in origins {
+                let graph = wrap.civ3_distances_from(x, y);
+                for index in 0..wrap.tile_count() {
+                    let (tx, ty) = wrap.position(index);
+                    assert_eq!(
+                        wrap.civ3_distance(x, y, tx, ty),
+                        graph[index],
+                        "wrap={wrap:?}, origin=({x},{y}), target=({tx},{ty})"
+                    );
+                }
+            }
         }
     }
 

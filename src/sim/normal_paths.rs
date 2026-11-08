@@ -632,17 +632,14 @@ impl Simulation {
         if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == id) {
             unit.state = UnitState::Idle;
         }
-        // Fuel paths have their own legacy executor until PF_FUEL migrates;
-        // normal paths now store Civ III staggered-grid direction offsets.
-        let civ3_path = initial.kind.fuel_capacity() == 0;
         let mut destination = (initial.x, initial.y);
         for &(dx, dy) in &path {
-            destination = if civ3_path {
-                self.map_wrap.civ3_offset(destination.0, destination.1, dx, dy)
-            } else {
-                self.map_wrap.offset(destination.0, destination.1, dx, dy)
+            if (dx, dy) != (0, 0) {
+                destination = self
+                    .map_wrap
+                    .civ3_offset(destination.0, destination.1, dx, dy)
+                    .expect("planned step is real");
             }
-            .expect("planned step is real");
         }
         let old_goal = self.unit_goto_tiles.insert(id, destination);
         let mut progressed = false;
@@ -656,12 +653,7 @@ impl Simulation {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 break;
             };
-            let destination = if civ3_path {
-                self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy)
-            } else {
-                self.map_wrap.offset(actor.x, actor.y, dx, dy)
-            };
-            let Some((x, y)) = destination else {
+            let Some((x, y)) = self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy) else {
                 continue;
             };
             let enemy =
@@ -688,16 +680,12 @@ impl Simulation {
             {
                 break;
             }
-            let result = if civ3_path {
-                CIV3_DIRS
-                    .iter()
-                    .position(|&step| step == (dx, dy))
-                    .map_or(MoveResult::Blocked, |direction| {
-                        self.try_move_unit_civ3(id, direction)
-                    })
-            } else {
-                self.try_move_unit(id, dx, dy)
-            };
+            let result = CIV3_DIRS
+                .iter()
+                .position(|&step| step == (dx, dy))
+                .map_or(MoveResult::Blocked, |direction| {
+                    self.try_move_unit_civ3(id, direction)
+                });
             if result == MoveResult::Blocked {
                 break;
             }

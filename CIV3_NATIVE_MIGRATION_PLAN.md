@@ -176,11 +176,16 @@ intended end state; a completed phase requires the evidence listed below.
   barbarian-leader routes, and worker routes follow Civ III direction steps.
   City embark scope and worker naval-safety adjacency use the same neighbors.
   Route tests and fixtures calculate Civ III tile positions and eight-way
-  costs. PF_FUEL still stores legacy six-way steps, and unit automation plus
-  remaining `search_route` callers have not migrated. Keep the normal/fuel
-  split explicit until PF_FUEL is migrated with its refuel-wait semantics.
+  costs. PF_FUEL expansion, segment reconstruction, return-to-base distance,
+  and the shared AI path executor now use the Civ III graph. Refuel wait
+  markers remain explicit and stop execution at the planned refuel boundary.
+  Unit automation and remaining `search_route` callers have not migrated.
   Tests cover direct movement, route preview, wrapped seams, FLC facing rows,
-  and migrated AI routes. The focused `goto-preview` Civ III UI review passed
+  and migrated AI routes; `cargo test --offline` passes 644/644 and the
+  offline release build succeeds. The Civ III distance formula used for fuel
+  return range matches graph traversal for sampled origins across both wrap
+  modes; its use for original Civ III fuel-range behavior remains an inference.
+  The focused `goto-preview` Civ III UI review passed
   4/4 checks, and its screenshot was inspected at
   `/tmp/civ3-goto-eight-direction-review/goto-preview.png`; report:
   `/tmp/civ3-goto-eight-direction-review/report.json`.
