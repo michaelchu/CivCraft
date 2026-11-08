@@ -353,11 +353,10 @@ fn city_manager_equal_tiles_follow_native_city_index_not_row_order() {
     city.worked_tiles.clear();
     city.specialists = [1, 0, 0];
     let result = game.city_manager_result(&city, &Default::default());
-    // city.c:compare_iter_index sorts distance, dx, dy. The first
-    // neighboring city index is map-vector(-1,-1) on isohex topology.
+    // city.c:compare_iter_index sorts Civ III rank distance, dx, dy.
     let expected = Simulation::city_radius(&city)
         .filter(|&(_, _, x, y)| game.tile_can_support_worker(&city, x, y))
-        .min_by_key(|&(dx, dy, _, _)| (isohex_vector_distance(dx, dy).pow(2), dx, dy))
+        .min_by_key(|&(dx, dy, _, _)| city_radius_order_key(dx, dy))
         .map(|(_, _, x, y)| (x, y))
         .unwrap();
     assert_eq!(result.worked_tiles, vec![expected]);

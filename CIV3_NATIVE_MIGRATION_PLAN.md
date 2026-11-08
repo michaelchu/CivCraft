@@ -177,6 +177,20 @@ intended end state; a completed phase requires the evidence listed below.
   with a test for diagonal coastal water. This changes topology input to the
   existing CivCraft climate heuristic; the heuristic itself is not claimed to
   reproduce original Civ III climate-change mechanics.
+- City work areas now select 21 distinct valid staggered-grid tiles with a
+  rank-two Civ III shape; the center plus 20 surrounding tiles match the
+  manual's chapter 6, printed page 55, which calls it a "fat X" and notes that
+  a new city initially works only the nearest eight. The rank formula follows
+  OpenCiv3 `Tile_Math.cs` (`RankDistanceTo`) and is an implementation
+  reference, not verified original-engine source. The manual documents the
+  count and shape, but not the formula. Both map wrap modes and the city-map
+  panel use the same rank-two selection. The manual's initial nearest-eight
+  workable-tile limit is not yet enforced; border ownership and work eligibility
+  still need a coordinated Civ III migration. Full `cargo test --offline`
+  passes 639/639. The focused `campaign-worked-tiles` UI review passed all 12
+  checks at seed 42 and its radius screenshot was inspected:
+  `/tmp/civ3-city-radius-review/campaign-worked-tiles.png` (report:
+  `/tmp/civ3-city-radius-review/report.json`).
 - The Civ III geometry backend controls projection, tile picking,
   visible-tile placement, and edge-water placement. `Civ3WorldPainter` in
   `src/client/world/civ3.rs` owns ordered world-pass orchestration and receives

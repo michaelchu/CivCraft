@@ -392,14 +392,19 @@ impl Simulation {
         let home = (10, 24);
         let baseline = self.city_site_value(1, home.0, home.1);
         // Source: center115*2 (2food/2shield/1trade) + best68
-        // +17 individually truncated68/8; centerShield is additive, not min1.
-        let expected = f64::from(298.0_f32 + 100.0_f32 / 299.0 * 200.0 + 136.0);
+        // +19 individually truncated68/8 for the 20 surrounding BFC tiles.
+        let expected = f64::from(298.0_f32 + 100.0_f32 / 299.0 * 200.0 + 152.0);
         let rounded = baseline.is_some_and(|value| (value - expected).abs() < 0.0001);
-        let neighbor = offset_native_by_map(home.0, home.1, 3, 0);
-        self.create_city(1, neighbor.0, neighbor.1);
+        let mut reservations = vec![0; self.tiles.len()];
+        let reserved_tile = self
+            .map_city_radius_at(home.0, home.1)
+            .find(|&(_, _, x, y)| (x, y) != home)
+            .map(|(_, _, x, y)| (x, y))
+            .unwrap();
+        reservations[self.map_wrap.index(reserved_tile.0, reserved_tile.1)] = 1;
         let crowded = self
-            .city_site_value(1, home.0, home.1)
-            .is_some_and(|value| value < baseline.unwrap());
+            .city_site_result(1, home.0, home.1, Government::Communism, &reservations)
+            .is_some_and(|site| site.value < baseline.unwrap());
         self.tile_mut(home.0, home.1).pollution = true;
         rounded && crowded && self.city_site_value(1, home.0, home.1).is_none()
     }
@@ -497,8 +502,14 @@ impl Simulation {
             .find(|unit| unit.id == id)
             .unwrap()
             .clone();
-        let first = offset_native_by_map(home.0, home.1, -1, -1);
-        let second = offset_native_by_map(home.0, home.1, -1, 0);
+        let mut ordered: Vec<_> = self.map_wrap.city_radius(home.0, home.1).collect();
+        ordered.sort_by_key(|&(dx, dy, _, _)| city_radius_order_key(dx, dy));
+        let mut workers = ordered
+            .into_iter()
+            .filter(|&(_, _, x, y)| (x, y) != home)
+            .map(|(_, _, x, y)| (x, y));
+        let first = workers.next().unwrap();
+        let second = workers.next().unwrap();
         let mut map = vec![0; self.tiles.len()];
         let initial = self.city_site_result(1, home.0, home.1, Government::Communism, &map);
         let source_first = initial

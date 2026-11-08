@@ -8,10 +8,10 @@ pub(super) struct CityMapLayout {
 }
 impl CityMapLayout {
     pub fn new(bounds: Rect) -> Self {
-        // The isohex city radius spans three tile widths and nine half-heights.
+        // The Civ III 21-square radius spans five tile widths and heights.
         // Leave extra headroom for mountain and city sprites.
-        let zoom = ((bounds.w - 32.0) / (3.0 * TILE_W))
-            .min((bounds.h - 32.0) / (4.5 * TILE_H + 24.0))
+        let zoom = ((bounds.w - 32.0) / (5.0 * TILE_W))
+            .min((bounds.h - 32.0) / (5.0 * TILE_H + 24.0))
             .min(2.0);
         Self {
             bounds,
@@ -199,9 +199,9 @@ mod tests {
         for (w, h) in [(752.0, 520.0), (920.0, 640.0)] {
             let bounds = Rect::new(22.0, 201.0, w - 44.0, h - 245.0);
             let layout = CityMapLayout::new(bounds);
-            for dy in -2_i32..=2 {
-                for dx in -2_i32..=2 {
-                    if isohex_vector_distance(dx, dy) > 2 {
+            for dy in -3_i32..=3 {
+                for dx in -3_i32..=3 {
+                    if (dx - dy).rem_euclid(2) != 0 || civ3_rank_distance(dx, dy) > 2 {
                         continue;
                     }
                     let r = layout.tile_rect(dx, dy);

@@ -12,14 +12,7 @@ impl Simulation {
     }
 
     pub(super) fn city_radius_at(x: i32, y: i32) -> impl Iterator<Item = (i32, i32, i32, i32)> {
-        let (map_x, map_y) = native_to_map(x, y);
-        (-2..=2).flat_map(move |dy| {
-            (-2..=2).filter_map(move |dx| {
-                let distance = isohex_vector_distance(dx, dy);
-                let (x, y) = map_pos_to_native(map_x + dx, map_y + dy);
-                (distance * distance <= 5).then_some((dx, dy, x, y))
-            })
-        })
+        MapWrap::XY.city_radius(x, y)
     }
 
     pub(crate) fn map_city_radius(

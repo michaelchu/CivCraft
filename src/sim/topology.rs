@@ -71,8 +71,16 @@ pub(crate) fn isohex_vector_distance(dx: i32, dy: i32) -> i32 {
     }
 }
 
+/// Civ III rank distance on staggered map coordinates. OpenCiv3's Tile_Math
+/// uses this formula; rank two selects the manual's 21-square city radius.
+pub(crate) fn civ3_rank_distance(dx: i32, dy: i32) -> i32 {
+    let dx = dx.abs();
+    let dy = dy.abs();
+    (dx + dy) / 2 + (dx - dy).abs() / 4
+}
+
 pub(crate) fn city_radius_order_key(dx: i32, dy: i32) -> (i32, i32, i32) {
-    (isohex_vector_distance(dx, dy).pow(2), dx, dy)
+    (civ3_rank_distance(dx, dy), dx, dy)
 }
 
 pub(crate) fn is_isohex_step(dx: i32, dy: i32) -> bool {
@@ -171,12 +179,15 @@ impl MapWrap {
         (index as i32 % self.width(), index as i32 / self.width())
     }
     pub(crate) fn city_radius(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32, i32, i32)> {
-        (-2..=2).flat_map(move |dy| {
-            (-2..=2).filter_map(move |dx| {
-                if isohex_vector_distance(dx, dy).pow(2) > 5 {
+        let grid_x = 2 * x + y.rem_euclid(2);
+        (-3_i32..=3).flat_map(move |dy| {
+            (-3_i32..=3).filter_map(move |dx| {
+                if (dx - dy).rem_euclid(2) != 0 || civ3_rank_distance(dx, dy) > 2 {
                     return None;
                 }
-                self.offset(x, y, dx, dy).map(|(nx, ny)| (dx, dy, nx, ny))
+                let ny = y + dy;
+                let nx = (grid_x + dx - ny.rem_euclid(2)) / 2;
+                self.normalize(nx, ny).map(|(nx, ny)| (dx, dy, nx, ny))
             })
         })
     }
@@ -395,6 +406,24 @@ mod wrap_tests {
     }
 
     #[test]
+    fn civ3_city_radius_has_twenty_one_distinct_tiles_and_wraps_at_the_seam() {
+        for wrap in [MapWrap::X, MapWrap::XY] {
+            let center = (wrap.width() - 1, wrap.height() / 2);
+            let radius: Vec<_> = wrap.city_radius(center.0, center.1).collect();
+            let unique: std::collections::HashSet<_> =
+                radius.iter().map(|&(_, _, x, y)| (x, y)).collect();
+            assert_eq!(radius.len(), 21);
+            assert_eq!(unique.len(), 21);
+            assert!(
+                radius
+                    .iter()
+                    .any(|&(dx, dy, x, y)| { (dx, dy) == (0, 0) && (x, y) == center })
+            );
+            assert!(radius.iter().any(|&(_, _, x, _)| x == 0));
+        }
+    }
+
+    #[test]
     fn generated_river_markers_become_reciprocal_civ3_edges() {
         let wrap = MapWrap::X;
         let mut map = crate::mapgen::generate_with_wrap(42, wrap);
@@ -518,10 +547,13 @@ mod campaign_geometry_tests {
                             && (0..sim.map_wrap.height()).contains(&u.y))
                 );
                 for city in &sim.cities {
-                    assert!(sim.map_city_radius(city).all(|(_, _, x, y)| {
-                        let (dx, dy) = sim.map_wrap.vector(city.x, city.y, x, y);
-                        isohex_vector_distance(dx, dy) <= 2
-                    }));
+                    let radius: Vec<_> = sim.map_city_radius(city).collect();
+                    assert!(
+                        radius
+                            .iter()
+                            .all(|&(dx, dy, _, _)| civ3_rank_distance(dx, dy) <= 2)
+                    );
+                    assert_eq!(radius.len(), 21);
                 }
             }
         }
