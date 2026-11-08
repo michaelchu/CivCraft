@@ -103,7 +103,7 @@ the manifest's directory. Sheets retain the Civ III cell layout.
 | `oil-well`, `oil-platform`, `airstrip`, `airbase` | Optional one-cell `Terrain/<role>.png` sprites |
 | `resources`, `resource-shadows` | `resources.png`, `resources_shadows.png` |
 | `city-asian`, `city-american`, `city-european`, `city-middle_eastern`, `city-roman` | `Cities/rASIAN.png`, `rAMER.png`, `rEURO.png`, `rMIDEAST.png`, `rROMAN.png` |
-| `unit-<kind>`, `unit-<kind>-run`, `unit-<kind>-attack` | Optional `.flc` default, movement, and attack animations; for example `unit-warrior = Units/Warrior/Default.flc` and `unit-warrior-run = Units/Warrior/Run.flc` |
+| `unit-<kind>`, `unit-<kind>-run`, `unit-<kind>-attack` | Optional `.flc` default, movement, and attack animations, or a unit `.ini` that maps them; for example `unit-warrior = Units/Warrior/Warrior.ini` |
 
 Each image role accepts PNG or 8-bit, single-plane RLE PCX artwork. If the default
 PNG path is absent, the loader checks the same basename with `.pcx` and `.PCX`.
@@ -111,8 +111,10 @@ PCX magenta color-key pixels are decoded as transparent. City-style roles can
 be overridden in `tileset.conf` like the terrain and resource roles.
 
 Unit roles use lowercase kebab-case `UnitKind` names (`unit-stealth-fighter`,
-`unit-mech-inf`, `unit-settlers`). Optional `-run` and `-attack` roles select
-FLC action animations during movement and combat; missing action roles fall back
+`unit-mech-inf`, `unit-settlers`). Point a base role to an FLC or Civ III unit
+`.ini`; the loader reads its `DEFAULT`, `RUN`, and `ATTACK1` entries and resolves
+those FLC paths relative to the `.ini`. Optional explicit `-run` and `-attack`
+roles override the corresponding `.ini` entries. Missing action roles fall back
 to the default FLC. Frames are packed into direction/frame atlases and selected
 using event progress, with palette team-color and shadow ranges preserved.
 Movement currently supports six facing directions due to the legacy simulation

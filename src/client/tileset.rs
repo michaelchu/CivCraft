@@ -300,6 +300,62 @@ impl Theme {
     }
 }
 
+fn expand_unit_animation_ini(
+    root: &Path,
+    role: &str,
+    relative_path: &str,
+) -> Result<Vec<(String, PathBuf)>, String> {
+    let ini_path = root.join(relative_path);
+    let contents = fs::read_to_string(&ini_path)
+        .map_err(|error| format!("{}: {error}", ini_path.display()))?;
+    let mut in_animations = false;
+    let mut animations = Vec::new();
+    for line in contents.lines() {
+        let line = line.split(';').next().unwrap_or_default().trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            in_animations = line[1..line.len() - 1]
+                .trim()
+                .eq_ignore_ascii_case("Animations");
+            continue;
+        }
+        if !in_animations {
+            continue;
+        }
+        let Some((action, filename)) = line.split_once('=') else {
+            continue;
+        };
+        let filename = filename.trim();
+        if filename.is_empty() {
+            continue;
+        }
+        let suffix = match action.trim().to_ascii_uppercase().as_str() {
+            "DEFAULT" => "",
+            "RUN" => "-run",
+            "ATTACK1" => "-attack",
+            _ => continue,
+        };
+        let action_role = format!("{role}{suffix}");
+        let path = ini_path
+            .parent()
+            .unwrap_or(root)
+            .join(filename.trim_matches('"'));
+        animations.push((action_role, path));
+    }
+    if !animations
+        .iter()
+        .any(|(action_role, _)| action_role == role)
+    {
+        return Err(format!(
+            "{}: [Animations] has no DEFAULT FLC",
+            ini_path.display()
+        ));
+    }
+    Ok(animations)
+}
+
 fn read_theme_image(
     path: &Path,
     transparent_indices: &[u8],
@@ -885,12 +941,30 @@ impl Civ3 {
             cities.insert(style, texture);
         }
         let mut unit_art = HashMap::new();
-        for (role, relative_path) in theme
+        let unit_paths = theme
             .paths
             .iter()
             .filter(|(role, _)| role.starts_with("unit-"))
+            .collect::<Vec<_>>();
+        let mut resolved_unit_paths = HashMap::new();
+        for (role, relative_path) in unit_paths
+            .iter()
+            .copied()
+            .filter(|(_, path)| !path.to_ascii_lowercase().ends_with(".ini"))
         {
-            let path = theme.root.join(relative_path);
+            resolved_unit_paths.insert(role.clone(), theme.root.join(relative_path));
+        }
+        for (role, relative_path) in unit_paths
+            .iter()
+            .copied()
+            .filter(|(_, path)| path.to_ascii_lowercase().ends_with(".ini"))
+        {
+            for (action_role, path) in expand_unit_animation_ini(&theme.root, role, relative_path)?
+            {
+                resolved_unit_paths.entry(action_role).or_insert(path);
+            }
+        }
+        for (role, path) in resolved_unit_paths {
             let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
             let flic = super::flc::decode_flic(&bytes)
                 .map_err(|error| format!("{}: {error}", path.display()))?;
@@ -1614,6 +1688,42 @@ mod tests {
         );
         fs::remove_file(manifest).unwrap();
         fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn civ3_unit_ini_expands_default_run_and_attack_animation_paths() {
+        let directory = std::env::temp_dir().join(format!(
+            "civ3-unit-ini-theme-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let unit_directory = directory.join("Units/Warrior");
+        fs::create_dir_all(&unit_directory).unwrap();
+        let ini = unit_directory.join("Warrior.INI");
+        fs::write(
+            &ini,
+            "[Speed]\nFast Speed=225\n[Animations]\nDEFAULT=Default.flc\nRUN=Run.flc\nATTACK1=Attack.flc\nATTACK2=\n",
+        )
+        .unwrap();
+        let paths =
+            expand_unit_animation_ini(&directory, "unit-warrior", "Units/Warrior/Warrior.INI")
+                .unwrap()
+                .into_iter()
+                .map(|(role, path)| {
+                    (
+                        role,
+                        path.strip_prefix(&directory)
+                            .unwrap()
+                            .to_string_lossy()
+                            .replace('\\', "/"),
+                    )
+                })
+                .collect::<HashMap<_, _>>();
+        assert_eq!(paths["unit-warrior"], "Units/Warrior/Default.flc");
+        assert_eq!(paths["unit-warrior-run"], "Units/Warrior/Run.flc");
+        assert_eq!(paths["unit-warrior-attack"], "Units/Warrior/Attack.flc");
+        fs::remove_file(ini).unwrap();
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
