@@ -82,32 +82,26 @@ impl Simulation {
         let mut render_seen = vec![vec![false; self.tiles.len()]; self.players.len()];
         for (owner, x, y, radius_sq, stealth_sq) in revealers {
             let radius = (radius_sq as f32).sqrt().ceil() as i32;
-            for dy in -radius..=radius {
-                for dx in -radius..=radius {
-                    let distance = isohex_vector_distance(dx, dy);
-                    if distance * distance <= radius_sq {
-                        let Some((visible_x, visible_y)) = self.map_wrap.offset(x, y, dx, dy)
-                        else {
-                            continue;
-                        };
-                        let idx = self.map_wrap.index(visible_x, visible_y);
-                        if owner != BARBARIANS {
-                            for &target in &recipients[owner] {
-                                self.tiles[idx].known_by[target] = true;
-                                render_seen[target][idx] = true;
-                                if target != HUMAN && target != BARBARIANS {
-                                    let observation = *observations[idx]
-                                        .get_or_insert_with(|| self.live_map_observation(idx));
-                                    self.ai_map_memory.insert((target, idx), observation);
-                                }
-                            }
-                        }
-                        if recipients[owner].contains(&HUMAN) {
-                            self.tiles[idx].visible = true;
-                            self.tiles[idx].stealth_visible |= distance * distance <= stealth_sq;
-                            self.tiles[idx].seen = true;
+            for (visible_x, visible_y, distance) in self.map_wrap.civ3_radius(x, y, radius) {
+                if distance * distance > radius_sq {
+                    continue;
+                }
+                let idx = self.map_wrap.index(visible_x, visible_y);
+                if owner != BARBARIANS {
+                    for &target in &recipients[owner] {
+                        self.tiles[idx].known_by[target] = true;
+                        render_seen[target][idx] = true;
+                        if target != HUMAN && target != BARBARIANS {
+                            let observation = *observations[idx]
+                                .get_or_insert_with(|| self.live_map_observation(idx));
+                            self.ai_map_memory.insert((target, idx), observation);
                         }
                     }
+                }
+                if recipients[owner].contains(&HUMAN) {
+                    self.tiles[idx].visible = true;
+                    self.tiles[idx].stealth_visible |= distance * distance <= stealth_sq;
+                    self.tiles[idx].seen = true;
                 }
             }
         }
@@ -168,8 +162,8 @@ impl Simulation {
             // Our six-civilization roster maps Romans/Greeks, Egypt/Babylon,
             // and China/Japan onto the corresponding supplied cultures.
             civ3_style: match city.owner {
-                0 => 4, // Roman
-                1 => 2, // European
+                0 => 4,     // Roman
+                1 => 2,     // European
                 2 | 3 => 3, // Middle Eastern
                 4 | 5 => 0, // Asian
                 _ => 2,

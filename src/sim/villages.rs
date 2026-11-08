@@ -47,18 +47,15 @@ impl Simulation {
                 "Friendly nomads joined your expedition as Settlers.".into()
             }
             12..=13 => {
-                for dx in -5..=5 {
-                    for dy in -5..=5 {
-                        if isohex_vector_distance(dx, dy).pow(2) <= 30 {
-                            let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
-                                continue;
-                            };
-                            let tile = self.tile_mut(nx, ny);
-                            tile.known_by[owner] = true;
-                            if owner == HUMAN {
-                                tile.seen = true;
-                            }
-                        }
+                let reveal_radius = (30.0_f32.sqrt().ceil()) as i32;
+                for (nx, ny, distance) in self.map_wrap.civ3_radius(x, y, reveal_radius) {
+                    if distance * distance > 30 {
+                        continue;
+                    }
+                    let tile = self.tile_mut(nx, ny);
+                    tile.known_by[owner] = true;
+                    if owner == HUMAN {
+                        tile.seen = true;
                     }
                 }
                 "The village shared a map of the surrounding terrain.".into()
@@ -116,23 +113,15 @@ impl Simulation {
         }
 
         if self.turn >= BARBARIAN_ONSET {
-            let (land, water): (Vec<_>, Vec<_>) = ISOHEX_DIRS
-                .iter()
-                .copied()
-                .filter(|&(dx, dy)| {
-                    let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
-                        return false;
-                    };
+            let (land, water): (Vec<_>, Vec<_>) = self
+                .map_wrap
+                .civ3_neighbors(x, y)
+                .filter(|&(nx, ny)| {
                     self.units
                         .iter()
                         .all(|unit| (unit.x, unit.y) != (nx, ny) || unit.owner == BARBARIANS)
                 })
-                .partition(|&(dx, dy)| {
-                    let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
-                        return false;
-                    };
-                    !self.tile(nx, ny).terrain.is_water()
-                });
+                .partition(|&(nx, ny)| !self.tile(nx, ny).terrain.is_water());
 
             // Advanced roles replace the basic roster once at least three
             // civilizations can build them. Each raider is drawn separately.
@@ -168,11 +157,7 @@ impl Simulation {
                 .collect();
 
             let boat = if land.len() < 3 && !water.is_empty() {
-                let (dx, dy) = water[self.rand_below(water.len() as i32) as usize];
-                let (nx, ny) = self
-                    .map_wrap
-                    .offset(x, y, dx, dy)
-                    .expect("selected valid village neighbor");
+                let (nx, ny) = water[self.rand_below(water.len() as i32) as usize];
                 let kind = [UnitKind::Caravel, UnitKind::Galleon][self.rand_below(2) as usize];
                 Some((self.spawn_unit(BARBARIANS, kind, nx, ny), kind, nx, ny))
             } else {
@@ -199,8 +184,13 @@ impl Simulation {
                 let mut escaped = false;
                 while !exits.is_empty() {
                     let direction = self.rand_below(exits.len() as i32) as usize;
-                    let (dx, dy) = exits.remove(direction);
-                    if self.try_move_unit(id, dx, dy) == MoveResult::Moved {
+                    let (nx, ny) = exits.remove(direction);
+                    let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
+                        self.map_wrap.civ3_offset(x, y, dx, dy) == Some((nx, ny))
+                    });
+                    if direction.is_some_and(|direction| {
+                        self.try_move_unit_civ3(id, direction) == MoveResult::Moved
+                    }) {
                         escaped = true;
                         break;
                     }

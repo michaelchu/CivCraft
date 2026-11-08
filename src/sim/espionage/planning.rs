@@ -123,7 +123,10 @@ impl Simulation {
                 other.id != agent.id
                     && other.owner == agent.owner
                     && other.kind.is_diplomatic()
-                    && self.map_wrap.civ3_distance(other.x, other.y, city.x, city.y) <= 1
+                    && self
+                        .map_wrap
+                        .civ3_distance(other.x, other.y, city.x, city.y)
+                        <= 1
             }) {
                 continue;
             }
@@ -240,7 +243,7 @@ impl Simulation {
                 .iter()
                 .fold((city.x, city.y), |(x, y), &(dx, dy)| {
                     self.map_wrap
-                        .offset(x, y, dx, dy)
+                        .civ3_offset(x, y, dx, dy)
                         .expect("planned step is real")
                 });
         let mut gain = 0;

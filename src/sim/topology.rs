@@ -10,7 +10,7 @@
 //! before generation rather than changed after tiles and features are built.
 
 use super::{PERCENT_SCALE, PLAYER_COUNT, Tile};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 const TILES_PER_PLAYER: i32 = 100;
 pub(crate) const LAND_PERCENT: i32 = 30;
@@ -280,6 +280,24 @@ impl MapWrap {
         }
         distances
     }
+    pub(crate) fn civ3_radius(self, x: i32, y: i32, max_distance: i32) -> Vec<(i32, i32, i32)> {
+        let mut visited = HashSet::new();
+        let mut pending = VecDeque::from([(x, y, 0)]);
+        visited.insert(self.index(x, y));
+        let mut tiles = Vec::new();
+        while let Some((cx, cy, distance)) = pending.pop_front() {
+            tiles.push((cx, cy, distance));
+            if distance >= max_distance {
+                continue;
+            }
+            for (nx, ny) in self.civ3_neighbors(cx, cy) {
+                if visited.insert(self.index(nx, ny)) {
+                    pending.push_back((nx, ny, distance + 1));
+                }
+            }
+        }
+        tiles
+    }
     pub(crate) fn vector(self, ax: i32, ay: i32, bx: i32, by: i32) -> (i32, i32) {
         let dx = wrapped_native_delta(bx - ax, self.width());
         let dy = if self.wraps_y() {
@@ -486,6 +504,27 @@ mod wrap_tests {
                         graph[index],
                         "wrap={wrap:?}, origin=({x},{y}), target=({tx},{ty})"
                     );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn civ3_radius_matches_full_distance_field_at_edges_and_wraps() {
+        for wrap in [MapWrap::X, MapWrap::XY] {
+            for origin in [(0, 0), (wrap.width() - 1, wrap.height() - 1)] {
+                let distances = wrap.civ3_distances_from(origin.0, origin.1);
+                let radius: HashSet<_> = wrap
+                    .civ3_radius(origin.0, origin.1, 4)
+                    .into_iter()
+                    .map(|(x, y, distance)| {
+                        assert_eq!(distance, distances[wrap.index(x, y)]);
+                        (x, y)
+                    })
+                    .collect();
+                for (index, &distance) in distances.iter().enumerate() {
+                    let (x, y) = wrap.position(index);
+                    assert_eq!(radius.contains(&(x, y)), distance <= 4);
                 }
             }
         }

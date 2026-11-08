@@ -205,6 +205,14 @@ intended end state; a completed phase requires the evidence listed below.
   village discovery masks, and several UI/test helpers still construct ranges
   with explicit ISOHEX offsets. The city minimum-spacing value also needs a
   Civ III source before its current numeric threshold can be treated as final.
+- Live map revelation, bounded exploration scoring, and village map rewards now
+  enumerate a bounded BFS radius on the Civ III neighbor graph. Barbarian-village
+  escape and transport neighbors, and espionage route projection, also use Civ
+  III direction steps. A radius helper check compares its results against full
+  distance fields at map corners and wrapping edges; the expanded 646-test suite
+  passes. Remaining explicit ISOHEX use is mostly comparison/UI fixture code,
+  while worker road-value heuristics and the compatibility move command remain
+  candidates for review.
 - Human directional movement now has a Civ III direction-index command for all
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction

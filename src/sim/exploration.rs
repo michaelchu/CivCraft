@@ -148,22 +148,16 @@ impl Simulation {
         let radius = (radius_sq as f64).sqrt().ceil() as i32;
         let mut unknown = 0;
         let mut score = 0;
-        for dy in -radius..=radius {
-            for dx in -radius..=radius {
-                let distance = isohex_vector_distance(dx, dy);
-                if distance * distance > radius_sq {
-                    continue;
-                }
-                let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
-                    continue;
-                };
-                let native = self.explorer_likely_native(unit.owner, unit.kind, nx, ny);
-                if !self.tile(nx, ny).known_by[unit.owner] {
-                    unknown += 1;
-                    score += native * 21 + (100 - native) * 81;
-                } else if distance == 1 {
-                    score += (100 - native) * 51;
-                }
+        for (nx, ny, distance) in self.map_wrap.civ3_radius(x, y, radius) {
+            if distance * distance > radius_sq {
+                continue;
+            }
+            let native = self.explorer_likely_native(unit.owner, unit.kind, nx, ny);
+            if !self.tile(nx, ny).known_by[unit.owner] {
+                unknown += 1;
+                score += native * 21 + (100 - native) * 81;
+            } else if distance == 1 {
+                score += (100 - native) * 51;
             }
         }
         if unknown == 0 {
