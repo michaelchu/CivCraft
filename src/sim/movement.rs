@@ -673,28 +673,6 @@ impl Simulation {
         }
     }
 
-    pub(super) fn follow_path(
-        &mut self,
-        unit_id: u32,
-        path: impl IntoIterator<Item = (i32, i32)>,
-    ) -> bool {
-        let mut moved = false;
-        for (dx, dy) in path {
-            let result = self.try_move_unit(unit_id, dx, dy);
-            if result == MoveResult::Blocked {
-                break;
-            }
-            moved = true;
-            let Some(unit) = self.unit_by_id(unit_id) else {
-                break;
-            };
-            if unit.moves_left <= 0 || result == MoveResult::Fought {
-                break;
-            }
-        }
-        moved
-    }
-
     pub(super) fn follow_civ3_path(
         &mut self,
         unit_id: u32,

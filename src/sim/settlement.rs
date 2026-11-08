@@ -234,12 +234,12 @@ impl Simulation {
                 allowance - (cost - founder.moves_left.max(0)) % allowance
             };
             traveler.moves_left = remaining;
-            for (nx, ny, step) in self.settler_land_steps(&traveler) {
+            for (nx, ny, step, direction) in self.settler_land_steps(&traveler) {
                 let next = self.map_wrap.index(nx, ny);
                 let next_cost = cost + step.min(remaining);
                 if next_cost < costs[next] {
                     costs[next] = next_cost;
-                    previous[next] = Some((index, self.map_wrap.vector(x, y, nx, ny)));
+                    previous[next] = Some((index, direction));
                     queue.push(Reverse((next_cost, next)));
                 }
             }
@@ -253,10 +253,14 @@ impl Simulation {
     pub(super) fn settler_land_steps<'a>(
         &'a self,
         traveler: &'a Unit,
-    ) -> impl Iterator<Item = (i32, i32, i32)> + 'a {
-        self.map_wrap
-            .neighbors(traveler.x, traveler.y)
-            .filter_map(move |(nx, ny)| {
+    ) -> impl Iterator<Item = (i32, i32, i32, (i32, i32))> + 'a {
+        CIV3_DIRS
+            .into_iter()
+            .filter_map(move |direction| {
+                let (dx, dy) = direction;
+                let (nx, ny) = self
+                    .map_wrap
+                    .civ3_offset(traveler.x, traveler.y, dx, dy)?;
                 if self.treaty_blocks_move(traveler, nx, ny)
                     || self.zone_blocks_step(traveler, (traveler.x, traveler.y), (nx, ny))
                     || self.units.iter().any(|other| {
@@ -269,7 +273,7 @@ impl Simulation {
                     return None;
                 }
                 self.movement_cost_for(traveler, nx, ny)
-                    .map(|step| (nx, ny, step))
+                    .map(|step| (nx, ny, step, direction))
             })
     }
 

@@ -186,7 +186,7 @@ impl Simulation {
             for pickup in
                 port.then_some((x, y))
                     .into_iter()
-                    .chain(self.map_wrap.neighbors(x, y).filter(|&(sx, sy)| {
+                    .chain(self.map_wrap.civ3_neighbors(x, y).filter(|&(sx, sy)| {
                         self.tile(sx, sy).terrain.is_water()
                             && !self.treaty_blocks_move(&traveler, sx, sy)
                             && !self.units.iter().any(|unit| {
@@ -212,12 +212,12 @@ impl Simulation {
                     }
                 }
             }
-            for (nx, ny, step) in self.settler_land_steps(&traveler) {
+            for (nx, ny, step, direction) in self.settler_land_steps(&traveler) {
                 let next = self.map_wrap.index(nx, ny);
                 let next_cost = cost + step.min(step_remaining);
                 if next_cost < costs[next] {
                     costs[next] = next_cost;
-                    previous[next] = Some((index, self.map_wrap.vector(x, y, nx, ny)));
+                    previous[next] = Some((index, direction));
                     queue.push(Reverse((next_cost, next)));
                 }
             }
@@ -360,7 +360,7 @@ impl Simulation {
             }
             let (x, y) = self.map_wrap.position(tile);
             (staged.x, staged.y) = (x, y);
-            for (nx, ny) in self.map_wrap.neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
                 let index = self.map_wrap.index(nx, ny);
                 let blocked = self.units.iter().any(|unit| {
                     (unit.x, unit.y) == (nx, ny) && !self.allied(unit.owner, founder.owner)
@@ -418,13 +418,13 @@ impl Simulation {
                 }
             }
             (traveler.x, traveler.y) = (x, y);
-            for (nx, ny, step) in self.settler_land_steps(&traveler) {
+            for (nx, ny, step, direction) in self.settler_land_steps(&traveler) {
                 let next = self.map_wrap.index(nx, ny);
                 let cost = cost + step * sea_speed;
                 if cost < land_costs[next] {
                     land_costs[next] = cost;
                     beaches[next] = None;
-                    previous[next] = Some((index, self.map_wrap.vector(x, y, nx, ny)));
+                    previous[next] = Some((index, direction));
                     land_queue.push(Reverse((cost, next)));
                 }
             }
@@ -515,7 +515,7 @@ impl Simulation {
             return;
         };
         if founder.transport.is_none() {
-            self.follow_path(founder.id, plan.pickup_walk.iter().copied());
+            self.follow_civ3_path(founder.id, plan.pickup_walk.iter().copied());
             self.unit_goto_tiles.insert(ship, plan.pickup);
             self.ai_goto_unit(ship, plan.pickup, GotoTask::None);
             if !self.board_specific_ship(founder.id, ship)
@@ -534,9 +534,13 @@ impl Simulation {
             .iter()
             .any(|unit| unit.id == ship && (unit.x, unit.y) == (x, y))
         {
-            let (dx, dy) = self.map_wrap.vector(x, y, plan.landing.0, plan.landing.1);
-            if self.try_move_unit(founder.id, dx, dy) == MoveResult::Moved {
-                self.follow_path(founder.id, plan.inland_path.iter().copied());
+            let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
+                self.map_wrap.civ3_offset(x, y, dx, dy) == Some(plan.landing)
+            });
+            if direction.is_some_and(|direction| {
+                self.try_move_unit_civ3(founder.id, direction) == MoveResult::Moved
+            }) {
+                self.follow_civ3_path(founder.id, plan.inland_path.iter().copied());
                 if self.units.iter().any(|unit| {
                     unit.id == founder.id
                         && unit.moves_left > 0

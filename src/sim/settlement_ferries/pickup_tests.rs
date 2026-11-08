@@ -132,7 +132,7 @@ fn rough_ground_cost_is_clipped_to_walking_movement_before_port_pickup() {
     assert_eq!(pickup, port);
     assert_eq!(path.len(), 1);
     assert_eq!(turns, 0);
-    game.follow_path(passenger, path);
+    game.follow_civ3_path(passenger, path);
     assert_eq!(
         game.units
             .iter()

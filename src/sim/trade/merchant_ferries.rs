@@ -150,7 +150,7 @@ impl Simulation {
             let foot_allowance = self.unit_move_rate(&passenger).max(1);
             let mut endpoint = (passenger.x, passenger.y);
             for &(dx, dy) in &pickup_walk {
-                endpoint = self.map_wrap.offset(endpoint.0, endpoint.1, dx, dy)?;
+                endpoint = self.map_wrap.civ3_offset(endpoint.0, endpoint.1, dx, dy)?;
             }
             let walk_cost = self
                 .route_cost_within(&passenger, endpoint.0, endpoint.1, i32::MAX)
@@ -174,7 +174,7 @@ impl Simulation {
             }) {
                 let approach = self
                     .map_wrap
-                    .neighbors(city.x, city.y)
+                    .civ3_neighbors(city.x, city.y)
                     .filter(|&(x, y)| {
                         self.tile(x, y).terrain.is_water()
                             && !self.units.iter().any(|unit| {
@@ -292,7 +292,7 @@ impl Simulation {
             let Some(plan) = self.ferry_delivery_for(&unit, 0, &BTreeMap::new(), Some(ship)) else {
                 return true;
             };
-            self.follow_path(passenger, plan.pickup_walk);
+            self.follow_civ3_path(passenger, plan.pickup_walk);
             self.unit_goto_tiles.insert(ship, plan.pickup);
             self.ai_goto_unit(ship, plan.pickup, GotoTask::None);
             if !self.board_specific_ship(passenger, ship)
