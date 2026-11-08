@@ -170,11 +170,18 @@ intended end state; a completed phase requires the evidence listed below.
 - Human directional movement now has a Civ III direction-index command for all
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction
-  order. Existing six-way `Move` commands and route planning remain as a
-  compatibility path while AI and pathfinding callers migrate. This is an
-  incremental transition, not completion of eight-direction movement. Tests
-  cover each direction's destination and FLC facing row; `cargo test --offline`
-  passes 643/643 after this increment.
+  order. The human `GoTo` planner, path follower, and route preview now use the
+  same eight-direction graph. Existing six-way `Move` commands and AI-specific
+  route planners remain as compatibility paths while their callers migrate.
+  This is an incremental transition, not completion of eight-direction
+  movement. Tests cover direct movement, route preview, wrapped seams, and FLC
+  facing rows; `cargo test --offline` passes 643/643 after this increment.
+  Release build succeeds, and the focused `goto-preview` Civ III UI review
+  passed 4/4 checks. The route screenshot was inspected at
+  `/tmp/civ3-goto-eight-direction-review/goto-preview.png`; report:
+  `/tmp/civ3-goto-eight-direction-review/report.json`. The AI's specialized
+  normal/fuel pathfinders, and legacy `search_route` callers, still use six
+  directions and are the next migration gap.
 - City-local building requirements (coast, river, lake, water) now traverse
   the explicit Civ III neighbor graph. Road connectivity for unit resources
   still follows the legacy iterator because route expansion has not migrated.

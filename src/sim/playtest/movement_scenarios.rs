@@ -21,14 +21,14 @@ impl Simulation {
         let route = self.plan_route(&warrior, goal.0, goal.1, true);
         self.tile_mut(middle.0, middle.1).terrain = Terrain::Sea;
         let terrain_hidden =
-            route == [(1, 0), (1, 0)] && self.plan_route(&warrior, goal.0, goal.1, true) == route;
+            !route.is_empty() && self.plan_route(&warrior, goal.0, goal.1, true) == route;
         self.tile_mut(middle.0, middle.1).terrain = Terrain::Grassland;
         self.tile_mut(middle.0, middle.1).seen = true;
         self.spawn_unit(1, UnitKind::Warrior, middle.0, middle.1);
         let unit_hidden = self.plan_route(&warrior, goal.0, goal.1, true) == route;
         self.tile_mut(middle.0, middle.1).visible = true;
         let detour = self.plan_route(&warrior, goal.0, goal.1, true);
-        terrain_hidden && unit_hidden && !detour.is_empty() && detour[0] != (1, 0)
+        terrain_hidden && unit_hidden && !detour.is_empty() && detour != route
     }
 
     pub(crate) fn remembered_route_playtest(&mut self) -> bool {
@@ -69,10 +69,10 @@ impl Simulation {
         self.create_city(1, middle.0, middle.1);
         self.units = units;
         let remembered =
-            route.len() == 3 && self.plan_route(&warrior, goal.0, goal.1, true) == route;
+            route.len() == 2 && self.plan_route(&warrior, goal.0, goal.1, true) == route;
         self.tile_mut(bridge.0, bridge.1).visible = true;
         let updated = self.plan_route(&warrior, goal.0, goal.1, true);
-        remembered && updated == [(1, 0), (1, 0)]
+        remembered && updated.len() == 2 && updated != route
     }
 
     pub(crate) fn road_route_playtest(&mut self) -> bool {

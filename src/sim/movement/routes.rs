@@ -12,7 +12,8 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn path_for_unit(&self, unit: &Unit, tx: i32, ty: i32) -> Vec<(i32, i32)> {
-        self.plan_route(unit, tx, ty, false)
+        self.search_route(unit, tx, ty, false, i32::MAX)
+            .map_or_else(Vec::new, |(path, _)| path)
     }
 
     pub(in crate::sim) fn plan_route(
@@ -22,8 +23,19 @@ impl Simulation {
         ty: i32,
         observed: bool,
     ) -> Vec<(i32, i32)> {
-        self.search_route(unit, tx, ty, observed, i32::MAX)
+        self.search_civ3_route(unit, tx, ty, observed, i32::MAX)
             .map_or_else(Vec::new, |(path, _)| path)
+    }
+
+    pub(in crate::sim) fn search_civ3_route(
+        &self,
+        unit: &Unit,
+        tx: i32,
+        ty: i32,
+        observed: bool,
+        limit: i32,
+    ) -> Option<(Vec<(i32, i32)>, i32)> {
+        self.search_route_with_topology(unit, tx, ty, observed, limit, true)
     }
 
     pub(in crate::sim) fn route_cost_within(
@@ -44,6 +56,18 @@ impl Simulation {
         ty: i32,
         observed: bool,
         limit: i32,
+    ) -> Option<(Vec<(i32, i32)>, i32)> {
+        self.search_route_with_topology(unit, tx, ty, observed, limit, false)
+    }
+
+    fn search_route_with_topology(
+        &self,
+        unit: &Unit,
+        tx: i32,
+        ty: i32,
+        observed: bool,
+        limit: i32,
+        civ3: bool,
     ) -> Option<(Vec<(i32, i32)>, i32)> {
         let start = self.map_wrap.index(unit.x, unit.y);
         let goal = self.map_wrap.index(tx, ty);
@@ -71,8 +95,14 @@ impl Simulation {
             } else {
                 allowance - (spent - unit.moves_left.max(0)) % allowance
             };
-            for (dx, dy) in ISOHEX_DIRS {
-                let Some((nx, ny)) = self.map_wrap.offset(cx, cy, dx, dy) else {
+            let directions: &[(i32, i32)] = if civ3 { &CIV3_DIRS } else { &ISOHEX_DIRS };
+            for &(dx, dy) in directions {
+                let next = if civ3 {
+                    self.map_wrap.civ3_offset(cx, cy, dx, dy)
+                } else {
+                    self.map_wrap.offset(cx, cy, dx, dy)
+                };
+                let Some((nx, ny)) = next else {
                     continue;
                 };
                 let ni = self.map_wrap.index(nx, ny);

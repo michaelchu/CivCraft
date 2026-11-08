@@ -631,7 +631,7 @@ impl Simulation {
             return at_destination;
         }
         self.unit_goto_tiles.insert(id, (x, y));
-        let moved = self.follow_path(id, path);
+        let moved = self.follow_civ3_path(id, path);
         if self
             .unit_by_id(id)
             .is_some_and(|unit| (unit.x, unit.y) == (x, y))
@@ -663,7 +663,7 @@ impl Simulation {
             if path.is_empty() {
                 continue;
             }
-            self.follow_path(id, path);
+            self.follow_civ3_path(id, path);
             if self
                 .unit_by_id(id)
                 .is_some_and(|unit| (unit.x, unit.y) == (x, y))
@@ -681,6 +681,31 @@ impl Simulation {
         let mut moved = false;
         for (dx, dy) in path {
             let result = self.try_move_unit(unit_id, dx, dy);
+            if result == MoveResult::Blocked {
+                break;
+            }
+            moved = true;
+            let Some(unit) = self.unit_by_id(unit_id) else {
+                break;
+            };
+            if unit.moves_left <= 0 || result == MoveResult::Fought {
+                break;
+            }
+        }
+        moved
+    }
+
+    pub(super) fn follow_civ3_path(
+        &mut self,
+        unit_id: u32,
+        path: impl IntoIterator<Item = (i32, i32)>,
+    ) -> bool {
+        let mut moved = false;
+        for (dx, dy) in path {
+            let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
+                break;
+            };
+            let result = self.try_move_unit_civ3(unit_id, direction);
             if result == MoveResult::Blocked {
                 break;
             }

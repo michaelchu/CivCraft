@@ -293,6 +293,16 @@ impl MapWrap {
         }
         Some(((grid_x - neighbor_y.rem_euclid(2)) / 2, neighbor_y))
     }
+    pub(crate) fn civ3_offset(
+        self,
+        x: i32,
+        y: i32,
+        dx: i32,
+        dy: i32,
+    ) -> Option<(i32, i32)> {
+        let direction = CIV3_DIRS.iter().position(|&step| step == (dx, dy))?;
+        self.civ3_neighbor(x, y, direction)
+    }
 }
 
 #[cfg(test)]
@@ -522,13 +532,13 @@ mod wrap_tests {
             let other = (10, wrap.height() - 1);
             assert_eq!(sim.tile(other.0, other.1).visible, wrap.wraps_y());
             assert_eq!(
-                sim.map_wrap.neighbors(10, 0).any(|p| p == other),
+                sim.map_wrap.civ3_neighbors(10, 0).any(|p| p == other),
                 wrap.wraps_y()
             );
             let actor = sim.units[0].clone();
             let path = sim.plan_route(&actor, other.0, other.1, true);
             if wrap.wraps_y() {
-                assert_eq!(path, [(0, -1)]);
+                assert_eq!(path.len(), 1);
             } else {
                 assert!(path.len() > 20);
             }
