@@ -1,7 +1,7 @@
 //! Swappable map-rendering backends.
 //!
-//! The simulation and HUD stay shared. Each backend owns map projection,
-//! picking, and world-pass orchestration while rendering migrates.
+//! The simulation and HUD stay shared. Backends own map projection and picking;
+//! the Civ III backend owns world-pass orchestration while rendering migrates.
 use super::civ3_geometry::Civ3Geometry;
 use super::{Assets, Game};
 use crate::sim::topology::{MAP_W, MapWrap, map_to_native};

@@ -38,12 +38,13 @@ intended end state; a completed phase requires the evidence listed below.
   present and falls back to the bundled Civ III sheets.
 - Civ III artwork and the Civ III geometry backend are now the CLI defaults.
   `--renderer amplio2` remains available for comparison. Civ III world-pass
-  orchestration now lives in `src/client/world/civ3.rs`, and `Civ3Renderer`
-  calls that entry point directly. The painter still uses shared `Game` state,
-  map-layer helpers, and tile primitives; Amplio2's compatibility entry point
-  currently delegates to the same painter, so it is not an independent legacy
-  renderer. Simulation storage/topology and most terrain choices remain
-  incomplete. This is not yet a fully native Civ III renderer or world model.
+  orchestration now lives in the `Civ3WorldPainter` in
+  `src/client/world/civ3.rs`, and `Civ3Renderer` invokes it directly. The
+  painter takes game state and assets explicitly but still delegates tile
+  drawing to shared `Game` map-layer helpers; Amplio2 currently delegates to
+  the same painter, so it is not an independent legacy renderer. Simulation
+  storage/topology and most terrain choices remain incomplete. This is not yet
+  a fully native Civ III renderer or world model.
 - `Tile` now retains a separate `base_terrain` for Civ III transition art;
   generated forest, jungle, hill, mountain, marsh, and volcano tiles no longer
   have to use their feature name as the base sheet. The current generator
@@ -79,10 +80,10 @@ intended end state; a completed phase requires the evidence listed below.
   neighbors, horizontal wrapping, pixel centers, and diamond picking.
   Seven focused geometry tests pass.
 - The Civ III geometry backend controls projection, tile picking,
-  visible-tile placement, and edge-water placement. World-pass orchestration
-  has been extracted to `src/client/world/civ3.rs`, but still calls shared map
-  drawing helpers and simulation state. The full Civ III renderer phase is
-  incomplete.
+  visible-tile placement, and edge-water placement. `Civ3WorldPainter` in
+  `src/client/world/civ3.rs` owns ordered world-pass orchestration and receives
+  game state and assets explicitly, but still calls shared map-drawing helpers.
+  The full Civ III renderer phase is incomplete.
 - The full UI review under `--renderer civ3` passed at seed 42: 47 scenes,
   146/146 checks, and 68 captures. The report is
   `/tmp/civ3-renderer-gallery-final/report.json`. Terrain blending, resources,
@@ -123,13 +124,13 @@ intended end state; a completed phase requires the evidence listed below.
   seed 42; report: `/tmp/civ3-eight-way-review/report.json`. I inspected the
   new generated river/pole capture at
   `/tmp/civ3-eight-way-review/rivers-generated.png`.
-- After extracting Civ III world-pass orchestration, `cargo check --offline`,
-  `cargo test --offline` (620/620), and `cargo build --offline --release` pass.
-  The default Civ III UI review passes 47 scenes, 146 checks, and 68 captures
-  at seed 42; report: `/tmp/civ3-painter-extraction-review/report.json`.
-  The world screenshot was inspected at
-  `/tmp/civ3-painter-extraction-review/world.png`. This structural change
-  preserves existing pixels and does not complete renderer independence.
+- After moving ordered pass ownership into `Civ3WorldPainter`, `cargo check
+  --offline`, `cargo test --offline` (620/620), and `cargo build --offline
+  --release` pass. The default Civ III UI review passes 47 scenes, 146 checks,
+  and 68 captures at seed 42; report:
+  `/tmp/civ3-world-painter-final-review/report.json`. The world, city sprites,
+  water-depth, and both pole captures were inspected. This structural change
+  does not complete renderer independence.
 - The latest seed-42 desktop self-test passes 271/278 checks. The previously
   failing civil-war capture, diplomacy/armistice, Farmland, Airstrip, and
   Airbase scenarios now pass. Seven unrelated gameplay checks remain failing:
