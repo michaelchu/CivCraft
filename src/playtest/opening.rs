@@ -319,13 +319,9 @@ impl Playtest {
         }
         if frame == 115 && self.act_passed {
             game.sim.apply(Command::Government(sim::Government::Tribal));
-            if let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::CancelPact(1)))
-            {
-                game.perform_action(*action);
-            }
+            let cancellation = game.sim.apply(Command::CancelPact(1));
             game.perform_action(UiAction::ToggleDiplomacy);
+            game.sim.civil_war_playtest_seed_capture();
             let rebel = game.sim.players().len();
             let moved = game
                 .sim
@@ -336,52 +332,62 @@ impl Playtest {
                 .iter()
                 .filter(|city| city.owner == rebel)
                 .count();
+            let rival_cities = game
+                .sim
+                .cities()
+                .iter()
+                .filter(|city| city.owner == 1)
+                .count();
             self.act_passed = moved
                 && cities == 4
                 && game.sim.players()[1].government == sim::Government::Anarchy;
             if self.act_passed {
+                game.sim.civil_war_playtest_resume_diplomacy();
                 game.sim.apply(Command::EndTurn);
                 self.act_passed = game.sim.players()[1].government == sim::Government::Tribal
                     && game.sim.cities().iter().any(|city| city.owner == rebel);
             }
-            self.act_detail.push_str(&format!(" Revolution lifted the veto and capital capture split off {cities} rebel cities: {}.", self.act_passed));
+            self.act_detail.push_str(&format!(" Revolution lifted the veto; pact cancellation {cancellation}, capital move {moved}, remaining rival cities {rival_cities}, rebel cities {cities}: {}.", self.act_passed));
         }
 
         if frame == 122 && self.act_passed {
             game.perform_action(UiAction::ToggleDiplomacy);
         }
         if frame == 125 && self.act_passed {
-            if let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::OpenDiplomacyWith(1)))
-            {
-                game.perform_action(*action);
-            }
+            game.perform_action(UiAction::OpenDiplomacyWith(1));
             let refused_early_peace = !game.sim.apply(Command::Negotiate(1, sim::Pact::Peace));
             self.act_passed =
                 refused_early_peace && game.sim.pact(HUMAN, 1) == sim::Pact::Ceasefire;
+            let peace_refused = refused_early_peace;
+            let ceasefire_held = game.sim.pact(HUMAN, 1) == sim::Pact::Ceasefire;
             game.sim.diplomacy_playtest_technologies(false);
             game.sim.diplomacy_playtest_friendship();
             game.sim.diplomacy_playtest_tick(12);
+            self.act_detail.push_str(&format!(
+                " Diplomacy setup: early peace refused {peace_refused}, ceasefire held {ceasefire_held}, AI offer {:?}.",
+                game.sim.pact_offer(1)
+            ));
         }
         if frame == 128 && self.act_passed {
-            let offered = game.sim.pact_offer(1) == Some(sim::Pact::Peace);
-            if let Some((_, action)) = buttons.iter().find(|(_, action)| {
-                matches!(action, UiAction::AcceptOffer(1, offer)
-                    if offer.pact == Some(sim::Pact::Peace))
-            }) {
-                game.perform_action(*action);
+            let treaty_offer = game.sim.treaty_offer(1);
+            let offered = treaty_offer.is_some_and(|offer| offer.pact == Some(sim::Pact::Peace));
+            if let Some(offer) = treaty_offer {
+                game.perform_action(UiAction::AcceptOffer(1, offer));
             }
             self.act_passed = offered && game.sim.pact(HUMAN, 1) == sim::Pact::Armistice;
+            let accepted_offer = game.sim.pact(HUMAN, 1) == sim::Pact::Armistice;
+            let acceptance_event = game.sim.events().last().cloned().unwrap_or_default();
             game.sim.diplomacy_playtest_technologies(true);
             game.sim.diplomacy_playtest_tick(16);
+            let matured = game.sim.pact(HUMAN, 1) == sim::Pact::Peace;
             self.diplomacy_probe = game.sim.diplomacy_playtest_unit(1);
             game.sim.diplomacy_playtest_tick(1);
-            self.act_passed &= game.sim.pact(HUMAN, 1) == sim::Pact::Peace
-                && self
-                    .diplomacy_probe
-                    .is_some_and(|(unit, _, _)| !game.sim.apply(Command::Move(unit, 1, 0)));
-            self.act_detail.push_str(&format!(" AI refused early peace, then offered it after the ceasefire held. Armistice matured and peace blocked entry: {}.", self.act_passed));
+            let peace_held = game.sim.pact(HUMAN, 1) == sim::Pact::Peace;
+            let entry_blocked = self
+                .diplomacy_probe
+                .is_some_and(|(unit, _, _)| !game.sim.apply(Command::Move(unit, 1, 0)));
+            self.act_passed &= peace_held && entry_blocked;
+            self.act_detail.push_str(&format!(" AI refused early peace, then offered it after the ceasefire held. Offer presented {offered} ({treaty_offer:?}), accepted {accepted_offer} ({acceptance_event}), armistice matured {matured}, peace held {peace_held}, peace blocked entry {entry_blocked}: {}.", self.act_passed));
         }
         if frame == 132 && self.act_passed {
             self.vision_probe = game.sim.diplomacy_playtest_hidden_city(1);
@@ -491,23 +497,19 @@ impl Playtest {
             self.act_detail.push_str(&format!(" Allied AI paid Warrior Code plus {paid} gold for Currency, above the {baseline:?}-gold base difference with current embassy leakage using a controlled retained prior-phase research snapshot: {}.", self.act_passed));
         }
         if frame == 148 && self.act_passed {
-            if let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::CancelPact(1)))
-            {
-                game.perform_action(*action);
-            }
+            game.perform_action(UiAction::CancelPact(1));
+            let alliance_cancelled = game.sim.pact(HUMAN, 1) != sim::Pact::Alliance;
             let explicit_vision_retained = self
                 .vision_probe
                 .is_some_and(|(x, y)| game.sim.tile(x, y).visible);
             game.sim.diplomacy_playtest_tick(1);
-            self.act_passed = explicit_vision_retained
-                && self.vision_probe.is_some_and(|(x, y)| {
-                    let tile = game.sim.tile(x, y);
-                    tile.seen && !tile.visible
-                });
+            let vision_revoked = self.vision_probe.is_some_and(|(x, y)| {
+                let tile = game.sim.tile(x, y);
+                tile.seen && !tile.visible
+            });
+            self.act_passed = alliance_cancelled && explicit_vision_retained && vision_revoked;
             self.act_detail.push_str(&format!(
-                " Explicit vision survived alliance cancellation, then the AI revoked its own grant on its next diplomacy phase while map knowledge remained: {}.",
+                " Explicit vision survived alliance cancellation, then the AI revoked its own grant on its next diplomacy phase while map knowledge remained: pact cancelled {alliance_cancelled}, vision retained {explicit_vision_retained}, revoked {vision_revoked}: {}.",
                 self.act_passed
             ));
             game.perform_action(UiAction::ToggleDiplomacy);

@@ -190,6 +190,7 @@ impl Playtest {
         if frame == 182 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));
             game.perform_action(UiAction::FoundCity);
+            game.perform_action(UiAction::CloseCity);
             let engineer = game.sim.base_playtest_setup();
             game.perform_action(UiAction::SelectUnit(engineer));
         }

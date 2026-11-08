@@ -137,4 +137,16 @@ impl Simulation {
         self.refresh_visibility();
         Some(self.spawn_unit(HUMAN, UnitKind::Warrior, x, y))
     }
+
+    pub(crate) fn civil_war_playtest_seed_capture(&mut self) {
+        // The desktop scenario validates the civil-war capture path, not the
+        // chance roll or generated opening's prior RNG history.
+        self.set_random_seed(1);
+    }
+
+    pub(crate) fn civil_war_playtest_resume_diplomacy(&mut self) {
+        // The following diplomacy checks need a fresh ceasefire after the
+        // capital attack that exercised the civil-war split.
+        self.sign_pact(HUMAN, 1, Pact::Ceasefire);
+    }
 }

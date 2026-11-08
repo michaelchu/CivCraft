@@ -106,10 +106,13 @@ intended end state; a completed phase requires the evidence listed below.
   Rust suite (619/619); the offline release build and focused rendered river
   review also pass. The generated river scene is at
   `/tmp/civ3-river-native-pcx-review/rivers-generated.png`.
-- The desktop self-test (seed 42) still has open scenario failures. Movement,
-  foundation, city tiles, economy, and government pass; the civil-war
-  revolution/capital-capture check fails, and the Airstrip/Airbase UI controls
-  are unavailable. Full report: `/tmp/civcraft-playtest-NSIbFz/report.json`.
+- The latest seed-42 desktop self-test passes 271/278 checks. The previously
+  failing civil-war capture, diplomacy/armistice, Farmland, Airstrip, and
+  Airbase scenarios now pass. Seven unrelated gameplay checks remain failing:
+  `achievements`, `partisan_resistance`, `surface_warships`, `wonder_output`,
+  `obsolete_wonders`, `paratrooper_requirements`, and `ai_domestic_buildings`.
+  Report: `/tmp/civcraft-playtest-civ3-migration-20261108-final1/report.json`.
+  The Rust suite passes 619/619 and the offline release build succeeds.
 
 ## Phases and completion criteria
 
