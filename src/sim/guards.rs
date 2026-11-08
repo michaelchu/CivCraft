@@ -533,7 +533,7 @@ impl Simulation {
             let Some(path) = best else {
                 return;
             };
-            self.follow_path(id, path);
+            self.follow_civ3_path(id, path);
         }
     }
 

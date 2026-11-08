@@ -151,7 +151,7 @@ fn generated_world_uses_reference_dimensions_and_start_positions() {
 }
 
 #[test]
-fn wrapped_path_uses_one_legal_hex_step() {
+fn wrapped_path_uses_one_legal_civ3_step() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
@@ -159,9 +159,9 @@ fn wrapped_path_uses_one_legal_hex_step() {
     let unit_id = game.units[0].id;
     game.units[0].x = 0;
     game.units[0].y = 0;
-    let (target_x, target_y) = offset_native_by_map(0, 0, -1, -1);
-    assert_eq!(game.path_to(unit_id, target_x, target_y), vec![(-1, -1)]);
-    assert_eq!(game.map_distance(0, 0, target_x, target_y), 1);
+    let (target_x, target_y) = game.map_wrap.civ3_neighbor(0, 0, 2).unwrap();
+    assert_eq!(game.path_to(unit_id, target_x, target_y), vec![(2, 0)]);
+    assert_eq!(game.map_wrap.civ3_distance(0, 0, target_x, target_y), 1);
 }
 
 #[test]

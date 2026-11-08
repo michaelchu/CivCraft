@@ -97,6 +97,6 @@ impl Simulation {
                 best = Some((score, path));
             }
         }
-        best.is_some_and(|(_, path)| self.follow_path(actor.id, path))
+        best.is_some_and(|(_, path)| self.follow_civ3_path(actor.id, path))
     }
 }

@@ -182,8 +182,11 @@ intended end state; a completed phase requires the evidence listed below.
   Automated exploration, its movement follower, unknown-tile adjacency
   scoring, and generic unit wandering now use Civ III neighbors. The
   uncertainty weight is scaled over eight neighbors; that behavior is an
-  implementation inference, not a manual-documented Civ III AI rule. Other AI
-  planners and remaining `search_route` callers have not migrated.
+  implementation inference, not a manual-documented Civ III AI rule. The
+  shared `search_route` and route-cost APIs now search the Civ III graph;
+  bribery, settlement, guard-rampage, and espionage path execution uses the
+  Civ III follower. Specialized assault-transport and settlement/merchant
+  ferry planners still build legacy routes and need coordinated migration.
   Tests cover direct movement, route preview, wrapped seams, FLC facing rows,
   and migrated AI routes; `cargo test --offline` passes 644/644 and the
   offline release build succeeds. The Civ III distance formula used for fuel

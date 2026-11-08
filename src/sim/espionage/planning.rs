@@ -74,7 +74,7 @@ impl Simulation {
             return false;
         };
         self.agent_city_targets.insert(agent.id, city_id);
-        let moved = self.follow_path(agent.id, path);
+        let moved = self.follow_civ3_path(agent.id, path);
         let action = self
             .units
             .iter()
@@ -127,7 +127,7 @@ impl Simulation {
             }) {
                 continue;
             }
-            for (x, y) in self.map_wrap.neighbors(city.x, city.y) {
+            for (x, y) in self.map_wrap.civ3_neighbors(city.x, city.y) {
                 if self.tile(x, y).terrain.is_water()
                     || self.best_defender_id(agent, x, y).is_some()
                     || self.cities.iter().any(|city| {

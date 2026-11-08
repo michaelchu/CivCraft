@@ -356,7 +356,14 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
     assert!(detour.len() > 1);
     assert_ne!(detour[0], (1, 0));
     game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
-    assert_eq!(game.path_to(warrior, x, y), [(1, 0)]);
+    let path = game.path_to(warrior, x, y);
+    assert_eq!(path.len(), 1);
+    let start = game.unit_by_id(warrior).unwrap();
+    assert_eq!(
+        game.map_wrap
+            .civ3_offset(start.x, start.y, path[0].0, path[0].1),
+        Some((x, y))
+    );
     assert!(game.apply(Command::Move(warrior, 1, 0)));
 }
 

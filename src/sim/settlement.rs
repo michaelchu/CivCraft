@@ -153,7 +153,7 @@ impl Simulation {
                 reservation.destination.0,
                 reservation.destination.1,
             );
-            self.follow_path(founder.id, path);
+            self.follow_civ3_path(founder.id, path);
             if self.units.iter().any(|unit| {
                 unit.id == founder.id
                     && unit.moves_left > 0
@@ -177,7 +177,7 @@ impl Simulation {
             }
             self.reserve_settlement_site(founder, destination);
             self.ai_guard_for_destination(founder.id, destination.0, destination.1);
-            self.follow_path(founder.id, path);
+            self.follow_civ3_path(founder.id, path);
             if self.units.iter().any(|unit| {
                 unit.id == founder.id && unit.moves_left > 0 && (unit.x, unit.y) == destination
             }) {

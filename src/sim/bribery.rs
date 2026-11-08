@@ -20,7 +20,7 @@ impl Simulation {
                 && self.map_distance(actor.x, actor.y, target.x, target.y)
                     <= actor.moves_left / 2 + 1
         }) {
-            for (x, y) in self.map_wrap.neighbors(target.x, target.y) {
+            for (x, y) in self.map_wrap.civ3_neighbors(target.x, target.y) {
                 if self.tile(x, y).terrain.is_water()
                     || self.units.iter().any(|unit| {
                         (unit.x, unit.y) == (x, y) && self.at_war(actor.owner, unit.owner)
@@ -37,7 +37,10 @@ impl Simulation {
                 }
                 let mut projected = actor.clone();
                 for &(dx, dy) in &path {
-                    let Some(next) = self.map_wrap.offset(projected.x, projected.y, dx, dy) else {
+                    let Some(next) = self
+                        .map_wrap
+                        .civ3_offset(projected.x, projected.y, dx, dy)
+                    else {
                         projected.moves_left = 0;
                         break;
                     };
@@ -74,7 +77,7 @@ impl Simulation {
         let Some(((_, target), price, path)) = best else {
             return false;
         };
-        let moved = self.follow_path(actor.id, path);
+        let moved = self.follow_civ3_path(actor.id, path);
         self.bribe_unit(actor.id, target, price) || moved
     }
 
