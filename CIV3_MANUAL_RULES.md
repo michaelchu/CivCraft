@@ -1,9 +1,8 @@
 # Civilization III manual rules catalog
 
-Status: **Not yet populated.** This document is the future source of expected
-gameplay behavior derived from [`civ3_manual.pdf`](civ3_manual.pdf). No
-manual-to-code audit or gameplay gap assessment has been performed as part of
-creating this template.
+Status: **Terrain entries started.** The entries below capture the water and
+special land terrain facts used in the current map model. A broader
+manual-to-code audit remains outstanding.
 
 ## Authority and interpretation
 
@@ -42,6 +41,21 @@ Retrieved or checked date:
 Claims this source supports:
 Limitations or conflicts:
 ```
+
+### CIV3-MANUAL
+
+- Source ID: CIV3-MANUAL
+- Title / publisher: *Civilization III: The Official Manual*, Firaxis Games
+- URL or local file: [`civ3_manual.pdf`](civ3_manual.pdf), project root
+- Source type: Original game material
+- Edition / expansion / patch scope: Base Civilization III manual, 2001
+- Pages, table, figure, or section: pp. 206–207, terrain yield and resource tables
+- Retrieved or checked date: 2026-11-08
+- Claims this source supports: Coast, Sea, and Ocean base yields and resource
+  habitats; Flood Plains and shield yielding Grassland yields
+- Limitations or conflicts: Does not specify procedural map-generation
+  thresholds, the frequency of shielded Grassland, or Conquests-only Volcano
+  and Marsh rules
 
 ### Technology-tree source leads
 
@@ -123,4 +137,69 @@ Related manual rules:
 
 ## Rule entries
 
-No rules have been transcribed or assessed yet.
+### TERRAIN-WATER-OUTPUTS
+
+- Subsystem: Terrain and city tile output
+- Rule title: Coast, Sea, and Ocean base yields
+- Manual edition / scope: Base Civilization III
+- Manual page(s): 206
+- Manual statement (paraphrase): Coast yields 1 food and 2 commerce; Sea yields
+  1 food and 1 commerce; Ocean yields 1 food and no commerce. These terrains
+  yield no base shields.
+- Confidence: Explicit
+- Supported expected behavior: Model distinct Coast, Sea, and Ocean terrain
+  types with base yields `(1, 0, 2)`, `(1, 0, 1)`, and `(1, 0, 0)`.
+- Details the manual leaves unspecified: Map-generation depth thresholds and
+  how the generator chooses each water type.
+- Supplementary source ID(s): None
+- Related manual rules: TERRAIN-WATER-RESOURCES
+
+### TERRAIN-WATER-RESOURCES
+
+- Subsystem: Resource placement
+- Rule title: Fish and Whale water habitats
+- Manual edition / scope: Base Civilization III
+- Manual page(s): 207
+- Manual statement (paraphrase): Fish may appear on Coast, Sea, and Ocean;
+  Whales may appear on Sea and Ocean.
+- Confidence: Explicit
+- Supported expected behavior: Permit Fish on Coast, Sea, and Ocean, and
+  Whales on Sea and Ocean. Deep Ocean is not excluded.
+- Details the manual leaves unspecified: Relative spawn frequency and placement
+  spacing.
+- Supplementary source ID(s): None
+- Related manual rules: TERRAIN-WATER-OUTPUTS
+
+### TERRAIN-FLOOD-PLAINS
+
+- Subsystem: Terrain and city tile output
+- Rule title: Flood Plains yield
+- Manual edition / scope: Base Civilization III
+- Manual page(s): 206
+- Manual statement (paraphrase): Flood Plains produce 3 food before
+  improvements.
+- Confidence: Explicit
+- Supported expected behavior: Model Flood Plains as a 3-food terrain variant.
+- Details the manual leaves unspecified: The terrain table does not specify a
+  map-generation algorithm or placement frequency.
+- Supplementary source ID(s): None
+- Related manual rules: None
+
+### TERRAIN-GRASSLAND-SHIELD
+
+- Subsystem: Terrain and city tile output
+- Rule title: Shield yielding Grassland variant
+- Manual edition / scope: Base Civilization III
+- Manual page(s): 37, 206
+- Manual statement (paraphrase): Some Grassland squares have a rocky-tuft symbol
+  and produce one shield in addition to the normal 2 food. The terrain table
+  also lists +1 food from irrigation, +1 shield from mining, and +1 commerce
+  from roads on Grassland.
+- Confidence: Explicit
+- Supported expected behavior: Represent shield yielding Grassland separately
+  from ordinary Grassland and give it 2 food and 1 shield. Apply the normal
+  Grassland irrigation, mine, and road bonuses to this variant.
+- Details the manual leaves unspecified: How often map generation places this
+  variant and the exact sprite used for its rocky-tuft symbol.
+- Supplementary source ID(s): None
+- Related manual rules: None
