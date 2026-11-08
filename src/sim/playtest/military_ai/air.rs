@@ -147,7 +147,7 @@ impl Simulation {
         self.prune_unit_ai_state();
         self.sign_pact(1, HUMAN, Pact::War);
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.base = None;
             tile.hut = false;
             tile.owner = None;
@@ -269,7 +269,7 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.road = false;
             tile.railroad = false;
             tile.river = false;

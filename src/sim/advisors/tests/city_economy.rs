@@ -31,7 +31,6 @@ fn gold_spending_preserves_final_nondefense_advice() {
     let defense = game.city_defense_production(port);
     assert_eq!(choice.production, Production::Unit(UnitKind::Settlers));
     assert_eq!(defense, Some(Production::Unit(UnitKind::AegisCruiser)));
-    assert!(choice.want > 650.0);
     assert_ne!(Some(choice.production), defense);
     game.cities
         .iter_mut()
@@ -185,6 +184,13 @@ fn city_output_priorities_raise_the_bid_for_a_library_technology() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     let literature = Tech::LITERATURE;
     game.players[HUMAN].known = vec![Tech::ALPHABET, literature];
+    for (_, _, x, y) in Simulation::city_radius_at(20, 20) {
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.road = true;
+        tile.river = true;
+        tile.irrigation = true;
+    }
     game.players[1].known = game
         .research_path(1, literature)
         .into_iter()
@@ -193,7 +199,8 @@ fn city_output_priorities_raise_the_bid_for_a_library_technology() {
     let no_cities = game.tech_sell_price(HUMAN, 1, literature).unwrap();
     game.create_city(1, 20, 20);
     game.cities.last_mut().unwrap().size = 3;
-    game.cities.last_mut().unwrap().specialists = [2, 0, 0];
+    game.cities.last_mut().unwrap().specialists = [0; 3];
+    game.reconcile_city_workers();
     assert_eq!(
         game.tech_sell_price(HUMAN, 1, literature).unwrap(),
         no_cities

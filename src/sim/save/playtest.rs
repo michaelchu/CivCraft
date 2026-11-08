@@ -80,7 +80,7 @@ impl Simulation {
                     strongest_pact: Pact::Peace,
                 },
             );
-            self.tile_mut(19, 33).terrain = Terrain::Ocean;
+            self.tile_mut(19, 33).terrain = Terrain::Sea;
             let boat = self.spawn_unit(1, UnitKind::Transport, 19, 33);
             self.assign_ai_ferry(boat, merchant);
             self.ai_government_cache.insert(

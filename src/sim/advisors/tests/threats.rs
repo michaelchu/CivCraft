@@ -67,7 +67,7 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
     }
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
     game.create_city(HUMAN, 10, 24);
@@ -154,7 +154,7 @@ fn cargo_uses_carrier_speed_and_disembark_delay_and_can_outpace_walking() {
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.river = false;
         tile.base = None;
     }
@@ -187,7 +187,7 @@ fn paradrop_estimate_uses_source_integer_range_and_full_movement_assumption() {
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.road = false;
         tile.railroad = false;
         tile.river = false;

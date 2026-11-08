@@ -87,7 +87,7 @@ impl Simulation {
             }
             if self.rand_below(2) == 1 {
                 let tile = self.tile_mut(tx, ty);
-                if !matches!(tile.terrain, Terrain::Lake | Terrain::DeepOcean) {
+                if !tile.terrain.is_water() {
                     tile.fallout = true;
                 }
             }

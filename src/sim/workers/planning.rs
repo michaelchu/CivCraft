@@ -166,10 +166,10 @@ impl Simulation {
                 if !matches!(terrain, Terrain::Desert | Terrain::Glacier) {
                     tile.oil_well = false;
                 }
-                if terrain != Terrain::DeepOcean {
+                if terrain != Terrain::Ocean {
                     tile.oil_platform = false;
                 }
-                if matches!(terrain, Terrain::Lake | Terrain::DeepOcean) {
+                if matches!(terrain, Terrain::Lake | Terrain::Ocean) {
                     tile.pollution = false;
                     tile.fallout = false;
                 }

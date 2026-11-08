@@ -153,7 +153,7 @@ mod tests {
         let native = sim.native_random.clone();
         for tile in &mut sim.tiles {
             tile.visible = false;
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.road = true;
             tile.railroad = true;
         }
@@ -168,7 +168,7 @@ mod tests {
     fn known_impassable_destinations_and_invalid_owners_have_no_preview() {
         let (mut sim, id) = fixture(UnitKind::Warrior);
         let target = offset_native_by_map(10, 24, 1, 0);
-        sim.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+        sim.tile_mut(target.0, target.1).terrain = Terrain::Sea;
         assert!(sim.preview_goto(id, target.0, target.1).is_none());
         assert!(sim.preview_goto(id, 0, MAP_H).is_none());
         sim.units[0].owner = 1;
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn wheeled_routes_obey_known_terrain_road_and_fort_nativity() {
-        for terrain in [Terrain::Mountains, Terrain::Jungle, Terrain::Swamp] {
+        for terrain in [Terrain::Mountains, Terrain::Jungle, Terrain::Marsh] {
             let (mut sim, id) = fixture(UnitKind::Chariot);
             let target = offset_native_by_map(10, 24, 1, 0);
             sim.tile_mut(target.0, target.1).terrain = terrain;
@@ -294,7 +294,7 @@ mod tests {
         for kind in [UnitKind::Explorer, UnitKind::Warrior] {
             let (mut sim, id) = fixture(kind);
             let target = offset_native_by_map(10, 24, 1, 0);
-            sim.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+            sim.tile_mut(target.0, target.1).terrain = Terrain::Sea;
             let carrier = sim.spawn_unit(HUMAN, UnitKind::Transport, target.0, target.1);
             let preview = sim.preview_goto(id, target.0, target.1).unwrap();
             let last = preview.points.last().unwrap();

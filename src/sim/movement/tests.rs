@@ -200,7 +200,7 @@ fn wounded_ground_and_sea_units_restore_the_same_rates_used_by_pathfinding() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
-    game.tile_mut(10, 24).terrain = Terrain::Ocean;
+    game.tile_mut(10, 24).terrain = Terrain::Sea;
     game.tile_mut(12, 24).terrain = Terrain::Grassland;
     let ship = game.spawn_unit(HUMAN, UnitKind::Destroyer, 10, 24);
     let horse = game.spawn_unit(HUMAN, UnitKind::Horseman, 12, 24);
@@ -223,7 +223,7 @@ fn newly_created_triremes_get_lighthouse_speed_in_their_actual_location() {
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
     game.cities[0].buildings.push(Building::LIGHTHOUSE);
-    game.tile_mut(12, 24).terrain = Terrain::Ocean;
+    game.tile_mut(12, 24).terrain = Terrain::Sea;
     game.tile_mut(12, 24).river = false;
     let id = game.spawn_unit(HUMAN, UnitKind::Trireme, 12, 24);
     let unit = game.unit_by_id(id).unwrap();
@@ -386,7 +386,7 @@ mod transport_tests {
             let mut game = Simulation::new(crate::mapgen::generate(42));
             game.units.clear();
             let (x, y) = (10, 20);
-            game.tile_mut(x, y).terrain = Terrain::Ocean;
+            game.tile_mut(x, y).terrain = Terrain::Sea;
             let lost = game.spawn_unit(HUMAN, UnitKind::Transport, x, y);
             let slow = game.spawn_unit(HUMAN, UnitKind::Caravel, x, y);
             let fast = game.spawn_unit(HUMAN, UnitKind::Transport, x, y);
@@ -425,7 +425,7 @@ mod transport_tests {
         let (x, y) = (10, 20);
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
         game.tile_mut(x, y).terrain = Terrain::Grassland;
-        game.tile_mut(sx, sy).terrain = Terrain::Ocean;
+        game.tile_mut(sx, sy).terrain = Terrain::Sea;
         game.create_city(HUMAN, x, y);
         let id = game.cities[0].id;
         let caravel = Production::Unit(UnitKind::Caravel);
@@ -496,7 +496,7 @@ mod transport_tests {
         let (x, y) = (10, 20);
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
         game.tile_mut(x, y).terrain = Terrain::Grassland;
-        game.tile_mut(sx, sy).terrain = Terrain::Ocean;
+        game.tile_mut(sx, sy).terrain = Terrain::Sea;
         let ship = game.spawn_unit(HUMAN, UnitKind::Caravel, sx, sy);
         let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
         assert!(!game.apply(Command::Move(cannon, 1, 0)));

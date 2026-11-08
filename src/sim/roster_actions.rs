@@ -82,7 +82,7 @@ mod tests {
             game.cities.clear();
             let origin = (10, 20);
             let target = offset_native_by_map(origin.0, origin.1, 1, 0);
-            game.tile_mut(origin.0, origin.1).terrain = Terrain::Ocean;
+            game.tile_mut(origin.0, origin.1).terrain = Terrain::Sea;
             game.tile_mut(target.0, target.1).terrain = Terrain::Grassland;
             let boat = game.spawn_unit(HUMAN, UnitKind::Galleon, origin.0, origin.1);
             let actor = game.spawn_unit(HUMAN, kind, origin.0, origin.1);

@@ -5,8 +5,10 @@ use crate::sim::PLAYER_SLOTS;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Terrain {
+    /// Civ III water categories, kept in the old wire slots: old shallow Ocean
+    /// became Sea, and old Deep Ocean became Ocean.
+    Sea,
     Ocean,
-    DeepOcean,
     Lake,
     Glacier,
     Jungle,
@@ -16,8 +18,13 @@ pub(crate) enum Terrain {
     Hills,
     Mountains,
     Plains,
-    Swamp,
+    Marsh,
     Tundra,
+    // Appended so existing bincode terrain discriminants remain stable.
+    Coast,
+    FloodPlains,
+    Volcano,
+    GrasslandShield,
 }
 
 impl Terrain {
@@ -25,9 +32,12 @@ impl Terrain {
         use Resource::*;
         match self {
             Self::Lake => &[Fish],
-            Self::Ocean => &[Fish, Whales],
-            Self::DeepOcean => &[],
-            Self::Glacier => &[Oil, Uranium, Ivory],
+            Self::Coast => &[Fish],
+            Self::Sea | Self::Ocean => &[Fish, Whales],
+            Self::Glacier => &[], // legacy polar marker; not a Civ III terrain
+            Self::FloodPlains => &[Wheat],
+            Self::GrasslandShield => &[Cattle, Horses, Wine, Tobacco],
+            Self::Volcano => &[],
             Self::Desert => &[Oasis, Oil, Incense, Saltpeter],
             Self::Forest => &[Furs, Silk, Horses, Coal, Rubber],
             Self::Grassland => &[Cattle, Horses, Wine, Tobacco],
@@ -35,16 +45,17 @@ impl Terrain {
             Self::Jungle => &[Gems, TropicalFruit, Dyes, Rubber, Sugar],
             Self::Mountains => &[Gold, Iron, Aluminum, Uranium],
             Self::Plains => &[Cattle, Wheat, Horses, Iron, Oil, Ivory],
-            Self::Swamp => &[Spice, Oil, Sugar],
+            Self::Marsh => &[Spice, Oil, Sugar],
             Self::Tundra => &[Game, Furs, Oil],
         }
     }
 
     pub(crate) fn name(self) -> &'static str {
         match self {
+            Self::Sea => "Sea",
             Self::Ocean => "Ocean",
-            Self::DeepOcean => "Deep Ocean",
-            Self::Lake => "Lake",
+            Self::Coast => "Coast",
+            Self::Lake => "Fresh Water Lake",
             Self::Glacier => "Glacier",
             Self::Jungle => "Jungle",
             Self::Desert => "Desert",
@@ -53,37 +64,47 @@ impl Terrain {
             Self::Hills => "Hills",
             Self::Mountains => "Mountains",
             Self::Plains => "Plains",
-            Self::Swamp => "Swamp",
+            Self::Marsh => "Marsh",
             Self::Tundra => "Tundra",
+            Self::FloodPlains => "Flood Plains",
+            Self::Volcano => "Volcano",
+            Self::GrasslandShield => "Grassland (Shield)",
         }
     }
 
     pub(crate) fn is_water(self) -> bool {
-        matches!(self, Self::Ocean | Self::DeepOcean | Self::Lake)
+        matches!(self, Self::Coast | Self::Sea | Self::Ocean | Self::Lake)
     }
 
     pub(crate) fn movement_cost(self) -> i32 {
         match self {
-            Self::Forest | Self::Hills | Self::Swamp | Self::Jungle | Self::Glacier => 2,
-            Self::Mountains => 3,
+            Self::Forest | Self::Hills | Self::Marsh | Self::Jungle => 2,
+            Self::Mountains | Self::Volcano => 3,
             _ => 1,
         }
     }
 
     pub(crate) fn defense_bonus(self) -> i32 {
         match self {
-            Self::Forest | Self::Swamp | Self::Jungle => 25,
+            Self::Forest | Self::Jungle => 25,
             Self::Hills => 50,
             Self::Mountains => 100,
+            Self::Marsh => 20,
+            Self::Volcano => 80,
             _ => 0,
         }
     }
 
     pub(crate) fn base_yields(self) -> (i32, i32, i32) {
         match self {
-            Self::Ocean | Self::DeepOcean => (1, 0, 2),
+            Self::Coast => (1, 0, 2),
+            Self::Sea => (1, 0, 1),
+            Self::Ocean => (1, 0, 0),
             Self::Lake => (2, 0, 2),
             Self::Glacier => (0, 0, 0),
+            Self::FloodPlains => (3, 0, 0),
+            Self::Volcano => (0, 3, 0),
+            Self::GrasslandShield => (2, 1, 0),
             Self::Jungle => (1, 1, 0),
             Self::Desert => (0, 1, 0),
             Self::Forest => (1, 2, 0),
@@ -91,21 +112,31 @@ impl Terrain {
             Self::Hills => (1, 1, 0),
             Self::Mountains => (0, 1, 0),
             Self::Plains => (1, 1, 0),
-            Self::Swamp => (1, 0, 0),
+            Self::Marsh => (1, 0, 0),
             Self::Tundra => (1, 0, 0),
         }
     }
 
     pub(crate) fn irrigation_bonus(self) -> i32 {
         match self {
-            Self::Desert | Self::Grassland | Self::Hills | Self::Plains | Self::Swamp => 1,
+            Self::Desert
+            | Self::Grassland
+            | Self::GrasslandShield
+            | Self::Hills
+            | Self::Plains
+            | Self::Marsh
+            | Self::FloodPlains => 1,
             _ => 0,
         }
     }
 
     pub(crate) fn mine_bonus(self) -> i32 {
         match self {
-            Self::Desert | Self::Glacier | Self::Tundra => 1,
+            Self::Desert
+            | Self::Grassland
+            | Self::GrasslandShield
+            | Self::Plains
+            | Self::Tundra => 1,
             Self::Hills | Self::Mountains => 2,
             _ => 0,
         }
@@ -113,7 +144,12 @@ impl Terrain {
 
     pub(crate) fn road_trade_bonus(self) -> i32 {
         match self {
-            Self::Desert | Self::Grassland | Self::Plains | Self::Tundra => 1,
+            Self::Desert
+            | Self::Grassland
+            | Self::GrasslandShield
+            | Self::Plains
+            | Self::Tundra
+            | Self::FloodPlains => 1,
             _ => 0,
         }
     }
@@ -128,7 +164,12 @@ impl Terrain {
 
     pub(crate) fn irrigation_time(self) -> i32 {
         match self {
-            Self::Desert | Self::Grassland | Self::Plains | Self::Swamp => 5,
+            Self::Desert
+            | Self::Grassland
+            | Self::GrasslandShield
+            | Self::Plains
+            | Self::Marsh
+            | Self::FloodPlains => 5,
             Self::Hills => 10,
             _ => 0,
         }
@@ -136,7 +177,11 @@ impl Terrain {
 
     pub(crate) fn mine_time(self) -> i32 {
         match self {
-            Self::Desert | Self::Tundra => 5,
+            Self::Desert
+            | Self::Grassland
+            | Self::GrasslandShield
+            | Self::Plains
+            | Self::Tundra => 5,
             Self::Glacier | Self::Hills | Self::Mountains => 10,
             _ => 0,
         }
@@ -310,5 +355,38 @@ impl Tile {
             shields += shields / 2;
         }
         (food, shields, trade)
+    }
+}
+
+#[cfg(test)]
+mod civ3_terrain_tests {
+    use super::*;
+
+    #[test]
+    fn water_yields_and_resource_habitats_match_the_civ3_manual() {
+        assert_eq!(Terrain::Coast.base_yields(), (1, 0, 2));
+        assert_eq!(Terrain::Sea.base_yields(), (1, 0, 1));
+        assert_eq!(Terrain::Ocean.base_yields(), (1, 0, 0));
+        assert_eq!(Terrain::Coast.resource_options(), &[Resource::Fish]);
+        for water in [Terrain::Sea, Terrain::Ocean] {
+            assert_eq!(
+                water.resource_options(),
+                &[Resource::Fish, Resource::Whales]
+            );
+        }
+    }
+
+    #[test]
+    fn civ3_special_land_terrains_keep_their_manual_yields() {
+        assert_eq!(Terrain::FloodPlains.base_yields(), (3, 0, 0));
+        assert_eq!(Terrain::GrasslandShield.base_yields(), (2, 1, 0));
+        assert_eq!(Terrain::GrasslandShield.irrigation_bonus(), 1);
+        assert_eq!(Terrain::GrasslandShield.mine_bonus(), 1);
+        assert_eq!(Terrain::GrasslandShield.road_trade_bonus(), 1);
+        assert!(Terrain::GrasslandShield.irrigation_time() > 0);
+        assert!(Terrain::GrasslandShield.mine_time() > 0);
+        assert_eq!(Terrain::FloodPlains.irrigation_bonus(), 1);
+        assert!(Terrain::FloodPlains.irrigation_time() > 0);
+        assert_eq!(Terrain::Marsh.name(), "Marsh");
     }
 }

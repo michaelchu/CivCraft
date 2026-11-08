@@ -250,7 +250,7 @@ fn irrigation_needs_water_and_conflicts_with_mines() {
     }
     assert!(!game.can_irrigate_at(HUMAN, x, y));
     let (water_x, water_y) = offset_native_by_map(x, y, ISOHEX_DIRS[0].0, ISOHEX_DIRS[0].1);
-    game.tile_mut(water_x, water_y).terrain = Terrain::Ocean;
+    game.tile_mut(water_x, water_y).terrain = Terrain::Sea;
     assert!(game.can_irrigate_at(HUMAN, x, y));
 
     let worker_index = game

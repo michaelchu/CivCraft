@@ -548,7 +548,7 @@ impl Simulation {
             self.prune_unit_ai_state();
             for tile in &mut self.tiles {
                 tile.terrain = if kind.is_naval() {
-                    Terrain::Ocean
+                    Terrain::Sea
                 } else {
                     Terrain::Grassland
                 };
@@ -607,7 +607,7 @@ impl Simulation {
         for kind in [UnitKind::Warrior, UnitKind::Caravel] {
             for tile in &mut self.tiles {
                 tile.terrain = if kind.is_naval() {
-                    Terrain::Ocean
+                    Terrain::Sea
                 } else {
                     Terrain::Grassland
                 };

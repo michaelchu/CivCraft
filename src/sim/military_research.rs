@@ -121,7 +121,7 @@ mod tests {
         game.units.clear();
         game.cities.clear();
         for tile in &mut game.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
         }
         game.tile_mut(10, 24).terrain = Terrain::Grassland;
         let goal = UnitKind::AegisCruiser.required_tech().unwrap();

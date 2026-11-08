@@ -58,7 +58,7 @@ impl Simulation {
         !kind.is_big_land()
             || !matches!(
                 tile.terrain,
-                Terrain::Mountains | Terrain::Swamp | Terrain::Jungle
+                Terrain::Mountains | Terrain::Marsh | Terrain::Jungle
             )
             || tile.road
             || matches!(tile.base, Some(Base::Fort | Base::Fortress))

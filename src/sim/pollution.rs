@@ -85,7 +85,7 @@ impl Simulation {
             .filter(|&(x, y)| {
                 let tile = self.tile(x, y);
                 !tile.has_contamination(target)
-                    && !matches!(tile.terrain, Terrain::Lake | Terrain::DeepOcean)
+                    && !tile.terrain.is_water()
             })
             .collect();
         if candidates.is_empty() {

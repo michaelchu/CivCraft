@@ -175,15 +175,15 @@ mod city_output_tests {
             .extend([Building::HARBOR, Building::OFFSHORE_PLATFORM]);
         let point = offset_native_by_map(city.x, city.y, 1, 0);
         for (terrain, food, shields) in [
-            (Terrain::Ocean, 2, 1),
-            (Terrain::DeepOcean, 2, 0),
+            (Terrain::Sea, 2, 1),
+            (Terrain::Ocean, 2, 0),
             (Terrain::Lake, 2, 1),
         ] {
             game.tile_mut(point.0, point.1).terrain = terrain;
             let output = game.city_tile_yields(&city, point.0, point.1, false, None);
             assert_eq!((output.0, output.1), (food, shields), "{terrain:?}");
         }
-        game.tile_mut(point.0, point.1).terrain = Terrain::DeepOcean;
+        game.tile_mut(point.0, point.1).terrain = Terrain::Ocean;
         game.tile_mut(point.0, point.1).oil_platform = true;
         assert_eq!(
             game.city_tile_yields(&city, point.0, point.1, false, None)

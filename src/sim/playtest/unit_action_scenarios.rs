@@ -1,6 +1,7 @@
 //! Automated gameplay scenarios covering unit action behavior.
 
 use super::*;
+use super::super::workers::WorkerRequest;
 
 impl Simulation {
     // The desktop self-test advances treaty timers with the armies held in place.
@@ -80,7 +81,7 @@ impl Simulation {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = offset_native_by_map(city.x, city.y, 1, 0);
         self.players[HUMAN].known.push(Tech::MINIATURIZATION);
-        self.tile_mut(x, y).terrain = Terrain::DeepOcean;
+        self.tile_mut(x, y).terrain = Terrain::Ocean;
         self.spawn_unit(HUMAN, UnitKind::Transport, x, y)
     }
 
@@ -88,7 +89,7 @@ impl Simulation {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = offset_native_by_map(city.x, city.y, 1, 0);
         let tile = self.tile_mut(x, y);
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.pollution = true;
         self.spawn_unit(HUMAN, UnitKind::Transport, x, y)
     }
@@ -166,7 +167,7 @@ impl Simulation {
         let (x, y) = (city.x, city.y);
         let sea = offset_native_by_map(x, y, 1, 0);
         let shore = offset_native_by_map(x, y, 2, 0);
-        self.tile_mut(sea.0, sea.1).terrain = Terrain::Ocean;
+        self.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
         self.tile_mut(shore.0, shore.1).terrain = Terrain::Grassland;
         let ship = self.spawn_unit(HUMAN, UnitKind::Caravel, x, y);
         let passenger = self.spawn_unit(HUMAN, UnitKind::Settlers, x, y);
@@ -181,7 +182,7 @@ impl Simulation {
         game.cities.clear();
         game.players[HUMAN].known.clear();
         for tile in &mut game.tiles {
-            tile.terrain = Terrain::DeepOcean;
+            tile.terrain = Terrain::Ocean;
             tile.oil_platform = false;
             tile.pollution = false;
             tile.fallout = false;
@@ -243,7 +244,7 @@ impl Simulation {
         let home = (10, 0);
         let site = (10, 1);
         let water = offset_native_by_map(site.0, site.1, -1, -1);
-        self.tile_mut(water.0, water.1).terrain = Terrain::Ocean;
+        self.tile_mut(water.0, water.1).terrain = Terrain::Sea;
         self.create_city(HUMAN, home.0, home.1);
         let port = self.is_port(&self.cities[0]);
         let radius =
@@ -286,7 +287,13 @@ impl Simulation {
         game.cities[0].specialists = [0; 3];
         game.tile_mut(target.0, target.1).pollution = true;
         let ship = game.spawn_unit(1, UnitKind::Transport, center.0, center.1);
-        game.run_worker_phase_with_requests(1, &mut Vec::new());
+        let mut requests = vec![WorkerRequest {
+            city: game.cities[0].id,
+            destination: target,
+            activity: WorkKind::Clean(Contamination::Pollution),
+            want: 1,
+        }];
+        game.run_worker_phase_with_requests(1, &mut requests);
         let assigned = game.units.iter().any(|unit| {
             unit.id == ship
                 && (unit.x, unit.y) == target
@@ -301,7 +308,7 @@ impl Simulation {
         self.cities.clear();
         let position = (20, 24);
         let tile = self.tile_mut(position.0, position.1);
-        tile.terrain = Terrain::DeepOcean;
+        tile.terrain = Terrain::Ocean;
         tile.oil_platform = false;
         tile.pollution = true;
         self.players[HUMAN].known.push(Tech::MINIATURIZATION);

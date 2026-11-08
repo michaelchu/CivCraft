@@ -12,7 +12,7 @@ impl super::Simulation {
         self.ai_ferries = Default::default();
         self.diplomacy.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.owner = None;
             tile.road = false;
             tile.railroad = false;
@@ -67,7 +67,7 @@ impl super::Simulation {
     pub(crate) fn rendezvous_route_playtest(&mut self) -> bool {
         self.units.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.resource = None;
         }
         let early = (10, 24);

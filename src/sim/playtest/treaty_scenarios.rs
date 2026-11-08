@@ -121,8 +121,8 @@ impl Simulation {
         let unexplored = (12, 24);
         for (point, terrain, known) in [
             (land, Terrain::Grassland, true),
-            (sea, Terrain::Ocean, true),
-            (unexplored, Terrain::Ocean, false),
+            (sea, Terrain::Sea, true),
+            (unexplored, Terrain::Sea, false),
         ] {
             let tile = self.tile_mut(point.0, point.1);
             tile.terrain = terrain;

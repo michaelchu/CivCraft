@@ -64,7 +64,7 @@ fn source_goto_profiles_distinguish_ferry_hunter_worker_and_action_endpoints() {
 fn native_risk_paths_can_spend_more_movement_to_avoid_a_vulnerable_stack() {
     let mut sim = world();
     for tile in &mut sim.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
     }
     let actor = unit(&mut sim, 1, UnitKind::Caravel);
     let stack = offset_native_by_map(10, 20, 1, 0);
@@ -107,7 +107,7 @@ fn native_risk_paths_can_spend_more_movement_to_avoid_a_vulnerable_stack() {
 fn overlap_stops_after_one_nonnative_tile_and_sanity_still_checks_known_map() {
     let mut sim = world();
     for tile in &mut sim.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
     }
     let actor = unit(&mut sim, 1, UnitKind::Caravel);
     let center = offset_native_by_map(10, 20, 2, 0);
@@ -136,7 +136,7 @@ fn potential_transport_capacity_is_a_planning_scope_but_execution_checks_real_sp
     let mut sim = world();
     let actor = unit(&mut sim, 1, UnitKind::Warrior);
     let sea = offset_native_by_map(10, 20, 1, 0);
-    sim.tile_mut(sea.0, sea.1).terrain = Terrain::Ocean;
+    sim.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
     let boat = sim.spawn_unit(1, UnitKind::Trireme, sea.0, sea.1);
     for _ in 0..2 {
         let cargo = sim.spawn_unit(1, UnitKind::Warrior, sea.0, sea.1);
@@ -158,7 +158,7 @@ fn potential_transport_capacity_is_a_planning_scope_but_execution_checks_real_sp
 fn distant_goto_preserves_reference_zoc_instead_of_intended_long_path_relaxation() {
     let mut sim = world();
     for tile in &mut sim.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.known_by[1] = false;
     }
     for step in 0..=8 {
@@ -213,7 +213,7 @@ fn ai_goto_executes_final_combat_and_restores_nonferry_goal_but_sets_ferry_goal(
     sim.units.clear();
     sim.prune_unit_ai_state();
     for tile in &mut sim.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
     }
     let boat = unit(&mut sim, 1, UnitKind::Caravel);
     sim.unit_goto_tiles.insert(boat.id, (20, 40));

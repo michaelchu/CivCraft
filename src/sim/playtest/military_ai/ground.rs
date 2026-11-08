@@ -165,7 +165,7 @@ impl Simulation {
                 Some(Building::CITY_WALLS),
             ) > self.defense_power_with_building(defender, x, y, UnitKind::Cannon, None);
         self.units.retain(|unit| unit.id != cannon);
-        self.tile_mut(nx, ny).terrain = Terrain::Ocean;
+        self.tile_mut(nx, ny).terrain = Terrain::Sea;
         self.spawn_unit(HUMAN, UnitKind::Battleship, nx, ny);
         let defender = self.unit_by_id(guard).unwrap();
         let ordinary = self.defense_power_with_building(defender, x, y, UnitKind::Battleship, None);

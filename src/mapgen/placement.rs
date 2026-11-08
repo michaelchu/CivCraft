@@ -4,8 +4,8 @@ use super::*;
 
 impl super::Generator {
     pub(super) fn place_resources(&self, tiles: &mut [Tile], rng: &mut MapRng) {
-        // CivCraft's Civ III: Conquests catalog uses terrain-specific resource
-        // pools. There are no deep-ocean resources, and fish/whales stay coastal.
+        // Civ III's terrain chart permits Fish on Coast, and Fish plus Whales
+        // on Sea and Ocean. Habitat is terrain data; placement stays generic.
         for tile in 0..tiles.len() {
             if self
                 .neighbors(tile)
@@ -15,16 +15,7 @@ impl super::Generator {
                 continue;
             }
             let terrain = tiles[tile].terrain;
-            let coastal_ocean = terrain == Terrain::Ocean
-                && self.neighbors(tile).any(|next| {
-                    !matches!(tiles[next].terrain, Terrain::Ocean | Terrain::DeepOcean)
-                });
-            let choices = if terrain == Terrain::Ocean && !coastal_ocean {
-                &[]
-            } else {
-                terrain.resource_options()
-            };
-            for (index, &resource) in choices.iter().enumerate() {
+            for (index, &resource) in terrain.resource_options().iter().enumerate() {
                 if rng.below(index as i32 + 1) == 0 {
                     tiles[tile].resource = Some(resource);
                 }

@@ -59,8 +59,8 @@ fn sea_worker_routes_reject_known_land_and_use_native_unknown_terrain_cost() {
     let start = (10, 24);
     let sea = offset_native_by_map(start.0, start.1, 1, 0);
     let land = offset_native_by_map(start.0, start.1, 0, 1);
-    game.tile_mut(start.0, start.1).terrain = Terrain::Ocean;
-    game.tile_mut(sea.0, sea.1).terrain = Terrain::Ocean;
+    game.tile_mut(start.0, start.1).terrain = Terrain::Sea;
+    game.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
     game.tile_mut(sea.0, sea.1).known_by[HUMAN] = false;
     game.spawn_unit(HUMAN, UnitKind::Transport, start.0, start.1);
     let routes = game.worker_routes(game.units.last().unwrap());

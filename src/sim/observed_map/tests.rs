@@ -131,7 +131,7 @@ fn destroyed_or_captured_cities_remain_at_last_observed_state() {
 fn sea_map_copies_the_sellers_visual_snapshot_not_live_world() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     assert!(game.map_snapshot_playtest());
-    assert_eq!(game.render_tile(23, 36).terrain, Terrain::Ocean);
+    assert_eq!(game.render_tile(23, 36).terrain, Terrain::Sea);
     assert_eq!(game.tile(23, 36).terrain, Terrain::Grassland);
 }
 
@@ -189,7 +189,7 @@ fn an_older_trade_map_does_not_replace_a_newer_observation() {
         tile.seen = false;
         tile.known_by.fill(false);
     }
-    game.tile_mut(23, 36).terrain = Terrain::Ocean;
+    game.tile_mut(23, 36).terrain = Terrain::Sea;
     game.spawn_unit(1, UnitKind::Trireme, 23, 36);
     game.refresh_visibility();
     game.units.clear();
@@ -235,7 +235,7 @@ fn newer_trade_maps_update_existing_visual_and_movement_knowledge_together() {
     // The world changes again after the seller leaves. Neither recipient
     // may receive this unobserved ocean or lose the recorded roads.
     let tile = game.tile_mut(x, y);
-    tile.terrain = Terrain::Ocean;
+    tile.terrain = Terrain::Sea;
     tile.road = false;
     tile.railroad = false;
     tile.owner = None;

@@ -15,13 +15,13 @@ impl Simulation {
         let lake = offset_native_by_map(x, y, 0, -2);
         for step in 1..=8 {
             let (sx, sy) = offset_native_by_map(x, y, step, 0);
-            self.tile_mut(sx, sy).terrain = Terrain::Ocean;
+            self.tile_mut(sx, sy).terrain = Terrain::Sea;
         }
         // Enlarge the connected sea so it cannot qualify as an enclosed lake.
         for step in 3..=8 {
             for dy in 0..=4 {
                 let (sx, sy) = offset_native_by_map(x, y, step, dy);
-                self.tile_mut(sx, sy).terrain = Terrain::Ocean;
+                self.tile_mut(sx, sy).terrain = Terrain::Sea;
             }
         }
         self.tile_mut(lake.0, lake.1).terrain = Terrain::Lake;

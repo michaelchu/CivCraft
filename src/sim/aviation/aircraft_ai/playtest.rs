@@ -21,7 +21,7 @@ impl super::Simulation {
                 .known
                 .extend([Tech::ADVANCED_FLIGHT, Tech::ROCKETRY]);
             for tile in &mut self.tiles {
-                tile.terrain = Terrain::Ocean;
+                tile.terrain = Terrain::Sea;
                 tile.base = None;
                 tile.owner = None;
                 tile.hut = false;

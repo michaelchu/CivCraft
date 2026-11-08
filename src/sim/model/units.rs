@@ -299,13 +299,13 @@ impl UnitKind {
         if self.is_aircraft() {
             true
         } else if self == Self::Trireme {
-            matches!(terrain, Terrain::Ocean | Terrain::Lake) || river
+            matches!(terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake) || river
         } else {
             terrain.is_water() == self.is_naval()
                 && (!self.is_big_land()
                     || !matches!(
                         terrain,
-                        Terrain::Jungle | Terrain::Mountains | Terrain::Swamp
+                        Terrain::Jungle | Terrain::Mountains | Terrain::Marsh
                     )
                     || road
                     || railroad

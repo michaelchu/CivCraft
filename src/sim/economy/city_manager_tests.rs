@@ -119,7 +119,7 @@ fn carrier_can_apply_martial_law_without_causing_overseas_military_unhappiness()
         tile.resource = None;
     }
     let sea = offset_native_by_map(12, 24, 1, 0);
-    game.tile_mut(sea.0, sea.1).terrain = Terrain::Ocean;
+    game.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
     game.create_city(1, 12, 24);
     let mut city = game.cities[0].clone();
     city.size = 6;

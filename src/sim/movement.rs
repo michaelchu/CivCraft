@@ -183,7 +183,8 @@ impl Simulation {
         if kind.is_naval() {
             let native = |tile: RouteTile| {
                 if kind == UnitKind::Trireme {
-                    matches!(tile.terrain, Terrain::Ocean | Terrain::Lake) || tile.river
+                    matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake)
+                        || tile.river
                 } else {
                     tile.terrain.is_water()
                 }
@@ -254,7 +255,7 @@ impl Simulation {
         if unit.kind.is_naval() {
             let trireme = unit.kind == UnitKind::Trireme;
             let native = if trireme {
-                matches!(dest.terrain, Terrain::Ocean | Terrain::Lake) || dest.river
+                matches!(dest.terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake) || dest.river
             } else {
                 dest.terrain.is_water()
             };

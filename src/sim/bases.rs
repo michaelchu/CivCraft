@@ -65,7 +65,7 @@ impl Simulation {
                 | Terrain::Forest
                 | Terrain::Hills
                 | Terrain::Jungle
-                | Terrain::Swamp => 2,
+                | Terrain::Marsh => 2,
                 _ => 1,
             },
         )

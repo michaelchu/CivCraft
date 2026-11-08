@@ -33,7 +33,7 @@ fn idle_ai_military_and_ferries_use_frontier_exploration() {
 fn nonworker_autoexploration_does_not_start_unsolicited_cleanup() {
     let mut game = world();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
     }
     let ship = game.spawn_unit(HUMAN, UnitKind::Caravel, 10, 20);
     game.tile_mut(10, 20).pollution = true;
@@ -50,7 +50,7 @@ fn nonworker_autoexploration_does_not_start_unsolicited_cleanup() {
 fn idle_ferry_recovery_uses_allied_ports_and_native_regeneration_penalty() {
     let mut game = world();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.known_by[1] = true;
     }
     let ship = game.spawn_unit(1, UnitKind::Caravel, 10, 20);
@@ -168,7 +168,7 @@ fn likely_native_keeps_reference_unknown_center_quirk() {
         game.explorer_likely_native(HUMAN, UnitKind::Explorer, point.0, point.1),
         98
     );
-    game.tile_mut(point.0, point.1).terrain = Terrain::Ocean;
+    game.tile_mut(point.0, point.1).terrain = Terrain::Sea;
     assert_eq!(
         game.explorer_likely_native(HUMAN, UnitKind::Explorer, point.0, point.1),
         2

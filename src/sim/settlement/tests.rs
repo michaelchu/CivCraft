@@ -107,14 +107,14 @@ fn reservation_lifecycle_keeps_blocked_mission_but_releases_illegal_target() {
     game.prune_settlement_reservations(1);
     assert_eq!(game.ai_settlement_targets[&id].worker, None);
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
     }
     game.tile_mut(2, 8).terrain = Terrain::Plains;
     game.tile_mut(10, 24).terrain = Terrain::Plains;
     assert!(game.path_for_unit(&founder, 10, 24).is_empty());
     game.run_ai_founder(&founder);
     assert_eq!(game.ai_settlement_targets[&id].destination, (10, 24));
-    game.tile_mut(10, 24).terrain = Terrain::Ocean;
+    game.tile_mut(10, 24).terrain = Terrain::Sea;
     game.run_ai_founder(&founder);
     assert!(!game.ai_settlement_targets.contains_key(&id));
     assert!(game.cities.is_empty());

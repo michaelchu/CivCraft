@@ -34,7 +34,7 @@ impl super::Simulation {
         self.units.clear();
         self.prune_unit_ai_state();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
         }
         let carrier = self.spawn_unit(HUMAN, UnitKind::Carrier, 10, 20);
         self.spawn_unit(BARBARIANS, UnitKind::Caravel, blocker.0, blocker.1);

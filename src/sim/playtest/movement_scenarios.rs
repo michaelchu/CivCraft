@@ -19,7 +19,7 @@ impl Simulation {
         self.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
         let warrior = self.units.last().unwrap().clone();
         let route = self.plan_route(&warrior, goal.0, goal.1, true);
-        self.tile_mut(middle.0, middle.1).terrain = Terrain::Ocean;
+        self.tile_mut(middle.0, middle.1).terrain = Terrain::Sea;
         let terrain_hidden =
             route == [(1, 0), (1, 0)] && self.plan_route(&warrior, goal.0, goal.1, true) == route;
         self.tile_mut(middle.0, middle.1).terrain = Terrain::Grassland;
@@ -63,7 +63,7 @@ impl Simulation {
         let bridge = point(1, -1);
         let tile = self.tile_mut(bridge.0, bridge.1);
         tile.visible = false;
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.road = false;
         let units = std::mem::take(&mut self.units);
         self.create_city(1, middle.0, middle.1);
@@ -102,7 +102,7 @@ impl Simulation {
 
     pub(crate) fn nested_cargo_rescue_playtest(&mut self) -> bool {
         let sea = (10, 24);
-        self.tile_mut(sea.0, sea.1).terrain = Terrain::Ocean;
+        self.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
         let carrier = self.spawn_unit(HUMAN, UnitKind::Carrier, sea.0, sea.1);
         let helicopter = self.spawn_unit(HUMAN, UnitKind::Helicopter, sea.0, sea.1);
         assert!(self.board_specific_ship(helicopter, carrier));
@@ -135,7 +135,7 @@ impl Simulation {
     pub(crate) fn cargo_rescue_playtest(&mut self) -> (bool, bool, bool) {
         let sea = (10, 24);
         let coast = offset_native_by_map(sea.0, sea.1, 1, 0);
-        self.tile_mut(sea.0, sea.1).terrain = Terrain::Ocean;
+        self.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
         self.tile_mut(coast.0, coast.1).terrain = Terrain::Grassland;
         let ship = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
         let backup = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
@@ -245,7 +245,7 @@ impl Simulation {
     pub(crate) fn fleet_escort_playtest(&mut self) -> (bool, bool) {
         self.units.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.known_by[1] = true;
         }
         let sea = (10, 24);
@@ -275,7 +275,7 @@ impl Simulation {
     pub(crate) fn coordinated_fleet_playtest(&mut self, remote: bool) -> (bool, bool, bool) {
         self.units.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.hut = false;
             tile.resource = None;
         }
@@ -349,7 +349,7 @@ impl Simulation {
     pub(crate) fn overseas_assault_playtest(&mut self, defended: bool) -> (bool, bool, bool) {
         self.units.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.hut = false;
             tile.resource = None;
         }
@@ -610,7 +610,7 @@ impl Simulation {
         let wheel_blocked = self.movement_cost_for(&chariot, dest.0, dest.1).is_none();
         self.tile_mut(dest.0, dest.1).road = true;
         let wheel_road = self.movement_cost_for(&chariot, dest.0, dest.1).is_some();
-        self.tile_mut(dest.0, dest.1).terrain = Terrain::Ocean;
+        self.tile_mut(dest.0, dest.1).terrain = Terrain::Sea;
         self.spawn_unit(HUMAN, UnitKind::Transport, dest.0, dest.1);
         let explorer = self.spawn_unit(HUMAN, UnitKind::Explorer, home.0, home.1);
         let before = self
@@ -674,7 +674,7 @@ impl Simulation {
             self.units.clear();
             for position in [home, goal] {
                 self.tile_mut(position.0, position.1).terrain = if kind.is_naval() {
-                    Terrain::Ocean
+                    Terrain::Sea
                 } else {
                     Terrain::Grassland
                 };
@@ -709,7 +709,7 @@ impl Simulation {
         self.players[HUMAN]
             .known
             .retain(|&tech| tech != Tech::NUCLEAR_POWER);
-        self.tile_mut(10, 24).terrain = Terrain::Ocean;
+        self.tile_mut(10, 24).terrain = Terrain::Sea;
         self.tile_mut(12, 24).terrain = Terrain::Grassland;
         let ship = self.spawn_unit(HUMAN, UnitKind::Destroyer, 10, 24);
         let horse = self.spawn_unit(HUMAN, UnitKind::Horseman, 12, 24);
@@ -739,7 +739,7 @@ impl Simulation {
         self.cities.clear();
         self.prune_unit_ai_state();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.road = false;
             tile.railroad = false;
             tile.river = false;

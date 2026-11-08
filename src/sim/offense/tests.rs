@@ -9,7 +9,7 @@ fn island_fixture() -> (Simulation, City, Unit, (i32, i32)) {
     game.players[1].known = vec![Tech::WARRIOR_CODE];
     game.players[1].government = Government::Despotism;
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.known_by.fill(true);
         tile.owner = None;
         tile.hut = false;

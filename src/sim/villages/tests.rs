@@ -133,7 +133,7 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
         game.tile_mut(nx, ny).terrain = if (dx, dy) == (0, 1) {
             Terrain::Plains
         } else {
-            Terrain::Ocean
+            Terrain::Sea
         };
     }
     assert!(game.apply(Command::Move(id, 0, -1)));
@@ -156,7 +156,7 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
         .any(|unit| unit.owner == BARBARIANS && (unit.x, unit.y) == (x, y));
     assert_eq!(game.units.iter().any(|unit| unit.id == id), !stayed);
     let (sx, sy) = offset_native_by_map(boat.x, boat.y, 1, 0);
-    game.tile_mut(sx, sy).terrain = Terrain::Ocean;
+    game.tile_mut(sx, sy).terrain = Terrain::Sea;
     assert_eq!(game.try_move_unit(boat.id, 1, 0), MoveResult::Moved);
     for id in cargo {
         let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();

@@ -68,7 +68,7 @@ impl Simulation {
         let (x, y) = offset_native_by_map(12, 24, 6, 0);
         let tile = self.tile_mut(x, y);
         tile.terrain = if sea {
-            Terrain::Ocean
+            Terrain::Sea
         } else {
             Terrain::Grassland
         };

@@ -19,7 +19,9 @@ impl super::Simulation {
             tile.railroad = true;
             tile.irrigation = true;
             tile.farmland = true;
-            tile.mine = false;
+            // Mine Grassland is valid Civ III work; keep this fixture's
+            // polluted target available specifically for cleanup.
+            tile.mine = true;
             tile.oil_well = false;
             tile.pollution = false;
             tile.fallout = false;

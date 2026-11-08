@@ -50,7 +50,7 @@ fn ocean_game() -> Simulation {
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.owner = None;
         tile.road = false;
         tile.railroad = false;

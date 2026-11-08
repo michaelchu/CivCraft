@@ -317,7 +317,7 @@ impl Simulation {
             WorkKind::OilWell => {
                 self.tile(x, y).mine && matches!(terrain, Terrain::Desert | Terrain::Glacier)
             }
-            WorkKind::OilPlatform => terrain == Terrain::DeepOcean,
+            WorkKind::OilPlatform => terrain == Terrain::Ocean,
             WorkKind::Clean(target) => self.tile(x, y).has_contamination(target),
             _ => unreachable!(),
         };

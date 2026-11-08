@@ -13,8 +13,9 @@ impl Simulation {
         if kind != UnitKind::Trireme {
             return self.is_port(city);
         }
-        let native =
-            |tile: &Tile| matches!(tile.terrain, Terrain::Ocean | Terrain::Lake) || tile.river;
+        let native = |tile: &Tile| {
+            matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake) || tile.river
+        };
         native(self.tile(city.x, city.y))
             || self
                 .map_wrap

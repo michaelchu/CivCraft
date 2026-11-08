@@ -497,13 +497,13 @@ impl Simulation {
         // and finally the Civ2Civ3 center minima (all zero in game.ruleset).
         food += i32::from(
             city.has_building(Building::HARBOR)
-                && matches!(tile.terrain, Terrain::Ocean | Terrain::DeepOcean),
+                && matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Ocean),
         );
         shields += i32::from(is_center)
             + i32::from(
                 city.has_building(Building::OFFSHORE_PLATFORM)
                     && tile.terrain.is_water()
-                    && (tile.terrain != Terrain::DeepOcean || tile.oil_platform),
+                    && (tile.terrain != Terrain::Ocean || tile.oil_platform),
             );
         if shields > 0 {
             shields += i32::from(pyramids);

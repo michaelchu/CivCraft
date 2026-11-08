@@ -7,7 +7,7 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.resource = None;
         }
         let home = (10, 24);
@@ -43,7 +43,7 @@ impl Simulation {
             .iter()
             .any(|unit| unit.id == attacker && [point(2), point(3)].contains(&(unit.x, unit.y)));
         let (x, y) = point(2);
-        self.tile_mut(x, y).terrain = Terrain::Ocean;
+        self.tile_mut(x, y).terrain = Terrain::Sea;
         // Native offense may simulate a ferry across a cut land corridor.
         // Exclude the nearer secondary target and block the BigLand seed's
         // target approaches as well; this makes the selected job unreachable.
@@ -251,7 +251,7 @@ impl Simulation {
         let minimum = self.city_tile_yields(&city, 12, 24, true, None) == (1, 3, 0);
         self.tile_mut(12, 24).terrain = Terrain::Plains;
         let neighbor = offset_native_by_map(12, 24, 1, 0);
-        self.tile_mut(neighbor.0, neighbor.1).terrain = Terrain::Ocean;
+        self.tile_mut(neighbor.0, neighbor.1).terrain = Terrain::Sea;
         city.buildings.push(Building::HARBOR);
         let harbor = self
             .city_tile_yields(&city, neighbor.0, neighbor.1, false, None)

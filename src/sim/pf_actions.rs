@@ -268,7 +268,7 @@ mod tests {
         assert!(UnitKind::Explorer.ignores_zoc());
         assert!(UnitKind::Carrier.ignores_zoc());
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        for terrain in [Terrain::Jungle, Terrain::Mountains, Terrain::Swamp] {
+        for terrain in [Terrain::Jungle, Terrain::Mountains, Terrain::Marsh] {
             let tile = sim.tile_mut(10, 20);
             tile.terrain = terrain;
             tile.road = false;
@@ -312,7 +312,7 @@ mod tests {
             sim.pf_default_action(UnitKind::Carrier, HUMAN, (10, 20), true, true, true),
             PfAction::Impossible
         );
-        sim.tile_mut(10, 20).terrain = Terrain::Ocean;
+        sim.tile_mut(10, 20).terrain = Terrain::Sea;
         assert_eq!(
             sim.pf_default_action(UnitKind::Carrier, HUMAN, (10, 20), true, true, true),
             PfAction::Attack

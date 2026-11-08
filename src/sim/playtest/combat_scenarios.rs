@@ -7,7 +7,7 @@ impl Simulation {
         let (x, y) = (12, 24);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
         let (hx, hy) = offset_native_by_map(x, y, -5, 0);
-        self.tile_mut(x, y).terrain = Terrain::Ocean;
+        self.tile_mut(x, y).terrain = Terrain::Sea;
         self.tile_mut(nx, ny).terrain = Terrain::Grassland;
         self.tile_mut(hx, hy).terrain = Terrain::Grassland;
         self.create_city(HUMAN, hx, hy);

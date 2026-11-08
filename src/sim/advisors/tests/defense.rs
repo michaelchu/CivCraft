@@ -292,7 +292,7 @@ fn suicide_attack_actions_contribute_missile_city_danger() {
         "native tactical action assessment scans enablers without action-blocker checks"
     );
     let coast = offset_native_by_map(10, 24, -1, 0);
-    game.tile_mut(coast.0, coast.1).terrain = Terrain::Ocean;
+    game.tile_mut(coast.0, coast.1).terrain = Terrain::Sea;
     game.spawn_unit(1, UnitKind::AegisCruiser, 10, 24);
     assert_eq!(
         game.advisor_guard_city_assessment(&city).danger,

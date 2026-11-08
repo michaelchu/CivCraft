@@ -134,7 +134,7 @@ impl Simulation {
         self.cities.retain(|city| city.owner == 1);
         self.units.clear();
         let coast = offset_native_by_map(10, 24, 1, 0);
-        self.tile_mut(coast.0, coast.1).terrain = Terrain::Ocean;
+        self.tile_mut(coast.0, coast.1).terrain = Terrain::Sea;
         self.spawn_unit(HUMAN, UnitKind::Battleship, coast.0, coast.1);
         let ocean = value(self, Building::COASTAL_DEFENSE) == 38.0
             && value(self, Building::SAM_BATTERY) == 38.0;

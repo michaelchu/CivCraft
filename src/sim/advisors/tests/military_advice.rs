@@ -148,7 +148,7 @@ fn training_sources_match_effect_classes_availability_and_global_veterans() {
         Production::Unit(UnitKind::Fighter)
     );
     let coast = offset_native_by_map(10, 24, 1, 0);
-    game.tile_mut(coast.0, coast.1).terrain = Terrain::Ocean;
+    game.tile_mut(coast.0, coast.1).terrain = Terrain::Sea;
     game.players[1].known.push(Tech::AMPHIBIOUS_WARFARE);
     assert_eq!(
         choose(&game, UnitKind::Destroyer).production,
@@ -216,7 +216,7 @@ fn sea_bodyguard_requires_defendgood_role_and_compatible_charge() {
     game.cities.clear();
     game.diplomacy.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.owner = None;
         tile.hut = false;
     }

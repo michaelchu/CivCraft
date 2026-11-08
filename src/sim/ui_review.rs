@@ -442,7 +442,7 @@ impl Simulation {
                 tile.terrain = if x < 19 {
                     Terrain::Forest
                 } else if x > 22 {
-                    Terrain::Ocean
+                    Terrain::Sea
                 } else {
                     Terrain::Grassland
                 };
@@ -536,7 +536,7 @@ impl Simulation {
                     let terrain = match (dx, dy) {
                         (_, -4..=-3) => {
                             if dx < 0 {
-                                Terrain::Ocean
+                                Terrain::Sea
                             } else {
                                 Terrain::Glacier
                             }
@@ -559,7 +559,7 @@ impl Simulation {
                             -4..=-3 => Terrain::Desert,
                             -2..=-1 => Terrain::Plains,
                             0 => Terrain::Grassland,
-                            1..=2 => Terrain::Swamp,
+                            1..=2 => Terrain::Marsh,
                             _ => Terrain::Tundra,
                         },
                         _ => Terrain::Grassland,
@@ -591,7 +591,7 @@ impl Simulation {
             (Terrain::Desert, Incense),
             (Terrain::Plains, Ivory),
             (Terrain::Forest, Silk),
-            (Terrain::Swamp, Spice),
+            (Terrain::Marsh, Spice),
             (Terrain::Grassland, Wine),
             (Terrain::Grassland, Cattle),
             (Terrain::Mountains, Gold),
@@ -616,7 +616,7 @@ impl Simulation {
         for dy in 1..=3 {
             for dx in 3..=6 {
                 let (x, y) = offset_native_by_map(20, 24, dx, dy);
-                self.tile_mut(x, y).terrain = Terrain::Ocean;
+                self.tile_mut(x, y).terrain = Terrain::Sea;
             }
         }
         for (dx, resource) in [(3, Fish), (4, Whales)] {
@@ -628,19 +628,23 @@ impl Simulation {
     pub(crate) fn ui_review_terrain_seams(&mut self) {
         self.ui_review_terrain_layers(false);
         let kinds = [
-            Terrain::DeepOcean,
+            Terrain::Coast,
+            Terrain::Sea,
             Terrain::Ocean,
             Terrain::Lake,
             Terrain::Glacier,
             Terrain::Desert,
             Terrain::Plains,
             Terrain::Grassland,
+            Terrain::GrasslandShield,
             Terrain::Forest,
             Terrain::Jungle,
             Terrain::Hills,
             Terrain::Mountains,
-            Terrain::Swamp,
+            Terrain::Marsh,
             Terrain::Tundra,
+            Terrain::FloodPlains,
+            Terrain::Volcano,
         ];
         for tile in 0..self.tiles.len() {
             let (x, y) = (
@@ -665,7 +669,7 @@ impl Simulation {
                 } else if dy > 2 {
                     Terrain::Plains
                 } else {
-                    Terrain::Swamp
+                    Terrain::Marsh
                 };
                 self.tile_mut(x, y).terrain = ground;
             }

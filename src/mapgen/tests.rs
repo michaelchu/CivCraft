@@ -52,7 +52,11 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                         .neighbors(index)
                         .all(|next| tiles[next].resource.is_none())
                 );
-                assert_ne!(tile.terrain, Terrain::DeepOcean);
+                assert!(
+                    tile.terrain
+                        .resource_options()
+                        .contains(&tile.resource.unwrap())
+                );
             }
             if !tile.river || visited[index] {
                 continue;
@@ -64,7 +68,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
             while cursor < course.len() {
                 let current = course[cursor];
                 assert!(!tiles[current].terrain.is_water());
-                has_outlet |= tiles[current].terrain == Terrain::Glacier;
+                has_outlet |= tiles[current].terrain == Terrain::Tundra;
                 for next in (Generator { wrap: MapWrap::XY }).neighbors(current) {
                     has_outlet |= tiles[next].terrain.is_water();
                     if tiles[next].river && !visited[next] {
@@ -78,24 +82,42 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
         }
     }
 }
+
+#[cfg(test)]
+#[test]
+fn civ3_world_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
+    for wrap in [MapWrap::X, MapWrap::XY] {
+        for seed in [42, 12345] {
+            let map = generate_with_wrap(seed, wrap);
+            assert!(map.tiles.iter().all(|tile| {
+                !matches!(tile.terrain, Terrain::Glacier | Terrain::Lake)
+            }));
+        }
+    }
+}
+
 #[cfg(test)]
 fn map_checksum(tiles: &[Tile]) -> u64 {
     let mut checksum = 0xcbf29ce484222325_u64;
     for tile in tiles {
         let terrain = match tile.terrain {
-            Terrain::Ocean => b' ',
-            Terrain::DeepOcean => b':',
+            Terrain::Sea => b' ',
+            Terrain::Ocean => b':',
+            Terrain::Coast => b'c',
             Terrain::Lake => b'+',
             Terrain::Glacier => b'a',
             Terrain::Desert => b'd',
             Terrain::Forest => b'f',
             Terrain::Grassland => b'g',
+            Terrain::GrasslandShield => b'q',
             Terrain::Hills => b'h',
             Terrain::Jungle => b'j',
             Terrain::Mountains => b'm',
             Terrain::Plains => b'p',
-            Terrain::Swamp => b's',
+            Terrain::Marsh => b's',
             Terrain::Tundra => b't',
+            Terrain::FloodPlains => b'u',
+            Terrain::Volcano => b'v',
         };
         let mut extras = (u64::from(tile.hut) << 5) | (u64::from(tile.river) << 17);
         if let Some(resource) = tile.resource {
@@ -111,35 +133,33 @@ fn map_checksum(tiles: &[Tile]) -> u64 {
 #[cfg(test)]
 #[test]
 fn default_worlds_match_civcraft_resource_goldens() {
-    // CivCraft keeps Freeciv's terrain generation but uses its own resource
-    // catalog and terrain pools. Resource placement affects both the extras
-    // checksums and start-site scoring, so these goldens capture current
-    // CivCraft output. Coordinates are in creation order.
+    // These capture the project’s generated terrain, resource placement, and
+    // starting locations. Coordinates are in creation order.
     let cases = [
         (
             1,
-            0x6214fdbf48571f05,
-            [(22, 15), (20, 2), (27, 16), (1, 25), (4, 8), (24, 31)],
+            0xc457d1ccc44dc098,
+            [(5, 20), (19, 16), (0, 20), (21, 42), (30, 6), (5, 2)],
         ),
         (
             42,
-            0x5a61be89c37ce1c0,
-            [(9, 26), (12, 6), (2, 37), (27, 25), (8, 6), (4, 26)],
+            0x253a9947b757bc9f,
+            [(2, 23), (12, 6), (7, 24), (17, 7), (5, 34), (24, 17)],
         ),
         (
             12345,
-            0x28eb54b184b571d8,
-            [(15, 19), (22, 12), (29, 23), (25, 22), (11, 23), (18, 5)],
+            0xbbb2f9ecee28b51b,
+            [(7, 42), (5, 13), (12, 14), (26, 8), (17, 38), (30, 23)],
         ),
         (
             700001,
-            0x8c1b425ae87e347f,
-            [(28, 57), (23, 3), (20, 46), (26, 13), (22, 56), (2, 12)],
+            0xb88aca3766aa48a2,
+            [(18, 13), (22, 35), (28, 50), (9, 49), (6, 11), (31, 9)],
         ),
         (
             2147483647,
-            0xc9f5f1b2c9d04e2f,
-            [(12, 57), (20, 40), (2, 20), (27, 35), (9, 31), (26, 54)],
+            0x580f7baa49ce27c7,
+            [(28, 10), (3, 49), (24, 39), (15, 54), (8, 50), (11, 28)],
         ),
     ];
     for (seed, expected, starts) in cases {
@@ -166,26 +186,22 @@ mod wrap_generation_tests {
     }
 
     #[test]
-    fn cylinders_have_ocean_edges_without_polar_land_or_invalid_start_positions() {
+    fn civ3_cylinder_reserves_poles_for_polar_caps_and_has_valid_starts() {
         for seed in [0, 1, 42, 1337, 12345, 700001, 2147483647] {
             let a = generate_with_wrap(seed, MapWrap::X);
             let b = generate_with_wrap(seed, MapWrap::X);
             assert_eq!(a.map_wrap, MapWrap::X);
+            assert!(a.tiles.iter().all(|tile| tile.terrain != Terrain::Glacier));
             assert_eq!(a.starts, b.starts);
             assert_eq!(
                 bincode::serialize(&a.tiles).unwrap(),
                 bincode::serialize(&b.tiles).unwrap()
             );
-            assert!(
-                a.tiles
-                    .iter()
-                    .all(|t| !matches!(t.terrain, Terrain::Glacier | Terrain::Tundra))
-            );
             for y in [0, a.map_wrap.height() - 1] {
                 for x in 0..a.map_wrap.width() {
-                    let tile = &a.tiles[a.map_wrap.index(x, y)];
-                    assert_eq!(tile.terrain, Terrain::DeepOcean);
-                    assert!(!tile.hut && !tile.river && tile.resource.is_none());
+                    let edge = &a.tiles[a.map_wrap.index(x, y)];
+                    assert_eq!(edge.terrain, Terrain::Ocean);
+                    assert!(edge.resource.is_none() && !edge.river && !edge.hut);
                 }
             }
             assert!(

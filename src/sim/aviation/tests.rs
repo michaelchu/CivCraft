@@ -280,7 +280,7 @@ mod stealth_tests {
             .known
             .extend([Tech::ADVANCED_FLIGHT, Tech::ROCKETRY]);
         for tile in &mut game.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.base = None;
             tile.owner = None;
             tile.hut = false;
@@ -656,7 +656,7 @@ mod stealth_tests {
         game.tile_mut(base.0, base.1).owner = Some(1);
         let enemy = game.units.iter_mut().find(|u| u.id == victim).unwrap();
         (enemy.x, enemy.y) = target;
-        game.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+        game.tile_mut(target.0, target.1).terrain = Terrain::Sea;
         assert!(game.aircraft_best_target(&plane).is_none());
         game.run_ai_strike_aircraft(&plane);
         let plane = game.unit_by_id(id).unwrap();

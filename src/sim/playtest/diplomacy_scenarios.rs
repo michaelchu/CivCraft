@@ -7,7 +7,7 @@ impl Simulation {
         self.units.clear();
         let (x, y) = (23, 36);
         let index = self.map_wrap.index(x, y);
-        self.tile_mut(x, y).terrain = Terrain::Ocean;
+        self.tile_mut(x, y).terrain = Terrain::Sea;
         self.spawn_unit(1, UnitKind::Trireme, x, y);
         self.refresh_visibility();
         self.units.clear();

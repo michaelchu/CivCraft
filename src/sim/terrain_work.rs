@@ -8,18 +8,18 @@ impl Terrain {
         use WorkKind::*;
         Some(match (kind, self) {
             (Cultivate, Forest) => (Plains, 10),
-            (Cultivate, Jungle) => (Swamp, 10),
+            (Cultivate, Jungle) => (Marsh, 10),
             (Plant, Forest) => (Grassland, 15),
-            (Plant, Grassland) => (Forest, 15),
+            (Plant, Grassland | GrasslandShield) => (Forest, 15),
             (Plant, Plains) => (Forest, 10),
-            (Transform, Lake | Ocean) => (Grassland, 36),
+            (Transform, Coast | Sea | Ocean | Lake) => (Grassland, 36),
             (Transform, Glacier) => (Lake, 24),
-            (Transform, Grassland | Plains) => (Lake, 36),
+            (Transform, Grassland | GrasslandShield | Plains) => (Lake, 36),
             (Transform, Desert | Hills | Tundra) => (Plains, 24),
             (Transform, Jungle) => (Forest, 24),
             (Transform, Forest) => (Hills, 24),
             (Transform, Mountains) => (Hills, 36),
-            (Transform, Swamp) => (Grassland, 24),
+            (Transform, Marsh) => (Grassland, 24),
             _ => return None,
         })
     }
@@ -36,7 +36,7 @@ pub(super) fn neighbors(x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> {
 impl Simulation {
     pub(crate) fn oil_work(&self, unit: &Unit) -> Option<WorkKind> {
         let tile = self.tile(unit.x, unit.y);
-        if tile.terrain == Terrain::DeepOcean
+        if tile.terrain == Terrain::Ocean
             && !tile.oil_platform
             && self.has_tech(unit.owner, Tech::MINIATURIZATION)
             && (unit.kind.unit_class() == super::unit_catalog::UnitClass::Sea
@@ -102,7 +102,7 @@ impl Simulation {
         let tile = self.tile_mut(x, y);
         let changed_class = tile.terrain.is_water() != target.is_water();
         tile.terrain = target;
-        if matches!(target, Terrain::Lake | Terrain::DeepOcean) {
+        if matches!(target, Terrain::Lake | Terrain::Ocean) {
             tile.pollution = false;
             tile.fallout = false;
         }
@@ -113,7 +113,7 @@ impl Simulation {
         if !matches!(target, Terrain::Desert | Terrain::Glacier) {
             tile.oil_well = false;
         }
-        if target != Terrain::DeepOcean {
+        if target != Terrain::Ocean {
             tile.oil_platform = false;
         }
         if target.mine_time() == 0 {
@@ -212,7 +212,7 @@ mod tests {
         assert_eq!(across.1, MAP_H - 2);
         assert!(neighbors(home.0, home.1).any(|position| position == across));
         assert!(!game.can_irrigate_at(HUMAN, home.0, home.1));
-        game.tile_mut(across.0, across.1).terrain = Terrain::Ocean;
+        game.tile_mut(across.0, across.1).terrain = Terrain::Sea;
         assert!(game.can_irrigate_at(HUMAN, home.0, home.1));
         game.create_city(HUMAN, home.0, home.1);
         assert!(game.is_port(&game.cities[0]));
@@ -228,7 +228,7 @@ mod tests {
         let (x, y) = (10, 20);
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
         game.tile_mut(x, y).terrain = Terrain::Grassland;
-        game.tile_mut(sx, sy).terrain = Terrain::DeepOcean;
+        game.tile_mut(sx, sy).terrain = Terrain::Ocean;
         game.create_city(HUMAN, x, y);
         let ship = game.spawn_unit(HUMAN, UnitKind::Transport, sx, sy);
         let engineer = game.spawn_unit(HUMAN, UnitKind::Engineer, sx, sy);
@@ -290,10 +290,10 @@ mod tests {
         }
         assert_eq!(game.tile(x, y).terrain, Terrain::Plains);
 
-        game.tile_mut(x, y).terrain = Terrain::Ocean;
+        game.tile_mut(x, y).terrain = Terrain::Sea;
         let nearby: Vec<_> = neighbors(x, y).collect();
         for &(nx, ny) in &nearby {
-            game.tile_mut(nx, ny).terrain = Terrain::Ocean;
+            game.tile_mut(nx, ny).terrain = Terrain::Sea;
         }
         game.units.clear();
         let ship = game.spawn_unit(HUMAN, UnitKind::Caravel, x, y);
@@ -309,7 +309,7 @@ mod tests {
         for _ in 0..17 {
             game.update_activities_and_restore();
         }
-        assert_eq!(game.tile(x, y).terrain, Terrain::Ocean);
+        assert_eq!(game.tile(x, y).terrain, Terrain::Sea);
         game.update_activities_and_restore();
         assert_eq!(game.tile(x, y).terrain, Terrain::Grassland);
         let engineer = game.unit_by_id(engineer).unwrap();

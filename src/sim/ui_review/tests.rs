@@ -80,6 +80,6 @@ fn resource_shadow_review_scene_contains_every_civ3_resource() {
             .iter()
             .find(|tile| tile.resource == Some(resource))
             .unwrap();
-        assert_eq!(tile.terrain, Terrain::Ocean, "{resource:?}");
+        assert_eq!(tile.terrain, Terrain::Sea, "{resource:?}");
     }
 }

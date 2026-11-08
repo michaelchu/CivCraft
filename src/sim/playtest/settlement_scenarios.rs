@@ -14,7 +14,7 @@ impl Simulation {
         let inland = self.ferry_tech_want(1, Tech::MAP_MAKING) == 0
             && self.research_target(1) == Tech::BRONZE_WORKING;
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
-        self.tile_mut(sx, sy).terrain = Terrain::Ocean;
+        self.tile_mut(sx, sy).terrain = Terrain::Sea;
         let path = self.research_path(1, Tech::MAP_MAKING);
         let coastal = self.ferry_tech_want(1, Tech::MAP_MAKING) == 500
             && path.first().copied() == Some(self.research_target(1));
@@ -40,7 +40,7 @@ impl Simulation {
     pub(crate) fn settlement_ferry_production_playtest(&mut self) -> (bool, bool, bool) {
         self.units.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.resource = None;
             tile.hut = false;
         }
@@ -89,7 +89,7 @@ impl Simulation {
     pub(crate) fn offshore_pickup_playtest(&mut self, inland: bool) -> (bool, bool, bool) {
         self.units.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.resource = None;
             tile.hut = false;
         }
@@ -145,7 +145,7 @@ impl Simulation {
     pub(crate) fn overseas_settlement_playtest(&mut self, inland: bool) -> (bool, bool, bool) {
         self.units.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.resource = None;
             tile.hut = false;
         }
@@ -197,7 +197,7 @@ impl Simulation {
     pub(crate) fn ai_expansion_playtest(&mut self) -> (bool, bool, bool) {
         self.units.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.resource = None;
             tile.hut = false;
         }

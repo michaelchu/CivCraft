@@ -37,7 +37,7 @@ impl Simulation {
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
         for (tx, ty) in [(x, y), (nx, ny)] {
             let tile = self.tile_mut(tx, ty);
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.hut = false;
             tile.base = None;
         }
@@ -54,7 +54,7 @@ impl Simulation {
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
         for (tx, ty) in [(x, y), (nx, ny)] {
             let tile = self.tile_mut(tx, ty);
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.hut = false;
             tile.base = None;
         }
@@ -122,7 +122,7 @@ impl Simulation {
         let sailing = offset_native_by_map(x, y, 2, 0);
         let launch = offset_native_by_map(x, y, 3, 0);
         for (tx, ty) in [(x, y), deck, sailing, launch] {
-            self.tile_mut(tx, ty).terrain = Terrain::Ocean;
+            self.tile_mut(tx, ty).terrain = Terrain::Sea;
             self.tile_mut(tx, ty).hut = false;
         }
         let carrier = self.spawn_unit(HUMAN, UnitKind::Carrier, deck.0, deck.1);
@@ -146,7 +146,7 @@ impl Simulation {
     pub(crate) fn bombard_playtest_setup(&mut self) -> (u32, [u32; 2]) {
         let (x, y) = (10, 20);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-        self.tile_mut(x, y).terrain = Terrain::Ocean;
+        self.tile_mut(x, y).terrain = Terrain::Sea;
         self.tile_mut(nx, ny).terrain = Terrain::Grassland;
         let bomber = self.spawn_unit(HUMAN, UnitKind::Bomber, x, y);
         let targets = [
@@ -193,7 +193,7 @@ impl Simulation {
         ]);
         self.completed_wonders.push(Building::MANHATTAN_PROJECT);
         let target = offset_native_by_map(x, y, 2, 0);
-        self.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+        self.tile_mut(target.0, target.1).terrain = Terrain::Sea;
         let fighter = self.spawn_unit(1, UnitKind::Fighter, x, y);
         let victim = self.spawn_unit(HUMAN, UnitKind::Battleship, target.0, target.1);
         self.units.last_mut().unwrap().hp = 1;

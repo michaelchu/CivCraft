@@ -23,7 +23,7 @@ fn game() -> Simulation {
 fn sane_rendezvous_retains_escort_when_omniscient_policy_cannot_pass_enemy() {
     let mut game = game();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.known_by[1] = false;
     }
     let start = (10, 24);
@@ -123,7 +123,7 @@ fn charge_selection_obeys_role_speed_native_classes_and_defense_delta() {
 fn stored_generic_goal_wins_and_guard_intercepts_ahead_of_naval_charge() {
     let mut game = game();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
     }
     let point = |step| offset_native_by_map(10, 20, step, 0);
     let charge_at = point(5);

@@ -31,7 +31,7 @@ impl Simulation {
         let home_city = self.city_by_id(home).unwrap();
         let (x, y) = (home_city.x, home_city.y);
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.hut = false;
         }
         for city in &self.cities {
@@ -119,7 +119,7 @@ impl Simulation {
         let (x, y) = (10, 20);
         let (tx, ty) = offset_native_by_map(x, y, 1, 0);
         self.tile_mut(x, y).terrain = Terrain::Grassland;
-        self.tile_mut(tx, ty).terrain = Terrain::Ocean;
+        self.tile_mut(tx, ty).terrain = Terrain::Sea;
         self.tile_mut(tx, ty).known_by[1] = true;
         self.tile_mut(tx, ty).hut = false;
         self.create_city(1, x, y);
@@ -189,7 +189,7 @@ impl Simulation {
         let (x, y) = (city.x, city.y);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
         let (tx, ty) = offset_native_by_map(nx, ny, 1, 0);
-        self.tile_mut(nx, ny).terrain = Terrain::Ocean;
+        self.tile_mut(nx, ny).terrain = Terrain::Sea;
         self.tile_mut(tx, ty).terrain = Terrain::Grassland;
         self.tile_mut(tx, ty).base = None;
         self.players[HUMAN].known.extend([
@@ -229,7 +229,7 @@ impl Simulation {
             let (nx, ny) = offset_native_by_map(x, y, step, 0);
             let tile = self.tile_mut(nx, ny);
             tile.terrain = if step == 2 {
-                Terrain::DeepOcean
+                Terrain::Ocean
             } else {
                 Terrain::Grassland
             };
@@ -260,7 +260,7 @@ impl Simulation {
         );
         self.players[HUMAN].known.push(Tech::NUCLEAR_POWER);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-        self.tile_mut(nx, ny).terrain = Terrain::Ocean;
+        self.tile_mut(nx, ny).terrain = Terrain::Sea;
         let docked = self.spawn_unit(HUMAN, UnitKind::AegisCruiser, x, y);
         self.units.last_mut().unwrap().hp = 15;
         let at_sea = self.spawn_unit(HUMAN, UnitKind::AegisCruiser, nx, ny);
@@ -318,7 +318,7 @@ impl Simulation {
         self.cities.clear();
         self.ai_ferries = Default::default();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.hut = false;
         }
         let ship = self.spawn_unit(1, UnitKind::Transport, 10, 24);
@@ -405,7 +405,7 @@ impl Simulation {
         self.ai_merchant_missions.clear();
         self.merchant_mission_attempts.clear();
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.resource = None;
             tile.hut = false;
             tile.river = false;
@@ -500,7 +500,7 @@ impl Simulation {
         self.merchant_mission_attempts.clear();
         self.turn = 0;
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.resource = None;
             tile.hut = false;
         }

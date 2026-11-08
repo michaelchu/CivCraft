@@ -3,8 +3,7 @@
 use super::*;
 
 impl super::Generator {
-    // Freeciv's Civ2Civ3 defaults produce a river percentage of six after
-    // the polar adjustment. The target counts river tiles, not river systems.
+    // The target counts river tiles, not river systems.
 
     pub(super) fn place_rivers(
         &self,
@@ -23,7 +22,7 @@ impl super::Generator {
             let Some(spring) = random_tile(self.wrap.tile_count(), rng, |tile| {
                 !tiles[tile].terrain.is_water()
                     && !tiles[tile].river
-                    && temperature[tile] >= FROZEN
+                    && temperature[tile] >= VERY_COLD
                     && heights[tile] >= LOWLAND
             }) else {
                 break;
@@ -38,7 +37,7 @@ impl super::Generator {
                     .count()
                     > 1
                 || (Self::mountainous(tiles[spring].terrain) > 0 && attempt < MAX_TRIES / 10 * 6)
-                || (tiles[spring].terrain == Terrain::Glacier && attempt < MAX_TRIES / 10 * 8)
+                || (tiles[spring].terrain == Terrain::Tundra && attempt < MAX_TRIES / 10 * 8)
                 || (tiles[spring].terrain == Terrain::Desert && attempt < MAX_TRIES / 10 * 9)
             {
                 continue;
@@ -64,7 +63,7 @@ impl super::Generator {
         match terrain {
             Terrain::Forest => 20,
             Terrain::Jungle => 50,
-            Terrain::Swamp => 100,
+            Terrain::Marsh => 100,
             _ => 0,
         }
     }
@@ -93,7 +92,7 @@ impl super::Generator {
             course.push(current);
             if water_count(current) > 0
                 || river_count(current) > 0
-                || (tiles[current].terrain == Terrain::Glacier
+                || (tiles[current].terrain == Terrain::Tundra
                     && self.colatitude(current) * 5 < 4 * COLD)
             {
                 return Some(course);

@@ -97,7 +97,7 @@ impl Simulation {
         if kind.is_aircraft() {
             true
         } else if kind == UnitKind::Trireme {
-            matches!(tile.terrain, Terrain::Ocean | Terrain::Lake) || tile.river
+            matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake) || tile.river
         } else {
             tile.terrain.is_water() == kind.is_naval()
         }

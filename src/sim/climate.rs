@@ -33,18 +33,18 @@ impl Terrain {
     fn climate_results(self, warming: bool) -> (Option<Self>, Option<Self>) {
         use Terrain::*;
         match (warming, self) {
-            (true, Lake | Desert) => (Some(Swamp), None),
+            (true, Lake | Desert) => (Some(Marsh), None),
             (true, Glacier) => (Some(Lake), Some(Tundra)),
             (true, Forest) => (Some(Jungle), None),
-            (true, Grassland | Tundra) => (Some(Swamp), Some(Swamp)),
-            (true, Plains) => (Some(Swamp), Some(Desert)),
-            (true, Swamp) => (Some(Desert), None),
+            (true, Grassland | Tundra) => (Some(Marsh), Some(Marsh)),
+            (true, Plains) => (Some(Marsh), Some(Desert)),
+            (true, Marsh) => (Some(Desert), None),
             (false, Lake | Ocean) => (Some(Glacier), None),
             (false, Desert) => (Some(Tundra), Some(Tundra)),
-            (false, Grassland) => (Some(Swamp), Some(Tundra)),
+            (false, Grassland) => (Some(Marsh), Some(Tundra)),
             (false, Jungle) => (None, Some(Forest)),
             (false, Plains) => (Some(Desert), Some(Desert)),
-            (false, Swamp) => (Some(Tundra), Some(Desert)),
+            (false, Marsh) => (Some(Tundra), Some(Desert)),
             (false, Tundra) => (Some(Glacier), Some(Desert)),
             _ => (None, None),
         }
@@ -187,7 +187,7 @@ mod tests {
         tile.river = false;
         assert_eq!(game.climate_target(x, y, false), Some(Terrain::Tundra));
         game.tile_mut(x, y).river = true;
-        assert_eq!(game.climate_target(x, y, false), Some(Terrain::Swamp));
+        assert_eq!(game.climate_target(x, y, false), Some(Terrain::Marsh));
         game.tile_mut(x, y).terrain = Terrain::Glacier;
         assert_eq!(game.climate_target(x, y, true), Some(Terrain::Tundra));
         game.tile_mut(x, y).terrain = Terrain::Jungle;

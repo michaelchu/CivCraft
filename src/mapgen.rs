@@ -135,10 +135,7 @@ impl Generator {
             (mx, my, (nw + ne + sw + se) / 4),
         ] {
             let tile = self.index(x, y);
-            let near_edge = !self.wrap.wraps_y() && (y < 4 || y >= self.wrap.height() - 4);
-            if self.colatitude(tile) <= ICE_BASE / 2
-                || (!near_edge && heights[tile].is_none_or(|height| height == 0))
-            {
+            if heights[tile].is_none_or(|height| height == 0) {
                 heights[tile] = Some(base + rng.below(step) - step / 2);
             }
         }
@@ -231,8 +228,7 @@ fn rank_field(values: &mut [i32], maximum: i32) {
 const SHORE: i32 = 1000 * (100 - LAND_PERCENT) / 100;
 const LOWLAND: i32 = SHORE + (1000 - SHORE) * 28 / 100;
 const HIGHLAND: i32 = SHORE + (1000 - SHORE) * 70 / 100;
-const ICE_BASE: i32 = 28;
-const FROZEN: i32 = 2 * ICE_BASE;
+const VERY_COLD: i32 = 56;
 const COLD: i32 = 85;
 const TROPICAL: i32 = 572;
 
@@ -269,10 +265,13 @@ impl Generator {
 }
 
 fn ocean_at_depth(depth: i32) -> Terrain {
-    if (depth - 35).abs() <= (depth - 70).abs() {
-        Terrain::Ocean
-    } else {
-        Terrain::DeepOcean
+    // The manual names Coast, Sea, and Ocean but does not specify generation
+    // thresholds. These are project heuristics over the generated depth field;
+    // finish_water guarantees an adjacent-water Coast fringe.
+    match depth {
+        0..=17 => Terrain::Coast,
+        18..=52 => Terrain::Sea,
+        _ => Terrain::Ocean,
     }
 }
 
@@ -332,12 +331,21 @@ impl Generator {
                 })
                 .collect();
             let river_heights: Vec<_> = (0..self.wrap.tile_count())
-                .map(|tile| self.restored_height(&heights, tile))
+                .map(|tile| heights[tile])
                 .collect();
             self.place_rivers(&mut tiles, &river_heights, &temperature, &mut rng);
             self.finish_water(&mut terrain, &mut rng);
             for (tile, &terrain) in tiles.iter_mut().zip(&terrain) {
                 tile.terrain = terrain;
+            }
+            // In Civ III, Flood Plains are a desert terrain variant on river
+            // tiles. Rivers are represented per tile here, so use the marked
+            // river tiles as the closest direct equivalent.
+            for (index, tile) in tiles.iter_mut().enumerate() {
+                if tile.terrain == Terrain::Desert && tile.river {
+                    tile.terrain = Terrain::FloodPlains;
+                    terrain[index] = Terrain::FloodPlains;
+                }
             }
             self.place_resources(&mut tiles, &mut rng);
             self.place_huts(&mut tiles, &mut rng);
@@ -379,49 +387,30 @@ pub(crate) fn generate(seed: u64) -> GeneratedMap {
 pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
     let mut map = Generator { wrap }.generate(seed);
     if wrap == MapWrap::X {
-        // Deliberate WrapX policy: replace polar land with water after the
-        // reference generator, preserving its start allocation and RNG stream.
-        for (index, tile) in map.tiles.iter_mut().enumerate() {
-            let (_, y) = wrap.position(index);
-            let edge = y == 0 || y == wrap.height() - 1;
-            if edge || matches!(tile.terrain, Terrain::Glacier | Terrain::Tundra) {
-                tile.terrain = Terrain::DeepOcean;
+        // The polar cap is a visual boundary in Civ III, not generated land.
+        for y in [0, wrap.height() - 1] {
+            for x in 0..wrap.width() {
+                let tile = &mut map.tiles[wrap.index(x, y)];
+                tile.terrain = Terrain::Ocean;
                 tile.altitude = tile.altitude.min(SHORE - 1);
                 tile.resource = None;
                 tile.river = false;
                 tile.hut = false;
             }
         }
-        // The old ice counted as coast. Rebuild depths against the remaining
-        // land so its former shoreline does not leave a shallow-water stripe.
-        // This local map stream does not consume the campaign RNG.
         let generator = Generator { wrap };
-        let mut terrain: Vec<_> = map
-            .tiles
-            .iter()
-            .map(|t| {
-                if t.terrain.is_water() {
-                    Terrain::DeepOcean
-                } else {
-                    t.terrain
-                }
-            })
-            .collect();
+        let mut terrain: Vec<_> = map.tiles.iter().map(|tile| tile.terrain).collect();
         generator.finish_water(&mut terrain, &mut MapRng::new(seed));
-        for (index, tile) in map.tiles.iter_mut().enumerate() {
-            let (_, y) = wrap.position(index);
-            tile.terrain = if y == 0 || y == wrap.height() - 1 {
-                Terrain::DeepOcean
-            } else {
-                terrain[index]
-            };
-            if tile.terrain == Terrain::DeepOcean
-                || (tile.terrain == Terrain::Ocean
-                    && !generator
-                        .neighbors(index)
-                        .any(|n| !matches!(terrain[n], Terrain::Ocean | Terrain::DeepOcean)))
-            {
+        for (tile, water) in map.tiles.iter_mut().zip(terrain) {
+            tile.terrain = water;
+        }
+        for y in [0, wrap.height() - 1] {
+            for x in 0..wrap.width() {
+                let tile = &mut map.tiles[wrap.index(x, y)];
+                tile.terrain = Terrain::Ocean;
                 tile.resource = None;
+                tile.river = false;
+                tile.hut = false;
             }
         }
     }

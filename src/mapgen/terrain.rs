@@ -36,19 +36,6 @@ impl<Eligible: Fn(usize) -> bool> PatchGrowth<'_, Eligible> {
 }
 
 impl super::Generator {
-    pub(super) fn polar_height_factor(&self, tile: usize) -> i32 {
-        if (FROZEN..=ICE_BASE * 5 / 2).contains(&self.colatitude(tile)) {
-            10
-        } else {
-            1
-        }
-    }
-
-    pub(super) fn restored_height(&self, heights: &[i32], tile: usize) -> i32 {
-        let factor = self.polar_height_factor(tile);
-        heights[tile] / factor * factor
-    }
-
     pub(super) fn terrain_pass(
         &self,
         heights: &[i32],
@@ -58,28 +45,13 @@ impl super::Generator {
             .map(|tile| self.colatitude(tile))
             .collect();
         rank_field(&mut dummy_temperature, 1000);
-        let normalized_height = |tile: usize| {
-            let (_, y) = self.wrap.position(tile);
-            if !self.wrap.wraps_y()
-                && (y < 4 || y >= self.wrap.height() - 4)
-                && self.colatitude(tile) > ICE_BASE * 5 / 2
-            {
-                0
-            } else {
-                heights[tile] / self.polar_height_factor(tile)
-            }
-        };
+        let normalized_height = |tile: usize| heights[tile];
         let mut terrain: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
                 if normalized_height(tile) >= SHORE {
                     return Terrain::Plains;
                 }
                 let depth = (SHORE - normalized_height(tile)) * 100 / SHORE;
-                // The reference still tests the frozen-ocean fringe even
-                // when this ruleset falls back to unfrozen water.
-                if (FROZEN..COLD).contains(&dummy_temperature[tile]) {
-                    rng.below(10);
-                }
                 let mut water = 0;
                 let mut land = 0;
                 for next in self.neighbors(tile) {
@@ -93,10 +65,6 @@ impl super::Generator {
             })
             .collect();
 
-        let restored: Vec<_> = (0..self.wrap.tile_count())
-            .map(|tile| self.restored_height(heights, tile))
-            .collect();
-        let heights = &restored;
         let mut temperature: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
                 let latitude = self.colatitude(tile);
@@ -114,22 +82,6 @@ impl super::Generator {
             })
             .collect();
         rank_field(&mut temperature, 1000);
-
-        // Civ2Civ3 has no frozen ocean terrain. Frozen coasts can become
-        // glaciers, with a broken margin where cold tiles border frozen ones.
-        let original_land: Vec<_> = terrain.iter().map(|tile| !tile.is_water()).collect();
-        for tile in 0..self.wrap.tile_count() {
-            if original_land[tile] {
-                continue;
-            }
-            let frozen = temperature[tile] < FROZEN
-                || (temperature[tile] < COLD
-                    && rng.below(10) > 7
-                    && self.neighbors(tile).any(|next| temperature[next] < FROZEN));
-            if frozen && self.neighbors(tile).all(|next| !original_land[next]) {
-                terrain[tile] = Terrain::Plains;
-            }
-        }
 
         let mut available = vec![false; self.wrap.tile_count()];
         for tile in 0..self.wrap.tile_count() {
@@ -193,11 +145,11 @@ impl super::Generator {
                             .count()
                             <= 2;
                     match pass {
-                        0 => heat >= FROZEN,
+                        0 => heat >= VERY_COLD,
                         1 => heat >= TROPICAL,
                         2 => heat >= COLD && !dry && heights[tile] < LOWLAND,
-                        3 => heat >= FROZEN && dry && heights[tile] >= LOWLAND,
-                        _ => heat >= FROZEN && heights[tile] >= LOWLAND,
+                        3 => heat >= VERY_COLD && dry && heights[tile] >= LOWLAND,
+                        _ => heat >= VERY_COLD && heights[tile] >= LOWLAND,
                     }
                 };
                 if let Some(seed) = random_tile(self.wrap.tile_count(), rng, |tile| {
@@ -206,7 +158,7 @@ impl super::Generator {
                     let (biome, weight, spread) = [
                         (Terrain::Forest, 50, 60),
                         (Terrain::Jungle, 50, 50),
-                        (Terrain::Swamp, 100, 50),
+                        (Terrain::Marsh, 100, 50),
                         (Terrain::Desert, 100, 80),
                         (Terrain::Desert, 100, 40),
                     ][pass];
@@ -233,17 +185,24 @@ impl super::Generator {
             if plains > 0 {
                 let tile = random_tile(self.wrap.tile_count(), rng, |tile| available[tile])
                     .expect("unplaced plains quota");
-                terrain[tile] = if temperature[tile] < FROZEN {
+                terrain[tile] = if temperature[tile] < VERY_COLD {
                     rng.below(100);
-                    Terrain::Glacier
+                    Terrain::Tundra
                 } else if temperature[tile] < COLD {
                     match rng.below(80) {
                         0..20 => Terrain::Forest,
-                        20..30 => Terrain::Swamp,
+                        20..30 => Terrain::Marsh,
                         _ => Terrain::Tundra,
                     }
                 } else if rng.below(100) < 50 {
-                    Terrain::Grassland
+                    // Civ III has a distinct shield-yielding Grassland variant.
+                    // The manual documents its presence, but not its frequency;
+                    // this 1-in-4 share is a project heuristic.
+                    if rng.below(4) == 0 {
+                        Terrain::GrasslandShield
+                    } else {
+                        Terrain::Grassland
+                    }
                 } else {
                     Terrain::Plains
                 };
@@ -254,7 +213,7 @@ impl super::Generator {
         (terrain, temperature)
     }
 
-    pub(super) fn finish_water(&self, terrain: &mut [Terrain], rng: &mut MapRng) {
+    pub(super) fn finish_water(&self, terrain: &mut [Terrain], _rng: &mut MapRng) {
         for tile in 0..terrain.len() {
             if !terrain[tile].is_water() {
                 continue;
@@ -263,24 +222,38 @@ impl super::Generator {
                 self.within(tile, radius)
                     .any(|next| !terrain[next].is_water())
             }) {
-                terrain[tile] = ocean_at_depth(distance * 25 + rng.below(15));
+                terrain[tile] = match (distance, terrain[tile]) {
+                    (1, _) => Terrain::Coast,
+                    (_, Terrain::Coast) => Terrain::Sea,
+                    (_, water) => water,
+                };
             }
         }
+        let water_before_smoothing = terrain.to_vec();
         for tile in 0..terrain.len() {
-            if terrain[tile].is_water() {
+            if water_before_smoothing[tile].is_water() {
+                let coastline = self
+                    .neighbors(tile)
+                    .any(|next| !water_before_smoothing[next].is_water());
+                if coastline {
+                    terrain[tile] = Terrain::Coast;
+                    continue;
+                }
                 let shallow = self
                     .neighbors(tile)
-                    .filter(|&next| terrain[next] == Terrain::Ocean)
+                    .filter(|&next| {
+                        matches!(water_before_smoothing[next], Terrain::Coast | Terrain::Sea)
+                    })
                     .count();
                 let deep = self
                     .neighbors(tile)
-                    .filter(|&next| terrain[next] == Terrain::DeepOcean)
+                    .filter(|&next| water_before_smoothing[next] == Terrain::Ocean)
                     .count();
                 let threshold = 2 * ISOHEX_DIRS.len() / 3;
                 if shallow >= threshold {
-                    terrain[tile] = Terrain::Ocean;
+                    terrain[tile] = Terrain::Sea;
                 } else if deep >= threshold {
-                    terrain[tile] = Terrain::DeepOcean;
+                    terrain[tile] = Terrain::Ocean;
                 }
             }
         }
@@ -304,7 +277,9 @@ impl super::Generator {
                 && shore.all(|id| id == continent)
             {
                 for tile in basin {
-                    terrain[tile] = Terrain::Lake;
+                    // Civ III uses Coast for small inland water bodies; Lake
+                    // is retained only to load older CivCraft saves.
+                    terrain[tile] = Terrain::Coast;
                 }
             }
         }

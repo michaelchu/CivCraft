@@ -218,7 +218,7 @@ impl Simulation {
         self.players[1].research = 0;
         self.players[1].last_science = 0;
         for tile in &mut self.tiles {
-            tile.terrain = Terrain::Ocean;
+            tile.terrain = Terrain::Sea;
             tile.resource = None;
             tile.owner = None;
             tile.river = false;

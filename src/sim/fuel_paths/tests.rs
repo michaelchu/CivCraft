@@ -219,7 +219,7 @@ fn initialized_action_nodes_retain_native_cached_endpoints_when_the_live_stack_c
     sim.create_city(HUMAN, 10, 20);
     let plane = actor(&mut sim, UnitKind::Bomber, (10, 20));
     let target = offset_native_by_map(10, 20, 1, 0);
-    sim.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+    sim.tile_mut(target.0, target.1).terrain = Terrain::Sea;
     let ship = sim.spawn_unit(1, UnitKind::Carrier, target.0, target.1);
     sim.spawn_unit(1, UnitKind::Fighter, target.0, target.1);
     let mut cached = FuelPaths::new(&sim, &plane, true).unwrap();
@@ -236,7 +236,7 @@ fn initialized_action_nodes_retain_native_cached_endpoints_when_the_live_stack_c
 #[test]
 fn full_allied_carrier_is_a_possible_refuel_point_and_unreachable_aircraft_do_not_shield_a_ship() {
     let mut sim = world();
-    sim.tile_mut(10, 20).terrain = Terrain::Ocean;
+    sim.tile_mut(10, 20).terrain = Terrain::Sea;
     let plane = actor(&mut sim, UnitKind::Bomber, (10, 20));
     let carrier = sim.spawn_unit(HUMAN, UnitKind::Carrier, 10, 20);
     for _ in 0..8 {
@@ -248,7 +248,7 @@ fn full_allied_carrier_is_a_possible_refuel_point_and_unreachable_aircraft_do_no
     let map = FuelPaths::new(&sim, &plane, true).unwrap();
     assert!(map.possible_base(&sim, 10, 20));
     let target = offset_native_by_map(10, 20, 1, 0);
-    sim.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+    sim.tile_mut(target.0, target.1).terrain = Terrain::Sea;
     let ship = sim.spawn_unit(1, UnitKind::Carrier, target.0, target.1);
     sim.spawn_unit(1, UnitKind::Fighter, target.0, target.1);
     assert_eq!(map.attack_at(&sim, target.0, target.1, true), Ok(true));

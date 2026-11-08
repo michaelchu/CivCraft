@@ -46,10 +46,10 @@ fn attack_sanity_omits_empty_city_attack_flag_but_default_map_treats_it_as_an_en
 #[test]
 fn sanity_pf_assumes_unknown_source_scope_is_native_even_for_zero_attack_carrier() {
     let mut game = world();
-    game.tile_mut(10, 20).terrain = Terrain::Ocean;
+    game.tile_mut(10, 20).terrain = Terrain::Sea;
     let bridge = offset_native_by_map(10, 20, 1, 0);
     let target = offset_native_by_map(10, 20, 2, 0);
-    game.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+    game.tile_mut(target.0, target.1).terrain = Terrain::Sea;
     game.tile_mut(bridge.0, bridge.1).known_by[HUMAN] = false;
     let id = game.spawn_unit(HUMAN, UnitKind::Carrier, 10, 20);
     game.spawn_unit(BARBARIANS, UnitKind::Caravel, target.0, target.1);
@@ -156,7 +156,7 @@ fn refuge_sanity_gate_is_optimistic_about_unknown_non_native_terrain() {
     for tile in &mut game.tiles {
         tile.known_by[BARBARIANS] = false;
     }
-    game.tile_mut(10, 20).terrain = Terrain::Ocean;
+    game.tile_mut(10, 20).terrain = Terrain::Sea;
     let id = game.spawn_unit(BARBARIANS, UnitKind::Caravel, 10, 20);
     let boat = game.unit_by_id(id).unwrap();
     let target = offset_native_by_map(10, 20, 2, 0);
@@ -244,7 +244,7 @@ fn reverse_query_keeps_the_native_permissive_unarmed_and_nonnative_target_quirks
         .unwrap()
         .clone();
     let target = offset_native_by_map(10, 20, 1, 0);
-    game.tile_mut(target.0, target.1).terrain = Terrain::Ocean;
+    game.tile_mut(target.0, target.1).terrain = Terrain::Sea;
     let target_index = Simulation::idx(target.0, target.1);
     assert_eq!(
         game.leader_paths(&actor, Some((target_index, BARBARIANS)))
@@ -257,7 +257,7 @@ fn reverse_query_keeps_the_native_permissive_unarmed_and_nonnative_target_quirks
 fn leader_releases_ferry_command_to_mobile_nonleader_cargo() {
     let mut game = world();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
     }
     let boat = game.spawn_unit(BARBARIANS, UnitKind::Caravel, 10, 20);
     let leader = game.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, 10, 20);

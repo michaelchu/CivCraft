@@ -167,7 +167,7 @@ fn active_hunter_passes_over_a_cheap_ship_for_a_carrier() {
         .unwrap()
         .clone();
     let (x, y) = offset_native_by_map(sub.x, sub.y, 0, 1);
-    game.tile_mut(x, y).terrain = Terrain::Ocean;
+    game.tile_mut(x, y).terrain = Terrain::Sea;
     let transport = game.spawn_unit(HUMAN, UnitKind::Transport, x, y);
     game.units.last_mut().unwrap().hp = 1;
     assert_eq!(
@@ -261,7 +261,7 @@ fn military_pickup_preserves_a_civilian_boss_until_released() {
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.hut = false;
         tile.resource = None;
     }
@@ -314,7 +314,7 @@ fn worker_transport_dispatch_keeps_its_passenger_and_booking_without_ferry_manag
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.pollution = false;
         tile.fallout = false;
         tile.hut = false;
@@ -398,7 +398,7 @@ fn amphibious_waypoint_keeps_the_passengers_final_land_goal() {
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.owner = None;
         tile.hut = false;
         tile.known_by[1] = true;
@@ -425,7 +425,7 @@ fn damaged_military_ferry_waits_in_city_until_recovered() {
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
     }
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
     game.create_city(1, 10, 24);

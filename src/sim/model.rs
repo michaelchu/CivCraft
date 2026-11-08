@@ -28,7 +28,7 @@ mod resource_terrain_tests {
     use crate::sim::Simulation;
 
     #[test]
-    fn ivory_is_active_on_plains_and_glaciers_but_not_unrelated_terrain() {
+    fn ivory_is_active_on_plains_but_not_unrelated_or_legacy_glacier_terrain() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let tile = sim.tile_mut(10, 10);
         tile.resource = Some(Resource::Ivory);
@@ -37,7 +37,7 @@ mod resource_terrain_tests {
         assert_eq!(tile.active_resource(), Some(Resource::Ivory));
 
         tile.terrain = Terrain::Glacier;
-        assert_eq!(tile.active_resource(), Some(Resource::Ivory));
+        assert_eq!(tile.active_resource(), None);
 
         tile.terrain = Terrain::Hills;
         assert_eq!(tile.active_resource(), None);

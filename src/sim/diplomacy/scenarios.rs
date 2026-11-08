@@ -432,7 +432,7 @@ impl Simulation {
         self.create_city(1, 18, 32);
         let point = (11, 24);
         let tile = self.tile_mut(point.0, point.1);
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.known_by[1] = true;
         tile.known_by[HUMAN] = false;
         tile.visible = false;

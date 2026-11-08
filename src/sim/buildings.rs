@@ -215,7 +215,9 @@ impl Simulation {
             Requirement::River => nearby().any(|tile| tile.river),
             Requirement::Lake => nearby().any(|tile| tile.terrain == Terrain::Lake),
             Requirement::Sea => {
-                nearby().any(|tile| matches!(tile.terrain, Terrain::Ocean | Terrain::DeepOcean))
+                nearby().any(|tile| {
+                    matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Ocean)
+                })
             }
             Requirement::Water => nearby().any(|tile| tile.terrain.is_water()),
             Requirement::MinSize(size) => city.size >= size,
@@ -490,7 +492,7 @@ mod tests {
                 .is_some()
         );
         assert!(game.building_blocker(&game.cities[0], aqueduct).is_some());
-        game.tile_mut(nx, ny).terrain = Terrain::Ocean;
+        game.tile_mut(nx, ny).terrain = Terrain::Sea;
         assert!(game.building_blocker(&game.cities[0], harbor).is_none());
         assert!(
             game.building_blocker(&game.cities[0], river_aqueduct)
@@ -575,6 +577,7 @@ mod transaction_tests {
     #[test]
     fn rush_fills_shield_stock_at_reference_prices_and_locks_the_target() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.tile_mut(10, 20).terrain = Terrain::Grassland;
         game.create_city(HUMAN, 10, 20);
         let id = game.cities[0].id;
         assert!(!game.apply(Command::RushProduction(id)));

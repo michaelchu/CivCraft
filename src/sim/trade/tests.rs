@@ -13,7 +13,7 @@ fn merchant_actual_ferry_capacity_reselects_for_guard_and_keeps_mission() {
     game.ai_guard_targets.clear();
     game.ai_unit_guards.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.owner = None;
         tile.hut = false;
         tile.river = false;
@@ -102,7 +102,7 @@ fn marketplace_deliveries_must_repay_production_opportunity_cost() {
 fn ferry_landing_counts_only_the_movement_available_to_the_caravan() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.road = false;
         tile.railroad = false;
     }
@@ -227,7 +227,7 @@ fn lost_home_recovery_chooses_a_city_on_the_current_continent() {
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
-        tile.terrain = Terrain::Ocean;
+        tile.terrain = Terrain::Sea;
         tile.hut = false;
     }
     for y in 18..=42 {
