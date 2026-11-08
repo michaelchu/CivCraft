@@ -30,6 +30,16 @@ impl Simulation {
             tile.visible = false;
             tile.stealth_visible = false;
         }
+        for owner in 0..self.players.len() {
+            if self.has_tech(owner, Tech::SATELLITES) {
+                for tile in &mut self.tiles {
+                    tile.known_by[owner] = true;
+                    if owner == HUMAN {
+                        tile.seen = true;
+                    }
+                }
+            }
+        }
         let revealers: Vec<_> = self
             .units
             .iter()

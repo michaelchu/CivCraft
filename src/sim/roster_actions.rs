@@ -12,6 +12,7 @@ impl Simulation {
         rows.len() == 57
             && UnitKind::ALL_NATIVE
                 .into_iter()
+                .take(rows.len())
                 .zip(rows)
                 .all(|(kind, row)| {
                     let expected: Vec<i32> = row

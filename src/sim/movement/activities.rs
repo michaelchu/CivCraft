@@ -4,12 +4,16 @@ use super::*;
 
 impl Simulation {
     pub(in crate::sim) fn activity_rate(&self, unit: &Unit) -> i32 {
-        let rate = unit.activity_rate();
-        if unit.kind.is_worker() && self.has_tech(unit.owner, Tech::REPLACEABLE_PARTS) {
-            rate * 2
-        } else {
-            rate
+        let mut rate = unit.activity_rate();
+        if unit.kind.is_worker() {
+            if self.players[unit.owner].government == Government::Democracy {
+                rate = rate * 3 / 2;
+            }
+            if self.has_tech(unit.owner, Tech::REPLACEABLE_PARTS) {
+                rate *= 2;
+            }
         }
+        rate
     }
 
     fn work_turns_left(&self, unit: &Unit) -> i32 {
@@ -48,8 +52,7 @@ impl Simulation {
         let tile = self.tile(unit.x, unit.y);
         let turns = match kind {
             WorkKind::Road
-                if !tile.road
-                    && (!tile.river || self.has_tech(unit.owner, Tech::ENGINEERING)) =>
+                if !tile.road && (!tile.river || self.has_tech(unit.owner, Tech::ENGINEERING)) =>
             {
                 tile.terrain.road_time()
             }
@@ -139,7 +142,10 @@ impl Simulation {
             .iter()
             .filter(|worker| worker.work_key() == Some(project))
             .fold((0, 0), |(progress, rate), worker| {
-                (progress + worker.work_done, rate + self.activity_rate(worker))
+                (
+                    progress + worker.work_done,
+                    rate + self.activity_rate(worker),
+                )
             });
         if rate == 0 {
             return self.work_turns_left(unit);

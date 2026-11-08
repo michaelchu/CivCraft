@@ -140,6 +140,16 @@ pub(super) fn unit_sprite(kind: UnitKind) -> (i32, i32) {
         UnitKind::Leader => (2, 15),
         UnitKind::Awacs => (2, 13),
         UnitKind::Storm => (2, 18),
+        // Temporary visual fallbacks for the newly modeled Civ III roster;
+        // dedicated unit art is being handled separately.
+        UnitKind::Scout => (1, 13),
+        UnitKind::Longbowman => (1, 8),
+        UnitKind::Infantry => (1, 2),
+        UnitKind::ModernArmor => (0, 0),
+        UnitKind::Privateer => (0, 13),
+        UnitKind::JetFighter => (0, 12),
+        UnitKind::NuclearSubmarine => (1, 5),
+        UnitKind::Icbm | UnitKind::TacticalNuke => (1, 0),
     }
 }
 

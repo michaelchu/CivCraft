@@ -611,7 +611,7 @@ impl Simulation {
             && kind
                 .required_government()
                 .is_none_or(|government| self.players[owner].government == government)
-            && (kind != UnitKind::Nuclear || self.manhattan_project_completed())
+            && (!kind.is_nuclear_weapon() || self.manhattan_project_completed())
             && kind
                 .required_tech()
                 .is_none_or(|tech| self.has_tech(owner, tech))

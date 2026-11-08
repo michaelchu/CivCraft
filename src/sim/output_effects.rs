@@ -23,7 +23,14 @@ impl Simulation {
         .any(|building| city.has_building(building));
         // At the supported Normal difficulty, neither Restricted's -25%
         // Output_Bonus nor Cheating's +40% Output_Bonus_2 applies.
-        100 + 25 * industry * (1 + i32::from(powered))
+        let iron_works = city.has_building(Building::IRON_WORKS)
+            && self.map_city_radius(city).any(|(_, _, x, y)| {
+                matches!(
+                    self.tile(x, y).active_resource(),
+                    Some(Resource::Coal | Resource::Iron)
+                )
+            });
+        100 + 25 * industry * (1 + i32::from(powered)) + 100 * i32::from(iron_works)
     }
 
     pub(super) fn commercial_output_bonus(&self, city: &City) -> i32 {

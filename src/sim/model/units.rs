@@ -64,11 +64,21 @@ pub(crate) enum UnitKind {
     Leader,
     Awacs,
     Storm,
+    // Appended to preserve existing serialized discriminants.
+    Scout,
+    Longbowman,
+    Infantry,
+    ModernArmor,
+    Privateer,
+    JetFighter,
+    NuclearSubmarine,
+    Icbm,
+    TacticalNuke,
 }
 
 impl UnitKind {
     // Source ruleset ordering is independent of enum/save discriminants.
-    pub(crate) const ALL_NATIVE: [Self; 57] = [
+    pub(crate) const ALL_NATIVE: [Self; 66] = [
         Self::Settlers,
         Self::Migrants,
         Self::Worker,
@@ -126,14 +136,23 @@ impl UnitKind {
         Self::BarbarianLeader,
         Self::Awacs,
         Self::Storm,
+        Self::Scout,
+        Self::Longbowman,
+        Self::Infantry,
+        Self::ModernArmor,
+        Self::Privateer,
+        Self::JetFighter,
+        Self::NuclearSubmarine,
+        Self::Icbm,
+        Self::TacticalNuke,
     ];
     #[cfg(test)]
-    pub(crate) const ALL: [Self; 57] = Self::ALL_NATIVE;
+    pub(crate) const ALL: [Self; 66] = Self::ALL_NATIVE;
     #[cfg(test)]
     pub(crate) fn all() -> impl Iterator<Item = Self> {
         Self::ALL_NATIVE.into_iter()
     }
-    pub(in crate::sim) const SIMPLE_MILITARY: [Self; 32] = [
+    pub(in crate::sim) const SIMPLE_MILITARY: [Self; 35] = [
         Self::Warrior,
         Self::Phalanx,
         Self::Archer,
@@ -166,6 +185,9 @@ impl UnitKind {
         Self::Cruiser,
         Self::AegisCruiser,
         Self::Battleship,
+        Self::Longbowman,
+        Self::Infantry,
+        Self::ModernArmor,
     ];
 
     pub(in crate::sim) fn hp_loss_percent(self) -> i32 {
@@ -180,6 +202,19 @@ impl UnitKind {
 
     pub(in crate::sim) fn required_tech(self) -> Option<Tech> {
         self.metadata().tech
+    }
+
+    pub(in crate::sim) fn required_resources(self) -> &'static [crate::sim::Resource] {
+        use crate::sim::Resource as R;
+        match self {
+            Self::Privateer => &[R::Saltpeter, R::Iron],
+            Self::Infantry => &[R::Rubber],
+            Self::ModernArmor => &[R::Oil, R::Rubber, R::Aluminum],
+            Self::JetFighter => &[R::Oil],
+            Self::NuclearSubmarine => &[R::Uranium],
+            Self::Icbm | Self::TacticalNuke => &[R::Aluminum, R::Uranium],
+            _ => &[],
+        }
     }
 
     pub(crate) fn name(self) -> &'static str {
@@ -241,6 +276,15 @@ impl UnitKind {
             Self::StealthFighter => "Stealth Fighter",
             Self::StealthBomber => "Stealth Bomber",
             Self::Partisan => "Partisan",
+            Self::Scout => "Scout",
+            Self::Longbowman => "Longbowman",
+            Self::Infantry => "Infantry",
+            Self::ModernArmor => "Modern Armor",
+            Self::Privateer => "Privateer",
+            Self::JetFighter => "Jet Fighter",
+            Self::NuclearSubmarine => "Nuclear Submarine",
+            Self::Icbm => "ICBM",
+            Self::TacticalNuke => "Tactical Nuke",
         }
     }
 
@@ -301,7 +345,14 @@ impl UnitKind {
     }
 
     pub(in crate::sim) fn is_missile(self) -> bool {
-        matches!(self, Self::CruiseMissile | Self::Nuclear)
+        matches!(
+            self,
+            Self::CruiseMissile | Self::Nuclear | Self::Icbm | Self::TacticalNuke
+        )
+    }
+
+    pub(crate) fn is_nuclear_weapon(self) -> bool {
+        matches!(self, Self::Nuclear | Self::Icbm | Self::TacticalNuke)
     }
 
     pub(crate) fn is_aircraft(self) -> bool {

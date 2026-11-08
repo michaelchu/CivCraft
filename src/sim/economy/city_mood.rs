@@ -15,9 +15,10 @@ impl Simulation {
             + i32::from(has(Building::COURTHOUSE))
             + i32::from(owns(Building::HANGING_GARDENS));
         if has(Building::TEMPLE) {
-            content += 1
+            content += (1
                 + i32::from(!communist && self.has_tech(city.owner, Tech::MYSTICISM))
-                + 2 * i32::from(owns(Building::TEMPLE_OF_ARTEMIS));
+                + 2 * i32::from(owns(Building::TEMPLE_OF_ARTEMIS)))
+                * (1 + i32::from(owns(Building::ORACLE)));
         }
         if has(Building::CATHEDRAL) {
             content += 3
@@ -26,6 +27,9 @@ impl Simulation {
         }
         if has(Building::AMPHITHEATER) {
             content += 3 + i32::from(self.has_tech(city.owner, Tech::ELECTRICITY));
+        }
+        if has(Building::COLOSSEUM) {
+            content += 2;
         }
         if owns(Building::MAUSOLEUM_OF_MAUSOLOS) {
             content += i32::from(has(Building::CITY_WALLS)) + i32::from(has(Building::COURTHOUSE));

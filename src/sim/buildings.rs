@@ -133,10 +133,52 @@ impl Simulation {
 
     pub(super) fn unit_buildable(&self, city: &City, kind: UnitKind) -> bool {
         self.unit_available(city.owner, kind)
+            && self.unit_resources_available(city, kind)
             && self.available_unit_successor(city.owner, kind).is_none()
             && (kind.unit_class().build_anywhere()
                 || kind.is_aircraft()
                 || self.naval_city_access(city, kind))
+    }
+
+    fn unit_resources_available(&self, city: &City, kind: UnitKind) -> bool {
+        kind.required_resources()
+            .iter()
+            .all(|&resource| self.resource_connected_to_city(city, resource))
+    }
+
+    fn resource_connected_to_city(&self, city: &City, resource: Resource) -> bool {
+        let center = self.tile(city.x, city.y);
+        if center.active_resource() == Some(resource) {
+            return true;
+        }
+        let mut reached = vec![false; self.tiles.len()];
+        let mut queue = std::collections::VecDeque::new();
+        for (x, y) in self.map_wrap.neighbors(city.x, city.y) {
+            let index = self.map_wrap.index(x, y);
+            let tile = self.tile(x, y);
+            if tile.owner == Some(city.owner) && tile.road && !reached[index] {
+                reached[index] = true;
+                queue.push_back((x, y));
+            }
+        }
+        while let Some((x, y)) = queue.pop_front() {
+            let tile = self.tile(x, y);
+            if tile.owner == Some(city.owner)
+                && tile.road
+                && tile.active_resource() == Some(resource)
+            {
+                return true;
+            }
+            for (nx, ny) in self.map_wrap.neighbors(x, y) {
+                let index = self.map_wrap.index(nx, ny);
+                let next = self.tile(nx, ny);
+                if next.owner == Some(city.owner) && next.road && !reached[index] {
+                    reached[index] = true;
+                    queue.push_back((nx, ny));
+                }
+            }
+        }
+        false
     }
 
     // common/city.c:can_city_build_unit_later deliberately ignores the
@@ -177,6 +219,34 @@ impl Simulation {
             }
             Requirement::Water => nearby().any(|tile| tile.terrain.is_water()),
             Requirement::MinSize(size) => city.size >= size,
+            Requirement::OwnerCityCount(count) => {
+                self.cities
+                    .iter()
+                    .filter(|other| other.owner == city.owner)
+                    .count()
+                    >= count
+            }
+            Requirement::OwnerBuildingCount(id, count) => {
+                self.cities
+                    .iter()
+                    .filter(|other| other.owner == city.owner && other.has_building(Building(id)))
+                    .count()
+                    >= count
+            }
+            Requirement::Resource(id) => {
+                let resource = match id {
+                    0 => Resource::Aluminum,
+                    1 => Resource::Coal,
+                    2 => Resource::Horses,
+                    3 => Resource::Iron,
+                    4 => Resource::Oil,
+                    5 => Resource::Rubber,
+                    6 => Resource::Saltpeter,
+                    7 => Resource::Uranium,
+                    _ => return false,
+                };
+                nearby().any(|tile| tile.active_resource() == Some(resource))
+            }
         };
         matches == present
     }
@@ -215,6 +285,14 @@ impl Simulation {
         }
         if data.genus == Genus::GreatWonder && self.completed_wonders.contains(&building) {
             return Some("Wonder already completed".into());
+        }
+        if data.genus == Genus::SmallWonder
+            && self
+                .cities
+                .iter()
+                .any(|other| other.owner == city.owner && other.has_building(building))
+        {
+            return Some("Small Wonder already completed by this civilization".into());
         }
         if let Some((part, limit)) = spaceship_part(building) {
             if !self.apollo_completed {
@@ -264,19 +342,13 @@ impl Simulation {
                 }
                 return;
             }
-            Genus::GreatWonder => {
-                self.completed_wonders.push(building);
-                if building == Building::APOLLO_PROGRAM {
-                    self.apollo_completed = true;
-                    for tile in &mut self.tiles {
-                        tile.known_by[owner] = true;
-                        tile.seen |= owner == HUMAN;
-                    }
-                }
-            }
+            Genus::GreatWonder => self.completed_wonders.push(building),
             Genus::SmallWonder => {
                 for city in self.cities.iter_mut().filter(|city| city.owner == owner) {
                     city.buildings.retain(|&built| built != building);
+                }
+                if building == Building::APOLLO_PROGRAM {
+                    self.apollo_completed = true;
                 }
             }
             Genus::Improvement => {}
@@ -293,6 +365,10 @@ impl Simulation {
         ) {
             self.grant_cheapest_advance(owner);
         }
+        if building == Building::THEORY_OF_EVOLUTION {
+            self.grant_cheapest_advance(owner);
+            self.grant_cheapest_advance(owner);
+        }
     }
 }
 
@@ -305,6 +381,24 @@ fn requirement_name(requirement: Requirement) -> String {
         Requirement::Sea => "a sea coast".into(),
         Requirement::Water => "nearby sea or lake".into(),
         Requirement::MinSize(size) => format!("city size {size}"),
+        Requirement::OwnerCityCount(count) => format!("{count} cities"),
+        Requirement::OwnerBuildingCount(id, count) => {
+            format!("{count} {} buildings", Building(id).data().name)
+        }
+        Requirement::Resource(id) => format!(
+            "{} in the city radius",
+            match id {
+                0 => "Aluminum",
+                1 => "Coal",
+                2 => "Horses",
+                3 => "Iron",
+                4 => "Oil",
+                5 => "Rubber",
+                6 => "Saltpeter",
+                7 => "Uranium",
+                _ => "resource",
+            }
+        ),
     }
 }
 
@@ -329,7 +423,7 @@ mod tests {
 
     #[test]
     fn researched_building_completes_and_unlocks_its_successor() {
-        assert_eq!(Building::all().count(), 73);
+        assert_eq!(Building::all().count(), 88);
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let settler = game
             .units
@@ -402,6 +496,45 @@ mod tests {
         assert!(
             game.building_blocker(&game.cities[0], river_aqueduct)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn added_unit_resource_requirements_need_owned_road_connected_resources() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        game.create_city(HUMAN, 10, 20);
+        let city = game.cities[0].clone();
+        assert!(!game.unit_resources_available(&city, UnitKind::Privateer));
+        let (iron_x, iron_y) = game.map_wrap.offset(city.x, city.y, 1, 0).unwrap();
+        let iron = game.tile_mut(iron_x, iron_y);
+        iron.terrain = Terrain::Hills;
+        iron.resource = Some(Resource::Iron);
+        iron.owner = Some(HUMAN);
+        iron.road = true;
+        let (salt_x, salt_y) = game.map_wrap.offset(city.x, city.y, -1, 0).unwrap();
+        let salt = game.tile_mut(salt_x, salt_y);
+        salt.terrain = Terrain::Desert;
+        salt.resource = Some(Resource::Saltpeter);
+        salt.owner = Some(HUMAN);
+        salt.road = true;
+        assert!(game.unit_resources_available(&city, UnitKind::Privateer));
+    }
+
+    #[test]
+    fn civ3_wonder_catalog_uses_small_wonder_uniqueness_for_apollo_and_sdi() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        game.create_city(HUMAN, 10, 20);
+        game.create_city(HUMAN, 20, 20);
+        assert_eq!(Building::all().count(), 88);
+        assert_eq!(Building::APOLLO_PROGRAM.data().genus, Genus::SmallWonder);
+        assert_eq!(Building::SDI_DEFENSE.data().genus, Genus::SmallWonder);
+        game.cities[0].buildings.push(Building::APOLLO_PROGRAM);
+        assert_eq!(
+            game.building_blocker(&game.cities[1], Building::APOLLO_PROGRAM)
+                .as_deref(),
+            Some("Small Wonder already completed by this civilization")
         );
     }
 

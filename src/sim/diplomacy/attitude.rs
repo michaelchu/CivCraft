@@ -260,7 +260,7 @@ impl Simulation {
                     })
                     .count() as i32;
                 love -= (trespassers * 5).min(30 * (i32::from(allied_with_enemy) + 1));
-                if contacted && !self.completed_wonders.contains(&Building::APOLLO_PROGRAM) {
+                if contacted && !self.apollo_completed {
                     for wonder in [Building::EIFFEL_TOWER, Building::UNITED_NATIONS] {
                         if self.has_active_wonder(other, wonder) {
                             love += 10;

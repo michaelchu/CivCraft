@@ -71,6 +71,8 @@ impl Simulation {
             8 * MOVE_FRAGMENTS
                 * (i32::from(self.has_tech(owner, Tech::ADVANCED_FLIGHT))
                     + i32::from(self.has_tech(owner, Tech::ROCKETRY)))
+        } else if kind.is_nuclear_weapon() {
+            kind.stats().moves * MOVE_FRAGMENTS
         } else if kind.is_naval() && kind != UnitKind::Trireme {
             base + self.naval_movement_bonus(owner)
         } else {
@@ -406,7 +408,7 @@ impl Simulation {
         if self.try_capture_units(&unit, nx, ny) {
             return MoveResult::Fought;
         }
-        if unit.kind == UnitKind::Nuclear && self.nuclear_target_is_hostile(&unit, nx, ny) {
+        if unit.kind.is_nuclear_weapon() && self.nuclear_target_is_hostile(&unit, nx, ny) {
             self.nuclear_strike(&unit, nx, ny);
             return MoveResult::Fought;
         }
@@ -451,7 +453,7 @@ impl Simulation {
 
         if let Some(defender_id) = defender {
             if unit.kind.stats().attack <= 0
-                || unit.kind == UnitKind::Nuclear
+                || unit.kind.is_nuclear_weapon()
                 || (unit.kind == UnitKind::Submarine && !self.tile(nx, ny).terrain.is_water())
                 || (unit.transport.is_some()
                     && !(unit.kind.is_missile() || unit.kind.has_marine_attack()))

@@ -109,7 +109,9 @@ mod tests {
         game.players[HUMAN].future_techs = 1;
         game.nation_scores[HUMAN].units_built = 19;
         game.nation_scores[HUMAN].units_killed = 7;
-        assert_eq!(game.civilization_score(HUMAN), 7 + 6 + 5 + 1 + 2 + 1);
+        // Apollo is a Civ III Small Wonder, so it no longer adds Great
+        // Wonder score; its culture still contributes to city history.
+        assert_eq!(game.civilization_score(HUMAN), 7 + 6 + 1 + 2 + 1);
     }
 
     #[test]

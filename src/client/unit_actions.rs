@@ -143,7 +143,7 @@ impl Game {
                     ));
                 }
             }
-            if unit.kind == UnitKind::Nuclear {
+            if unit.kind.is_nuclear_weapon() {
                 entries.push(("Detonate here".to_owned(), UiAction::Detonate, true));
             }
             if let Some(label) = self.sim.transport_action(unit) {
@@ -158,7 +158,8 @@ impl Game {
             }
             if stats.can_work && unit.transport.is_none() {
                 let tile = self.sim.tile(unit.x, unit.y);
-                let (label, enabled) = if tile.road && self.sim.has_tech(unit.owner, Tech::STEAM_POWER)
+                let (label, enabled) = if tile.road
+                    && self.sim.has_tech(unit.owner, Tech::STEAM_POWER)
                 {
                     (
                         "Build railroad [R]",
@@ -169,8 +170,7 @@ impl Game {
                         "Build road [R]",
                         !tile.road
                             && tile.terrain.road_time() > 0
-                            && (!tile.river
-                                || self.sim.has_tech(unit.owner, Tech::ENGINEERING)),
+                            && (!tile.river || self.sim.has_tech(unit.owner, Tech::ENGINEERING)),
                     )
                 };
                 entries.push((label.to_owned(), UiAction::Road, enabled));

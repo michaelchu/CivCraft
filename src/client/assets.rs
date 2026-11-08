@@ -628,7 +628,7 @@ pub(crate) fn native_unit_rendering_playtest() -> (bool, bool, bool) {
         UnitKind::Storm,
     ];
     let complete =
-        UnitKind::ALL_NATIVE.len() == 57 && UnitKind::ALL_NATIVE.into_iter().all(visible);
+        UnitKind::ALL_NATIVE.len() == 66 && UnitKind::ALL_NATIVE.into_iter().all(visible);
     let distinct = added
         .into_iter()
         .map(unit_sprite)

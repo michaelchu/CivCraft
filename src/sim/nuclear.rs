@@ -21,7 +21,7 @@ impl Simulation {
         let Some(unit) = self
             .units
             .iter()
-            .find(|unit| unit.id == id && unit.kind == UnitKind::Nuclear)
+            .find(|unit| unit.id == id && unit.kind.is_nuclear_weapon())
             .cloned()
         else {
             return false;

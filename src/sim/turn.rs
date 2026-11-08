@@ -65,6 +65,19 @@ impl Simulation {
             self.restore_player_units(owner);
             let income = self.process_player_cities(owner);
             self.finish_player_national_activities(owner, income);
+            let banks = self
+                .cities
+                .iter()
+                .filter(|city| city.owner == owner && city.has_building(Building::BANK))
+                .count();
+            if banks >= 5
+                && self
+                    .cities
+                    .iter()
+                    .any(|city| city.owner == owner && city.has_building(Building::WALL_STREET))
+            {
+                self.players[owner].gold += self.players[owner].gold.max(0) / 20;
+            }
         }
         self.check_disasters();
         self.update_climate();

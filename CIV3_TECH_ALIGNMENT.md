@@ -102,9 +102,38 @@ example Railroad and Steam Engine effects follow Steam Power); old saves migrate
 known and in-progress legacy advances. These analogies preserve existing
 systems but do not mean Civ III had the same mechanics.
 
+## Current gap closure status
+
+The runtime unit roster now includes Scout, Longbowman, Infantry, Modern
+Armor, Privateer, Jet Fighter, Nuclear Submarine, ICBM, and Tactical Nuke.
+Strategic resource requirements are checked for the newly added unit tiers
+when cities produce them, using road-connected owned resources; nuclear
+variants share the Manhattan Project gate. Existing save enum identifiers were preserved by appending the new
+variants. New variants currently reuse available sprites until the separate
+art pass requested by the user.
+
+The building catalog now includes Colosseum, Hospital, Longevity, Oracle,
+Theory of Evolution, Universal Suffrage, SETI Program, and all eight missing
+base-game Small Wonders. Apollo and SDI are categorized as Small Wonders,
+Small Wonder uniqueness is enforced per civilization, and growth follows the
+6/12/Hospital thresholds. Implemented effects include Oracle temple bonus,
+Theory of Evolution's two advances, SETI science, Longevity growth, Iron Works
+production, Wall Street interest, Forbidden Palace corruption center,
+Satellites map reveal, and Democracy worker speed.
+
+Remaining mechanical gaps are not just missing catalog rows: CivCraft has no
+Army formation system, so Heroic Epic, Military Academy, and Pentagon cannot
+yet use their Civ III prerequisites or Army effects. It also has no war
+weariness simulation, so Universal Suffrage cannot apply its intended
+reduction, and no civilization-specific unique-unit replacement system.
+Intelligence Agency and Battlefield Medicine still need their effects wired
+to espionage and healing. Government names and research unlocks cover all
+base-game forms; support, corruption, rush, draft, propaganda immunity, and
+war-weariness behavior still differ from Civ III.
+
 ## Unlock coverage gaps to resolve
 
-The runtime catalog has 57 Civ2Civ3 unit types. Existing analogs cover most of
+The runtime catalog now has 66 Civ2Civ3 unit types. Existing analogs cover most of
 the familiar progression, but a catalog entry with a similar name does not
 guarantee matching Civ III unlock, resource prerequisite, upgrade path, or
 special rule. The base-game reference has 46 units, including combat units,
@@ -118,15 +147,15 @@ workers, settlers, Army/Leader systems, naval units, and aircraft.
 | Galley, Caravel, Galleon, Frigate, Ironclad, Destroyer, Transport, Submarine, Battleship, Carrier, AEGIS Cruiser | Trireme, Caravel, Galleon, Frigate, Ironclad, Destroyer, Transport, Submarine, Battleship, Carrier, AEGIS Cruiser | Most have direct/class analogs and mapped techs; verify resource requirements, stats, sea-loss, cargo, stealth, and upgrade paths. Galley is separately noted below. |
 | Fighter, Bomber, Helicopter, Cruise Missile, Stealth Fighter, Stealth Bomber | Matching or close CivCraft types | Techs align for direct analogs; air missions, resource costs, and combat rules still differ. |
 | Spearman | Phalanx is the Bronze Working defender | Partial class analog; stats, name, and upgrade progression differ. |
-| Scout | No dedicated Scout | Missing; Civ III Scout is an Expansionist starting-unit exception, not an ordinary tech unlock. |
-| Longbowman | No distinct type | Missing Invention unit and bombard role. |
-| Infantry | No distinct type | Missing Replaceable Parts unit tier. |
-| Modern Armor | No distinct type; Armor is the Tank analog | Missing Synthetic Fibers upgrade and Aluminum requirement. |
+| Scout | Dedicated type added | Expansionist starting-unit exception and civilization trait behavior remain unmodeled. |
+| Longbowman | Dedicated Invention unit added | Bombard role and its damage rules remain unmodeled. |
+| Infantry | Dedicated Replaceable Parts tier added | Resource requirements are checked at production; upgrade path review remains. |
+| Modern Armor | Dedicated Synthetic Fibers tier added | Aluminum gate is checked at production; upgrade path review remains. |
 | Radar Artillery | Howitzer is only a rough analog | Missing Robotics unlock, bombard profile, and Aluminum requirement. |
-| Privateer | No distinct type | Missing Magnetism unlock, neutral nationality/privateer rules, and Iron/Saltpeter requirements. |
-| Jet Fighter | No distinct type | Missing Rocketry unlock and air missions. |
-| Nuclear Submarine | No distinct type | Missing Fission unlock, stealth, Uranium requirement, and Tactical Nuke carrying. |
-| ICBM and Tactical Nuke | One generic Nuclear type exists | Missing separate types and strategic-resource requirements; the source lists ICBM at Satellites and Tactical Nuke at Space Flight. |
+| Privateer | Dedicated Magnetism type added | Neutral nationality/privateer rules remain; Iron and Saltpeter gates are checked at production. |
+| Jet Fighter | Dedicated Rocketry type added | Air mission coverage remains partial. |
+| Nuclear Submarine | Dedicated Fission stealth type added | Uranium gate is checked at production; Tactical Nuke carrying remains partial. |
+| ICBM and Tactical Nuke | Dedicated Satellites and Space Flight types added | Uranium gates are checked at production; special targeting and blast behavior share current nuclear implementation. |
 | Army | No Civ III-style stack-of-units Army | Missing Army formation, capacity, movement/combat behavior, and Pentagon/Military Academy interactions. |
 | Leader | A generic Leader unit exists | Partial only; verify generation from elite victories and Army creation/upgrade rules. |
 | Civ-specific unique units (Hoplite, Impi, Immortal, Legionary, Mounted Warrior, Samurai, War Chariot, Rider, Cossack, Panzer, Bowman) | No civilization-specific unit replacement system | Missing conditional replacements. Several existing units have the same or related names but are not civilization-gated. |
@@ -147,9 +176,9 @@ Conquests Man-O-War are outside this base-game gap count.
 | Steam Power: build Railroads | Steam Power gates Railroad work | Supported; river crossing additionally requires Engineering. |
 | Replaceable Parts: faster workers | Replaceable Parts doubles worker activity rate | Supported for active work and worker projections. |
 | Strategic resources become visible at their reveal advances | Horses: The Wheel; Iron: Iron Working; Saltpeter: Gunpowder; Coal: Steam Power; Oil: Refining; Rubber: Replaceable Parts; Aluminum: Rocketry; Uranium: Fission | Supported by resource reveal mapping; resource consumption/requirements on units remain a separate audit. |
-| Strategic resource requirements for units | Resources are visible on tiles, but unit metadata/production has no Horses, Iron, Saltpeter, Coal, Oil, Rubber, Aluminum, or Uranium prerequisite checks | Missing across the unit roster; Civ III unit unlocks alone do not permit construction without required connected resources. |
+| Strategic resource requirements for units | New unit tiers enforce their mapped resource prerequisites during production | Partial: legacy unit resource requirements, resource trading, and harbor connection rules are not yet included. |
 | Masonry: build Outposts | No Outpost base type or action | Missing. |
-| Satellites: reveal the world map | Satellites has no global map-reveal effect | Missing. Internet currently reveals cities, which is a different effect. |
+| Satellites: reveal the world map | Satellites marks all map tiles known to the player | Supported; Internet continues to reveal cities as a separate effect. |
 | Writing: embassies, Right of Passage, and Military Alliances | Embassies and treaties are available through current diplomacy rules | Tech gates are missing; capabilities are not unlocked by Writing. |
 | Navigation: trade maps | World/sea map trade exists in treaties | Navigation gate is missing. |
 | Printing Press: communications trading | No communications-trade system | Missing. |
@@ -168,7 +197,7 @@ those categories do not always match Civ III's Great versus Small Wonder
 classification, and several global uniqueness, continent, resource, and
 obsolescence rules differ.
 
-The 19 Great Wonder analogs present are Colossus, Great Library, Lighthouse,
+The 19 original Great Wonder analogs present are Colossus, Great Library, Lighthouse,
 Great Wall, Hanging Gardens, Pyramids, Copernicus' Observatory, J.S. Bach's
 Cathedral, Leonardo's Workshop, Magellan's Expedition, Michelangelo's Chapel,
 Isaac Newton's College, Shakespeare's Theater, A.Smith's Trading Company, Sun
@@ -184,11 +213,11 @@ model Zeus's Ivory condition. Internet is Play the World content.
 
 | Civ III item | CivCraft state | Gap |
 |---|---|---|
-| Colosseum | Amphitheater is a close happiness-building analog | Partial: distinct item/prerequisite and exact happiness behavior are not represented. |
-| Hospital | No direct item; Sewer System exists | Missing growth cap and hospital effects. |
-| Longevity | No direct item | Missing Great Wonder (Genetics). |
-| Oracle, Theory of Evolution, Universal Suffrage, SETI Program | No direct item | Missing four base-game Great Wonders and effects. |
-| Forbidden Palace, Heroic Epic, Iron Works, Military Academy, Pentagon, Wall Street, Intelligence Agency, Battlefield Medicine | No direct item | Missing eight base-game Small Wonders and their effects/conditions. Apollo Program and SDI Defense exist but are also Small Wonders in Civ III; local catalog labels them Great Wonders. |
+| Colosseum | Distinct Construction improvement added | Adds two content in a city. |
+| Hospital | Sanitation improvement added | Enables growth beyond size 12; illness/healing effect needs review. |
+| Longevity | Genetics Great Wonder added | Adds an extra citizen on city growth. |
+| Oracle, Theory of Evolution, Universal Suffrage, SETI Program | Four Great Wonders added | Oracle temple and SETI science effects and Theory of Evolution's two advances are implemented; Universal Suffrage awaits war weariness mechanics. |
+| Forbidden Palace, Heroic Epic, Iron Works, Military Academy, Pentagon, Wall Street, Intelligence Agency, Battlefield Medicine | All eight base-game Small Wonders added | Forbidden Palace, Iron Works, and Wall Street effects are implemented. Army dependent wonders, Intelligence Agency, and Battlefield Medicine effects remain. Apollo Program and SDI Defense are now categorized as Small Wonders. |
 | Statue of Zeus, Mausoleum of Mausollos, Temple of Artemis | Present; Conquests-only | Techs mapped to Mathematics, Philosophy, and Polytheism; Zeus Ivory requirement unsupported. |
 | Manhattan Project | Present; Fission unlock | Uranium prerequisite is not modeled. |
 | Knights Templar | No direct item | Missing Conquests wonder and Crusader spawning effect; outside base-game scope. |
@@ -209,11 +238,9 @@ Center (Recycling), Research Lab (Computers), SAM Battery (Rocketry), SDI
 Defense (Integrated Defense), Sewer System (Sanitation), Solar Plant (Ecology),
 Stock Exchange (Economics), Supermarket (Sanitation), Temple (Ceremonial Burial),
 and University (Education). Coastal Defense is mapped to Metallurgy as the
-closest Coastal Fortress role. The remaining improvement-level differences,
-including Colosseum and Hospital, and all building effects, costs, size limits,
-resource conditions, and obsolescence rules still need source-by-source
-comparison. See the gap table above for the complete currently identified
-missing Civ III Great and Small Wonder entries.
+closest Coastal Fortress role. Improvement and wonder costs, effects, size
+limits, resource conditions, and obsolescence still need source-by-source
+comparison; the gap table records the known unfinished mechanics.
 
 ### Governments
 

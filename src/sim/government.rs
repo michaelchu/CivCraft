@@ -116,7 +116,9 @@ impl Government {
 
 impl Simulation {
     pub(super) fn government_center_distance(&self, city: &City) -> Option<i32> {
-        if city.has_building(Building::PALACE) || city.has_building(Building::ECCLESIASTICAL_PALACE)
+        if city.has_building(Building::PALACE)
+            || city.has_building(Building::ECCLESIASTICAL_PALACE)
+            || city.has_building(Building::FORBIDDEN_PALACE)
         {
             Some(0)
         } else {
@@ -125,7 +127,8 @@ impl Simulation {
                 .filter(|center| {
                     center.owner == city.owner
                         && (center.has_building(Building::PALACE)
-                            || center.has_building(Building::ECCLESIASTICAL_PALACE))
+                            || center.has_building(Building::ECCLESIASTICAL_PALACE)
+                            || center.has_building(Building::FORBIDDEN_PALACE))
                 })
                 .map(|center| self.map_distance(city.x, city.y, center.x, center.y))
                 .min()

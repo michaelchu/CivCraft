@@ -137,7 +137,7 @@ impl UnitClass {
     pub(super) fn build_anywhere(self) -> bool {
         matches!(
             self,
-            Self::Land | Self::SmallLand | Self::BigLand | Self::Merchant
+            Self::Land | Self::SmallLand | Self::BigLand | Self::Merchant | Self::Missile
         )
     }
     pub(super) fn damage_slows(self) -> bool {
@@ -1068,7 +1068,7 @@ impl UnitKind {
                     | (1u64 << F::HasNoZOC as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: 0,
-                tech: Some(Tech::SPACE_FLIGHT), /* Space Flight */
+                tech: Some(Tech::NUCLEAR_FISSION),
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -1268,6 +1268,167 @@ impl UnitKind {
                 fuel: 0,
                 upkeep: (0, 0, 0),
                 veteran_levels: 4,
+                helicopter_field_load: false,
+                attacks_air: false,
+                stealth: false,
+            },
+            Self::Scout => UnitMetadata {
+                class: C::SmallLand,
+                flags: (1u64 << F::NonMil as u32)
+                    | (1u64 << F::HasNoZOC as u32)
+                    | (1u64 << F::ShieldToGold as u32),
+                roles: (1u64 << R::Explorer as u32) | (1u64 << R::ExplorerStartUnit as u32),
+                tech: None,
+                government: None,
+                obsolete: &[],
+                cargo: &[],
+                capacity: 0,
+                fuel: 0,
+                upkeep: (0, 1, 0),
+                veteran_levels: 1,
+                helicopter_field_load: false,
+                attacks_air: false,
+                stealth: false,
+            },
+            Self::Longbowman => UnitMetadata {
+                class: C::Land,
+                flags: (1u64 << F::FieldUnit as u32) | (1u64 << F::ShieldToGold as u32),
+                roles: (1u64 << R::DefendOk as u32) | (1u64 << R::DefendOkStartUnit as u32),
+                tech: Some(Tech::INVENTION),
+                government: None,
+                obsolete: &[],
+                cargo: &[],
+                capacity: 0,
+                fuel: 0,
+                upkeep: (1, 0, 0),
+                veteran_levels: 4,
+                helicopter_field_load: false,
+                attacks_air: false,
+                stealth: false,
+            },
+            Self::Infantry => UnitMetadata {
+                class: C::BigLand,
+                flags: (1u64 << F::FieldUnit as u32) | (1u64 << F::ShieldToGold as u32),
+                roles: (1u64 << R::DefendGood as u32) | (1u64 << R::DefendGoodStartUnit as u32),
+                tech: Some(Tech::REPLACEABLE_PARTS),
+                government: None,
+                obsolete: &[],
+                cargo: &[],
+                capacity: 0,
+                fuel: 0,
+                upkeep: (1, 0, 0),
+                veteran_levels: 4,
+                helicopter_field_load: false,
+                attacks_air: false,
+                stealth: false,
+            },
+            Self::ModernArmor => UnitMetadata {
+                class: C::BigLand,
+                flags: (1u64 << F::FieldUnit as u32)
+                    | (1u64 << F::CityBuster as u32)
+                    | (1u64 << F::ShieldToGold as u32),
+                roles: (1u64 << R::AttackStrongStartUnit as u32),
+                tech: Some(Tech::SYNTHETIC_FIBERS),
+                government: None,
+                obsolete: &[],
+                cargo: &[],
+                capacity: 0,
+                fuel: 0,
+                upkeep: (1, 0, 0),
+                veteran_levels: 4,
+                helicopter_field_load: false,
+                attacks_air: false,
+                stealth: false,
+            },
+            Self::Privateer => UnitMetadata {
+                class: C::Sea,
+                flags: (1u64 << F::OnlyNativeAttack as u32)
+                    | (1u64 << F::Provoking as u32)
+                    | (1u64 << F::ShieldToGold as u32),
+                roles: (1u64 << R::AttackFastStartUnit as u32),
+                tech: Some(Tech::MAGNETISM),
+                government: None,
+                obsolete: &[],
+                cargo: &[],
+                capacity: 0,
+                fuel: 0,
+                upkeep: (1, 1, 0),
+                veteran_levels: 4,
+                helicopter_field_load: false,
+                attacks_air: false,
+                stealth: false,
+            },
+            Self::JetFighter => UnitMetadata {
+                class: C::Air,
+                flags: (1u64 << F::AirAttacker as u32)
+                    | (1u64 << F::HasNoZOC as u32)
+                    | (1u64 << F::ShieldToGold as u32),
+                roles: (1u64 << R::DefendGood as u32),
+                tech: Some(Tech::ROCKETRY),
+                government: None,
+                obsolete: &[],
+                cargo: &[],
+                capacity: 0,
+                fuel: 3,
+                upkeep: (1, 1, 0),
+                veteran_levels: 4,
+                helicopter_field_load: false,
+                attacks_air: true,
+                stealth: false,
+            },
+            Self::NuclearSubmarine => UnitMetadata {
+                class: C::Sea,
+                flags: (1u64 << F::Submarine as u32)
+                    | (1u64 << F::OnlyNativeAttack as u32)
+                    | (1u64 << F::HasNoZOC as u32)
+                    | (1u64 << F::ShieldToGold as u32),
+                roles: (1u64 << R::Hunter as u32),
+                tech: Some(Tech::FISSION),
+                government: None,
+                obsolete: &[],
+                cargo: &[C::Missile],
+                capacity: 1,
+                fuel: 0,
+                upkeep: (1, 1, 0),
+                veteran_levels: 4,
+                helicopter_field_load: false,
+                attacks_air: false,
+                stealth: true,
+            },
+            Self::Icbm => UnitMetadata {
+                class: C::Missile,
+                flags: (1u64 << F::OneAttack as u32)
+                    | (1u64 << F::Nuclear as u32)
+                    | (1u64 << F::HasNoZOC as u32)
+                    | (1u64 << F::ShieldToGold as u32),
+                roles: 0,
+                tech: Some(Tech::SATELLITES),
+                government: None,
+                obsolete: &[],
+                cargo: &[],
+                capacity: 0,
+                fuel: 0,
+                upkeep: (0, 1, 1),
+                veteran_levels: 1,
+                helicopter_field_load: false,
+                attacks_air: false,
+                stealth: false,
+            },
+            Self::TacticalNuke => UnitMetadata {
+                class: C::Missile,
+                flags: (1u64 << F::OneAttack as u32)
+                    | (1u64 << F::Nuclear as u32)
+                    | (1u64 << F::HasNoZOC as u32)
+                    | (1u64 << F::ShieldToGold as u32),
+                roles: 0,
+                tech: Some(Tech::SPACE_FLIGHT),
+                government: None,
+                obsolete: &[],
+                cargo: &[],
+                capacity: 0,
+                fuel: 1,
+                upkeep: (0, 1, 1),
+                veteran_levels: 1,
                 helicopter_field_load: false,
                 attacks_air: false,
                 stealth: false,

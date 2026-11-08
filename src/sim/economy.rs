@@ -121,7 +121,8 @@ impl Simulation {
         .into_iter()
         .filter(|&(building, _)| city.has_building(building))
         .map(|(_, wonder)| 50 + 50 * i32::from(self.completed_wonders.contains(&wonder)))
-        .sum()
+        .sum::<i32>()
+            + 100 * i32::from(city.has_building(Building::SETI_PROGRAM))
     }
 
     pub(super) fn distribute_trade(trade: i32, rates: [i32; 3]) -> [i32; 3] {
@@ -283,19 +284,19 @@ impl Simulation {
     }
 
     pub(crate) fn city_size_limit(city: &City) -> i32 {
-        if ![
+        let has_aqueduct = [
             Building::AQUEDUCT,
             Building::AQUEDUCT_RIVER,
             Building::AQUEDUCT_LAKE,
         ]
         .iter()
-        .any(|name| city.has_building(*name))
-        {
-            8
-        } else if city.has_building(Building::SEWER_SYSTEM) {
+        .any(|name| city.has_building(*name));
+        if city.has_building(Building::HOSPITAL) || city.has_building(Building::SEWER_SYSTEM) {
             i32::MAX
+        } else if has_aqueduct {
+            12
         } else {
-            16
+            6
         }
     }
 

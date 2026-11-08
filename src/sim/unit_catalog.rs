@@ -213,4 +213,28 @@ mod tests {
             "Seafaring"
         );
     }
+
+    #[test]
+    fn appended_civ3_units_keep_their_technology_and_resource_gates() {
+        use UnitKind::*;
+        assert_eq!(UnitKind::ALL_NATIVE.len(), 66);
+        for (kind, name) in [
+            (Longbowman, "Invention"),
+            (Infantry, "Replaceable Parts"),
+            (ModernArmor, "Synthetic Fibers"),
+            (Privateer, "Magnetism"),
+            (JetFighter, "Rocketry"),
+            (NuclearSubmarine, "Fission"),
+            (Icbm, "Satellites"),
+            (TacticalNuke, "Space Flight"),
+            (Nuclear, "Fission"),
+        ] {
+            assert_eq!(kind.required_tech().unwrap().name(), name, "{kind:?}");
+        }
+        assert!(Scout.required_tech().is_none());
+        assert_eq!(Privateer.required_resources().len(), 2);
+        assert_eq!(Infantry.required_resources(), &[Resource::Rubber]);
+        assert_eq!(ModernArmor.required_resources().len(), 3);
+        assert_eq!(NuclearSubmarine.required_resources(), &[Resource::Uranium]);
+    }
 }

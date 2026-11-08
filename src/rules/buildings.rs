@@ -31,6 +31,9 @@ pub(crate) enum Requirement {
     Sea,
     Water,
     MinSize(i32),
+    OwnerCityCount(usize),
+    OwnerBuildingCount(usize, usize),
+    Resource(usize),
 }
 
 pub(crate) struct BuildingData {
@@ -116,6 +119,21 @@ impl Building {
     pub(crate) const UNITED_NATIONS: Self = Self(70);
     pub(crate) const UNIVERSITY: Self = Self(41);
     pub(crate) const WOMENS_SUFFRAGE: Self = Self(71);
+    pub(crate) const COLOSSEUM: Self = Self(73);
+    pub(crate) const HOSPITAL: Self = Self(74);
+    pub(crate) const LONGEVITY: Self = Self(75);
+    pub(crate) const ORACLE: Self = Self(76);
+    pub(crate) const THEORY_OF_EVOLUTION: Self = Self(77);
+    pub(crate) const UNIVERSAL_SUFFRAGE: Self = Self(78);
+    pub(crate) const SETI_PROGRAM: Self = Self(79);
+    pub(crate) const FORBIDDEN_PALACE: Self = Self(80);
+    pub(crate) const HEROIC_EPIC: Self = Self(81);
+    pub(crate) const IRON_WORKS: Self = Self(82);
+    pub(crate) const MILITARY_ACADEMY: Self = Self(83);
+    pub(crate) const PENTAGON: Self = Self(84);
+    pub(crate) const WALL_STREET: Self = Self(85);
+    pub(crate) const INTELLIGENCE_AGENCY: Self = Self(86);
+    pub(crate) const BATTLEFIELD_MEDICINE: Self = Self(87);
 
     pub(crate) fn history_per_turn(self) -> i32 {
         match self.0 {
@@ -157,6 +175,19 @@ impl Building {
             69 => 3, // Sun Tzu's War Academy
             70 => 6, // United Nations
             71 => 6, // Women's Suffrage
+            75 => 3, // Longevity
+            76 => 4, // Oracle
+            77 => 3, // Theory of Evolution
+            78 => 4, // Universal Suffrage
+            79 => 3, // SETI Program
+            80 => 3, // Forbidden Palace
+            81 => 4, // Heroic Epic
+            82 => 2, // Iron Works
+            83 => 1, // Military Academy
+            84 => 1, // Pentagon
+            85 => 2, // Wall Street
+            86 => 1, // Intelligence Agency
+            87 => 1, // Battlefield Medicine
             _ => 0,
         }
     }
@@ -426,7 +457,7 @@ const BUILDINGS: &[BuildingData] = &[
     },
     BuildingData {
         name: "SDI Defense",
-        genus: Genus::Improvement,
+        genus: Genus::SmallWonder,
         cost: 140,
         upkeep: 3,
         requirements: &[(Tech(89), true)],
@@ -532,7 +563,7 @@ const BUILDINGS: &[BuildingData] = &[
     },
     BuildingData {
         name: "Apollo Program",
-        genus: Genus::GreatWonder,
+        genus: Genus::SmallWonder,
         cost: 600,
         upkeep: 0,
         requirements: &[(Tech(72), true)],
@@ -776,6 +807,126 @@ const BUILDINGS: &[BuildingData] = &[
         cost: 999,
         upkeep: 0,
         requirements: &[],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Colosseum",
+        genus: Genus::Improvement,
+        cost: 100,
+        upkeep: 2,
+        requirements: &[(Tech(18), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Hospital",
+        genus: Genus::Improvement,
+        cost: 160,
+        upkeep: 2,
+        requirements: &[(Tech(70), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Longevity",
+        genus: Genus::GreatWonder,
+        cost: 700,
+        upkeep: 0,
+        requirements: &[(Tech(88), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Oracle",
+        genus: Genus::GreatWonder,
+        cost: 260,
+        upkeep: 0,
+        requirements: &[(Tech(54), true)],
+        obsolete: &[(Tech(81), true)],
+    },
+    BuildingData {
+        name: "Theory of Evolution",
+        genus: Genus::GreatWonder,
+        cost: 550,
+        upkeep: 0,
+        requirements: &[(Tech(96), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Universal Suffrage",
+        genus: Genus::GreatWonder,
+        cost: 580,
+        upkeep: 0,
+        requirements: &[(Tech(35), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "SETI Program",
+        genus: Genus::GreatWonder,
+        cost: 700,
+        upkeep: 0,
+        requirements: &[(Tech(16), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Forbidden Palace",
+        genus: Genus::SmallWonder,
+        cost: 300,
+        upkeep: 0,
+        requirements: &[(OwnerCityCount(8), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Heroic Epic",
+        genus: Genus::SmallWonder,
+        cost: 200,
+        upkeep: 0,
+        requirements: &[],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Iron Works",
+        genus: Genus::SmallWonder,
+        cost: 300,
+        upkeep: 0,
+        requirements: &[(Resource(1), true), (Resource(3), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Military Academy",
+        genus: Genus::SmallWonder,
+        cost: 400,
+        upkeep: 0,
+        requirements: &[(Tech(91), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Pentagon",
+        genus: Genus::SmallWonder,
+        cost: 400,
+        upkeep: 0,
+        requirements: &[],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Wall Street",
+        genus: Genus::SmallWonder,
+        cost: 400,
+        upkeep: 0,
+        requirements: &[(OwnerBuildingCount(4, 5), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Intelligence Agency",
+        genus: Genus::SmallWonder,
+        cost: 400,
+        upkeep: 0,
+        requirements: &[(Tech(26), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Battlefield Medicine",
+        genus: Genus::SmallWonder,
+        cost: 500,
+        upkeep: 0,
+        requirements: &[(OwnerBuildingCount(74, 5), true)],
         obsolete: &[],
     },
 ];

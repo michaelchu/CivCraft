@@ -83,7 +83,7 @@ impl Tech {
     pub(crate) const FISSION: Self = Self::NUCLEAR_FISSION;
     pub(crate) const THE_LASER: Self = Self(39);
     pub(crate) const SUPERCONDUCTOR: Self = Self::SUPERCONDUCTORS;
-    pub(crate) const SYNTHETIC_FIBERS: Self = Self(61);
+    pub(crate) const SYNTHETIC_FIBERS: Self = Self(60);
 
     pub(crate) const STEALTH: Self = Self(73);
     pub(crate) const COMBUSTION: Self = Self(14);
@@ -178,55 +178,159 @@ impl Tech {
         }
         match self.name() {
             "Alphabet" | "Bronze Working" | "Ceremonial Burial" | "Code of Laws"
-            | "Construction" | "Currency" | "Horseback Riding" | "Iron Working"
-            | "Literature" | "Map Making" | "Masonry" | "Mathematics" | "Monarchy"
-            | "Mysticism" | "Philosophy" | "Polytheism" | "Pottery" | "The Republic"
-            | "Warrior Code" | "The Wheel" | "Writing" | "Bridge Building" | "Literacy"
-            | "Trade" => Ancient,
-            "Astronomy" | "Banking" | "Chemistry" | "Chivalry" | "Democracy"
-            | "Economics" | "Education" | "Engineering" | "Feudalism" | "Free Artistry"
-            | "Gunpowder" | "Invention" | "Magnetism" | "Metallurgy"
-            | "Military Tradition" | "Monotheism" | "Music Theory" | "Navigation"
-            | "Physics" | "Printing Press" | "Theology" | "Theory of Gravity"
-            | "Explosives" | "Leadership" => MiddleAges,
-            "Advanced Flight" | "Amphibious Warfare" | "Atomic Theory" | "Combustion"
-            | "Communism" | "The Corporation" | "Electricity" | "Electronics"
-            | "Espionage" | "Flight" | "Industrialization" | "Mass Production"
-            | "Medicine" | "Motorized Transportation" | "Nationalism" | "Radio"
-            | "Refining" | "Replaceable Parts" | "Sanitation" | "Scientific Method"
-            | "Steam Power" | "Steel" | "Automobile" | "Combined Arms"
-            | "Guerilla Warfare" | "Machine Tools" | "Railroad" | "Refrigeration"
-            | "Seafaring" | "Steam Engine" | "Tactics" => Industrial,
-            "Computers" | "Ecology" | "Fission" | "Genetics" | "Integrated Defense"
-            | "The Laser" | "Miniaturization" | "Nuclear Power" | "Recycling" | "Robotics"
-            | "Rocketry" | "Satellites" | "Smart Weapons" | "Space Flight" | "Stealth"
-            | "Superconductor" | "Synthetic Fibers" | "Fusion Power"
-            | "Genetic Engineering" | "Labor Union" => Modern,
+            | "Construction" | "Currency" | "Horseback Riding" | "Iron Working" | "Literature"
+            | "Map Making" | "Masonry" | "Mathematics" | "Monarchy" | "Mysticism"
+            | "Philosophy" | "Polytheism" | "Pottery" | "The Republic" | "Warrior Code"
+            | "The Wheel" | "Writing" | "Bridge Building" | "Literacy" | "Trade" => Ancient,
+            "Astronomy" | "Banking" | "Chemistry" | "Chivalry" | "Democracy" | "Economics"
+            | "Education" | "Engineering" | "Feudalism" | "Free Artistry" | "Gunpowder"
+            | "Invention" | "Magnetism" | "Metallurgy" | "Military Tradition" | "Monotheism"
+            | "Music Theory" | "Navigation" | "Physics" | "Printing Press" | "Theology"
+            | "Theory of Gravity" | "Explosives" | "Leadership" => MiddleAges,
+            "Advanced Flight"
+            | "Amphibious Warfare"
+            | "Atomic Theory"
+            | "Combustion"
+            | "Communism"
+            | "The Corporation"
+            | "Electricity"
+            | "Electronics"
+            | "Espionage"
+            | "Flight"
+            | "Industrialization"
+            | "Mass Production"
+            | "Medicine"
+            | "Motorized Transportation"
+            | "Nationalism"
+            | "Radio"
+            | "Refining"
+            | "Replaceable Parts"
+            | "Sanitation"
+            | "Scientific Method"
+            | "Steam Power"
+            | "Steel"
+            | "Automobile"
+            | "Combined Arms"
+            | "Guerilla Warfare"
+            | "Machine Tools"
+            | "Railroad"
+            | "Refrigeration"
+            | "Seafaring"
+            | "Steam Engine"
+            | "Tactics" => Industrial,
+            "Computers"
+            | "Ecology"
+            | "Fission"
+            | "Genetics"
+            | "Integrated Defense"
+            | "The Laser"
+            | "Miniaturization"
+            | "Nuclear Power"
+            | "Recycling"
+            | "Robotics"
+            | "Rocketry"
+            | "Satellites"
+            | "Smart Weapons"
+            | "Space Flight"
+            | "Stealth"
+            | "Superconductor"
+            | "Synthetic Fibers"
+            | "Fusion Power"
+            | "Genetic Engineering"
+            | "Labor Union" => Modern,
             _ => Ancient,
         }
     }
 
     pub(crate) fn is_civ3_advance(self) -> bool {
-        matches!(self.era(), TechEra::Ancient | TechEra::MiddleAges | TechEra::Industrial | TechEra::Modern)
-            && matches!(self.name(),
-                "Advanced Flight" | "Alphabet" | "Amphibious Warfare" | "Astronomy"
-                | "Atomic Theory" | "Banking" | "Bronze Working" | "Ceremonial Burial"
-                | "Chemistry" | "Chivalry" | "Code of Laws" | "Combustion" | "Communism"
-                | "Computers" | "Construction" | "Currency" | "Democracy" | "Economics"
-                | "Ecology" | "Education" | "Electricity" | "Electronics" | "Engineering"
-                | "Espionage" | "Feudalism" | "Fission" | "Flight" | "Free Artistry"
-                | "Genetics" | "Gunpowder" | "Horseback Riding" | "Industrialization"
-                | "Invention" | "Integrated Defense" | "Iron Working" | "Literature"
-                | "Magnetism" | "Map Making" | "Masonry" | "Mass Production" | "Mathematics"
-                | "Medicine" | "Metallurgy" | "Military Tradition" | "Miniaturization"
-                | "Monarchy" | "Monotheism" | "Music Theory" | "Motorized Transportation"
-                | "Mysticism" | "Nationalism" | "Navigation" | "Nuclear Power" | "Physics"
-                | "Philosophy" | "Polytheism" | "Pottery" | "Printing Press" | "Radio"
-                | "Recycling" | "Refining" | "Replaceable Parts" | "Robotics" | "Rocketry"
-                | "Sanitation" | "Satellites" | "Scientific Method" | "Smart Weapons"
-                | "Space Flight" | "Stealth" | "Steel" | "Steam Power" | "Superconductor"
-                | "Synthetic Fibers" | "The Corporation" | "The Laser" | "The Republic"
-                | "The Wheel" | "Theology" | "Theory of Gravity" | "Warrior Code" | "Writing")
+        matches!(
+            self.era(),
+            TechEra::Ancient | TechEra::MiddleAges | TechEra::Industrial | TechEra::Modern
+        ) && matches!(
+            self.name(),
+            "Advanced Flight"
+                | "Alphabet"
+                | "Amphibious Warfare"
+                | "Astronomy"
+                | "Atomic Theory"
+                | "Banking"
+                | "Bronze Working"
+                | "Ceremonial Burial"
+                | "Chemistry"
+                | "Chivalry"
+                | "Code of Laws"
+                | "Combustion"
+                | "Communism"
+                | "Computers"
+                | "Construction"
+                | "Currency"
+                | "Democracy"
+                | "Economics"
+                | "Ecology"
+                | "Education"
+                | "Electricity"
+                | "Electronics"
+                | "Engineering"
+                | "Espionage"
+                | "Feudalism"
+                | "Fission"
+                | "Flight"
+                | "Free Artistry"
+                | "Genetics"
+                | "Gunpowder"
+                | "Horseback Riding"
+                | "Industrialization"
+                | "Invention"
+                | "Integrated Defense"
+                | "Iron Working"
+                | "Literature"
+                | "Magnetism"
+                | "Map Making"
+                | "Masonry"
+                | "Mass Production"
+                | "Mathematics"
+                | "Medicine"
+                | "Metallurgy"
+                | "Military Tradition"
+                | "Miniaturization"
+                | "Monarchy"
+                | "Monotheism"
+                | "Music Theory"
+                | "Motorized Transportation"
+                | "Mysticism"
+                | "Nationalism"
+                | "Navigation"
+                | "Nuclear Power"
+                | "Physics"
+                | "Philosophy"
+                | "Polytheism"
+                | "Pottery"
+                | "Printing Press"
+                | "Radio"
+                | "Recycling"
+                | "Refining"
+                | "Replaceable Parts"
+                | "Robotics"
+                | "Rocketry"
+                | "Sanitation"
+                | "Satellites"
+                | "Scientific Method"
+                | "Smart Weapons"
+                | "Space Flight"
+                | "Stealth"
+                | "Steel"
+                | "Steam Power"
+                | "Superconductor"
+                | "Synthetic Fibers"
+                | "The Corporation"
+                | "The Laser"
+                | "The Republic"
+                | "The Wheel"
+                | "Theology"
+                | "Theory of Gravity"
+                | "Warrior Code"
+                | "Writing"
+        )
     }
 
     /// CivCraft-only advances retained for save compatibility and legacy
@@ -242,7 +346,7 @@ impl Tech {
             Self::GUERILLA_WARFARE => Some(Self::NATIONALISM),
             Self(38) => Some(Self::REPLACEABLE_PARTS), // Labor Union
             Self(40) => Some(Self::MILITARY_TRADITION), // Leadership
-            Self(41) => Some(Self::LITERATURE), // Literacy
+            Self(41) => Some(Self::LITERATURE),        // Literacy
             Self::MACHINE_TOOLS => Some(Self::ROBOTICS),
             Self::RAILROAD | Self::STEAM_ENGINE => Some(Self::STEAM_POWER),
             Self::REFRIGERATION => Some(Self::SANITATION),
@@ -254,11 +358,27 @@ impl Tech {
     }
 
     pub(crate) fn optional_in_civ3(self) -> bool {
-        matches!(self.name(), "Horseback Riding" | "Literature" | "Monarchy" | "The Republic"
-            | "Chivalry" | "Democracy" | "Economics" | "Free Artistry"
-            | "Military Tradition" | "Music Theory" | "Navigation" | "Printing Press"
-            | "Advanced Flight" | "Amphibious Warfare" | "Communism" | "Espionage"
-            | "Nationalism" | "Sanitation")
+        matches!(
+            self.name(),
+            "Horseback Riding"
+                | "Literature"
+                | "Monarchy"
+                | "The Republic"
+                | "Chivalry"
+                | "Democracy"
+                | "Economics"
+                | "Free Artistry"
+                | "Military Tradition"
+                | "Music Theory"
+                | "Navigation"
+                | "Printing Press"
+                | "Advanced Flight"
+                | "Amphibious Warfare"
+                | "Communism"
+                | "Espionage"
+                | "Nationalism"
+                | "Sanitation"
+        )
     }
 
     pub(crate) fn required_for_civ3_era(self) -> bool {
@@ -887,18 +1007,90 @@ const ADVANCES: &[Advance] = &[
     },
     // Civ III advances absent from the original Freeciv Civ2Civ3 catalog.
     // IDs are appended so existing serialized technology IDs remain stable.
-    Advance { name: "Free Artistry", prerequisites: &[Tech(20)], requirement_count: 30, first_discovery_bonus: false, reference_unlocks: "Shakespeare's Theater" },
-    Advance { name: "Genetics", prerequisites: &[Tech(50)], requirement_count: 60, first_discovery_bonus: false, reference_unlocks: "Cure For Cancer, Longevity" },
-    Advance { name: "Integrated Defense", prerequisites: &[Tech(76), Tech(95), Tech(98)], requirement_count: 70, first_discovery_bonus: false, reference_unlocks: "Strategic Missile Defense" },
-    Advance { name: "Literature", prerequisites: &[Tech(86)], requirement_count: 4, first_discovery_bonus: false, reference_unlocks: "Library, Great Library" },
-    Advance { name: "Military Tradition", prerequisites: &[Tech(49)], requirement_count: 38, first_discovery_bonus: false, reference_unlocks: "Cavalry, Military Academy" },
-    Advance { name: "Music Theory", prerequisites: &[Tech(84)], requirement_count: 30, first_discovery_bonus: false, reference_unlocks: "J.S. Bach's Cathedral" },
-    Advance { name: "Printing Press", prerequisites: &[Tech(81)], requirement_count: 30, first_discovery_bonus: false, reference_unlocks: "Communications trading" },
-    Advance { name: "Replaceable Parts", prerequisites: &[Tech(22)], requirement_count: 50, first_discovery_bonus: false, reference_unlocks: "Artillery, Infantry, Rubber, faster workers" },
-    Advance { name: "Satellites", prerequisites: &[Tech(72)], requirement_count: 70, first_discovery_bonus: false, reference_unlocks: "ICBM, spaceship thrusters, map reveal" },
-    Advance { name: "Scientific Method", prerequisites: &[Tech(48), Tech(22)], requirement_count: 50, first_discovery_bonus: false, reference_unlocks: "Theory of Evolution" },
-    Advance { name: "Steam Power", prerequisites: &[], requirement_count: 40, first_discovery_bonus: false, reference_unlocks: "Ironclad, railroads, Coal" },
-    Advance { name: "Smart Weapons", prerequisites: &[Tech(95), Tech(39)], requirement_count: 65, first_discovery_bonus: false, reference_unlocks: "Integrated Defense" },
+    Advance {
+        name: "Free Artistry",
+        prerequisites: &[Tech(20)],
+        requirement_count: 30,
+        first_discovery_bonus: false,
+        reference_unlocks: "Shakespeare's Theater",
+    },
+    Advance {
+        name: "Genetics",
+        prerequisites: &[Tech(50)],
+        requirement_count: 60,
+        first_discovery_bonus: false,
+        reference_unlocks: "Cure For Cancer, Longevity",
+    },
+    Advance {
+        name: "Integrated Defense",
+        prerequisites: &[Tech(76), Tech(95), Tech(98)],
+        requirement_count: 70,
+        first_discovery_bonus: false,
+        reference_unlocks: "Strategic Missile Defense",
+    },
+    Advance {
+        name: "Literature",
+        prerequisites: &[Tech(86)],
+        requirement_count: 4,
+        first_discovery_bonus: false,
+        reference_unlocks: "Library, Great Library",
+    },
+    Advance {
+        name: "Military Tradition",
+        prerequisites: &[Tech(49)],
+        requirement_count: 38,
+        first_discovery_bonus: false,
+        reference_unlocks: "Cavalry, Military Academy",
+    },
+    Advance {
+        name: "Music Theory",
+        prerequisites: &[Tech(84)],
+        requirement_count: 30,
+        first_discovery_bonus: false,
+        reference_unlocks: "J.S. Bach's Cathedral",
+    },
+    Advance {
+        name: "Printing Press",
+        prerequisites: &[Tech(81)],
+        requirement_count: 30,
+        first_discovery_bonus: false,
+        reference_unlocks: "Communications trading",
+    },
+    Advance {
+        name: "Replaceable Parts",
+        prerequisites: &[Tech(22)],
+        requirement_count: 50,
+        first_discovery_bonus: false,
+        reference_unlocks: "Artillery, Infantry, Rubber, faster workers",
+    },
+    Advance {
+        name: "Satellites",
+        prerequisites: &[Tech(72)],
+        requirement_count: 70,
+        first_discovery_bonus: false,
+        reference_unlocks: "ICBM, spaceship thrusters, map reveal",
+    },
+    Advance {
+        name: "Scientific Method",
+        prerequisites: &[Tech(48), Tech(22)],
+        requirement_count: 50,
+        first_discovery_bonus: false,
+        reference_unlocks: "Theory of Evolution",
+    },
+    Advance {
+        name: "Steam Power",
+        prerequisites: &[],
+        requirement_count: 40,
+        first_discovery_bonus: false,
+        reference_unlocks: "Ironclad, railroads, Coal",
+    },
+    Advance {
+        name: "Smart Weapons",
+        prerequisites: &[Tech(95), Tech(39)],
+        requirement_count: 65,
+        first_discovery_bonus: false,
+        reference_unlocks: "Integrated Defense",
+    },
 ];
 
 #[cfg(test)]

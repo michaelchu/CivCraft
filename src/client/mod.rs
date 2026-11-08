@@ -690,6 +690,15 @@ fn short_unit_name(kind: UnitKind) -> &'static str {
         UnitKind::Leader => "Leader",
         UnitKind::Awacs => "AWACS",
         UnitKind::Storm => "Storm",
+        UnitKind::Scout => "Scout",
+        UnitKind::Longbowman => "Longbowman",
+        UnitKind::Infantry => "Infantry",
+        UnitKind::ModernArmor => "Modern Armor",
+        UnitKind::Privateer => "Privateer",
+        UnitKind::JetFighter => "Jet Fighter",
+        UnitKind::NuclearSubmarine => "Nuclear Submarine",
+        UnitKind::Icbm => "ICBM",
+        UnitKind::TacticalNuke => "Tactical Nuke",
     }
 }
 

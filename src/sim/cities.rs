@@ -172,7 +172,7 @@ impl Simulation {
             && unit.moves_left > 0
             && (unit.y - city.y).abs() <= 2
             && self.map_distance(unit.x, unit.y, city.x, city.y) <= 1
-            && city.size + unit.kind.stats().pop_cost <= 8.min(Self::city_size_limit(city))
+            && city.size + unit.kind.stats().pop_cost <= Self::city_size_limit(city)
     }
 
     pub(super) fn join_city(&mut self, unit_id: u32, city_id: u32) -> bool {

@@ -125,10 +125,8 @@ fn migrants_cost_population_and_obey_join_size_limits() {
     city.buildings.push(Building::SEWER_SYSTEM);
     city.size = 8;
     let migrants = game.spawn_unit(HUMAN, UnitKind::Migrants, 10, 20);
-    assert!(!game.apply(Command::JoinCity(migrants, id)));
-    game.cities[0].size = 7;
     assert!(game.apply(Command::JoinCity(migrants, id)));
-    assert_eq!(game.cities[0].size, 8);
+    assert_eq!(game.cities[0].size, 9);
 }
 
 #[test]
@@ -218,7 +216,7 @@ fn completed_aqueduct_allows_growth_in_the_same_turn() {
 }
 
 #[test]
-fn growth_resolver_applies_surplus_until_city_grows_past_size_sixteen() {
+fn sewer_system_allows_growth_past_size_sixteen() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.cities.clear();
     game.create_city(HUMAN, 10, 20);
@@ -239,6 +237,19 @@ fn growth_resolver_applies_surplus_until_city_grows_past_size_sixteen() {
     }
     assert_eq!(growth_sizes, (1..=17).collect::<Vec<_>>());
     assert_eq!(city.size, 17);
+}
+
+#[test]
+fn civ3_city_growth_limits_follow_aqueduct_and_hospital_thresholds() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.cities.clear();
+    game.create_city(HUMAN, 10, 20);
+    let city = &mut game.cities[0];
+    assert_eq!(Simulation::city_size_limit(city), 6);
+    city.buildings.push(Building::AQUEDUCT);
+    assert_eq!(Simulation::city_size_limit(city), 12);
+    city.buildings.push(Building::HOSPITAL);
+    assert_eq!(Simulation::city_size_limit(city), i32::MAX);
 }
 
 #[test]

@@ -60,8 +60,8 @@ impl Simulation {
                 .position(|&item| item == kind)
                 .unwrap()
         };
-        let order = UnitKind::ALL_NATIVE.len() == 57
-            && UnitKind::SIMPLE_MILITARY.len() == 32
+        let order = UnitKind::ALL_NATIVE.len() == 66
+            && UnitKind::SIMPLE_MILITARY.len() == 35
             && UnitKind::Warrior as u32 == 7
             && position(UnitKind::Warrior) == 4
             && UnitKind::Paratroopers as u32 == 41

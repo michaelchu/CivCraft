@@ -222,6 +222,14 @@ impl Simulation {
                 Self::food_retained(&populated),
                 starving_unit.is_some(),
             );
+            if growth == Growth::Grew
+                && populated.has_building(Building::LONGEVITY)
+                && self.cities[index].size < Self::city_size_limit(&populated)
+            {
+                let city = &mut self.cities[index];
+                city.size += 1;
+                city.specialists[2] += 1;
+            }
             if growth == Growth::Starved {
                 self.remove_citizen_nationalities(index, 1);
             }
