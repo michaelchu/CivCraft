@@ -236,7 +236,7 @@ impl Simulation {
         };
         let goal = path.iter().fold((actor.x, actor.y), |(x, y), &(dx, dy)| {
             self.map_wrap
-                .offset(x, y, dx, dy)
+                .civ3_offset(x, y, dx, dy)
                 .expect("planned step is real")
         });
         if goal == (actor.x, actor.y) {
@@ -252,7 +252,7 @@ impl Simulation {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 return;
             };
-            let Some(target) = self.map_wrap.offset(actor.x, actor.y, dx, dy) else {
+            let Some(target) = self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy) else {
                 break;
             };
             let enemy =
@@ -284,7 +284,12 @@ impl Simulation {
             {
                 return;
             }
-            let result = self.try_move_unit(id, dx, dy);
+            let result = CIV3_DIRS
+                .iter()
+                .position(|&step| step == (dx, dy))
+                .map_or(MoveResult::Blocked, |direction| {
+                    self.try_move_unit_civ3(id, direction)
+                });
             if result == MoveResult::Blocked
                 || result == MoveResult::Fought
                 || self

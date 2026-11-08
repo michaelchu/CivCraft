@@ -19,6 +19,12 @@ fn world() -> Simulation {
     game
 }
 
+fn civ3_east(game: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
+    (0..tiles).fold(point, |(x, y), _| {
+        game.map_wrap.civ3_neighbor(x, y, 2).unwrap()
+    })
+}
+
 #[test]
 fn nonmil_traversal_and_zero_attack_carrier_endpoints_preserve_real_execution_legality() {
     assert!(world().ai_normal_path_actions_playtest());
@@ -28,8 +34,8 @@ fn nonmil_traversal_and_zero_attack_carrier_endpoints_preserve_real_execution_le
 fn attack_sanity_omits_empty_city_attack_flag_but_default_map_treats_it_as_an_endpoint() {
     let mut game = world();
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
-    let city = offset_native_by_map(10, 20, 1, 0);
-    let beyond = offset_native_by_map(10, 20, 2, 0);
+    let city = civ3_east(&game, (10, 20), 1);
+    let beyond = civ3_east(&game, (10, 20), 2);
     game.create_city(1, city.0, city.1);
     let actor = game.unit_by_id(id).unwrap();
     let index = Simulation::idx(beyond.0, beyond.1);

@@ -81,7 +81,7 @@ impl Simulation {
                 && self.map_distance(x, y, u.x, u.y) <= 2
                 && (self.worker_enemy_native(u.kind, x, y)
                     || (u.kind.is_naval() && u.kind != UnitKind::Submarine
-                        && self.map_wrap.neighbors(x, y)
+                        && self.map_wrap.civ3_neighbors(x, y)
                             .any(|(tx, ty)| self.tile(tx, ty).terrain.is_water())))
         })
     }
@@ -109,7 +109,10 @@ impl Simulation {
             } else {
                 allowance - (spent - unit.moves_left.max(0)) % allowance
             };
-            for (x, y) in self.map_wrap.neighbors(actor.x, actor.y) {
+            for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+                let Some((x, y)) = self.map_wrap.civ3_neighbor(actor.x, actor.y, direction) else {
+                    continue;
+                };
                 if self
                     .tile(x, y)
                     .owner
@@ -142,8 +145,7 @@ impl Simulation {
                 let candidate = spent + cost.min(remaining);
                 if candidate < result.costs[next] {
                     result.costs[next] = candidate;
-                    result.previous[next] =
-                        Some((index, self.map_wrap.vector(actor.x, actor.y, x, y)));
+                    result.previous[next] = Some((index, (dx, dy)));
                     sequence += 1;
                     queue.push(Reverse((candidate, sequence, next)));
                 }
@@ -168,12 +170,12 @@ impl Simulation {
             if !path.is_empty() && self.ai_worker_tasks.insert(actor.id) {
                 let destination = path.iter().fold((actor.x, actor.y), |(x, y), &(dx, dy)| {
                     self.map_wrap
-                        .offset(x, y, dx, dy)
+                        .civ3_offset(x, y, dx, dy)
                         .expect("planned step is real")
                 });
                 self.unit_goto_tiles.insert(actor.id, destination);
             }
-            self.follow_path(actor.id, path);
+            self.follow_civ3_path(actor.id, path);
         }
     }
 
@@ -263,7 +265,7 @@ impl Simulation {
                 return;
             }
         }
-        self.follow_path(id, plan.path);
+        self.follow_civ3_path(id, plan.path);
         if self
             .units
             .iter()

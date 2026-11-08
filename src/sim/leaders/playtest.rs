@@ -3,6 +3,12 @@
 use super::*;
 
 impl super::Simulation {
+    fn civ3_east(&self, point: (i32, i32), tiles: usize) -> (i32, i32) {
+        (0..tiles).fold(point, |(x, y), _| {
+            self.map_wrap.civ3_neighbor(x, y, 2).unwrap()
+        })
+    }
+
     pub(crate) fn ai_normal_path_actions_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
@@ -17,8 +23,8 @@ impl super::Simulation {
             tile.known_by.fill(true);
         }
         let leader = self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, 10, 20);
-        let blocker = offset_native_by_map(10, 20, 1, 0);
-        let refuge = offset_native_by_map(10, 20, 2, 0);
+        let blocker = self.civ3_east((10, 20), 1);
+        let refuge = self.civ3_east((10, 20), 2);
         self.spawn_unit(HUMAN, UnitKind::Warrior, blocker.0, blocker.1);
         self.spawn_unit(BARBARIANS, UnitKind::Worker, refuge.0, refuge.1);
         let actor = self.unit_by_id(leader).unwrap();
@@ -42,7 +48,10 @@ impl super::Simulation {
         let paths = self.leader_paths(actor, None);
         let endpoint = paths.costs[self.map_wrap.index(blocker.0, blocker.1)] == MOVE_FRAGMENTS
             && paths.costs[self.map_wrap.index(refuge.0, refuge.1)] == 3 * MOVE_FRAGMENTS;
-        let execution = !self.apply(Command::Move(carrier, 1, 0))
+        self.leader_follow_path(carrier, vec![CIV3_DIRS[2]]);
+        let execution = self
+            .unit_by_id(carrier)
+            .is_some_and(|unit| (unit.x, unit.y) == (10, 20))
             && self
                 .units
                 .iter()
@@ -64,7 +73,7 @@ impl super::Simulation {
             tile.known_by.fill(true);
         }
         let leader = self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, 10, 20);
-        let refuge = offset_native_by_map(10, 20, 2, 0);
+        let refuge = self.civ3_east((10, 20), 2);
         self.spawn_unit(BARBARIANS, UnitKind::Worker, refuge.0, refuge.1);
         self.run_ai_player(BARBARIANS);
         let sheltered = self

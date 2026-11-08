@@ -126,8 +126,8 @@ impl Simulation {
             } else {
                 rate - (spent - initial) % rate
             };
-            for (dx, dy) in ISOHEX_DIRS {
-                let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+            for (dx, dy) in CIV3_DIRS {
+                let Some((nx, ny)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
                     continue;
                 };
                 let next = self.map_wrap.index(nx, ny);
@@ -224,7 +224,7 @@ impl Simulation {
             if unit.moves_left <= 0 {
                 break;
             }
-            let Some((nx, ny)) = self.map_wrap.offset(unit.x, unit.y, dx, dy) else {
+            let Some((nx, ny)) = self.map_wrap.civ3_offset(unit.x, unit.y, dx, dy) else {
                 continue;
             };
             if self.leader_nonallied_at(unit.owner, nx, ny)
@@ -240,7 +240,10 @@ impl Simulation {
             {
                 break;
             }
-            if self.try_move_unit(id, dx, dy) == MoveResult::Blocked {
+            let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
+                break;
+            };
+            if self.try_move_unit_civ3(id, direction) == MoveResult::Blocked {
                 break;
             }
         }
@@ -359,8 +362,8 @@ impl Simulation {
                 return;
             }
             let mut safest = (actor.x, actor.y);
-            for (dx, dy) in ISOHEX_DIRS {
-                let Some((x, y)) = self.map_wrap.offset(actor.x, actor.y, dx, dy) else {
+            for (dx, dy) in CIV3_DIRS {
+                let Some((x, y)) = self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy) else {
                     continue;
                 };
                 if self.treaty_blocks_move(&actor, x, y)

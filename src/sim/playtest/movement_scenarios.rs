@@ -749,8 +749,12 @@ impl Simulation {
             tile.known_by.fill(true);
         }
         let id = self.spawn_unit(1, UnitKind::Caravel, 10, 20);
-        let stack = offset_native_by_map(10, 20, 1, 0);
-        let goal = offset_native_by_map(10, 20, 2, 0);
+        let map_wrap = self.map_wrap;
+        let east = move |point: (i32, i32), tiles: usize| {
+            (0..tiles).fold(point, |(x, y), _| map_wrap.civ3_neighbor(x, y, 2).unwrap())
+        };
+        let stack = east((10, 20), 1);
+        let goal = east((10, 20), 2);
         for _ in 0..6 {
             self.spawn_unit(1, UnitKind::Battleship, stack.0, stack.1);
         }
@@ -774,7 +778,7 @@ impl Simulation {
             tile.terrain = Terrain::Grassland;
         }
         let id = self.spawn_unit(1, UnitKind::Legion, 10, 20);
-        let target = offset_native_by_map(10, 20, 1, 0);
+        let target = east((10, 20), 1);
         let defender = self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, target.0, target.1);
         self.unit_goto_tiles.insert(id, (20, 40));
         let result = self.ai_goto_unit(id, target, GotoTask::Attack);

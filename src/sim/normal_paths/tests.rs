@@ -29,6 +29,12 @@ fn unit(sim: &mut Simulation, owner: usize, kind: UnitKind) -> Unit {
     sim.unit_by_id(id).unwrap().clone()
 }
 
+fn civ3_east(sim: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
+    (0..tiles).fold(point, |(x, y), _| {
+        sim.map_wrap.civ3_neighbor(x, y, 2).unwrap()
+    })
+}
+
 #[test]
 fn source_goto_profiles_distinguish_ferry_hunter_worker_and_action_endpoints() {
     let mut sim = world();
@@ -67,8 +73,8 @@ fn native_risk_paths_can_spend_more_movement_to_avoid_a_vulnerable_stack() {
         tile.terrain = Terrain::Sea;
     }
     let actor = unit(&mut sim, 1, UnitKind::Caravel);
-    let stack = offset_native_by_map(10, 20, 1, 0);
-    let target = offset_native_by_map(10, 20, 2, 0);
+    let stack = civ3_east(&sim, (10, 20), 1);
+    let target = civ3_east(&sim, (10, 20), 2);
     for _ in 0..6 {
         sim.spawn_unit(1, UnitKind::Battleship, stack.0, stack.1);
     }
@@ -86,7 +92,7 @@ fn native_risk_paths_can_spend_more_movement_to_avoid_a_vulnerable_stack() {
     assert_eq!(cost, 3 * MOVE_FRAGMENTS);
     let mut position = (10, 20);
     for step in path {
-        position = offset_native_by_map(position.0, position.1, step.0, step.1);
+        position = sim.map_wrap.civ3_offset(position.0, position.1, step.0, step.1).unwrap();
         assert_ne!(position, stack);
     }
     assert_eq!(position, target);
@@ -110,11 +116,11 @@ fn overlap_stops_after_one_nonnative_tile_and_sanity_still_checks_known_map() {
         tile.terrain = Terrain::Sea;
     }
     let actor = unit(&mut sim, 1, UnitKind::Caravel);
-    let center = offset_native_by_map(10, 20, 2, 0);
-    for point in terrain_work::neighbors(center.0, center.1).chain(std::iter::once(center)) {
+    let center = civ3_east(&sim, (10, 20), 2);
+    for point in sim.map_wrap.civ3_neighbors(center.0, center.1).chain(std::iter::once(center)) {
         sim.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
     }
-    let outer = offset_native_by_map(10, 20, 1, 0);
+    let outer = civ3_east(&sim, (10, 20), 1);
     let mut map = NormalPaths::new(
         &sim,
         &actor,

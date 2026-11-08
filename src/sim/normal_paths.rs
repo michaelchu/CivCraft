@@ -208,7 +208,7 @@ impl NormalPaths {
                 || build_anywhere
                 || self
                     .map_wrap
-                    .neighbors(x, y)
+                    .civ3_neighbors(x, y)
                     .any(|(nx, ny)| sim.pf_native_tile(kind, nx, ny)))
         {
             scope |= CITY;
@@ -372,8 +372,8 @@ impl NormalPaths {
             let (x, y) = self.map_wrap.position(current);
             let mut actor = self.actor.clone();
             (actor.x, actor.y) = (x, y);
-            for (direction, (dx, dy)) in ISOHEX_DIRS.into_iter().enumerate() {
-                let Some((nx, ny)) = self.map_wrap.offset(x, y, dx, dy) else {
+            for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+                let Some((nx, ny)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
                     continue;
                 };
                 let next = self.map_wrap.index(nx, ny);
@@ -500,10 +500,10 @@ impl NormalPaths {
         let mut path = Vec::new();
         while cursor != self.start {
             let direction = self.nodes[cursor].direction?;
-            let (dx, dy) = ISOHEX_DIRS[direction];
+            let (dx, dy) = CIV3_DIRS[direction];
             path.push((dx, dy));
             let (x, y) = self.map_wrap.position(cursor);
-            let (x, y) = self.map_wrap.offset(x, y, -dx, -dy)?;
+            let (x, y) = self.map_wrap.civ3_offset(x, y, -dx, -dy)?;
             cursor = self.map_wrap.index(x, y);
         }
         path.reverse();
@@ -632,12 +632,17 @@ impl Simulation {
         if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == id) {
             unit.state = UnitState::Idle;
         }
+        // Fuel paths have their own legacy executor until PF_FUEL migrates;
+        // normal paths now store Civ III staggered-grid direction offsets.
+        let civ3_path = initial.kind.fuel_capacity() == 0;
         let mut destination = (initial.x, initial.y);
         for &(dx, dy) in &path {
-            destination = self
-                .map_wrap
-                .offset(destination.0, destination.1, dx, dy)
-                .expect("planned step is real");
+            destination = if civ3_path {
+                self.map_wrap.civ3_offset(destination.0, destination.1, dx, dy)
+            } else {
+                self.map_wrap.offset(destination.0, destination.1, dx, dy)
+            }
+            .expect("planned step is real");
         }
         let old_goal = self.unit_goto_tiles.insert(id, destination);
         let mut progressed = false;
@@ -651,7 +656,12 @@ impl Simulation {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 break;
             };
-            let Some((x, y)) = self.map_wrap.offset(actor.x, actor.y, dx, dy) else {
+            let destination = if civ3_path {
+                self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy)
+            } else {
+                self.map_wrap.offset(actor.x, actor.y, dx, dy)
+            };
+            let Some((x, y)) = destination else {
                 continue;
             };
             let enemy =
@@ -678,7 +688,16 @@ impl Simulation {
             {
                 break;
             }
-            let result = self.try_move_unit(id, dx, dy);
+            let result = if civ3_path {
+                CIV3_DIRS
+                    .iter()
+                    .position(|&step| step == (dx, dy))
+                    .map_or(MoveResult::Blocked, |direction| {
+                        self.try_move_unit_civ3(id, direction)
+                    })
+            } else {
+                self.try_move_unit(id, dx, dy)
+            };
             if result == MoveResult::Blocked {
                 break;
             }

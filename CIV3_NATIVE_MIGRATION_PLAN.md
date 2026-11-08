@@ -171,17 +171,19 @@ intended end state; a completed phase requires the evidence listed below.
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction
   order. The human `GoTo` planner, path follower, and route preview now use the
-  same eight-direction graph. Existing six-way `Move` commands and AI-specific
-  route planners remain as compatibility paths while their callers migrate.
-  This is an incremental transition, not completion of eight-direction
-  movement. Tests cover direct movement, route preview, wrapped seams, and FLC
-  facing rows; `cargo test --offline` passes 643/643 after this increment.
-  Release build succeeds, and the focused `goto-preview` Civ III UI review
-  passed 4/4 checks. The route screenshot was inspected at
+  same eight-direction graph. AI normal-path expansion and reconstruction now
+  use that graph too; the normal-path executor, ground-invasion executor,
+  barbarian-leader routes, and worker routes follow Civ III direction steps.
+  City embark scope and worker naval-safety adjacency use the same neighbors.
+  Route tests and fixtures calculate Civ III tile positions and eight-way
+  costs. PF_FUEL still stores legacy six-way steps, and unit automation plus
+  remaining `search_route` callers have not migrated. Keep the normal/fuel
+  split explicit until PF_FUEL is migrated with its refuel-wait semantics.
+  Tests cover direct movement, route preview, wrapped seams, FLC facing rows,
+  and migrated AI routes. The focused `goto-preview` Civ III UI review passed
+  4/4 checks, and its screenshot was inspected at
   `/tmp/civ3-goto-eight-direction-review/goto-preview.png`; report:
-  `/tmp/civ3-goto-eight-direction-review/report.json`. The AI's specialized
-  normal/fuel pathfinders, and legacy `search_route` callers, still use six
-  directions and are the next migration gap.
+  `/tmp/civ3-goto-eight-direction-review/report.json`.
 - City-local building requirements (coast, river, lake, water) now traverse
   the explicit Civ III neighbor graph. Road connectivity for unit resources
   still follows the legacy iterator because route expansion has not migrated.
