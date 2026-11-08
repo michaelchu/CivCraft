@@ -36,8 +36,8 @@ impl Simulation {
             .cities
             .iter()
             .filter(|city| city.owner != weapon.owner && city.has_building(Building::SDI_DEFENSE))
-            .filter(|city| (city.y - y).abs() <= 4 && self.map_distance(x, y, city.x, city.y) <= 2)
-            .min_by_key(|city| self.map_distance(x, y, city.x, city.y))
+            .filter(|city| self.map_wrap.civ3_distance(x, y, city.x, city.y) <= 2)
+            .min_by_key(|city| self.map_wrap.civ3_distance(x, y, city.x, city.y))
         {
             let owner = city.owner;
             self.add_event(format!(
@@ -58,17 +58,23 @@ impl Simulation {
             );
         }
 
-        // The ruleset uses a squared radius of two. On a hex map that covers
-        // the center and its six neighbors.
+        // The manual describes the target square and adjacent squares. On the
+        // Civ III grid this is the center and its eight neighbors.
         let affected: Vec<_> = (0..self.tiles.len())
             .map(|index| self.map_wrap.position(index))
-            .filter(|&(tx, ty)| (y - ty).abs() <= 2 && self.map_distance(x, y, tx, ty) <= 1)
+            .filter(|&(tx, ty)| self.map_wrap.civ3_distance(x, y, tx, ty) <= 1)
             .collect();
-        let losses: Vec<_> = self
+        // The manual specifies a 50% survival chance for each unit in the
+        // target or an adjacent square, including friendly units.
+        let exposed: Vec<_> = self
             .units
             .iter()
             .filter(|unit| affected.contains(&(unit.x, unit.y)))
             .map(|unit| unit.id)
+            .collect();
+        let losses: Vec<_> = exposed
+            .into_iter()
+            .filter(|_| self.rand_below(2) == 0)
             .collect();
         let casualties = losses.len();
         self.nation_scores[weapon.owner].units_killed += casualties as i32;
@@ -125,21 +131,29 @@ mod tests {
     }
 
     #[test]
-    fn stationary_detonation_hits_friendly_units_but_stops_after_one_hex() {
+    fn stationary_detonation_uses_civ3_adjacent_squares_and_unit_survival_chance() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
-        let inside = offset_native_by_map(x, y, 1, 0);
-        let outside = offset_native_by_map(x, y, 2, 0);
+        let inside = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        let outside = game.map_wrap.civ3_offset(inside.0, inside.1, 2, 0).unwrap();
         let missile = game.spawn_unit(HUMAN, UnitKind::Nuclear, x, y);
         let friend = game.spawn_unit(HUMAN, UnitKind::Warrior, inside.0, inside.1);
         let safe = game.spawn_unit(HUMAN, UnitKind::Warrior, outside.0, outside.1);
+        game.native_random = None;
+        game.rng = 2; // First xorshift draw is zero: the unit does not survive.
         assert!(game.apply(Command::Detonate(missile)));
-        assert!(
-            !game
-                .units
-                .iter()
-                .any(|unit| [missile, friend].contains(&unit.id))
-        );
+        assert!(!game
+            .units
+            .iter()
+            .any(|unit| [missile, friend].contains(&unit.id)));
         assert!(game.units.iter().any(|unit| unit.id == safe));
+
+        let mut survive = Simulation::new(crate::mapgen::generate(42));
+        let missile = survive.spawn_unit(HUMAN, UnitKind::Nuclear, x, y);
+        let friend = survive.spawn_unit(HUMAN, UnitKind::Warrior, inside.0, inside.1);
+        survive.native_random = None;
+        survive.rng = 1; // First xorshift draw is one: the unit survives.
+        assert!(survive.apply(Command::Detonate(missile)));
+        assert!(survive.units.iter().any(|unit| unit.id == friend));
     }
 }

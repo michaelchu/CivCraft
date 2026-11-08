@@ -191,6 +191,12 @@ intended end state; a completed phase requires the evidence listed below.
   the Civ III graph. The prior ISOHEX-radius test now places units by Civ III
   steps; focused coverage and the full 645-test suite pass. Some wider strategic
   guard and target-selection heuristics still use the legacy distance metric.
+- Nuclear blast coverage now uses the target square and eight Civ III
+  neighbors, and each exposed unit gets the manual's 50% survival roll. The
+  manual documents the affected squares and unit survival chance on printed
+  page 84. The prototype SDI interception radius of two Civ III steps remains
+  an inference; the manual identifies SDI Defense as the defense against most
+  nuclear attacks but does not specify its range or probability.
 - Human directional movement now has a Civ III direction-index command for all
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction
