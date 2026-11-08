@@ -96,6 +96,12 @@ const IRRIGATION: [(&str, &str); 4] = [
     ("irrigation-desert", "irrigation DESETT"),
     ("irrigation-tundra", "irrigation TUNDRA"),
 ];
+const OPTIONAL_IMPROVEMENTS: [(&str, &str); 4] = [
+    ("oil-well", "oil-well"),
+    ("oil-platform", "oil-platform"),
+    ("airstrip", "airstrip"),
+    ("airbase", "airbase"),
+];
 
 #[derive(Clone, Copy)]
 pub(super) enum TerrainBuilding {
@@ -187,6 +193,10 @@ impl Theme {
                                 | "terrain-buildings"
                                 | "pollution"
                                 | "craters"
+                                | "oil-well"
+                                | "oil-platform"
+                                | "airstrip"
+                                | "airbase"
                                 | "resources"
                                 | "resource-shadows"
                                 | "city-asian"
@@ -660,6 +670,7 @@ pub(super) struct Civ3 {
     terrain_buildings: Option<Texture2D>,
     pollution: Option<Texture2D>,
     craters: Option<Texture2D>,
+    optional_improvements: HashMap<&'static str, Texture2D>,
     river_delta: Texture2D,
     river_mountain: Texture2D,
     resources: Option<ResourceArt>,
@@ -775,6 +786,20 @@ impl Civ3 {
         let pollution =
             improvement_texture("pollution", "pollution", (640, 320), &mut fallback_theme)?;
         let craters = improvement_texture("craters", "craters", (640, 320), &mut fallback_theme)?;
+        let mut optional_improvements = HashMap::new();
+        for (role, file) in OPTIONAL_IMPROVEMENTS {
+            if let Some(mut image) = theme.image(
+                role,
+                &format!("Terrain/{file}.png"),
+                (WIDTH as u16, HEIGHT as u16),
+                false,
+            )? {
+                prepare_keyed_overlay(&mut image);
+                let texture = Texture2D::from_image(&image);
+                texture.set_filter(FilterMode::Nearest);
+                optional_improvements.insert(role, texture);
+            }
+        }
         let river_texture = |key, file| -> Result<Texture2D, String> {
             let image = required(key, file, (512, 256))?;
             let texture = Texture2D::from_image(&image);
@@ -829,6 +854,7 @@ impl Civ3 {
             terrain_buildings,
             pollution,
             craters,
+            optional_improvements,
             river_delta,
             river_mountain,
             resources,
@@ -926,6 +952,26 @@ impl Civ3 {
             return false;
         };
         draw_sprite(texture, center, size, building_source(kind));
+        true
+    }
+
+    /// Optional one-cell Civ III mod art for improvements not present in the
+    /// supplied Sn00py set or OpenCiv3 export.
+    pub(super) fn draw_optional_improvement(
+        &self,
+        role: &'static str,
+        center: Vec2,
+        size: Vec2,
+    ) -> bool {
+        let Some(texture) = self.optional_improvements.get(role) else {
+            return false;
+        };
+        draw_sprite(
+            texture,
+            center,
+            size,
+            Rect::new(0.0, 0.0, WIDTH as f32, HEIGHT as f32),
+        );
         true
     }
 
@@ -1396,7 +1442,7 @@ mod tests {
         let manifest = directory.join("tileset.conf");
         fs::write(
             &manifest,
-            "terrain-buildings = Terrain/TerrainBuildings.pcx\npollution = Terrain/pollution.pcx\ncraters = Terrain/craters.png\n",
+            "terrain-buildings = Terrain/TerrainBuildings.pcx\npollution = Terrain/pollution.pcx\ncraters = Terrain/craters.png\noil-well = Terrain/oil-well.pcx\noil-platform = Terrain/oil-platform.png\nairstrip = Terrain/airstrip.pcx\nairbase = Terrain/airbase.png\n",
         )
         .unwrap();
         let theme = Theme::read(&directory).unwrap();
@@ -1406,6 +1452,9 @@ mod tests {
         );
         assert_eq!(theme.paths["pollution"], "Terrain/pollution.pcx");
         assert_eq!(theme.paths["craters"], "Terrain/craters.png");
+        for (role, _) in OPTIONAL_IMPROVEMENTS {
+            assert!(theme.paths.contains_key(role));
+        }
         fs::remove_file(manifest).unwrap();
         fs::remove_dir(directory).unwrap();
     }

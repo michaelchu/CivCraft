@@ -137,23 +137,33 @@ impl<'a> Civ3WorldPainter<'a> {
             );
         }
         if tile.oil_platform {
-            game.draw_terrain_extra(
-                &assets.terrain,
-                geometry.center,
-                geometry.width,
-                geometry.height,
-                7,
-                6,
-            );
+            let drawn = assets.civ3.as_ref().is_some_and(|tileset| {
+                tileset.draw_optional_improvement("oil-platform", geometry.center, geometry.size())
+            });
+            if !drawn {
+                game.draw_terrain_extra(
+                    &assets.terrain,
+                    geometry.center,
+                    geometry.width,
+                    geometry.height,
+                    7,
+                    6,
+                );
+            }
         } else if tile.oil_well {
-            game.draw_terrain_extra(
-                &assets.terrain,
-                geometry.center,
-                geometry.width,
-                geometry.height,
-                0,
-                6,
-            );
+            let drawn = assets.civ3.as_ref().is_some_and(|tileset| {
+                tileset.draw_optional_improvement("oil-well", geometry.center, geometry.size())
+            });
+            if !drawn {
+                game.draw_terrain_extra(
+                    &assets.terrain,
+                    geometry.center,
+                    geometry.width,
+                    geometry.height,
+                    0,
+                    6,
+                );
+            }
         } else if tile.mine
             && !assets.civ3.as_ref().is_some_and(|tileset| {
                 tileset.draw_terrain_building(
@@ -215,15 +225,24 @@ impl<'a> Civ3WorldPainter<'a> {
         let assets = self.assets;
         let tile = game.sim.render_tile(x, y);
         if let Some(Base::Airstrip | Base::Airbase) = tile.base {
-            let row = i32::from(tile.base == Some(Base::Airstrip));
-            game.draw_base_sprite(
-                assets,
-                geometry.center,
-                geometry.width,
-                geometry.height,
-                row,
-                0,
-            );
+            let role = if tile.base == Some(Base::Airstrip) {
+                "airstrip"
+            } else {
+                "airbase"
+            };
+            if !assets.civ3.as_ref().is_some_and(|tileset| {
+                tileset.draw_optional_improvement(role, geometry.center, geometry.size())
+            }) {
+                let row = i32::from(tile.base == Some(Base::Airstrip));
+                game.draw_base_sprite(
+                    assets,
+                    geometry.center,
+                    geometry.width,
+                    geometry.height,
+                    row,
+                    0,
+                );
+            }
         }
         let contamination_index = |pollution: bool| {
             let diagonal_directions = [7, 1, 3, 5]; // NW, NE, SE, SW

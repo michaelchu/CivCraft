@@ -27,6 +27,11 @@ Themes can override them with `terrain-buildings`, `pollution`, and `craters`
 roles using PCX or PNG files. Connected pollution/crater art selects atlas cells
 from diagonal neighbor masks; isolated cells use stable coordinate-based
 variants.
+No default Civ III oil-well, oil-platform, airstrip, or airbase sheet was found
+in the supplied Sn00py art or OpenCiv3 references. Themes may provide one
+transparent 128×64 sprite per `oil-well`, `oil-platform`, `airstrip`, or
+`airbase` role. Until then the renderer retains its legacy fallback for those
+four improvements.
 Indexed PCX images use palette entries 254 and 255 as transparent by default,
 matching the OpenCiv3 loader. A mod can override those indices for an image
 role with a comma-separated `transparent-<role> = 254,255` manifest entry.
