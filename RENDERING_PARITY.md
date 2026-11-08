@@ -99,7 +99,7 @@ inspection caught source grid-line bleed. Formatting and diff checks pass.
 Wrap settings were subsequently made configurable: the default `--wrap x` has
 bounded poles, and `--wrap xy` displays the torus continuously across both seams.
 The earlier horizontal-only rendering boundary is no longer applied to torus
-campaigns. See README.md and MECHANICS.md for the CLI and geometry contract.
+campaigns. See README.md and AGENTS.md for the CLI and geometry contract.
 
 ## Ocean boundaries and native camera limits
 
@@ -116,7 +116,7 @@ real first and last tile rows remain fully visible. The decorative outermost row
 cut at their widest point, with a one-pixel sampling guard hiding the
 staggered outline. A height-dependent minimum zoom keeps that padded extent
 filling the viewport. The decorative rows change no dimensions or gameplay
-bounds. WrapX generation separately removes polar land in favor of ocean; see MECHANICS.md.
+bounds. WrapX generation separately removes polar land in favor of ocean; see AGENTS.md.
 
 The map center, input inverse projection and minimap viewport use the viewport
 midpoint, as in `center_tile_mapcanvas` (1239–1257).
@@ -139,7 +139,7 @@ panning, zoom-out coverage and continuous
 WrapXY panning. WrapX `-next` captures show its minimum permitted zoom.
 Existing `wrap-seam` checks execute real unit movement at the boundary.
 The decorative extension affects presentation only. The WrapX terrain policy
-is described in MECHANICS.md; neither change consumes campaign RNG.
+is described in AGENTS.md; neither change consumes campaign RNG.
 
 ## Ice transition styling
 

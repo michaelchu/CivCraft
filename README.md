@@ -1,8 +1,8 @@
 # CivCraft
 
-For an overview of current rules and known gameplay gaps, see [GAMEPLAY_GUIDE.md](GAMEPLAY_GUIDE.md). The mechanics source sheet is in [MECHANICS.md](MECHANICS.md).
+The manual-based gameplay rules catalog and future gap-audit worksheet are [CIV3_MANUAL_RULES.md](CIV3_MANUAL_RULES.md) and [GAMEPLAY_GAP_AUDIT.md](GAMEPLAY_GAP_AUDIT.md). Both are currently unpopulated; no gameplay audit against the manual has been completed.
 
-CivCraft is an offline Rust recreation of Freeciv's single-player game using the supplied Civ2Civ3 rules as its reference. Six civilizations explore a horizontally wrapped isometric-hex world, develop cities, research technologies, negotiate treaties, trade, wage land, sea, and air warfare, and pursue conquest or spaceship victory.
+CivCraft is an offline Rust strategy game whose intended gameplay target is Civilization III. Its current implementation includes legacy Freeciv/Civ2Civ3-derived systems, but those systems have not yet been audited against the supplied Civ III manual. Six civilizations explore a horizontally wrapped isometric-hex world, develop cities, research technologies, negotiate treaties, trade, wage land, sea, and air warfare, and pursue conquest or spaceship victory.
 
 ## Civilizations
 
@@ -17,7 +17,7 @@ The fixed roster uses six civilizations from Civilization III. You lead the Roma
 | Chinese | Mao Zedong | Beijing |
 | Japanese | Tokugawa | Kyoto |
 
-Each civilization has its own ordered city names and an initial Amplio2 city style. City names skip names already used anywhere in the world, then use “New” names when the list runs out. Captured cities keep their names. Existing saves retain their city names; the former six faction labels upgrade when loaded. These identities use the existing Civ2Civ3 gameplay rules, starting technologies, colors and AI defaults; Civ III traits and unique units are not part of this change.
+Each civilization has its own ordered city names and an initial Amplio2 city style. City names skip names already used anywhere in the world, then use “New” names when the list runs out. Captured cities keep their names. Existing saves retain their city names; the former six faction labels upgrade when loaded. This roster and its current defaults are implementation details, not a claim of Civ III rules fidelity; Civ III traits and unique units are not fully represented.
 
 ## Play
 
@@ -32,7 +32,7 @@ Run cargo run --release from this folder. The match opens directly on the map.
 - Space finishes the selected unit and selects the next one.
 - Shift plus Enter ends the turn. Shift plus arrow keys pan the map.
 - The mouse wheel zooms; middle-drag or right-drag pans.
-- Click a city to open city management, change production, or select a garrisoned unit. Click the research button to browse all 87 Civ2Civ3 advances and select a research goal. CivCraft automatically researches the missing prerequisites in order.
+- Click a city to open city management, change production, or select a garrisoned unit. Click the research button to browse the current 87-advance catalog and select a research goal. CivCraft automatically researches the missing prerequisites in order.
 - N starts a fresh world after victory or defeat; Escape cancels a queued goto.
 
 The right side of the screen holds the world overview, objective, research, selected-unit or city details, actions, and event history. The bottom strip always shows the selected unit's health, movement, attack, defense, and terrain.
@@ -116,7 +116,7 @@ cargo run --release -- --load civcraft-autosave.save
 
 Lines connect each advance to its prerequisites, and gold highlights the branch leading to your goal. Right or middle drag to pan, scroll to zoom, and use **Fit tree** for an overview or **Find goal** to return to your goal. Hover an advance to see its prerequisites and unlocks. Selecting a new goal only discards accumulated research if it changes the current target. Philosophy gives a free advance to the first civilization to discover it. After the named advances are complete, research continues with repeatable Future Tech.
 
-The research screen lists unit and building unlocks from the implemented catalog, including all 57 Civ2Civ3 unit types. Production still requires the relevant technology, government, terrain access and other prerequisites; special scenario units remain unbuildable. Some associated systems and special-unit behavior are still under development.
+The research screen lists unit and building unlocks from the implemented catalog, including 57 current unit types. Production checks the requirements represented by the implementation; whether these checks match the manual has not yet been audited. Some associated systems and special-unit behavior are still under development.
 
 ## Automated modes
 
@@ -132,7 +132,7 @@ The project is hosted at [michaelchu/CivCraft](https://github.com/michaelchu/Civ
 
 ## Focus of this build
 
-The implementation focuses on local single-player gameplay with the bundled Civ2Civ3 rules. It includes governments, diplomacy and espionage, naval and air warfare, wonders, and spaceship progression. Exact Freeciv equivalence is still under development; see [MECHANICS.md](MECHANICS.md) for reference comparisons and remaining AI differences. Network multiplayer, arbitrary Lua rulesets, scenarios, and the map editor remain outside this build's scope. The source tree contains several different desktop clients, so this build uses the normal Amplio2 isometric art with a compact SDL-style game layout rather than copying one operating-system window exactly.
+The implementation includes governments, diplomacy and espionage, naval and air warfare, wonders, and spaceship progression. The manual-based gameplay rules catalog and gap audit have not yet been populated. Network multiplayer, arbitrary Lua rulesets, scenarios, and the map editor remain outside this build's scope. The source tree contains several different desktop clients, so this build uses the normal Amplio2 isometric art with a compact SDL-style game layout rather than copying one operating-system window exactly.
 
 Map-rendering reference comparisons, remembered-map save compatibility, terrain
 artwork and go-to previews are documented in [RENDERING_PARITY.md](RENDERING_PARITY.md).

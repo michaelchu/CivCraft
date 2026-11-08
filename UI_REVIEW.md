@@ -257,7 +257,8 @@ for northern/southern boundary checks; `-next` captures show minimum zoom.
 Gallery checks cover the extended camera anchors, actual boundary-row input,
 blocked panning and zoom-out coverage. Raw reference goldens still test the
 underlying generator; WrapX gameplay generation has separate ocean-policy and
-valid-start checks. See MECHANICS.md and RENDERING_PARITY.md.
+valid-start checks. See AGENTS.md for map-generation validation guidance and
+RENDERING_PARITY.md for visual comparison details.
 
 Validation: 579 Rust tests pass, including ocean-only WrapX generation across
 seven seeds with valid starting sites. Both WrapX galleries pass all 40 scenes

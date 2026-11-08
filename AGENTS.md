@@ -1,11 +1,41 @@
 # CivCraft agent guidance
 
-## Reference source checkout
+## Civilization III gameplay manual
 
-When the user says “reference” in this project, they mean the Freeciv source
-checkout at `/Users/michaelchu/Documents/projects/civjs/reference`. Use that
-checkout for ruleset and source comparisons; for example, Civ2Civ3 unit rules
-are in `reference/freeciv/data/civ2civ3/units.ruleset` there.
+Use [`civ3_manual.pdf`](civ3_manual.pdf) at the project root as the primary
+reference for Civilization III gameplay, terrain, resources, units, buildings,
+and other rules. Record manual-derived expectations in
+[`CIV3_MANUAL_RULES.md`](CIV3_MANUAL_RULES.md), and use
+[`GAMEPLAY_GAP_AUDIT.md`](GAMEPLAY_GAP_AUDIT.md) for future comparisons with
+the implementation. The catalog has begun recording manual-sourced terrain
+rules; a gameplay gap audit has not been performed.
+
+When the manual does not specify a detail needed to establish an expected
+behavior, research Civ III-specific online sources. Prefer original game
+materials and official publications where available, then well-sourced
+specialist references. Record the source title, author or publisher, URL,
+edition/expansion/patch scope, relevant page or section, date checked, and the
+specific claim it supports in `CIV3_MANUAL_RULES.md`. Label supplementary
+claims separately from manual-derived claims; preserve conflicting evidence
+and do not resolve uncertainty by guessing. Freeciv behavior, existing code,
+tests, and previous parity claims are not Civ III evidence.
+
+Use the catalog's [source-record format](CIV3_MANUAL_RULES.md#source-records),
+[technology-tree source leads](CIV3_MANUAL_RULES.md#technology-tree-source-leads),
+and [general gameplay-mechanics index](CIV3_MANUAL_RULES.md#general-gameplay-mechanics-index)
+as starting points, not blanket endorsements. The Vi.ki pages are secondary
+summaries that cite a mixture of manuals, Prima's guide, previews, and archived
+official material. Follow those citations and prefer the specific underlying
+source for each claim; record edition differences or disagreements.
+
+## Comparison source checkout
+
+The Freeciv source checkout at `/Users/michaelchu/Documents/projects/civjs/reference`
+is historical implementation context only, not a gameplay authority. Use it
+only when a task explicitly requires examining that implementation. Do not
+copy its behavior into the manual-derived expected rules. For example, the
+legacy Civ2Civ3 unit rules are in
+`reference/freeciv/data/civ2civ3/units.ruleset` there.
 
 ## Running a requested playtest
 
@@ -99,8 +129,9 @@ Campaign geometry depends on wrapping. This preset uses 36×48 tiles with
 tests. Changing `sim.map_wrap` after generation leaves arrays inconsistent.
 
 `tests/fixtures/freeciv_mapgen_vectors.tsv` contains raw Freeciv 3.3.90.14-dev
-(eb8c703) reference terrain, altitude, extras and starting locations. The
-reference parity test compares the unmodified generator against this file.
+(eb8c703) terrain, altitude, extras and starting locations for historical
+comparison only. It is not the Civ III target. The parity test checks the
+unmodified legacy generator against this file.
 `tests/fixtures/civcraft_mapgen_vectors.tsv` contains checked CivCraft output
 using the Civ III resource catalog. Resource placement changes extras and start
 site scoring, so keep these goldens separate from the native reference.
