@@ -30,6 +30,16 @@ enum Ground {
 }
 use Ground::*;
 
+fn irrigation_source(index: usize) -> Rect {
+    debug_assert!(index < 16, "irrigation source index must fit the 4x4 sheet");
+    Rect::new(
+        ((index % 4) * WIDTH) as f32,
+        ((index / 4) * HEIGHT) as f32,
+        WIDTH as f32,
+        HEIGHT as f32,
+    )
+}
+
 const LAND_SHEETS: [(&str, &str, [Ground; 3]); 6] = [
     ("desert-grass-plains", "XDGP", [Desert, Grass, Plains]),
     ("desert-grass-coast", "XDGC", [Desert, Grass, Coast]),
@@ -948,17 +958,23 @@ impl Civ3 {
         true
     }
 
-    pub(super) fn draw_irrigation(&self, terrain: Terrain, center: Vec2, size: Vec2) -> bool {
-        let index = match terrain {
-            Terrain::Plains => 1,
-            Terrain::Desert => 2,
-            Terrain::Tundra => 3,
+    pub(super) fn draw_irrigation(
+        &self,
+        terrain: TerrainBase,
+        center: Vec2,
+        size: Vec2,
+        index: usize,
+    ) -> bool {
+        let terrain_index = match terrain {
+            TerrainBase::Plains => 1,
+            TerrainBase::Desert => 2,
+            TerrainBase::Tundra => 3,
             _ => 0,
         };
-        let Some(texture) = &self.irrigation[index] else {
+        let Some(texture) = &self.irrigation[terrain_index] else {
             return false;
         };
-        draw_sprite(texture, center, size, Rect::new(384.0, 192.0, 128.0, 64.0));
+        draw_sprite(texture, center, size, irrigation_source(index));
         true
     }
 
@@ -1076,6 +1092,14 @@ fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn irrigation_mask_selects_the_expected_cell_in_the_four_by_four_sheet() {
+        assert_eq!(irrigation_source(0), Rect::new(0.0, 0.0, 128.0, 64.0));
+        assert_eq!(irrigation_source(3), Rect::new(384.0, 0.0, 128.0, 64.0));
+        assert_eq!(irrigation_source(4), Rect::new(0.0, 64.0, 128.0, 64.0));
+        assert_eq!(irrigation_source(15), Rect::new(384.0, 192.0, 128.0, 64.0));
+    }
 
     #[test]
     fn decodes_indexed_pcx_palette_and_scanline_padding() {

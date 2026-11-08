@@ -12,6 +12,18 @@ pub(super) struct Civ3WorldPainter<'a> {
     assets: &'a Assets,
 }
 
+/// OpenCiv3's irrigation layer selects one of 16 cells from the four diagonal
+/// neighbor flags. OpenCiv3 marks this mapping as approximate, so keep it
+/// isolated rather than treating it as confirmed original-engine behavior.
+fn irrigation_sprite_index(diagonals: [bool; 4]) -> usize {
+    diagonals
+        .into_iter()
+        .zip([0x1, 0x2, 0x4, 0x8])
+        .fold(0, |index, (irrigated, flag)| {
+            index | usize::from(irrigated) * flag
+        })
+}
+
 impl<'a> Civ3WorldPainter<'a> {
     pub(super) fn new(game: &'a Game, assets: &'a Assets) -> Self {
         Self { game, assets }
@@ -42,6 +54,9 @@ impl<'a> Civ3WorldPainter<'a> {
     ) {
         match layer {
             map_layers::MapLayer::Blend if self.assets.civ3.is_some() => {}
+            map_layers::MapLayer::Water if self.assets.civ3.is_some() => {
+                self.draw_water_layer(x, y, geometry, has_city);
+            }
             map_layers::MapLayer::Terrain => {
                 let tile = self.game.sim.render_tile(x, y);
                 let drawn = self.assets.civ3.as_ref().is_some_and(|tileset| {
@@ -56,6 +71,45 @@ impl<'a> Civ3WorldPainter<'a> {
                 .game
                 .draw_map_layer_fallback(self.assets, layer, x, y, geometry, has_city),
         }
+    }
+
+    fn draw_water_layer(&self, x: i32, y: i32, geometry: TileGeometry, has_city: bool) {
+        let game = self.game;
+        let assets = self.assets;
+        let TileGeometry {
+            center,
+            width,
+            height,
+        } = geometry;
+        let tile = game.sim.render_tile(x, y);
+        if !has_city {
+            if tile.farmland {
+                // The current source set has no separately identified farmland
+                // sheet; retain this fallback until its native cell is mapped.
+                game.draw_terrain_extra(&assets.terrain, center, width, height, 2, 6);
+            } else if tile.irrigation {
+                let wrap = game.sim.map_wrap;
+                let diagonal_directions = [7, 1, 5, 3]; // NW, NE, SW, SE
+                let diagonals = diagonal_directions.map(|direction| {
+                    wrap.civ3_neighbor(x, y, direction).is_some_and(|(nx, ny)| {
+                        let neighbor = game.sim.render_tile(nx, ny);
+                        neighbor.seen && neighbor.irrigation
+                    })
+                });
+                let index = irrigation_sprite_index(diagonals);
+                let drawn = assets.civ3.as_ref().is_some_and(|tileset| {
+                    tileset.draw_irrigation(tile.base_terrain, center, geometry.size(), index)
+                });
+                if !drawn {
+                    game.draw_terrain_extra(&assets.terrain, center, width, height, 1, 6);
+                }
+            }
+        }
+        assets
+            .civ3
+            .as_ref()
+            .expect("native water layer requires Civ III tileset")
+            .draw_river(game, x, y, center, geometry.size());
     }
 
     fn draw_ordered_world_passes(&self, assets: &Assets) {
@@ -231,5 +285,20 @@ impl<'a> Civ3WorldPainter<'a> {
 impl Game {
     pub(in crate::client) fn draw_civ3_world_map(&self, assets: &Assets) {
         Civ3WorldPainter::new(self, assets).draw();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::irrigation_sprite_index;
+
+    #[test]
+    fn irrigation_indices_follow_the_four_diagonal_source_flags() {
+        assert_eq!(irrigation_sprite_index([false; 4]), 0);
+        assert_eq!(irrigation_sprite_index([true, false, false, false]), 1);
+        assert_eq!(irrigation_sprite_index([false, true, false, false]), 2);
+        assert_eq!(irrigation_sprite_index([false, false, true, false]), 4);
+        assert_eq!(irrigation_sprite_index([false, false, false, true]), 8);
+        assert_eq!(irrigation_sprite_index([true; 4]), 15);
     }
 }

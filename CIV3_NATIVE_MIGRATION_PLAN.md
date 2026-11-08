@@ -20,6 +20,11 @@ intended end state; a completed phase requires the evidence listed below.
   `setRiverFlags` comments explicitly call that code a rough approximation
   with missing cardinal flags. Reuse the junction layout as an implementation
   reference, not as a claim about the original generator.
+- OpenCiv3's `C7/Map/TileOverlayLayer.cs` chooses one of 16 irrigation cells
+  from the four diagonal neighbors. The file explicitly says its direction
+  flags may be wrong and cites `civ3_cross_platform_editor` for those values.
+  CivCraft follows that mapping as an implementation approximation, not
+  verified original-engine behavior.
 - `../../Sn00pys Terrain Greener (C3C)/Art` is the default terrain-mod source.
   Keep its PCX files as the runtime inputs; do not make generated PNGs a
   prerequisite.
@@ -59,6 +64,12 @@ intended end state; a completed phase requires the evidence listed below.
   through the `river-delta` and `river-mountain` manifest roles. The drainage
   scoring remains a provisional heuristic over the current elevation field;
   it is not evidence of the original Civ III generator.
+- Native irrigation rendering now selects the 4×4 PCX sheet cell from visible
+  diagonal irrigated neighbors on the Civ III staggered grid, and selects the
+  terrain-specific sheet from `base_terrain`. The direction-to-bit mapping is
+  the OpenCiv3 approximation above. Farmland still uses the old fallback atlas
+  because no dedicated farmland role or source cell has been identified in
+  the supplied Sn00py art set.
 - Terrain-generation adjacency now also uses Civ III's eight-direction
   neighbors: connected land/water regions, biome and water-distance queries,
   resource spacing, and start-location distances use the same staggered graph
@@ -147,6 +158,12 @@ intended end state; a completed phase requires the evidence listed below.
   water-depth, and polar captures match the prior review fingerprints. City
   work-map checks pass; the capture varies between runs as its scripted state
   advances.
+- After adding connected Civ III irrigation-sheet selection, `cargo check
+  --offline`, the full Rust suite (622/622), the release build, and the default
+  UI review pass. The gallery report is
+  `/tmp/civ3-irrigation-final-review/report.json` (47 scenes, 146/146 checks,
+  68 captures); its `map-layers.png` scene was inspected. Focused tests cover
+  the diagonal flag mask and the 4×4 cell crop.
 - The latest seed-42 desktop self-test passes 271/278 checks. The previously
   failing civil-war capture, diplomacy/armistice, Farmland, Airstrip, and
   Airbase scenarios now pass. Seven unrelated gameplay checks remain failing:

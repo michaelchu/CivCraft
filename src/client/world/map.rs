@@ -133,7 +133,7 @@ impl Game {
         );
     }
 
-    fn draw_terrain_extra(
+    pub(super) fn draw_terrain_extra(
         &self,
         texture: &Texture2D,
         center: Vec2,
@@ -431,11 +431,7 @@ impl Game {
                 if !has_city {
                     if tile.farmland {
                         self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 2, 6);
-                    } else if tile.irrigation
-                        && !assets.civ3.as_ref().is_some_and(|tileset| {
-                            tileset.draw_irrigation(tile.terrain, center, geometry.size())
-                        })
-                    {
+                    } else if tile.irrigation {
                         self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 1, 6);
                     }
                 }
