@@ -2,6 +2,7 @@
 
 use super::civ3_geometry::{CELL_H as CIV3_CELL_H, CELL_W as CIV3_CELL_W, Civ3Geometry};
 use super::*;
+mod civ3;
 mod entities;
 mod map;
 

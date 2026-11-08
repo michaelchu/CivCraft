@@ -1,7 +1,7 @@
 //! Swappable map-rendering backends.
 //!
-//! The simulation and HUD stay shared. Each backend owns map projection and
-//! picking; map passes may remain shared while the Civ III painter is migrated.
+//! The simulation and HUD stay shared. Each backend owns map projection,
+//! picking, and world-pass orchestration while rendering migrates.
 use super::civ3_geometry::Civ3Geometry;
 use super::{Assets, Game};
 use crate::sim::topology::{MAP_W, MapWrap, map_to_native};
@@ -77,8 +77,7 @@ impl RenderBackend for Amplio2Renderer {
     }
 }
 
-/// Civ III diamond-grid projection and picking. Terrain passes remain shared
-/// until the dedicated painter is split from the legacy layer implementation.
+/// Civ III diamond-grid projection, picking, and ordered map painter.
 pub(crate) struct Civ3Renderer;
 
 impl RenderBackend for Civ3Renderer {
@@ -87,7 +86,7 @@ impl RenderBackend for Civ3Renderer {
     }
 
     fn draw_world(&self, game: &Game, assets: &Assets) {
-        game.draw_world_map(assets);
+        game.draw_civ3_world_map(assets);
     }
 
     fn screen_to_world(
