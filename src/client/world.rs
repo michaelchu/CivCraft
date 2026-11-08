@@ -1,5 +1,6 @@
 //! World-map rendering and projection from simulation tiles to screen geometry.
 
+use super::civ3_geometry::{CELL_H as CIV3_CELL_H, CELL_W as CIV3_CELL_W, Civ3Geometry};
 use super::*;
 mod entities;
 mod map;
@@ -91,9 +92,40 @@ mod infrastructure_tests {
     }
 }
 
-/// Isometric normal-tile centers relative to the exact viewport center,
-/// matching mapview_common.c::center_tile_mapcanvas and tile_to_canvas_pos.
-pub(super) fn world_screen_position(
+/// Civ III staggered-diamond tile centers relative to the viewport center.
+/// The existing rectangular tile storage is adapted to occupied staggered
+/// coordinates here; simulation adjacency is migrated separately.
+pub(super) fn civ3_world_screen_position(
+    wrap: MapWrap,
+    viewport: Rect,
+    camera: Vec2,
+    zoom: f32,
+    x: i32,
+    y: i32,
+) -> Vec2 {
+    let geometry = Civ3Geometry::new_wrapped(wrap.width() * 2, wrap.height(), true, wrap.wraps_y())
+        .expect("valid Civ III world geometry");
+    let (grid_x, grid_y) = geometry
+        .storage_to_grid(x, y)
+        .unwrap_or((2 * x + y.rem_euclid(2), y));
+    let (tile_px, tile_py) = geometry.tile_center_virtual(grid_x, grid_y);
+    let camera_px = (camera.x + 1.0) * CIV3_CELL_W;
+    let camera_py = (camera.y + 1.0) * CIV3_CELL_H;
+    let width_px = wrap.width() as f32 * 2.0 * CIV3_CELL_W;
+    let dx = (tile_px - camera_px + width_px * 0.5).rem_euclid(width_px) - width_px * 0.5;
+    let mut dy = tile_py - camera_py;
+    if wrap.wraps_y() {
+        let height_px = wrap.height() as f32 * CIV3_CELL_H;
+        dy = (dy + height_px * 0.5).rem_euclid(height_px) - height_px * 0.5;
+    }
+    const ART_SCALE: f32 = 0.75;
+    vec2(
+        viewport.x + viewport.w * 0.5 + dx * ART_SCALE * zoom,
+        viewport.y + viewport.h * 0.5 + dy * ART_SCALE * zoom,
+    )
+}
+/// Legacy projection retained only while the old backend remains selectable.
+pub(super) fn amplio2_world_screen_position(
     wrap: MapWrap,
     viewport: Rect,
     camera: Vec2,
@@ -116,11 +148,26 @@ pub(super) fn world_screen_position(
         viewport.y + viewport.h * 0.5 + dy * TILE_H * 0.5 * zoom,
     )
 }
+
+/// Kept for legacy projection checks until Amplio2 is retired.
+#[cfg(test)]
+fn world_screen_position(
+    wrap: MapWrap,
+    viewport: Rect,
+    camera: Vec2,
+    zoom: f32,
+    x: i32,
+    y: i32,
+) -> Vec2 {
+    amplio2_world_screen_position(wrap, viewport, camera, zoom, x, y)
+}
+
 fn visible_world_tiles(
     wrap: MapWrap,
     viewport: Rect,
     camera: Vec2,
     zoom: f32,
+    renderer: &dyn RenderBackend,
 ) -> Vec<(i32, i32, Vec2)> {
     let origin = viewport.y + viewport.h * 0.5;
     let step = TILE_H * 0.5 * zoom;
@@ -138,7 +185,7 @@ fn visible_world_tiles(
     let mut tiles = Vec::with_capacity(((last - first + 1).max(0) * wrap.width()) as usize);
     for y in first..=last {
         for x in 0..wrap.width() {
-            let center = world_screen_position(wrap, viewport, camera, zoom, x, y);
+            let center = renderer.world_screen_position(wrap, viewport, camera, zoom, x, y);
             if center.x < viewport.x - TILE_W * zoom
                 || center.x > viewport.right() + TILE_W * zoom
                 || center.y < viewport.y - 80.0
@@ -188,7 +235,13 @@ mod visibility_tests {
                             || p.y > viewport.bottom() + 80.0)
                     });
                     assert_eq!(
-                        visible_world_tiles(MapWrap::X, viewport, camera, zoom),
+                        visible_world_tiles(
+                            MapWrap::X,
+                            viewport,
+                            camera,
+                            zoom,
+                            &render_backend::Amplio2Renderer,
+                        ),
                         reference
                     );
                 }
@@ -267,11 +320,23 @@ mod wrap_projection_tests {
     fn torus_rows_cross_the_vertical_seam_in_painter_order() {
         let viewport = Rect::new(0.0, 46.0, 964.0, 550.0);
         let camera = vec2(20.0, MAP_H as f32 - 0.2);
-        let torus = visible_world_tiles(MapWrap::XY, viewport, camera, 1.0);
+        let torus = visible_world_tiles(
+            MapWrap::XY,
+            viewport,
+            camera,
+            1.0,
+            &render_backend::Amplio2Renderer,
+        );
         assert!(torus.iter().any(|t| t.1 == 0));
         assert!(torus.iter().any(|t| t.1 == MAP_H - 1));
         assert!(torus.windows(2).all(|p| p[0].2.y <= p[1].2.y));
-        let cylinder = visible_world_tiles(MapWrap::X, viewport, camera, 1.0);
+        let cylinder = visible_world_tiles(
+            MapWrap::X,
+            viewport,
+            camera,
+            1.0,
+            &render_backend::Amplio2Renderer,
+        );
         assert!(cylinder.iter().all(|t| t.1 > MAP_H / 2));
         let a = world_screen_position(MapWrap::XY, viewport, camera, 1.0, 10, MAP_H - 1);
         let (x, y) = MapWrap::XY.offset(10, MAP_H - 1, 1, 0).unwrap();

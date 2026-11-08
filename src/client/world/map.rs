@@ -366,7 +366,7 @@ impl Game {
         }
     }
 
-    pub(in crate::client) fn draw_world_amplio2(&self, assets: &Assets) {
+    pub(in crate::client) fn draw_world_map(&self, assets: &Assets) {
         let viewport = Self::viewport_rect();
         draw_rectangle(
             viewport.x,
@@ -385,6 +385,7 @@ impl Game {
             viewport,
             self.camera_overview_position(),
             self.zoom,
+            self.renderer.as_ref(),
         );
         let mut cities = std::collections::HashMap::new();
         let city_overrides = self.playback.city_overrides();
@@ -483,14 +484,7 @@ impl Game {
         let bottom_corner = (!self.sim.map_wrap.wraps_y()).then_some(bottom);
         for y in self.edge_water_rows().chain(bottom_corner) {
             for x in 0..self.sim.map_wrap.width() {
-                let center = world_screen_position(
-                    self.sim.map_wrap,
-                    viewport,
-                    self.camera_overview_position(),
-                    self.zoom,
-                    x,
-                    y,
-                );
+                let center = self.world_screen_position(x, y);
                 if center.y > viewport.bottom() + tile_h || center.y < viewport.y - tile_h {
                     continue;
                 }

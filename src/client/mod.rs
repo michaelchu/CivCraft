@@ -23,6 +23,9 @@ use sprite_metadata::{
 mod city_bar;
 mod city_manager;
 mod city_map;
+// Geometry is staged independently until the dedicated renderer adopts it.
+#[allow(dead_code)]
+mod civ3_geometry;
 mod fog;
 mod government_view;
 mod hud;
