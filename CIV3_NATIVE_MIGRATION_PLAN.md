@@ -173,6 +173,10 @@ intended end state; a completed phase requires the evidence listed below.
   The city requirement fixture includes a diagonal neighbor, and the AI
   city-defense fixture clears adjacent rivers so it tests a landlocked city on
   the expanded neighborhood. Full `cargo test --offline` passes 638/638.
+- Climate moisture preference now also checks all eight Civ III neighbors,
+  with a test for diagonal coastal water. This changes topology input to the
+  existing CivCraft climate heuristic; the heuristic itself is not claimed to
+  reproduce original Civ III climate-change mechanics.
 - The Civ III geometry backend controls projection, tile picking,
   visible-tile placement, and edge-water placement. `Civ3WorldPainter` in
   `src/client/world/civ3.rs` owns ordered world-pass orchestration and receives

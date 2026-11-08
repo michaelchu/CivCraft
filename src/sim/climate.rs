@@ -1,7 +1,5 @@
 //! Climate pressure and its effects on the game world.
 
-#[cfg(test)]
-use super::terrain_work::neighbors;
 use super::*;
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
@@ -94,7 +92,7 @@ impl Simulation {
     fn climate_target(&self, x: i32, y: i32, warming: bool) -> Option<Terrain> {
         let tile = self.tile(x, y);
         let wet = tile.river
-            || self.map_wrap.neighbors(x, y).any(|(nx, ny)| {
+            || self.map_wrap.civ3_neighbors(x, y).any(|(nx, ny)| {
                 let adjacent = self.tile(nx, ny);
                 adjacent.terrain.is_water() || adjacent.river
             });
@@ -177,7 +175,7 @@ mod tests {
     fn climate_obeys_moisture_and_checks_the_fallback_only_when_blocked() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
-        for (nx, ny) in neighbors(x, y) {
+        for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
             let tile = game.tile_mut(nx, ny);
             tile.terrain = Terrain::Plains;
             tile.river = false;
@@ -188,8 +186,14 @@ mod tests {
         assert_eq!(game.climate_target(x, y, false), Some(Terrain::Tundra));
         game.tile_mut(x, y).river = true;
         assert_eq!(game.climate_target(x, y, false), Some(Terrain::Marsh));
+        game.tile_mut(x, y).river = false;
+        let (diagonal_x, diagonal_y) = game.map_wrap.civ3_neighbor(x, y, 1).unwrap();
+        game.tile_mut(diagonal_x, diagonal_y).terrain = Terrain::Coast;
+        assert_eq!(game.climate_target(x, y, false), Some(Terrain::Marsh));
+        game.tile_mut(diagonal_x, diagonal_y).terrain = Terrain::Plains;
         game.tile_mut(x, y).terrain = Terrain::Glacier;
         assert_eq!(game.climate_target(x, y, true), Some(Terrain::Tundra));
+        game.tile_mut(diagonal_x, diagonal_y).terrain = Terrain::Coast;
         game.tile_mut(x, y).terrain = Terrain::Jungle;
         assert_eq!(game.climate_target(x, y, false), None);
     }
