@@ -121,8 +121,13 @@ fn moved_units_retain_the_matching_civ3_flic_direction_row() {
     }
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
     game.units.last_mut().unwrap().moves_left = 100;
+    game.enable_visual_events();
     assert_eq!(game.try_move_unit(id, 0, -1), MoveResult::Moved);
     assert_eq!(game.unit_by_id(id).unwrap().facing, 4);
+    let Some(VisualEvent::Move { unit, .. }) = game.take_visual_events().pop_front() else {
+        panic!("movement publishes an animation event")
+    };
+    assert_eq!(unit.facing, 4);
 }
 
 #[test]

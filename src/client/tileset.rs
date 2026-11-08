@@ -687,13 +687,34 @@ pub(super) struct Civ3 {
 }
 
 struct Civ3UnitArt {
-    directions: Vec<(Texture2D, Texture2D)>,
+    base: Texture2D,
+    tint: Texture2D,
     width: f32,
     height: f32,
+    frame_count: usize,
+    direction_count: usize,
     original_width: f32,
     original_height: f32,
     offset_left: f32,
     offset_top: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum Civ3UnitAction {
+    #[default]
+    Default,
+    Run,
+    Attack,
+}
+
+impl Civ3UnitAction {
+    fn role_suffix(self) -> Option<&'static str> {
+        match self {
+            Self::Default => None,
+            Self::Run => Some("-run"),
+            Self::Attack => Some("-attack"),
+        }
+    }
 }
 
 const CITY_STYLES: [(&str, &str); 5] = [
@@ -873,35 +894,22 @@ impl Civ3 {
             let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
             let flic = super::flc::decode_flic(&bytes)
                 .map_err(|error| format!("{}: {error}", path.display()))?;
-            let directions = flic
-                .animations
-                .iter()
-                .map(|frames| {
-                    let frame = frames.first().ok_or_else(|| {
-                        format!("{}: missing default animation frame", path.display())
-                    })?;
-                    let (base_image, tint_image) = flic
-                        .image_layers(frame)
-                        .map_err(|error| format!("{}: {error}", path.display()))?;
-                    let base = Texture2D::from_image(&base_image);
-                    let tint = Texture2D::from_image(&tint_image);
-                    base.set_filter(FilterMode::Nearest);
-                    tint.set_filter(FilterMode::Nearest);
-                    Ok((base, tint))
-                })
-                .collect::<Result<Vec<_>, String>>()?;
-            if directions.is_empty() {
-                return Err(format!(
-                    "{}: FLC contains no direction frames",
-                    path.display()
-                ));
-            }
+            let (base_image, tint_image) = flic
+                .image_atlases()
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            let base = Texture2D::from_image(&base_image);
+            let tint = Texture2D::from_image(&tint_image);
+            base.set_filter(FilterMode::Nearest);
+            tint.set_filter(FilterMode::Nearest);
             unit_art.insert(
                 role.clone(),
                 Civ3UnitArt {
-                    directions,
+                    base,
+                    tint,
                     width: flic.width as f32,
                     height: flic.height as f32,
+                    frame_count: flic.animations[0].len(),
+                    direction_count: flic.animations.len(),
                     original_width: flic.original_width.max(flic.width) as f32,
                     original_height: flic.original_height.max(flic.height) as f32,
                     offset_left: flic.offset_left as f32,
@@ -946,20 +954,42 @@ impl Civ3 {
         kind: UnitKind,
         owner: usize,
         facing: u8,
+        action: Civ3UnitAction,
+        progress: f32,
         center: Vec2,
         zoom: f32,
         has_moves: bool,
     ) -> bool {
         let role = super::sprite_metadata::unit_art_role(kind);
-        let Some(art) = self.unit_art.get(&role) else {
+        let action_role = action
+            .role_suffix()
+            .map_or_else(|| role.clone(), |suffix| format!("{role}{suffix}"));
+        let Some(art) = self
+            .unit_art
+            .get(&action_role)
+            .or_else(|| self.unit_art.get(&role))
+        else {
             return false;
         };
-        let (base, tint) = art
-            .directions
-            .get(usize::from(facing))
-            .or_else(|| art.directions.get(2))
-            .or_else(|| art.directions.first())
-            .expect("unit FLC direction list was checked while loading");
+        let frame = if action == Civ3UnitAction::Default {
+            0
+        } else {
+            ((progress.clamp(0.0, 1.0) * art.frame_count as f32).floor() as usize)
+                .min(art.frame_count.saturating_sub(1))
+        };
+        let direction = if usize::from(facing) < art.direction_count {
+            usize::from(facing)
+        } else if art.direction_count > 2 {
+            2
+        } else {
+            0
+        };
+        let source = Rect::new(
+            frame as f32 * art.width,
+            direction as f32 * art.height,
+            art.width,
+            art.height,
+        );
         let scale = zoom * (TILE_W / 64.0);
         let size = vec2(art.width * scale, art.height * scale);
         let position = center - vec2(art.original_width * scale, art.original_height * scale) * 0.5
@@ -975,7 +1005,7 @@ impl Civ3 {
         } else {
             Color::new(team.r * 0.62, team.g * 0.66, team.b * 0.68, team.a)
         };
-        for (texture, tint) in [(base, base_tint), (tint, team_tint)] {
+        for (texture, tint) in [(&art.base, base_tint), (&art.tint, team_tint)] {
             draw_texture_ex(
                 texture,
                 position.x,
@@ -983,6 +1013,7 @@ impl Civ3 {
                 tint,
                 DrawTextureParams {
                     dest_size: Some(size),
+                    source: Some(source),
                     ..Default::default()
                 },
             );
@@ -1558,7 +1589,7 @@ mod tests {
         let manifest = directory.join("tileset.conf");
         fs::write(
             &manifest,
-            "terrain-buildings = Terrain/TerrainBuildings.pcx\npollution = Terrain/pollution.pcx\ncraters = Terrain/craters.png\noil-well = Terrain/oil-well.pcx\noil-platform = Terrain/oil-platform.png\nairstrip = Terrain/airstrip.pcx\nairbase = Terrain/airbase.png\nunit-warrior = Units/Warrior/Default.flc\nunit-stealth-fighter = Units/Stealth Fighter/Default.flc\n",
+            "terrain-buildings = Terrain/TerrainBuildings.pcx\npollution = Terrain/pollution.pcx\ncraters = Terrain/craters.png\noil-well = Terrain/oil-well.pcx\noil-platform = Terrain/oil-platform.png\nairstrip = Terrain/airstrip.pcx\nairbase = Terrain/airbase.png\nunit-warrior = Units/Warrior/Default.flc\nunit-warrior-run = Units/Warrior/Run.flc\nunit-warrior-attack = Units/Warrior/Attack.flc\nunit-stealth-fighter = Units/Stealth Fighter/Default.flc\n",
         )
         .unwrap();
         let theme = Theme::read(&directory).unwrap();
@@ -1572,6 +1603,11 @@ mod tests {
             assert!(theme.paths.contains_key(role));
         }
         assert_eq!(theme.paths["unit-warrior"], "Units/Warrior/Default.flc");
+        assert_eq!(theme.paths["unit-warrior-run"], "Units/Warrior/Run.flc");
+        assert_eq!(
+            theme.paths["unit-warrior-attack"],
+            "Units/Warrior/Attack.flc"
+        );
         assert_eq!(
             theme.paths["unit-stealth-fighter"],
             "Units/Stealth Fighter/Default.flc"

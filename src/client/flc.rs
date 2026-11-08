@@ -334,6 +334,59 @@ impl Flic {
         }
         Ok((base, tint))
     }
+
+    /// Pack direction rows and their frames into two GPU-friendly image atlases.
+    pub(super) fn image_atlases(&self) -> Result<(Image, Image), String> {
+        let frame_count = self.animations.first().map_or(0, Vec::len);
+        if frame_count == 0 || self.animations.is_empty() {
+            return Err("FLC contains no animation frames".to_owned());
+        }
+        if self
+            .animations
+            .iter()
+            .any(|frames| frames.len() != frame_count)
+        {
+            return Err("FLC directions have inconsistent frame counts".to_owned());
+        }
+        let atlas_width = self
+            .width
+            .checked_mul(frame_count)
+            .ok_or_else(|| "FLC frame atlas width overflow".to_owned())?;
+        let atlas_height = self
+            .height
+            .checked_mul(self.animations.len())
+            .ok_or_else(|| "FLC frame atlas height overflow".to_owned())?;
+        if atlas_width > 4096 || atlas_height > 4096 || atlas_width * atlas_height > 16_777_216 {
+            return Err("FLC frame atlas exceeds the supported texture size".to_owned());
+        }
+        let mut base = Image::gen_image_color(
+            atlas_width as u16,
+            atlas_height as u16,
+            macroquad::prelude::Color::from_rgba(0, 0, 0, 0),
+        );
+        let mut tint = Image::gen_image_color(
+            atlas_width as u16,
+            atlas_height as u16,
+            macroquad::prelude::Color::from_rgba(0, 0, 0, 0),
+        );
+        for (direction, frames) in self.animations.iter().enumerate() {
+            for (frame_index, frame) in frames.iter().enumerate() {
+                let (frame_base, frame_tint) = self.image_layers(frame)?;
+                for y in 0..self.height {
+                    let src_start = y * self.width;
+                    let src_end = src_start + self.width;
+                    let dst_start =
+                        (direction * self.height + y) * atlas_width + frame_index * self.width;
+                    let dst_end = dst_start + self.width;
+                    base.get_image_data_mut()[dst_start..dst_end]
+                        .copy_from_slice(&frame_base.get_image_data()[src_start..src_end]);
+                    tint.get_image_data_mut()[dst_start..dst_end]
+                        .copy_from_slice(&frame_tint.get_image_data()[src_start..src_end]);
+                }
+            }
+        }
+        Ok((base, tint))
+    }
 }
 
 #[cfg(test)]
@@ -430,5 +483,16 @@ mod tests {
         let (shadow, _) = palette.image_layers(&[240, 255, 17, 17]).unwrap();
         assert_eq!(shadow.get_image_data()[0], [0, 0, 0, 240]);
         assert_eq!(shadow.get_image_data()[1], [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn image_atlases_pack_each_direction_and_frame_in_order() {
+        let flic = decode_flic(&fixture()).unwrap();
+        let (base, tint) = flic.image_atlases().unwrap();
+        assert_eq!((base.width(), base.height()), (8, 1));
+        assert_eq!(base.get_image_data()[0], [0, 0, 0, 0]);
+        assert_eq!(base.get_image_data()[4], [0, 0, 0, 0]);
+        assert_eq!(tint.get_image_data()[0], [255, 255, 255, 255]);
+        assert_eq!(tint.get_image_data()[4], [255, 255, 255, 255]);
     }
 }

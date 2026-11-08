@@ -541,7 +541,14 @@ impl<'a> Civ3WorldPainter<'a> {
                     && Some(unit.id) != game.selected_unit
                     && !game.playback.is_active(unit.id)
                 {
-                    game.draw_unit(assets, unit, center, count);
+                    game.draw_unit(
+                        assets,
+                        unit,
+                        center,
+                        count,
+                        super::super::tileset::Civ3UnitAction::Default,
+                        0.0,
+                    );
                 }
             }
         }
@@ -562,7 +569,14 @@ impl<'a> Civ3WorldPainter<'a> {
                 && Some(unit.id) == game.selected_unit
                 && !game.playback.is_active(unit.id)
             {
-                game.draw_unit(assets, unit, center, count);
+                game.draw_unit(
+                    assets,
+                    unit,
+                    center,
+                    count,
+                    super::super::tileset::Civ3UnitAction::Default,
+                    0.0,
+                );
             }
         }
         game.draw_playback(assets);

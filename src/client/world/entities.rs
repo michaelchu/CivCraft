@@ -240,6 +240,8 @@ impl Game {
         unit: &Unit,
         center: Vec2,
         stack_count: usize,
+        action: super::super::tileset::Civ3UnitAction,
+        animation_progress: f32,
     ) {
         let (sprite_row, sprite_col) = unit_sprite(unit.kind);
         let unit_w = 58.0 * self.zoom;
@@ -265,6 +267,8 @@ impl Game {
                 unit.kind,
                 unit.owner,
                 unit.facing,
+                action,
+                animation_progress,
                 center,
                 self.zoom,
                 unit.moves_left > 0,

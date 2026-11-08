@@ -112,6 +112,7 @@ impl Game {
             return;
         };
         let project = |x, y| self.world_screen_position(x, y);
+        let progress = self.playback.progress();
         for (unit, phase) in self.playback.active() {
             let center = match event {
                 VisualEvent::Move { from, to, .. } => {
@@ -130,7 +131,14 @@ impl Game {
                 }
                 _ => project(unit.x, unit.y),
             };
-            self.draw_unit(assets, &unit, center, 1);
+            let action = match event {
+                VisualEvent::Move { .. } => super::tileset::Civ3UnitAction::Run,
+                VisualEvent::Combat(combat) if unit.id == combat.attacker.id => {
+                    super::tileset::Civ3UnitAction::Attack
+                }
+                _ => super::tileset::Civ3UnitAction::Default,
+            };
+            self.draw_unit(assets, &unit, center, 1, action, progress);
         }
         if let VisualEvent::Combat(combat) = event {
             let elapsed = self.playback.progress() as f64 * event.duration();

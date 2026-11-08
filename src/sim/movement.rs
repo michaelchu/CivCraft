@@ -545,11 +545,14 @@ impl Simulation {
         {
             self.release_ai_ferry(unit_id);
         }
-        let visual_mover = self
+        let mut visual_mover = self
             .visual_events
             .enabled
             .then(|| self.unit_by_id(unit_id).cloned())
             .flatten();
+        if let (Some(unit), Some(facing)) = (&mut visual_mover, facing) {
+            unit.facing = facing;
+        }
         if let Some(mover) = self.units.iter_mut().find(|u| u.id == unit_id) {
             mover.x = nx;
             mover.y = ny;

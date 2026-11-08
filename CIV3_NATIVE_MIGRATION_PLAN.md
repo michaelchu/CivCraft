@@ -44,12 +44,14 @@ intended end state; a completed phase requires the evidence listed below.
   its map-unit path loads directional `.flc` animations. CivCraft now has a
   Rust decoder for the FLC chunk types used by the inspected OpenCiv3 reader
   (palette, byte-run, and delta frames), and Civ III theme manifests accept
-  `unit-<kind> = path.flc` entries. A seed-42 world capture with a configured
-  Carthaginian Settler FLC confirms a rendered palette/team-color frame:
+  `unit-<kind> = path.flc` entries, plus optional `-run` and `-attack` action
+  roles. The decoder packs FLC direction and frame rows into base/tint atlases.
+  A seed-42 world capture with a configured Carthaginian Settler FLC confirms a
+  rendered palette/team-color frame:
   `/tmp/civ3-unit-flc-review-settlers/world.png` and report
   `/tmp/civ3-unit-flc-review-settlers/report.json`. This proves the optional
   loader path only; the default theme does not map unit art, action animation
-  state is not tracked, and most units still use the shared atlas. The six
+  state mapping is partial, and most units still use the shared atlas. The six
   legacy movement directions now select the corresponding FLC facing row, but
   the gameplay topology still needs all eight directions. OpenCiv3 unit artwork
   is treated as reference/mod art rather than verified original Civ III art.
@@ -59,9 +61,10 @@ intended end state; a completed phase requires the evidence listed below.
   topology can therefore reach only six of those rows. The conversion is an
   implementation mapping from CivCraft's current coordinates, not a claim about
   Civ III's original movement internals. The seed-42 `unit-movement` UI review
-  with a real Warrior FLC passed 5/5 checks and produced
-  `/tmp/civ3-unit-facing-review-final/unit-movement.png` and
-  `/tmp/civ3-unit-facing-review-final/unit-movement-next.png`.
+  now performs a real simulation move and shows the configured run animation.
+  With the OpenCiv3 Warrior `Default.flc` and `Run.flc` roles, it passed 5/5
+  checks and produced `/tmp/civ3-unit-run-animation-review-final/unit-movement.png`
+  and `/tmp/civ3-unit-run-animation-review-final/unit-movement-next.png`.
 - `src/client/tileset.rs` decodes 8-bit, one-plane RLE PCX and applies palette
   indices 254 and 255 as transparent by default, following OpenCiv3's loader
   configuration. Theme manifests can override transparent indices per sheet

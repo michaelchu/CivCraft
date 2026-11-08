@@ -103,7 +103,7 @@ the manifest's directory. Sheets retain the Civ III cell layout.
 | `oil-well`, `oil-platform`, `airstrip`, `airbase` | Optional one-cell `Terrain/<role>.png` sprites |
 | `resources`, `resource-shadows` | `resources.png`, `resources_shadows.png` |
 | `city-asian`, `city-american`, `city-european`, `city-middle_eastern`, `city-roman` | `Cities/rASIAN.png`, `rAMER.png`, `rEURO.png`, `rMIDEAST.png`, `rROMAN.png` |
-| `unit-<kind>` | Optional Civ III `.flc` animation, for example `unit-settlers = Units/Settlers/Default.flc` |
+| `unit-<kind>`, `unit-<kind>-run`, `unit-<kind>-attack` | Optional `.flc` default, movement, and attack animations; for example `unit-warrior = Units/Warrior/Default.flc` and `unit-warrior-run = Units/Warrior/Run.flc` |
 
 Each image role accepts PNG or 8-bit, single-plane RLE PCX artwork. If the default
 PNG path is absent, the loader checks the same basename with `.pcx` and `.PCX`.
@@ -111,12 +111,13 @@ PCX magenta color-key pixels are decoded as transparent. City-style roles can
 be overridden in `tileset.conf` like the terrain and resource roles.
 
 Unit roles use lowercase kebab-case `UnitKind` names (`unit-stealth-fighter`,
-`unit-mech-inf`, `unit-settlers`). FLC files are decoded from their original
-palette-indexed frames. The renderer selects the facing row's first default
-frame and applies palette team-color and shadow ranges. Movement and attacks
-currently update facing for the six directions supported by the legacy simulation;
-full eight-way movement, action animation playback, and automatic mapping of
-the full unit roster are not yet implemented.
+`unit-mech-inf`, `unit-settlers`). Optional `-run` and `-attack` roles select
+FLC action animations during movement and combat; missing action roles fall back
+to the default FLC. Frames are packed into direction/frame atlases and selected
+using event progress, with palette team-color and shadow ranges preserved.
+Movement currently supports six facing directions due to the legacy simulation
+topology; full eight-way movement, broader Civ III action states, and automatic
+mapping of the full unit roster remain unfinished.
 
 The ground, water, and polar sheets are required. The other groups are optional.
 For two interactive windows, launch the binary from separate working
