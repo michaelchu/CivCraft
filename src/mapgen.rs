@@ -13,7 +13,7 @@
 //! iteration and random-draw order, so seemingly harmless reordering can alter
 //! seeded output.
 
-use crate::sim::{PLAYER_COUNT, PLAYER_SLOTS, Terrain, Tile, topology::*};
+use crate::sim::{PLAYER_COUNT, PLAYER_SLOTS, Terrain, TerrainBase, Tile, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
 const INITIAL_DIVISIONS: i32 = 6;
@@ -307,6 +307,7 @@ impl Generator {
                 .enumerate()
                 .map(|(index, terrain)| Tile {
                     terrain,
+                    base_terrain: inferred_base_terrain(terrain, temperature[index]),
                     altitude: heights[index],
                     hut: false,
                     river: false,
@@ -337,6 +338,14 @@ impl Generator {
             self.finish_water(&mut terrain, &mut rng);
             for (tile, &terrain) in tiles.iter_mut().zip(&terrain) {
                 tile.terrain = terrain;
+                if terrain.is_water() {
+                    tile.base_terrain = match terrain {
+                        Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
+                        Terrain::Sea => TerrainBase::Sea,
+                        Terrain::Ocean => TerrainBase::Ocean,
+                        _ => tile.base_terrain,
+                    };
+                }
             }
             // In Civ III, Flood Plains are a desert terrain variant on river
             // tiles. Rivers are represented per tile here, so use the marked
@@ -375,6 +384,95 @@ impl Generator {
     }
 }
 
+/// The current generator stores a single terrain value, so feature tiles lose
+/// their original base ground. Keep a provisional base for the Civ III painter
+/// using broad temperature bands. This is an implementation inference, not a
+/// documented Civ III generation rule; the native generator should replace it.
+fn inferred_base_terrain(terrain: Terrain, temperature: i32) -> TerrainBase {
+    match terrain {
+        Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
+        Terrain::Sea => TerrainBase::Sea,
+        Terrain::Ocean => TerrainBase::Ocean,
+        Terrain::Glacier => TerrainBase::Ice,
+        Terrain::Forest => {
+            if temperature < COLD {
+                TerrainBase::Tundra
+            } else if temperature < TROPICAL {
+                TerrainBase::Plains
+            } else {
+                TerrainBase::Grassland
+            }
+        }
+        Terrain::Jungle => TerrainBase::Grassland,
+        Terrain::Hills | Terrain::Mountains => {
+            if temperature < VERY_COLD {
+                TerrainBase::Tundra
+            } else {
+                TerrainBase::Plains
+            }
+        }
+        Terrain::Marsh | Terrain::Volcano => TerrainBase::Grassland,
+        Terrain::FloodPlains | Terrain::Desert => TerrainBase::Desert,
+        Terrain::Plains => TerrainBase::Plains,
+        Terrain::Tundra => TerrainBase::Tundra,
+        Terrain::Grassland | Terrain::GrasslandShield => TerrainBase::Grassland,
+    }
+}
+
+#[cfg(test)]
+mod civ3_base_terrain_tests {
+    use super::*;
+
+    #[test]
+    fn feature_surface_keeps_a_climate_inferred_base_ground() {
+        assert_eq!(
+            inferred_base_terrain(Terrain::Forest, VERY_COLD - 1),
+            TerrainBase::Tundra
+        );
+        assert_eq!(
+            inferred_base_terrain(Terrain::Forest, COLD),
+            TerrainBase::Plains
+        );
+        assert_eq!(
+            inferred_base_terrain(Terrain::Jungle, TROPICAL),
+            TerrainBase::Grassland
+        );
+        assert_eq!(
+            inferred_base_terrain(Terrain::FloodPlains, TROPICAL),
+            TerrainBase::Desert
+        );
+        assert_eq!(
+            inferred_base_terrain(Terrain::Ocean, TROPICAL),
+            TerrainBase::Ocean
+        );
+    }
+
+    #[test]
+    fn generated_features_keep_nonwater_ground_and_water_bands_stay_aligned() {
+        let map = generate_with_wrap(42, MapWrap::X);
+        for tile in &map.tiles {
+            let expected_water_ground = match tile.terrain {
+                Terrain::Coast | Terrain::Lake => Some(TerrainBase::Coast),
+                Terrain::Sea => Some(TerrainBase::Sea),
+                Terrain::Ocean => Some(TerrainBase::Ocean),
+                _ => None,
+            };
+            if let Some(expected) = expected_water_ground {
+                assert_eq!(tile.base_terrain, expected);
+            }
+            if TerrainBase::is_feature_terrain(tile.terrain) {
+                assert!(matches!(
+                    tile.base_terrain,
+                    TerrainBase::Grassland
+                        | TerrainBase::Plains
+                        | TerrainBase::Desert
+                        | TerrainBase::Tundra
+                ));
+            }
+        }
+    }
+}
+
 struct Generator {
     wrap: MapWrap,
 }
@@ -392,6 +490,7 @@ pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
             for x in 0..wrap.width() {
                 let tile = &mut map.tiles[wrap.index(x, y)];
                 tile.terrain = Terrain::Ocean;
+                tile.base_terrain = TerrainBase::Ocean;
                 tile.altitude = tile.altitude.min(SHORE - 1);
                 tile.resource = None;
                 tile.river = false;
@@ -403,11 +502,20 @@ pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
         generator.finish_water(&mut terrain, &mut MapRng::new(seed));
         for (tile, water) in map.tiles.iter_mut().zip(terrain) {
             tile.terrain = water;
+            if water.is_water() {
+                tile.base_terrain = match water {
+                    Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
+                    Terrain::Sea => TerrainBase::Sea,
+                    Terrain::Ocean => TerrainBase::Ocean,
+                    _ => tile.base_terrain,
+                };
+            }
         }
         for y in [0, wrap.height() - 1] {
             for x in 0..wrap.width() {
                 let tile = &mut map.tiles[wrap.index(x, y)];
                 tile.terrain = Terrain::Ocean;
+                tile.base_terrain = TerrainBase::Ocean;
                 tile.resource = None;
                 tile.river = false;
                 tile.hut = false;

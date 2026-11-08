@@ -27,6 +27,36 @@ pub(crate) enum Terrain {
     GrasslandShield,
 }
 
+/// Base terrain used by Civ III's transition sheets. This is separate from
+/// `Terrain`, which currently also carries feature and landform state for the
+/// legacy simulation model.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) enum TerrainBase {
+    #[default]
+    Grassland,
+    Plains,
+    Desert,
+    Tundra,
+    Coast,
+    Sea,
+    Ocean,
+    Ice,
+}
+
+impl TerrainBase {
+    pub(crate) fn is_feature_terrain(terrain: Terrain) -> bool {
+        matches!(
+            terrain,
+            Terrain::Forest
+                | Terrain::Jungle
+                | Terrain::Hills
+                | Terrain::Mountains
+                | Terrain::Marsh
+                | Terrain::Volcano
+        )
+    }
+}
+
 impl Terrain {
     pub(crate) fn resource_options(self) -> &'static [Resource] {
         use Resource::*;
@@ -294,6 +324,10 @@ impl Resource {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Tile {
     pub(crate) terrain: Terrain,
+    /// Underlying Civ III ground for transition art. Feature/relief terrains
+    /// use this field because the legacy `terrain` value does not retain it.
+    #[serde(default)]
+    pub(crate) base_terrain: TerrainBase,
     pub(crate) altitude: i32,
     pub(crate) hut: bool,
     pub(crate) river: bool,

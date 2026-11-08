@@ -14,7 +14,7 @@ mod unit_stats;
 mod units;
 
 pub(crate) use entities::{City, Player, Production, Unit, UnitState, WorkKind};
-pub(crate) use terrain::{Resource, Terrain, Tile};
+pub(crate) use terrain::{Resource, Terrain, TerrainBase, Tile};
 pub(crate) use units::UnitKind;
 
 pub(super) fn research_cost(requirements: i32) -> i32 {

@@ -294,6 +294,7 @@ impl Simulation {
         self.cities.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
+            tile.base_terrain = TerrainBase::Grassland;
             tile.resource = None;
             tile.hut = false;
             tile.base = None;
@@ -301,7 +302,12 @@ impl Simulation {
             tile.seen = true;
             tile.visible = true;
         }
-        let styles = [(0, "Roman"), (1, "European"), (2, "Middle Eastern"), (4, "Asian")];
+        let styles = [
+            (0, "Roman"),
+            (1, "European"),
+            (2, "Middle Eastern"),
+            (4, "Asian"),
+        ];
         for (row, (owner, style)) in styles.into_iter().enumerate() {
             self.players[owner].known.clear();
             for (col, (size, band)) in [(3, "Small"), (9, "Medium"), (15, "Large")]
@@ -485,6 +491,7 @@ impl Simulation {
         self.cities.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
+            tile.base_terrain = TerrainBase::Grassland;
             tile.road = false;
             tile.railroad = false;
             tile.river = false;
@@ -564,7 +571,23 @@ impl Simulation {
                         },
                         _ => Terrain::Grassland,
                     };
-                    self.tile_mut(x, y).terrain = terrain;
+                    let tile = self.tile_mut(x, y);
+                    tile.terrain = terrain;
+                    tile.base_terrain = match terrain {
+                        Terrain::Glacier => TerrainBase::Ice,
+                        Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
+                        Terrain::Sea => TerrainBase::Sea,
+                        Terrain::Ocean => TerrainBase::Ocean,
+                        Terrain::Desert | Terrain::FloodPlains => TerrainBase::Desert,
+                        Terrain::Plains | Terrain::Hills | Terrain::Mountains => {
+                            TerrainBase::Plains
+                        }
+                        Terrain::Tundra => TerrainBase::Tundra,
+                        Terrain::Grassland | Terrain::GrasslandShield => TerrainBase::Grassland,
+                        Terrain::Forest | Terrain::Jungle | Terrain::Marsh | Terrain::Volcano => {
+                            TerrainBase::Grassland
+                        }
+                    };
                 }
             }
             None
@@ -608,6 +631,19 @@ impl Simulation {
             let (x, y) = offset_native_by_map(20, 24, dx, dy);
             let tile = self.tile_mut(x, y);
             tile.terrain = terrain;
+            tile.base_terrain = match terrain {
+                Terrain::Glacier => TerrainBase::Ice,
+                Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
+                Terrain::Sea => TerrainBase::Sea,
+                Terrain::Ocean => TerrainBase::Ocean,
+                Terrain::Desert | Terrain::FloodPlains => TerrainBase::Desert,
+                Terrain::Plains | Terrain::Hills | Terrain::Mountains => TerrainBase::Plains,
+                Terrain::Tundra => TerrainBase::Tundra,
+                Terrain::Grassland | Terrain::GrasslandShield => TerrainBase::Grassland,
+                Terrain::Forest | Terrain::Jungle | Terrain::Marsh | Terrain::Volcano => {
+                    TerrainBase::Grassland
+                }
+            };
             tile.resource = Some(resource);
         }
 

@@ -1,5 +1,6 @@
 //! Civ III sheet decoding. Both map views keep the same projection and painter passes.
 use super::*;
+use crate::sim::TerrainBase;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -338,6 +339,33 @@ struct GroundArt {
     sea: Image,
     ocean: Image,
     polar: Image,
+}
+
+fn render_ground(tile: &Tile) -> Ground {
+    use Terrain::*;
+    if TerrainBase::is_feature_terrain(tile.terrain) {
+        return match tile.base_terrain {
+            TerrainBase::Grassland => Ground::Grass,
+            TerrainBase::Plains => Ground::Plains,
+            TerrainBase::Desert => Ground::Desert,
+            TerrainBase::Tundra => Ground::Tundra,
+            TerrainBase::Coast => Ground::Coast,
+            TerrainBase::Sea => Ground::Sea,
+            TerrainBase::Ocean => Ground::Ocean,
+            TerrainBase::Ice => Ground::Ice,
+        };
+    }
+    match tile.terrain {
+        Glacier => Ground::Ice,
+        Tundra => Ground::Tundra,
+        Coast | Lake => Ground::Coast,
+        Sea => Ground::Sea,
+        Ocean => Ground::Ocean,
+        FloodPlains | Desert => Ground::Desert,
+        Plains => Ground::Plains,
+        Grassland | GrasslandShield => Ground::Grass,
+        Forest | Jungle | Hills | Mountains | Marsh | Volcano => unreachable!(),
+    }
 }
 
 fn smooth(value: f32) -> f32 {
@@ -697,28 +725,19 @@ impl Civ3 {
         let wrap = game.sim.map_wrap;
         let px = 2 * x + y.rem_euclid(2);
         let fallback = if (0..wrap.height()).contains(&y) || wrap.wraps_y() {
-            game.sim.render_tile(x, y).terrain
+            render_ground(game.sim.render_tile(x, y))
         } else {
-            Terrain::Glacier
+            Ice
         };
-        let terrain = |x: i32, y: i32| {
-            wrap.normalize(x.div_euclid(2), y)
-                .map_or(Terrain::Glacier, |(nx, ny)| {
-                    let tile = game.sim.render_tile(nx, ny);
-                    if tile.seen { tile.terrain } else { fallback }
-                })
-        };
-        let ground = |x: i32, y: i32| match terrain(x, y) {
-            Terrain::Glacier => Ice,
-            Terrain::Tundra => Tundra,
-            Terrain::Coast => Coast,
-            Terrain::Sea => Sea,
-            Terrain::Ocean => Ocean,
-            Terrain::Lake => Coast,
-            Terrain::FloodPlains => Desert,
-            Terrain::Plains => Plains,
-            Terrain::Desert => Desert,
-            _ => Grass,
+        let ground = |x: i32, y: i32| {
+            wrap.normalize(x.div_euclid(2), y).map_or(Ice, |(nx, ny)| {
+                let tile = game.sim.render_tile(nx, ny);
+                if tile.seen {
+                    render_ground(tile)
+                } else {
+                    fallback
+                }
+            })
         };
         for (side, (dx, dy)) in SIDES.into_iter().enumerate() {
             let (jx, jy) = (px + dx, y + dy);

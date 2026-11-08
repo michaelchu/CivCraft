@@ -34,34 +34,41 @@ intended end state; a completed phase requires the evidence listed below.
   uses staggered-grid projection and picking but still shares the old painter.
   Simulation tile indexing, topology, and most terrain choices remain legacy.
   This is not yet a native Civ III renderer or world model.
+- `Tile` now retains a separate `base_terrain` for Civ III transition art;
+  generated forest, jungle, hill, mountain, marsh, and volcano tiles no longer
+  have to use their feature name as the base sheet. The current generator
+  infers these bases from broad temperature bands because it does not yet
+  generate Civ III base terrain and overlays independently. This mapping is
+  explicitly provisional and must be replaced by the native generator.
 - Five focused PCX/tileset tests passed, the debug build succeeded, and the
   `civ3-city-sprites` UI review passed with the default tileset at seed 42.
 - `src/client/civ3_geometry.rs` holds a first-pass Civ III grid contract:
   parity-valid staggered coordinates, flat indexing, eight reciprocal
   neighbors, horizontal wrapping, pixel centers, and diamond picking.
   Seven focused geometry tests pass.
-- `--renderer civ3` now selects a Civ III geometry backend for projection,
-  tile picking, visible-tile placement, and edge-water placement. It still
-  shares the existing map painter and simulation. The backend is opt-in and
-  does not make the complete Civ III renderer phase complete.
+- The Civ III geometry backend controls projection, tile picking,
+  visible-tile placement, and edge-water placement. It still shares the
+  existing map painter and simulation, and does not make the complete Civ III
+  renderer phase complete.
 - The full UI review under `--renderer civ3` passed at seed 42: 47 scenes,
   146/146 checks, and 68 captures. The report is
   `/tmp/civ3-renderer-gallery-final/report.json`. Terrain blending, resources,
   both poles, city sprites, and map layers were visually inspected. The painter
   still exposes visible transition/layer mismatches that need to be addressed
   in the dedicated painter phase.
-- After making Civ III the default, the full 47-scene gallery passed at seed
-  42 with `renderer: civ3`; report and captures are in
-  `/tmp/civ3-default-review/`. The terrain-blending screenshot reproduces
-  hard-edged, saturated water-depth wedges and an overly uniform grass base
-  beneath varied overlays. This confirms the shared painter/model mismatch is
-  visible even when automated gallery assertions pass.
+- The focused `terrain-blending` scene passed with the new base-ground field;
+  capture: `/tmp/civ3-base-ground-review-fixed/terrain-blending.png`. The
+  fixture now assigns its expected base ground as well as feature terrain.
+  Blue mottling in the water transition is present in the original `wCSO.pcx`
+  sheet, so it is source artwork rather than an artifact to smooth away. Base
+  terrain for feature tiles remains an inference until map generation stores
+  it directly.
 - Two stale visual fixtures assumed vertical wrapping despite the bounded-pole
   default. The remembered-map scout now moves to another valid tile, and the
   water-depth fixture uses campaign-aware offsets and stays inside the map.
-- The full Rust suite passed 610/610 after making the Civ III backend the
-  default. The release build and complete default-backend UI gallery passed;
-  `git diff --check` is clean.
+- The full Rust suite passed 612/612 after adding base-ground generation
+  checks. The release build and focused terrain gallery passed; `git diff
+  --check` is clean.
 
 ## Phases and completion criteria
 
