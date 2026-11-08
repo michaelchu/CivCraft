@@ -223,6 +223,33 @@ mod wrap_generation_tests {
             );
         }
     }
+
+    #[test]
+    fn civ3_water_depths_form_contiguous_coast_sea_ocean_bands() {
+        let wrap = MapWrap::X;
+        let generator = Generator { wrap };
+        let land = generator.index(wrap.width() / 2, wrap.height() / 2);
+        let mut terrain = vec![Terrain::Ocean; wrap.tile_count()];
+        terrain[land] = Terrain::Grassland;
+        generator.finish_water(&mut terrain, &mut MapRng::new(0));
+
+        for (tile, &water) in terrain.iter().enumerate() {
+            if !water.is_water() {
+                continue;
+            }
+            let distance = (1..=4).find(|&radius| {
+                generator
+                    .within(tile, radius)
+                    .any(|near| !terrain[near].is_water())
+            });
+            let expected = match distance {
+                Some(1) => Terrain::Coast,
+                Some(_) => Terrain::Sea,
+                None => Terrain::Ocean,
+            };
+            assert_eq!(water, expected, "water depth at {:?}", wrap.position(tile));
+        }
+    }
 }
 
 #[cfg(test)]

@@ -655,6 +655,28 @@ impl Simulation {
         }
     }
 
+    /// A controlled island with evenly spaced Civ III water-depth rings.
+    /// This isolates atlas transitions from procedural coastline generation.
+    pub(crate) fn ui_review_civ3_water_depths(&mut self) {
+        self.ui_review_terrain_layers(false);
+        for tile in 0..self.tiles.len() {
+            self.tiles[tile].terrain = Terrain::Ocean;
+        }
+        for dy in -12i32..=12 {
+            for dx in -12i32..=12 {
+                let distance = crate::sim::topology::isohex_vector_distance(dx, dy);
+                let terrain = match distance {
+                    0..=3 => Terrain::Grassland,
+                    4..=5 => Terrain::Coast,
+                    6..=8 => Terrain::Sea,
+                    _ => Terrain::Ocean,
+                };
+                let (x, y) = offset_native_by_map(20, 24, dx, dy);
+                self.tile_mut(x, y).terrain = terrain;
+            }
+        }
+    }
+
     pub(crate) fn ui_review_ice_transitions(&mut self) {
         self.ui_review_terrain_layers(false);
         for dy in -8i32..=8 {
