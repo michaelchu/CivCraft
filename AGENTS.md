@@ -124,9 +124,10 @@ For focused screenshot galleries and visual review, see `UI_REVIEW.md` and the
 
 ## Checking map-generation goldens
 
-Campaign geometry depends on wrapping. This preset uses 36×48 tiles with
-`--wrap x` and 32×64 with `--wrap xy`. Generate actual maps for each mode in
-tests. Changing `sim.map_wrap` after generation leaves arrays inconsistent.
+Campaigns use Civ III's horizontal map topology and 36×48 tile preset. The old
+WrapXY topology is retained only in historical reference fixtures and is not a
+supported game mode. Generate maps with the desired topology from the start;
+changing `sim.map_wrap` after generation leaves arrays inconsistent.
 
 `tests/fixtures/freeciv_mapgen_vectors.tsv` contains raw Freeciv 3.3.90.14-dev
 (eb8c703) terrain, altitude, extras and starting locations for historical

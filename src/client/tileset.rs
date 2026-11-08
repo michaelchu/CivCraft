@@ -13,16 +13,6 @@ const CELL_W: usize = WIDTH + 2;
 const CELL_H: usize = HEIGHT + 2;
 const PAGE: usize = 12;
 const SIDES: [(i32, i32); 4] = [(0, -1), (1, 0), (0, 1), (-1, 0)];
-const CORNER_NEIGHBORS: [(i32, i32); 8] = [
-    (1, -1),
-    (1, 1),
-    (-1, 1),
-    (-1, -1),
-    (2, 0),
-    (-2, 0),
-    (0, 2),
-    (0, -2),
-];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Ground {
@@ -45,11 +35,13 @@ const LAND_SHEETS: [(&str, &str, [Ground; 3]); 6] = [
     ("tundra-grass-coast", "XTGC", [Tundra, Grass, Coast]),
     ("grass-coast", "XGGC", [Grass, Grass, Coast]),
 ];
-const OVERLAYS: [(&str, &str, u16, u16, usize); 4] = [
+const OVERLAYS: [(&str, &str, u16, u16, usize); 6] = [
     ("vegetation", "grassland forests (normal)", 768, 616, 88),
     ("marsh", "marsh", 768, 264, 88),
     ("hills", "XHILLS", 128, 72, 72),
     ("mountains", "Mountains", 128, 88, 88),
+    ("floodplains", "floodplains", 512, 256, 64),
+    ("volcano", "Volcanos", 512, 352, 88),
 ];
 const IRRIGATION: [(&str, &str); 4] = [
     ("irrigation", "irrigation"),
@@ -125,7 +117,7 @@ impl Theme {
                         || IRRIGATION.iter().any(|entry| entry.0 == key)
                         || matches!(
                             key,
-                            "water" | "ocean" | "polar" | "resources" | "resource-shadows"
+                            "water" | "sea" | "ocean" | "polar" | "resources" | "resource-shadows"
                         )
                 };
                 if let Some((key, value)) = entry
@@ -217,6 +209,7 @@ impl<'a> SheetCell<'a> {
 struct GroundArt {
     land: Vec<Image>,
     water: Image,
+    sea: Image,
     ocean: Image,
     polar: Image,
 }
@@ -294,6 +287,8 @@ impl GroundArt {
                 row,
                 if row == 2 { 1 + variant % 7 } else { variant },
             )
+        } else if pure_water && depths == [1; 4] {
+            SheetCell::new(&self.sea, variant, (variant * 5) % 9)
         } else if pure_water && depths == [2; 4] {
             SheetCell::new(&self.ocean, variant, (variant * 5) % 9)
         } else if ice_over_water {
@@ -432,16 +427,22 @@ impl Civ3 {
             .iter()
             .map(|(key, file, _)| required(key, file, (1152, 576)))
             .collect::<Result<Vec<_>, _>>()?;
+        let mut polar = required("polar", "polarICEcaps-final", (1024, 256))?;
+        prepare_keyed_overlay(&mut polar);
         let art = GroundArt {
             land,
             water: required("water", "wCSO", (1152, 576))?,
+            sea: required("sea", "wSSS", (1152, 576))?,
             ocean: required("ocean", "wOOO", (1152, 576))?,
-            polar: required("polar", "polarICEcaps-final", (1024, 256))?,
+            polar,
         };
         let optional = |key, file, size| -> Result<_, String> {
             Ok(theme
                 .image(key, &format!("Terrain/{file}.png"), size, false)?
-                .map(|image| {
+                .map(|mut image| {
+                    if matches!(key, "floodplains" | "volcano") {
+                        prepare_keyed_overlay(&mut image);
+                    }
                     let texture = Texture2D::from_image(&image);
                     texture.set_filter(FilterMode::Nearest);
                     texture
@@ -568,11 +569,11 @@ impl Civ3 {
         let fallback = if (0..wrap.height()).contains(&y) || wrap.wraps_y() {
             game.sim.render_tile(x, y).terrain
         } else {
-            Terrain::DeepOcean
+            Terrain::Glacier
         };
         let terrain = |x: i32, y: i32| {
             wrap.normalize(x.div_euclid(2), y)
-                .map_or(Terrain::DeepOcean, |(nx, ny)| {
+                .map_or(Terrain::Glacier, |(nx, ny)| {
                     let tile = game.sim.render_tile(nx, ny);
                     if tile.seen { tile.terrain } else { fallback }
                 })
@@ -580,20 +581,13 @@ impl Civ3 {
         let ground = |x: i32, y: i32| match terrain(x, y) {
             Terrain::Glacier => Ice,
             Terrain::Tundra => Tundra,
+            Terrain::Coast => Coast,
+            Terrain::Sea => Sea,
+            Terrain::Ocean => Ocean,
+            Terrain::Lake => Coast,
+            Terrain::FloodPlains => Desert,
             Terrain::Plains => Plains,
             Terrain::Desert => Desert,
-            t if t.is_water() => {
-                if CORNER_NEIGHBORS.iter().any(|&(dx, dy)| {
-                    let next = terrain(x + dx, y + dy);
-                    !next.is_water() && next != Terrain::Glacier
-                }) {
-                    Coast
-                } else if t == Terrain::DeepOcean {
-                    Ocean
-                } else {
-                    Sea
-                }
-            }
             _ => Grass,
         };
         for (side, (dx, dy)) in SIDES.into_iter().enumerate() {
@@ -639,12 +633,47 @@ impl Civ3 {
         center: Vec2,
         size: Vec2,
     ) -> bool {
+        if terrain == Terrain::GrasslandShield {
+            // The supplied terrain sheets have no separate Grassland shield
+            // sheet; Civ III depicts this yield variant with a central rocky
+            // tuft. Recreate that small marker over the ordinary Grassland.
+            let base_y = center.y + size.y * 0.05;
+            let rock = Color::from_rgba(91, 83, 61, 255);
+            let light = Color::from_rgba(171, 155, 108, 255);
+            draw_ellipse(
+                center.x - size.x * 0.04,
+                base_y,
+                size.x * 0.055,
+                size.y * 0.035,
+                0.0,
+                rock,
+            );
+            draw_ellipse(
+                center.x + size.x * 0.035,
+                base_y - size.y * 0.01,
+                size.x * 0.045,
+                size.y * 0.03,
+                0.0,
+                light,
+            );
+            draw_ellipse(
+                center.x + size.x * 0.08,
+                base_y + size.y * 0.015,
+                size.x * 0.04,
+                size.y * 0.025,
+                0.0,
+                rock,
+            );
+            return true;
+        }
         let (index, row, count) = match terrain {
             Terrain::Forest => (0, 6, 5),
             Terrain::Jungle => (0, 2, 6),
-            Terrain::Swamp => (1, 2, 6),
+            Terrain::Marsh => (1, 2, 6),
             Terrain::Hills => (2, 0, 1),
             Terrain::Mountains => (3, 0, 1),
+            Terrain::FloodPlains => (4, 0, 4),
+            Terrain::Volcano => (5, 0, 4),
             _ => return true,
         };
         let Some(texture) = &self.overlays[index] else {
@@ -697,6 +726,16 @@ impl Civ3 {
             Rect::new((col * 50 + 1) as f32, (row * 50 + 1) as f32, 49.0, 49.0),
         );
         true
+    }
+}
+
+fn prepare_keyed_overlay(image: &mut Image) {
+    for pixel in image.get_image_data_mut() {
+        let magenta = pixel[0] > 200 && pixel[1] < 40 && pixel[2] > 200;
+        let green = pixel[0] < 40 && pixel[1] > 200 && pixel[2] < 40;
+        if magenta || green {
+            pixel[3] = 0;
+        }
     }
 }
 
@@ -800,6 +839,15 @@ mod tests {
         assert_eq!(pixels[350], [0; 4]);
         assert_eq!(pixels[301], [23, 44, 55, 255]);
         assert_eq!(pixels[302], [0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn civ3_optional_overlay_key_colors_are_transparent() {
+        let mut image = Image::gen_image_color(2, 1, BLANK);
+        image.get_image_data_mut()[0] = [255, 0, 255, 255];
+        image.get_image_data_mut()[1] = [0, 255, 0, 255];
+        prepare_keyed_overlay(&mut image);
+        assert_eq!(image.get_image_data(), &[[255, 0, 255, 0], [0, 255, 0, 0]]);
     }
 
     #[test]

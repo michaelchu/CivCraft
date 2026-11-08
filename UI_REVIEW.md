@@ -160,10 +160,9 @@ for reference sources, save migration and fidelity boundaries.
 ### Wrap and polar checks
 
 `north-pole` and `south-pole` reveal the actual generated terrain and focus the
-viewport at its northern/southern limits. `wrap-seam` stages a unit at the top
-edge and executes the same real Move command: it crosses in `--wrap xy`, and is
-rejected in default `--wrap x` before an allowed move confirms input still works.
-Run the gallery separately with each CLI mode; the sidebar identifies the mode.
+viewport at its northern/southern limits. CivCraft campaigns use Civ III's
+horizontal wrap only; WrapXY is retained in low-level geometry tests, not as a
+launch or save mode.
 
 Wrap validation: 562/562 Rust tests, including reproducible cylinder generation,
 12-turn cylinder campaigns, per-mode movement/sight/path/city-radius checks,
@@ -175,14 +174,10 @@ visually inspected. Formatting and whitespace checks passed.
 
 ### Native polar backing and camera
 
-The polar scenes assert the extended first/last-row anchor in WrapX, native
-anchors in WrapXY, and input inverse projection. In WrapX, attempting to pan beyond either bound keeps
-the camera fixed. In WrapXY, panning across the seam continues one adjacent row
-and produces an additional `-next` capture. WrapX `-next` captures instead
-show the minimum permitted zoom and check that the ocean fills the viewport.
-World and city work maps clear to
-reference black. Camera geometry tests also cover subpixel zoom and oversized
-viewports; see RENDERING_PARITY.md for source locations and exact policy.
+The polar scenes check the bounded north/south camera and input projection.
+World and city work maps clear to reference black. Camera geometry tests cover
+subpixel zoom and oversized viewports; see RENDERING_PARITY.md for source
+locations and current policy.
 
 Polar rendering validation: 565/565 Rust tests; 278/278 native gameplay checks
 in each wrap mode; all 36 gallery scenarios at both desktop and compact sizes.
@@ -236,33 +231,17 @@ source pixel into transparency. Lake cells are unchanged.
 
 ### Native map dimensions and polar generation
 
-WrapX now uses the reference 36×48 dimensions, while WrapXY uses 32×64.
-Ten native Freeciv goldens cover terrain, elevation, extras and starting sites
-for five seeds in each mode. All 578 Rust tests pass, including concurrent
-12-turn campaigns with both geometries and worker removal across each seam.
-The desktop gameplay suite passed 278/278 checks on both launch modes.
-All 40 gallery scenes pass at 1280×720 and 800×600 in each mode: WrapX produces
-57/58 captures, WrapXY 59/60. Generated north/south polar terrain, seam
-crossing, minimap aspect ratios and compact layouts were visually inspected.
+Campaigns use the Civ III 36×48 horizontal map topology. Historical Freeciv
+goldens and WrapXY geometry remain available only as internal comparison tests;
+the desktop game no longer offers WrapXY as a mode.
 
 ### WrapX ocean boundaries
 
-WrapX now generates ocean instead of glacier/tundra and guarantees deep-water
-first/last rows. Two decorative ocean rows extend beyond those playable edges
-so the viewport shows continuous blue water without black triangles. They
-inherit nearby fog visibility and remain non-playable. WrapXY keeps its native
-polar terrain. The existing `north-pole` / `south-pole` scene names are retained
-for northern/southern boundary checks; `-next` captures show minimum zoom.
+WrapX keeps the polar edge rows ocean and clears gameplay extras from them.
+Beyond the playable boundary, the Civ III polar sheet renders impenetrable
+visual caps over the decorative rows. The `north-pole` / `south-pole` scenes
+show each cap; `-next` captures show minimum zoom.
 
 Gallery checks cover the extended camera anchors, actual boundary-row input,
-blocked panning and zoom-out coverage. Raw reference goldens still test the
-underlying generator; WrapX gameplay generation has separate ocean-policy and
-valid-start checks. See AGENTS.md for map-generation validation guidance and
-RENDERING_PARITY.md for visual comparison details.
-
-Validation: 579 Rust tests pass, including ocean-only WrapX generation across
-seven seeds with valid starting sites. Both WrapX galleries pass all 40 scenes
-at 1280×720 and 800×600 (59/60 captures); the WrapXY desktop gallery also passes.
-The seed-42 desktop gameplay suite passes 278/278 checks. Generated north/south
-ocean boundaries were visually inspected after rebuilding their water depths;
-there is no residual shallow-water stripe from the removed polar coastline.
+bounded panning and zoom-out coverage. See AGENTS.md for map-generation
+validation guidance and RENDERING_PARITY.md for visual comparison details.

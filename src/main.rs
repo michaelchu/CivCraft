@@ -57,15 +57,12 @@ fn ensure_parent(path: &str) {
 #[macroquad::main(window_conf)]
 /// Starts the game or one of its automated capture and playtest modes.
 async fn main() {
-    let wrap_arg = argument_value("--wrap");
-    let wrap = wrap_arg
-        .as_deref()
-        .unwrap_or("x")
-        .parse::<sim::topology::MapWrap>()
-        .unwrap_or_else(|error| {
-            eprintln!("{error}");
-            std::process::exit(2);
-        });
+    if env::args().any(|arg| arg == "--wrap") {
+        eprintln!("--wrap has been removed; CivCraft uses the Civ III horizontal map topology.");
+        std::process::exit(2);
+    }
+    // Civ III campaigns use a horizontally wrapped map with bounded poles.
+    let wrap = sim::topology::MapWrap::X;
     let renderer_name = argument_value("--renderer").unwrap_or_else(|| "amplio2".to_owned());
     let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {
         eprintln!("{error}");
@@ -124,10 +121,8 @@ async fn main() {
             });
         match result {
             Ok(simulation) => {
-                if wrap_arg.is_some() && simulation.map_wrap != wrap {
-                    eprintln!(
-                        "--wrap conflicts with the saved map's wrapping; start a new game to change topology"
-                    );
+                if simulation.map_wrap.wraps_y() {
+                    eprintln!("This campaign uses the retired WrapXY map mode and cannot be loaded.");
                     std::process::exit(2);
                 }
                 Game::from_simulation_with_renderer(simulation, std::rc::Rc::clone(&renderer))

@@ -5,8 +5,8 @@ use super::*;
 impl Game {
     fn ocean_match_type(&self, x: i32, y: i32) -> u8 {
         match self.sim.render_tile(x, y).terrain {
-            Terrain::DeepOcean => 0,
-            Terrain::Ocean | Terrain::Lake | Terrain::Glacier => 1,
+            Terrain::Ocean => 0,
+            Terrain::Coast | Terrain::Sea | Terrain::Lake | Terrain::Glacier => 1,
             _ => 2,
         }
     }
@@ -351,7 +351,7 @@ impl Game {
                     tileset.draw_base(self, x, y, center, vec2(tile_w, tile_h));
                     continue;
                 }
-                assets.draw_masked_terrain_backing(Terrain::DeepOcean, center, tile_w, tile_h);
+                assets.draw_masked_terrain_backing(Terrain::Ocean, center, tile_w, tile_h);
                 let (row, col) = ocean_cell_source([0; 4]);
                 for corner in 0..4 {
                     assets.draw_ocean_corner(

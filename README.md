@@ -47,25 +47,19 @@ cargo run --release -- --seed 12345
 
 ## Map wrapping
 
-New games wrap horizontally only by default. Choose either mode at launch:
+New games use Civ III's horizontal wrap with bounded polar edges:
 
 ```sh
-cargo run --release -- --wrap x
-cargo run --release -- --wrap xy
+cargo run --release -- --seed 42
 ```
 
-`x` creates a cylinder with bounded northern/southern ocean edges and no
-generated glacier or tundra. The blue ocean extends visually past the boundary
-to hide its staggered outline.
-`xy` wraps both axes and uses the reference preset's torus climate. Native sizing
-for our six-player preset produces 36×48 tiles in `x` and 32×64 in `xy`. Use the same seed **and wrap setting** to replay a
-map, for example `cargo run --release -- --seed 42 --wrap xy`. The current mode
-appears next to the seed above the minimap.
+The playable map does not generate land on its top and bottom edge rows. The
+Civ III `polarICEcaps-final.png` artwork supplies the visual polar caps outside
+the playable map. The old WrapXY option has been removed from the game launch
+flow. Existing WrapXY saves are not loadable.
 
-The setting applies to generation, movement, pathfinding, city work areas,
-visibility and rendering. Saves record it; loading uses the saved mode. An
-explicit conflicting `--wrap` with `--load` is rejected rather than changing
-an existing world's geography.
+Map geometry applies consistently to generation, movement, pathfinding, city
+work areas, visibility and rendering.
 
 ## Map tilesets
 
@@ -73,7 +67,7 @@ Amplio2 is the default. To use the Civ III artwork in
 [`tilesets/civ3/`](tilesets/README.md), launch with:
 
 ```sh
-cargo run --release -- --tileset civ3 --seed 42 --wrap x
+cargo run --release -- --tileset civ3 --seed 42
 ```
 
 The selection applies to the world map and the city work map. It is independent

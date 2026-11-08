@@ -338,7 +338,7 @@ impl Assets {
         height: f32,
     ) {
         let row = match terrain {
-            Terrain::DeepOcean => 0,
+            Terrain::Ocean => 0,
             Terrain::Lake => 2,
             Terrain::Glacier => 3,
             _ => 1,

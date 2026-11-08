@@ -13,7 +13,7 @@ const BLEND_DIRS: [(i32, i32); 4] = [(0, -1), (0, 1), (1, 0), (-1, 0)];
 const BLEND_OFFSETS: [(usize, usize); 4] = [(48, 0), (0, 24), (48, 24), (0, 0)];
 const BLEND_CELL_W: usize = 98;
 const BLEND_CELL_H: usize = 50;
-const TERRAIN_ROWS: usize = 13;
+const TERRAIN_ROWS: usize = 17;
 type TerrainCorner = ([(i32, i32); 3], (f32, f32));
 const CORNERS: [TerrainCorner; 4] = [
     ([(-1, 0), (-1, -1), (0, -1)], (24.0, 0.0)),
@@ -70,11 +70,14 @@ fn overlay_top(center_y: f32, terrain: Terrain, zoom: f32) -> f32 {
 
 fn blend_source(terrain: Terrain) -> Option<(usize, usize)> {
     match terrain {
-        Terrain::DeepOcean => None,
-        Terrain::Ocean | Terrain::Lake => Some((15, 3)),
+        Terrain::Ocean => None,
+        Terrain::Coast | Terrain::Sea | Terrain::Lake => Some((15, 3)),
         // terrain1.spec: t.blend.arctic is an explicit blender even though
         // tile_arctic has blend_layer=0. It paints ice onto neighbors only.
         Terrain::Glacier => Some((7, 0)),
+        Terrain::FloodPlains => Some((5, 0)),
+        Terrain::Volcano => Some((9, 0)),
+        Terrain::GrasslandShield => Some((7, 0)),
         _ => terrain.sprite_row().map(|row| (row as usize, 0)),
     }
 }
@@ -82,7 +85,7 @@ fn blend_source(terrain: Terrain) -> Option<(usize, usize)> {
 fn receives_blending(terrain: Terrain) -> bool {
     // These have blend_layer=0. Arctic nevertheless has an explicit blender,
     // so its ice can extend onto a neighboring land tile.
-    !matches!(terrain, Terrain::DeepOcean | Terrain::Glacier)
+    !matches!(terrain, Terrain::Ocean | Terrain::Glacier)
 }
 
 // Native fill_terrain_sprite_layer + fill_terrain_sprite_blending: the
@@ -159,8 +162,8 @@ fn build_blend_atlas_impl(terrain: &Image, custom: bool) -> Image {
         BLANK,
     );
     let terrains = [
+        Terrain::Sea,
         Terrain::Ocean,
-        Terrain::DeepOcean,
         Terrain::Lake,
         Terrain::Glacier,
         Terrain::Jungle,
@@ -170,8 +173,12 @@ fn build_blend_atlas_impl(terrain: &Image, custom: bool) -> Image {
         Terrain::Hills,
         Terrain::Mountains,
         Terrain::Plains,
-        Terrain::Swamp,
+        Terrain::Marsh,
         Terrain::Tundra,
+        Terrain::Coast,
+        Terrain::FloodPlains,
+        Terrain::Volcano,
+        Terrain::GrasslandShield,
     ];
     let source_pixels = terrain.get_image_data();
     let pixels = atlas.get_image_data_mut();
@@ -297,7 +304,7 @@ impl Game {
                 },
             );
         }
-        if matches!(terrain, Terrain::Ocean | Terrain::DeepOcean) {
+        if matches!(terrain, Terrain::Coast | Terrain::Sea | Terrain::Ocean) {
             self.draw_ice_cliffs(
                 assets,
                 x,
@@ -413,22 +420,22 @@ mod tests {
             Terrain::Grassland,
             Terrain::Tundra,
             Terrain::Desert,
-            Terrain::Swamp,
+            Terrain::Marsh,
             Terrain::Plains,
         ] {
             assert!(blends_neighbor(land, Terrain::Glacier));
             assert!(!blends_neighbor(Terrain::Glacier, land));
         }
         assert!(!blends_neighbor(Terrain::Glacier, Terrain::Glacier));
-        assert!(!blends_neighbor(Terrain::DeepOcean, Terrain::Glacier));
-        assert!(blends_neighbor(Terrain::Ocean, Terrain::Glacier));
+        assert!(!blends_neighbor(Terrain::Ocean, Terrain::Glacier));
+        assert!(blends_neighbor(Terrain::Sea, Terrain::Glacier));
     }
 
     #[test]
     fn custom_ice_stipple_stays_inside_the_diamond_and_excludes_water() {
         assert!(custom_ice_pair(Terrain::Glacier, Terrain::Grassland));
         assert!(custom_ice_pair(Terrain::Tundra, Terrain::Glacier));
-        for water in [Terrain::Ocean, Terrain::DeepOcean, Terrain::Lake] {
+        for water in [Terrain::Sea, Terrain::Ocean, Terrain::Lake] {
             assert!(!custom_ice_pair(Terrain::Glacier, water));
             assert!(!custom_ice_pair(water, Terrain::Glacier));
         }
@@ -580,7 +587,7 @@ mod tests {
                 .unwrap();
         let atlas = build_blend_atlas(&image);
         for kind in [
-            Terrain::Ocean,
+            Terrain::Sea,
             Terrain::Lake,
             Terrain::Glacier,
             Terrain::Desert,
@@ -590,7 +597,7 @@ mod tests {
             Terrain::Hills,
             Terrain::Mountains,
             Terrain::Plains,
-            Terrain::Swamp,
+            Terrain::Marsh,
             Terrain::Tundra,
         ] {
             let (row, col) = blend_source(kind).unwrap();
@@ -617,8 +624,8 @@ mod tests {
             }
         }
         assert!(!receives_blending(Terrain::Glacier));
-        assert!(!receives_blending(Terrain::DeepOcean));
+        assert!(!receives_blending(Terrain::Ocean));
         assert!(blend_source(Terrain::Glacier).is_some());
-        assert!(blend_source(Terrain::DeepOcean).is_none());
+        assert!(blend_source(Terrain::Ocean).is_none());
     }
 }
