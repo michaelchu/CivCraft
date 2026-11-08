@@ -223,6 +223,19 @@ impl MapWrap {
             _ => None,
         }
     }
+    pub(crate) fn civ3_flic_direction_index(self, direction: usize) -> Option<u8> {
+        match direction {
+            0 => Some(5), // N
+            1 => Some(4), // NE
+            2 => Some(3), // E
+            3 => Some(2), // SE
+            4 => Some(1), // S
+            5 => Some(0), // SW
+            6 => Some(7), // W
+            7 => Some(6), // NW
+            _ => None,
+        }
+    }
     pub(crate) fn neighbors(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> + use<> {
         ISOHEX_DIRS
             .into_iter()
@@ -303,6 +316,16 @@ mod civ3_flic_direction_tests {
         let to = wrap.offset(from.0, from.1, step.0, step.1).unwrap();
         assert_eq!(to.0, 0);
         assert_eq!(wrap.civ3_flic_direction(step.0, step.1), Some(4));
+    }
+
+    #[test]
+    fn civ3_direction_indices_follow_flic_row_order() {
+        let wrap = MapWrap::X;
+        let expected_rows = [5, 4, 3, 2, 1, 0, 7, 6];
+        for (direction, expected) in expected_rows.into_iter().enumerate() {
+            assert_eq!(wrap.civ3_flic_direction_index(direction), Some(expected));
+        }
+        assert_eq!(wrap.civ3_flic_direction_index(CIV3_DIRS.len()), None);
     }
 }
 

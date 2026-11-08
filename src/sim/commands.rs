@@ -15,6 +15,7 @@ use crate::rules::{Building, Tech};
 
 pub(crate) enum Command {
     Move(u32, i32, i32),
+    MoveCiv3(u32, usize),
     GoTo(u32, i32, i32),
     FoundCity(u32),
     Work(u32, WorkKind),
@@ -73,6 +74,7 @@ impl Simulation {
         }
         let unit_id = match command {
             Move(id, ..)
+            | MoveCiv3(id, _)
             | GoTo(id, ..)
             | FoundCity(id)
             | Work(id, ..)
@@ -111,6 +113,9 @@ impl Simulation {
         }
         match command {
             Move(id, dx, dy) => self.try_move_unit(id, dx, dy) != MoveResult::Blocked,
+            MoveCiv3(id, direction) => {
+                self.try_move_unit_civ3(id, direction) != MoveResult::Blocked
+            }
             GoTo(id, x, y) => {
                 (0..self.map_wrap.width()).contains(&x)
                     && (0..self.map_wrap.height()).contains(&y)

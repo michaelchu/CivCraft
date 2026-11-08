@@ -384,19 +384,46 @@ impl Simulation {
     }
 
     pub(super) fn try_move_unit(&mut self, unit_id: u32, dx: i32, dy: i32) -> MoveResult {
-        let Some(index) = self.unit_index_by_id(unit_id) else {
-            return MoveResult::Blocked;
-        };
         if !is_isohex_step(dx, dy) {
             return MoveResult::Blocked;
         }
+        let Some(unit) = self.unit_by_id(unit_id).cloned() else {
+            return MoveResult::Blocked;
+        };
+        let Some((nx, ny)) = self.map_wrap.offset(unit.x, unit.y, dx, dy) else {
+            return MoveResult::Blocked;
+        };
+        let facing = self.map_wrap.civ3_flic_direction(dx, dy);
+        self.try_move_unit_to(unit_id, nx, ny, facing)
+    }
+
+    pub(super) fn try_move_unit_civ3(&mut self, unit_id: u32, direction: usize) -> MoveResult {
+        let Some(unit) = self.unit_by_id(unit_id).cloned() else {
+            return MoveResult::Blocked;
+        };
+        let Some((nx, ny)) = self.map_wrap.civ3_neighbor(unit.x, unit.y, direction) else {
+            return MoveResult::Blocked;
+        };
+        let Some(facing) = self.map_wrap.civ3_flic_direction_index(direction) else {
+            return MoveResult::Blocked;
+        };
+        self.try_move_unit_to(unit_id, nx, ny, Some(facing))
+    }
+
+    fn try_move_unit_to(
+        &mut self,
+        unit_id: u32,
+        nx: i32,
+        ny: i32,
+        facing: Option<u8>,
+    ) -> MoveResult {
+        let Some(index) = self.unit_index_by_id(unit_id) else {
+            return MoveResult::Blocked;
+        };
         let unit = self.units[index].clone();
         if unit.moves_left <= 0 || unit.work_left > 0 || unit.state == UnitState::Sentry {
             return MoveResult::Blocked;
         }
-        let Some((nx, ny)) = self.map_wrap.offset(unit.x, unit.y, dx, dy) else {
-            return MoveResult::Blocked;
-        };
         if self.treaty_blocks_move(&unit, nx, ny) {
             if unit.owner == HUMAN {
                 self.add_event("A treaty prevents entry to that tile.");
@@ -451,8 +478,6 @@ impl Simulation {
             return self.try_bombard(&unit, nx, ny);
         }
         let defender = self.best_defender_id(&unit, nx, ny);
-        let facing = self.map_wrap.civ3_flic_direction(dx, dy);
-
         if let Some(defender_id) = defender {
             if unit.kind.stats().attack <= 0
                 || unit.kind.is_nuclear_weapon()

@@ -167,6 +167,14 @@ intended end state; a completed phase requires the evidence listed below.
   merchant ferry routing still expands legacy offsets, so mixing the two
   coordinate systems breaks that route. Movement/pathfinding and other callers
   must migrate together before the legacy iterator can be retired.
+- Human directional movement now has a Civ III direction-index command for all
+  eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
+  corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction
+  order. Existing six-way `Move` commands and route planning remain as a
+  compatibility path while AI and pathfinding callers migrate. This is an
+  incremental transition, not completion of eight-direction movement. Tests
+  cover each direction's destination and FLC facing row; `cargo test --offline`
+  passes 643/643 after this increment.
 - City-local building requirements (coast, river, lake, water) now traverse
   the explicit Civ III neighbor graph. Road connectivity for unit resources
   still follows the legacy iterator because route expansion has not migrated.

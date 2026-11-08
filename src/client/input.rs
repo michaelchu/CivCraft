@@ -163,37 +163,41 @@ impl Game {
             || is_key_pressed(KeyCode::Key8)
             || is_key_pressed(KeyCode::Kp8)
         {
-            Some((0, -1))
+            Some(0)
         } else if is_key_pressed(KeyCode::Down)
             || is_key_pressed(KeyCode::Key2)
             || is_key_pressed(KeyCode::Kp2)
         {
-            Some((0, 1))
+            Some(4)
         } else if is_key_pressed(KeyCode::Left)
             || is_key_pressed(KeyCode::Key4)
             || is_key_pressed(KeyCode::Kp4)
         {
-            Some((-1, 0))
+            Some(6)
         } else if is_key_pressed(KeyCode::Right)
             || is_key_pressed(KeyCode::Key6)
             || is_key_pressed(KeyCode::Kp6)
         {
-            Some((1, 0))
+            Some(2)
         } else if is_key_pressed(KeyCode::Q)
             || is_key_pressed(KeyCode::Key7)
             || is_key_pressed(KeyCode::Kp7)
         {
-            Some((-1, -1))
+            Some(7)
         } else if is_key_pressed(KeyCode::C)
             || is_key_pressed(KeyCode::Key3)
             || is_key_pressed(KeyCode::Kp3)
         {
-            Some((1, 1))
+            Some(3)
+        } else if is_key_pressed(KeyCode::Key9) || is_key_pressed(KeyCode::Kp9) {
+            Some(1)
+        } else if is_key_pressed(KeyCode::Key1) || is_key_pressed(KeyCode::Kp1) {
+            Some(5)
         } else {
             None
         };
-        if let (Some(id), Some((dx, dy))) = (self.selected_unit, direction)
-            && self.move_selected(Command::Move(id, dx, dy), id)
+        if let (Some(id), Some(direction)) = (self.selected_unit, direction)
+            && self.move_selected(Command::MoveCiv3(id, direction), id)
         {
             self.select_next_if_exhausted(id);
         }

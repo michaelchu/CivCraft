@@ -131,6 +131,38 @@ fn moved_units_retain_the_matching_civ3_flic_direction_row() {
 }
 
 #[test]
+fn civ3_move_commands_cover_all_eight_neighbors_and_facing_rows() {
+    let expected_rows = [5, 4, 3, 2, 1, 0, 7, 6];
+    for direction in 0..CIV3_DIRS.len() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.road = false;
+        }
+        let start = (10, 20);
+        let destination = game
+            .map_wrap
+            .civ3_neighbor(start.0, start.1, direction)
+            .unwrap();
+        let id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
+
+        assert!(game.apply(Command::MoveCiv3(id, direction)));
+        let moved = game.unit_by_id(id).unwrap();
+        assert_eq!((moved.x, moved.y), destination);
+        assert_eq!(moved.facing, expected_rows[direction]);
+    }
+}
+
+#[test]
+fn civ3_move_command_rejects_an_invalid_direction_without_moving() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
+    assert!(!game.apply(Command::MoveCiv3(id, CIV3_DIRS.len())));
+    assert_eq!((game.unit_by_id(id).unwrap().x, game.unit_by_id(id).unwrap().y), (10, 20));
+}
+
+#[test]
 fn big_land_has_no_terrain_defense_and_nuclear_is_not_air_attacker() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.cities.clear();
