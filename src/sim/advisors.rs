@@ -194,7 +194,7 @@ impl Simulation {
             let mut value = self.city_forecast(city).shield_surplus();
             if self
                 .map_wrap
-                .neighbors(city.x, city.y)
+                .civ3_neighbors(city.x, city.y)
                 .any(|(x, y)| self.tile(x, y).terrain.is_water())
             {
                 value /= 2;

@@ -16,7 +16,7 @@ impl Simulation {
             if (x, y) == (b.x, b.y) {
                 return true;
             }
-            for (nx, ny) in self.map_wrap.neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
                 let index = self.map_wrap.index(nx, ny);
                 if !seen[index] && !self.tiles[index].terrain.is_water() {
                     seen[index] = true;

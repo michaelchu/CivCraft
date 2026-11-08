@@ -161,7 +161,7 @@ fn generic_merchant_ferry_fixtures_pick_up_and_deliver_with_native_galleons() {
                 assert_eq!(position(&game, merchant), waiting);
             }
         }
-        assert_eq!(turns, [1, 3, 1][mode]);
+        assert_eq!(turns, [1, 3, 1][mode], "ferry scenario mode {mode}");
         assert!(
             game.merchant_playtest_route_exists(home, destination),
             "mode{mode} {turns}"

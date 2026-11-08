@@ -332,12 +332,11 @@ impl Simulation {
                     });
                     if direction.is_some_and(|direction| {
                         self.try_move_unit_civ3(merchant.id, direction) == MoveResult::Moved
-                    })
-                        && let Some(walker) = self
-                            .units
-                            .iter()
-                            .find(|unit| unit.id == merchant.id)
-                            .cloned()
+                    }) && let Some(walker) = self
+                        .units
+                        .iter()
+                        .find(|unit| unit.id == merchant.id)
+                        .cloned()
                         && let Some(city) = self.city_by_id(ferry.city)
                         && let Some((cost, ax, ay)) = self.merchant_land_approach(&walker, city)
                     {

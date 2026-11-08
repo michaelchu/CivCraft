@@ -153,7 +153,7 @@ impl Simulation {
         }
         let mut reached = vec![false; self.tiles.len()];
         let mut queue = std::collections::VecDeque::new();
-        for (x, y) in self.map_wrap.neighbors(city.x, city.y) {
+        for (x, y) in self.map_wrap.civ3_neighbors(city.x, city.y) {
             let index = self.map_wrap.index(x, y);
             let tile = self.tile(x, y);
             if tile.owner == Some(city.owner) && tile.road && !reached[index] {
@@ -169,7 +169,7 @@ impl Simulation {
             {
                 return true;
             }
-            for (nx, ny) in self.map_wrap.neighbors(x, y) {
+            for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
                 let index = self.map_wrap.index(nx, ny);
                 let next = self.tile(nx, ny);
                 if next.owner == Some(city.owner) && next.road && !reached[index] {

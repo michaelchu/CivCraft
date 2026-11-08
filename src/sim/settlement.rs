@@ -254,27 +254,23 @@ impl Simulation {
         &'a self,
         traveler: &'a Unit,
     ) -> impl Iterator<Item = (i32, i32, i32, (i32, i32))> + 'a {
-        CIV3_DIRS
-            .into_iter()
-            .filter_map(move |direction| {
-                let (dx, dy) = direction;
-                let (nx, ny) = self
-                    .map_wrap
-                    .civ3_offset(traveler.x, traveler.y, dx, dy)?;
-                if self.treaty_blocks_move(traveler, nx, ny)
-                    || self.zone_blocks_step(traveler, (traveler.x, traveler.y), (nx, ny))
-                    || self.units.iter().any(|other| {
-                        (other.x, other.y) == (nx, ny) && !self.allied(other.owner, traveler.owner)
-                    })
-                    || self.cities.iter().any(|city| {
-                        (city.x, city.y) == (nx, ny) && !self.allied(city.owner, traveler.owner)
-                    })
-                {
-                    return None;
-                }
-                self.movement_cost_for(traveler, nx, ny)
-                    .map(|step| (nx, ny, step, direction))
-            })
+        CIV3_DIRS.into_iter().filter_map(move |direction| {
+            let (dx, dy) = direction;
+            let (nx, ny) = self.map_wrap.civ3_offset(traveler.x, traveler.y, dx, dy)?;
+            if self.treaty_blocks_move(traveler, nx, ny)
+                || self.zone_blocks_step(traveler, (traveler.x, traveler.y), (nx, ny))
+                || self.units.iter().any(|other| {
+                    (other.x, other.y) == (nx, ny) && !self.allied(other.owner, traveler.owner)
+                })
+                || self.cities.iter().any(|city| {
+                    (city.x, city.y) == (nx, ny) && !self.allied(city.owner, traveler.owner)
+                })
+            {
+                return None;
+            }
+            self.movement_cost_for(traveler, nx, ny)
+                .map(|step| (nx, ny, step, direction))
+        })
     }
 
     pub(super) fn city_site_value(&self, owner: usize, x: i32, y: i32) -> Option<f64> {
@@ -375,7 +371,7 @@ impl Simulation {
         total += 100.0 / (total + 1.0) * (100 / defense * 20) as f32;
         if self
             .map_wrap
-            .neighbors(x, y)
+            .civ3_neighbors(x, y)
             .any(|(nx, ny)| self.tile(nx, ny).terrain.is_water())
         {
             total += total * 20.0 / 100.0;

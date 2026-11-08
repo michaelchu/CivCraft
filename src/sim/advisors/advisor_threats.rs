@@ -36,7 +36,7 @@ impl Simulation {
             }
             (actor.x, actor.y) = self.map_wrap.position(index);
             let remaining = allowance - spent % allowance;
-            for (x, y) in self.map_wrap.neighbors(actor.x, actor.y) {
+            for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
                 let index = self.map_wrap.index(x, y);
                 let cost = self.movement_cost_for(&actor, x, y).or_else(|| {
                     // A ship's reverse attack map overlaps the coastal city,

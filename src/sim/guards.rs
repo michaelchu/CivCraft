@@ -284,11 +284,15 @@ impl Simulation {
         if guard.moves_left <= 0 || self.map_distance(guard.x, guard.y, actor.x, actor.y) != 1 {
             return;
         }
-        let (dx, dy) = self.map_wrap.vector(guard.x, guard.y, actor.x, actor.y);
+        let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
+            self.map_wrap.civ3_offset(guard.x, guard.y, dx, dy) == Some((actor.x, actor.y))
+        });
         if let Some(unit) = self.units.iter_mut().find(|u| u.id == id) {
             unit.state = UnitState::Idle;
         }
-        self.try_move_unit(id, dx, dy);
+        if let Some(direction) = direction {
+            self.try_move_unit_civ3(id, direction);
+        }
     }
 
     fn ai_charge_goal(&self, charge: &Unit) -> Option<(i32, i32)> {
@@ -363,7 +367,7 @@ impl Simulation {
             } else {
                 allowance - (spent - guard.moves_left.max(0)) % allowance
             };
-            for (x, y) in self.map_wrap.neighbors(actor.x, actor.y) {
+            for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
                 if self.treaty_blocks_move(&actor, x, y)
                     || self.zone_blocks_step(&actor, (actor.x, actor.y), (x, y))
                     || self

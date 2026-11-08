@@ -36,7 +36,7 @@ impl Simulation {
         let victim = city.owner;
         let city_name = city.name.clone();
         let Some((sx, sy)) = std::iter::once((x, y))
-            .chain(self.map_wrap.neighbors(x, y))
+            .chain(self.map_wrap.civ3_neighbors(x, y))
             .find(|&(sx, sy)| !self.units.iter().any(|unit| (unit.x, unit.y) == (sx, sy)))
         else {
             return;

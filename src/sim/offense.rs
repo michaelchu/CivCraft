@@ -166,7 +166,7 @@ impl Simulation {
         self.pf_native_tile(kind, x, y)
             || self
                 .map_wrap
-                .neighbors(x, y)
+                .civ3_neighbors(x, y)
                 .any(|(x, y)| self.pf_native_tile(kind, x, y))
     }
 

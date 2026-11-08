@@ -61,7 +61,7 @@ impl Simulation {
                 self.tile(city.x, city.y).river
                     || self
                         .map_wrap
-                        .neighbors(city.x, city.y)
+                        .civ3_neighbors(city.x, city.y)
                         .any(|(x, y)| self.tile(x, y).river)
             }
             Disaster::Fire => city.size >= 9,

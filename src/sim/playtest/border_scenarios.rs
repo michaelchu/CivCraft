@@ -87,9 +87,8 @@ impl Simulation {
             tile.known_by[1] = true;
         }
         self.rebuild_city_ownership();
-        let strength = owner(self, 4) == Some(1)
-            && owner(self, 3) == Some(1)
-            && owner(self, 0) == Some(HUMAN);
+        let strength =
+            owner(self, 4) == Some(1) && owner(self, 3) == Some(1) && owner(self, 0) == Some(HUMAN);
         let expanded = owner(self, 4) == Some(1);
         self.cities[1].size = 1;
         self.rebuild_city_ownership();

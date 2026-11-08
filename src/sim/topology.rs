@@ -236,11 +236,6 @@ impl MapWrap {
             _ => None,
         }
     }
-    pub(crate) fn neighbors(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> + use<> {
-        ISOHEX_DIRS
-            .into_iter()
-            .filter_map(move |(dx, dy)| self.offset(x, y, dx, dy))
-    }
     /// Neighbors in Civ III direction order, across the staggered-grid adapter.
     pub(crate) fn civ3_neighbors(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> + use<> {
         (0..CIV3_DIRS.len()).filter_map(move |direction| self.civ3_neighbor(x, y, direction))
@@ -316,13 +311,7 @@ impl MapWrap {
         }
         Some(((grid_x - neighbor_y.rem_euclid(2)) / 2, neighbor_y))
     }
-    pub(crate) fn civ3_offset(
-        self,
-        x: i32,
-        y: i32,
-        dx: i32,
-        dy: i32,
-    ) -> Option<(i32, i32)> {
+    pub(crate) fn civ3_offset(self, x: i32, y: i32, dx: i32, dy: i32) -> Option<(i32, i32)> {
         let direction = CIV3_DIRS.iter().position(|&step| step == (dx, dy))?;
         self.civ3_neighbor(x, y, direction)
     }

@@ -14,7 +14,7 @@ impl super::Simulation {
         let mut best = None;
         let mut best_cost = i32::MAX;
         if cargo.has_marine_attack() {
-            for (x, y) in self.map_wrap.neighbors(x, y) {
+            for (x, y) in self.map_wrap.civ3_neighbors(x, y) {
                 if let Some(cost) = map.movement_cost(self, x, y)
                     && cost < best_cost
                 {
@@ -24,11 +24,11 @@ impl super::Simulation {
             }
         } else {
             let mut checked = std::collections::HashSet::from([(x, y)]);
-            for (bx, by) in self.map_wrap.neighbors(x, y) {
+            for (bx, by) in self.map_wrap.civ3_neighbors(x, y) {
                 if !self.pf_native_tile(cargo, bx, by) {
                     continue;
                 }
-                for (sx, sy) in self.map_wrap.neighbors(bx, by) {
+                for (sx, sy) in self.map_wrap.civ3_neighbors(bx, by) {
                     if !checked.insert((sx, sy))
                         || self
                             .tile_units_ordered(sx, sy)
@@ -60,7 +60,7 @@ impl super::Simulation {
             }
             let tiles: Vec<_> = if self.tile(x, y).terrain.is_water() {
                 std::iter::once((x, y))
-                    .chain(self.map_wrap.neighbors(x, y))
+                    .chain(self.map_wrap.civ3_neighbors(x, y))
                     .collect()
             } else {
                 vec![(x, y)]
@@ -108,7 +108,7 @@ impl super::Simulation {
                     })
                     .filter(|_| {
                         self.map_wrap
-                            .neighbors(seed.x, seed.y)
+                            .civ3_neighbors(seed.x, seed.y)
                             .any(|(x, y)| self.tile(x, y).terrain.is_water())
                     })
                     .map(|kind| self.make_unit(0, seed.owner, kind, seed.x, seed.y))

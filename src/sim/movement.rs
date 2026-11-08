@@ -194,7 +194,7 @@ impl Simulation {
                 .is_some_and(|owner| self.allied(owner, unit.owner))
                 && self
                     .map_wrap
-                    .neighbors(x, y)
+                    .civ3_neighbors(x, y)
                     .any(|(nx, ny)| self.observed_route_tile(nx, ny).is_none_or(native));
             return (native(dest) || port).then_some(MOVE_FRAGMENTS);
         }

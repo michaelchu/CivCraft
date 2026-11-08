@@ -158,15 +158,26 @@ intended end state; a completed phase requires the evidence listed below.
   parity-valid staggered coordinates, flat indexing, eight reciprocal
   neighbors, horizontal wrapping, pixel centers, and diamond picking.
   Seven focused geometry tests pass.
-- `MapWrap::civ3_neighbors` now exposes all eight reciprocal staggered-grid
-  neighbors without changing `MapWrap::neighbors`, which remains a legacy
-  six-way adapter while pathfinding callers are migrated. Terrain alteration
+- `MapWrap::civ3_neighbors` exposes all eight reciprocal staggered-grid
+  neighbors. Terrain alteration
   water thresholds, irrigation sources, and stranded-unit relocation use the
   Civ III neighbor API. Water thresholds use the available adjacent-cell count
   at bounded map edges. A full shared-iterator switch was tried and reverted:
   merchant ferry routing still expands legacy offsets, so mixing the two
-  coordinate systems breaks that route. Movement/pathfinding and other callers
-  must migrate together before the legacy iterator can be retired.
+  coordinate systems broke that route. Movement/pathfinding and other callers
+  were migrated together before the legacy iterator could be retired.
+- The wider simulation adjacency audit has now migrated its remaining direct
+  six-neighbor scans in continent labeling, advisors, city defense,
+  paratrooper targeting, resource connectivity, disasters, counterintelligence,
+  guards, movement ports, offense targeting, settlement sites, merchant
+  landings, trade continents, and uprising placement. The last simulation use
+  of `MapWrap::neighbors` was removed. The merchant ferry scenario exposed a
+  separate leftover: delivery eligibility and land approaches still used the
+  old map-distance metric, so a merchant landed on a valid Civ III adjacent
+  tile but could not deliver. Those checks and lost-home destination ranking
+  now use `civ3_distance`; the full 645-test suite and offline release build
+  pass. Other uses of the legacy `map_distance` API remain to be audited for
+  topology-sensitive gameplay behavior.
 - Human directional movement now has a Civ III direction-index command for all
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction

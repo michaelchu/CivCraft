@@ -46,7 +46,10 @@ impl Simulation {
                     {
                         continue;
                     }
-                    for (tx, ty) in self.map_wrap.neighbors(x, y) {
+                    for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+                        let Some((tx, ty)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
+                            continue;
+                        };
                         if !self.tile(tx, ty).known_by[owner]
                             || self.treaty_blocks_move(attacker, tx, ty)
                             || self.movement_cost_for(attacker, tx, ty).is_none()
@@ -73,17 +76,16 @@ impl Simulation {
                         let gain = chance * f64::from(defender.kind.stats().cost)
                             - (1.0 - chance) * f64::from(attacker.kind.stats().cost);
                         if chance >= 0.65 && gain > best_gain {
-                            best = Some((attacker.id, tx, ty));
+                            best = Some((attacker.id, direction));
                             best_gain = gain;
                         }
                     }
                 }
-                let Some((id, tx, ty)) = best else {
+                let Some((id, direction)) = best else {
                     break;
                 };
-                let (dx, dy) = self.map_wrap.vector(x, y, tx, ty);
                 committed.insert(id);
-                self.try_move_unit(id, dx, dy);
+                self.try_move_unit_civ3(id, direction);
             }
         }
         committed

@@ -15,7 +15,7 @@ impl Simulation {
             }
             let mut ready = unit.clone();
             ready.moves_left = allowance;
-            self.map_wrap.neighbors(city.x, city.y).any(|(x, y)| {
+            self.map_wrap.civ3_neighbors(city.x, city.y).any(|(x, y)| {
                 self.route_cost_within(&ready, x, y, 2 * allowance - 1)
                     .is_some()
             })

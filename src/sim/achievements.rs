@@ -58,7 +58,7 @@ impl Simulation {
             labels[index] = continent;
             let mut pending = vec![self.map_wrap.position(index)];
             while let Some((x, y)) = pending.pop() {
-                for (nx, ny) in self.map_wrap.neighbors(x, y) {
+                for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
                     let index = self.map_wrap.index(nx, ny);
                     if labels[index] == 0 && !self.tiles[index].terrain.is_water() {
                         labels[index] = continent;

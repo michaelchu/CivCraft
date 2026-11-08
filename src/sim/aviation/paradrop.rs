@@ -155,7 +155,10 @@ impl Simulation {
             }
             let mut staged = unit.clone();
             (staged.x, staged.y) = (x, y);
-            for (tx, ty) in self.map_wrap.neighbors(x, y) {
+            for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+                let Some((tx, ty)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
+                    continue;
+                };
                 if !self.tile(tx, ty).known_by[owner]
                     || self.tile(tx, ty).terrain.is_water()
                     || self.treaty_blocks_move(&staged, tx, ty)
@@ -186,14 +189,14 @@ impl Simulation {
                     + f64::from(self.tile(x, y).terrain.defense_bonus() / 10);
                 if value > best_value {
                     best_value = value;
-                    best = Some((x, y, self.map_wrap.vector(x, y, tx, ty)));
+                    best = Some((x, y, direction));
                 }
             }
         }
-        if let Some((x, y, (dx, dy))) = best
+        if let Some((x, y, direction)) = best
             && self.paradrop(unit.id, x, y)
         {
-            self.try_move_unit(unit.id, dx, dy);
+            self.try_move_unit_civ3(unit.id, direction);
             return true;
         }
         false

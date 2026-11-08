@@ -26,8 +26,7 @@ impl Simulation {
     fn merchant_can_act(&self, unit: &Unit, city: &City) -> bool {
         matches!(unit.kind, UnitKind::Caravan | UnitKind::Freight)
             && unit.moves_left > 0
-            && (unit.y - city.y).abs() <= 2
-            && self.map_distance(unit.x, unit.y, city.x, city.y) <= 1
+            && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
     }
 
     pub(super) fn can_trade(&self, from: &City, to: &City) -> bool {
@@ -150,13 +149,15 @@ impl Simulation {
         city: &City,
     ) -> Option<(i32, i32, i32)> {
         let current = (merchant.x, merchant.y);
-        if self.map_distance(current.0, current.1, city.x, city.y) <= 1
-            && (current.1 - city.y).abs() <= 2
+        if self
+            .map_wrap
+            .civ3_distance(current.0, current.1, city.x, city.y)
+            <= 1
         {
             Some((0, current.0, current.1))
         } else {
             self.map_wrap
-                .neighbors(city.x, city.y)
+                .civ3_neighbors(city.x, city.y)
                 .chain([(city.x, city.y)])
                 .filter(|&(x, y)| !self.tile(x, y).terrain.is_water())
                 .filter_map(|(x, y)| {
@@ -223,7 +224,10 @@ impl Simulation {
                     city.owner == merchant.owner
                         && labels[self.map_wrap.index(city.x, city.y)] == continent
                 })
-                .min_by_key(|city| self.map_distance(merchant.x, merchant.y, city.x, city.y))
+                .min_by_key(|city| {
+                    self.map_wrap
+                        .civ3_distance(merchant.x, merchant.y, city.x, city.y)
+                })
             else {
                 return;
             };

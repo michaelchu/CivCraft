@@ -157,7 +157,7 @@ impl Simulation {
             regions[start] = label;
             let mut pending = vec![self.map_wrap.position(start)];
             while let Some((x, y)) = pending.pop() {
-                for (nx, ny) in self.map_wrap.neighbors(x, y) {
+                for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
                     let index = self.map_wrap.index(nx, ny);
                     if regions[index] == 0 && self.tiles[index].terrain.is_water() == water {
                         regions[index] = label;
@@ -195,7 +195,7 @@ impl Simulation {
                 if label < 0 {
                     threatened_oceans.insert(label);
                 } else {
-                    for (x, y) in self.map_wrap.neighbors(unit.x, unit.y) {
+                    for (x, y) in self.map_wrap.civ3_neighbors(unit.x, unit.y) {
                         let label = regions[self.map_wrap.index(x, y)];
                         if label < 0 {
                             threatened_oceans.insert(label);
@@ -206,13 +206,13 @@ impl Simulation {
         }
         let coastal = self
             .map_wrap
-            .neighbors(city.x, city.y)
+            .civ3_neighbors(city.x, city.y)
             .any(|(x, y)| regions[self.map_wrap.index(x, y)] < 0);
         let ocean_threat = if continent < 0 {
             threatened_oceans.contains(&continent)
         } else {
             self.map_wrap
-                .neighbors(city.x, city.y)
+                .civ3_neighbors(city.x, city.y)
                 .any(|(x, y)| threatened_oceans.contains(&regions[self.map_wrap.index(x, y)]))
         };
         DefenseEffectContext {
