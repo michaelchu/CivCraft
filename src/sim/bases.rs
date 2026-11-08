@@ -43,7 +43,7 @@ impl Simulation {
         let tile = self.tile(unit.x, unit.y);
         let (tech, capable) = match base {
             Base::Fort | Base::Fortress => (Tech::CONSTRUCTION, unit.kind.can_build_fortress()),
-            Base::Airstrip | Base::Airbase => (Tech::RADIO, unit.kind.is_worker()),
+            Base::Airstrip | Base::Airbase => (Tech::FLIGHT, unit.kind.is_worker()),
         };
         if !capable
             || unit.transport.is_some()
@@ -89,7 +89,7 @@ mod tests {
         assert!(!game.apply(build(Base::Fort)));
         game.players[HUMAN]
             .known
-            .extend([Tech::CONSTRUCTION, Tech::RADIO]);
+            .extend([Tech::CONSTRUCTION, Tech::FLIGHT]);
         assert!(!game.apply(build(Base::Fortress)));
         assert!(game.apply(build(Base::Fort)));
         let initial = game.defense_power(&game.units[1], x, y);

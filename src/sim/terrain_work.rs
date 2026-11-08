@@ -64,9 +64,10 @@ impl Simulation {
         if !unit.kind.is_worker()
             || (matches!(kind, WorkKind::Cultivate | WorkKind::Plant)
                 && unit.kind.unit_class() == super::unit_catalog::UnitClass::Sea)
+            || (kind == WorkKind::Plant && !self.has_tech(unit.owner, Tech::ENGINEERING))
             || (kind == WorkKind::Transform
                 && (!unit.kind.has_flag(super::unit_catalog::UnitFlag::Transform)
-                    || !self.has_tech(unit.owner, Tech::FUSION_POWER)))
+                    || !self.has_tech(unit.owner, Tech::NUCLEAR_POWER)))
             || (unit.transport.is_some() && kind != WorkKind::Transform)
         {
             return None;
@@ -299,7 +300,7 @@ mod tests {
         let engineer = game.spawn_unit(HUMAN, UnitKind::Engineer, x, y);
         assert!(game.apply(Command::BoardOrDeboard(engineer)));
         assert!(!game.apply(Command::Work(engineer, WorkKind::Transform)));
-        game.players[HUMAN].known.push(Tech::FUSION_POWER);
+        game.players[HUMAN].known.push(Tech::NUCLEAR_POWER);
         assert!(!game.apply(Command::Work(engineer, WorkKind::Transform)));
         for &(nx, ny) in nearby.iter().take(2) {
             game.tile_mut(nx, ny).terrain = Terrain::Plains;

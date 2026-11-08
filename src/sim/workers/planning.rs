@@ -105,7 +105,7 @@ impl Simulation {
         let time = match activity {
             WorkKind::Road
                 if !tile.road
-                    && (!tile.river || self.has_tech(actor.owner, Tech::BRIDGE_BUILDING)) =>
+                    && (!tile.river || self.has_tech(actor.owner, Tech::ENGINEERING)) =>
             {
                 tile.road = true;
                 tile.terrain.road_time()
@@ -400,8 +400,8 @@ impl Simulation {
                         WorkKind::Clean(target) => self.worker_climate_urgency(target) as f32,
                         _ => 0.0,
                     };
-                    let work = (time * ACTIVITY_FACTOR + actor.activity_rate() - 1)
-                        / actor.activity_rate();
+                    let rate = self.activity_rate(actor);
+                    let work = (time * ACTIVITY_FACTOR + rate - 1) / rate;
                     let delay = arrival + work + i32::from(remaining == 0);
                     consider_action(
                         &mut best,
@@ -422,15 +422,15 @@ impl Simulation {
                 // A missing road can be worth building for its researched
                 // railroad successor; source adds both cached total values.
                 if !self.tile(x, y).road
-                    && self.has_tech(actor.owner, Tech::RAILROAD)
+                    && self.has_tech(actor.owner, Tech::STEAM_POWER)
                     && let Some((road, time)) = self.worker_projection(&at, WorkKind::Road)
                 {
                     let road_value = self.worker_tile_value(&city, position, road.clone());
                     let mut rail = road;
                     rail.railroad = true;
                     let new = self.worker_tile_value(&city, position, rail) + road_value;
-                    let work = ((time + 3) * ACTIVITY_FACTOR + actor.activity_rate() - 1)
-                        / actor.activity_rate();
+                    let rate = self.activity_rate(actor);
+                    let work = ((time + 3) * ACTIVITY_FACTOR + rate - 1) / rate;
                     consider_action(
                         &mut best,
                         WorkerPlan {

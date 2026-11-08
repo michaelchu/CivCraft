@@ -58,7 +58,7 @@ impl Simulation {
             && !tile.farmland
             && !tile.mine
             && tile.terrain.irrigation_time() > 0
-            && self.has_tech(owner, Tech::REFRIGERATION)
+            && self.has_tech(owner, Tech::SANITATION)
             && (tile.terrain != Terrain::Desert
                 || tile.river
                 || tile.resource == Some(Resource::Oasis))
@@ -153,7 +153,7 @@ impl Simulation {
         }
         self.cities.push(city);
         self.list_order.city(self.cities.last().unwrap());
-        let railroad = self.has_tech(owner, Tech::RAILROAD);
+        let railroad = self.has_tech(owner, Tech::STEAM_POWER);
         let tile = self.tile_mut(x, y);
         tile.road = true;
         tile.base = None;
@@ -463,8 +463,8 @@ impl Simulation {
         let tile_penalty = matches!(
             government,
             Government::Tribal | Government::Despotism | Government::Anarchy
-        ) && granted != Some(Tech::RAILROAD)
-            && !self.has_tech(city.owner, Tech::RAILROAD)
+        ) && granted != Some(Tech::STEAM_POWER)
+            && !self.has_tech(city.owner, Tech::STEAM_POWER)
             && !self.has_active_wonder(city.owner, Building::PYRAMIDS)
             && self.city_rapture.get(&city.id).copied().unwrap_or(0) <= 0;
         let republic_trade = matches!(government, Government::Republic | Government::Democracy);
@@ -483,7 +483,7 @@ impl Simulation {
         let mut center;
         let tile = if is_center {
             center = self.tile(x, y).clone();
-            center.railroad |= granted == Some(Tech::RAILROAD);
+            center.railroad |= granted == Some(Tech::STEAM_POWER);
             &center
         } else {
             self.tile(x, y)

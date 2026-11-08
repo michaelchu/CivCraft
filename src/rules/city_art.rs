@@ -204,8 +204,8 @@ mod tests {
             }
         }
         for (tech, row) in [
-            (Tech::RAILROAD, 6),
-            (Tech::AUTOMOBILE, 7),
+            (Tech::STEAM_POWER, 6),
+            (Tech::MOTORIZED_TRANSPORTATION, 7),
             (Tech::ROCKETRY, 8),
             (Tech::SUPERCONDUCTORS, 9),
         ] {

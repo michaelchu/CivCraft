@@ -121,7 +121,7 @@ graphic     = "city.industrial"
 graphic_alt = "-"
 citizens_graphic     = "industrial"
 reqs = { "type", "name", "range"
-         "tech", "Railroad", "Player"
+         "tech", "Steam Power", "Player"
        }
 
 [citystyle_electric]
@@ -130,7 +130,7 @@ graphic     = "city.electricage"
 graphic_alt = "city.modern"
 citizens_graphic     = "electricage"
 reqs = { "type", "name", "range"
-         "tech", "Automobile", "Player"
+         "tech", "Motorized Transportation", "Player"
        }
 
 [citystyle_modern]
@@ -148,7 +148,7 @@ graphic     = "city.postmodern"
 graphic_alt = "-"
 citizens_graphic     = "postmodern"
 reqs = { "type", "name", "range"
-         "tech", "Superconductors", "Player"
+         "tech", "Superconductor", "Player"
        }
 
 ; /* <-- avoid gettext warnings
@@ -218,7 +218,7 @@ music_peaceful     = "music_renaissance_peace"
 music_combat       = "music_renaissance_combat"
 reqs    =
     { "type", "name", "range"
-      "Tech", "University", "Player"
+      "Tech", "Education", "Player"
     }
 
 [musicstyle_industrial]
@@ -226,7 +226,7 @@ music_peaceful     = "music_industrial_peace"
 music_combat       = "music_industrial_combat"
 reqs    =
     { "type", "name", "range"
-      "Tech", "Railroad", "Player"
+      "Tech", "Steam Power", "Player"
     }
 
 [musicstyle_electricage]
@@ -234,7 +234,7 @@ music_peaceful     = "music_electricage_peace"
 music_combat       = "music_electricage_combat"
 reqs    =
     { "type", "name", "range"
-      "Tech", "Automobile", "Player"
+      "Tech", "Motorized Transportation", "Player"
     }
 
 [musicstyle_modern]
@@ -250,5 +250,5 @@ music_peaceful     = "music_postmodern_peace"
 music_combat       = "music_postmodern_combat"
 reqs    =
     { "type", "name", "range"
-      "Tech", "Superconductors", "Player"
+      "Tech", "Superconductor", "Player"
     }

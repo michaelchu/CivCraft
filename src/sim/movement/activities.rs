@@ -3,13 +3,27 @@
 use super::*;
 
 impl Simulation {
+    pub(in crate::sim) fn activity_rate(&self, unit: &Unit) -> i32 {
+        let rate = unit.activity_rate();
+        if unit.kind.is_worker() && self.has_tech(unit.owner, Tech::REPLACEABLE_PARTS) {
+            rate * 2
+        } else {
+            rate
+        }
+    }
+
+    fn work_turns_left(&self, unit: &Unit) -> i32 {
+        let rate = self.activity_rate(unit);
+        (unit.work_left + rate - 1) / rate
+    }
+
     pub(crate) fn can_railroad_at(&self, owner: usize, x: i32, y: i32) -> bool {
         let tile = self.tile(x, y);
         tile.road
             && !tile.railroad
             && !tile.terrain.is_water()
-            && self.has_tech(owner, Tech::RAILROAD)
-            && (!tile.river || self.has_tech(owner, Tech::BRIDGE_BUILDING))
+            && self.has_tech(owner, Tech::STEAM_POWER)
+            && (!tile.river || self.has_tech(owner, Tech::ENGINEERING))
     }
 
     pub(in crate::sim) fn begin_work(&mut self, unit_id: u32, kind: WorkKind) -> bool {
@@ -35,7 +49,7 @@ impl Simulation {
         let turns = match kind {
             WorkKind::Road
                 if !tile.road
-                    && (!tile.river || self.has_tech(unit.owner, Tech::BRIDGE_BUILDING)) =>
+                    && (!tile.river || self.has_tech(unit.owner, Tech::ENGINEERING)) =>
             {
                 tile.terrain.road_time()
             }
@@ -118,17 +132,17 @@ impl Simulation {
 
     pub(crate) fn project_turns_left(&self, unit: &Unit) -> i32 {
         let Some(project) = unit.work_key() else {
-            return unit.work_turns_left();
+            return self.work_turns_left(unit);
         };
         let (progress, rate) = self
             .units
             .iter()
             .filter(|worker| worker.work_key() == Some(project))
             .fold((0, 0), |(progress, rate), worker| {
-                (progress + worker.work_done, rate + worker.activity_rate())
+                (progress + worker.work_done, rate + self.activity_rate(worker))
             });
         if rate == 0 {
-            return unit.work_turns_left();
+            return self.work_turns_left(unit);
         }
         let remaining = (unit.work_left + unit.work_done - progress).max(0);
         (remaining + rate - 1) / rate
@@ -213,12 +227,12 @@ impl Simulation {
             let Some(index) = self.unit_index_by_id(id) else {
                 continue;
             };
+            let rate = self.activity_rate(&self.units[index]);
             let unit = &mut self.units[index];
             let work = unit.work_key();
             if work.is_some() && unit.moves_left > 0 {
                 // Native activity_count receives a FULL activity rate whenever
                 // any old MP remain, even when that overshoots the project time.
-                let rate = unit.activity_rate();
                 unit.work_left = (unit.work_left - rate).max(0);
                 unit.work_done += rate;
             }

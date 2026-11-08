@@ -2,6 +2,48 @@
 
 use super::*;
 
+pub(super) fn migrate_research_sentinels(sim: &mut Simulation) {
+    // Before the Civ III advances were appended, catalog length 87 represented
+    // Future Tech and 88 represented the unset research goal. Existing real
+    // technology IDs remain unchanged.
+    for player in &mut sim.players {
+        if player.researching == Tech(87) {
+            player.researching = Tech::FUTURE;
+        }
+        if player.research_goal == Tech(88) {
+            player.research_goal = Tech::UNSET;
+        }
+        let mut known = Vec::with_capacity(player.known.len());
+        for tech in player.known.iter().copied() {
+            let tech = tech.civ3_equivalent().unwrap_or(tech);
+            if !known.contains(&tech) {
+                known.push(tech);
+            }
+        }
+        player.known = known;
+        player.researching = player
+            .researching
+            .civ3_equivalent()
+            .unwrap_or(player.researching);
+        player.research_goal = player
+            .research_goal
+            .civ3_equivalent()
+            .unwrap_or(player.research_goal);
+        if player.research_goal.data().is_some_and(|_| !player.research_goal.is_civ3_advance())
+        {
+            player.research_goal = Tech::UNSET;
+        }
+    }
+    for owner in 0..sim.players.len() {
+        let researching = sim.players[owner].researching;
+        if researching != Tech::FUTURE
+            && (!researching.is_civ3_advance() || sim.has_tech(owner, researching))
+        {
+            sim.players[owner].researching = sim.research_target(owner);
+        }
+    }
+}
+
 pub(super) fn apply_extras11(sim: &mut Simulation, extras: Extras11) {
     let (current, guard_targets, unit_guards, city_rapture, goto_tiles) = extras;
     sim.climate_current = current;

@@ -75,8 +75,8 @@ impl Simulation {
             PillageTarget::Railroad => {
                 tile.railroad
                     && city.is_none_or(|city| {
-                        !self.has_tech(city.owner, Tech::RAILROAD)
-                            || (tile.river && !self.has_tech(city.owner, Tech::BRIDGE_BUILDING))
+                        !self.has_tech(city.owner, Tech::STEAM_POWER)
+                            || (tile.river && !self.has_tech(city.owner, Tech::ENGINEERING))
                     })
             }
             PillageTarget::Irrigation => tile.irrigation && !tile.farmland,

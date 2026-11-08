@@ -55,6 +55,7 @@ impl Game {
             targets.extend(
                 Tech::all()
                     .chain(std::iter::once(Tech::FUTURE))
+                    .filter(|tech| tech.is_civ3_advance() || *tech == Tech::FUTURE)
                     .filter(|&tech| self.sim.stealable_technology(unit.owner, city.owner, tech))
                     .map(|tech| {
                         (

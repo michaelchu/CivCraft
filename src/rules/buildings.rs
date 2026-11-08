@@ -177,7 +177,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::Improvement,
         cost: 120,
         upkeep: 3,
-        requirements: &[(Tech(63), true)],
+        requirements: &[(Tech(29), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -261,7 +261,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::Improvement,
         cost: 60,
         upkeep: 1,
-        requirements: &[(Tech(55), true), (Water, true)],
+        requirements: &[(Tech(49), true), (Water, true)],
         obsolete: &[],
     },
     BuildingData {
@@ -301,7 +301,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::Improvement,
         cost: 40,
         upkeep: 1,
-        requirements: &[(Tech(71), true), (Sea, true)],
+        requirements: &[(Tech(44), true), (Sea, true)],
         obsolete: &[],
     },
     BuildingData {
@@ -317,7 +317,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::Improvement,
         cost: 60,
         upkeep: 1,
-        requirements: &[(Tech(86), true)],
+        requirements: &[(Tech(90), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -333,7 +333,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::Improvement,
         cost: 120,
         upkeep: 2,
-        requirements: &[(Tech(46), true)],
+        requirements: &[(Tech(25), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -341,7 +341,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::Improvement,
         cost: 220,
         upkeep: 4,
-        requirements: &[(Tech(60), true), (Improvement(13), true)],
+        requirements: &[(Tech(68), true), (Improvement(13), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -397,7 +397,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::Improvement,
         cost: 130,
         upkeep: 4,
-        requirements: &[(Tech(66), true), (Improvement(13), true)],
+        requirements: &[(Tech(35), true), (Improvement(13), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -429,7 +429,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::Improvement,
         cost: 140,
         upkeep: 3,
-        requirements: &[(Tech(39), true)],
+        requirements: &[(Tech(89), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -511,7 +511,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::Improvement,
         cost: 80,
         upkeep: 3,
-        requirements: &[(Tech(67), true)],
+        requirements: &[(Tech(70), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -552,7 +552,7 @@ const BUILDINGS: &[BuildingData] = &[
         cost: 200,
         upkeep: 0,
         requirements: &[(Tech(8), true)],
-        obsolete: &[(Tech(5), true)],
+        obsolete: &[(Tech(29), true)],
     },
     BuildingData {
         name: "Copernicus' Observatory",
@@ -567,7 +567,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::GreatWonder,
         cost: 600,
         upkeep: 0,
-        requirements: &[(Tech(31), true)],
+        requirements: &[(Tech(88), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -591,7 +591,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::GreatWonder,
         cost: 300,
         upkeep: 0,
-        requirements: &[(Tech(41), true), (Improvement(17), true)],
+        requirements: &[(Tech(90), true), (Improvement(17), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -600,15 +600,15 @@ const BUILDINGS: &[BuildingData] = &[
         cost: 300,
         upkeep: 0,
         requirements: &[(Tech(18), true)],
-        obsolete: &[(Tech(42), true)],
+        obsolete: &[(Tech(49), true)],
     },
     BuildingData {
         name: "Hanging Gardens",
         genus: Genus::GreatWonder,
         cost: 200,
         upkeep: 0,
-        requirements: &[(Tech(62), true)],
-        obsolete: &[(Tech(22), true)],
+        requirements: &[(Tech(52), true)],
+        obsolete: &[(Tech(97), true)],
     },
     BuildingData {
         name: "Hoover Dam",
@@ -631,7 +631,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::GreatWonder,
         cost: 400,
         upkeep: 0,
-        requirements: &[(Tech(81), true)],
+        requirements: &[(Tech(92), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -656,14 +656,14 @@ const BUILDINGS: &[BuildingData] = &[
         cost: 200,
         upkeep: 0,
         requirements: &[(Tech(44), true), (Sea, true)],
-        obsolete: &[(Tech(24), true)],
+        obsolete: &[(Tech(43), true)],
     },
     BuildingData {
         name: "Magellan's Expedition",
         genus: Genus::GreatWonder,
         cost: 400,
         upkeep: 0,
-        requirements: &[(Tech(43), true), (Sea, true)],
+        requirements: &[(Tech(55), true), (Sea, true)],
         obsolete: &[(Tech(57), true)],
     },
     BuildingData {
@@ -687,7 +687,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::GreatWonder,
         cost: 400,
         upkeep: 0,
-        requirements: &[(Tech(53), true), (Improvement(8), true)],
+        requirements: &[(Tech(81), true), (Improvement(8), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -695,7 +695,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::GreatWonder,
         cost: 200,
         upkeep: 0,
-        requirements: &[(Tech(9), true)],
+        requirements: &[(Tech(58), true)],
         obsolete: &[(Tech(70), true)],
     },
     BuildingData {
@@ -703,16 +703,16 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::GreatWonder,
         cost: 200,
         upkeep: 0,
-        requirements: &[(Tech(61), true)],
-        obsolete: &[(Tech(17), true)],
+        requirements: &[(Tech(47), true)],
+        obsolete: &[(Tech(49), true)],
     },
     BuildingData {
         name: "Temple of Artemis",
         genus: Genus::GreatWonder,
         cost: 200,
         upkeep: 0,
-        requirements: &[(Tech(54), true), (Improvement(40), true)],
-        obsolete: &[(Tech(81), true)],
+        requirements: &[(Tech(61), true), (Improvement(40), true)],
+        obsolete: &[(Tech(84), true)],
     },
     BuildingData {
         name: "Pyramids",
@@ -720,7 +720,7 @@ const BUILDINGS: &[BuildingData] = &[
         cost: 200,
         upkeep: 0,
         requirements: &[(Tech(45), true)],
-        obsolete: &[(Tech(64), true)],
+        obsolete: &[],
     },
     BuildingData {
         name: "Internet",
@@ -735,7 +735,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::GreatWonder,
         cost: 300,
         upkeep: 0,
-        requirements: &[(Tech(70), true)],
+        requirements: &[(Tech(87), true)],
         obsolete: &[],
     },
     BuildingData {
@@ -759,7 +759,7 @@ const BUILDINGS: &[BuildingData] = &[
         genus: Genus::GreatWonder,
         cost: 600,
         upkeep: 0,
-        requirements: &[(Tech(15), true)],
+        requirements: &[(Tech(56), true)],
         obsolete: &[],
     },
     BuildingData {

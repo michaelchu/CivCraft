@@ -22,7 +22,7 @@ impl super::Simulation {
                 && self.has_tech(owner, Tech::COMMUNISM)
                 && self.has_tech(owner, Tech::GUNPOWDER)
                 && (0..self.players.len())
-                    .any(|player| self.has_tech(player, Tech::GUERILLA_WARFARE)),
+                    .any(|player| self.has_tech(player, Tech::NATIONALISM)),
         ) * 3;
         // Civ2Civ3 actions.ruleset has no Gov target requirement in any
         // enabler: action_immune_government returns false for every action.

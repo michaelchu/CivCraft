@@ -156,15 +156,14 @@ impl Simulation {
         granted: Option<Tech>,
         government: Government,
     ) -> (i32, i32) {
-        let player = &self.players[city.owner];
         let (shield_base, trade_base) = government.base_waste();
         let distance = self.government_center_distance(city);
-        let has_tech = |tech| granted == Some(tech) || player.known.contains(&tech);
+        let has_tech = |tech| granted == Some(tech) || self.has_tech(city.owner, tech);
         let shield_distance =
             if matches!(government, Government::Communism | Government::Federation) {
                 0
             } else {
-                1 + i32::from(!has_tech(Tech::TRADE))
+                1 + i32::from(!has_tech(Tech::ECONOMICS))
             };
         let trade_distance = match government {
             Government::Communism => 0,

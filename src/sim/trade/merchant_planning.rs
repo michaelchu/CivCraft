@@ -85,7 +85,7 @@ impl Simulation {
         let base = (self.weighted_trade_distance(from, to) + 10)
             * (self.city_yields(from).2 + self.city_yields(to).2)
             / 24;
-        let bonus = if self.has_tech(from.owner, Tech::RAILROAD) {
+        let bonus = if self.has_tech(from.owner, Tech::STEAM_POWER) {
             -415.0
         } else {
             585.0

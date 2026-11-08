@@ -305,7 +305,7 @@ impl Simulation {
         for (owner, x, y, size, name, tech, walls) in [
             (0, 17, 21, 4, "Classical", None, false),
             (1, 22, 21, 5, "Walled Classical", None, true),
-            (2, 17, 27, 9, "Industrial", Some(Tech::RAILROAD), false),
+            (2, 17, 27, 9, "Industrial", Some(Tech::STEAM_POWER), false),
             (
                 3,
                 22,

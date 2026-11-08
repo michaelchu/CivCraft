@@ -1,6 +1,7 @@
 //! Technology availability, cost, and research progression.
 
 use super::*;
+use crate::rules::TechEra;
 
 impl Simulation {
     pub(crate) fn research_unit_unlocks(tech: Tech) -> Vec<&'static str> {
@@ -13,6 +14,9 @@ impl Simulation {
 
     pub(crate) fn has_tech(&self, owner: usize, tech: Tech) -> bool {
         self.players[owner].known.contains(&tech)
+            || tech
+                .civ3_equivalent()
+                .is_some_and(|equivalent| self.players[owner].known.contains(&equivalent))
     }
 
     pub(crate) fn resource_visible_to(&self, owner: usize, resource: Resource) -> bool {
@@ -26,22 +30,60 @@ impl Simulation {
             return false;
         }
         if tech == Tech::FUTURE {
-            return Tech::all().all(|advance| self.has_tech(owner, advance));
+            return Tech::all()
+                .filter(|advance| advance.is_civ3_advance())
+                .all(|advance| self.has_tech(owner, advance));
+        }
+        if !tech.is_civ3_advance() {
+            return false;
         }
         !self.has_tech(owner, tech)
+            && tech.era() <= self.research_era(owner)
             && tech
                 .prerequisites()
                 .iter()
                 .all(|&req| self.has_tech(owner, req))
     }
 
+    /// Highest Civ III era whose required advances have all been discovered.
+    /// Optional advances and CivCraft extension technologies do not hold back
+    /// the next era.
+    pub(crate) fn research_era(&self, owner: usize) -> TechEra {
+        let mut current = TechEra::Ancient;
+        for era in [TechEra::Ancient, TechEra::MiddleAges, TechEra::Industrial] {
+            if Tech::all()
+                .filter(|tech| tech.era() == era && tech.required_for_civ3_era())
+                .all(|tech| self.has_tech(owner, tech))
+            {
+                current = match era {
+                    TechEra::Ancient => TechEra::MiddleAges,
+                    TechEra::MiddleAges => TechEra::Industrial,
+                    TechEra::Industrial => TechEra::Modern,
+                    TechEra::Modern => unreachable!(),
+                };
+            } else {
+                break;
+            }
+        }
+        current
+    }
+
     pub(super) fn research_path(&self, owner: usize, goal: Tech) -> Vec<Tech> {
-        if goal.data().is_none() && goal != Tech::FUTURE {
+        if (goal.data().is_none() || !goal.is_civ3_advance()) && goal != Tech::FUTURE {
             return Vec::new();
         }
         fn visit(game: &Simulation, owner: usize, tech: Tech, path: &mut Vec<Tech>) {
             if game.has_tech(owner, tech) || path.contains(&tech) {
                 return;
+            }
+            if tech.is_civ3_advance() {
+                for era in TechEra::ALL.iter().take(tech.era().index()) {
+                    for required in Tech::all().filter(|candidate| {
+                        candidate.era() == *era && candidate.required_for_civ3_era()
+                    }) {
+                        visit(game, owner, required, path);
+                    }
+                }
             }
             for &req in tech.prerequisites() {
                 visit(game, owner, req, path);
@@ -51,7 +93,7 @@ impl Simulation {
 
         let mut path = Vec::new();
         if goal == Tech::FUTURE {
-            for advance in Tech::all() {
+            for advance in Tech::all().filter(|advance| advance.is_civ3_advance()) {
                 visit(self, owner, advance, &mut path);
             }
         }
@@ -86,6 +128,8 @@ impl Simulation {
         if !self.players[owner].ai {
             return (self.research_target(owner), 0, 0);
         }
+        // Score vectors are indexed by serialized tech ID, including gaps in
+        // the player-facing Civ III subset. Legacy advances have empty paths.
         let advances: Vec<_> = Tech::all().collect();
         let paths: Vec<_> = advances
             .iter()
@@ -204,12 +248,20 @@ impl Simulation {
     }
 
     pub(crate) fn target_cost(&self, owner: usize, tech: Tech) -> i32 {
-        if tech.data().is_none() && tech != Tech::FUTURE {
+        if (tech.data().is_none() || !tech.is_civ3_advance()) && tech != Tech::FUTURE {
             return 0;
         }
         let player = &self.players[owner];
         let base = if tech == Tech::FUTURE {
-            research_cost(player.known.len() as i32 + player.future_techs + 1)
+            research_cost(
+                player
+                    .known
+                    .iter()
+                    .filter(|tech| tech.is_civ3_advance())
+                    .count() as i32
+                    + player.future_techs
+                    + 1,
+            )
         } else {
             tech.cost()
         };
@@ -241,13 +293,19 @@ impl Simulation {
         let known_cost: i64 = player
             .known
             .iter()
+            .filter(|tech| tech.is_civ3_advance())
             .filter_map(|tech| tech.data())
             .map(|advance| {
                 i64::from((advance.requirement_count * BASE_TECH_COST).max(MIN_TECH_COST))
             })
             .sum();
         let future = i64::from(player.future_techs);
-        let known = player.known.len() as i64 + 1;
+        let known = player
+            .known
+            .iter()
+            .filter(|tech| tech.is_civ3_advance())
+            .count() as i64
+            + 1;
         let future_cost = if future > 0 {
             i64::from(BASE_TECH_COST) * (future * (2 * known + future + 1) + 2 * known) / 2
         } else {
@@ -338,7 +396,7 @@ impl Simulation {
     }
 
     pub(super) fn discover(&mut self, owner: usize, tech: Tech) {
-        if tech.data().is_none() && tech != Tech::FUTURE {
+        if (tech.data().is_none() || !tech.is_civ3_advance()) && tech != Tech::FUTURE {
             return;
         }
         let was_researching = self.players[owner].researching == tech;

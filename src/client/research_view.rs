@@ -20,7 +20,7 @@ impl Game {
     pub(super) fn focus_research(&mut self, tech: Tech) {
         let tech = focused_research_tech(tech, self.sim.players()[HUMAN].researching);
         self.research_center = self.research_tree.center(tech);
-        self.research_age = self.research_tree.age(self.research_center);
+        self.research_age = self.research_tree.age(tech);
         self.research_zoom = 1.0;
         self.clamp_research_center();
     }
@@ -82,7 +82,7 @@ impl Game {
         let current = player.researching;
         let ancestors = self.research_tree.ancestors(goal);
         let viewport = Self::research_viewport();
-        let in_age = |position: Vec2| self.research_tree.age(position) == self.research_age;
+        let in_age = |tech: Tech| self.research_tree.age(tech) == self.research_age;
         let zoom = self.research_zoom;
         let project = |point: Vec2| viewport.center() + (point - self.research_center) * zoom;
         let (mx, my) = mouse_position();
@@ -98,8 +98,8 @@ impl Game {
         for highlighted in [false, true] {
             for edge in &self.research_tree.edges {
                 if ancestors.contains(&edge.to) != highlighted
-                    || !in_age(self.research_tree.center(edge.from))
-                    || !in_age(self.research_tree.center(edge.to))
+                    || !in_age(edge.from)
+                    || !in_age(edge.to)
                 {
                     continue;
                 }
@@ -120,7 +120,7 @@ impl Game {
         }
 
         for &(tech, position) in &self.research_tree.nodes {
-            if !in_age(position) {
+            if !in_age(tech) {
                 continue;
             }
             let center = project(position);
@@ -230,9 +230,8 @@ impl Game {
             LIGHTGRAY,
         );
 
-        let tabs = std::iter::once("Early").chain(RESEARCH_AGES.iter().map(|&(name, _)| name));
-        let tab_width = ((screen_width() - 48.0) / (RESEARCH_AGES.len() + 1) as f32).min(142.0);
-        for (age, name) in tabs.enumerate() {
+        let tab_width = ((screen_width() - 48.0) / RESEARCH_AGES.len() as f32).min(190.0);
+        for (age, &(name, _)) in RESEARCH_AGES.iter().enumerate() {
             let button = Rect::new(
                 24.0 + age as f32 * tab_width,
                 105.0,
@@ -248,7 +247,9 @@ impl Game {
             .unwrap_or_else(|| focused_research_tech(goal, current));
         let tech = hovered.unwrap_or(inspected);
         let requirements = if tech == Tech::FUTURE {
-            "Requires all 87 named advances".to_owned()
+            "Requires all 82 Civ III advances".to_owned()
+        } else if let Some(era) = tech.era_gate() {
+            format!("Opens after all required {} advances are known", era.name())
         } else if tech.prerequisites().is_empty() {
             "No prerequisites".to_owned()
         } else {
@@ -267,15 +268,11 @@ impl Game {
         draw_text(&detail, 24.0, y + 45.0, 16.0, SKYBLUE);
         let mut x = 24.0;
         for &req in inspected.prerequisites() {
-            if in_age(self.research_tree.center(req)) {
+            if in_age(req) {
                 continue;
             }
-            let age = self.research_tree.age(self.research_tree.center(req));
-            let age_name = if age == 0 {
-                "Early"
-            } else {
-                RESEARCH_AGES[age - 1].0
-            };
+            let age = self.research_tree.age(req);
+            let age_name = RESEARCH_AGES[age].0;
             let label = format!("{} ({})", req.name(), age_name);
             let width = measure_text(&label, None, 15, 1.0).width + 22.0;
             let button = Rect::new(x, y + 53.0, width, 29.0);
@@ -301,9 +298,15 @@ fn research_unlock_detail(tech: Tech) -> String {
                 .contains(&(Requirement::Tech(tech.0), true)))
         .then_some(data.name)
     }));
+    unlocks.extend(
+        Government::TARGETS
+            .into_iter()
+            .filter(|government| government.requirement() == Some(tech))
+            .map(|government| government.name()),
+    );
     let art = match tech {
-        Tech::RAILROAD => Some("Industrial"),
-        Tech::AUTOMOBILE => Some("Electric Age"),
+        Tech::STEAM_POWER => Some("Industrial"),
+        Tech::MOTORIZED_TRANSPORTATION => Some("Electric Age"),
         Tech::ROCKETRY => Some("Modern"),
         Tech::SUPERCONDUCTORS => Some("Postmodern"),
         _ => None,
@@ -320,14 +323,7 @@ fn research_unlock_detail(tech: Tech) -> String {
         detail.push_str(&format!("City art: {age}"));
     }
     if detail.is_empty() {
-        if let Some(data) = tech
-            .data()
-            .filter(|data| !data.reference_unlocks.is_empty())
-        {
-            format!("Reference: {}", data.reference_unlocks)
-        } else {
-            "Choosing a goal that changes the current target resets research progress.".to_owned()
-        }
+        "No direct unit or building unlock in CivCraft.".to_owned()
     } else {
         detail
     }

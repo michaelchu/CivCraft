@@ -1,19 +1,16 @@
 //! Technology graph layout and connection routing for the research screen.
 
-use crate::rules::Tech;
+use crate::rules::{Tech, TechEra};
 use macroquad::prelude::*;
 
 pub(crate) const NODE_SIZE: Vec2 = vec2(205.0, 56.0);
 const COLUMN_STEP: f32 = 285.0;
 
-// The first milestone comes from the Civ2Civ3 music rules. The rest
-// come from the city style rules. Tabs are based on prerequisite depth.
-pub(crate) const RESEARCH_AGES: [(&str, Tech); 5] = [
-    ("Renaissance", Tech::UNIVERSITY),
-    ("Industrial", Tech::RAILROAD),
-    ("Electric Age", Tech::AUTOMOBILE),
-    ("Modern", Tech::ROCKETRY),
-    ("Postmodern", Tech::SUPERCONDUCTORS),
+pub(crate) const RESEARCH_AGES: [(&str, TechEra); 4] = [
+    ("Ancient Times", TechEra::Ancient),
+    ("Middle Ages", TechEra::MiddleAges),
+    ("Industrial Age", TechEra::Industrial),
+    ("Modern Times", TechEra::Modern),
 ];
 
 pub(crate) struct TreeEdge {
@@ -30,7 +27,10 @@ pub(crate) struct ResearchTree {
 
 impl ResearchTree {
     pub(crate) fn new() -> Self {
-        let advances: Vec<_> = Tech::all().chain([Tech::FUTURE]).collect();
+        let advances: Vec<_> = Tech::all()
+            .filter(|tech| tech.is_civ3_advance())
+            .chain([Tech::FUTURE])
+            .collect();
         let index = |tech| advances.iter().position(|&entry| entry == tech).unwrap();
         let mut links = Vec::new();
         for &tech in &advances {
@@ -38,7 +38,7 @@ impl ResearchTree {
         }
         // Future Tech requires the whole catalog. Connecting the terminal
         // advances expresses that requirement without duplicating their links.
-        for tech in Tech::all() {
+        for tech in Tech::all().filter(|tech| tech.is_civ3_advance()) {
             if !links.iter().any(|&(from, _)| from == tech) {
                 links.push((tech, Tech::FUTURE));
             }
@@ -117,21 +117,47 @@ impl ResearchTree {
                 y += slot;
             }
         }
+        let original_centers = centers.clone();
+        let channels: Vec<_> = gaps
+            .iter()
+            .enumerate()
+            .map(|(depth, gap)| route_channel(depth, gap, &original_centers, advances.len()))
+            .collect();
+
+        let mut era_ranges = [(f32::INFINITY, f32::NEG_INFINITY); 4];
+        for (index, &tech) in advances.iter().enumerate() {
+            let range = &mut era_ranges[tech.era().index()];
+            range.0 = range.0.min(centers[index].x);
+            range.1 = range.1.max(centers[index].x);
+        }
+        let mut era_offsets = [0.0; 4];
+        let mut era_right = 0.0;
+        for (era, &(left, right)) in era_ranges.iter().enumerate() {
+            era_offsets[era] = era_right - left;
+            era_right += (right - left).max(COLUMN_STEP) + COLUMN_STEP;
+        }
+        for (index, &tech) in advances.iter().enumerate() {
+            centers[index].x += era_offsets[tech.era().index()];
+        }
+        centers[index(Tech::FUTURE)].x = era_right - COLUMN_STEP * 0.5;
+        centers[index(Tech::FUTURE)].y = height * 0.5;
 
         let nodes = advances
             .iter()
             .enumerate()
             .map(|(i, &tech)| (tech, centers[i]))
             .collect();
-        let channels: Vec<_> = gaps
-            .iter()
-            .enumerate()
-            .map(|(depth, gap)| route_channel(depth, gap, &centers, advances.len()))
-            .collect();
         let edges = links
             .into_iter()
             .zip(routes)
             .map(|((from, to), route)| {
+                if from.era() != to.era() {
+                    return TreeEdge {
+                        from,
+                        to,
+                        points: vec![centers[index(from)], centers[index(to)]],
+                    };
+                }
                 let mut points = Vec::new();
                 for (offset, pair) in route.windows(2).enumerate() {
                     let channel = &channels[depths[index(from)] + offset];
@@ -142,13 +168,14 @@ impl ResearchTree {
                         .1;
                     points.extend(segment);
                 }
+                let offset = era_offsets[from.era().index()];
+                for point in &mut points {
+                    point.x += offset;
+                }
                 TreeEdge { from, to, points }
             })
             .collect();
-        let size = vec2(
-            (columns.len() - 1) as f32 * COLUMN_STEP + NODE_SIZE.x,
-            height,
-        );
+        let size = vec2(era_right - COLUMN_STEP * 0.5, height);
         Self { nodes, edges, size }
     }
 
@@ -156,23 +183,20 @@ impl ResearchTree {
         self.nodes.iter().find(|(node, _)| *node == tech).unwrap().1
     }
 
-    pub(crate) fn age(&self, position: Vec2) -> usize {
-        RESEARCH_AGES
-            .iter()
-            .take_while(|&&(_, tech)| position.x >= self.center(tech).x)
-            .count()
+    pub(crate) fn age(&self, tech: Tech) -> usize {
+        tech.era().index()
     }
 
     pub(crate) fn bounds(&self, age: usize) -> Rect {
-        let boundary = |tech| self.center(tech).x - COLUMN_STEP * 0.5;
-        let left = if age == 0 {
-            0.0
-        } else {
-            boundary(RESEARCH_AGES[age - 1].1)
-        };
-        let right = RESEARCH_AGES
-            .get(age)
-            .map_or(self.size.x, |&(_, tech)| boundary(tech));
+        let era = TechEra::ALL[age.min(TechEra::ALL.len() - 1)];
+        let (left, right) = self
+            .nodes
+            .iter()
+            .filter(|(tech, _)| tech.era() == era)
+            .map(|(_, center)| (center.x - NODE_SIZE.x * 0.5, center.x + NODE_SIZE.x * 0.5))
+            .fold((f32::INFINITY, f32::NEG_INFINITY), |(left, right), bounds| {
+                (left.min(bounds.0), right.max(bounds.1))
+            });
         Rect::new(left, 0.0, right - left, self.size.y)
     }
 

@@ -237,7 +237,7 @@ impl UnitKind {
                     | (1u64 << F::Transform as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::Settlers as u32) | (1u64 << R::WorkerStartUnit as u32),
-                tech: Some(Tech::EXPLOSIVES), /* Explosives */
+                tech: Some(Tech::ENGINEERING), /* Engineering */
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -401,7 +401,7 @@ impl UnitKind {
                     | (1u64 << F::Fortress as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::DefendOk as u32) | (1u64 << R::DefendOkStartUnit as u32),
-                tech: Some(Tech(77)), /* Tactics */
+                tech: Some(Tech::MILITARY_TRADITION), /* Military Tradition */
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -424,7 +424,7 @@ impl UnitKind {
                     | (1u64 << R::DefendGoodStartUnit as u32)
                     | (1u64 << R::Partisan as u32)
                     | (1u64 << R::BarbarianTech as u32),
-                tech: Some(Tech::GUERILLA_WARFARE), /* Guerilla Warfare */
+                tech: Some(Tech::NATIONALISM), /* Nationalism */
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -443,7 +443,7 @@ impl UnitKind {
                     | (1u64 << F::Capturer as u32)
                     | (1u64 << F::Fortress as u32),
                 roles: (1u64 << R::DefendGood as u32) | (1u64 << R::DefendGoodStartUnit as u32),
-                tech: Some(Tech::GUERILLA_WARFARE), /* Guerilla Warfare */
+                tech: Some(Tech::NATIONALISM), /* Nationalism */
                 government: Some(Government::Fundamentalism),
                 obsolete: &[],
                 cargo: &[],
@@ -483,7 +483,7 @@ impl UnitKind {
                     | (1u64 << F::Fortress as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::DefendOk as u32),
-                tech: Some(Tech::COMBINED_ARMS), /* Combined Arms */
+                tech: Some(Tech::ADVANCED_FLIGHT), /* Advanced Flight */
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -501,7 +501,7 @@ impl UnitKind {
                 roles: (1u64 << R::DefendGood as u32)
                     | (1u64 << R::DefendGoodStartUnit as u32)
                     | (1u64 << R::FirstBuild as u32),
-                tech: Some(Tech(38)), /* Labor Union */
+                tech: Some(Tech::COMPUTERS), /* Computers */
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -554,7 +554,7 @@ impl UnitKind {
                 roles: (1u64 << R::DefendOk as u32)
                     | (1u64 << R::AttackFastStartUnit as u32)
                     | (1u64 << R::Hunter as u32),
-                tech: Some(Tech(61)), /* Polytheism */
+                tech: Some(Tech::CHIVALRY), /* Chivalry */
                 government: None,
                 obsolete: &[Self::Dragoons],
                 cargo: &[],
@@ -609,7 +609,7 @@ impl UnitKind {
                 roles: (1u64 << R::AttackFastStartUnit as u32)
                     | (1u64 << R::BarbarianBuildTech as u32)
                     | (1u64 << R::Hunter as u32),
-                tech: Some(Tech(40)), /* Leadership */
+                tech: Some(Tech::MILITARY_TRADITION), /* Military Tradition */
                 government: None,
                 obsolete: &[Self::Cavalry],
                 cargo: &[],
@@ -625,7 +625,7 @@ impl UnitKind {
                 class: C::Land,
                 flags: (1u64 << F::Capturer as u32) | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::AttackFastStartUnit as u32) | (1u64 << R::Hunter as u32),
-                tech: Some(Tech(77)), /* Tactics */
+                tech: Some(Tech::MILITARY_TRADITION), /* Military Tradition */
                 government: None,
                 obsolete: &[Self::Armor],
                 cargo: &[],
@@ -643,7 +643,7 @@ impl UnitKind {
                 roles: (1u64 << R::DefendOk as u32)
                     | (1u64 << R::AttackFastStartUnit as u32)
                     | (1u64 << R::Hunter as u32),
-                tech: Some(Tech::MOBILE_WARFARE), /* Mobile Warfare */
+                tech: Some(Tech::MOTORIZED_TRANSPORTATION), /* Motorized Transportation */
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -693,7 +693,7 @@ impl UnitKind {
                 class: C::BigLand,
                 flags: (1u64 << F::CityBuster as u32),
                 roles: (1u64 << R::AttackStrongStartUnit as u32),
-                tech: Some(Tech::MACHINE_TOOLS), /* Machine Tools */
+                tech: Some(Tech::REPLACEABLE_PARTS), /* Replaceable Parts */
                 government: None,
                 obsolete: &[Self::Howitzer],
                 cargo: &[],
@@ -748,7 +748,7 @@ impl UnitKind {
                     | (1u64 << F::HasNoZOC as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: 0,
-                tech: Some(Tech::ADVANCED_FLIGHT), /* Advanced Flight */
+                tech: Some(Tech::FLIGHT), /* Flight */
                 government: None,
                 obsolete: &[Self::StealthBomber],
                 cargo: &[],
@@ -769,7 +769,7 @@ impl UnitKind {
                     | (1u64 << F::Provoking as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: 0,
-                tech: Some(Tech::COMBINED_ARMS), /* Combined Arms */
+                tech: Some(Tech::ADVANCED_FLIGHT), /* Advanced Flight */
                 government: None,
                 obsolete: &[],
                 cargo: &[C::Land],
@@ -850,7 +850,7 @@ impl UnitKind {
                 roles: (1u64 << R::Ferryboat as u32)
                     | (1u64 << R::FerryStartUnit as u32)
                     | (1u64 << R::BarbarianBoat as u32),
-                tech: Some(Tech::MAGNETISM), /* Magnetism */
+                tech: Some(Tech::ASTRONOMY), /* Astronomy */
                 government: None,
                 obsolete: &[Self::Galleon],
                 cargo: &[C::Land, C::SmallLand, C::Merchant],
@@ -872,7 +872,7 @@ impl UnitKind {
                 roles: (1u64 << R::Ferryboat as u32)
                     | (1u64 << R::FerryStartUnit as u32)
                     | (1u64 << R::BarbarianBoat as u32),
-                tech: Some(Tech::NAVIGATION), /* Navigation */
+                tech: Some(Tech::MAGNETISM), /* Magnetism */
                 government: None,
                 obsolete: &[Self::Transport],
                 cargo: &[C::Land, C::SmallLand, C::BigLand, C::Merchant],
@@ -888,7 +888,7 @@ impl UnitKind {
                 class: C::Sea,
                 flags: (1u64 << F::BadCityDefender as u32) | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::Hunter as u32),
-                tech: Some(Tech::NAVIGATION), /* Navigation */
+                tech: Some(Tech::MAGNETISM), /* Magnetism */
                 government: None,
                 obsolete: &[Self::Ironclad],
                 cargo: &[],
@@ -904,7 +904,7 @@ impl UnitKind {
                 class: C::Sea,
                 flags: (1u64 << F::BadCityDefender as u32) | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::Hunter as u32),
-                tech: Some(Tech::STEAM_ENGINE), /* Steam Engine */
+                tech: Some(Tech::STEAM_POWER), /* Steam Power */
                 government: None,
                 obsolete: &[Self::Destroyer],
                 cargo: &[],
@@ -920,7 +920,7 @@ impl UnitKind {
                 class: C::Sea,
                 flags: (1u64 << F::BadCityDefender as u32) | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::Hunter as u32),
-                tech: Some(Tech::ENGINEERING), /* Engineering */
+                tech: Some(Tech::COMBUSTION), /* Combustion */
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -936,7 +936,7 @@ impl UnitKind {
                 class: C::Sea,
                 flags: (1u64 << F::BadCityDefender as u32) | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::DefendOk as u32) | (1u64 << R::DefendOkStartUnit as u32),
-                tech: Some(Tech::STEEL), /* Steel */
+                tech: Some(Tech::COMBUSTION), /* Combustion */
                 government: None,
                 obsolete: &[Self::AegisCruiser],
                 cargo: &[],
@@ -952,7 +952,7 @@ impl UnitKind {
                 class: C::Sea,
                 flags: (1u64 << F::BadCityDefender as u32) | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::DefendGood as u32) | (1u64 << R::DefendGoodStartUnit as u32),
-                tech: Some(Tech::ROCKETRY), /* Rocketry */
+                tech: Some(Tech::ROBOTICS), /* Robotics */
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -988,7 +988,7 @@ impl UnitKind {
                     | (1u64 << F::Provoking as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::Hunter as u32),
-                tech: Some(Tech::COMBUSTION), /* Combustion */
+                tech: Some(Tech::MASS_PRODUCTION), /* Mass Production */
                 government: None,
                 obsolete: &[],
                 cargo: &[C::Missile],
@@ -1007,7 +1007,7 @@ impl UnitKind {
                     | (1u64 << F::Provoking as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::DefendGood as u32),
-                tech: Some(Tech::ADVANCED_FLIGHT), /* Advanced Flight */
+                tech: Some(Tech::MASS_PRODUCTION), /* Mass Production */
                 government: None,
                 obsolete: &[],
                 cargo: &[C::Land, C::Air, C::Missile, C::Helicopter],
@@ -1028,7 +1028,7 @@ impl UnitKind {
                     | (1u64 << F::NonMil as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: (1u64 << R::Ferryboat as u32) | (1u64 << R::FerryStartUnit as u32),
-                tech: Some(Tech::ENGINEERING), /* Engineering */
+                tech: Some(Tech::COMBUSTION), /* Combustion */
                 government: None,
                 obsolete: &[],
                 cargo: &[C::Land, C::SmallLand, C::BigLand, C::Merchant],
@@ -1068,7 +1068,7 @@ impl UnitKind {
                     | (1u64 << F::HasNoZOC as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: 0,
-                tech: Some(Tech::NUCLEAR_FISSION), /* Nuclear Fission */
+                tech: Some(Tech::SPACE_FLIGHT), /* Space Flight */
                 government: None,
                 obsolete: &[],
                 cargo: &[],
@@ -1132,7 +1132,7 @@ impl UnitKind {
                     | (1u64 << F::Capturable as u32)
                     | (1u64 << F::ShieldToGold as u32),
                 roles: 0,
-                tech: Some(Tech::TRADE), /* Trade */
+                tech: Some(Tech::ECONOMICS), /* Economics */
                 government: None,
                 obsolete: &[Self::Freight],
                 cargo: &[],

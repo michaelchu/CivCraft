@@ -50,7 +50,8 @@ const HEADER_V11: &[u8] = b"CIVCRAFT\0\x0b";
 const HEADER_V12: &[u8] = b"CIVCRAFT\0\x0c";
 const HEADER_V13: &[u8] = b"CIVCRAFT\0\x0d";
 const HEADER_V14: &[u8] = b"CIVCRAFT\0\x0e";
-const HEADER: &[u8] = b"CIVCRAFT\0\x10";
+const HEADER_V16: &[u8] = b"CIVCRAFT\0\x10";
+const HEADER: &[u8] = b"CIVCRAFT\0\x11";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
@@ -185,6 +186,7 @@ impl Simulation {
         file.read_exact(&mut header)?;
         if header != HEADER
             && header != HEADER_V14
+            && header != HEADER_V16
             && header != HEADER_V13
             && header != HEADER_V12
             && header != HEADER_V11
@@ -209,6 +211,7 @@ impl Simulation {
         let mut game: Self;
         if header == HEADER_V1 {
             game = decode_payload(&payload)?;
+            migrate_research_sentinels(&mut game);
             game.validate_campaign()?;
             game.remember_route_tiles(true);
         } else {
@@ -287,6 +290,7 @@ impl Simulation {
                     HEADER_V12 => decode_v12(&payload).map_err(decode_error)?,
                     HEADER_V13 => decode_v13(&payload).map_err(decode_error)?,
                     HEADER_V14 => decode_v14(&payload).map_err(decode_error)?,
+                    HEADER_V16 => decode_v15(&payload).map_err(decode_error)?,
                     _ => decode_v15(&payload).map_err(decode_error)?,
                 };
             let (
@@ -308,6 +312,9 @@ impl Simulation {
             let reserves: std::collections::BTreeMap<usize, i32> = reserves;
             let memory: Vec<Option<movement::RouteTile>> = memory;
             game = loaded;
+            if header != HEADER {
+                migrate_research_sentinels(&mut game);
+            }
             game.validate_campaign()?;
             if memory.len() != game.tiles.len()
                 || memory.iter().flatten().any(|tile| {
@@ -461,20 +468,20 @@ impl Simulation {
         }
         if matches!(
             header.as_slice(),
-            HEADER | HEADER_V14 | HEADER_V13 | HEADER_V12
+            HEADER | HEADER_V16 | HEADER_V14 | HEADER_V13 | HEADER_V12
         ) && !game.list_order.valid(&game.units, &game.cities)
         {
             return Err(invalid("Invalid native entity list order"));
         }
         if !matches!(
             header.as_slice(),
-            HEADER | HEADER_V14 | HEADER_V13 | HEADER_V12
+            HEADER | HEADER_V16 | HEADER_V14 | HEADER_V13 | HEADER_V12
         ) {
             // Legacy saves did not record arrival/transfer history. Infer
             // creation order; exact historical tile order is unrecoverable.
             game.sync_list_order();
         }
-        if matches!(header.as_slice(), HEADER | HEADER_V14 | HEADER_V13) {
+        if matches!(header.as_slice(), HEADER | HEADER_V16 | HEADER_V14 | HEADER_V13) {
             if !game.valid_cargo_order() {
                 return Err(invalid("Invalid transport cargo order"));
             }
@@ -483,7 +490,7 @@ impl Simulation {
         }
         if !matches!(
             header.as_slice(),
-            HEADER | HEADER_V14 | HEADER_V13 | HEADER_V12 | HEADER_V11 | HEADER_V10 | HEADER_V9
+            HEADER | HEADER_V16 | HEADER_V14 | HEADER_V13 | HEADER_V12 | HEADER_V11 | HEADER_V10 | HEADER_V9
         ) {
             game.seed_legacy_diplomatic_contacts();
         }
@@ -522,7 +529,7 @@ impl Simulation {
                 player.name = civ.name.to_owned();
             }
         }
-        if header != HEADER && header != HEADER_V14 {
+        if header != HEADER && header != HEADER_V16 && header != HEADER_V14 {
             game.migrate_render_memory();
         }
         if !game.valid_render_memory() {

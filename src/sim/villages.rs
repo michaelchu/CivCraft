@@ -138,7 +138,7 @@ impl Simulation {
             // civilizations can build them. Each raider is drawn separately.
             let advanced: Vec<_> = [
                 (UnitKind::Musketeers, Tech::GUNPOWDER),
-                (UnitKind::Partisan, Tech::GUERILLA_WARFARE),
+                (UnitKind::Partisan, Tech::NATIONALISM),
                 (UnitKind::Knights, Tech::CHIVALRY),
                 (UnitKind::Cannon, Tech::METALLURGY),
             ]
@@ -147,7 +147,8 @@ impl Simulation {
                 (self
                     .players
                     .iter()
-                    .filter(|player| player.known.contains(&tech))
+                    .enumerate()
+                    .filter(|(owner, _)| self.has_tech(*owner, tech))
                     .count()
                     >= 3)
                     .then_some(kind)

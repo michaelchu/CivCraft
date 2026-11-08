@@ -185,12 +185,12 @@ impl Resource {
     /// Bonus and luxury resources are visible from the start.
     pub(crate) fn visibility_tech(self) -> Option<Tech> {
         match self {
-            Self::Aluminum => Some(Tech::FLIGHT),
-            Self::Coal => Some(Tech::STEAM_ENGINE),
-            Self::Horses => Some(Tech::HORSEBACK_RIDING),
+            Self::Aluminum => Some(Tech::ROCKETRY),
+            Self::Coal => Some(Tech::STEAM_POWER),
+            Self::Horses => Some(Tech::THE_WHEEL),
             Self::Iron => Some(Tech::IRON_WORKING),
             Self::Oil => Some(Tech::REFINING),
-            Self::Rubber => Some(Tech::INDUSTRIALIZATION),
+            Self::Rubber => Some(Tech::REPLACEABLE_PARTS),
             Self::Saltpeter => Some(Tech::GUNPOWDER),
             Self::Uranium => Some(Tech::NUCLEAR_FISSION),
             Self::Dyes

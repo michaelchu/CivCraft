@@ -18,7 +18,7 @@ impl Simulation {
             )
             || !self.has_tech(defender, Tech::COMMUNISM)
             || !self.has_tech(defender, Tech::GUNPOWDER)
-            || !(0..self.players.len()).any(|owner| self.has_tech(owner, Tech::GUERILLA_WARFARE))
+            || !(0..self.players.len()).any(|owner| self.has_tech(owner, Tech::NATIONALISM))
         {
             return;
         }
@@ -88,10 +88,10 @@ mod tests {
         game.cities[index].foreign_citizens = vec![(1, 3)];
         game.players[HUMAN]
             .known
-            .retain(|&tech| tech != Tech::GUERILLA_WARFARE);
+            .retain(|&tech| tech != Tech::NATIONALISM);
         game.inspire_partisans(index, 1);
         assert_eq!(game.units.len(), before);
-        game.players[HUMAN].known.push(Tech::GUERILLA_WARFARE);
+        game.players[HUMAN].known.push(Tech::NATIONALISM);
         assert!(!game.unit_available(1, UnitKind::Partisan));
         game.inspire_partisans(index, 1);
         assert!(game.units.len() > before);

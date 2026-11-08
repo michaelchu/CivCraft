@@ -158,7 +158,7 @@ impl Game {
             }
             if stats.can_work && unit.transport.is_none() {
                 let tile = self.sim.tile(unit.x, unit.y);
-                let (label, enabled) = if tile.road && self.sim.has_tech(unit.owner, Tech::RAILROAD)
+                let (label, enabled) = if tile.road && self.sim.has_tech(unit.owner, Tech::STEAM_POWER)
                 {
                     (
                         "Build railroad [R]",
@@ -170,7 +170,7 @@ impl Game {
                         !tile.road
                             && tile.terrain.road_time() > 0
                             && (!tile.river
-                                || self.sim.has_tech(unit.owner, Tech::BRIDGE_BUILDING)),
+                                || self.sim.has_tech(unit.owner, Tech::ENGINEERING)),
                     )
                 };
                 entries.push((label.to_owned(), UiAction::Road, enabled));
@@ -281,7 +281,7 @@ impl Game {
         } else if let Some(index) = self.selected_city_index() {
             let city = &self.sim.cities()[index];
             for kind in [
-                if self.sim.has_tech(city.owner, Tech::EXPLOSIVES) {
+                if self.sim.has_tech(city.owner, Tech::ENGINEERING) {
                     UnitKind::Engineer
                 } else {
                     UnitKind::Worker
