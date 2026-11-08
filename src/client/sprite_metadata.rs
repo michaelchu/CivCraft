@@ -160,6 +160,35 @@ pub(super) fn unit_sprite(kind: UnitKind) -> (i32, i32) {
     }
 }
 
+pub(super) fn unit_art_role(kind: UnitKind) -> String {
+    let mut role = String::from("unit-");
+    for (index, character) in format!("{kind:?}").chars().enumerate() {
+        if character.is_ascii_uppercase() && index > 0 {
+            role.push('-');
+        }
+        role.push(character.to_ascii_lowercase());
+    }
+    role
+}
+
+#[cfg(test)]
+mod unit_art_role_tests {
+    use super::unit_art_role;
+    use crate::sim::UnitKind;
+
+    #[test]
+    fn unit_art_roles_are_stable_kebab_case_manifest_keys() {
+        assert_eq!(unit_art_role(UnitKind::Settlers), "unit-settlers");
+        assert_eq!(unit_art_role(UnitKind::Warrior), "unit-warrior");
+        assert_eq!(
+            unit_art_role(UnitKind::StealthFighter),
+            "unit-stealth-fighter"
+        );
+        assert_eq!(unit_art_role(UnitKind::MechInf), "unit-mech-inf");
+        assert_eq!(unit_art_role(UnitKind::Icbm), "unit-icbm");
+    }
+}
+
 impl Resource {
     pub(super) fn icon_cell(self) -> (i32, i32) {
         match self {

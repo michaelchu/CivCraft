@@ -40,6 +40,18 @@ intended end state; a completed phase requires the evidence listed below.
 ## Current verified baseline
 
 - Civ III terrain art can be loaded through the existing shared map draw path.
+- OpenCiv3 marks `C7/Assets/Art/Units/units_32.png` as placeholder artwork;
+  its map-unit path loads directional `.flc` animations. CivCraft now has a
+  Rust decoder for the FLC chunk types used by the inspected OpenCiv3 reader
+  (palette, byte-run, and delta frames), and Civ III theme manifests accept
+  `unit-<kind> = path.flc` entries. A seed-42 world capture with a configured
+  Carthaginian Settler FLC confirms a rendered palette/team-color frame:
+  `/tmp/civ3-unit-flc-review-settlers/world.png` and report
+  `/tmp/civ3-unit-flc-review-settlers/report.json`. This proves the optional
+  loader path only; the default theme does not map unit art, current simulation
+  does not track facing or action animation state, and most units still use the
+  shared atlas. OpenCiv3 unit artwork is treated as reference/mod art rather
+  than verified original Civ III artwork.
 - `src/client/tileset.rs` decodes 8-bit, one-plane RLE PCX and applies palette
   indices 254 and 255 as transparent by default, following OpenCiv3's loader
   configuration. Theme manifests can override transparent indices per sheet

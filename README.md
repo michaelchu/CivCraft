@@ -75,7 +75,9 @@ cargo run --release -- --tileset civ3 --seed 42
 
 The selection applies to the world map and the city work map. It is independent
 of `--renderer` and works with new maps and existing saves. The Civ III tileset
-uses the Civ III river sheets; unit art remains shared during migration.
+uses the Civ III river sheets. Unit art can be overridden per unit with an FLC
+animation from a mod; units without a configured FLC still use the legacy
+shared atlas while unit-art migration continues.
 Resource icons come from the selected theme’s resource sheet. A missing sheet
 or a transparent icon cell uses the existing fallback resource icon.
 
@@ -101,11 +103,19 @@ the manifest's directory. Sheets retain the Civ III cell layout.
 | `oil-well`, `oil-platform`, `airstrip`, `airbase` | Optional one-cell `Terrain/<role>.png` sprites |
 | `resources`, `resource-shadows` | `resources.png`, `resources_shadows.png` |
 | `city-asian`, `city-american`, `city-european`, `city-middle_eastern`, `city-roman` | `Cities/rASIAN.png`, `rAMER.png`, `rEURO.png`, `rMIDEAST.png`, `rROMAN.png` |
+| `unit-<kind>` | Optional Civ III `.flc` animation, for example `unit-settlers = Units/Settlers/Default.flc` |
 
-Each role accepts PNG or 8-bit, single-plane RLE PCX artwork. If the default
+Each image role accepts PNG or 8-bit, single-plane RLE PCX artwork. If the default
 PNG path is absent, the loader checks the same basename with `.pcx` and `.PCX`.
 PCX magenta color-key pixels are decoded as transparent. City-style roles can
 be overridden in `tileset.conf` like the terrain and resource roles.
+
+Unit roles use lowercase kebab-case `UnitKind` names (`unit-stealth-fighter`,
+`unit-mech-inf`, `unit-settlers`). FLC files are decoded from their original
+palette-indexed frames. The current renderer displays the southeast direction's
+first default frame and applies palette team-color and shadow ranges. Facing,
+action animations, and automatic mapping of the full unit roster are not yet
+implemented.
 
 The ground, water, and polar sheets are required. The other groups are optional.
 For two interactive windows, launch the binary from separate working

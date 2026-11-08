@@ -180,6 +180,14 @@ impl Theme {
                     LAND_SHEETS.iter().any(|entry| entry.0 == key)
                         || OVERLAYS.iter().any(|entry| entry.0 == key)
                         || IRRIGATION.iter().any(|entry| entry.0 == key)
+                        || key.strip_prefix("unit-").is_some_and(|name| {
+                            !name.is_empty()
+                                && name.chars().all(|character| {
+                                    character.is_ascii_lowercase()
+                                        || character.is_ascii_digit()
+                                        || character == '-'
+                                })
+                        })
                         || matches!(
                             key,
                             "water"
@@ -671,10 +679,22 @@ pub(super) struct Civ3 {
     pollution: Option<Texture2D>,
     craters: Option<Texture2D>,
     optional_improvements: HashMap<&'static str, Texture2D>,
+    unit_art: HashMap<String, Civ3UnitArt>,
     river_delta: Texture2D,
     river_mountain: Texture2D,
     resources: Option<ResourceArt>,
     cities: HashMap<&'static str, Texture2D>,
+}
+
+struct Civ3UnitArt {
+    base: Texture2D,
+    tint: Texture2D,
+    width: f32,
+    height: f32,
+    original_width: f32,
+    original_height: f32,
+    offset_left: f32,
+    offset_top: f32,
 }
 
 const CITY_STYLES: [(&str, &str); 5] = [
@@ -844,6 +864,42 @@ impl Civ3 {
             texture.set_filter(FilterMode::Nearest);
             cities.insert(style, texture);
         }
+        let mut unit_art = HashMap::new();
+        for (role, relative_path) in theme
+            .paths
+            .iter()
+            .filter(|(role, _)| role.starts_with("unit-"))
+        {
+            let path = theme.root.join(relative_path);
+            let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+            let flic = super::flc::decode_flic(&bytes)
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            let frame = flic
+                .animations
+                .get(2)
+                .and_then(|direction| direction.first())
+                .ok_or_else(|| format!("{}: missing southeast default frame", path.display()))?;
+            let (base_image, tint_image) = flic
+                .image_layers(frame)
+                .map_err(|error| format!("{}: {error}", path.display()))?;
+            let base = Texture2D::from_image(&base_image);
+            let tint = Texture2D::from_image(&tint_image);
+            base.set_filter(FilterMode::Nearest);
+            tint.set_filter(FilterMode::Nearest);
+            unit_art.insert(
+                role.clone(),
+                Civ3UnitArt {
+                    base,
+                    tint,
+                    width: flic.width as f32,
+                    height: flic.height as f32,
+                    original_width: flic.original_width.max(flic.width) as f32,
+                    original_height: flic.original_height.max(flic.height) as f32,
+                    offset_left: flic.offset_left as f32,
+                    offset_top: flic.offset_top as f32,
+                },
+            );
+        }
         Ok(Self {
             art,
             atlas: RefCell::default(),
@@ -855,6 +911,7 @@ impl Civ3 {
             pollution,
             craters,
             optional_improvements,
+            unit_art,
             river_delta,
             river_mountain,
             resources,
@@ -872,6 +929,50 @@ impl Civ3 {
             .copied()
             .unwrap_or("european");
         self.city_texture(style)
+    }
+
+    /// Draw a mod-supplied Civ III default FLC frame. Unit facing and animation
+    /// state are not yet represented in the simulation, so use southeast frame 0.
+    pub(super) fn draw_unit(
+        &self,
+        kind: UnitKind,
+        owner: usize,
+        center: Vec2,
+        zoom: f32,
+        has_moves: bool,
+    ) -> bool {
+        let role = super::sprite_metadata::unit_art_role(kind);
+        let Some(art) = self.unit_art.get(&role) else {
+            return false;
+        };
+        let scale = zoom * (TILE_W / 64.0);
+        let size = vec2(art.width * scale, art.height * scale);
+        let position = center - vec2(art.original_width * scale, art.original_height * scale) * 0.5
+            + vec2(art.offset_left * scale, art.offset_top * scale);
+        let base_tint = if has_moves {
+            WHITE
+        } else {
+            Color::new(0.62, 0.66, 0.68, 1.0)
+        };
+        let team = super::player_color(owner);
+        let team_tint = if has_moves {
+            team
+        } else {
+            Color::new(team.r * 0.62, team.g * 0.66, team.b * 0.68, team.a)
+        };
+        for (texture, tint) in [(&art.base, base_tint), (&art.tint, team_tint)] {
+            draw_texture_ex(
+                texture,
+                position.x,
+                position.y,
+                tint,
+                DrawTextureParams {
+                    dest_size: Some(size),
+                    ..Default::default()
+                },
+            );
+        }
+        true
     }
 
     pub(super) fn draw_river(&self, game: &Game, x: i32, y: i32, center: Vec2, size: Vec2) {
@@ -1442,7 +1543,7 @@ mod tests {
         let manifest = directory.join("tileset.conf");
         fs::write(
             &manifest,
-            "terrain-buildings = Terrain/TerrainBuildings.pcx\npollution = Terrain/pollution.pcx\ncraters = Terrain/craters.png\noil-well = Terrain/oil-well.pcx\noil-platform = Terrain/oil-platform.png\nairstrip = Terrain/airstrip.pcx\nairbase = Terrain/airbase.png\n",
+            "terrain-buildings = Terrain/TerrainBuildings.pcx\npollution = Terrain/pollution.pcx\ncraters = Terrain/craters.png\noil-well = Terrain/oil-well.pcx\noil-platform = Terrain/oil-platform.png\nairstrip = Terrain/airstrip.pcx\nairbase = Terrain/airbase.png\nunit-warrior = Units/Warrior/Default.flc\nunit-stealth-fighter = Units/Stealth Fighter/Default.flc\n",
         )
         .unwrap();
         let theme = Theme::read(&directory).unwrap();
@@ -1455,6 +1556,11 @@ mod tests {
         for (role, _) in OPTIONAL_IMPROVEMENTS {
             assert!(theme.paths.contains_key(role));
         }
+        assert_eq!(theme.paths["unit-warrior"], "Units/Warrior/Default.flc");
+        assert_eq!(
+            theme.paths["unit-stealth-fighter"],
+            "Units/Stealth Fighter/Default.flc"
+        );
         fs::remove_file(manifest).unwrap();
         fs::remove_dir(directory).unwrap();
     }

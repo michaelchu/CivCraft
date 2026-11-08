@@ -260,21 +260,32 @@ impl Game {
                 },
             );
         }
-        draw_texture_ex(
-            &assets.units,
-            center.x - unit_w * 0.5,
-            center.y - unit_h + 9.0 * self.zoom,
-            if unit.moves_left > 0 {
-                WHITE
-            } else {
-                Color::new(0.62, 0.66, 0.68, 1.0)
-            },
-            DrawTextureParams {
-                dest_size: Some(vec2(unit_w, unit_h)),
-                source: Some(isolated_sprite_source(sprite_row, sprite_col, 64.0, 48.0)),
-                ..Default::default()
-            },
-        );
+        let native_unit_drawn = assets.civ3.as_ref().is_some_and(|tileset| {
+            tileset.draw_unit(
+                unit.kind,
+                unit.owner,
+                center,
+                self.zoom,
+                unit.moves_left > 0,
+            )
+        });
+        if !native_unit_drawn {
+            draw_texture_ex(
+                &assets.units,
+                center.x - unit_w * 0.5,
+                center.y - unit_h + 9.0 * self.zoom,
+                if unit.moves_left > 0 {
+                    WHITE
+                } else {
+                    Color::new(0.62, 0.66, 0.68, 1.0)
+                },
+                DrawTextureParams {
+                    dest_size: Some(vec2(unit_w, unit_h)),
+                    source: Some(isolated_sprite_source(sprite_row, sprite_col, 64.0, 48.0)),
+                    ..Default::default()
+                },
+            );
+        }
         self.draw_unit_status(assets, unit, center);
         draw_circle(
             center.x - 21.0 * self.zoom,
