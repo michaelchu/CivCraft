@@ -539,7 +539,7 @@ impl Simulation {
         use Resource::*;
 
         self.ui_review_terrain_layers(false);
-        let resources = [
+        let land_resources = [
             (Terrain::Mountains, Aluminum),
             (Terrain::Hills, Coal),
             (Terrain::Grassland, Horses),
@@ -557,23 +557,34 @@ impl Simulation {
             (Terrain::Swamp, Spice),
             (Terrain::Grassland, Wine),
             (Terrain::Grassland, Cattle),
-            (Terrain::Ocean, Fish),
             (Terrain::Mountains, Gold),
             (Terrain::Tundra, Game),
             (Terrain::Desert, Oasis),
             (Terrain::Jungle, Sugar),
             (Terrain::Grassland, Tobacco),
             (Terrain::Jungle, TropicalFruit),
-            (Terrain::Ocean, Whales),
             (Terrain::Plains, Wheat),
         ];
-        for (index, (terrain, resource)) in resources.into_iter().enumerate() {
+        for (index, (terrain, resource)) in land_resources.into_iter().enumerate() {
             let dx = index as i32 % 6 - 3;
             let dy = index as i32 / 6 - 2;
             let (x, y) = offset_native_by_map(20, 24, dx, dy);
             let tile = self.tile_mut(x, y);
             tile.terrain = terrain;
             tile.resource = Some(resource);
+        }
+
+        // Give the ocean resources a broad, connected coastal sea so the
+        // Whales and Fish do not look like they are sitting in a tiny pond.
+        for dy in 1..=3 {
+            for dx in 3..=6 {
+                let (x, y) = offset_native_by_map(20, 24, dx, dy);
+                self.tile_mut(x, y).terrain = Terrain::Ocean;
+            }
+        }
+        for (dx, resource) in [(3, Fish), (4, Whales)] {
+            let (x, y) = offset_native_by_map(20, 24, dx, 2);
+            self.tile_mut(x, y).resource = Some(resource);
         }
     }
 

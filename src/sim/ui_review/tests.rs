@@ -72,4 +72,12 @@ fn resource_shadow_review_scene_contains_every_civ3_resource() {
         assert!(placed.contains(&resource), "{resource:?}");
         assert!(sim.resource_visible_to(HUMAN, resource), "{resource:?}");
     }
+    for resource in [Fish, Whales] {
+        let tile = sim
+            .tiles
+            .iter()
+            .find(|tile| tile.resource == Some(resource))
+            .unwrap();
+        assert_eq!(tile.terrain, Terrain::Ocean, "{resource:?}");
+    }
 }
