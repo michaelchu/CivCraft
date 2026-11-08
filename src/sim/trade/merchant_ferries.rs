@@ -28,7 +28,7 @@ impl Simulation {
             }
             let sea_approach = self
                 .map_wrap
-                .neighbors(lx, ly)
+                .civ3_neighbors(lx, ly)
                 .filter(|&(x, y)| {
                     self.tile(x, y).terrain.is_water()
                         && !self.units.iter().any(|unit| {
@@ -327,8 +327,12 @@ impl Simulation {
                     .iter()
                     .any(|unit| unit.id == ship && (unit.x, unit.y) == (x, y));
                 if arrived {
-                    let (dx, dy) = self.map_wrap.vector(x, y, lx, ly);
-                    if self.try_move_unit(merchant.id, dx, dy) == MoveResult::Moved
+                    let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
+                        self.map_wrap.civ3_offset(x, y, dx, dy) == Some((lx, ly))
+                    });
+                    if direction.is_some_and(|direction| {
+                        self.try_move_unit_civ3(merchant.id, direction) == MoveResult::Moved
+                    })
                         && let Some(walker) = self
                             .units
                             .iter()

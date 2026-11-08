@@ -186,9 +186,10 @@ intended end state; a completed phase requires the evidence listed below.
   shared `search_route` and route-cost APIs now search the Civ III graph;
   bribery, settlement, guard-rampage, and espionage path execution uses the
   Civ III follower. Settlement-ferry sea search, settler walking, landing,
-  inland route reconstruction, and merchant passenger pickup now use Civ III
-  directions too. Specialized assault-transport and merchant delivery
-  planners still contain legacy route steps and need coordinated migration.
+  inland route reconstruction, and merchant passenger pickup and inland
+  delivery landing now use Civ III directions too. Specialized assault-
+  transport planning and execution still contain legacy route steps and need
+  coordinated migration.
   Tests cover direct movement, route preview, wrapped seams, FLC facing rows,
   and migrated AI routes; `cargo test --offline` passes 644/644 and the
   offline release build succeeds. The Civ III distance formula used for fuel
