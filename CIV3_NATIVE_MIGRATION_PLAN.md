@@ -187,12 +187,21 @@ intended end state; a completed phase requires the evidence listed below.
   bribery, settlement, guard-rampage, and espionage path execution uses the
   Civ III follower. Settlement-ferry sea search, settler walking, landing,
   inland route reconstruction, and merchant passenger pickup and inland
-  delivery landing now use Civ III directions too. Specialized assault-
-  transport planning and execution still contain legacy route steps and need
-  coordinated migration.
+  delivery landing now use Civ III directions too. Assault-transport target
+  selection, shore approach, landing, and amphibious attack now use the same
+  Civ III directions, including shared ground-invasion target selection.
+  Coastal-port detection, trireme access checks, and adjacent embarkation also
+  use all eight Civ III neighbors; this fixed the settlement ferry's failure
+  to board at diagonal coastal approaches.
+  Other legacy topology callers remain outside these route planners and need
+  their own coordinated migrations.
   Tests cover direct movement, route preview, wrapped seams, FLC facing rows,
-  and migrated AI routes; `cargo test --offline` passes 644/644 and the
-  offline release build succeeds. The Civ III distance formula used for fuel
+  and migrated AI routes; `cargo test --offline` passes 645/645 and the
+  offline release build succeeds. The seed-42 desktop scenario now passes
+  267/278 checks, up from 262/278 before the embarkation fix. Seven remaining
+  failures match the pre-migration baseline; four border and route fixtures
+  still assert legacy topology behavior and need Civ III review. Report:
+  `/tmp/civcraft-playtest-j1oslU/report.json`. The Civ III distance formula used for fuel
   return range matches graph traversal for sampled origins across both wrap
   modes; its use for original Civ III fuel-range behavior remains an inference.
   The focused `goto-preview` Civ III UI review passed

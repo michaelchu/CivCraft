@@ -96,6 +96,33 @@ fn merchant_can_board_from_ordinary_coast_without_a_city() {
 }
 
 #[test]
+fn coastal_ports_and_embarkation_use_all_civ3_directions() {
+    for direction in 0..CIV3_DIRS.len() {
+        let mut game = ocean_game();
+        let shore = (10, 24);
+        let water = game
+            .map_wrap
+            .civ3_neighbor(shore.0, shore.1, direction)
+            .unwrap();
+        game.tile_mut(shore.0, shore.1).terrain = Terrain::Grassland;
+        game.create_city(1, shore.0, shore.1);
+        assert!(game.is_port(game.cities.last().unwrap()));
+        let passenger = game.spawn_unit(1, UnitKind::Settlers, shore.0, shore.1);
+        let ship = game.spawn_unit(1, UnitKind::Galleon, water.0, water.1);
+
+        assert!(
+            game.embark_adjacent_ship(passenger, ship),
+            "Civilization III direction {direction} should permit coastal embarkation"
+        );
+        assert_eq!(
+            game.unit_by_id(passenger).unwrap().transport,
+            Some(ship),
+            "Civilization III direction {direction} should board the adjacent ship"
+        );
+    }
+}
+
+#[test]
 fn rough_ground_cost_is_clipped_to_walking_movement_before_port_pickup() {
     let mut game = ocean_game();
     let start = (10, 24);

@@ -144,7 +144,7 @@ impl Simulation {
             let target = self
                 .raider_landing(&boat, None, Some(&troops), &[])
                 .and_then(|(_, x, y, (dx, dy))| {
-                    let shore = self.map_wrap.offset(x, y, dx, dy)?;
+                    let shore = self.map_wrap.civ3_offset(x, y, dx, dy)?;
                     self.cities
                         .iter()
                         .filter(|c| {

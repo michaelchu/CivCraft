@@ -5,7 +5,7 @@ use super::*;
 impl Simulation {
     pub(in crate::sim) fn is_port(&self, city: &City) -> bool {
         self.map_wrap
-            .neighbors(city.x, city.y)
+            .civ3_neighbors(city.x, city.y)
             .any(|(x, y)| self.tile(x, y).terrain.is_water())
     }
 
@@ -19,7 +19,7 @@ impl Simulation {
         native(self.tile(city.x, city.y))
             || self
                 .map_wrap
-                .neighbors(city.x, city.y)
+                .civ3_neighbors(city.x, city.y)
                 .any(|(x, y)| native(self.tile(x, y)))
     }
 
@@ -79,7 +79,7 @@ impl Simulation {
             || passenger.transport.is_some()
             || !self
                 .map_wrap
-                .neighbors(passenger.x, passenger.y)
+                .civ3_neighbors(passenger.x, passenger.y)
                 .any(|tile| tile == (x, y))
             || !self.tile(x, y).terrain.is_water()
             || self.treaty_blocks_move(passenger, x, y)
