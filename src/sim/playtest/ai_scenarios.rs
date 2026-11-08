@@ -248,7 +248,7 @@ impl Simulation {
         self.ai_purchase_reserve.clear();
         self.ai_government_cache.clear();
         self.players[1].government = Government::Despotism;
-        self.players[1].known = vec![Tech::EXPLOSIVES];
+        self.players[1].known = vec![Tech::EXPLOSIVES, Tech::ENGINEERING];
         self.players[1].researching = Tech::BRONZE_WORKING;
         self.players[1].research = 0;
         self.players[1].last_science = 0;
@@ -305,7 +305,7 @@ impl Simulation {
         self.create_city(1, home.0, home.1);
         self.players[1]
             .known
-            .extend([Tech::EXPLOSIVES, Tech::GUNPOWDER]);
+            .extend([Tech::ENGINEERING, Tech::GUNPOWDER]);
         let worker = self.spawn_unit(1, UnitKind::Worker, home.0, home.1);
         let field_worker = self.spawn_unit(1, UnitKind::Worker, field.0, field.1);
         let guard = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);

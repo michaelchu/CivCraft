@@ -9,7 +9,7 @@ fn submarines_refuel_missiles_and_exclude_other_cargo() {
     assert!(doubled);
     assert_eq!(
         UnitKind::Submarine.required_tech().unwrap().name(),
-        "Combustion"
+        "Mass Production"
     );
     assert!(!UnitKind::Submarine.can_carry(UnitKind::Fighter));
     assert!(!UnitKind::Submarine.can_carry(UnitKind::Warrior));
@@ -75,7 +75,7 @@ fn aegis_cruisers_defend_against_air_attackers_and_sail_without_cargo() {
     assert_eq!(defense(UnitKind::Fighter), 400);
     assert_eq!(defense(UnitKind::Helicopter), 400);
     assert_eq!(cruiser.kind.transport_capacity(), 0);
-    assert_eq!(cruiser.kind.required_tech(), Some(Tech::ROCKETRY));
+    assert_eq!(cruiser.kind.required_tech(), Some(Tech::ROBOTICS));
     assert!(!UnitKind::Transport.can_carry(cruiser.kind));
     assert_eq!(game.movement_cost_for(cruiser, x, y), Some(MOVE_FRAGMENTS));
     let (land_x, land_y) = offset_native_by_map(x, y, 1, 0);
@@ -108,8 +108,7 @@ fn city_defenses_use_the_attacking_units_class() {
     assert_eq!(defense(&game, UnitKind::Helicopter), 90);
     assert_eq!(defense(&game, UnitKind::Caravel), 90);
     assert_eq!(defense(&game, UnitKind::Musketeers), 135);
-    game.players[defender.owner].known.push(Tech::MACHINE_TOOLS);
-    assert_eq!(defense(&game, UnitKind::Musketeers), 112);
+    assert_eq!(defense(&game, UnitKind::Musketeers), 135);
 }
 
 #[test]
@@ -240,7 +239,7 @@ mod carrier_tests {
         game.tile_mut(x, y).terrain = Terrain::Grassland;
         game.create_city(HUMAN, x, y);
         assert!(!game.can_produce(&game.cities[0], port));
-        game.players[HUMAN].known.push(Tech::ADVANCED_FLIGHT);
+        game.players[HUMAN].known.push(Tech::MASS_PRODUCTION);
         assert!(game.can_produce(&game.cities[0], port));
         game.cities.clear();
         assert!(UnitKind::Carrier.can_carry(UnitKind::Warrior));

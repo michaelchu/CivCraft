@@ -84,7 +84,8 @@ impl super::Simulation {
         self.ai_guard_targets.clear();
         self.ai_unit_guards.clear();
         self.players[1].known.extend(
-            Tech::all().filter(|tech| matches!(tech.name(), "Alphabet" | "Writing" | "Currency")),
+            Tech::all()
+                .filter(|tech| matches!(tech.name(), "Alphabet" | "Literature" | "Currency")),
         );
         let old_choice = self.ai_build_choice(&self.cities[0]);
         let mut expected = self.clone();

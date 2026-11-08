@@ -38,7 +38,7 @@ impl Simulation {
                 .data()
                 .unwrap()
                 .name
-                == "Labor Union";
+                == "Computers";
         let flags = UnitKind::Riflemen.has_marine_attack()
             && UnitKind::AlpineTroops.can_helicopter_field_load()
             && !UnitKind::AlpineTroops.has_flag(UnitFlag::IgZOC)

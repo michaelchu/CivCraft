@@ -129,7 +129,7 @@ impl Simulation {
         let (x, y) = (city.x, city.y);
         self.players[HUMAN]
             .known
-            .extend([Tech::EXPLOSIVES, Tech::FUSION_POWER]);
+            .extend([Tech::EXPLOSIVES, Tech::NUCLEAR_POWER]);
         self.tile_mut(x, y).terrain = Terrain::Tundra;
         self.spawn_unit(HUMAN, UnitKind::Engineer, x, y)
     }
@@ -351,7 +351,7 @@ impl Simulation {
             == Some(UnitKind::Marines)
             && !game.can_produce(&city, Production::Unit(UnitKind::Pikemen));
         game.players[HUMAN].known.extend([
-            Tech::GUERILLA_WARFARE,
+            Tech::NATIONALISM,
             Tech::all().find(|tech| tech.name() == "Seafaring").unwrap(),
         ]);
         let gov_gate = !game.unit_available(HUMAN, UnitKind::Fanatics);

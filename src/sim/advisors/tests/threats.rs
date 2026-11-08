@@ -71,7 +71,7 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
     }
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
     game.create_city(HUMAN, 10, 24);
-    game.players[HUMAN].known = vec![Tech::GUNPOWDER, Tech::ROCKETRY];
+    game.players[HUMAN].known = vec![Tech::GUNPOWDER, Tech::ROBOTICS];
     let city = &game.cities[0];
     let air = game.make_unit(0, 1, UnitKind::Fighter, city.x, city.y);
     let land = game.make_unit(0, 1, UnitKind::Legion, city.x, city.y);

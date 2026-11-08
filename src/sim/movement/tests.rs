@@ -376,10 +376,10 @@ mod transport_tests {
         let id = game.cities[0].id;
         let caravel = Production::Unit(UnitKind::Caravel);
         let transport = Production::Unit(UnitKind::Transport);
-        game.players[HUMAN].known.push(Tech::MAGNETISM);
+        game.players[HUMAN].known.push(Tech::ASTRONOMY);
         assert!(game.apply(Command::Produce(id, caravel)));
         assert!(!game.apply(Command::Produce(id, transport)));
-        game.players[HUMAN].known.push(Tech::ENGINEERING);
+        game.players[HUMAN].known.push(Tech::COMBUSTION);
         assert!(!game.apply(Command::Produce(id, caravel)));
         game.cities[0].shields = transport.cost();
         game.process_cities();
@@ -418,13 +418,13 @@ mod transport_tests {
         let id = game.cities.last().unwrap().id;
         let caravel = Production::Unit(UnitKind::Caravel);
         let galleon = Production::Unit(UnitKind::Galleon);
-        game.players[HUMAN].known.push(Tech::MAGNETISM);
+        game.players[HUMAN].known.push(Tech::ASTRONOMY);
         assert!(!game.apply(Command::Produce(id, caravel)));
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
         game.tile_mut(sx, sy).terrain = Terrain::Lake;
         assert!(game.apply(Command::Produce(id, caravel)));
         assert!(!game.apply(Command::Produce(id, galleon)));
-        game.players[HUMAN].known.push(Tech::NAVIGATION);
+        game.players[HUMAN].known.push(Tech::MAGNETISM);
         assert!(!game.apply(Command::Produce(id, caravel)));
         game.cities.last_mut().unwrap().shields = galleon.cost();
         game.process_cities();

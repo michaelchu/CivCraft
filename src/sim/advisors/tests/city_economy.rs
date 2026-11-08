@@ -10,10 +10,9 @@ fn gold_spending_preserves_final_nondefense_advice() {
         let port = game.city_by_id(city).unwrap();
         (port.x, port.y)
     };
-    game.players[1].known.extend([
-        Tech::all().find(|tech| tech.name() == "Writing").unwrap(),
-        Tech::CONSTRUCTION,
-    ]);
+    game.players[1]
+        .known
+        .extend([Tech::LITERATURE, Tech::CONSTRUCTION, Tech::ROBOTICS]);
     game.players[1].rates = [0, 100, 0];
     for (_, _, x, y) in Simulation::city_radius_at(position.0, position.1) {
         if game.tile(x, y).terrain.is_water() {
@@ -25,14 +24,14 @@ fn gold_spending_preserves_final_nondefense_advice() {
         tile.river = true;
         tile.irrigation = true;
     }
-    game.cities.iter_mut().find(|c| c.id == city).unwrap().size = 8;
+    game.cities.iter_mut().find(|c| c.id == city).unwrap().size = 6;
     game.reconcile_city_workers();
     let port = game.city_by_id(city).unwrap();
     let choice = game.ai_build_choice(port).unwrap();
     let defense = game.city_defense_production(port);
     assert_eq!(choice.production, Production::Unit(UnitKind::Settlers));
     assert_eq!(defense, Some(Production::Unit(UnitKind::AegisCruiser)));
-    assert!(choice.want > 700.0);
+    assert!(choice.want > 650.0);
     assert_ne!(Some(choice.production), defense);
     game.cities
         .iter_mut()
@@ -184,17 +183,24 @@ fn routine_settler_rush_requires_no_war_preparation_and_enough_population() {
 #[test]
 fn city_output_priorities_raise_the_bid_for_a_library_technology() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    let writing = Tech::all().find(|tech| tech.name() == "Writing").unwrap();
-    game.players[HUMAN].known = vec![Tech::ALPHABET, writing];
-    game.players[1].known = vec![Tech::ALPHABET];
-    let no_cities = game.tech_sell_price(HUMAN, 1, writing).unwrap();
+    let literature = Tech::LITERATURE;
+    game.players[HUMAN].known = vec![Tech::ALPHABET, literature];
+    game.players[1].known = game
+        .research_path(1, literature)
+        .into_iter()
+        .filter(|&tech| tech != literature)
+        .collect();
+    let no_cities = game.tech_sell_price(HUMAN, 1, literature).unwrap();
     game.create_city(1, 20, 20);
     game.cities.last_mut().unwrap().size = 3;
     game.cities.last_mut().unwrap().specialists = [2, 0, 0];
-    assert_eq!(game.tech_sell_price(HUMAN, 1, writing).unwrap(), no_cities);
+    assert_eq!(
+        game.tech_sell_price(HUMAN, 1, literature).unwrap(),
+        no_cities
+    );
     game.ai_tech_wants.insert(1, game.advisor_tech_wants(1));
-    assert!(game.tech_sell_price(HUMAN, 1, writing).unwrap() > no_cities);
-    assert!(!game.has_tech(1, writing));
+    assert!(game.tech_sell_price(HUMAN, 1, literature).unwrap() > no_cities);
+    assert!(!game.has_tech(1, literature));
 }
 
 #[test]

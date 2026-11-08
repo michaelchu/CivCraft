@@ -34,7 +34,7 @@ fn small_wonder_projects_government_center_effects_across_empire() {
         game.wonder_build_choice(&city).unwrap().production,
         Production::Building(Building::ECCLESIASTICAL_PALACE)
     );
-    game.players[1].known.push(Tech::TRADE);
+    game.players[1].known.push(Tech::ECONOMICS);
     assert!(game.unit_available(1, UnitKind::Caravan));
     assert!(
         game.wonder_helper_production_choice(&game.cities[2])

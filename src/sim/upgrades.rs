@@ -146,7 +146,7 @@ mod tests {
         game.create_city(HUMAN, 10, 24);
         game.players[HUMAN]
             .known
-            .extend([Tech::INVENTION, Tech::EXPLOSIVES]);
+            .extend([Tech::INVENTION, Tech::ENGINEERING]);
         game.cities[0].production = Production::Building(Building::LEONARDOS_WORKSHOP);
         game.cities[0].shields = 1000;
         game.cities[0].food = 10;
@@ -179,7 +179,9 @@ mod tests {
         game.units.clear();
         game.create_city(HUMAN, 10, 20);
         game.cities[0].buildings.push(Building::LEONARDOS_WORKSHOP);
-        game.players[HUMAN].known.push(Tech::EXPLOSIVES);
+        game.players[HUMAN]
+            .known
+            .extend([Tech::INVENTION, Tech::ENGINEERING]);
         for x in [11, 12] {
             game.spawn_unit(HUMAN, UnitKind::Worker, x, 20);
         }

@@ -437,9 +437,8 @@ mod tests {
         let university = Production::Building(building("University"));
         let target = Production::Building(library);
         assert!(!game.apply(Command::Produce(id, target)));
-        let writing = Tech::all().find(|tech| tech.name() == "Writing").unwrap();
-        game.discover(HUMAN, writing);
-        game.discover(HUMAN, Tech::UNIVERSITY);
+        game.discover(HUMAN, Tech::LITERATURE);
+        game.discover(HUMAN, Tech::EDUCATION);
         assert!(!game.can_produce(&game.cities[0], university));
         assert!(game.apply(Command::Produce(id, target)));
         game.cities[0].shields = target.cost();
@@ -467,7 +466,7 @@ mod tests {
             tile.terrain = Terrain::Plains;
             tile.river = false;
         }
-        for name in ["Seafaring", "Construction"] {
+        for name in ["Map Making", "Construction"] {
             game.discover(HUMAN, Tech::all().find(|tech| tech.name() == name).unwrap());
         }
         let harbor = building("Harbor");

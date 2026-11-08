@@ -141,9 +141,12 @@ fn desert_farmland_needs_a_food_bonus_and_supermarket_applies_to_worked_tiles() 
     tile.irrigation = true;
     tile.river = false;
     tile.resource = None;
-    game.players[HUMAN]
-        .known
-        .extend([Tech::REFRIGERATION, Tech::ELECTRICITY, Tech::RAILROAD]);
+    game.players[HUMAN].known.extend([
+        Tech::REFRIGERATION,
+        Tech::ELECTRICITY,
+        Tech::SANITATION,
+        Tech::STEAM_POWER,
+    ]);
     let worker = game.spawn_unit(HUMAN, UnitKind::Worker, fx, fy);
     assert!(!game.apply(Command::Work(worker, WorkKind::Farmland)));
     game.tile_mut(fx, fy).river = true;

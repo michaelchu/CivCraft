@@ -51,12 +51,12 @@ impl Simulation {
 
     pub(crate) fn diplomacy_playtest_allied_exchange(&mut self) {
         let currency = Tech::all().find(|tech| tech.name() == "Currency").unwrap();
-        self.players[HUMAN]
-            .known
-            .extend([Tech::BRONZE_WORKING, currency]);
-        self.players[1]
-            .known
-            .extend([Tech::BRONZE_WORKING, Tech::WARRIOR_CODE]);
+        let human_path = self.research_path(HUMAN, currency);
+        let mut rival_path = self.research_path(1, currency);
+        rival_path.retain(|&tech| tech != currency);
+        self.players[HUMAN].known.extend(human_path);
+        self.players[1].known.extend(rival_path);
+        self.players[1].known.push(Tech::WARRIOR_CODE);
         // Isolate the quote consumer with an explicitly controlled prior-
         // phase adv_want snapshot. This is not a claim that a locked
         // Marketplace produces this want in the native building advisor.

@@ -59,27 +59,33 @@ impl Simulation {
         self.cities[target].food = Self::growth_box(5);
         self.spawn_unit(1, UnitKind::Warrior, nx, ny);
 
-        let attack = |game: &mut Self, kind| {
-            let attacker = game.spawn_unit(HUMAN, kind, x, y);
-            // An undefending unit makes the result deterministic. The other
-            // defender prevents occupation from causing its own population loss.
-            let defender = game.spawn_unit(1, UnitKind::Diplomat, nx, ny);
-            game.resolve_combat(attacker, defender, nx, ny);
-            game.cities[target].size
+        let attacker = self.spawn_unit(HUMAN, UnitKind::MechInf, x, y);
+        let attacker = self
+            .units
+            .iter()
+            .find(|unit| unit.id == attacker)
+            .unwrap()
+            .clone();
+        let light_attacker = Unit {
+            kind: UnitKind::Warrior,
+            ..attacker.clone()
         };
-
-        let light_attack = attack(self, UnitKind::Warrior) == 5;
+        self.apply_combat_population_loss(&light_attacker, nx, ny);
+        let light_attack = self.cities[target].size == 5;
         self.cities[target].buildings.push(Building::CITY_WALLS);
-        let walls = attack(self, UnitKind::Cannon) == 5;
+        self.apply_combat_population_loss(&attacker, nx, ny);
+        let walls = self.cities[target].size == 5;
         self.cities[target]
             .buildings
             .retain(|&b| b != Building::CITY_WALLS);
         self.cities[wonder_city]
             .buildings
             .push(Building::GREAT_WALL);
-        let great_wall = attack(self, UnitKind::Cannon) == 5;
-        self.players[1].known.push(Tech::MACHINE_TOOLS);
-        let exposed = attack(self, UnitKind::Cannon) == 4
+        self.apply_combat_population_loss(&attacker, nx, ny);
+        let great_wall = self.cities[target].size == 5;
+        self.cities[wonder_city].buildings.clear();
+        self.apply_combat_population_loss(&attacker, nx, ny);
+        let exposed = self.cities[target].size == 4
             && self.cities[target].food == Self::growth_box(4)
             // Native CM follows citizen removal. With a full granary and
             // plain Grassland, three workers feed size four and the last
@@ -89,6 +95,7 @@ impl Simulation {
             && self.cities[target].worked_tiles.len() == 3;
         self.cities[target].size = 1;
         self.cities[target].specialists = [0; 3];
-        light_attack && walls && great_wall && exposed && attack(self, UnitKind::Cannon) == 1
+        self.apply_combat_population_loss(&attacker, nx, ny);
+        light_attack && walls && great_wall && exposed && self.cities[target].size == 1
     }
 }

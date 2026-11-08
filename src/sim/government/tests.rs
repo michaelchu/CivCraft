@@ -128,7 +128,7 @@ fn government_player_bonus_uses_player_context_and_gates_partisan_techs() {
     game.players[1]
         .known
         .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
-    game.players[HUMAN].known.push(Tech::GUERILLA_WARFARE);
+    game.players[HUMAN].known.push(Tech::NATIONALISM);
     assert_eq!(game.government_player_bonus(1, Government::Communism), 3);
     assert_eq!(game.government_player_bonus(1, Government::Democracy), 3);
     assert_eq!(

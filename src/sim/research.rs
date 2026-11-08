@@ -408,7 +408,7 @@ impl Simulation {
             self.players[owner].future_techs += 1;
         } else {
             self.players[owner].known.push(tech);
-            if tech == Tech::RAILROAD {
+            if matches!(tech, Tech::RAILROAD | Tech::STEAM_POWER) {
                 let centers: Vec<_> = self
                     .cities
                     .iter()

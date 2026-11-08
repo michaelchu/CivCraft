@@ -20,7 +20,7 @@ fn railroad_research_upgrades_centers_and_enables_worker_tracks() {
     tile.mine = true;
     let initial = tile.yields();
     assert!(!game.apply(Command::Work(worker.id, WorkKind::Railroad)));
-    game.discover(HUMAN, Tech::RAILROAD);
+    game.discover(HUMAN, Tech::STEAM_POWER);
     assert!(game.tile(nx, ny).railroad);
     assert!(game.apply(Command::Work(worker.id, WorkKind::Railroad)));
     for _ in 0..2 {

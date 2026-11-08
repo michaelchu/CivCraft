@@ -60,8 +60,10 @@ impl super::Simulation {
             tile.hut = false;
             tile.known_by[1] = true;
         }
-        self.players[1].known = self.research_path(1, Tech(41) /* Literacy */);
-        self.players[1].known.extend([Tech::TRADE, Tech::POTTERY]);
+        self.players[1].known = self.research_path(1, Tech::LITERATURE);
+        self.players[1]
+            .known
+            .extend([Tech::ECONOMICS, Tech::POTTERY]);
         self.players[1].government = Government::Monarchy;
         self.players[1].rates = [80, 20, 0];
         for (dx, dy) in [(0, 0), (3, 0), (6, 0), (0, 3), (3, 3), (6, 3)] {

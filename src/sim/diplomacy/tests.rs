@@ -363,8 +363,10 @@ fn allied_trade_baseline_recomputes_embassy_leakage_before_advisor_premium() {
     let mut game = war_planning_game();
     game.sign_pact(HUMAN, 1, Pact::Alliance);
     let currency = Tech::all().find(|tech| tech.name() == "Currency").unwrap();
-    game.players[HUMAN].known = vec![Tech::ALPHABET, Tech::BRONZE_WORKING, currency];
-    game.players[1].known = vec![Tech::ALPHABET, Tech::BRONZE_WORKING, Tech::WARRIOR_CODE];
+    game.players[HUMAN].known = game.research_path(HUMAN, currency);
+    game.players[1].known = game.research_path(1, currency);
+    game.players[1].known.retain(|&tech| tech != currency);
+    game.players[1].known.push(Tech::WARRIOR_CODE);
     let before = game.diplomacy_playtest_allied_trade_baseline().unwrap();
     let embassy = TreatyOffer {
         terms: [Concessions::default().with_embassy(); 2],
