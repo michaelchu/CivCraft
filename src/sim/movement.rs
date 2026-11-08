@@ -1,4 +1,14 @@
-//! Unit movement resolution and its activity, combat, route, and transport rules.
+//! Unit movement, routes, activities, combat entry, and transport interactions.
+//!
+//! This module is the shared rules layer for direct moves and automated goto
+//! execution. It validates map adjacency and terrain/ownership constraints,
+//! spends movement points, updates unit positions, and invokes combat or
+//! boarding logic when a step encounters another object. Child modules isolate
+//! activity progress, combat consequences, path execution, and cargo handling.
+//!
+//! Movement costs and available movement must stay consistent with pathfinding
+//! and UI previews. Turn phase ordering can restore or consume movement at
+//! different points, so avoid treating `moves_left` as a simple per-frame cap.
 
 use super::*;
 

@@ -1,4 +1,14 @@
-//! Trade-route planning, merchant movement, and delivery rewards.
+//! Trade routes, merchant missions, delivery rewards, and their transport plans.
+//!
+//! The trade system evaluates city pairs, creates and maintains route state,
+//! directs merchant units toward delivery opportunities, and resolves the
+//! resulting gold and production effects. Child modules separate route
+//! accounting, destination valuation, and ferry coordination. Merchant
+//! planning shares path and unit-capacity rules with movement so a valuable
+//! delivery is not treated as reachable when its cargo cannot arrive.
+//!
+//! Route rewards and upkeep are turn-sensitive; update route cleanup and save
+//! restoration together when changing route lifecycle behavior.
 
 use super::normal_paths::GotoTask;
 use super::*;

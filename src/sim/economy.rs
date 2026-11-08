@@ -1,4 +1,14 @@
-//! Tax rates, income, upkeep, and city economic calculations.
+//! City output, citizen mood, tax allocation, upkeep, and economy advice inputs.
+//!
+//! Economy calculations connect worked tiles and specialists to food,
+//! production, trade, and science, then apply government, building, and other
+//! effects. `CityForecast` provides a common view of expected output for UI and
+//! advisor code. The child modules handle worker assignment and mood rules;
+//! authoritative turn-time collection remains coordinated by the simulation.
+//!
+//! Keep forecast and actual-resolution paths aligned when changing effects.
+//! Integer rounding, effect order, and worker selection can change growth,
+//! production completion, or research even when displayed totals look close.
 
 use super::*;
 

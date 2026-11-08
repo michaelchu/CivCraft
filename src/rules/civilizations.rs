@@ -1,8 +1,8 @@
 //! Fixed six-civilization roster. Identity is presentation data: gameplay keeps
 //! the Civ2Civ3 rules, existing player slots, colors, starts and random stream.
 //! City lists use original Civ III names (including its historical spellings).
-//! Sources: https://civilization.fandom.com/wiki/Category:Cities_(Civ3)
-//! https://civfanatics.com/civ3/infocenter/
+//! Sources: <https://civilization.fandom.com/wiki/Category:Cities_(Civ3)>
+//! <https://civfanatics.com/civ3/infocenter/>
 pub(crate) struct Civilization {
     pub(crate) name: &'static str,
     pub(crate) leader: &'static str,

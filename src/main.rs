@@ -1,4 +1,13 @@
-//! Application entry point: parses launch options, creates the world and renderer, and runs the interactive or automated frame loop.
+//! Application entry point and runtime coordinator for CivCraft.
+//!
+//! Startup parses command-line options, chooses the map topology, renderer, and
+//! tileset, then either creates a new [`sim::Simulation`] or restores one from
+//! a campaign save. The same frame loop serves interactive play, screenshots,
+//! desktop playtests, and UI review captures; automated modes disable ordinary
+//! input and autosaving so a run has reproducible side effects.
+//!
+//! Keep mode validation and shared initialization here. Gameplay rules belong
+//! in `sim`, while rendering and user interaction belong in `client`.
 
 mod client;
 mod mapgen;

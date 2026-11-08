@@ -1,4 +1,14 @@
-//! Map dimensions, wrapping modes, coordinate normalization, and hex-grid distance calculations.
+//! Shared map geometry and coordinate transforms for generation, rules, and rendering.
+//!
+//! The game stores an isometric hex map in map coordinates while reference
+//! rules and some generation algorithms use native coordinates. Conversion,
+//! neighbor offsets, distance, and [`MapWrap`] live here so callers use one
+//! definition of adjacency and seam behavior. `MapWrap::X` wraps east/west and
+//! treats polar rows as map edges; `MapWrap::XY` wraps both axes.
+//!
+//! Normalize coordinates through the selected topology before indexing map
+//! arrays. The topology is part of the generated campaign and must be chosen
+//! before generation rather than changed after tiles and features are built.
 
 use super::{PERCENT_SCALE, PLAYER_COUNT};
 

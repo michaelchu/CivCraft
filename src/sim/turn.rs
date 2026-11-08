@@ -1,4 +1,15 @@
-//! Implements turn behavior within the sim subsystem.
+//! Coordinates the ordered transition from one campaign turn to the next.
+//!
+//! `end_turn` is the phase orchestrator: it completes pending revolutions,
+//! runs human automation and each AI, processes cities and national activity,
+//! applies world events, advances diplomacy and the calendar, then progresses
+//! unit activities and refreshes derived visibility and ownership state. The
+//! order is gameplay behavior: later phases observe earlier mutations, and
+//! movement/activity budgets cross the turn boundary deliberately.
+//!
+//! Keep individual rule calculations in their owning modules and call them
+//! here in the reference-compatible sequence. Save and playtest behavior also
+//! depends on this ordering.
 
 use super::*;
 

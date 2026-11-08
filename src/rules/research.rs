@@ -1,4 +1,14 @@
-//! Technology availability, cost, and research progression.
+//! Technology identifiers and the ordered technology catalog.
+//!
+//! Each advance records its name, prerequisites, cost inputs, and unlock
+//! metadata. Research eligibility and progress are resolved in `sim::research`
+//! and `sim::research_phase`; this module supplies the static graph those
+//! systems query. Prerequisites may be alternative paths, so callers should
+//! use the catalog's requirement helpers instead of assuming every listed
+//! prerequisite is mandatory.
+//!
+//! Catalog identity and order are used by saved player knowledge and UI/AI
+//! iteration. Preserve them when editing the ruleset data.
 
 // Catalog transcribed from Freeciv data/civ2civ3/techs.ruleset.
 // Reference unlock labels come from the unit and building rulesets.

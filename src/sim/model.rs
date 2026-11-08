@@ -1,4 +1,10 @@
-//! Core simulation data types shared by gameplay systems.
+//! Persistent game entities and compact rules data shared by simulation systems.
+//!
+//! The child modules separate player/city/unit records from map terrain and
+//! unit statistics. Keep these types focused on campaign state and values;
+//! turn sequencing and state transitions belong to the sibling systems under
+//! `sim`. Serialization derives here define part of the campaign save format,
+//! so changing a field may also require a migration in `save::migrations`.
 
 use super::{BASE_TECH_COST, MIN_TECH_COST, SCIENCEBOX_PERCENT, TECH_COST_PERCENT, percent_of};
 

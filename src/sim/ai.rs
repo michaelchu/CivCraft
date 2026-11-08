@@ -1,4 +1,14 @@
-//! AI turn decisions and tactical behavior for computer-controlled players.
+//! Tactical and strategic decisions for computer-controlled units and players.
+//!
+//! The AI evaluates the same map topology and rule outcomes as the human
+//! player, but uses per-player observations and remembered routes where the
+//! rules limit knowledge. Specialized child modules handle city defense,
+//! invasion planning, transport assaults, hunting, and unit automation.
+//! Economy and advisor decisions live in sibling modules and feed production
+//! and research priorities back into the AI turn.
+//!
+//! Preserve stable candidate ordering and random draw behavior when adjusting
+//! scores: ties can determine unit targets, production, and reference parity.
 
 use super::normal_paths::GotoTask;
 use super::*;

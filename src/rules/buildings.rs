@@ -1,4 +1,13 @@
-//! Building completion, availability, and effects.
+//! Building identifiers and catalog data for the Civ2Civ3 ruleset.
+//!
+//! This module stores building names, costs, obsolescence, genera, and
+//! requirement descriptions. It is data, not the resolver for construction or
+//! effects: city production and simulation effect systems consume these
+//! definitions. Requirements are represented explicitly so availability can
+//! be checked against player technologies, government, and other rule state.
+//!
+//! Keep catalog indices and native ordering stable because saves and several
+//! deterministic selection paths refer to these entries.
 
 // Catalog from Freeciv data/civ2civ3/buildings.ruleset, revision eb8c7033.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

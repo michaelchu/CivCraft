@@ -1,4 +1,17 @@
-//! Deterministic world generation, including terrain, rivers, resources, and starting locations.
+//! Deterministic world generation from a seed and a fixed map topology.
+//!
+//! Generation builds terrain elevation and climate, classifies land and water,
+//! places rivers and extras, and selects starting locations. The map RNG is
+//! separate from the campaign RNG stored in [`GeneratedMap`], so generation
+//! draws do not shift later gameplay randomness. The submodules split terrain
+//! shaping, river drainage, and placement/scoring while sharing the same
+//! wrapped-coordinate rules.
+//!
+//! Pass the requested [`MapWrap`] to [`generate_with_wrap`] before generation:
+//! changing wrapping afterward would leave tile arrays and generated features
+//! inconsistent with the map topology. Reference-map fixtures rely on stable
+//! iteration and random-draw order, so seemingly harmless reordering can alter
+//! seeded output.
 
 use crate::sim::{PLAYER_COUNT, PLAYER_SLOTS, Terrain, Tile, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};

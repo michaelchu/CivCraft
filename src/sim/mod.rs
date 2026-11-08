@@ -1,4 +1,21 @@
-//! Turn based game rules and state. Submodules implement gameplay systems over the shared Simulation model.
+//! Turn resolution and campaign rules over the shared [`Simulation`] state.
+//!
+//! `Simulation` is the authority for gameplay: modules implement focused
+//! systems for movement, cities, diplomacy, research, economy, AI, and other
+//! rules, while [`Command`] is the player-action boundary used by the client.
+//! Most systems mutate the same state directly so a completed action is visible
+//! to later systems in the current phase.
+//!
+//! [`model`] contains the persistent campaign entities and their rule data;
+//! [`topology`] defines map geometry shared with map generation and rendering.
+//! [`turn`] coordinates phase order. [`save`] serializes persistent state and
+//! rebuilds transient caches after loading. Per-player observations and AI
+//! memories are kept distinct from live map state to prevent hidden information
+//! from leaking into presentation or decisions.
+//!
+//! Preserve deterministic ordering and random-stream boundaries when changing
+//! rules: tests and reference fixtures depend on both, and several derived
+//! fields are deliberately skipped during save serialization.
 
 mod advisors;
 mod ai;
@@ -133,8 +150,11 @@ struct MapObservation {
     ocean: bool,
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
 /// Complete mutable campaign state and the operations that advance its rules.
+///
+/// Serialized fields form the saved campaign. Runtime-only indexes, visibility
+/// snapshots, and event presentation caches are rebuilt or reset as needed.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Simulation {
     pub(crate) world_seed: u64,
     #[serde(skip, default = "topology::legacy_wrap")]

@@ -1,4 +1,11 @@
-//! Player-visible actions represented as commands and resolved by the simulation.
+//! Player actions represented as commands and validated by the simulation.
+//!
+//! The client constructs a [`Command`] after interpreting a click or keypress;
+//! [`Simulation::apply`] checks ownership and game-over state, then delegates
+//! to the rule system that owns the requested action. This keeps input code
+//! from changing campaign state directly and gives desktop automation the same
+//! command path as a human player. AI decisions commonly call the lower-level
+//! rule methods after choosing their actions.
 
 use super::{
     HUMAN, MoveResult, Production, SabotageTarget, Simulation, UnitKind, UnitState, WorkKind,

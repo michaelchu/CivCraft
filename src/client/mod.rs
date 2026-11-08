@@ -1,4 +1,16 @@
-//! Macroquad presentation layer: draws simulation state, handles input, and dispatches player actions.
+//! Presentation layer between the simulation and the Macroquad window.
+//!
+//! [`Game`] owns transient client state such as selection, camera position, and
+//! open panels. It reads the campaign from [`crate::sim::Simulation`], draws
+//! map and interface layers, and translates input into [`UiAction`] values.
+//! Actions are resolved through simulation commands so the client does not
+//! implement gameplay rules itself.
+//!
+//! Rendering is split by screen responsibility: `world` draws map contents,
+//! `hud` and the view modules draw controls and dialogs, and `assets` plus
+//! `tileset` provide the selected artwork. `render_backend` isolates renderer
+//! selection from game state. UI review helpers exercise these same screens
+//! through the normal frame path.
 
 mod actions;
 mod assets;

@@ -1,4 +1,14 @@
-//! Campaign serialization, validation, and loading.
+//! Campaign persistence, input validation, migration, and runtime restoration.
+//!
+//! Saves encode the durable part of [`Simulation`] with a versioned binary
+//! format. Loading rejects malformed or incompatible payloads, applies the
+//! ordered migrations in `migrations`, and reconstructs transient state such as
+//! visibility, route caches, and unit indexes before gameplay resumes.
+//!
+//! When adding persistent fields, decide whether they belong in the save,
+//! provide a safe default or migration for existing campaigns, and update the
+//! round-trip and corruption checks. Runtime caches should remain excluded when
+//! they can be derived from saved state.
 
 use super::*;
 use bincode::Options;
