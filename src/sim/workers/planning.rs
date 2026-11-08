@@ -104,8 +104,7 @@ impl Simulation {
         let mut tile = self.tile(actor.x, actor.y).clone();
         let time = match activity {
             WorkKind::Road
-                if !tile.road
-                    && (!tile.river || self.has_tech(actor.owner, Tech::ENGINEERING)) =>
+                if !tile.road && (!tile.river || self.has_tech(actor.owner, Tech::ENGINEERING)) =>
             {
                 tile.road = true;
                 tile.terrain.road_time()
@@ -220,27 +219,8 @@ impl Simulation {
     }
 
     pub(super) fn worker_road_extra(&self, position: (i32, i32), railroad: bool) -> f32 {
-        // The provided ruleset uses hex topology: native's hex road connector
-        // heuristic deliberately samples these twelve map-coordinate offsets.
-        let offsets = [
-            (-1, -1),
-            (0, -1),
-            (1, -1),
-            (-1, 0),
-            (1, 0),
-            (-1, 1),
-            (0, 1),
-            (1, 1),
-            (0, -2),
-            (-2, 0),
-            (2, 0),
-            (0, 2),
-        ];
         let mut absent = 0;
-        for (dx, dy) in offsets {
-            let Some((x, y)) = self.map_wrap.offset(position.0, position.1, dx, dy) else {
-                continue;
-            };
+        for (x, y) in self.map_wrap.civ3_neighbors(position.0, position.1) {
             let real = {
                 let tile = self.tile(x, y);
                 (if railroad { tile.railroad } else { tile.road })

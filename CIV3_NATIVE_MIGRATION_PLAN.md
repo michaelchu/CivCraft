@@ -213,6 +213,13 @@ intended end state; a completed phase requires the evidence listed below.
   passes. Remaining explicit ISOHEX use is mostly comparison/UI fixture code,
   while worker road-value heuristics and the compatibility move command remain
   candidates for review.
+- The live post-bribery move now selects a Civ III direction, and worker road
+  improvement scoring checks the eight Civ III neighbors instead of twelve
+  legacy hex/map offsets. The obsolete wrapped map-vector adapter was removed
+  after its last gameplay caller migrated. The regular keyboard path already
+  emits Civ III directions; the old `Command::Move(dx, dy)` remains only as a
+  compatibility path for playtest and legacy unit scenarios and still needs
+  retirement or fixture migration.
 - Human directional movement now has a Civ III direction-index command for all
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction

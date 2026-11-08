@@ -41,6 +41,20 @@ fn plan(old: f32, new: f32, worked: bool, delay: i32) -> WorkerPlan {
 }
 
 #[test]
+fn worker_road_value_counts_civ3_neighbor_connections() {
+    let mut game = game();
+    let center = (10, 20);
+    let neighbors: Vec<_> = game.map_wrap.civ3_neighbors(center.0, center.1).collect();
+    assert_eq!(neighbors.len(), 8);
+    let disconnected = game.worker_road_extra(center, false);
+    for (x, y) in neighbors {
+        game.tile_mut(x, y).road = true;
+    }
+    let connected = game.worker_road_extra(center, false);
+    assert!(disconnected > connected);
+}
+
+#[test]
 fn a_sea_worker_uses_the_actual_sea_pathfinder_and_ocean_cleanup_requests() {
     let game = Simulation::new(crate::mapgen::generate(42));
     assert!(game.transport_auto_worker_playtest());

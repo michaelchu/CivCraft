@@ -37,9 +37,7 @@ impl Simulation {
                 }
                 let mut projected = actor.clone();
                 for &(dx, dy) in &path {
-                    let Some(next) = self
-                        .map_wrap
-                        .civ3_offset(projected.x, projected.y, dx, dy)
+                    let Some(next) = self.map_wrap.civ3_offset(projected.x, projected.y, dx, dy)
                     else {
                         projected.moves_left = 0;
                         break;
@@ -87,7 +85,10 @@ impl Simulation {
             || actor.moves_left < 1
             || self.tile(actor.x, actor.y).terrain.is_water()
             || self.allied(actor.owner, target.owner)
-            || self.map_wrap.civ3_distance(actor.x, actor.y, target.x, target.y) > 1
+            || self
+                .map_wrap
+                .civ3_distance(actor.x, actor.y, target.x, target.y)
+                > 1
             || target.transport.is_some()
             || self
                 .cities
@@ -167,11 +168,12 @@ impl Simulation {
                 false,
             );
         }
-        let (dx, dy) = self
-            .map_wrap
-            .vector(diplomat.x, diplomat.y, victim.x, victim.y);
-        if self.try_move_unit(actor, dx, dy) == MoveResult::Blocked
-            && let Some(unit) = self.units.iter_mut().find(|unit| unit.id == actor)
+        let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
+            self.map_wrap.civ3_offset(diplomat.x, diplomat.y, dx, dy) == Some((victim.x, victim.y))
+        });
+        if direction.is_none_or(|direction| {
+            self.try_move_unit_civ3(actor, direction) == MoveResult::Blocked
+        }) && let Some(unit) = self.units.iter_mut().find(|unit| unit.id == actor)
         {
             unit.moves_left = 0;
         }

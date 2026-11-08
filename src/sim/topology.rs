@@ -116,6 +116,7 @@ pub(crate) fn offset_native_by_map(native_x: i32, native_y: i32, dx: i32, dy: i3
     map_pos_to_native(map_x + dx, map_y + dy)
 }
 
+#[cfg(test)]
 fn wrapped_native_delta(delta: i32, size: i32) -> i32 {
     (delta + size / 2).rem_euclid(size) - size / 2
 }
@@ -298,18 +299,6 @@ impl MapWrap {
         }
         tiles
     }
-    pub(crate) fn vector(self, ax: i32, ay: i32, bx: i32, by: i32) -> (i32, i32) {
-        let dx = wrapped_native_delta(bx - ax, self.width());
-        let dy = if self.wraps_y() {
-            wrapped_native_delta(by - ay, self.height())
-        } else {
-            by - ay
-        };
-        let (amx, amy) = native_to_map(ax, ay);
-        let (bmx, bmy) = native_to_map(ax + dx, ay + dy);
-        (bmx - amx, bmy - amy)
-    }
-
     /// Neighbor in Civ III's eight-direction grid, adapting the current
     /// rectangular tile storage to occupied staggered coordinates.
     pub(crate) fn civ3_neighbor(self, x: i32, y: i32, direction: usize) -> Option<(i32, i32)> {
