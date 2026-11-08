@@ -25,6 +25,12 @@ intended end state; a completed phase requires the evidence listed below.
   flags may be wrong and cites `civ3_cross_platform_editor` for those values.
   CivCraft follows that mapping as an implementation approximation, not
   verified original-engine behavior.
+- The same OpenCiv3 file maps all eight route directions to bit flags and crops
+  128×64 cells from a 16×16 road/railroad atlas. CivCraft uses those flags and
+  atlas dimensions as an implementation reference, not proof of original game
+  internals. The Sn00py terrain folder has no road sheets, so the bundled route
+  PNGs are copied from OpenCiv3's `C7/Assets/Art/Terrain/`; manifests can replace
+  them with another mod's PCX or PNG sheets.
 - `../../Sn00pys Terrain Greener (C3C)/Art` is the default terrain-mod source.
   Keep its PCX files as the runtime inputs; do not make generated PNGs a
   prerequisite.
@@ -70,6 +76,11 @@ intended end state; a completed phase requires the evidence listed below.
   the OpenCiv3 approximation above. Farmland still uses the old fallback atlas
   because no dedicated farmland role or source cell has been identified in
   the supplied Sn00py art set.
+- Native road and railroad rendering now uses the 16×16 Civ III route atlases
+  and eight staggered neighbors. Railroad tiles draw road-only connections
+  beneath railroad connections, following OpenCiv3's `TileOverlayLayer`; this
+  remains an implementation reference pending direct original-game evidence.
+  Theme manifests can replace either route sheet independently.
 - Terrain-generation adjacency now also uses Civ III's eight-direction
   neighbors: connected land/water regions, biome and water-distance queries,
   resource spacing, and start-location distances use the same staggered graph
@@ -164,6 +175,14 @@ intended end state; a completed phase requires the evidence listed below.
   `/tmp/civ3-irrigation-final-review/report.json` (47 scenes, 146/146 checks,
   68 captures); its `map-layers.png` scene was inspected. Focused tests cover
   the diagonal flag mask and the 4×4 cell crop.
+- After routing roads and railroads through the Civ III 16×16 atlases,
+  `cargo check --offline`, the full Rust suite (625/625), the release build, and
+  the default UI review pass. Report:
+  `/tmp/civ3-route-atlas-review/report.json` (47 scenes, 146/146 checks, 68
+  captures). The `map-layers.png` world scene and
+  `map-layers-next.png` city work-map scene were inspected. Tests cover all
+  eight direction flags, atlas crop boundaries, sheet dimensions, and PCX/PNG
+  manifest overrides.
 - The latest seed-42 desktop self-test passes 271/278 checks. The previously
   failing civil-war capture, diplomacy/armistice, Farmland, Airstrip, and
   Airbase scenarios now pass. Seven unrelated gameplay checks remain failing:

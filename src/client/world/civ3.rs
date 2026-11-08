@@ -24,6 +24,17 @@ fn irrigation_sprite_index(diagonals: [bool; 4]) -> usize {
         })
 }
 
+fn route_sprite_index(neighbors: [bool; 8]) -> usize {
+    // OpenCiv3 TileOverlayLayer::GetRoadFlag uses the 16x16 atlas's bit order.
+    const FLAGS: [usize; 8] = [0x80, 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40];
+    neighbors
+        .into_iter()
+        .zip(FLAGS)
+        .fold(0, |index, (connected, flag)| {
+            index | usize::from(connected) * flag
+        })
+}
+
 impl<'a> Civ3WorldPainter<'a> {
     pub(super) fn new(game: &'a Game, assets: &'a Assets) -> Self {
         Self { game, assets }
@@ -56,6 +67,12 @@ impl<'a> Civ3WorldPainter<'a> {
             map_layers::MapLayer::Blend if self.assets.civ3.is_some() => {}
             map_layers::MapLayer::Water if self.assets.civ3.is_some() => {
                 self.draw_water_layer(x, y, geometry, has_city);
+            }
+            map_layers::MapLayer::Roads if self.assets.civ3.is_some() => {
+                if !self.draw_road_layer(x, y, geometry) {
+                    self.game
+                        .draw_map_layer_fallback(self.assets, layer, x, y, geometry, has_city);
+                }
             }
             map_layers::MapLayer::Terrain => {
                 let tile = self.game.sim.render_tile(x, y);
@@ -110,6 +127,50 @@ impl<'a> Civ3WorldPainter<'a> {
             .as_ref()
             .expect("native water layer requires Civ III tileset")
             .draw_river(game, x, y, center, geometry.size());
+    }
+
+    fn draw_road_layer(&self, x: i32, y: i32, geometry: TileGeometry) -> bool {
+        let game = self.game;
+        let tileset = self.assets.civ3.as_ref().expect("Civ III route atlas");
+        let tile = game.sim.render_tile(x, y);
+        if !tile.road && !tile.railroad {
+            return true;
+        }
+        let neighbors: [Option<&crate::sim::Tile>; 8] = std::array::from_fn(|direction| {
+            game.sim
+                .map_wrap
+                .civ3_neighbor(x, y, direction)
+                .map(|(nx, ny)| game.sim.render_tile(nx, ny))
+        });
+        let road_connections = std::array::from_fn(|direction| {
+            neighbors[direction]
+                .is_some_and(|neighbor| neighbor.seen && (neighbor.road || neighbor.railroad))
+        });
+        let railroad_connections = std::array::from_fn(|direction| {
+            neighbors[direction].is_some_and(|neighbor| neighbor.seen && neighbor.railroad)
+        });
+        let (road_index, railroad_index) = if tile.railroad {
+            let road_only_connections = std::array::from_fn(|direction| {
+                neighbors[direction]
+                    .is_some_and(|neighbor| neighbor.seen && neighbor.road && !neighbor.railroad)
+            });
+            (
+                route_sprite_index(road_only_connections),
+                route_sprite_index(railroad_connections),
+            )
+        } else {
+            (route_sprite_index(road_connections), 0)
+        };
+        if tile.railroad && road_index != 0 {
+            if !tileset.draw_road(road_index, geometry.center, geometry.size()) {
+                return false;
+            }
+        }
+        if tile.railroad {
+            tileset.draw_railroad(railroad_index, geometry.center, geometry.size())
+        } else {
+            tileset.draw_road(road_index, geometry.center, geometry.size())
+        }
     }
 
     fn draw_ordered_world_passes(&self, assets: &Assets) {
@@ -290,7 +351,7 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use super::irrigation_sprite_index;
+    use super::{irrigation_sprite_index, route_sprite_index};
 
     #[test]
     fn irrigation_indices_follow_the_four_diagonal_source_flags() {
@@ -300,5 +361,19 @@ mod tests {
         assert_eq!(irrigation_sprite_index([false, false, true, false]), 4);
         assert_eq!(irrigation_sprite_index([false, false, false, true]), 8);
         assert_eq!(irrigation_sprite_index([true; 4]), 15);
+    }
+
+    #[test]
+    fn road_indices_follow_all_eight_civ3_directions() {
+        let mut neighbors = [false; 8];
+        for (direction, expected) in [0x80, 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40]
+            .into_iter()
+            .enumerate()
+        {
+            neighbors[direction] = true;
+            assert_eq!(route_sprite_index(neighbors), expected);
+            neighbors[direction] = false;
+        }
+        assert_eq!(route_sprite_index([true; 8]), 0xff);
     }
 }

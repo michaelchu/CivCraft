@@ -438,7 +438,7 @@ impl Game {
                 self.draw_river(assets, x, y, center, tile_w, tile_h);
             }
             MapLayer::Roads => {
-                if tile.road {
+                if tile.road || tile.railroad {
                     self.draw_road_sprites(assets, x, y, geometry, has_city);
                 }
             }

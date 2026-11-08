@@ -30,11 +30,31 @@ enum Ground {
 }
 use Ground::*;
 
+fn locate_bundled_civ3_theme() -> Result<PathBuf, String> {
+    let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
+    let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+    cwd.ancestors()
+        .chain(exe.ancestors().skip(1))
+        .map(|parent| parent.join("tilesets/civ3"))
+        .find(|path| path.join("Terrain/roads.png").is_file())
+        .ok_or_else(|| "Bundled Civ III road sheets were not found".to_owned())
+}
+
 fn irrigation_source(index: usize) -> Rect {
     debug_assert!(index < 16, "irrigation source index must fit the 4x4 sheet");
     Rect::new(
         ((index % 4) * WIDTH) as f32,
         ((index / 4) * HEIGHT) as f32,
+        WIDTH as f32,
+        HEIGHT as f32,
+    )
+}
+
+fn route_source(index: usize) -> Rect {
+    debug_assert!(index < 256, "route source index must fit the 16x16 sheet");
+    Rect::new(
+        ((index % 16) * WIDTH) as f32,
+        ((index / 16) * HEIGHT) as f32,
         WIDTH as f32,
         HEIGHT as f32,
     )
@@ -141,6 +161,8 @@ impl Theme {
                                 | "polar"
                                 | "river-delta"
                                 | "river-mountain"
+                                | "roads"
+                                | "railroads"
                                 | "resources"
                                 | "resource-shadows"
                                 | "city-asian"
@@ -609,6 +631,8 @@ pub(super) struct Civ3 {
     atlas: RefCell<Atlas>,
     overlays: Vec<Option<Texture2D>>,
     irrigation: Vec<Option<Texture2D>>,
+    roads: Option<Texture2D>,
+    railroads: Option<Texture2D>,
     river_delta: Texture2D,
     river_mountain: Texture2D,
     resources: Option<ResourceArt>,
@@ -664,6 +688,32 @@ impl Civ3 {
             .iter()
             .map(|(key, file)| optional(key, file, (512, 256)))
             .collect::<Result<_, _>>()?;
+        let mut fallback_theme = None;
+        let route_texture = |key: &str,
+                             file: &str,
+                             fallback_theme: &mut Option<Theme>|
+         -> Result<Option<Texture2D>, String> {
+            let default = format!("Terrain/{file}.png");
+            let image = theme.image(key, &default, (2048, 1024), false)?;
+            let image = if image.is_some() {
+                image
+            } else {
+                if fallback_theme.is_none() {
+                    *fallback_theme = Some(Theme::read(&locate_bundled_civ3_theme()?)?);
+                }
+                fallback_theme
+                    .as_ref()
+                    .unwrap()
+                    .image(key, &default, (2048, 1024), false)?
+            };
+            Ok(image.map(|image| {
+                let texture = Texture2D::from_image(&image);
+                texture.set_filter(FilterMode::Nearest);
+                texture
+            }))
+        };
+        let roads = route_texture("roads", "roads", &mut fallback_theme)?;
+        let railroads = route_texture("railroads", "railroads", &mut fallback_theme)?;
         let river_texture = |key, file| -> Result<Texture2D, String> {
             let image = required(key, file, (512, 256))?;
             let texture = Texture2D::from_image(&image);
@@ -713,6 +763,8 @@ impl Civ3 {
             atlas: RefCell::default(),
             overlays,
             irrigation,
+            roads,
+            railroads,
             river_delta,
             river_mountain,
             resources,
@@ -779,6 +831,22 @@ impl Civ3 {
                 ..Default::default()
             },
         );
+    }
+
+    pub(super) fn draw_road(&self, index: usize, center: Vec2, size: Vec2) -> bool {
+        let Some(texture) = &self.roads else {
+            return false;
+        };
+        draw_sprite(texture, center, size, route_source(index));
+        true
+    }
+
+    pub(super) fn draw_railroad(&self, index: usize, center: Vec2, size: Vec2) -> bool {
+        let Some(texture) = &self.railroads else {
+            return false;
+        };
+        draw_sprite(texture, center, size, route_source(index));
+        true
     }
 
     fn draw_corner(&self, key: Junction, side: usize, center: Vec2, size: Vec2) {
@@ -1185,6 +1253,48 @@ mod tests {
         assert_eq!(theme.transparent_indices["river-mountain"], [254, 255]);
         fs::remove_file(manifest).unwrap();
         fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn theme_manifest_accepts_pc_or_png_road_sheet_roles() {
+        let directory = std::env::temp_dir().join(format!(
+            "civ3-road-theme-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let manifest = directory.join("tileset.conf");
+        fs::write(
+            &manifest,
+            "roads = Terrain/roads.pcx\nrailroads = Terrain/railroads.png\n",
+        )
+        .unwrap();
+        let theme = Theme::read(&directory).unwrap();
+        assert_eq!(theme.paths["roads"], "Terrain/roads.pcx");
+        assert_eq!(theme.paths["railroads"], "Terrain/railroads.png");
+        fs::remove_file(manifest).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn bundled_route_sheets_preserve_the_sixteen_by_sixteen_cell_grid() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tilesets/civ3/Terrain");
+        for name in ["roads.png", "railroads.png"] {
+            let path = root.join(name);
+            let image =
+                Image::from_file_with_format(&fs::read(&path).unwrap(), Some(ImageFormat::Png))
+                    .unwrap();
+            assert_eq!(
+                (image.width, image.height),
+                (2048, 1024),
+                "{}",
+                path.display()
+            );
+        }
+        assert_eq!(route_source(0), Rect::new(0.0, 0.0, 128.0, 64.0));
+        assert_eq!(route_source(15), Rect::new(1920.0, 0.0, 128.0, 64.0));
+        assert_eq!(route_source(16), Rect::new(0.0, 64.0, 128.0, 64.0));
+        assert_eq!(route_source(255), Rect::new(1920.0, 960.0, 128.0, 64.0));
     }
 
     #[test]
