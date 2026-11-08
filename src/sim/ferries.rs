@@ -238,7 +238,7 @@ impl Simulation {
             self.units.iter().any(|unit| {
                 unit.id == id
                     && unit.owner == ship.owner
-                    && self.map_distance(unit.x, unit.y, ship.x, ship.y) <= 1
+                    && self.map_wrap.civ3_distance(unit.x, unit.y, ship.x, ship.y) <= 1
             })
         }) {
             return;

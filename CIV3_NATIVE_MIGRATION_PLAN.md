@@ -184,6 +184,13 @@ intended end state; a completed phase requires the evidence listed below.
   the old vertical-row adjustment from one-tile action ranges; the gameplay
   suite passes with these checks on the Civ III grid. Wider strategic ranges
   and remaining AI distance heuristics are still unaudited.
+- Tactical adjacency and proximity now use `civ3_distance` for invasion
+  support, amphibious target selection, attack helpers, guard following and
+  rendezvous, ferry escort state, settlement safety, aircraft follow-up, and
+  zones of control. Worker threat safety also measures its two-tile radius on
+  the Civ III graph. The prior ISOHEX-radius test now places units by Civ III
+  steps; focused coverage and the full 645-test suite pass. Some wider strategic
+  guard and target-selection heuristics still use the legacy distance metric.
 - Human directional movement now has a Civ III direction-index command for all
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction

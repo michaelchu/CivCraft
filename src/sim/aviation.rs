@@ -46,7 +46,7 @@ impl Simulation {
             else {
                 return (false, done);
             };
-            if self.map_distance(carrier.x, carrier.y, boss.x, boss.y) > 1 {
+            if self.map_wrap.civ3_distance(carrier.x, carrier.y, boss.x, boss.y) > 1 {
                 // Native temporarily abandons a distant boss and falls back
                 // to pickup/exploration if no cargo replaces it. The restored
                 // reservation must not activate that remote passenger.

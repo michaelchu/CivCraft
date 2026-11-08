@@ -127,7 +127,9 @@ impl Simulation {
             if rating == 0 {
                 continue;
             }
-            let nearby = i32::from(self.map_distance(helper.x, helper.y, city.x, city.y) <= 1);
+            let nearby = i32::from(
+                self.map_wrap.civ3_distance(helper.x, helper.y, city.x, city.y) <= 1,
+            );
             let going = i32::from(
                 helper.owner == unit.owner
                     && self.ai_ground_targets.get(&helper.id) == Some(&city.id),

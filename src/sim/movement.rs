@@ -286,7 +286,7 @@ impl Simulation {
         self.units.iter().any(|unit| {
             if (observed && !self.unit_visible_to_human(unit))
                 || self.tile(unit.x, unit.y).terrain.is_water()
-                || self.map_distance(x, y, unit.x, unit.y) > 1
+                || self.map_wrap.civ3_distance(x, y, unit.x, unit.y) > 1
             {
                 return false;
             }

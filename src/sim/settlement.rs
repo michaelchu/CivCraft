@@ -303,7 +303,7 @@ impl Simulation {
             || self.units.iter().any(|unit| {
                 unit.kind.is_military()
                     && self.at_war(unit.owner, owner)
-                    && self.map_distance(x, y, unit.x, unit.y) <= 1
+                    && self.map_wrap.civ3_distance(x, y, unit.x, unit.y) <= 1
             })
         {
             return None;

@@ -77,8 +77,7 @@ impl Simulation {
             self.at_war(owner, u.owner)
                 && (self.players[owner].ai || self.unit_visible_to(owner, u))
                 && (u.kind.stats().attack > 0 || u.kind.is_diplomatic())
-                // square_iterate uses real map distance, also on ISOHEX.
-                && self.map_distance(x, y, u.x, u.y) <= 2
+                && self.map_wrap.civ3_distance(x, y, u.x, u.y) <= 2
                 && (self.worker_enemy_native(u.kind, x, y)
                     || (u.kind.is_naval() && u.kind != UnitKind::Submarine
                         && self.map_wrap.civ3_neighbors(x, y)
