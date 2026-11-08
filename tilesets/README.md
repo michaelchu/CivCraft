@@ -20,10 +20,13 @@ also come from OpenCiv3's `C7/Assets/Art/Terrain/` folder; Sn00py does not
 include those sheets. OpenCiv3's `terrain_improvements.lua` maps the 128×64
 fortress cell at column 0, row 0 and mine at column 2, row 1. The pollution
 and crater sheets use 128×64 cells in 5×5 grids in its `TileOverlayLayer.cs`.
+OpenCiv3's `terrain.lua` maps barbarian camps to column 2, row 0 of the same
+building sheet; CivCraft uses that cell for huts.
 These are implementation-reference mappings, not proof of Civ III internals.
 Themes can override them with `terrain-buildings`, `pollution`, and `craters`
-roles using PCX or PNG files. Contamination currently chooses stable single-tile
-variants; connected pollution/crater stitching remains to be implemented.
+roles using PCX or PNG files. Connected pollution/crater art selects atlas cells
+from diagonal neighbor masks; isolated cells use stable coordinate-based
+variants.
 Indexed PCX images use palette entries 254 and 255 as transparent by default,
 matching the OpenCiv3 loader. A mod can override those indices for an image
 role with a comma-separated `transparent-<role> = 254,255` manifest entry.

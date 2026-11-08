@@ -173,14 +173,23 @@ impl<'a> Civ3WorldPainter<'a> {
             );
         }
         if tile.hut {
-            game.draw_terrain_extra(
-                &assets.terrain,
-                geometry.center,
-                geometry.width,
-                geometry.height,
-                5,
-                6,
-            );
+            let drawn = assets.civ3.as_ref().is_some_and(|tileset| {
+                tileset.draw_terrain_building(
+                    TerrainBuilding::BarbarianCamp,
+                    geometry.center,
+                    geometry.size(),
+                )
+            });
+            if !drawn {
+                game.draw_terrain_extra(
+                    &assets.terrain,
+                    geometry.center,
+                    geometry.width,
+                    geometry.height,
+                    5,
+                    6,
+                );
+            }
         }
         if let Some(resource) = tile
             .active_resource()

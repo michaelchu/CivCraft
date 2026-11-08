@@ -94,14 +94,17 @@ intended end state; a completed phase requires the evidence listed below.
   OpenCiv3's implementation and remain an inference about original Civ III
   behavior; isolated-cell variation does not reproduce OpenCiv3's global RNG.
   The bundled `TerrainBuildings.png` export is only 3 columns wide, so its
-  Lua-referenced barricade cell (column 3) is unavailable. Barricades therefore
-  remain unsupported by this sheet. Oil wells/platforms, huts, airstrips, and
-  airbases still use legacy shared atlases and remain to be migrated.
+  Lua-referenced barricade cell (column 3) is unavailable. Barbarian camps use
+  column 2, row 0 as mapped in OpenCiv3's `terrain.lua`, and the game renders
+  that as the hut sprite. Barricades therefore remain unsupported by this
+  sheet. Oil wells/platforms, airstrips, and airbases still use legacy shared
+  atlases and remain to be migrated.
 - The focused `map-layers` UI review now includes mine, fortress, pollution,
-  and fallout and passes all three scene checks at seed 42. Screenshots were
-  inspected: `/tmp/civ3-improvements-review-final/map-layers.png` and
-  `/tmp/civ3-improvements-review-final/map-layers-next.png`; report:
-  `/tmp/civ3-improvements-review-final/report.json`. The full Rust suite passes
+  fallout, and a barbarian camp and passes all three scene checks at seed 42.
+  The camp uses the OpenCiv3 `terrain.lua` cell mapping. Screenshots were
+  inspected: `/tmp/civ3-camp-improvement-review/map-layers.png` and
+  `/tmp/civ3-camp-improvement-review/map-layers-next.png`; report:
+  `/tmp/civ3-camp-improvement-review/report.json`. The full Rust suite passes
   628/628 and `cargo build --offline --release` succeeds after this change.
 - Terrain-generation adjacency now also uses Civ III's eight-direction
   neighbors: connected land/water regions, biome and water-distance queries,

@@ -64,6 +64,7 @@ fn building_source(kind: TerrainBuilding) -> Rect {
     let (col, row) = match kind {
         TerrainBuilding::Fortress => (0, 0),
         TerrainBuilding::Mine => (2, 1),
+        TerrainBuilding::BarbarianCamp => (2, 0),
     };
     Rect::new(
         (col * WIDTH) as f32,
@@ -100,6 +101,7 @@ const IRRIGATION: [(&str, &str); 4] = [
 pub(super) enum TerrainBuilding {
     Fortress,
     Mine,
+    BarbarianCamp,
 }
 
 pub(crate) enum Tileset {
@@ -911,9 +913,9 @@ impl Civ3 {
         true
     }
 
-    /// OpenCiv3 maps the ancient fortress and mine to cells in a 128x64 grid.
-    /// The supplied Sn00py set omits TerrainBuildings, so the bundled
-    /// OpenCiv3 sheet is used as a fallback and themes can replace it.
+    /// OpenCiv3 maps fortress, mine, and barbarian camp art to cells in a
+    /// 128x64 grid. The supplied Sn00py set omits TerrainBuildings, so the
+    /// bundled OpenCiv3 sheet is used as a fallback and themes can replace it.
     pub(super) fn draw_terrain_building(
         &self,
         kind: TerrainBuilding,
@@ -1434,6 +1436,10 @@ mod tests {
         assert_eq!(
             building_source(TerrainBuilding::Mine),
             Rect::new(256.0, 64.0, 128.0, 64.0)
+        );
+        assert_eq!(
+            building_source(TerrainBuilding::BarbarianCamp),
+            Rect::new(256.0, 0.0, 128.0, 64.0)
         );
     }
 

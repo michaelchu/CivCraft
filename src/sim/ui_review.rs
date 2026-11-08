@@ -531,6 +531,9 @@ impl Simulation {
                 if dx == -3 {
                     tile.mine = true;
                 }
+                if dx == -4 {
+                    tile.hut = true;
+                }
                 if dx == -1 {
                     tile.fallout = true;
                 }
