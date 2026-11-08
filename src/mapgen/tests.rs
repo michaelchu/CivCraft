@@ -135,49 +135,83 @@ fn map_checksum(tiles: &[Tile]) -> u64 {
 #[cfg(test)]
 #[test]
 fn default_worlds_match_civcraft_resource_goldens() {
-    // These capture the project’s generated terrain, resource placement, and
-    // starting locations. Coordinates are in creation order.
+    // These capture generated terrain, resource placement, and sorted starts
+    // using Civ III's eight-direction topology.
     let cases = [
         (
             1,
-            0x74b667dbc574f2f3,
-            [(0, 15), (27, 20), (20, 24), (21, 42), (5, 2), (29, 6)],
+            0x851368d7b62bc472,
+            [(5, 20), (20, 40), (21, 10), (23, 24), (23, 60), (30, 6)],
         ),
         (
             42,
-            0xcb548b7e55bad9b6,
-            [(8, 17), (12, 6), (7, 37), (17, 10), (1, 25), (30, 13)],
+            0x01ca8f9faa73604a,
+            [(2, 43), (6, 19), (12, 6), (13, 28), (20, 41), (25, 22)],
         ),
         (
             12345,
-            0x6291fd28c20d4982,
-            [(7, 42), (14, 18), (3, 14), (24, 7), (30, 23), (14, 45)],
+            0xb992bf3c10f20afe,
+            [(4, 14), (4, 39), (11, 49), (14, 18), (17, 43), (26, 8)],
         ),
         (
             700001,
-            0x3e3fd24bb10a5116,
-            [(22, 35), (16, 12), (22, 1), (28, 50), (9, 49), (6, 11)],
+            0xb2726925df5f493d,
+            [(6, 7), (11, 39), (17, 20), (22, 35), (28, 10), (28, 50)],
         ),
         (
             2147483647,
-            0xa4a06e2fc3f2bcba,
-            [(27, 39), (3, 49), (20, 44), (4, 18), (11, 32), (8, 48)],
+            0x226fa981839df87d,
+            [(3, 49), (9, 37), (15, 54), (19, 39), (24, 30), (30, 23)],
         ),
     ];
-    for (seed, expected, starts) in cases {
+    for (seed, expected, expected_starts) in cases {
         let map = generate(seed);
+        let mut starts = map.starts.to_vec();
+        starts.sort_unstable();
         assert_eq!(
             map_checksum(&map.tiles),
             expected,
             "terrain and extras for seed {seed}"
         );
-        assert_eq!(map.starts, starts, "starting positions for seed {seed}");
+        assert_eq!(
+            starts, expected_starts,
+            "starting positions for seed {seed}"
+        );
     }
 }
 
 #[cfg(test)]
 mod wrap_generation_tests {
     use super::*;
+
+    #[test]
+    fn generated_terrain_neighbors_use_reciprocal_civ3_eight_way_topology() {
+        for wrap in [MapWrap::X, MapWrap::XY] {
+            let generator = Generator { wrap };
+            let y = wrap.height() / 2;
+            for x in [0, wrap.width() / 2, wrap.width() - 1] {
+                let center = generator.index(x, y);
+                let neighbors: Vec<_> = generator.neighbors(center).collect();
+                assert_eq!(neighbors.len(), 8, "{wrap} neighbor count at {x},{y}");
+                let unique: std::collections::HashSet<_> = neighbors.iter().copied().collect();
+                assert_eq!(unique.len(), 8, "duplicate neighbor at {wrap} {x},{y}");
+                for &neighbor in &neighbors {
+                    assert!(
+                        generator
+                            .civ3_neighbors(neighbor)
+                            .any(|tile| tile == center)
+                    );
+                    assert_eq!(generator.distance(center, neighbor), 1);
+                }
+                assert_eq!(
+                    generator
+                        .within(center, 1)
+                        .collect::<std::collections::HashSet<_>>(),
+                    unique.into_iter().chain([center]).collect()
+                );
+            }
+        }
+    }
 
     #[test]
     fn ivory_can_spawn_on_plains_in_default_wrap_x_campaigns() {

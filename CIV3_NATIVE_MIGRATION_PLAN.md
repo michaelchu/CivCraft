@@ -55,6 +55,13 @@ intended end state; a completed phase requires the evidence listed below.
   through the `river-delta` and `river-mountain` manifest roles. The drainage
   scoring remains a provisional heuristic over the current elevation field;
   it is not evidence of the original Civ III generator.
+- Terrain-generation adjacency now also uses Civ III's eight-direction
+  neighbors: connected land/water regions, biome and water-distance queries,
+  resource spacing, and start-location distances use the same staggered graph
+  as river generation. Seeded CivCraft vectors were refreshed and focused
+  topology/water/golden checks pass. This changes neighborhood behavior only;
+  the elevation field, Freeciv-derived map RNG, fixed land ratio, and missing
+  user-selectable Civ III world settings still need replacement.
 - River sheets previously displayed their index-254 bright-green background
   because the decoder only recognized magenta RGB. A focused capture after
   applying the PCX palette transparency indices shows the background removed;
@@ -102,17 +109,22 @@ intended end state; a completed phase requires the evidence listed below.
   now use `generate_with_wrap` for both wrap modes, including the cylinder's
   polar-row postprocessing. River topology changes intentionally update these
   CivCraft vectors; they do not alter the raw Freeciv parity fixture.
-- River topology and the campaign-aware settlement-neighbor fix pass the full
-  Rust suite (619/619); the offline release build and focused rendered river
+- River topology and the campaign-aware settlement-neighbor fix passed the
+  full Rust suite (619/619); the offline release build and focused rendered river
   review also pass. The generated river scene is at
   `/tmp/civ3-river-native-pcx-review/rivers-generated.png`.
+- After routing terrain generation through Civ III's eight-way graph, the
+  offline Rust suite passes 620/620 and the release build succeeds. The full
+  default Civ III gallery passes 47 scenes, 146 checks, and 68 captures at
+  seed 42; report: `/tmp/civ3-eight-way-review/report.json`. I inspected the
+  new generated river/pole capture at
+  `/tmp/civ3-eight-way-review/rivers-generated.png`.
 - The latest seed-42 desktop self-test passes 271/278 checks. The previously
   failing civil-war capture, diplomacy/armistice, Farmland, Airstrip, and
   Airbase scenarios now pass. Seven unrelated gameplay checks remain failing:
   `achievements`, `partisan_resistance`, `surface_warships`, `wonder_output`,
   `obsolete_wonders`, `paratrooper_requirements`, and `ai_domestic_buildings`.
-  Report: `/tmp/civcraft-playtest-civ3-migration-20261108-final1/report.json`.
-  The Rust suite passes 619/619 and the offline release build succeeds.
+  Report: `/tmp/civcraft-playtest-civ3-eight-way-final/report.json`.
 
 ## Phases and completion criteria
 

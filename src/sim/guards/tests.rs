@@ -10,8 +10,11 @@ fn game() -> Simulation {
     game.ai_unit_guards.clear();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
+        tile.base_terrain = TerrainBase::Grassland;
         tile.owner = None;
         tile.hut = false;
+        tile.river = false;
+        tile.river_edges = 0;
         tile.road = false;
         tile.railroad = false;
         tile.base = None;
