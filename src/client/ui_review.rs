@@ -47,6 +47,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "leader-diplomacy",
     "campaign-intro",
     "diplomacy-negotiation",
+    "resource-shadows",
 ];
 /// Cloning preserves the complete RNG and campaign state. Fixtures are built
 /// once and kept immutable; every scenario receives an independent clone.
@@ -113,6 +114,10 @@ impl Game {
                 self.sim.ui_review_compensation_negotiation(1);
                 self.diplomacy_open = true;
                 self.diplomacy_target = Some(1);
+            }
+            44 => {
+                self.sim.ui_review_resource_shadows();
+                self.zoom = 1.15;
             }
             7 => {
                 self.diplomacy_open = true;

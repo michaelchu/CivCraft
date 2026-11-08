@@ -710,7 +710,17 @@ fn prepare_resource_sheet(image: &mut Image, shadows: Option<&Image>) -> [[bool;
             } else if pixel[3] != 0 {
                 present[y / 50][x / 50] = true;
             } else if let Some(shadows) = shadows {
-                *pixel = shadows.get_image_data()[y * shadows.width() + x];
+                let shadow = shadows.get_image_data()[y * shadows.width() + x];
+                // Civ III stores the shadow mask in green. The red channel
+                // carries inverse opacity, so draw it as a neutral black
+                // shadow instead of tinting the resource sprite green.
+                let opacity = 255u8.saturating_sub(shadow[0]);
+                pixel.copy_from_slice(&[
+                    0,
+                    0,
+                    0,
+                    ((u16::from(opacity) * u16::from(shadow[3])) / 255) as u8,
+                ]);
             }
         }
     }

@@ -534,6 +534,49 @@ impl Simulation {
         }
     }
 
+    /// Place every known resource in view for sprite review.
+    pub(crate) fn ui_review_resource_shadows(&mut self) {
+        use Resource::*;
+
+        self.ui_review_terrain_layers(false);
+        let resources = [
+            (Terrain::Mountains, Aluminum),
+            (Terrain::Hills, Coal),
+            (Terrain::Grassland, Horses),
+            (Terrain::Mountains, Iron),
+            (Terrain::Desert, Oil),
+            (Terrain::Jungle, Rubber),
+            (Terrain::Hills, Saltpeter),
+            (Terrain::Mountains, Uranium),
+            (Terrain::Jungle, Dyes),
+            (Terrain::Forest, Furs),
+            (Terrain::Jungle, Gems),
+            (Terrain::Desert, Incense),
+            (Terrain::Plains, Ivory),
+            (Terrain::Forest, Silk),
+            (Terrain::Swamp, Spice),
+            (Terrain::Grassland, Wine),
+            (Terrain::Grassland, Cattle),
+            (Terrain::Ocean, Fish),
+            (Terrain::Mountains, Gold),
+            (Terrain::Tundra, Game),
+            (Terrain::Desert, Oasis),
+            (Terrain::Jungle, Sugar),
+            (Terrain::Grassland, Tobacco),
+            (Terrain::Jungle, TropicalFruit),
+            (Terrain::Ocean, Whales),
+            (Terrain::Plains, Wheat),
+        ];
+        for (index, (terrain, resource)) in resources.into_iter().enumerate() {
+            let dx = index as i32 % 6 - 3;
+            let dy = index as i32 / 6 - 2;
+            let (x, y) = offset_native_by_map(20, 24, dx, dy);
+            let tile = self.tile_mut(x, y);
+            tile.terrain = terrain;
+            tile.resource = Some(resource);
+        }
+    }
+
     pub(crate) fn ui_review_terrain_seams(&mut self) {
         self.ui_review_terrain_layers(false);
         let kinds = [
