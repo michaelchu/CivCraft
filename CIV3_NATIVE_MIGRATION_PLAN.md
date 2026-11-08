@@ -197,6 +197,14 @@ intended end state; a completed phase requires the evidence listed below.
   page 84. The prototype SDI interception radius of two Civ III steps remains
   an inference; the manual identifies SDI Defense as the defense against most
   nuclear attacks but does not specify its range or probability.
+- The shared `Simulation::map_distance` now delegates to `MapWrap::civ3_distance`,
+  so remaining strategic range, ranking, and placement callers use Civ III graph
+  steps instead of the old ISOHEX vector metric. Observer test fixtures now
+  place targets by those graph distances; all 645 tests pass. This does not
+  finish topology alignment: visibility revelation, exploration scoring,
+  village discovery masks, and several UI/test helpers still construct ranges
+  with explicit ISOHEX offsets. The city minimum-spacing value also needs a
+  Civ III source before its current numeric threshold can be treated as final.
 - Human directional movement now has a Civ III direction-index command for all
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction

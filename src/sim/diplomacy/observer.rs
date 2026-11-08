@@ -89,11 +89,11 @@ mod tests {
     #[test]
     fn stealth_needs_detection_and_cargo_requires_an_alliance() {
         let mut game = observers();
-        let id = game.spawn_unit(HUMAN, UnitKind::Submarine, 20, 24);
+        let id = game.spawn_unit(HUMAN, UnitKind::Submarine, 22, 24);
         assert!(!game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
-        game.spawn_unit(1, UnitKind::Destroyer, 19, 23);
+        game.spawn_unit(1, UnitKind::Destroyer, 21, 23);
         assert!(game.unit_visible_to(1, game.unit_by_id(id).unwrap()));
-        let transport = game.spawn_unit(HUMAN, UnitKind::Transport, 20, 24);
+        let transport = game.spawn_unit(HUMAN, UnitKind::Transport, 22, 24);
         game.units
             .iter_mut()
             .find(|u| u.id == id)

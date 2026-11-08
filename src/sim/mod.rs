@@ -617,10 +617,9 @@ impl Simulation {
                 .is_none_or(|tech| self.has_tech(owner, tech))
     }
 
-    /// Measures wrapped map distance between two coordinates.
+    /// Measures Civ III graph distance between wrapped map coordinates.
     pub(crate) fn map_distance(&self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
-        let (dx, dy) = self.map_wrap.vector(ax, ay, bx, by);
-        isohex_vector_distance(dx, dy)
+        self.map_wrap.civ3_distance(ax, ay, bx, by)
     }
 
     fn run_ai_last_activities(&mut self, owner: usize) {

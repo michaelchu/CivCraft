@@ -300,13 +300,13 @@ impl Simulation {
             self.create_city(owner, x, y);
         }
         self.turn = 30;
-        let distant = self.spawn_unit(HUMAN, UnitKind::Warrior, 26, 24);
-        self.tile_mut(26, 24).known_by[1] = true;
-        self.tile_mut(26, 24).owner = Some(1);
+        let distant = self.spawn_unit(HUMAN, UnitKind::Warrior, 2, 24);
+        self.tile_mut(2, 24).known_by[1] = true;
+        self.tile_mut(2, 24).owner = Some(1);
         let fogged = !self.unit_visible_to(1, self.unit_by_id(distant).unwrap());
-        let hidden = self.spawn_unit(HUMAN, UnitKind::Submarine, 20, 24);
+        let hidden = self.spawn_unit(HUMAN, UnitKind::Submarine, 22, 24);
         let stealth = !self.unit_visible_to(1, self.unit_by_id(hidden).unwrap());
-        self.spawn_unit(1, UnitKind::Destroyer, 19, 23);
+        self.spawn_unit(1, UnitKind::Destroyer, 21, 23);
         let detected = self.unit_visible_to(1, self.unit_by_id(hidden).unwrap());
         self.make_diplomatic_contact(HUMAN, 1);
         self.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = 0;
