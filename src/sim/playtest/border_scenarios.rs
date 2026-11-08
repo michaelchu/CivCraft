@@ -5,14 +5,20 @@ use super::*;
 impl Simulation {
     pub(crate) fn fogged_border_playtest(&mut self) -> (bool, bool) {
         self.units.clear();
+        self.cities.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
             tile.known_by = [false; PLAYER_SLOTS];
+            tile.owner = None;
+            tile.border_city = None;
+            tile.last_seen_owner = None;
         }
         let (x, y) = (10, 24);
-        let coast = offset_native_by_map(x, y, 1, 0);
-        let sea = offset_native_by_map(x, y, 2, 0);
-        let lake = offset_native_by_map(x, y, 0, -2);
+        let wrap = self.map_wrap;
+        let civ3_east = |position: (i32, i32)| wrap.civ3_offset(position.0, position.1, 2, 0);
+        let coast = civ3_east((x, y)).unwrap();
+        let sea = civ3_east(coast).unwrap();
+        let lake = wrap.civ3_offset(x, y, -1, -1).unwrap();
         for step in 1..=8 {
             let (sx, sy) = offset_native_by_map(x, y, step, 0);
             self.tile_mut(sx, sy).terrain = Terrain::Sea;
@@ -47,37 +53,50 @@ impl Simulation {
 
     pub(crate) fn city_borders_playtest(&mut self) -> (bool, bool, bool) {
         self.units.clear();
+        self.cities.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
             tile.known_by = [false; PLAYER_SLOTS];
+            tile.owner = None;
+            tile.border_city = None;
+            tile.last_seen_owner = None;
         }
         let (x, y) = (10, 24);
-        let point = |step| offset_native_by_map(x, y, step, 0);
-        let (rx, ry) = point(4);
+        let wrap = self.map_wrap;
+        let mut points = vec![(x, y)];
+        for _ in 0..4 {
+            let previous = *points.last().unwrap();
+            points.push(wrap.civ3_offset(previous.0, previous.1, 1, 1).unwrap());
+        }
+        let point = |step: usize| points[step];
+        let (rx, ry) = point(2);
         self.create_city(HUMAN, x, y);
         self.create_city(1, rx, ry);
         let owner = |game: &Self, step| {
             let (x, y) = point(step);
             game.tile(x, y).owner
         };
-        let tie = owner(self, 2) == Some(HUMAN);
+        let tie = owner(self, 1) == Some(HUMAN);
+        for tile in &mut self.tiles {
+            tile.known_by[1] = false;
+        }
         self.cities[1].size = 12;
         self.rebuild_city_ownership();
-        let fog_restricted = owner(self, 8).is_none();
+        let fog_restricted = owner(self, 4).is_none();
         for tile in &mut self.tiles {
             tile.known_by[1] = true;
         }
         self.rebuild_city_ownership();
-        let strength = owner(self, 2) == Some(1)
-            && owner(self, 1) == Some(HUMAN)
+        let strength = owner(self, 4) == Some(1)
+            && owner(self, 3) == Some(1)
             && owner(self, 0) == Some(HUMAN);
-        let expanded = owner(self, 8) == Some(1);
+        let expanded = owner(self, 4) == Some(1);
         self.cities[1].size = 1;
         self.rebuild_city_ownership();
         (
             tie,
             strength && fog_restricted,
-            expanded && owner(self, 8).is_none(),
+            expanded && owner(self, 4).is_none(),
         )
     }
 }

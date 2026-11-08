@@ -197,13 +197,14 @@ intended end state; a completed phase requires the evidence listed below.
   their own coordinated migrations.
   Tests cover direct movement, route preview, wrapped seams, FLC facing rows,
   and migrated AI routes; `cargo test --offline` passes 645/645 and the
-  offline release build succeeds. The seed-42 desktop scenario now passes
-  267/278 checks, up from 262/278 before the embarkation fix. Seven remaining
-  failures match the pre-migration baseline; four border and route fixtures
-  still assert legacy topology behavior and need Civ III review. Report:
-  `/tmp/civcraft-playtest-j1oslU/report.json`. The Civ III distance formula used for fuel
-  return range matches graph traversal for sampled origins across both wrap
-  modes; its use for original Civ III fuel-range behavior remains an inference.
+  offline release build succeeds. Border and route playtest fixtures now use
+  isolated city state, Civ III rank distance, and routes built from Civ III
+  neighbors. The seed-42 desktop scenario passes 271/278 checks; the seven
+  remaining failures match the earlier migration baseline. Report:
+  `/tmp/civcraft-playtest-d3YwZD/report.json`. The Civ III distance formula
+  used for fuel return range matches graph traversal for sampled origins across
+  both wrap modes; its use for original Civ III fuel-range behavior remains an
+  inference.
   The focused `goto-preview` Civ III UI review passed
   4/4 checks, and its screenshot was inspected at
   `/tmp/civ3-goto-eight-direction-review/goto-preview.png`; report:

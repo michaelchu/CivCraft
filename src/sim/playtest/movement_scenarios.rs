@@ -14,8 +14,15 @@ impl Simulation {
             tile.railroad = false;
         }
         let start = (10, 24);
-        let middle = offset_native_by_map(start.0, start.1, 1, 0);
-        let goal = offset_native_by_map(start.0, start.1, 2, 0);
+        let wrap = self.map_wrap;
+        let east = |position: (i32, i32)| wrap.civ3_offset(position.0, position.1, 2, 0).unwrap();
+        let first = east(start);
+        let middle = east(first);
+        let third = east(middle);
+        let goal = east(third);
+        for (x, y) in [start, first, middle, third, goal] {
+            self.tile_mut(x, y).road = true;
+        }
         self.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
         let warrior = self.units.last().unwrap().clone();
         let route = self.plan_route(&warrior, goal.0, goal.1, true);
@@ -85,9 +92,12 @@ impl Simulation {
             tile.seen = true;
         }
         let start = (10, 24);
-        let point = |dx, dy| offset_native_by_map(start.0, start.1, dx, dy);
-        let goal = point(2, 0);
-        for (x, y) in [start, point(0, -1), point(1, -1), goal] {
+        let wrap = self.map_wrap;
+        let east = |position: (i32, i32)| wrap.civ3_offset(position.0, position.1, 2, 0).unwrap();
+        let first = east(start);
+        let second = east(first);
+        let goal = east(second);
+        for (x, y) in [start, first, second, goal] {
             self.tile_mut(x, y).road = true;
         }
         self.remember_route_tiles(true);
