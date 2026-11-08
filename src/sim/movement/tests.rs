@@ -105,6 +105,27 @@ fn native_movement_costs_nativity_boarding_and_zoc_flags() {
 }
 
 #[test]
+fn moved_units_retain_the_matching_civ3_flic_direction_row() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.river = false;
+        tile.road = false;
+        tile.railroad = false;
+        tile.base = None;
+        tile.hut = false;
+        tile.visible = true;
+        tile.seen = true;
+    }
+    let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+    game.units.last_mut().unwrap().moves_left = 100;
+    assert_eq!(game.try_move_unit(id, 0, -1), MoveResult::Moved);
+    assert_eq!(game.unit_by_id(id).unwrap().facing, 4);
+}
+
+#[test]
 fn big_land_has_no_terrain_defense_and_nuclear_is_not_air_attacker() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.cities.clear();
@@ -317,7 +338,7 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
         .find(|unit| unit.id == first)
         .unwrap()
         .hp = 1;
-    game.resolve_combat(attacker, first, nx, ny);
+    game.resolve_combat(attacker, first, nx, ny, None);
     assert!(!game.units.iter().any(|unit| unit.id == first));
     assert!(game.units.iter().any(|unit| unit.id == second));
     assert!(
@@ -340,7 +361,7 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
         .find(|unit| unit.id == attacker)
         .unwrap()
         .moves_left = MOVE_FRAGMENTS;
-    game.resolve_combat(attacker, second, nx, ny);
+    game.resolve_combat(attacker, second, nx, ny, None);
     assert!(
         game.cities
             .iter()
@@ -362,7 +383,7 @@ fn an_unprotected_stack_loses_hostile_units_with_its_defender() {
         .find(|unit| unit.id == first)
         .unwrap()
         .hp = 1;
-    game.resolve_combat(attacker, first, nx, ny);
+    game.resolve_combat(attacker, first, nx, ny, None);
     assert!(
         !game
             .units

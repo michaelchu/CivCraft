@@ -198,6 +198,20 @@ impl MapWrap {
         let (nx, ny) = map_to_native(mx + dx, my + dy);
         self.normalize(nx, ny)
     }
+    /// Map a legacy simulation step to OpenCiv3's FLC direction row order
+    /// (SW, S, SE, E, NE, N, NW, W). Pass the step before wrapping so a seam
+    /// crossing retains its intended direction.
+    pub(crate) fn civ3_flic_direction(self, dx: i32, dy: i32) -> Option<u8> {
+        match (dx, dy) {
+            (0, -1) => Some(4),
+            (1, 0) => Some(2),
+            (1, 1) => Some(1),
+            (0, 1) => Some(0),
+            (-1, 0) => Some(6),
+            (-1, -1) => Some(5),
+            _ => None,
+        }
+    }
     pub(crate) fn neighbors(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> + use<> {
         ISOHEX_DIRS
             .into_iter()
@@ -233,6 +247,30 @@ impl MapWrap {
             return None;
         }
         Some(((grid_x - neighbor_y.rem_euclid(2)) / 2, neighbor_y))
+    }
+}
+
+#[cfg(test)]
+mod civ3_flic_direction_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_neighbor_steps_select_their_civ3_flic_direction_rows() {
+        let wrap = MapWrap::X;
+        let expected = [4, 2, 1, 0, 6, 5];
+        for ((dx, dy), row) in ISOHEX_DIRS.into_iter().zip(expected) {
+            assert_eq!(wrap.civ3_flic_direction(dx, dy), Some(row));
+        }
+    }
+
+    #[test]
+    fn flic_direction_selection_handles_horizontal_seam_neighbors() {
+        let wrap = MapWrap::X;
+        let from = (wrap.width() - 1, 1);
+        let step = (0, -1);
+        let to = wrap.offset(from.0, from.1, step.0, step.1).unwrap();
+        assert_eq!(to.0, 0);
+        assert_eq!(wrap.civ3_flic_direction(step.0, step.1), Some(4));
     }
 }
 

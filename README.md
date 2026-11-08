@@ -112,10 +112,11 @@ be overridden in `tileset.conf` like the terrain and resource roles.
 
 Unit roles use lowercase kebab-case `UnitKind` names (`unit-stealth-fighter`,
 `unit-mech-inf`, `unit-settlers`). FLC files are decoded from their original
-palette-indexed frames. The current renderer displays the southeast direction's
-first default frame and applies palette team-color and shadow ranges. Facing,
-action animations, and automatic mapping of the full unit roster are not yet
-implemented.
+palette-indexed frames. The renderer selects the facing row's first default
+frame and applies palette team-color and shadow ranges. Movement and attacks
+currently update facing for the six directions supported by the legacy simulation;
+full eight-way movement, action animation playback, and automatic mapping of
+the full unit roster are not yet implemented.
 
 The ground, water, and polar sheets are required. The other groups are optional.
 For two interactive windows, launch the binary from separate working

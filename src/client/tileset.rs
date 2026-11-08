@@ -687,8 +687,7 @@ pub(super) struct Civ3 {
 }
 
 struct Civ3UnitArt {
-    base: Texture2D,
-    tint: Texture2D,
+    directions: Vec<(Texture2D, Texture2D)>,
     width: f32,
     height: f32,
     original_width: f32,
@@ -874,23 +873,33 @@ impl Civ3 {
             let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
             let flic = super::flc::decode_flic(&bytes)
                 .map_err(|error| format!("{}: {error}", path.display()))?;
-            let frame = flic
+            let directions = flic
                 .animations
-                .get(2)
-                .and_then(|direction| direction.first())
-                .ok_or_else(|| format!("{}: missing southeast default frame", path.display()))?;
-            let (base_image, tint_image) = flic
-                .image_layers(frame)
-                .map_err(|error| format!("{}: {error}", path.display()))?;
-            let base = Texture2D::from_image(&base_image);
-            let tint = Texture2D::from_image(&tint_image);
-            base.set_filter(FilterMode::Nearest);
-            tint.set_filter(FilterMode::Nearest);
+                .iter()
+                .map(|frames| {
+                    let frame = frames.first().ok_or_else(|| {
+                        format!("{}: missing default animation frame", path.display())
+                    })?;
+                    let (base_image, tint_image) = flic
+                        .image_layers(frame)
+                        .map_err(|error| format!("{}: {error}", path.display()))?;
+                    let base = Texture2D::from_image(&base_image);
+                    let tint = Texture2D::from_image(&tint_image);
+                    base.set_filter(FilterMode::Nearest);
+                    tint.set_filter(FilterMode::Nearest);
+                    Ok((base, tint))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            if directions.is_empty() {
+                return Err(format!(
+                    "{}: FLC contains no direction frames",
+                    path.display()
+                ));
+            }
             unit_art.insert(
                 role.clone(),
                 Civ3UnitArt {
-                    base,
-                    tint,
+                    directions,
                     width: flic.width as f32,
                     height: flic.height as f32,
                     original_width: flic.original_width.max(flic.width) as f32,
@@ -931,12 +940,12 @@ impl Civ3 {
         self.city_texture(style)
     }
 
-    /// Draw a mod-supplied Civ III default FLC frame. Unit facing and animation
-    /// state are not yet represented in the simulation, so use southeast frame 0.
+    /// Draw the first frame for a unit's current direction from a mod FLC.
     pub(super) fn draw_unit(
         &self,
         kind: UnitKind,
         owner: usize,
+        facing: u8,
         center: Vec2,
         zoom: f32,
         has_moves: bool,
@@ -945,6 +954,12 @@ impl Civ3 {
         let Some(art) = self.unit_art.get(&role) else {
             return false;
         };
+        let (base, tint) = art
+            .directions
+            .get(usize::from(facing))
+            .or_else(|| art.directions.get(2))
+            .or_else(|| art.directions.first())
+            .expect("unit FLC direction list was checked while loading");
         let scale = zoom * (TILE_W / 64.0);
         let size = vec2(art.width * scale, art.height * scale);
         let position = center - vec2(art.original_width * scale, art.original_height * scale) * 0.5
@@ -960,7 +975,7 @@ impl Civ3 {
         } else {
             Color::new(team.r * 0.62, team.g * 0.66, team.b * 0.68, team.a)
         };
-        for (texture, tint) in [(&art.base, base_tint), (&art.tint, team_tint)] {
+        for (texture, tint) in [(base, base_tint), (tint, team_tint)] {
             draw_texture_ex(
                 texture,
                 position.x,

@@ -217,6 +217,7 @@ impl Simulation {
         defender_id: u32,
         nx: i32,
         ny: i32,
+        facing: Option<u8>,
     ) {
         let Some(attacker_index) = self.unit_index_by_id(attacker_id) else {
             return;
@@ -224,7 +225,10 @@ impl Simulation {
         let Some(defender_index) = self.unit_index_by_id(defender_id) else {
             return;
         };
-        let attacker = self.units[attacker_index].clone();
+        let mut attacker = self.units[attacker_index].clone();
+        if let Some(facing) = facing {
+            attacker.facing = facing;
+        }
         let defender = self.units[defender_index].clone();
         // Collect Ransom uses the ordinary attack roll, but its eligibility
         // and payout depend on the entire target stack before combat.
@@ -305,6 +309,9 @@ impl Simulation {
                 (a.moves_left - MOVE_FRAGMENTS).max(0)
             };
             a.moved = true;
+            if let Some(facing) = facing {
+                a.facing = facing;
+            }
         }
         if let Some(d) = self.units.iter_mut().find(|u| u.id == defender_id) {
             d.hp = def_hp;
@@ -358,7 +365,7 @@ impl Simulation {
                         || attacker.kind.can_occupy_city()
                 })
             {
-                self.enter_tile(attacker_id, nx, ny, (cost - MOVE_FRAGMENTS).max(0));
+                self.enter_tile(attacker_id, nx, ny, (cost - MOVE_FRAGMENTS).max(0), facing);
             }
             if attacker_owner == HUMAN || defender_owner == HUMAN {
                 self.add_event(format!(

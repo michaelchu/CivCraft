@@ -48,10 +48,20 @@ intended end state; a completed phase requires the evidence listed below.
   Carthaginian Settler FLC confirms a rendered palette/team-color frame:
   `/tmp/civ3-unit-flc-review-settlers/world.png` and report
   `/tmp/civ3-unit-flc-review-settlers/report.json`. This proves the optional
-  loader path only; the default theme does not map unit art, current simulation
-  does not track facing or action animation state, and most units still use the
-  shared atlas. OpenCiv3 unit artwork is treated as reference/mod art rather
-  than verified original Civ III artwork.
+  loader path only; the default theme does not map unit art, action animation
+  state is not tracked, and most units still use the shared atlas. The six
+  legacy movement directions now select the corresponding FLC facing row, but
+  the gameplay topology still needs all eight directions. OpenCiv3 unit artwork
+  is treated as reference/mod art rather than verified original Civ III art.
+  `C7/Animations/AnimationManager.cs` defines the FLC row order as southwest,
+  south, southeast, east, northeast, north, northwest, west. CivCraft stores
+  that row on the unit after movement or an attack; its current six-direction
+  topology can therefore reach only six of those rows. The conversion is an
+  implementation mapping from CivCraft's current coordinates, not a claim about
+  Civ III's original movement internals. The seed-42 `unit-movement` UI review
+  with a real Warrior FLC passed 5/5 checks and produced
+  `/tmp/civ3-unit-facing-review-final/unit-movement.png` and
+  `/tmp/civ3-unit-facing-review-final/unit-movement-next.png`.
 - `src/client/tileset.rs` decodes 8-bit, one-plane RLE PCX and applies palette
   indices 254 and 255 as transparent by default, following OpenCiv3's loader
   configuration. Theme manifests can override transparent indices per sheet

@@ -451,6 +451,7 @@ impl Simulation {
             return self.try_bombard(&unit, nx, ny);
         }
         let defender = self.best_defender_id(&unit, nx, ny);
+        let facing = self.map_wrap.civ3_flic_direction(dx, dy);
 
         if let Some(defender_id) = defender {
             if unit.kind.stats().attack <= 0
@@ -461,7 +462,7 @@ impl Simulation {
             {
                 return MoveResult::Blocked;
             }
-            self.resolve_combat(unit_id, defender_id, nx, ny);
+            self.resolve_combat(unit_id, defender_id, nx, ny, facing);
             return MoveResult::Fought;
         }
 
@@ -509,7 +510,7 @@ impl Simulation {
             .is_aircraft()
             .then(|| self.boarding_target(&unit, nx, ny))
             .flatten();
-        self.enter_tile(unit_id, nx, ny, cost);
+        self.enter_tile(unit_id, nx, ny, cost, facing);
         if let Some(ship) = carrier
             && let Some(mover) = self.units.iter_mut().find(|unit| unit.id == unit_id)
         {
@@ -524,7 +525,14 @@ impl Simulation {
         MoveResult::Moved
     }
 
-    pub(super) fn enter_tile(&mut self, unit_id: u32, nx: i32, ny: i32, cost: i32) {
+    pub(super) fn enter_tile(
+        &mut self,
+        unit_id: u32,
+        nx: i32,
+        ny: i32,
+        cost: i32,
+        facing: Option<u8>,
+    ) {
         let old_position = self
             .units
             .iter()
@@ -545,6 +553,9 @@ impl Simulation {
         if let Some(mover) = self.units.iter_mut().find(|u| u.id == unit_id) {
             mover.x = nx;
             mover.y = ny;
+            if let Some(facing) = facing {
+                mover.facing = facing;
+            }
             mover.transport = None;
             mover.moves_left = (mover.moves_left - cost).max(0);
             mover.moved = true;

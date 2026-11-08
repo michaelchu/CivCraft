@@ -264,6 +264,7 @@ impl Game {
             tileset.draw_unit(
                 unit.kind,
                 unit.owner,
+                unit.facing,
                 center,
                 self.zoom,
                 unit.moves_left > 0,

@@ -23,7 +23,7 @@ impl Simulation {
             .map(|u| u.id)
             .collect::<Vec<_>>()
             == [second, first];
-        self.enter_tile(first, q.0, q.1, MOVE_FRAGMENTS);
+        self.enter_tile(first, q.0, q.1, MOVE_FRAGMENTS, None);
         let attacker = self.make_unit(0, 1, UnitKind::Warrior, q.0, q.1);
         let arrival = self
             .tile_units_ordered(q.0, q.1)

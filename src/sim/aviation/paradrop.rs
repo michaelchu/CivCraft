@@ -239,7 +239,7 @@ impl Simulation {
             self.remove_units_with_cargo(vec![id]);
         } else {
             // The drop itself costs no movement, but enter_tile records the action.
-            self.enter_tile(id, x, y, 0);
+            self.enter_tile(id, x, y, 0, None);
         }
         self.refresh_visibility();
         self.check_game_over();

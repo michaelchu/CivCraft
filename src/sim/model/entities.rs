@@ -59,6 +59,8 @@ pub(crate) struct Unit {
     pub(in crate::sim) home_order: u32,
     pub(crate) veteran: usize,
     pub(crate) fuel: u8,
+    /// OpenCiv3 FLC direction row: SW, S, SE, E, NE, N, NW, W.
+    pub(crate) facing: u8,
     pub(crate) x: i32,
     pub(crate) y: i32,
     pub(crate) hp: i32,
@@ -83,6 +85,7 @@ impl Unit {
             home_order: 0,
             veteran: 0,
             fuel: kind.fuel_capacity(),
+            facing: 2,
             x,
             y,
             hp: kind.stats().hp,
