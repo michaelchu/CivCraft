@@ -78,10 +78,10 @@ uses the shared river and unit art. Resource icons come from the selected
 theme’s resource sheet. A missing sheet or a transparent icon cell uses the
 existing fallback resource icon.
 
-`--renderer civ3` selects the in-progress Civ III geometry backend for map
+The Civ III geometry backend is the default renderer. It controls map
 projection and tile picking. The map painter and simulation topology are still
-shared with the legacy implementation; `amplio2` remains the default renderer
-until those systems are migrated.
+shared with the legacy implementation, so this is an incremental migration;
+`--renderer amplio2` remains available for comparison during development.
 
 Use `--tileset-theme PATH` with `--tileset civ3` to select a local art directory
 or a manifest file. An art directory can follow the original filenames, with

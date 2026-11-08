@@ -140,7 +140,7 @@ pub(crate) fn create(name: &str) -> Result<std::rc::Rc<dyn RenderBackend>, Strin
 }
 
 pub(crate) fn default_renderer() -> std::rc::Rc<dyn RenderBackend> {
-    std::rc::Rc::new(Amplio2Renderer)
+    std::rc::Rc::new(Civ3Renderer)
 }
 
 #[cfg(test)]
@@ -153,6 +153,7 @@ mod tests {
         assert_eq!(create("amplio2").unwrap().name(), "amplio2");
         assert_eq!(create("AMPLIO2").unwrap().name(), "amplio2");
         assert_eq!(create("civ3").unwrap().name(), "civ3");
+        assert_eq!(default_renderer().name(), "civ3");
     }
 
     #[test]

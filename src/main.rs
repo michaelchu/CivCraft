@@ -63,7 +63,7 @@ async fn main() {
     }
     // Civ III campaigns use a horizontally wrapped map with bounded poles.
     let wrap = sim::topology::MapWrap::X;
-    let renderer_name = argument_value("--renderer").unwrap_or_else(|| "amplio2".to_owned());
+    let renderer_name = argument_value("--renderer").unwrap_or_else(|| "civ3".to_owned());
     let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(2);
