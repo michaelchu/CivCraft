@@ -7,4 +7,6 @@ root of the theme directory.
 Launch the default Civ III theme with `--tileset civ3`. To select a different
 Civ III theme, use `--tileset civ3 --tileset-theme tilesets/my-theme`.
 Copy the example manifest from `civ3/tileset.conf` when overriding sheet paths.
-See [Map tilesets](../README.md#map-tilesets) for the supported sheet roles.
+River art can be overridden with `river-delta` and `river-mountain`; these
+roles select the original 4×4 Civ III river sheets. See
+[Map tilesets](../README.md#map-tilesets) for the supported sheet roles.

@@ -15,6 +15,11 @@ intended end state; a completed phase requires the evidence listed below.
   picking. `C7Engine/C7GameData/Tile_Math.cs` defines eight directions on that
   staggered coordinate grid. Treat these choices as a reference model and
   compare the visible result with Civ III documentation and artwork.
+- OpenCiv3's `C7/MapView.cs` `RiverLayer` selects a 4×4 river sprite from flags
+  on the four tiles around each junction. Its `C7Engine/MapGenerator.cs`
+  `setRiverFlags` comments explicitly call that code a rough approximation
+  with missing cardinal flags. Reuse the junction layout as an implementation
+  reference, not as a claim about the original generator.
 - `../../Sn00pys Terrain Greener (C3C)/Art` is the default terrain-mod source.
   Keep its PCX files as the runtime inputs; do not make generated PNGs a
   prerequisite.
@@ -40,6 +45,13 @@ intended end state; a completed phase requires the evidence listed below.
   infers these bases from broad temperature bands because it does not yet
   generate Civ III base terrain and overlays independently. This mapping is
   explicitly provisional and must be replaced by the native generator.
+- Tiles now retain reciprocal eight-direction `river_edges`. The generator
+  writes edges from each traced river-course step and its outlet; `MapWrap`
+  adapts those links to Civ III staggered neighbors. Civ III rendering reads
+  the four-tile junction flags and loads Sn00py's `deltaRivers.pcx` and
+  `mtnRivers.pcx` through the `river-delta` and `river-mountain` manifest
+  roles. The existing river course selection still comes from the old
+  six-direction generator, so this is an intermediate topology conversion.
 - Five focused PCX/tileset tests passed, the debug build succeeded, and the
   `civ3-city-sprites` UI review passed with the default tileset at seed 42.
 - `src/client/civ3_geometry.rs` holds a first-pass Civ III grid contract:
@@ -63,12 +75,19 @@ intended end state; a completed phase requires the evidence listed below.
   sheet, so it is source artwork rather than an artifact to smooth away. Base
   terrain for feature tiles remains an inference until map generation stores
   it directly.
+- The focused generated-river capture is
+  `/tmp/civ3-generated-river-review/rivers-generated.png`. The full default
+  Civ III gallery then passed all 47 scenes, 146 checks and 68 captures at seed
+  42; report: `/tmp/civ3-river-gallery/report.json`. Rivers use Civ III source
+  art in both fixture and generated-map scenes. Their placement is still
+  approximate because the generator does not yet choose Civ III river edges
+  while tracing drainage.
 - Two stale visual fixtures assumed vertical wrapping despite the bounded-pole
   default. The remembered-map scout now moves to another valid tile, and the
   water-depth fixture uses campaign-aware offsets and stays inside the map.
-- The full Rust suite passed 612/612 after adding base-ground generation
-  checks. The release build and focused terrain gallery passed; `git diff
-  --check` is clean.
+- The full Rust suite passed 618/618 after adding base-ground and Civ III river
+  edge checks. The release build and full default-backend gallery passed;
+  `git diff --check` is clean.
 
 ## Phases and completion criteria
 

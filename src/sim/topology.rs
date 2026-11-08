@@ -10,7 +10,7 @@
 //! arrays. The topology is part of the generated campaign and must be chosen
 //! before generation rather than changed after tiles and features are built.
 
-use super::{PERCENT_SCALE, PLAYER_COUNT};
+use super::{PERCENT_SCALE, PLAYER_COUNT, Tile};
 
 const TILES_PER_PLAYER: i32 = 100;
 pub(crate) const LAND_PERCENT: i32 = 30;
@@ -49,6 +49,18 @@ pub(crate) const MAP_H: i32 = MAP_Y_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR *
 // unavailable directions in Freeciv's eight-direction coordinate system.
 pub(crate) const ISOHEX_DIRS: [(i32, i32); 6] =
     [(0, -1), (1, 0), (1, 1), (0, 1), (-1, 0), (-1, -1)];
+
+/// Eight Civ III directions in staggered-grid coordinates, clockwise from N.
+pub(crate) const CIV3_DIRS: [(i32, i32); 8] = [
+    (0, -2),
+    (1, -1),
+    (2, 0),
+    (1, 1),
+    (0, 2),
+    (-1, 1),
+    (-2, 0),
+    (-1, -1),
+];
 
 pub(crate) fn isohex_vector_distance(dx: i32, dy: i32) -> i32 {
     let abs_dx = dx.abs();
@@ -202,6 +214,72 @@ impl MapWrap {
         let (bmx, bmy) = native_to_map(ax + dx, ay + dy);
         (bmx - amx, bmy - amy)
     }
+
+    /// Neighbor in Civ III's eight-direction grid, adapting the current
+    /// rectangular tile storage to occupied staggered coordinates.
+    pub(crate) fn civ3_neighbor(self, x: i32, y: i32, direction: usize) -> Option<(i32, i32)> {
+        let (dx, dy) = *CIV3_DIRS.get(direction)?;
+        let grid_x = 2 * x + y.rem_euclid(2) + dx;
+        let neighbor_y = y + dy;
+        let neighbor_y = if self.wraps_y() {
+            neighbor_y.rem_euclid(self.height())
+        } else if (0..self.height()).contains(&neighbor_y) {
+            neighbor_y
+        } else {
+            return None;
+        };
+        let grid_x = grid_x.rem_euclid(2 * self.width());
+        if grid_x.rem_euclid(2) != neighbor_y.rem_euclid(2) {
+            return None;
+        }
+        Some(((grid_x - neighbor_y.rem_euclid(2)) / 2, neighbor_y))
+    }
+}
+
+/// Rebuild reciprocal Civ III river-edge bits from the transitional tile
+/// river markers. This keeps river artwork connected on the eight-direction
+/// map while the generator is migrated from its six-direction path model.
+pub(crate) fn rebuild_civ3_river_edges(wrap: MapWrap, tiles: &mut [Tile]) {
+    for tile in tiles.iter_mut() {
+        tile.river_edges = 0;
+    }
+    for index in 0..wrap.tile_count() {
+        if !tiles[index].river {
+            continue;
+        }
+        let (x, y) = wrap.position(index);
+        for direction in 0..CIV3_DIRS.len() {
+            let Some((nx, ny)) = wrap.civ3_neighbor(x, y, direction) else {
+                continue;
+            };
+            let neighbor = wrap.index(nx, ny);
+            if tiles[neighbor].river || tiles[neighbor].terrain.is_water() {
+                tiles[index].river_edges |= 1 << direction;
+                tiles[neighbor].river_edges |= 1 << ((direction + 4) % 8);
+            }
+        }
+    }
+}
+
+/// Remove nonreciprocal Civ III river bits after tiles are converted or
+/// removed at a map edge.
+pub(crate) fn prune_civ3_river_edges(wrap: MapWrap, tiles: &mut [Tile]) {
+    let original: Vec<_> = tiles.iter().map(|tile| tile.river_edges).collect();
+    for index in 0..wrap.tile_count() {
+        let (x, y) = wrap.position(index);
+        for direction in 0..CIV3_DIRS.len() {
+            if original[index] & (1 << direction) == 0 {
+                continue;
+            }
+            let reciprocal = wrap.civ3_neighbor(x, y, direction).is_some_and(|(nx, ny)| {
+                let neighbor = wrap.index(nx, ny);
+                original[neighbor] & (1 << ((direction + 4) % 8)) != 0
+            });
+            if !reciprocal {
+                tiles[index].river_edges &= !(1 << direction);
+            }
+        }
+    }
 }
 /// V1–14 were always toroidal, independently of the current CLI default.
 pub(super) fn legacy_wrap() -> MapWrap {
@@ -226,6 +304,80 @@ mod wrap_tests {
         assert_eq!(MapWrap::X.normalize(0, -1), None);
         assert_eq!(MapWrap::XY.normalize(0, -1), Some((0, MAP_H - 1)));
     }
+
+    #[test]
+    fn civ3_neighbors_are_reciprocal_across_rows_seams_and_bounded_poles() {
+        for wrap in [MapWrap::X, MapWrap::XY] {
+            for y in 0..wrap.height() {
+                for x in 0..wrap.width() {
+                    for direction in 0..CIV3_DIRS.len() {
+                        let Some((nx, ny)) = wrap.civ3_neighbor(x, y, direction) else {
+                            assert!(!wrap.wraps_y());
+                            assert!(
+                                !(0..wrap.height())
+                                    .contains(&(y + CIV3_DIRS[direction].1))
+                            );
+                            continue;
+                        };
+                        assert_eq!(
+                            wrap.civ3_neighbor(nx, ny, (direction + 4) % 8),
+                            Some((x, y))
+                        );
+                    }
+                }
+            }
+            for y in 0..wrap.height() {
+                assert_eq!(wrap.civ3_neighbor(wrap.width() - 1, y, 2), Some((0, y)));
+            }
+            for y in 0..wrap.height() {
+                for x in 0..wrap.width() {
+                    for (dx, dy) in ISOHEX_DIRS {
+                        if let Some(neighbor) = wrap.offset(x, y, dx, dy) {
+                            assert!((0..CIV3_DIRS.len()).any(|direction| {
+                                wrap.civ3_neighbor(x, y, direction) == Some(neighbor)
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn generated_river_markers_become_reciprocal_civ3_edges() {
+        let wrap = MapWrap::X;
+        let mut map = crate::mapgen::generate_with_wrap(42, wrap);
+        let (x, y) = (10, 20);
+        let (nx, ny) = wrap.civ3_neighbor(x, y, 1).unwrap();
+        map.tiles[wrap.index(x, y)].river = true;
+        map.tiles[wrap.index(nx, ny)].river = true;
+        rebuild_civ3_river_edges(wrap, &mut map.tiles);
+        assert_ne!(map.tiles[wrap.index(x, y)].river_edges & (1 << 1), 0);
+        assert_ne!(map.tiles[wrap.index(nx, ny)].river_edges & (1 << 5), 0);
+    }
+
+    #[test]
+    fn generated_river_courses_have_only_reciprocal_edges() {
+        let wrap = MapWrap::X;
+        let map = crate::mapgen::generate_with_wrap(42, wrap);
+        let mut edge_count = 0;
+        for (index, tile) in map.tiles.iter().enumerate() {
+            let (x, y) = wrap.position(index);
+            for direction in 0..CIV3_DIRS.len() {
+                if tile.river_edges & (1 << direction) == 0 {
+                    continue;
+                }
+                edge_count += 1;
+                let (nx, ny) = wrap.civ3_neighbor(x, y, direction).unwrap();
+                assert_ne!(
+                    map.tiles[wrap.index(nx, ny)].river_edges & (1 << ((direction + 4) % 8)),
+                    0
+                );
+            }
+        }
+        assert!(edge_count > 0);
+    }
+
     #[test]
     fn each_campaign_obeys_its_seams_for_movement_sight_routes_and_city_radius() {
         for wrap in [MapWrap::X, MapWrap::XY] {

@@ -58,8 +58,9 @@ Civ III `polarICEcaps-final.png` artwork supplies the visual polar caps outside
 the playable map. The old WrapXY option has been removed from the game launch
 flow. Existing WrapXY saves are not loadable.
 
-Map geometry applies consistently to generation, movement, pathfinding, city
-work areas, visibility and rendering.
+The renderer uses Civ III's staggered diamond geometry. Generation, movement,
+pathfinding, city work areas and visibility still use the legacy simulation
+topology and are being migrated separately.
 
 ## Map tilesets
 
@@ -74,9 +75,9 @@ cargo run --release -- --tileset civ3 --seed 42
 
 The selection applies to the world map and the city work map. It is independent
 of `--renderer` and works with new maps and existing saves. The Civ III tileset
-uses the shared river and unit art. Resource icons come from the selected
-theme’s resource sheet. A missing sheet or a transparent icon cell uses the
-existing fallback resource icon.
+uses the Civ III river sheets; unit art remains shared during migration.
+Resource icons come from the selected theme’s resource sheet. A missing sheet
+or a transparent icon cell uses the existing fallback resource icon.
 
 The Civ III geometry backend is the default renderer. It controls map
 projection and tile picking. The map painter and simulation topology are still

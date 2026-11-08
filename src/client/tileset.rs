@@ -125,6 +125,8 @@ impl Theme {
                                 | "sea"
                                 | "ocean"
                                 | "polar"
+                                | "river-delta"
+                                | "river-mountain"
                                 | "resources"
                                 | "resource-shadows"
                                 | "city-asian"
@@ -557,6 +559,8 @@ pub(super) struct Civ3 {
     atlas: RefCell<Atlas>,
     overlays: Vec<Option<Texture2D>>,
     irrigation: Vec<Option<Texture2D>>,
+    river_delta: Texture2D,
+    river_mountain: Texture2D,
     resources: Option<ResourceArt>,
     cities: HashMap<&'static str, Texture2D>,
 }
@@ -610,6 +614,14 @@ impl Civ3 {
             .iter()
             .map(|(key, file)| optional(key, file, (512, 256)))
             .collect::<Result<_, _>>()?;
+        let river_texture = |key, file| -> Result<Texture2D, String> {
+            let image = required(key, file, (512, 256))?;
+            let texture = Texture2D::from_image(&image);
+            texture.set_filter(FilterMode::Nearest);
+            Ok(texture)
+        };
+        let river_delta = river_texture("river-delta", "deltaRivers")?;
+        let river_mountain = river_texture("river-mountain", "mtnRivers")?;
         let resources = theme.image("resources", "resources.png", (300, 300), false)?;
         let shadows = theme.image(
             "resource-shadows",
@@ -651,6 +663,8 @@ impl Civ3 {
             atlas: RefCell::default(),
             overlays,
             irrigation,
+            river_delta,
+            river_mountain,
             resources,
             cities,
         })
@@ -666,6 +680,62 @@ impl Civ3 {
             .copied()
             .unwrap_or("european");
         self.city_texture(style)
+    }
+
+    pub(super) fn draw_river(
+        &self,
+        game: &Game,
+        x: i32,
+        y: i32,
+        center: Vec2,
+        size: Vec2,
+    ) {
+        use super::rivers::Civ3RiverSheet;
+
+        let wrap = game.sim.map_wrap;
+        let at = |direction| {
+            wrap.civ3_neighbor(x, y, direction)
+                .map(|(nx, ny)| game.sim.render_tile(nx, ny))
+        };
+        let Some(north) = at(1) else { return };
+        let Some(east) = at(2) else { return };
+        let Some(south) = at(3) else { return };
+        let west = game.sim.render_tile(x, y);
+        if !west.seen {
+            return;
+        }
+        let edges = |tile: &Tile| if tile.seen { tile.river_edges } else { 0 };
+        let Some(index) = super::rivers::civ3_junction_index(
+            edges(north),
+            edges(east),
+            edges(south),
+            edges(west),
+        ) else {
+            return;
+        };
+        let has_water = [north, east, south, west]
+            .into_iter()
+            .any(|tile| tile.seen && tile.terrain.is_water());
+        let texture = match super::rivers::civ3_river_sheet(index, has_water) {
+            Civ3RiverSheet::Delta => &self.river_delta,
+            Civ3RiverSheet::Mountain => &self.river_mountain,
+        };
+        draw_texture_ex(
+            texture,
+            center.x,
+            center.y - size.y * 0.5,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(size),
+                source: Some(Rect::new(
+                    (index % 4 * WIDTH) as f32,
+                    (index / 4 * HEIGHT) as f32,
+                    WIDTH as f32,
+                    HEIGHT as f32,
+                )),
+                ..Default::default()
+            },
+        );
     }
 
     fn draw_corner(&self, key: Junction, side: usize, center: Vec2, size: Vec2) {
@@ -1009,6 +1079,33 @@ mod tests {
                 .unwrap_err()
                 .contains("8-bit, single-plane")
         );
+    }
+
+    #[test]
+    fn theme_manifest_accepts_original_civ3_river_sheet_roles() {
+        let directory = std::env::temp_dir().join(format!(
+            "civ3-river-theme-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let manifest = directory.join("tileset.conf");
+        fs::write(
+            &manifest,
+            "river-delta = Terrain/deltaRivers.pcx\nriver-mountain = Terrain/mtnRivers.pcx\n",
+        )
+        .unwrap();
+        let theme = Theme::read(&directory).unwrap();
+        assert_eq!(
+            theme.paths.get("river-delta").map(String::as_str),
+            Some("Terrain/deltaRivers.pcx")
+        );
+        assert_eq!(
+            theme.paths.get("river-mountain").map(String::as_str),
+            Some("Terrain/mtnRivers.pcx")
+        );
+        fs::remove_file(manifest).unwrap();
+        fs::remove_dir(directory).unwrap();
     }
 
     #[test]

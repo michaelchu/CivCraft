@@ -197,6 +197,10 @@ impl Game {
     }
 
     fn draw_river(&self, assets: &Assets, x: i32, y: i32, center: Vec2, tile_w: f32, tile_h: f32) {
+        if let Some(civ3) = &assets.civ3 {
+            civ3.draw_river(self, x, y, center, vec2(tile_w, tile_h));
+            return;
+        }
         let tile = self.sim.render_tile(x, y);
         let water = tile.terrain.is_water();
         if !water && !tile.river {

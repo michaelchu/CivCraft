@@ -44,11 +44,41 @@ impl super::Generator {
             }
             if let Some(course) = self.trace_river(tiles, heights, spring, rng) {
                 count += course.len();
-                for tile in course {
+                for &tile in &course {
                     tiles[tile].river = true;
                 }
+                self.connect_river_course(tiles, &course, heights);
             }
         }
+    }
+
+    fn connect_river_course(&self, tiles: &mut [Tile], course: &[usize], heights: &[i32]) {
+        for pair in course.windows(2) {
+            self.connect_river_edge(tiles, pair[0], pair[1]);
+        }
+        let Some(&last) = course.last() else {
+            return;
+        };
+        let outlet = self
+            .neighbors(last)
+            .filter(|&next| tiles[next].terrain.is_water() || tiles[next].river)
+            .min_by_key(|&next| (heights[next], next));
+        if let Some(outlet) = outlet {
+            self.connect_river_edge(tiles, last, outlet);
+        }
+    }
+
+    fn connect_river_edge(&self, tiles: &mut [Tile], from: usize, to: usize) {
+        let (x, y) = self.wrap.position(from);
+        let direction = (0..CIV3_DIRS.len()).find(|&direction| {
+            self.wrap.civ3_neighbor(x, y, direction)
+                == Some(self.wrap.position(to))
+        });
+        let Some(direction) = direction else {
+            return;
+        };
+        tiles[from].river_edges |= 1 << direction;
+        tiles[to].river_edges |= 1 << ((direction + 4) % 8);
     }
 
     fn mountainous(terrain: Terrain) -> i32 {

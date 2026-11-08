@@ -331,6 +331,10 @@ pub(crate) struct Tile {
     pub(crate) altitude: i32,
     pub(crate) hut: bool,
     pub(crate) river: bool,
+    /// Reciprocal Civ III direction bits for river edges (N, NE, E, SE, S,
+    /// SW, W, NW). `river` remains the legacy gameplay marker during migration.
+    #[serde(default)]
+    pub(crate) river_edges: u8,
     pub(crate) resource: Option<Resource>,
     pub(crate) road: bool,
     pub(crate) railroad: bool,

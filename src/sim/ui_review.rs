@@ -127,6 +127,7 @@ impl Simulation {
             tile.owner = None;
             tile.last_seen_owner = None;
             tile.river = false;
+            tile.river_edges = 0;
         }
         for dy in -7..=7 {
             for dx in -7..=7 {
@@ -134,6 +135,7 @@ impl Simulation {
                 let tile = self.tile_mut(x, y);
                 tile.terrain = Terrain::Desert;
                 tile.river = false;
+                tile.river_edges = 0;
                 tile.resource = None;
                 tile.hut = false;
                 tile.road = false;
@@ -173,6 +175,7 @@ impl Simulation {
             let (x, y) = offset_native_by_map(20, 24, dx, dy);
             self.tile_mut(x, y).terrain = Terrain::Lake;
         }
+        super::topology::rebuild_civ3_river_edges(self.map_wrap, &mut self.tiles);
         if fogged {
             let (x, y) = offset_native_by_map(20, 24, -1, -1);
             let tile = self.tile_mut(x, y);
@@ -495,6 +498,7 @@ impl Simulation {
             tile.road = false;
             tile.railroad = false;
             tile.river = false;
+            tile.river_edges = 0;
             tile.mine = false;
             tile.irrigation = false;
             tile.farmland = false;
@@ -534,6 +538,7 @@ impl Simulation {
             self.tile_mut(20, 24).irrigation = true;
             self.tile_mut(20, 24).river = true;
             self.tile_mut(20, 24).road = true;
+            super::topology::rebuild_civ3_river_edges(self.map_wrap, &mut self.tiles);
             self.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
             Some(id)
         } else {
@@ -590,6 +595,7 @@ impl Simulation {
                     };
                 }
             }
+            super::topology::rebuild_civ3_river_edges(self.map_wrap, &mut self.tiles);
             None
         }
     }

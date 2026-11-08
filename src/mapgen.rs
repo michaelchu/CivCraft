@@ -311,6 +311,7 @@ impl Generator {
                     altitude: heights[index],
                     hut: false,
                     river: false,
+                    river_edges: 0,
                     resource: None,
                     road: false,
                     railroad: false,
@@ -356,6 +357,7 @@ impl Generator {
                     terrain[index] = Terrain::FloodPlains;
                 }
             }
+            prune_civ3_river_edges(self.wrap, &mut tiles);
             self.place_resources(&mut tiles, &mut rng);
             self.place_huts(&mut tiles, &mut rng);
             let mut start_rng = MapRng::new(seed);
@@ -494,6 +496,7 @@ pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
                 tile.altitude = tile.altitude.min(SHORE - 1);
                 tile.resource = None;
                 tile.river = false;
+                tile.river_edges = 0;
                 tile.hut = false;
             }
         }
@@ -521,6 +524,7 @@ pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
                 tile.hut = false;
             }
         }
+        prune_civ3_river_edges(wrap, &mut map.tiles);
     }
     map
 }
