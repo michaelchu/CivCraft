@@ -65,7 +65,10 @@ impl Tileset {
                 let exe = std::env::current_exe().map_err(|error| error.to_string())?;
                 cwd.ancestors()
                     .chain(exe.ancestors().skip(1))
-                    .map(|parent| parent.join("tilesets/civ3"))
+                    .flat_map(|parent| [
+                        parent.join("Sn00pys Terrain Greener (C3C)/Art"),
+                        parent.join("tilesets/civ3"),
+                    ])
                     .find(|path| path.join("Terrain").is_dir())
                     .map(Self::Civ3)
                     .ok_or_else(|| {
@@ -117,7 +120,17 @@ impl Theme {
                         || IRRIGATION.iter().any(|entry| entry.0 == key)
                         || matches!(
                             key,
-                            "water" | "sea" | "ocean" | "polar" | "resources" | "resource-shadows"
+                            "water"
+                                | "sea"
+                                | "ocean"
+                                | "polar"
+                                | "resources"
+                                | "resource-shadows"
+                                | "city-asian"
+                                | "city-american"
+                                | "city-european"
+                                | "city-middle_eastern"
+                                | "city-roman"
                         )
                 };
                 if let Some((key, value)) = entry
@@ -152,8 +165,8 @@ impl Theme {
         let path = self
             .root
             .join(override_path.map_or(default, String::as_str));
-        let bytes = match fs::read(&path) {
-            Ok(bytes) => bytes,
+        let (path, image) = match read_theme_image(&path) {
+            Ok(image) => image,
             Err(error)
                 if !required
                     && override_path.is_none()
@@ -163,8 +176,6 @@ impl Theme {
             }
             Err(error) => return Err(format!("{}: {error}", path.display())),
         };
-        let image = Image::from_file_with_format(&bytes, Some(ImageFormat::Png))
-            .map_err(|error| format!("{}: {error}", path.display()))?;
         if image.width < size.0 || image.height < size.1 {
             return Err(format!(
                 "{}: expected at least {}×{} pixels",
@@ -175,6 +186,121 @@ impl Theme {
         }
         Ok(Some(image))
     }
+}
+
+fn read_theme_image(path: &Path) -> Result<(PathBuf, Image), std::io::Error> {
+    let mut candidates = vec![path.to_owned()];
+    if path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("png"))
+    {
+        candidates.push(path.with_extension("pcx"));
+        candidates.push(path.with_extension("PCX"));
+    }
+    let mut last_error = None;
+    for candidate in candidates {
+        match fs::read(&candidate) {
+            Ok(bytes) => {
+                let image = if candidate
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("pcx"))
+                {
+                    decode_pcx(&bytes).map_err(|message| {
+                        std::io::Error::new(std::io::ErrorKind::InvalidData, message)
+                    })?
+                } else {
+                    Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).map_err(
+                        |error| {
+                            std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string())
+                        },
+                    )?
+                };
+                return Ok((candidate, image));
+            }
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(last_error
+        .unwrap_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "file not found")))
+}
+
+/// Decode the 8-bit, one-plane, indexed RLE PCX form used by Civ III terrain mods.
+fn decode_pcx(bytes: &[u8]) -> Result<Image, String> {
+    if bytes.len() < 897 || bytes[0] != 0x0a || bytes[2] != 1 || bytes[3] != 8 || bytes[65] != 1 {
+        return Err("unsupported PCX: expected 8-bit, single-plane RLE image".into());
+    }
+    let le = |offset: usize| u16::from_le_bytes([bytes[offset], bytes[offset + 1]]);
+    let xmin = le(4) as usize;
+    let ymin = le(6) as usize;
+    let xmax = le(8) as usize;
+    let ymax = le(10) as usize;
+    let width = xmax
+        .checked_sub(xmin)
+        .and_then(|v| v.checked_add(1))
+        .ok_or("invalid PCX bounds")?;
+    let height = ymax
+        .checked_sub(ymin)
+        .and_then(|v| v.checked_add(1))
+        .ok_or("invalid PCX bounds")?;
+    let bytes_per_line = le(66) as usize;
+    if width == 0
+        || height == 0
+        || width > u16::MAX as usize
+        || height > u16::MAX as usize
+        || bytes_per_line < width
+    {
+        return Err("invalid PCX dimensions".into());
+    }
+    let palette_at = bytes.len() - 769;
+    if bytes[palette_at] != 0x0c {
+        return Err("PCX is missing its 256-color palette".into());
+    }
+    let pixel_count = width.checked_mul(height).ok_or("PCX dimensions overflow")?;
+    let needed = bytes_per_line
+        .checked_mul(height)
+        .ok_or("PCX dimensions overflow")?;
+    let mut indices = Vec::with_capacity(needed);
+    let mut cursor = 128;
+    while indices.len() < needed {
+        if cursor >= palette_at {
+            return Err("truncated PCX RLE data".into());
+        }
+        let value = bytes[cursor];
+        cursor += 1;
+        let (count, color) = if value & 0xc0 == 0xc0 {
+            if cursor >= palette_at {
+                return Err("truncated PCX run".into());
+            }
+            let count = (value & 0x3f) as usize;
+            let color = bytes[cursor];
+            cursor += 1;
+            (count, color)
+        } else {
+            (1, value)
+        };
+        if count == 0 || indices.len() + count > needed {
+            return Err("invalid PCX RLE run length".into());
+        }
+        indices.resize(indices.len() + count, color);
+    }
+    let mut rgba = Vec::with_capacity(pixel_count * 4);
+    for y in 0..height {
+        for &index in &indices[y * bytes_per_line..y * bytes_per_line + width] {
+            let p = palette_at + 1 + usize::from(index) * 3;
+            let (red, green, blue) = (bytes[p], bytes[p + 1], bytes[p + 2]);
+            let alpha = if red > 200 && green < 40 && blue > 200 {
+                0 // Civ III PCX magenta color key.
+            } else {
+                255
+            };
+            rgba.extend_from_slice(&[red, green, blue, alpha]);
+        }
+    }
+    Ok(Image {
+        width: width as u16,
+        height: height as u16,
+        bytes: rgba,
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -471,12 +597,16 @@ impl Civ3 {
         });
         let mut cities = HashMap::new();
         for (style, file) in CITY_STYLES {
-            let path = path.join("Cities").join(format!("{file}.png"));
-            let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
-            let mut image = Image::from_file_with_format(&bytes, Some(ImageFormat::Png))
-                .map_err(|error| format!("{}: {error}", path.display()))?;
+            let key = format!("city-{style}");
+            let default = format!("Cities/{file}.png");
+            let mut image = theme
+                .image(&key, &default, (501, 380), true)?
+                .expect("required city image");
             if image.width() < 501 || image.height() < 380 {
-                return Err(format!("{}: expected at least 501×380 pixels", path.display()));
+                return Err(format!(
+                    "{}: expected at least 501×380 pixels",
+                    path.display()
+                ));
             }
             // Civ III city sheets use the bright magenta key color for transparency.
             for pixel in image.get_image_data_mut() {
@@ -824,6 +954,43 @@ fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decodes_indexed_pcx_palette_and_scanline_padding() {
+        let mut bytes = vec![0u8; 128];
+        bytes[0] = 0x0a;
+        bytes[2] = 1;
+        bytes[3] = 8;
+        bytes[8..10].copy_from_slice(&2u16.to_le_bytes()); // xmax: three pixels
+        bytes[10..12].copy_from_slice(&0u16.to_le_bytes());
+        bytes[65] = 1;
+        bytes[66..68].copy_from_slice(&4u16.to_le_bytes()); // one padded scanline
+        bytes.extend_from_slice(&[1, 2, 0xc1, 3, 4]);
+        bytes.push(0x0c);
+        let mut palette = vec![0u8; 768];
+        palette[3..6].copy_from_slice(&[10, 20, 30]);
+        palette[6..9].copy_from_slice(&[40, 50, 60]);
+        palette[9..12].copy_from_slice(&[255, 0, 255]);
+        bytes.extend_from_slice(&palette);
+
+        let image = decode_pcx(&bytes).unwrap();
+        assert_eq!((image.width, image.height), (3, 1));
+        assert_eq!(
+            image.get_image_data(),
+            &[[10, 20, 30, 255], [40, 50, 60, 255], [255, 0, 255, 0]]
+        );
+    }
+
+    #[test]
+    fn rejects_non_indexed_pcx() {
+        let mut bytes = vec![0u8; 897];
+        bytes[0] = 0x0a;
+        assert!(
+            decode_pcx(&bytes)
+                .unwrap_err()
+                .contains("8-bit, single-plane")
+        );
+    }
 
     #[test]
     fn resources_keep_art_and_shadows_without_sampling_the_grid() {

@@ -63,8 +63,10 @@ work areas, visibility and rendering.
 
 ## Map tilesets
 
-Amplio2 is the default. To use the Civ III artwork in
-[`tilesets/civ3/`](tilesets/README.md), launch with:
+The Civ III tileset is the default. When the Sn00py terrain mod folder is
+available beside the project checkout, its original PCX artwork is used by
+default; otherwise CivCraft loads the bundled theme in
+[`tilesets/civ3/`](tilesets/README.md). To select it explicitly, launch with:
 
 ```sh
 cargo run --release -- --tileset civ3 --seed 42
@@ -72,9 +74,14 @@ cargo run --release -- --tileset civ3 --seed 42
 
 The selection applies to the world map and the city work map. It is independent
 of `--renderer` and works with new maps and existing saves. The Civ III tileset
-uses the shared river, unit, and city art. Resource icons come from the selected
-theme’s `resources.png`. A missing sheet or a transparent icon cell uses the
-existing Amplio2-mode resource icon.
+uses the shared river and unit art. Resource icons come from the selected
+theme’s resource sheet. A missing sheet or a transparent icon cell uses the
+existing fallback resource icon.
+
+`--renderer civ3` selects the in-progress Civ III geometry backend for map
+projection and tile picking. The map painter and simulation topology are still
+shared with the legacy implementation; `amplio2` remains the default renderer
+until those systems are migrated.
 
 Use `--tileset-theme PATH` with `--tileset civ3` to select a local art directory
 or a manifest file. An art directory can follow the original filenames, with
@@ -82,13 +89,19 @@ or a manifest file. An art directory can follow the original filenames, with
 `tileset.conf` file. Entries are `role = path`, with relative paths resolved from
 the manifest's directory. Sheets retain the Civ III cell layout.
 
-| Roles | Default PNGs under the art directory |
+| Roles | Default filenames under the art directory |
 | --- | --- |
 | `desert-grass-plains`, `desert-grass-coast`, `desert-plains-coast`, `plains-grass-coast`, `tundra-grass-coast`, `grass-coast` | `Terrain/XDGP.png`, `XDGC.png`, `XDPC.png`, `XPGC.png`, `XTGC.png`, `XGGC.png` |
 | `water`, `ocean`, `polar` | `Terrain/wCSO.png`, `wOOO.png`, `polarICEcaps-final.png` |
 | `vegetation`, `marsh`, `hills`, `mountains` | `Terrain/grassland forests (normal).png`, `marsh.png`, `XHILLS.png`, `Mountains.png` |
 | `irrigation`, `irrigation-plains`, `irrigation-desert`, `irrigation-tundra` | `Terrain/irrigation.png`, `irrigation PLAINS.png`, `irrigation DESETT.png`, `irrigation TUNDRA.png` |
 | `resources`, `resource-shadows` | `resources.png`, `resources_shadows.png` |
+| `city-asian`, `city-american`, `city-european`, `city-middle_eastern`, `city-roman` | `Cities/rASIAN.png`, `rAMER.png`, `rEURO.png`, `rMIDEAST.png`, `rROMAN.png` |
+
+Each role accepts PNG or 8-bit, single-plane RLE PCX artwork. If the default
+PNG path is absent, the loader checks the same basename with `.pcx` and `.PCX`.
+PCX magenta color-key pixels are decoded as transparent. City-style roles can
+be overridden in `tileset.conf` like the terrain and resource roles.
 
 The ground, water, and polar sheets are required. The other groups are optional.
 For two interactive windows, launch the binary from separate working

@@ -68,7 +68,7 @@ async fn main() {
         eprintln!("{error}");
         std::process::exit(2);
     });
-    let tileset_name = argument_value("--tileset").unwrap_or_else(|| "amplio2".to_owned());
+    let tileset_name = argument_value("--tileset").unwrap_or_else(|| "civ3".to_owned());
     let theme = argument_value("--tileset-theme");
     let tileset = Tileset::select(&tileset_name, theme.as_deref()).unwrap_or_else(|error| {
         eprintln!("{error}");
