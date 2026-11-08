@@ -528,6 +528,12 @@ impl Simulation {
                 if dx == 2 {
                     tile.base = Some(Base::Fortress);
                 }
+                if dx == -3 {
+                    tile.mine = true;
+                }
+                if dx == -1 {
+                    tile.fallout = true;
+                }
             }
             self.create_city(HUMAN, 20, 24);
             let city = self.cities.last_mut().unwrap();

@@ -155,7 +155,7 @@ impl Game {
         );
     }
 
-    fn draw_resource_icon(
+    pub(super) fn draw_resource_icon(
         &self,
         texture: &Texture2D,
         center: Vec2,
@@ -184,7 +184,15 @@ impl Game {
         );
     }
 
-    fn draw_base_sprite(&self, assets: &Assets, center: Vec2, w: f32, h: f32, row: i32, col: i32) {
+    pub(super) fn draw_base_sprite(
+        &self,
+        assets: &Assets,
+        center: Vec2,
+        w: f32,
+        h: f32,
+        row: i32,
+        col: i32,
+    ) {
         draw_texture_ex(
             &assets.bases,
             center.x - w * 0.5,

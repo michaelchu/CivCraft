@@ -35,6 +35,22 @@ fn route_sprite_index(neighbors: [bool; 8]) -> usize {
         })
 }
 
+fn contamination_sprite_index(diagonal_neighbors: [bool; 4], variation: usize) -> usize {
+    let mask = diagonal_neighbors
+        .into_iter()
+        .zip([0x1, 0x2, 0x4, 0x8])
+        .fold(0usize, |index, (connected, flag)| {
+            index | usize::from(connected) * flag
+        });
+    if mask == 0 {
+        variation % 10
+    } else {
+        // OpenCiv3 reserves the first ten cells for isolated variants, then
+        // places the 16 diagonal-connectivity masks in atlas cells 10..=24.
+        10 + mask - 1
+    }
+}
+
 impl<'a> Civ3WorldPainter<'a> {
     pub(super) fn new(game: &'a Game, assets: &'a Assets) -> Self {
         Self { game, assets }
@@ -74,6 +90,12 @@ impl<'a> Civ3WorldPainter<'a> {
                         .draw_map_layer_fallback(self.assets, layer, x, y, geometry, has_city);
                 }
             }
+            map_layers::MapLayer::Special1 if self.assets.civ3.is_some() => {
+                self.draw_special1(x, y, geometry);
+            }
+            map_layers::MapLayer::Special2 if self.assets.civ3.is_some() => {
+                self.draw_special2(x, y, geometry);
+            }
             map_layers::MapLayer::Terrain => {
                 let tile = self.game.sim.render_tile(x, y);
                 let drawn = self.assets.civ3.as_ref().is_some_and(|tileset| {
@@ -87,6 +109,183 @@ impl<'a> Civ3WorldPainter<'a> {
             _ => self
                 .game
                 .draw_map_layer_fallback(self.assets, layer, x, y, geometry, has_city),
+        }
+    }
+
+    fn draw_special1(&self, x: i32, y: i32, geometry: TileGeometry) {
+        use super::super::tileset::TerrainBuilding;
+        let game = self.game;
+        let assets = self.assets;
+        let tile = game.sim.render_tile(x, y);
+        if matches!(tile.base, Some(Base::Fort | Base::Fortress))
+            && !assets.civ3.as_ref().is_some_and(|tileset| {
+                tileset.draw_terrain_building(
+                    TerrainBuilding::Fortress,
+                    geometry.center,
+                    geometry.size(),
+                )
+            })
+        {
+            let row = i32::from(tile.base == Some(Base::Fort));
+            game.draw_base_sprite(
+                assets,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                row,
+                4,
+            );
+        }
+        if tile.oil_platform {
+            game.draw_terrain_extra(
+                &assets.terrain,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                7,
+                6,
+            );
+        } else if tile.oil_well {
+            game.draw_terrain_extra(
+                &assets.terrain,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                0,
+                6,
+            );
+        } else if tile.mine
+            && !assets.civ3.as_ref().is_some_and(|tileset| {
+                tileset.draw_terrain_building(
+                    TerrainBuilding::Mine,
+                    geometry.center,
+                    geometry.size(),
+                )
+            })
+        {
+            game.draw_terrain_extra(
+                &assets.terrain,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                3,
+                6,
+            );
+        }
+        if tile.hut {
+            game.draw_terrain_extra(
+                &assets.terrain,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                5,
+                6,
+            );
+        }
+        if let Some(resource) = tile
+            .active_resource()
+            .filter(|&resource| game.sim.resource_visible_to(HUMAN, resource))
+            && !assets.civ3.as_ref().is_some_and(|tileset| {
+                tileset.draw_resource(resource, geometry.center, geometry.size())
+            })
+        {
+            let (row, col) = resource.icon_cell();
+            game.draw_resource_icon(
+                &assets.resource_icons,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                row,
+                col,
+            );
+        }
+    }
+
+    fn draw_special2(&self, x: i32, y: i32, geometry: TileGeometry) {
+        let game = self.game;
+        let assets = self.assets;
+        let tile = game.sim.render_tile(x, y);
+        if let Some(Base::Airstrip | Base::Airbase) = tile.base {
+            let row = i32::from(tile.base == Some(Base::Airstrip));
+            game.draw_base_sprite(
+                assets,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                row,
+                0,
+            );
+        }
+        let contamination_index = |pollution: bool| {
+            let diagonal_directions = [7, 1, 3, 5]; // NW, NE, SE, SW
+            let diagonals = diagonal_directions.map(|direction| {
+                game.sim
+                    .map_wrap
+                    .civ3_neighbor(x, y, direction)
+                    .is_some_and(|(nx, ny)| {
+                        let neighbor = game.sim.render_tile(nx, ny);
+                        neighbor.seen
+                            && if pollution {
+                                neighbor.pollution
+                            } else {
+                                neighbor.fallout
+                            }
+                    })
+            });
+            let variation = x
+                .wrapping_mul(37)
+                .wrapping_add(y.wrapping_mul(13))
+                .unsigned_abs() as usize;
+            contamination_sprite_index(diagonals, variation)
+        };
+        if tile.pollution
+            && !assets.civ3.as_ref().is_some_and(|tileset| {
+                tileset.draw_contamination(
+                    false,
+                    contamination_index(true),
+                    geometry.center,
+                    geometry.size(),
+                )
+            })
+        {
+            game.draw_terrain_extra(
+                &assets.terrain,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                4,
+                6,
+            );
+        }
+        if tile.fallout
+            && !assets.civ3.as_ref().is_some_and(|tileset| {
+                tileset.draw_contamination(
+                    true,
+                    contamination_index(false),
+                    geometry.center,
+                    geometry.size(),
+                )
+            })
+        {
+            game.draw_terrain_extra(
+                &assets.terrain,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                6,
+                6,
+            );
+        }
+        if !tile.visible && matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
+            let row = i32::from(tile.base == Some(Base::Fort));
+            game.draw_base_sprite(
+                assets,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+                row,
+                3,
+            );
         }
     }
 
@@ -351,7 +550,7 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use super::{irrigation_sprite_index, route_sprite_index};
+    use super::{contamination_sprite_index, irrigation_sprite_index, route_sprite_index};
 
     #[test]
     fn irrigation_indices_follow_the_four_diagonal_source_flags() {
@@ -375,5 +574,29 @@ mod tests {
             neighbors[direction] = false;
         }
         assert_eq!(route_sprite_index([true; 8]), 0xff);
+    }
+
+    #[test]
+    fn contamination_atlas_uses_diagonal_connectivity_after_isolated_variants() {
+        assert_eq!(contamination_sprite_index([false; 4], 0), 0);
+        assert_eq!(contamination_sprite_index([false; 4], 9), 9);
+        assert_eq!(contamination_sprite_index([false; 4], 10), 0);
+        assert_eq!(
+            contamination_sprite_index([true, false, false, false], 0),
+            10
+        );
+        assert_eq!(
+            contamination_sprite_index([false, true, false, false], 0),
+            11
+        );
+        assert_eq!(
+            contamination_sprite_index([false, false, true, false], 0),
+            13
+        );
+        assert_eq!(
+            contamination_sprite_index([false, false, false, true], 0),
+            17
+        );
+        assert_eq!(contamination_sprite_index([true; 4], 0), 24);
     }
 }

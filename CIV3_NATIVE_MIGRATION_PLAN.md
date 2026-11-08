@@ -81,6 +81,28 @@ intended end state; a completed phase requires the evidence listed below.
   beneath railroad connections, following OpenCiv3's `TileOverlayLayer`; this
   remains an implementation reference pending direct original-game evidence.
   Theme manifests can replace either route sheet independently.
+- Mines, forts/fortresses, pollution, and fallout now use the Civ III
+  improvement-art path in `Civ3WorldPainter`. OpenCiv3's
+  `terrain_improvements.lua` identifies the fortress (column 0, row 0) and mine
+  (column 2, row 1) cells in `TerrainBuildings`; its PNG export is bundled
+  because the supplied Sn00py set omits that sheet. OpenCiv3's pollution and
+  crater atlases are also bundled as fallbacks and are independently
+  replaceable through theme manifest roles. `TileOverlayLayer.cs` maps these
+  to 128×64 cells in 5×5 grids. Pollution and crater variants currently use a
+  4-bit diagonal-neighbor mask for connected cells and stable coordinate-based
+  selection for isolated cells. The mask order and atlas layout follow
+  OpenCiv3's implementation and remain an inference about original Civ III
+  behavior; isolated-cell variation does not reproduce OpenCiv3's global RNG.
+  The bundled `TerrainBuildings.png` export is only 3 columns wide, so its
+  Lua-referenced barricade cell (column 3) is unavailable. Barricades therefore
+  remain unsupported by this sheet. Oil wells/platforms, huts, airstrips, and
+  airbases still use legacy shared atlases and remain to be migrated.
+- The focused `map-layers` UI review now includes mine, fortress, pollution,
+  and fallout and passes all three scene checks at seed 42. Screenshots were
+  inspected: `/tmp/civ3-improvements-review-final/map-layers.png` and
+  `/tmp/civ3-improvements-review-final/map-layers-next.png`; report:
+  `/tmp/civ3-improvements-review-final/report.json`. The full Rust suite passes
+  628/628 and `cargo build --offline --release` succeeds after this change.
 - Terrain-generation adjacency now also uses Civ III's eight-direction
   neighbors: connected land/water regions, biome and water-distance queries,
   resource spacing, and start-location distances use the same staggered graph

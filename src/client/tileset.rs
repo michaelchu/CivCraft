@@ -60,6 +60,19 @@ fn route_source(index: usize) -> Rect {
     )
 }
 
+fn building_source(kind: TerrainBuilding) -> Rect {
+    let (col, row) = match kind {
+        TerrainBuilding::Fortress => (0, 0),
+        TerrainBuilding::Mine => (2, 1),
+    };
+    Rect::new(
+        (col * WIDTH) as f32,
+        (row * HEIGHT) as f32,
+        WIDTH as f32,
+        HEIGHT as f32,
+    )
+}
+
 const LAND_SHEETS: [(&str, &str, [Ground; 3]); 6] = [
     ("desert-grass-plains", "XDGP", [Desert, Grass, Plains]),
     ("desert-grass-coast", "XDGC", [Desert, Grass, Coast]),
@@ -82,6 +95,12 @@ const IRRIGATION: [(&str, &str); 4] = [
     ("irrigation-desert", "irrigation DESETT"),
     ("irrigation-tundra", "irrigation TUNDRA"),
 ];
+
+#[derive(Clone, Copy)]
+pub(super) enum TerrainBuilding {
+    Fortress,
+    Mine,
+}
 
 pub(crate) enum Tileset {
     Amplio2,
@@ -163,6 +182,9 @@ impl Theme {
                                 | "river-mountain"
                                 | "roads"
                                 | "railroads"
+                                | "terrain-buildings"
+                                | "pollution"
+                                | "craters"
                                 | "resources"
                                 | "resource-shadows"
                                 | "city-asian"
@@ -633,6 +655,9 @@ pub(super) struct Civ3 {
     irrigation: Vec<Option<Texture2D>>,
     roads: Option<Texture2D>,
     railroads: Option<Texture2D>,
+    terrain_buildings: Option<Texture2D>,
+    pollution: Option<Texture2D>,
+    craters: Option<Texture2D>,
     river_delta: Texture2D,
     river_mountain: Texture2D,
     resources: Option<ResourceArt>,
@@ -714,6 +739,40 @@ impl Civ3 {
         };
         let roads = route_texture("roads", "roads", &mut fallback_theme)?;
         let railroads = route_texture("railroads", "railroads", &mut fallback_theme)?;
+        let improvement_texture = |key: &str,
+                                   file: &str,
+                                   size: (u16, u16),
+                                   fallback_theme: &mut Option<Theme>|
+         -> Result<Option<Texture2D>, String> {
+            let default = format!("Terrain/{file}.png");
+            let image = theme.image(key, &default, size, false)?;
+            let image = if image.is_some() {
+                image
+            } else {
+                if fallback_theme.is_none() {
+                    *fallback_theme = Some(Theme::read(&locate_bundled_civ3_theme()?)?);
+                }
+                fallback_theme
+                    .as_ref()
+                    .unwrap()
+                    .image(key, &default, size, false)?
+            };
+            Ok(image.map(|mut image| {
+                prepare_keyed_overlay(&mut image);
+                let texture = Texture2D::from_image(&image);
+                texture.set_filter(FilterMode::Nearest);
+                texture
+            }))
+        };
+        let terrain_buildings = improvement_texture(
+            "terrain-buildings",
+            "TerrainBuildings",
+            (384, 256),
+            &mut fallback_theme,
+        )?;
+        let pollution =
+            improvement_texture("pollution", "pollution", (640, 320), &mut fallback_theme)?;
+        let craters = improvement_texture("craters", "craters", (640, 320), &mut fallback_theme)?;
         let river_texture = |key, file| -> Result<Texture2D, String> {
             let image = required(key, file, (512, 256))?;
             let texture = Texture2D::from_image(&image);
@@ -765,6 +824,9 @@ impl Civ3 {
             irrigation,
             roads,
             railroads,
+            terrain_buildings,
+            pollution,
+            craters,
             river_delta,
             river_mountain,
             resources,
@@ -846,6 +908,51 @@ impl Civ3 {
             return false;
         };
         draw_sprite(texture, center, size, route_source(index));
+        true
+    }
+
+    /// OpenCiv3 maps the ancient fortress and mine to cells in a 128x64 grid.
+    /// The supplied Sn00py set omits TerrainBuildings, so the bundled
+    /// OpenCiv3 sheet is used as a fallback and themes can replace it.
+    pub(super) fn draw_terrain_building(
+        &self,
+        kind: TerrainBuilding,
+        center: Vec2,
+        size: Vec2,
+    ) -> bool {
+        let Some(texture) = &self.terrain_buildings else {
+            return false;
+        };
+        draw_sprite(texture, center, size, building_source(kind));
+        true
+    }
+
+    /// The referenced pollution/crater sheets use 5x5 128x64 cells. The index
+    /// comes from the neighbor mask and stable single-tile variant selection.
+    pub(super) fn draw_contamination(
+        &self,
+        craters: bool,
+        index: usize,
+        center: Vec2,
+        size: Vec2,
+    ) -> bool {
+        let texture = if craters {
+            &self.craters
+        } else {
+            &self.pollution
+        };
+        let Some(texture) = texture else { return false };
+        draw_sprite(
+            texture,
+            center,
+            size,
+            Rect::new(
+                ((index % 5) * WIDTH) as f32,
+                ((index / 5) * HEIGHT) as f32,
+                WIDTH as f32,
+                HEIGHT as f32,
+            ),
+        );
         true
     }
 
@@ -1274,6 +1381,60 @@ mod tests {
         assert_eq!(theme.paths["railroads"], "Terrain/railroads.png");
         fs::remove_file(manifest).unwrap();
         fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn theme_manifest_accepts_civ3_improvement_sheet_roles() {
+        let directory = std::env::temp_dir().join(format!(
+            "civ3-improvement-theme-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let manifest = directory.join("tileset.conf");
+        fs::write(
+            &manifest,
+            "terrain-buildings = Terrain/TerrainBuildings.pcx\npollution = Terrain/pollution.pcx\ncraters = Terrain/craters.png\n",
+        )
+        .unwrap();
+        let theme = Theme::read(&directory).unwrap();
+        assert_eq!(
+            theme.paths["terrain-buildings"],
+            "Terrain/TerrainBuildings.pcx"
+        );
+        assert_eq!(theme.paths["pollution"], "Terrain/pollution.pcx");
+        assert_eq!(theme.paths["craters"], "Terrain/craters.png");
+        fs::remove_file(manifest).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn bundled_improvement_sheets_match_reference_atlas_dimensions() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tilesets/civ3/Terrain");
+        for (name, dimensions) in [
+            ("TerrainBuildings.png", (384, 256)),
+            ("pollution.png", (640, 320)),
+            ("craters.png", (640, 320)),
+        ] {
+            let path = root.join(name);
+            let image =
+                Image::from_file_with_format(&fs::read(&path).unwrap(), Some(ImageFormat::Png))
+                    .unwrap();
+            assert_eq!(
+                (image.width, image.height),
+                dimensions,
+                "{}",
+                path.display()
+            );
+        }
+        assert_eq!(
+            building_source(TerrainBuilding::Fortress),
+            Rect::new(0.0, 0.0, 128.0, 64.0)
+        );
+        assert_eq!(
+            building_source(TerrainBuilding::Mine),
+            Rect::new(256.0, 64.0, 128.0, 64.0)
+        );
     }
 
     #[test]

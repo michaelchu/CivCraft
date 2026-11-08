@@ -15,6 +15,15 @@ roles. The bundled route sheets come from the checked-out OpenCiv3
 `C7/Assets/Art/Terrain/` folder because the Sn00py terrain set does not include
 them. The original 16×16 atlas layout is kept, and PCX or PNG mod sheets can
 replace either role through the manifest.
+The `TerrainBuildings.png`, `pollution.png`, and `craters.png` fallback sheets
+also come from OpenCiv3's `C7/Assets/Art/Terrain/` folder; Sn00py does not
+include those sheets. OpenCiv3's `terrain_improvements.lua` maps the 128×64
+fortress cell at column 0, row 0 and mine at column 2, row 1. The pollution
+and crater sheets use 128×64 cells in 5×5 grids in its `TileOverlayLayer.cs`.
+These are implementation-reference mappings, not proof of Civ III internals.
+Themes can override them with `terrain-buildings`, `pollution`, and `craters`
+roles using PCX or PNG files. Contamination currently chooses stable single-tile
+variants; connected pollution/crater stitching remains to be implemented.
 Indexed PCX images use palette entries 254 and 255 as transparent by default,
 matching the OpenCiv3 loader. A mod can override those indices for an image
 role with a comma-separated `transparent-<role> = 254,255` manifest entry.
