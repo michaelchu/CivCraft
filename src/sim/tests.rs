@@ -243,15 +243,15 @@ fn irrigation_needs_water_and_conflicts_with_mines() {
     let (x, y) = crate::mapgen::generate(42).starts[0];
     game.tile_mut(x, y).terrain = Terrain::Hills;
     game.tile_mut(x, y).river = false;
-    for (dx, dy) in ISOHEX_DIRS {
-        let (neighbor_x, neighbor_y) = offset_native_by_map(x, y, dx, dy);
+    let adjacent: Vec<_> = game.map_wrap.civ3_neighbors(x, y).collect();
+    for &(neighbor_x, neighbor_y) in &adjacent {
         let neighbor = game.tile_mut(neighbor_x, neighbor_y);
         neighbor.terrain = Terrain::Grassland;
         neighbor.irrigation = false;
         neighbor.river = false;
     }
     assert!(!game.can_irrigate_at(HUMAN, x, y));
-    let (water_x, water_y) = offset_native_by_map(x, y, ISOHEX_DIRS[0].0, ISOHEX_DIRS[0].1);
+    let (water_x, water_y) = adjacent[0];
     game.tile_mut(water_x, water_y).terrain = Terrain::Sea;
     assert!(game.can_irrigate_at(HUMAN, x, y));
 

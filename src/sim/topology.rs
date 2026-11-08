@@ -1,7 +1,6 @@
 //! Shared map geometry and coordinate transforms for generation, rules, and rendering.
 //!
-//! The game stores an isometric hex map in map coordinates while reference
-//! rules and some generation algorithms use native coordinates. Conversion,
+//! Map coordinates are adapted to Civ III's staggered square grid. Conversion,
 //! neighbor offsets, distance, and [`MapWrap`] live here so callers use one
 //! definition of adjacency and seam behavior. `MapWrap::X` wraps east/west and
 //! treats polar rows as map edges; `MapWrap::XY` wraps both axes.
@@ -45,8 +44,8 @@ pub(super) const MAP_LINEAR_SCALE: i32 =
 pub(crate) const MAP_W: i32 = MAP_X_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR;
 pub(crate) const MAP_H: i32 = MAP_Y_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR * MAP_ISO_FACTOR;
 
-// Civ2Civ3 uses isometric hexes: northeast and southwest are the two
-// unavailable directions in Freeciv's eight-direction coordinate system.
+// Legacy six-way steps retained only for systems not yet migrated to the
+// Civ III staggered-grid topology.
 pub(crate) const ISOHEX_DIRS: [(i32, i32); 6] =
     [(0, -1), (1, 0), (1, 1), (0, 1), (-1, 0), (-1, -1)];
 
@@ -217,6 +216,10 @@ impl MapWrap {
             .into_iter()
             .filter_map(move |(dx, dy)| self.offset(x, y, dx, dy))
     }
+    /// Neighbors in Civ III direction order, across the staggered-grid adapter.
+    pub(crate) fn civ3_neighbors(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> + use<> {
+        (0..CIV3_DIRS.len()).filter_map(move |direction| self.civ3_neighbor(x, y, direction))
+    }
     pub(crate) fn vector(self, ax: i32, ay: i32, bx: i32, by: i32) -> (i32, i32) {
         let dx = wrapped_native_delta(bx - ax, self.width());
         let dy = if self.wraps_y() {
@@ -351,10 +354,7 @@ mod wrap_tests {
                     for direction in 0..CIV3_DIRS.len() {
                         let Some((nx, ny)) = wrap.civ3_neighbor(x, y, direction) else {
                             assert!(!wrap.wraps_y());
-                            assert!(
-                                !(0..wrap.height())
-                                    .contains(&(y + CIV3_DIRS[direction].1))
-                            );
+                            assert!(!(0..wrap.height()).contains(&(y + CIV3_DIRS[direction].1)));
                             continue;
                         };
                         assert_eq!(
@@ -378,6 +378,19 @@ mod wrap_tests {
                     }
                 }
             }
+        }
+    }
+
+    #[test]
+    fn civ3_neighbor_iterator_exposes_all_eight_directions() {
+        for wrap in [MapWrap::X, MapWrap::XY] {
+            let (x, y) = (wrap.width() / 2, wrap.height() / 2);
+            let neighbors: Vec<_> = wrap.civ3_neighbors(x, y).collect();
+            let expected: Vec<_> = (0..CIV3_DIRS.len())
+                .filter_map(|direction| wrap.civ3_neighbor(x, y, direction))
+                .collect();
+            assert_eq!(neighbors, expected);
+            assert_eq!(neighbors.len(), 8);
         }
     }
 

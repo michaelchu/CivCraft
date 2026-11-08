@@ -158,6 +158,15 @@ intended end state; a completed phase requires the evidence listed below.
   parity-valid staggered coordinates, flat indexing, eight reciprocal
   neighbors, horizontal wrapping, pixel centers, and diamond picking.
   Seven focused geometry tests pass.
+- `MapWrap::civ3_neighbors` now exposes all eight reciprocal staggered-grid
+  neighbors without changing `MapWrap::neighbors`, which remains a legacy
+  six-way adapter while pathfinding callers are migrated. Terrain alteration
+  water thresholds, irrigation sources, and stranded-unit relocation use the
+  Civ III neighbor API. Water thresholds use the available adjacent-cell count
+  at bounded map edges. A full shared-iterator switch was tried and reverted:
+  merchant ferry routing still expands legacy offsets, so mixing the two
+  coordinate systems breaks that route. Movement/pathfinding and other callers
+  must migrate together before the legacy iterator can be retired.
 - The Civ III geometry backend controls projection, tile picking,
   visible-tile placement, and edge-water placement. `Civ3WorldPainter` in
   `src/client/world/civ3.rs` owns ordered world-pass orchestration and receives

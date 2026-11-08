@@ -68,7 +68,7 @@ impl Simulation {
     fn has_irrigation_source(&self, owner: usize, x: i32, y: i32) -> bool {
         self.has_tech(owner, Tech::ELECTRICITY)
             || self.tile(x, y).river
-            || self.map_wrap.neighbors(x, y).any(|(nx, ny)| {
+            || self.map_wrap.civ3_neighbors(x, y).any(|(nx, ny)| {
                 let source = self.tile(nx, ny);
                 source.terrain.is_water() || source.river || source.irrigation
             })

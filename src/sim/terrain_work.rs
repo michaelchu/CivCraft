@@ -85,7 +85,7 @@ impl Simulation {
         if target.is_water() == old.is_water() {
             return true;
         }
-        let adjacent: Vec<_> = self.map_wrap.neighbors(x, y).collect();
+        let adjacent: Vec<_> = self.map_wrap.civ3_neighbors(x, y).collect();
         let water = adjacent
             .iter()
             .filter(|&&(nx, ny)| self.tile(nx, ny).terrain.is_water())
@@ -93,7 +93,7 @@ impl Simulation {
         if target.is_water() {
             water * 100 >= adjacent.len() * 10
         } else {
-            (ISOHEX_DIRS.len() - water) * 100 >= ISOHEX_DIRS.len() * 30
+            (adjacent.len() - water) * 100 >= adjacent.len() * 30
         }
     }
 
@@ -154,7 +154,7 @@ impl Simulation {
             let Some(unit) = self.unit_by_id(id) else {
                 continue;
             };
-            let destination = self.map_wrap.neighbors(x, y).find(|&(nx, ny)| {
+            let destination = self.map_wrap.civ3_neighbors(x, y).find(|&(nx, ny)| {
                 self.movement_cost_for(unit, nx, ny).is_some()
                     && !self.treaty_blocks_move(unit, nx, ny)
                     && self.best_defender_id(unit, nx, ny).is_none()
@@ -212,7 +212,7 @@ mod tests {
         assert_eq!(across.1, MAP_H - 2);
         assert!(
             game.map_wrap
-                .neighbors(home.0, home.1)
+                .civ3_neighbors(home.0, home.1)
                 .any(|position| position == across)
         );
         assert!(!game.can_irrigate_at(HUMAN, home.0, home.1));
@@ -297,7 +297,7 @@ mod tests {
         game.tile_mut(x, y).terrain = Terrain::Sea;
         game.tile_mut(x, y).river = false;
         game.tile_mut(x, y).river_edges = 0;
-        let nearby: Vec<_> = game.map_wrap.neighbors(x, y).collect();
+        let nearby: Vec<_> = game.map_wrap.civ3_neighbors(x, y).collect();
         for &(nx, ny) in &nearby {
             game.tile_mut(nx, ny).terrain = Terrain::Sea;
         }
@@ -308,7 +308,8 @@ mod tests {
         assert!(!game.apply(Command::Work(engineer, WorkKind::Transform)));
         game.players[HUMAN].known.push(Tech::NUCLEAR_POWER);
         assert!(!game.apply(Command::Work(engineer, WorkKind::Transform)));
-        for &(nx, ny) in nearby.iter().take(2) {
+        // With eight Civ III neighbors, three land tiles meet the 30% rule.
+        for &(nx, ny) in nearby.iter().take(3) {
             game.tile_mut(nx, ny).terrain = Terrain::Plains;
         }
         assert!(game.apply(Command::Work(engineer, WorkKind::Transform)));
