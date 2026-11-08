@@ -1,3 +1,5 @@
+//! Regression tests for diplomacy behavior, including edge cases and interactions with the simulation.
+
 use super::*;
 
 #[test]

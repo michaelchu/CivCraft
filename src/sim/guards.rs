@@ -1,3 +1,5 @@
+//! Implements guards behavior within the sim subsystem.
+
 use super::normal_paths::GotoTask;
 use super::unit_catalog::{UnitClass, UnitRole};
 use super::*;

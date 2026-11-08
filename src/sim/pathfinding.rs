@@ -1,3 +1,5 @@
+//! Map path search and movement-cost evaluation.
+
 /// Reconstruct a forward path from predecessor links, returning `None` when a
 /// reachable destination has a broken link before the start node.
 pub(super) fn reconstruct_path(

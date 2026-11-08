@@ -1,3 +1,5 @@
+//! Regression tests for the behavior of the parent module.
+
 use super::*;
 fn game() -> Simulation {
     let mut game = Simulation::new(crate::mapgen::generate(42));

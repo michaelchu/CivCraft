@@ -1,3 +1,5 @@
+//! Implements ai economy behavior within the sim subsystem.
+
 use super::*;
 
 mod playtest;

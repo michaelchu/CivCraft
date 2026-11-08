@@ -1,3 +1,5 @@
+//! Espionage investigations and their evidence state.
+
 use super::*;
 
 pub(crate) struct CityInvestigation {

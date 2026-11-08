@@ -1,3 +1,5 @@
+//! Map dimensions, wrapping modes, coordinate normalization, and hex-grid distance calculations.
+
 use super::{PERCENT_SCALE, PLAYER_COUNT};
 
 const TILES_PER_PLAYER: i32 = 100;

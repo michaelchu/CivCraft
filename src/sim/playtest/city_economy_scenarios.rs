@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering city economy behavior.
+
 use super::*;
 
 impl Simulation {

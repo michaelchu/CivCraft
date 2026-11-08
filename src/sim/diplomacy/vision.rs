@@ -1,3 +1,5 @@
+//! Shared vision and diplomatic map knowledge.
+
 use super::*;
 
 impl Simulation {

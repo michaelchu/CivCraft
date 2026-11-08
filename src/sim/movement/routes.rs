@@ -1,3 +1,5 @@
+//! Route construction and traversal helpers for the parent subsystem.
+
 use super::super::pathfinding::reconstruct_path;
 use super::*;
 

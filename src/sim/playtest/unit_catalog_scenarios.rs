@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering unit catalog behavior.
+
 use super::super::unit_catalog::UnitFlag;
 use super::*;
 

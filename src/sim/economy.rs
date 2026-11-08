@@ -1,3 +1,5 @@
+//! Tax rates, income, upkeep, and city economic calculations.
+
 use super::*;
 
 mod city_manager;

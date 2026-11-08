@@ -1,3 +1,5 @@
+//! Building completion, availability, and effects.
+
 // Catalog from Freeciv data/civ2civ3/buildings.ruleset, revision eb8c7033.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Building(pub(crate) usize);

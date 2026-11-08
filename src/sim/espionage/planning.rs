@@ -1,3 +1,5 @@
+//! Candidate scoring and plan construction for the parent automation system.
+
 use super::*;
 use std::collections::BTreeSet;
 

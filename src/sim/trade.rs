@@ -1,3 +1,5 @@
+//! Trade-route planning, merchant movement, and delivery rewards.
+
 use super::normal_paths::GotoTask;
 use super::*;
 

@@ -1,3 +1,5 @@
+//! Diplomatic state, contact, offers, treaties, and war planning.
+
 use super::*;
 
 impl Playtest {

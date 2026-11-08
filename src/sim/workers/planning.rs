@@ -1,3 +1,5 @@
+//! Candidate scoring and plan construction for the parent automation system.
+
 use super::*;
 
 pub(super) const WORKER_FACTOR: f32 = 1024.0;

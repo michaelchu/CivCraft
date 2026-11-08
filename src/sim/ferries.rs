@@ -1,3 +1,5 @@
+//! Transport automation for moving land units over water.
+
 use super::*;
 use std::collections::BTreeMap;
 

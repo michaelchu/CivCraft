@@ -1,3 +1,5 @@
+//! Combat outcome calculation and the state changes caused by attacks.
+
 use super::*;
 
 impl Simulation {

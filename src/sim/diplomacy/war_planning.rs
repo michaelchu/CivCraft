@@ -1,3 +1,5 @@
+//! AI planning for declaring, preparing, and conducting wars.
+
 use super::*;
 
 impl Simulation {

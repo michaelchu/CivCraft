@@ -1,3 +1,5 @@
+//! Save-format upgrades for older campaign data.
+
 use super::*;
 
 pub(super) fn apply_extras11(sim: &mut Simulation, extras: Extras11) {

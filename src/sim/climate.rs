@@ -1,3 +1,5 @@
+//! Climate pressure and its effects on the game world.
+
 #[cfg(test)]
 use super::terrain_work::neighbors;
 use super::*;

@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering regression behavior.
+
 use super::*;
 
 #[path = "regression_scenarios/diplomacy.rs"]

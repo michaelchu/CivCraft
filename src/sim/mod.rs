@@ -1,3 +1,5 @@
+//! Turn based game rules and state. Submodules implement gameplay systems over the shared Simulation model.
+
 mod advisors;
 mod ai;
 mod ai_economy;
@@ -132,6 +134,7 @@ struct MapObservation {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
+/// Complete mutable campaign state and the operations that advance its rules.
 pub(crate) struct Simulation {
     pub(crate) world_seed: u64,
     #[serde(skip, default = "topology::legacy_wrap")]
@@ -265,54 +268,70 @@ fn combat_win_chance(
 }
 
 impl Simulation {
+    /// Returns all live units in their stable simulation order.
     pub(crate) fn units(&self) -> &[Unit] {
         &self.units
     }
+    /// Iterates live units owned by one player.
     pub(crate) fn units_owned_by(&self, owner: usize) -> impl Iterator<Item = &Unit> {
         self.units.iter().filter(move |unit| unit.owner == owner)
     }
+    /// Finds a live unit by its persistent identifier.
     pub(crate) fn unit_by_id(&self, id: u32) -> Option<&Unit> {
         self.units.iter().find(|unit| unit.id == id)
     }
+    /// Finds a live unit's position in the stable unit collection.
     pub(crate) fn unit_index_by_id(&self, id: u32) -> Option<usize> {
         self.units.iter().position(|unit| unit.id == id)
     }
+    /// Returns all cities in their stable simulation order.
     pub(crate) fn cities(&self) -> &[City] {
         &self.cities
     }
+    /// Iterates cities owned by one player.
     pub(crate) fn cities_owned_by(&self, owner: usize) -> impl Iterator<Item = &City> {
         self.cities.iter().filter(move |city| city.owner == owner)
     }
+    /// Finds a city by its persistent identifier.
     pub(crate) fn city_by_id(&self, id: u32) -> Option<&City> {
         self.cities.iter().find(|city| city.id == id)
     }
+    /// Finds the city occupying the given map coordinate.
     pub(crate) fn city_at(&self, x: i32, y: i32) -> Option<&City> {
         self.cities.iter().find(|city| (city.x, city.y) == (x, y))
     }
+    /// Finds the index of the city occupying the given map coordinate.
     pub(crate) fn city_index_at(&self, x: i32, y: i32) -> Option<usize> {
         self.cities
             .iter()
             .position(|city| (city.x, city.y) == (x, y))
     }
+    /// Finds a city's index by its persistent identifier.
     pub(crate) fn city_index_by_id(&self, id: u32) -> Option<usize> {
         self.cities.iter().position(|city| city.id == id)
     }
+    /// Returns players in their stable slot order.
     pub(crate) fn players(&self) -> &[Player] {
         &self.players
     }
+    /// Returns the accumulated player-facing event log.
     pub(crate) fn events(&self) -> &[String] {
         &self.events
     }
+    /// Returns the current campaign turn number.
     pub(crate) fn turn(&self) -> i32 {
         self.turn
     }
+    /// Returns the current in-game year.
     pub(crate) fn year(&self) -> i32 {
         self.year
     }
+    /// Returns the game-over message, if the campaign has ended.
     pub(crate) fn game_over(&self) -> Option<&str> {
         self.game_over.as_deref()
     }
 
+    /// Builds a new campaign from a generated map and initializes player state.
     pub(crate) fn new(map: crate::mapgen::GeneratedMap) -> Self {
         let crate::mapgen::GeneratedMap {
             seed,
@@ -481,6 +500,7 @@ impl Simulation {
         (wy * MAP_W + wx) as usize
     }
 
+    /// Returns the tile at a valid map coordinate.
     pub(crate) fn tile(&self, x: i32, y: i32) -> &Tile {
         debug_assert!(
             self.map_wrap.wraps_y() || (0..self.map_wrap.height()).contains(&y),
@@ -498,6 +518,7 @@ impl Simulation {
         &mut self.tiles[idx]
     }
 
+    /// Appends a message to the event log shown to the player.
     pub(crate) fn add_event(&mut self, text: impl Into<String>) {
         self.events.push(text.into());
         if self.events.len() > 10 {
@@ -530,6 +551,7 @@ impl Simulation {
         (self.rng, self.native_random) = snapshot;
     }
 
+    /// Reports whether the native random stream remains usable in playtest state.
     pub(crate) fn native_random_stream_playtest(&mut self) -> bool {
         let same = Self::new(crate::mapgen::generate_with_wrap(
             self.world_seed,
@@ -563,6 +585,7 @@ impl Simulation {
         reproducible && seed_matters && equal && trivial
     }
 
+    /// Checks whether a player has unlocked a unit kind.
     pub(crate) fn unit_available(&self, owner: usize, kind: UnitKind) -> bool {
         !kind.has_no_build()
             && kind
@@ -574,6 +597,7 @@ impl Simulation {
                 .is_none_or(|tech| self.has_tech(owner, tech))
     }
 
+    /// Measures wrapped map distance between two coordinates.
     pub(crate) fn map_distance(&self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
         let (dx, dy) = self.map_wrap.vector(ax, ay, bx, by);
         isohex_vector_distance(dx, dy)
@@ -597,6 +621,7 @@ impl Simulation {
     }
 }
 
+/// Formats an in-game year using the campaign calendar's BC/AD convention.
 pub(crate) fn year_label(year: i32) -> String {
     if year < 0 {
         format!("{} BCE", -year)

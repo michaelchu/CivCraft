@@ -1,3 +1,5 @@
+//! River generation and drainage selection for generated terrain.
+
 use super::*;
 
 impl super::Generator {

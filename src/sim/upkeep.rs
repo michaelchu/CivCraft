@@ -1,3 +1,5 @@
+//! Unit support and upkeep calculations.
+
 use super::*;
 
 pub(crate) struct UnitUpkeep {

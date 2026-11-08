@@ -1,3 +1,5 @@
+//! Regression tests for the behavior of the parent module.
+
 use super::*;
 
 #[test]

@@ -1,3 +1,5 @@
+//! Spaceship construction and launch interface.
+
 use super::*;
 
 impl Game {

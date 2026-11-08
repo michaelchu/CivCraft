@@ -1,3 +1,5 @@
+//! Espionage mission selection and target presentation.
+
 use super::*;
 
 impl Game {

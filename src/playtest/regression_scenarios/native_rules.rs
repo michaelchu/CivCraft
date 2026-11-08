@@ -1,3 +1,5 @@
+//! Implements native rules behavior within the regression scenarios subsystem.
+
 use super::*;
 
 impl Playtest {

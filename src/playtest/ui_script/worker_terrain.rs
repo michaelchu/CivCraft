@@ -1,3 +1,5 @@
+//! Implements worker terrain behavior within the ui script subsystem.
+
 use super::*;
 
 impl Playtest {

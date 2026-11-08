@@ -1,3 +1,5 @@
+//! Technology graph layout and connection routing for the research screen.
+
 use crate::rules::Tech;
 use macroquad::prelude::*;
 

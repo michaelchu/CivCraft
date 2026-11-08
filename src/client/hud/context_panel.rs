@@ -1,3 +1,5 @@
+//! Context-sensitive controls for the currently selected city or unit.
+
 use super::*;
 
 impl Game {

@@ -1,3 +1,5 @@
+//! Technology exchange rules in diplomacy.
+
 use super::*;
 
 impl Simulation {

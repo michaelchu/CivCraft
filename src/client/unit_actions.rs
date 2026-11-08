@@ -1,3 +1,5 @@
+//! Unit-specific action availability and control construction.
+
 use super::hud::{HudIcon, draw_hud_card, draw_hud_icon};
 use super::*;
 

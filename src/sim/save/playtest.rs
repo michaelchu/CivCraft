@@ -1,3 +1,5 @@
+//! Focused gameplay scenarios for the parent subsystem.
+
 use super::*;
 use std::sync::atomic::Ordering;
 

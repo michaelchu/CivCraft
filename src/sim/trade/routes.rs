@@ -1,3 +1,5 @@
+//! Route construction and traversal helpers for the parent subsystem.
+
 use super::*;
 
 impl Simulation {

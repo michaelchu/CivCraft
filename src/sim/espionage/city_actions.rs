@@ -1,3 +1,5 @@
+//! Espionage operations targeting city state and improvements.
+
 use super::*;
 
 impl Simulation {

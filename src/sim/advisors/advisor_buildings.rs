@@ -1,3 +1,5 @@
+//! Advisor scoring for city buildings and wonders.
+
 use super::*;
 
 pub(super) struct DefenseEffectContext {

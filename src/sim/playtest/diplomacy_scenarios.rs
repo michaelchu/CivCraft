@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering diplomacy behavior.
+
 use super::*;
 
 impl Simulation {

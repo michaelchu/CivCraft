@@ -1,3 +1,5 @@
+//! Government selection and government-dependent rules.
+
 use super::*;
 
 mod advisor;

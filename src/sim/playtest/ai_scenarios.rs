@@ -1,3 +1,5 @@
+//! Automated scenarios for AI gameplay behavior.
+
 use super::super::exploration::ExploreResult;
 use super::*;
 

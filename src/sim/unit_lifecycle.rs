@@ -1,3 +1,5 @@
+//! Unit creation, loss, capture, and state cleanup.
+
 use super::*;
 
 impl Simulation {

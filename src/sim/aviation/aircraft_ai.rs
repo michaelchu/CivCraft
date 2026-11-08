@@ -1,3 +1,5 @@
+//! AI planning for aircraft missions and refueling.
+
 use super::*;
 
 mod playtest;

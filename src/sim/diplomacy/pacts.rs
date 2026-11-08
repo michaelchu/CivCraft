@@ -1,3 +1,5 @@
+//! Treaty and pact state transitions.
+
 use super::*;
 
 impl Simulation {

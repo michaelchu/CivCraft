@@ -1,3 +1,5 @@
+//! Advisor evaluation of city defense needs and defender production.
+
 use super::*;
 
 impl Simulation {

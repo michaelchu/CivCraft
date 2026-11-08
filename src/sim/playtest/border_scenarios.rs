@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering border behavior.
+
 use super::*;
 
 impl Simulation {

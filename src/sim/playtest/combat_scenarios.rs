@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering combat behavior.
+
 use super::*;
 
 impl Simulation {

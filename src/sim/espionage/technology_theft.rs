@@ -1,3 +1,5 @@
+//! Technology theft mission resolution.
+
 use super::*;
 
 impl Simulation {

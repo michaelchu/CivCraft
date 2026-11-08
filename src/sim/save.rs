@@ -1,3 +1,5 @@
+//! Campaign serialization, validation, and loading.
+
 use super::*;
 use bincode::Options;
 mod migrations;

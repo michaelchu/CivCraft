@@ -1,3 +1,5 @@
+//! Implements ui script behavior within the playtest subsystem.
+
 use super::*;
 mod combat;
 mod economy;

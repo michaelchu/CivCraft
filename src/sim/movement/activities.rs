@@ -1,3 +1,5 @@
+//! Unit activity execution such as fortifying, roads, and terrain work.
+
 use super::*;
 
 impl Simulation {

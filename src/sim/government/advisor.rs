@@ -1,3 +1,5 @@
+//! Implements advisor behavior within the government subsystem.
+
 use super::*;
 
 impl super::Simulation {

@@ -1,3 +1,5 @@
+//! Territory ownership and border interaction rules.
+
 use super::*;
 
 const CITY_WORK_RADIUS_SQ: i32 = 5;

@@ -1,3 +1,5 @@
+//! Ruleset effects that modify city and player output.
+
 use super::*;
 
 impl Simulation {

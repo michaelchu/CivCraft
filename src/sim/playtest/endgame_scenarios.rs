@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering endgame behavior.
+
 use super::*;
 
 impl Simulation {

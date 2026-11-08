@@ -1,3 +1,5 @@
+//! Implements air behavior within the military ai subsystem.
+
 use super::super::*;
 
 impl Simulation {

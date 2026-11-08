@@ -1,3 +1,5 @@
+//! Heads-up display composition and its map, overview, and status panels.
+
 use super::*;
 mod context_panel;
 mod minimap;

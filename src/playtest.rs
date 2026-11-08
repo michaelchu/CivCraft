@@ -1,3 +1,5 @@
+//! Focused gameplay scenarios for the parent subsystem.
+
 use crate::{
     client::{Game, UiAction},
     ensure_parent,

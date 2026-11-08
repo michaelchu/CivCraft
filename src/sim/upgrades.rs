@@ -1,3 +1,5 @@
+//! Unit upgrade eligibility and costs.
+
 use super::*;
 
 impl Simulation {

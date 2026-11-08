@@ -1,3 +1,5 @@
+//! Automated city worker assignment and production management.
+
 use super::*;
 
 // common/aicore/cm.c:estimate_fitness and compare_tile_type_by_fitness.

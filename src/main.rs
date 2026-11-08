@@ -1,3 +1,5 @@
+//! Application entry point: parses launch options, creates the world and renderer, and runs the interactive or automated frame loop.
+
 mod client;
 mod mapgen;
 mod playtest;
@@ -12,6 +14,7 @@ use std::{env, fs, path::Path};
 const QUICKSAVE_PATH: &str = "civcraft.save";
 const AUTOSAVE_PATH: &str = "civcraft-autosave.save";
 
+/// Reads the value following `flag`, reporting an error when the flag has no value.
 fn parsed_argument(args: &[String], flag: &str) -> Result<Option<String>, String> {
     let Some(index) = args.iter().position(|arg| arg == flag) else {
         return Ok(None);
@@ -22,6 +25,7 @@ fn parsed_argument(args: &[String], flag: &str) -> Result<Option<String>, String
         .map(Some)
         .ok_or_else(|| format!("{flag} requires a value"))
 }
+/// Reads one command-line option and exits with a usage error if it is malformed.
 fn argument_value(flag: &str) -> Option<String> {
     match parsed_argument(&env::args().collect::<Vec<_>>(), flag) {
         Ok(value) => value,
@@ -32,6 +36,7 @@ fn argument_value(flag: &str) -> Option<String> {
     }
 }
 
+/// Creates the parent directory for an output path when one is specified.
 fn ensure_parent(path: &str) {
     if let Some(parent) = Path::new(path).parent()
         && !parent.as_os_str().is_empty()
@@ -41,6 +46,7 @@ fn ensure_parent(path: &str) {
 }
 
 #[macroquad::main(window_conf)]
+/// Starts the game or one of its automated capture and playtest modes.
 async fn main() {
     let wrap_arg = argument_value("--wrap");
     let wrap = wrap_arg

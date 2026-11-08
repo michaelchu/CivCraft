@@ -1,3 +1,5 @@
+//! Paratrooper launch and landing rules.
+
 use super::*;
 
 impl Simulation {

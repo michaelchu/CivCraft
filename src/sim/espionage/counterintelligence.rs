@@ -1,3 +1,5 @@
+//! Detection and prevention of hostile espionage.
+
 use super::*;
 
 impl Simulation {

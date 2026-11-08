@@ -1,3 +1,5 @@
+//! AI advisor scoring used to choose city improvements, research, defense, and spending.
+
 mod advisor_buildings;
 mod advisor_defenders;
 mod advisor_gold;

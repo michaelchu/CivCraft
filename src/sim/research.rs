@@ -1,3 +1,5 @@
+//! Technology availability, cost, and research progression.
+
 use super::*;
 
 impl Simulation {

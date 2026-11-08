@@ -1,3 +1,5 @@
+//! Dispatch of UI actions into simulation commands and client state changes.
+
 use super::*;
 
 impl Game {

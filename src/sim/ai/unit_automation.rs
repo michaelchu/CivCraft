@@ -1,3 +1,5 @@
+//! Implements unit automation behavior within the ai subsystem.
+
 use super::*;
 
 impl Simulation {

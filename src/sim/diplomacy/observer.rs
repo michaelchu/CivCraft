@@ -1,3 +1,5 @@
+//! Diplomatic observation and evaluation of other players.
+
 use super::*;
 
 impl Simulation {

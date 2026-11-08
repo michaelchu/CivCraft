@@ -1,3 +1,5 @@
+//! City lifecycle and turn processing, including production and population changes.
+
 use super::*;
 
 mod production;

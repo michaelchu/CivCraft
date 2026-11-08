@@ -1,3 +1,5 @@
+//! Civilization score and ranking calculations.
+
 use super::*;
 use crate::rules::Genus;
 

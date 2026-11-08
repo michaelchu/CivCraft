@@ -1,3 +1,5 @@
+//! Advisor selection and valuation of research goals.
+
 use super::*;
 
 impl Simulation {

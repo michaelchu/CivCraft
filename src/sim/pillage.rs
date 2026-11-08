@@ -1,3 +1,5 @@
+//! Pillage target selection and improvement removal.
+
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

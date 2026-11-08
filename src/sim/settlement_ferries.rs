@@ -1,3 +1,5 @@
+//! Ferry planning that moves settlers to viable founding sites.
+
 use super::normal_paths::GotoTask;
 use super::*;
 

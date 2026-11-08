@@ -1,3 +1,5 @@
+//! Achievement state and milestone tracking.
+
 use super::*;
 
 #[derive(Clone, Copy)]

@@ -1,3 +1,5 @@
+//! Random and rules-driven disasters affecting cities and terrain.
+
 #[cfg(test)]
 use super::terrain_work::neighbors;
 use super::*;

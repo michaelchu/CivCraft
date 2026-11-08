@@ -1,3 +1,5 @@
+//! Implements ground invasion behavior within the ai subsystem.
+
 use super::*;
 
 impl Simulation {

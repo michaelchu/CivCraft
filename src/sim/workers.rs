@@ -1,3 +1,5 @@
+//! Worker automation, tile assignment, and terrain improvement planning.
+
 use super::pathfinding::reconstruct_path;
 use super::*;
 

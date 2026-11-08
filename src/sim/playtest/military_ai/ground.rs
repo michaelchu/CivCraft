@@ -1,3 +1,5 @@
+//! Implements ground behavior within the military ai subsystem.
+
 use super::super::guards::GuardState;
 use super::super::*;
 

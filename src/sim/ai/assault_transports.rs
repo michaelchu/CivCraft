@@ -1,3 +1,5 @@
+//! Implements assault transports behavior within the ai subsystem.
+
 use super::*;
 
 impl Simulation {

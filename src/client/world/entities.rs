@@ -1,3 +1,5 @@
+//! Rendering of cities, units, and other world entities.
+
 use super::*;
 
 impl Game {

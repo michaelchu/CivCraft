@@ -1,3 +1,5 @@
+//! Loading and preparing textures, sprites, and other renderer assets.
+
 use super::sprite_metadata::*;
 use super::*;
 

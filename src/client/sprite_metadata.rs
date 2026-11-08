@@ -1,3 +1,5 @@
+//! Sprite atlas coordinates, variants, and player-color selection.
+
 use super::*;
 
 pub(super) fn bordered_sprite_source(row: i32, col: i32, width: f32, height: f32) -> Rect {

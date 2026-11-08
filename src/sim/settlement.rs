@@ -1,3 +1,5 @@
+//! City founding and settlement-site selection.
+
 use super::pathfinding::reconstruct_path_to_root;
 use super::*;
 

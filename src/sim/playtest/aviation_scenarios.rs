@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering aviation behavior.
+
 use super::*;
 
 impl Simulation {

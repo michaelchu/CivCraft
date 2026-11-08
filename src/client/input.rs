@@ -1,3 +1,5 @@
+//! Keyboard and pointer input handling for the active game screen.
+
 use super::*;
 
 impl Game {

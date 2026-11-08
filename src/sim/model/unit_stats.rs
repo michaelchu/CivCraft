@@ -1,3 +1,5 @@
+//! Combat, movement, and capability statistics associated with unit kinds.
+
 use super::units::UnitKind;
 
 #[derive(Clone, Copy)]

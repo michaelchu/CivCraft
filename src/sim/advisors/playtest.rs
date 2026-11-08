@@ -1,3 +1,5 @@
+//! Focused gameplay scenarios for the parent subsystem.
+
 use super::*;
 
 impl super::Simulation {

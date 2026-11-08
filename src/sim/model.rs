@@ -1,3 +1,5 @@
+//! Core simulation data types shared by gameplay systems.
+
 use super::{BASE_TECH_COST, MIN_TECH_COST, SCIENCEBOX_PERCENT, TECH_COST_PERCENT, percent_of};
 
 mod entities;

@@ -1,3 +1,5 @@
+//! Advisor evaluation of spending, reserves, and gold priorities.
+
 use super::*;
 
 impl Simulation {

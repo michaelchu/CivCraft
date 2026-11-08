@@ -1,3 +1,5 @@
+//! Technology availability, cost, and research progression.
+
 // Catalog transcribed from Freeciv data/civ2civ3/techs.ruleset.
 // Reference unlock labels come from the unit and building rulesets.
 

@@ -1,3 +1,5 @@
+//! Player-visible actions represented as commands and resolved by the simulation.
+
 use super::{
     HUMAN, MoveResult, Production, SabotageTarget, Simulation, UnitKind, UnitState, WorkKind,
     WorklistEdit,

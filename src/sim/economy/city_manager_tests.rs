@@ -1,3 +1,5 @@
+//! Regression tests for economy behavior, including edge cases and interactions with the simulation.
+
 use super::*;
 use std::collections::HashSet;
 

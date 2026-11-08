@@ -1,3 +1,5 @@
+//! Unit exploration and frontier target selection.
+
 use super::pathfinding::reconstruct_path;
 use super::*;
 

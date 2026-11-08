@@ -1,3 +1,5 @@
+//! Diplomatic contact creation and contact-state transitions.
+
 use super::*;
 
 impl Simulation {

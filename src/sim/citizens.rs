@@ -1,3 +1,5 @@
+//! Citizen roles, specialists, and population accounting.
+
 use super::*;
 
 impl City {

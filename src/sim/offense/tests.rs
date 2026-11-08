@@ -1,3 +1,5 @@
+//! Regression tests for the behavior of the parent module.
+
 use super::*;
 fn island_fixture() -> (Simulation, City, Unit, (i32, i32)) {
     let mut game = Simulation::new(crate::mapgen::generate(42));

@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering treaty behavior.
+
 use super::*;
 
 impl Simulation {

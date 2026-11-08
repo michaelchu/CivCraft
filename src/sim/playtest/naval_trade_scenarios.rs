@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering naval trade behavior.
+
 use super::*;
 
 impl Simulation {

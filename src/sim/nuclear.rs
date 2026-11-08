@@ -1,3 +1,5 @@
+//! Implements nuclear behavior within the sim subsystem.
+
 use super::*;
 
 impl Simulation {

@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering world events behavior.
+
 use super::super::terrain_work::neighbors;
 use super::super::villages::BARBARIAN_ONSET;
 use super::*;

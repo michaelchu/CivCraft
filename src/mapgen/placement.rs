@@ -1,3 +1,5 @@
+//! Resource, hut, and starting-location placement during world generation.
+
 use super::*;
 
 impl super::Generator {

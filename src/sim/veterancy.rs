@@ -1,3 +1,5 @@
+//! Unit veteran levels and combat experience.
+
 use super::*;
 
 impl Unit {

@@ -1,3 +1,5 @@
+//! Spaceship part production, assembly, and launch outcomes.
+
 use super::*;
 
 // Attachment indices from Freeciv common/spaceship.c, in placement order.

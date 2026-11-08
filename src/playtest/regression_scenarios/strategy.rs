@@ -1,3 +1,5 @@
+//! Implements strategy behavior within the regression scenarios subsystem.
+
 use super::*;
 
 impl Playtest {

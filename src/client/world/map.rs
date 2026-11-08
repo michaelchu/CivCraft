@@ -1,3 +1,5 @@
+//! Tile visibility and map-layer drawing for the rendered world.
+
 use super::*;
 
 impl Game {

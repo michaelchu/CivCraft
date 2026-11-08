@@ -1,3 +1,5 @@
+//! Terrain sprite selection, blending, and tile surface rendering.
+
 use super::*;
 
 struct PatchGrowth<'a, Eligible> {

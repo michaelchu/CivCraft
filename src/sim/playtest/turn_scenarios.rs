@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering turn behavior.
+
 use super::*;
 
 impl Simulation {

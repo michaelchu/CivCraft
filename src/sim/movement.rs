@@ -1,3 +1,5 @@
+//! Unit movement resolution and its activity, combat, route, and transport rules.
+
 use super::*;
 
 mod activities;

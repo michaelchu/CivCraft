@@ -1,3 +1,5 @@
+//! Revolt risk and uprising resolution.
+
 use super::{villages::BARBARIAN_ONSET, *};
 
 impl Simulation {

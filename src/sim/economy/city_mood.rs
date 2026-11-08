@@ -1,3 +1,5 @@
+//! Citizen happiness, disorder, and city mood calculations.
+
 use super::*;
 
 impl Simulation {

@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering list order behavior.
+
 use super::*;
 
 impl Simulation {

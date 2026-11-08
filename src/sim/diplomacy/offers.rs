@@ -1,3 +1,5 @@
+//! Diplomatic offer creation, validation, and resolution.
+
 use super::*;
 
 impl Simulation {

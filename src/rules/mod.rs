@@ -1,3 +1,5 @@
+//! Implements mod behavior within the rules subsystem.
+
 mod buildings;
 pub(crate) use buildings::{Building, Genus, Requirement};
 

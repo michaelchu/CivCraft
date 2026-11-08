@@ -1,3 +1,5 @@
+//! Civil war and civilization split resolution.
+
 use super::*;
 
 impl Government {

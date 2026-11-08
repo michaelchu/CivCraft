@@ -1,3 +1,5 @@
+//! Implements terrain work behavior within the sim subsystem.
+
 use super::*;
 
 impl Terrain {

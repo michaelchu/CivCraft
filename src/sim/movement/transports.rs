@@ -1,3 +1,5 @@
+//! Implements transports behavior within the movement subsystem.
+
 use super::*;
 
 impl Simulation {

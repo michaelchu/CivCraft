@@ -1,3 +1,5 @@
+//! Regression tests for the behavior of the parent module.
+
 #[test]
 fn railroad_research_upgrades_centers_and_enables_worker_tracks() {
     let mut game = Simulation::new(crate::mapgen::generate(42));

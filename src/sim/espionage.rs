@@ -1,3 +1,5 @@
+//! Espionage mission rules and AI planning.
+
 use super::*;
 
 mod city_actions;

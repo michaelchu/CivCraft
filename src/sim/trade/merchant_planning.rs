@@ -1,3 +1,5 @@
+//! Merchant destination and delivery valuation.
+
 use super::normal_paths::GotoTask;
 use super::*;
 

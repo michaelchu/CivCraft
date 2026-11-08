@@ -1,3 +1,5 @@
+//! Automated city worker assignment and production management.
+
 use super::*;
 
 impl Game {

@@ -1,3 +1,5 @@
+//! City deal and trade negotiation controls in the diplomacy view.
+
 use super::*;
 
 impl Game {

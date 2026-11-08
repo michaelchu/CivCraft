@@ -1,3 +1,5 @@
+//! Partisan creation and resistance after conquest.
+
 use super::*;
 
 impl Simulation {

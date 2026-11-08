@@ -1,3 +1,5 @@
+//! Terrain sprite selection, blending, and tile surface rendering.
+
 use crate::rules::Tech;
 use crate::sim::PLAYER_SLOTS;
 

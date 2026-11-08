@@ -1,3 +1,5 @@
+//! Building completion, availability, and effects.
+
 use super::*;
 use crate::rules::{Genus, Requirement};
 

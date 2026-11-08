@@ -1,3 +1,5 @@
+//! Regression tests for the behavior of the parent module.
+
 use super::*;
 
 fn approach(roll: i32) -> (Simulation, u32, (i32, i32)) {

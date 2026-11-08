@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering research behavior.
+
 use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 

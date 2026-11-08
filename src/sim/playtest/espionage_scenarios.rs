@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering espionage behavior.
+
 use super::*;
 
 impl Simulation {

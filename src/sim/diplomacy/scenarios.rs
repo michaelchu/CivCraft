@@ -1,3 +1,5 @@
+//! Implements scenarios behavior within the diplomacy subsystem.
+
 use super::*;
 
 impl Simulation {

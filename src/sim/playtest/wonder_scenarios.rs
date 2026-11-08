@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering wonder behavior.
+
 use super::*;
 
 impl Simulation {

@@ -1,3 +1,5 @@
+//! City production selection, progress, and completion rules.
+
 use super::*;
 
 impl Simulation {

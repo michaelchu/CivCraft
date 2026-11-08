@@ -1,3 +1,5 @@
+//! Implements hunter behavior within the ai subsystem.
+
 use super::*;
 
 impl Simulation {

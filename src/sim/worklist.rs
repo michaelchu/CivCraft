@@ -1,3 +1,5 @@
+//! City production queues and their editing rules.
+
 use super::*;
 use crate::rules::{Genus, Requirement};
 

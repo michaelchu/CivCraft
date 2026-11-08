@@ -1,3 +1,5 @@
+//! Opening-turn scenario setup for desktop gameplay automation.
+
 use super::*;
 
 impl Playtest {

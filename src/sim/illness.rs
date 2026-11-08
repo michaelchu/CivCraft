@@ -1,3 +1,5 @@
+//! City illness and population health effects.
+
 use super::*;
 
 impl Simulation {

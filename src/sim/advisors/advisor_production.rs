@@ -1,3 +1,5 @@
+//! Advisor scoring of city production choices.
+
 use super::*;
 
 impl Simulation {

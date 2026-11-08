@@ -1,3 +1,5 @@
+//! AI turn decisions and tactical behavior for computer-controlled players.
+
 use super::normal_paths::GotoTask;
 use super::*;
 

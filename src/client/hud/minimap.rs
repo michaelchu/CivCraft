@@ -1,3 +1,5 @@
+//! Minimap rendering and viewport navigation.
+
 use super::*;
 
 impl Game {

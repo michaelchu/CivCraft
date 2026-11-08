@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering movement behavior.
+
 use super::super::normal_paths::GotoTask;
 use super::*;
 

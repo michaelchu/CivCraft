@@ -1,3 +1,5 @@
+//! Leader selection and leader-specific game behavior.
+
 use super::exploration::ExplorerQueue;
 use super::pathfinding::reconstruct_path;
 use super::pf_actions::PfAction;

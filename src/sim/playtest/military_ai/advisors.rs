@@ -1,3 +1,5 @@
+//! AI advisor scoring used to choose city improvements, research, defense, and spending.
+
 use super::super::advisors::{AiBuildChoice, MILITARY_EMERGENCY_WANT};
 use super::super::*;
 

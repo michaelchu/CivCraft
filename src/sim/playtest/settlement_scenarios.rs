@@ -1,3 +1,5 @@
+//! Automated gameplay scenarios covering settlement behavior.
+
 use super::*;
 
 impl Simulation {

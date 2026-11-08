@@ -1,3 +1,5 @@
+//! Pollution, contamination, and cleanup rules.
+
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

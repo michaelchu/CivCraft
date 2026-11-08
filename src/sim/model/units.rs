@@ -1,3 +1,5 @@
+//! Unit kinds and their ruleset-facing identity.
+
 use super::research_cost;
 use crate::rules::Tech;
 use crate::sim::unit_catalog;

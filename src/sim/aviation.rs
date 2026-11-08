@@ -1,3 +1,5 @@
+//! Aircraft, fuel, airlift, and paradrop rules.
+
 use super::*;
 
 mod aircraft_ai;

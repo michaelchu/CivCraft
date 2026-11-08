@@ -1,3 +1,5 @@
+//! Rendering of cities, units, and other world entities.
+
 use super::units::UnitKind;
 use crate::rules::{Building, Tech};
 

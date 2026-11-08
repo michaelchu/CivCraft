@@ -1,3 +1,5 @@
+//! Advisor assessment of military threats and urgency.
+
 use super::*;
 
 impl Simulation {

@@ -1,3 +1,5 @@
+//! Diplomatic attitude calculation between civilizations.
+
 use super::*;
 
 impl Simulation {

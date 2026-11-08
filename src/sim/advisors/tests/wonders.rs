@@ -1,3 +1,5 @@
+//! Regression tests for advisors behavior and its interaction with the simulation.
+
 use super::*;
 
 #[test]

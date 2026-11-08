@@ -1,3 +1,5 @@
+//! The client view for inspecting suspected espionage activity.
+
 use super::*;
 
 impl Game {

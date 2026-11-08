@@ -1,3 +1,5 @@
+//! Village discovery outcomes and rewards.
+
 use super::*;
 
 pub(super) const BARBARIAN_ONSET: i32 = 120;

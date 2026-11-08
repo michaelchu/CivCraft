@@ -1,3 +1,4 @@
+//! Regression tests for client behavior, including edge cases and interactions with the simulation.
 
 use super::*;
 

@@ -1,3 +1,5 @@
+//! Implements targeting behavior within the offense subsystem.
+
 use super::*;
 
 impl super::Simulation {

@@ -1,3 +1,5 @@
+//! Macroquad presentation layer: draws simulation state, handles input, and dispatches player actions.
+
 mod actions;
 mod assets;
 mod sprite_metadata;
@@ -59,6 +61,7 @@ pub(crate) struct TileGeometry {
 }
 
 impl TileGeometry {
+    /// Creates diamond tile geometry around a screen-space center.
     pub(crate) fn new(center: Vec2, width: f32, height: f32) -> Self {
         Self {
             center,
@@ -67,6 +70,7 @@ impl TileGeometry {
         }
     }
 
+    /// Returns the tile's width and height as a vector.
     pub(crate) fn size(self) -> Vec2 {
         vec2(self.width, self.height)
     }
@@ -202,10 +206,12 @@ pub(crate) struct Game {
 }
 
 impl Game {
+    /// Creates a new interactive game with the default renderer.
     pub(crate) fn new(map: crate::mapgen::GeneratedMap) -> Self {
         Self::new_with_renderer(map, render_backend::default_renderer())
     }
 
+    /// Creates a new game using the selected rendering backend.
     pub(crate) fn new_with_renderer(
         map: crate::mapgen::GeneratedMap,
         renderer: std::rc::Rc<dyn RenderBackend>,
@@ -213,10 +219,12 @@ impl Game {
         Self::from_simulation_with_renderer(Simulation::new(map), renderer)
     }
 
+    /// Restores client state around a loaded simulation using the default renderer.
     pub(crate) fn from_simulation(sim: Simulation) -> Self {
         Self::from_simulation_with_renderer(sim, render_backend::default_renderer())
     }
 
+    /// Restores client state around a loaded simulation and selected renderer.
     pub(crate) fn from_simulation_with_renderer(
         mut sim: Simulation,
         renderer: std::rc::Rc<dyn RenderBackend>,
@@ -369,6 +377,7 @@ impl Game {
 }
 
 impl Game {
+    /// Draws the current frame and returns the interactive control hit boxes.
     pub(crate) fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         self.normalize_camera();
         self.playback.update(&mut self.sim, get_time());

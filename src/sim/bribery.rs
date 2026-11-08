@@ -1,3 +1,5 @@
+//! Unit bribery eligibility and resolution.
+
 use super::*;
 
 impl Simulation {

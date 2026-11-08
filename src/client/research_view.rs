@@ -1,3 +1,5 @@
+//! Research selection and progress display.
+
 use super::*;
 
 impl Game {

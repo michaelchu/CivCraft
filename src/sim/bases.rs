@@ -1,3 +1,5 @@
+//! Military base construction and effects.
+
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

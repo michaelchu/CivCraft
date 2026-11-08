@@ -1,3 +1,5 @@
+//! Deterministic world generation, including terrain, rivers, resources, and starting locations.
+
 use crate::sim::{PLAYER_COUNT, PLAYER_SLOTS, Terrain, Tile, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
@@ -15,6 +17,7 @@ pub(crate) struct GeneratedMap {
     pub(crate) starts: [(i32, i32); PLAYER_COUNT],
 }
 
+/// Produces a process-local seed for a newly generated world.
 pub(crate) fn random_seed() -> u64 {
     RandomState::new().hash_one("CivCraft world")
 }
@@ -202,6 +205,7 @@ impl Generator {
 }
 
 // Freeciv scales elevation by cumulative frequency, keeping ties together.
+/// Replaces raw values with percentile-like ranks while preserving ties.
 fn rank_field(values: &mut [i32], maximum: i32) {
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
@@ -354,9 +358,11 @@ struct Generator {
     wrap: MapWrap,
 }
 /// Historical reference preset, retained for existing oracle fixtures.
+/// Generates a world using the default horizontal-wrap topology.
 pub(crate) fn generate(seed: u64) -> GeneratedMap {
     generate_with_wrap(seed, MapWrap::XY)
 }
+/// Generates a reproducible world using `wrap` from the start of generation.
 pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
     let mut map = Generator { wrap }.generate(seed);
     if wrap == MapWrap::X {

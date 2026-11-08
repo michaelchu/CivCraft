@@ -1,3 +1,5 @@
+//! Top-of-screen turn, economy, and navigation controls.
+
 use super::*;
 
 impl Game {

@@ -1,3 +1,5 @@
+//! Ferry coordination for merchant units seeking trade deliveries.
+
 use super::*;
 
 impl Simulation {

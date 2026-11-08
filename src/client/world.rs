@@ -1,3 +1,5 @@
+//! World-map rendering and projection from simulation tiles to screen geometry.
+
 use super::*;
 mod entities;
 mod map;

@@ -1,3 +1,5 @@
+//! Implements naval ai behavior within the ui script subsystem.
+
 use super::*;
 
 impl Playtest {
