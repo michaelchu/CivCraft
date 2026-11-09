@@ -29,11 +29,14 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
         assert!(tiles.iter().any(|tile| tile.river));
         assert!(tiles.iter().any(|tile| tile.resource.is_some()));
         assert!(tiles.iter().any(|tile| tile.hut));
-        assert!(
-            map.starts
-                .iter()
-                .all(|&(x, y)| !tiles[(Generator { wrap: MapWrap::XY }).index(x, y)].hut)
-        );
+        assert!(map.starts.iter().all(|&(x, y)| {
+            !tiles[(Generator {
+                wrap: MapWrap::XY,
+                settings: Civ3WorldSettings::default(),
+            })
+            .index(x, y)]
+            .hut
+        }));
 
         let mut visited = vec![false; TILE_COUNT];
         for (index, tile) in tiles.iter().enumerate() {
@@ -41,16 +44,22 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
             if tile.hut {
                 assert!(!tile.terrain.is_water());
                 assert!(
-                    (Generator { wrap: MapWrap::XY })
-                        .within(index, 3)
-                        .all(|next| next == index || !tiles[next].hut)
+                    (Generator {
+                        wrap: MapWrap::XY,
+                        settings: Civ3WorldSettings::default(),
+                    })
+                    .within(index, 3)
+                    .all(|next| next == index || !tiles[next].hut)
                 );
             }
             if tile.resource.is_some() {
                 assert!(
-                    (Generator { wrap: MapWrap::XY })
-                        .neighbors(index)
-                        .all(|next| tiles[next].resource.is_none())
+                    (Generator {
+                        wrap: MapWrap::XY,
+                        settings: Civ3WorldSettings::default(),
+                    })
+                    .neighbors(index)
+                    .all(|next| tiles[next].resource.is_none())
                 );
                 assert!(
                     tile.terrain
@@ -69,7 +78,12 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                 let current = course[cursor];
                 assert!(!tiles[current].terrain.is_water());
                 has_outlet |= tiles[current].terrain == Terrain::Tundra;
-                for next in (Generator { wrap: MapWrap::XY }).civ3_neighbors(current) {
+                for next in (Generator {
+                    wrap: MapWrap::XY,
+                    settings: Civ3WorldSettings::default(),
+                })
+                .civ3_neighbors(current)
+                {
                     has_outlet |= tiles[next].terrain.is_water();
                     if tiles[next].river && !visited[next] {
                         visited[next] = true;
@@ -180,6 +194,50 @@ fn default_worlds_match_civcraft_resource_goldens() {
     }
 }
 
+#[test]
+fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
+    let wrap = MapWrap::XY;
+    let coverages = [
+        OceanCoverage::Percent60,
+        OceanCoverage::Percent70,
+        OceanCoverage::Percent80,
+    ];
+    let water_counts: Vec<_> = coverages
+        .into_iter()
+        .map(|ocean_coverage| {
+            let settings = Civ3WorldSettings { ocean_coverage };
+            let first = generate_with_settings(42, wrap, settings);
+            let second = generate_with_settings(42, wrap, settings);
+            assert_eq!(
+                bincode::serialize(&first.tiles).unwrap(),
+                bincode::serialize(&second.tiles).unwrap()
+            );
+            first
+                .tiles
+                .iter()
+                .filter(|tile| tile.terrain.is_water())
+                .count()
+        })
+        .collect();
+    assert!(water_counts[0] < water_counts[1]);
+    assert!(water_counts[1] < water_counts[2]);
+    for (count, coverage) in water_counts.into_iter().zip([60_usize, 70, 80]) {
+        let actual = count * 100 / MapWrap::XY.tile_count();
+        assert!(
+            actual.abs_diff(coverage) <= 1,
+            "requested {coverage}% ocean coverage but generated {actual}%"
+        );
+    }
+}
+
+#[test]
+fn civ3_ocean_coverage_parser_accepts_documented_world_setup_values() {
+    assert_eq!("60".parse(), Ok(OceanCoverage::Percent60));
+    assert_eq!("70".parse(), Ok(OceanCoverage::Percent70));
+    assert_eq!("80".parse(), Ok(OceanCoverage::Percent80));
+    assert!("75".parse::<OceanCoverage>().is_err());
+}
+
 #[cfg(test)]
 mod wrap_generation_tests {
     use super::*;
@@ -187,7 +245,10 @@ mod wrap_generation_tests {
     #[test]
     fn generated_terrain_neighbors_use_reciprocal_civ3_eight_way_topology() {
         for wrap in [MapWrap::X, MapWrap::XY] {
-            let generator = Generator { wrap };
+            let generator = Generator {
+                wrap,
+                settings: Civ3WorldSettings::default(),
+            };
             let y = wrap.height() / 2;
             for x in [0, wrap.width() / 2, wrap.width() - 1] {
                 let center = generator.index(x, y);
@@ -245,7 +306,10 @@ mod wrap_generation_tests {
                     .iter()
                     .all(|&(x, y)| !a.tiles[a.map_wrap.index(x, y)].terrain.is_water())
             );
-            let g = Generator { wrap: MapWrap::X };
+            let g = Generator {
+                wrap: MapWrap::X,
+                settings: Civ3WorldSettings::default(),
+            };
             assert_eq!(g.colatitude(0), 0);
             assert_eq!(g.colatitude(g.wrap.tile_count() - 1), 0);
             assert!(g.colatitude(g.index(10, g.wrap.height() / 2)) > 950);
@@ -263,7 +327,10 @@ mod wrap_generation_tests {
     #[test]
     fn civ3_shelf_rules_put_coast_by_land_and_sea_by_coast() {
         for wrap in [MapWrap::X, MapWrap::XY] {
-            let generator = Generator { wrap };
+            let generator = Generator {
+                wrap,
+                settings: Civ3WorldSettings::default(),
+            };
             let land = generator.index(wrap.width() / 2, wrap.height() / 2);
             let mut terrain = vec![Terrain::Ocean; wrap.tile_count()];
             terrain[land] = Terrain::Grassland;

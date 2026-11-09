@@ -45,17 +45,20 @@ impl super::Generator {
             .map(|tile| self.colatitude(tile))
             .collect();
         rank_field(&mut dummy_temperature, 1000);
+        let shore = self.shore();
+        let lowland = self.lowland();
+        let highland = self.highland();
         let normalized_height = |tile: usize| heights[tile];
         let mut terrain: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
-                if normalized_height(tile) >= SHORE {
+                if normalized_height(tile) >= shore {
                     return Terrain::Plains;
                 }
-                let depth = (SHORE - normalized_height(tile)) * 100 / SHORE;
+                let depth = (shore - normalized_height(tile)) * 100 / shore;
                 let mut water = 0;
                 let mut land = 0;
                 for next in self.neighbors(tile) {
-                    if normalized_height(next) >= SHORE {
+                    if normalized_height(next) >= shore {
                         land = 1;
                         break;
                     }
@@ -74,7 +77,7 @@ impl super::Generator {
                     .count() as i32
                     * 100
                     / 6;
-                let height = (-0.3 * f64::from((heights[tile] - SHORE).max(0)) / 300.0) as f32;
+                let height = (-0.3 * f64::from((heights[tile] - shore).max(0)) / 300.0) as f32;
                 let maritime = (0.15 * f64::from((60 / 100 - latitude / 1000) * 2 * coast.min(50))
                     / 100.0) as f32;
                 (f64::from(latitude) * (1.0 + f64::from(maritime)) * (1.0 + f64::from(height)))
@@ -92,16 +95,16 @@ impl super::Generator {
                 .within(tile, 2)
                 .filter(|&next| heights[next] > heights[tile])
                 .count() as i32;
-            let local_peak = self.within(tile, 2).all(|next| heights[next] <= HIGHLAND)
+            let local_peak = self.within(tile, 2).all(|next| heights[next] <= highland)
                 && self
                     .neighbors(tile)
                     .all(|next| heights[next] <= heights[tile])
                 && higher <= 2
-                && (HIGHLAND - SHORE) * higher <= (heights[tile] - SHORE) * 4;
+                && (highland - shore) * higher <= (heights[tile] - shore) * 4;
             let high_plateau = self
                 .within(tile, 1)
-                .all(|next| heights[next] + (1000 - HIGHLAND) / 5 >= HIGHLAND);
-            if (heights[tile] > HIGHLAND && (rng.below(10) > 5 || !high_plateau)) || local_peak {
+                .all(|next| heights[next] + (1000 - highland) / 5 >= highland);
+            if (heights[tile] > highland && (rng.below(10) > 5 || !high_plateau)) || local_peak {
                 let (hills_weight, mountain_weight) = if temperature[tile] >= COLD {
                     if rng.below(10) < 4 { (30, 70) } else { (30, 0) }
                 } else if rng.below(10) < 8 {
@@ -147,9 +150,9 @@ impl super::Generator {
                     match pass {
                         0 => heat >= VERY_COLD,
                         1 => heat >= TROPICAL,
-                        2 => heat >= COLD && !dry && heights[tile] < LOWLAND,
-                        3 => heat >= VERY_COLD && dry && heights[tile] >= LOWLAND,
-                        _ => heat >= VERY_COLD && heights[tile] >= LOWLAND,
+                        2 => heat >= COLD && !dry && heights[tile] < lowland,
+                        3 => heat >= VERY_COLD && dry && heights[tile] >= lowland,
+                        _ => heat >= VERY_COLD && heights[tile] >= lowland,
                     }
                 };
                 if let Some(seed) = random_tile(self.wrap.tile_count(), rng, |tile| {

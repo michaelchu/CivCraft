@@ -63,6 +63,14 @@ async fn main() {
     }
     // Civ III campaigns use a horizontally wrapped map with bounded poles.
     let wrap = sim::topology::MapWrap::X;
+    let ocean_coverage = argument_value("--ocean-coverage")
+        .unwrap_or_else(|| "70".to_owned())
+        .parse::<mapgen::OceanCoverage>()
+        .unwrap_or_else(|error| {
+            eprintln!("Invalid --ocean-coverage value: {error}");
+            std::process::exit(2);
+        });
+    let world_settings = mapgen::Civ3WorldSettings { ocean_coverage };
     let renderer_name = argument_value("--renderer").unwrap_or_else(|| "civ3".to_owned());
     let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {
         eprintln!("{error}");
@@ -122,7 +130,9 @@ async fn main() {
         match result {
             Ok(simulation) => {
                 if simulation.map_wrap.wraps_y() {
-                    eprintln!("This campaign uses the retired WrapXY map mode and cannot be loaded.");
+                    eprintln!(
+                        "This campaign uses the retired WrapXY map mode and cannot be loaded."
+                    );
                     std::process::exit(2);
                 }
                 Game::from_simulation_with_renderer(simulation, std::rc::Rc::clone(&renderer))
@@ -134,7 +144,7 @@ async fn main() {
         }
     } else {
         Game::new_with_renderer(
-            mapgen::generate_with_wrap(seed, wrap),
+            mapgen::generate_with_settings(seed, wrap, world_settings),
             std::rc::Rc::clone(&renderer),
         )
     };

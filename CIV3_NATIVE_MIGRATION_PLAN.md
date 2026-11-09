@@ -143,8 +143,20 @@ intended end state; a completed phase requires the evidence listed below.
   resource spacing, and start-location distances use the same staggered graph
   as river generation. Seeded CivCraft vectors were refreshed and focused
   topology/water/golden checks pass. This changes neighborhood behavior only;
-  the elevation field, Freeciv-derived map RNG, fixed land ratio, and missing
-  user-selectable Civ III world settings still need replacement.
+  the elevation field, Freeciv-derived map RNG, and fixed campaign dimensions
+  still need replacement.
+- New-world generation now accepts Civ III's 60%, 70%, and 80% ocean-coverage
+  choices; 70% is the default, and `--ocean-coverage` exposes them at launch.
+  The setting changes the ranked elevation threshold and scales river targets
+  with the resulting land percentage. Deterministic checks verify water
+  coverage increases across the three choices. OpenCiv3's `WorldSetup.cs` and
+  `GameSetup.cs` also default to 70%; this is an implementation-reference
+  alignment. UI captures of seed 42 at 60%, 70%, and 80% were inspected at
+  `/tmp/civ3-ocean-60/world.png`, `/tmp/civ3-ocean-70/world.png`, and
+  `/tmp/civ3-ocean-80/world.png`; each report passed its scene check. The
+  release build and full Rust suite (649/649) pass. Map dimensions remain
+  fixed, and landform, climate, temperature, and age settings are not
+  implemented.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from

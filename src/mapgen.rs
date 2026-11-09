@@ -18,6 +18,50 @@ use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
 const INITIAL_DIVISIONS: i32 = 6;
 
+/// Water coverage choices exposed by Civ III's world setup.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OceanCoverage {
+    Percent60,
+    Percent70,
+    Percent80,
+}
+
+impl OceanCoverage {
+    pub(crate) const fn percent(self) -> i32 {
+        match self {
+            Self::Percent60 => 60,
+            Self::Percent70 => 70,
+            Self::Percent80 => 80,
+        }
+    }
+}
+
+impl std::str::FromStr for OceanCoverage {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "60" => Ok(Self::Percent60),
+            "70" => Ok(Self::Percent70),
+            "80" => Ok(Self::Percent80),
+            _ => Err("ocean coverage must be 60, 70, or 80".into()),
+        }
+    }
+}
+
+/// Civ III world-generation choices. Additional world-setup controls will
+/// join this struct as their generation behavior is migrated.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Civ3WorldSettings {
+    pub(crate) ocean_coverage: OceanCoverage,
+}
+
+impl Default for OceanCoverage {
+    fn default() -> Self {
+        Self::Percent70
+    }
+}
+
 mod placement;
 mod rivers;
 mod terrain;
@@ -76,6 +120,22 @@ impl MapRng {
 }
 
 impl Generator {
+    fn land_percent(&self) -> i32 {
+        100 - self.settings.ocean_coverage.percent()
+    }
+
+    fn shore(&self) -> i32 {
+        1000 * self.settings.ocean_coverage.percent() / 100
+    }
+
+    fn lowland(&self) -> i32 {
+        self.shore() + (1000 - self.shore()) * 28 / 100
+    }
+
+    fn highland(&self) -> i32 {
+        self.shore() + (1000 - self.shore()) * 70 / 100
+    }
+
     fn index(&self, x: i32, y: i32) -> usize {
         let (x, y) = self.wrap.normalize(x, y).expect("generator tile is real");
         self.wrap.index(x, y)
@@ -182,7 +242,7 @@ impl Generator {
         };
         let grid = |size, axis| size * axis / INITIAL_DIVISIONS;
         let near_edge = |y: i32| !self.wrap.wraps_y() && (y < 4 || y >= self.wrap.height() - 4);
-        let avoid_edge = (100 - LAND_PERCENT) * step / 100 + step / 3;
+        let avoid_edge = (100 - self.land_percent()) * step / 100 + step / 3;
         for x in 0..INITIAL_DIVISIONS {
             for y in 0..INITIAL_DIVISIONS + i32::from(!self.wrap.wraps_y()) {
                 let y = grid(ymax, y);
@@ -247,9 +307,6 @@ fn rank_field(values: &mut [i32], maximum: i32) {
     }
 }
 
-const SHORE: i32 = 1000 * (100 - LAND_PERCENT) / 100;
-const LOWLAND: i32 = SHORE + (1000 - SHORE) * 28 / 100;
-const HIGHLAND: i32 = SHORE + (1000 - SHORE) * 70 / 100;
 const VERY_COLD: i32 = 56;
 const COLD: i32 = 85;
 const TROPICAL: i32 = 572;
@@ -499,6 +556,7 @@ mod civ3_base_terrain_tests {
 
 struct Generator {
     wrap: MapWrap,
+    settings: Civ3WorldSettings,
 }
 /// Historical reference preset, retained for existing oracle fixtures.
 /// Generates a world using the default horizontal-wrap topology.
@@ -507,7 +565,16 @@ pub(crate) fn generate(seed: u64) -> GeneratedMap {
 }
 /// Generates a reproducible world using `wrap` from the start of generation.
 pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
-    let mut map = Generator { wrap }.generate(seed);
+    generate_with_settings(seed, wrap, Civ3WorldSettings::default())
+}
+
+pub(crate) fn generate_with_settings(
+    seed: u64,
+    wrap: MapWrap,
+    settings: Civ3WorldSettings,
+) -> GeneratedMap {
+    let generator = Generator { wrap, settings };
+    let mut map = generator.generate(seed);
     if wrap == MapWrap::X {
         // The polar cap is a visual boundary in Civ III, not generated land.
         for y in [0, wrap.height() - 1] {
@@ -515,14 +582,13 @@ pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
                 let tile = &mut map.tiles[wrap.index(x, y)];
                 tile.terrain = Terrain::Ocean;
                 tile.base_terrain = TerrainBase::Ocean;
-                tile.altitude = tile.altitude.min(SHORE - 1);
+                tile.altitude = tile.altitude.min(generator.shore() - 1);
                 tile.resource = None;
                 tile.river = false;
                 tile.river_edges = 0;
                 tile.hut = false;
             }
         }
-        let generator = Generator { wrap };
         let mut terrain: Vec<_> = map.tiles.iter().map(|tile| tile.terrain).collect();
         generator.finish_water(&mut terrain, &mut MapRng::new(seed));
         for (tile, water) in map.tiles.iter_mut().zip(terrain) {

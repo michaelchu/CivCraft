@@ -45,6 +45,13 @@ CivCraft generates a new map locally each time it launches and shows the world s
 cargo run --release -- --seed 12345
 ```
 
+New maps default to Civ III's 70% ocean coverage. Select another documented
+world-setup option with `--ocean-coverage 60`, `70`, or `80`:
+
+```sh
+cargo run --release -- --seed 42 --ocean-coverage 60
+```
+
 ## Map wrapping
 
 New games use Civ III's horizontal wrap with bounded polar edges:
@@ -58,9 +65,10 @@ Civ III `polarICEcaps-final.png` artwork supplies the visual polar caps outside
 the playable map. The old WrapXY option has been removed from the game launch
 flow. Existing WrapXY saves are not loadable.
 
-The renderer uses Civ III's staggered diamond geometry. Generation, movement,
-pathfinding, city work areas and visibility still use the legacy simulation
-topology and are being migrated separately.
+The renderer and primary generation, movement, pathfinding, city work-area,
+and visibility paths use Civ III's staggered grid. Map generation settings are
+still being migrated; map size, landform, climate, temperature, and age are
+not yet selectable.
 
 ## Map tilesets
 

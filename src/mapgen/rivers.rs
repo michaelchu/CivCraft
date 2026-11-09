@@ -24,7 +24,7 @@ impl super::Generator {
         temperature: &[i32],
         rng: &mut MapRng,
     ) {
-        let target: usize = 6 * self.wrap.tile_count() * LAND_PERCENT as usize / 5325;
+        let target: usize = 6 * self.wrap.tile_count() * self.land_percent() as usize / 5325;
         const MAX_TRIES: i32 = 32_767;
         let mut count = 0;
         for attempt in 0..MAX_TRIES {
@@ -35,7 +35,7 @@ impl super::Generator {
                 !tiles[tile].terrain.is_water()
                     && !tiles[tile].river
                     && temperature[tile] >= VERY_COLD
-                    && heights[tile] >= LOWLAND
+                    && heights[tile] >= self.lowland()
             }) else {
                 break;
             };
