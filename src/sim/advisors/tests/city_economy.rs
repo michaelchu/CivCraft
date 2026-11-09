@@ -213,5 +213,5 @@ fn city_output_priorities_raise_the_bid_for_a_library_technology() {
 fn offensive_choice_amortizes_balanced_risk_even_with_existing_shield_stock() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     let (selected, advanced, blocked) = game.offensive_production_playtest();
-    assert!(selected && advanced && blocked);
+    assert!(selected && advanced && blocked, "{selected} {advanced} {blocked}");
 }

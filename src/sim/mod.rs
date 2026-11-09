@@ -364,25 +364,8 @@ impl Simulation {
             game_random,
         } = map;
 
-        let free_techs = [
-            Tech::BRONZE_WORKING,
-            Tech::ALPHABET,
-            Tech::HORSEBACK_RIDING,
-            Tech::POTTERY,
-            Tech::WARRIOR_CODE,
-            Tech::BRONZE_WORKING,
-        ];
-        let research_targets = [
-            Tech::WARRIOR_CODE,
-            Tech::BRONZE_WORKING,
-            Tech::POTTERY,
-            Tech::HORSEBACK_RIDING,
-            Tech::ALPHABET,
-            Tech::WARRIOR_CODE,
-        ];
         let mut players = Vec::new();
         for i in 0..MAX_CIVILIZATIONS {
-            let setup = i % PLAYER_COUNT;
             players.push(Player {
                 name: crate::rules::civilizations::CIVILIZATIONS[i]
                     .name
@@ -392,16 +375,11 @@ impl Simulation {
                 government: Government::Despotism,
                 revolution_target: None,
                 revolution_turn: None,
-                known: vec![free_techs[setup]],
-                researching: research_targets[setup],
-                research_goal: [
-                    research_targets[setup],
-                    Tech::IRON_WORKING,
-                    Tech::THE_WHEEL,
-                    Tech::MATHEMATICS,
-                    Tech::IRON_WORKING,
-                    Tech::THE_WHEEL,
-                ][setup],
+                known: crate::rules::civilizations::CIVILIZATIONS[i]
+                    .starting_techs
+                    .to_vec(),
+                researching: Tech::IRON_WORKING,
+                research_goal: Tech::IRON_WORKING,
                 future_techs: 0,
                 research: 0,
                 last_science: 0,
@@ -502,7 +480,7 @@ impl Simulation {
             ai_government_cache: Default::default(),
             diplomatic_contact_until: Default::default(),
         };
-        for owner in 1..civilization_count {
+        for owner in 0..civilization_count {
             game.players[owner].researching = game.research_target(owner);
         }
         let initial_contacts: Vec<_> = game

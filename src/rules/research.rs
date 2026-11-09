@@ -101,6 +101,7 @@ impl Tech {
     pub(crate) const ALPHABET: Self = Self(1);
     pub(crate) const BRIDGE_BUILDING: Self = Self(7);
     pub(crate) const BRONZE_WORKING: Self = Self(8);
+    pub(crate) const CEREMONIAL_BURIAL: Self = Self(9);
     pub(crate) const WARRIOR_CODE: Self = Self(85);
     pub(crate) const HORSEBACK_RIDING: Self = Self(34);
     pub(crate) const INDUSTRIALIZATION: Self = Self(35);

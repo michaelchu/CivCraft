@@ -6,6 +6,29 @@ impl Simulation {
     pub(crate) fn offensive_production_playtest(&mut self) -> (bool, bool, bool) {
         self.units.clear();
         self.cities.clear();
+        // Keep this historical advisor fixture independent of Civ III's
+        // civilization-specific starting technologies.
+        let starting_techs = [
+            Tech::BRONZE_WORKING,
+            Tech::ALPHABET,
+            Tech::HORSEBACK_RIDING,
+            Tech::POTTERY,
+            Tech::WARRIOR_CODE,
+            Tech::BRONZE_WORKING,
+        ];
+        let research_goals = [
+            Tech::WARRIOR_CODE,
+            Tech::IRON_WORKING,
+            Tech::THE_WHEEL,
+            Tech::MATHEMATICS,
+            Tech::IRON_WORKING,
+            Tech::THE_WHEEL,
+        ];
+        for owner in 0..PLAYER_COUNT {
+            self.players[owner].known = vec![starting_techs[owner]];
+            self.players[owner].research_goal = research_goals[owner];
+            self.players[owner].researching = self.research_target(owner);
+        }
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Sea;
             tile.resource = None;

@@ -50,6 +50,12 @@ fn civ3_map_roster_controls_active_players_and_score_standings() {
     assert_eq!(game.score_standings().len(), 4);
     for owner in 0..4 {
         assert!(game.player_alive(owner));
+        assert_eq!(
+            game.players[owner].known,
+            crate::rules::civilizations::CIVILIZATIONS[owner]
+                .starting_techs
+                .to_vec()
+        );
     }
     for owner in 4..MAX_CIVILIZATIONS {
         assert!(!game.player_alive(owner));

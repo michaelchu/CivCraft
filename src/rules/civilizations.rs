@@ -1,14 +1,18 @@
 //! Civ III civilization identities and city-name lists.
-//! The 16 playable leaders and their capital-first city lists follow the
-//! adjacent OpenCiv3 Civ III ruleset; legacy aliases remain for local save
-//! migrations. Civilization-count selection is wired separately from catalog
-//! availability.
+//! The 16 playable leaders, starting technologies, and capital-first city
+//! lists follow the adjacent OpenCiv3 Civ III ruleset; legacy aliases remain
+//! for local save migrations. Starting technologies match the adjacent OpenCiv3 Civ III
+//! ruleset; OpenCiv3 is an implementation/data reference, not proof of original
+//! engine internals.
+use crate::rules::Tech;
+
 pub(crate) struct Civilization {
     pub(crate) name: &'static str,
     pub(crate) leader: &'static str,
     pub(crate) cities: &'static [&'static str], // Capital first.
     pub(crate) city_style: &'static str,
     pub(crate) civ3_city_style: u8,
+    pub(crate) starting_techs: [Tech; 2],
     pub(crate) legacy_name: &'static str,
 }
 
@@ -18,6 +22,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Julius Caesar",
         city_style: "Classical",
         civ3_city_style: 4,
+        starting_techs: [Tech::WARRIOR_CODE, Tech::ALPHABET],
         legacy_name: "Crimson League",
         cities: &[
             "Rome",
@@ -71,6 +76,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Alexander",
         city_style: "Classical",
         civ3_city_style: 2,
+        starting_techs: [Tech::ALPHABET, Tech::BRONZE_WORKING],
         legacy_name: "Golden Compact",
         cities: &[
             "Athens",
@@ -109,6 +115,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Cleopatra",
         city_style: "Babylonian",
         civ3_city_style: 3,
+        starting_techs: [Tech::CEREMONIAL_BURIAL, Tech::MASONRY],
         legacy_name: "Azure Assembly",
         cities: &[
             "Thebes",
@@ -152,6 +159,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Hammurabi",
         city_style: "Babylonian",
         civ3_city_style: 3,
+        starting_techs: [Tech::BRONZE_WORKING, Tech::CEREMONIAL_BURIAL],
         legacy_name: "Violet Court",
         // Original release roster, before Conquests moved Sumerian names.
         cities: &[
@@ -189,6 +197,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Mao Zedong",
         city_style: "Asian",
         civ3_city_style: 0,
+        starting_techs: [Tech::WARRIOR_CODE, Tech::MASONRY],
         legacy_name: "Amber Union",
         cities: &[
             "Beijing", "Shanghai", "Canton", "Nanking", "Tsingtao", "Xinjian", "Chengdu",
@@ -201,6 +210,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Tokugawa",
         city_style: "Asian",
         civ3_city_style: 0,
+        starting_techs: [Tech::THE_WHEEL, Tech::CEREMONIAL_BURIAL],
         legacy_name: "Rose Confederacy",
         cities: &[
             "Kyoto",
@@ -236,6 +246,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Bismarck",
         city_style: "European",
         civ3_city_style: 2,
+        starting_techs: [Tech::WARRIOR_CODE, Tech::BRONZE_WORKING],
         legacy_name: "Iron Confederation",
         cities: &[
             "Berlin",
@@ -261,6 +272,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Catherine",
         city_style: "European",
         civ3_city_style: 2,
+        starting_techs: [Tech::POTTERY, Tech::BRONZE_WORKING],
         legacy_name: "Northern Union",
         cities: &[
             "Moscow",
@@ -309,6 +321,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Lincoln",
         city_style: "European",
         civ3_city_style: 1,
+        starting_techs: [Tech::POTTERY, Tech::MASONRY],
         legacy_name: "Free States",
         cities: &[
             "Washington",
@@ -358,6 +371,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Joan d'Arc",
         city_style: "European",
         civ3_city_style: 2,
+        starting_techs: [Tech::ALPHABET, Tech::MASONRY],
         legacy_name: "Silver Republic",
         cities: &[
             "Paris",
@@ -388,6 +402,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Gandhi",
         city_style: "Asian",
         civ3_city_style: 0,
+        starting_techs: [Tech::ALPHABET, Tech::CEREMONIAL_BURIAL],
         legacy_name: "Indus Union",
         cities: &[
             "Delhi",
@@ -414,6 +429,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Xerxes",
         city_style: "Babylonian",
         civ3_city_style: 3,
+        starting_techs: [Tech::BRONZE_WORKING, Tech::MASONRY],
         legacy_name: "Sunlit Empire",
         cities: &[
             "Persepolis",
@@ -452,6 +468,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Montezuma",
         city_style: "Tropical",
         civ3_city_style: 1,
+        starting_techs: [Tech::WARRIOR_CODE, Tech::POTTERY],
         legacy_name: "Obsidian Empire",
         cities: &[
             "Tenochtitlan",
@@ -497,6 +514,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Shaka",
         city_style: "Tropical",
         civ3_city_style: 3,
+        starting_techs: [Tech::WARRIOR_CODE, Tech::POTTERY],
         legacy_name: "Red Shield",
         cities: &[
             "Zimbabwe",
@@ -522,6 +540,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Hiawatha",
         city_style: "Celtic",
         civ3_city_style: 1,
+        starting_techs: [Tech::POTTERY, Tech::ALPHABET],
         legacy_name: "Haudenosaunee",
         cities: &[
             "Salamanca",
@@ -560,6 +579,7 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
         leader: "Elizabeth",
         city_style: "European",
         civ3_city_style: 2,
+        starting_techs: [Tech::ALPHABET, Tech::POTTERY],
         legacy_name: "Lion Kingdom",
         cities: &[
             "London",
@@ -644,6 +664,30 @@ mod tests {
             assert_eq!(unique.len(), civ.cities.len());
         }
     }
+
+    #[test]
+    fn civ3_starting_technologies_match_the_ruleset_for_all_sixteen_civs() {
+        let expected = [
+            [Tech::WARRIOR_CODE, Tech::ALPHABET],
+            [Tech::ALPHABET, Tech::BRONZE_WORKING],
+            [Tech::CEREMONIAL_BURIAL, Tech::MASONRY],
+            [Tech::BRONZE_WORKING, Tech::CEREMONIAL_BURIAL],
+            [Tech::WARRIOR_CODE, Tech::MASONRY],
+            [Tech::THE_WHEEL, Tech::CEREMONIAL_BURIAL],
+            [Tech::WARRIOR_CODE, Tech::BRONZE_WORKING],
+            [Tech::POTTERY, Tech::BRONZE_WORKING],
+            [Tech::POTTERY, Tech::MASONRY],
+            [Tech::ALPHABET, Tech::MASONRY],
+            [Tech::ALPHABET, Tech::CEREMONIAL_BURIAL],
+            [Tech::BRONZE_WORKING, Tech::MASONRY],
+            [Tech::WARRIOR_CODE, Tech::POTTERY],
+            [Tech::WARRIOR_CODE, Tech::POTTERY],
+            [Tech::POTTERY, Tech::ALPHABET],
+            [Tech::ALPHABET, Tech::POTTERY],
+        ];
+        assert_eq!(CIVILIZATIONS.map(|civ| civ.starting_techs), expected);
+    }
+
     #[test]
     fn city_lists_skip_used_names_and_overflow_without_duplicates() {
         assert_eq!(

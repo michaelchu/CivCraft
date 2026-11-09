@@ -233,9 +233,12 @@ intended end state; a completed phase requires the evidence listed below.
   4/6/8/12/16 civilizations for Tiny through Huge. Map size now selects that
   active count in new games, `GeneratedMap.starts` carries a vector, start-site
   scoring scales with the roster, and `Simulation` initializes the corresponding
-  starting units and AI research. Tiny generation is checked for four starts; a
-  runtime check verifies four active players and excludes inactive roster slots
-  from score standings. The sixteen Civ III player slots are currently
+  starting units and AI research. All sixteen starting-tech pairs are now read
+  from the civilization roster, matching `startingTechs` in OpenCiv3's
+  `C7/Lua/civ3/ruleset.json`; this is imported ruleset data, not proof of the
+  original engine's implementation. Tiny generation is checked for four starts;
+  a runtime check verifies four active players and excludes inactive roster
+  slots from score standings. The sixteen Civ III player slots are currently
   allocated in every campaign so the Barbarian owner remains at fixed index 16.
   This leaves unused slots inactive on smaller maps and keeps global
   barbarian-owner comparisons in place; migration to a per-campaign Barbarian
@@ -243,7 +246,8 @@ intended end state; a completed phase requires the evidence listed below.
   end-to-end start/turn/diplomacy/barbarian/save-load/UI coverage across all five
   sizes is still required, especially at the 4- and 16-civ extremes. Custom
   dimensions currently use the Standard eight-civ roster until a civilization
-  count selector is exposed.
+  count selector is exposed. The full Rust suite passes 666/666 with the roster
+  and starting-tech changes.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from
