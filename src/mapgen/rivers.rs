@@ -17,6 +17,20 @@ impl super::Generator {
         })
     }
 
+    /// Civ III's 4×4 river sheets encode the four diagonal connections around
+    /// each junction. Cardinal tile adjacencies collapse to the point-only
+    /// atlas cell and cannot draw a continuous river segment.
+    fn river_neighbors(&self, tile: usize) -> impl Iterator<Item = usize> + '_ {
+        let (x, y) = self.wrap.position(tile);
+        (1..CIV3_DIRS.len())
+            .step_by(2)
+            .filter_map(move |direction| {
+                self.wrap
+                    .civ3_neighbor(x, y, direction)
+                    .map(|(nx, ny)| self.wrap.index(nx, ny))
+            })
+    }
+
     pub(super) fn place_rivers(
         &self,
         tiles: &mut [Tile],
@@ -72,7 +86,7 @@ impl super::Generator {
             return;
         };
         let outlet = self
-            .civ3_neighbors(last)
+            .river_neighbors(last)
             .filter(|&next| tiles[next].terrain.is_water() || tiles[next].river)
             .min_by_key(|&next| (heights[next], next));
         if let Some(outlet) = outlet {
@@ -120,12 +134,12 @@ impl super::Generator {
         let mut blocked = vec![false; self.wrap.tile_count()];
         let mut current = spring;
         let water_count = |tile| {
-            self.civ3_neighbors(tile)
+            self.river_neighbors(tile)
                 .filter(|&next| tiles[next].terrain.is_water())
                 .count()
         };
         let river_count = |tile| {
-            self.civ3_neighbors(tile)
+            self.river_neighbors(tile)
                 .filter(|&next| tiles[next].river)
                 .count()
         };
@@ -160,11 +174,11 @@ impl super::Generator {
                 )
             };
             let mut candidates: Vec<_> = self
-                .civ3_neighbors(current)
+                .river_neighbors(current)
                 .filter(|&next| {
                     !blocked[next]
                         && river_count(next) <= 1
-                        && self.civ3_neighbors(next).any(|tile| !blocked[tile])
+                        && self.river_neighbors(next).any(|tile| !blocked[tile])
                 })
                 .map(|next| (score(next), next))
                 .collect();

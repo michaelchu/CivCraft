@@ -57,6 +57,10 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
         let map = generate(seed);
         let tiles = &map.tiles;
         assert!(tiles.iter().any(|tile| tile.river));
+        assert!(
+            tiles.iter().all(|tile| tile.river_edges & 0x55 == 0),
+            "generated rivers use only the four junction-sheet directions for seed {seed}"
+        );
         assert!(tiles.iter().any(|tile| tile.resource.is_some()));
         assert!(tiles.iter().any(|tile| tile.hut));
         assert!(map.starts.iter().all(|&(x, y)| {
@@ -188,28 +192,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0x33e15b6efcbcfd66,
-            [(0, 12), (4, 31), (5, 50), (12, 53), (17, 30), (18, 57)],
+            0x2da7e88716bdae8d,
+            [(0, 12), (2, 46), (4, 33), (8, 41), (17, 33), (18, 54)],
         ),
         (
             42,
-            0xb5ad7fa2af282c98,
-            [(12, 57), (15, 48), (17, 16), (19, 56), (22, 27), (29, 16)],
+            0xb1c4916c795eedca,
+            [(16, 55), (17, 16), (17, 32), (22, 38), (23, 21), (28, 16)],
         ),
         (
             12345,
-            0x13ca2cf5766a9b27,
-            [(6, 41), (14, 29), (14, 50), (23, 45), (24, 27), (29, 22)],
+            0xc0ae270efb0f6128,
+            [(6, 54), (14, 24), (16, 52), (25, 52), (27, 37), (28, 21)],
         ),
         (
             700001,
-            0x5118ffd0c6fdf2c9,
-            [(4, 60), (7, 49), (15, 34), (22, 37), (22, 59), (23, 19)],
+            0x9ffde7e6304100d7,
+            [(5, 30), (6, 60), (9, 47), (14, 36), (17, 55), (25, 30)],
         ),
         (
             2147483647,
-            0xef16ad55cbc9a789,
-            [(15, 54), (18, 5), (19, 20), (19, 40), (25, 47), (26, 18)],
+            0x108d9a510b0bb1bf,
+            [(16, 44), (17, 27), (18, 9), (24, 50), (25, 24), (27, 10)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {

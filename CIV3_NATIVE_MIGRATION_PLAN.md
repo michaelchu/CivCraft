@@ -94,18 +94,24 @@ intended end state; a completed phase requires the evidence listed below.
   generated biome. The biome, relief, and feature assignment algorithms remain
   approximations of OpenCiv3 and are not documented Civ III internals.
 - Tiles retain reciprocal eight-direction `river_edges`. River source checks,
-  course tracing, drainage scoring, merging, and outlets now use Civ III
-  staggered neighbors through the storage adapter; generated edges are written
-  directly from each course step. Civ III rendering reads the four-tile
+  drainage scoring, and river placement use Civ III staggered neighbors
+  through the storage adapter; generated edges are written directly from each
+  course step. Flow tracing and water/river outlets now use only the four
+  diagonal links that the Civ III 4×4 junction sheets can represent. This was
+  needed because cardinal connections collapse to OpenCiv3's point-only atlas
+  cell and appeared as disconnected strokes. This is an explicit rendering-
+  driven generator approximation: OpenCiv3's `setRiverFlags` comments identify
+  its own cardinal-flag omissions, which do not prove original Civ III forbids
+  cardinal flow. Civ III rendering reads the four-tile
   junction flags and loads Sn00py's `deltaRivers.pcx` and `mtnRivers.pcx`
   through the `river-delta` and `river-mountain` manifest roles. The river
   atlas is 4×4 cells of 128×64 pixels; a prior renderer crop used the scaled
   destination size (96×48) as the source cell size, sampling across adjacent
   masks and breaking continuous paths visually. Source crops now use the full
   128×64 atlas cell and scale to the destination. A regression check covers
-  all four atlas corners, and the generated-river review was inspected at
-  `/tmp/civ3-river-atlas-crop-review/rivers-generated.png` (report:
-  `/tmp/civ3-river-atlas-crop-review/report.json`). The drainage scoring
+  all four atlas corners. A new seed-42 generated world was visually inspected
+  at `/tmp/civ3-diagonal-river-world-review/world.png` and its UI scene passed
+  (`/tmp/civ3-diagonal-river-world-review/report.json`). The drainage scoring
   remains a provisional heuristic over the current elevation field; it is not
   evidence of the original Civ III generator.
 - Native irrigation rendering now selects the 4×4 PCX sheet cell from visible
