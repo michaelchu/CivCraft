@@ -76,6 +76,22 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
         let mut visited = vec![false; TILE_COUNT];
         for (index, tile) in tiles.iter().enumerate() {
             assert!((0..=1000).contains(&tile.altitude));
+            if tile.terrain.is_water() {
+                let (x, y) = map.map_wrap.position(index);
+                for direction in 0..CIV3_DIRS.len() {
+                    if tile.river_edges & (1 << direction) == 0 {
+                        continue;
+                    }
+                    let (nx, ny) = map
+                        .map_wrap
+                        .civ3_neighbor(x, y, direction)
+                        .expect("generated river mouth stays inside the map");
+                    assert!(
+                        !tiles[map.map_wrap.index(nx, ny)].terrain.is_water(),
+                        "river mouth at {index} extends beyond the shoreline for seed {seed}"
+                    );
+                }
+            }
             if tile.hut {
                 assert!(!tile.terrain.is_water());
                 assert!(

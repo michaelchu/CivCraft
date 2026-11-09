@@ -90,7 +90,15 @@ impl super::Generator {
             .filter(|&next| tiles[next].terrain.is_water() || tiles[next].river)
             .min_by_key(|&next| (heights[next], next));
         if let Some(outlet) = outlet {
-            self.connect_river_step(tiles, last, outlet);
+            if tiles[outlet].terrain.is_water() {
+                // The mouth belongs on the shoreline shared by the final land
+                // tile and the water tile. Applying the ordinary course-step
+                // conversion here would anchor it on the water tile's far
+                // edge, shifting the delta a full junction offshore.
+                self.connect_river_edge(tiles, last, outlet);
+            } else {
+                self.connect_river_step(tiles, last, outlet);
+            }
         }
     }
 
