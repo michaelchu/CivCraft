@@ -45,13 +45,14 @@ CivCraft generates a new map locally each time it launches and shows the world s
 cargo run --release -- --seed 12345
 ```
 
-New maps default to Civ III's 70% ocean coverage and Normal climate. Select
-the documented ocean coverage with `--ocean-coverage 60`, `70`, or `80`, and
-climate with `--climate arid`, `normal`, or `wet`. World age uses
-`--world-age 3`, `4`, or `5` billion years:
+New maps default to Civ III's 70% ocean coverage, Normal climate, Continents
+landform, and 4 billion year age. Select ocean coverage with `--ocean-coverage
+60`, `70`, or `80`, climate with `--climate arid`, `normal`, or `wet`, and
+landform with `--landform archipelago`, `continents`, or `pangaea`. World age
+uses `--world-age 3`, `4`, or `5` billion years:
 
 ```sh
-cargo run --release -- --seed 42 --ocean-coverage 60 --climate wet --world-age 3
+cargo run --release -- --seed 42 --ocean-coverage 60 --climate wet --world-age 3 --landform archipelago
 ```
 
 ## Map wrapping
@@ -69,8 +70,9 @@ flow. Existing WrapXY saves are not loadable.
 
 The renderer and primary generation, movement, pathfinding, city work-area,
 and visibility paths use Civ III's staggered grid. Map generation settings are
-still being migrated; map size, landform, and temperature are not yet
-selectable.
+still being migrated; map size and temperature are not yet selectable. Landform
+controls are available, but their current subdivision-based scale mapping is
+an approximation of the OpenCiv3 noise scales.
 
 ## Map tilesets
 

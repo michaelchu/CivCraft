@@ -179,6 +179,23 @@ intended end state; a completed phase requires the evidence listed below.
   were inspected at `/tmp/civ3-age-3/world.png`,
   `/tmp/civ3-age-4/world.png`, and `/tmp/civ3-age-5/world.png`; the full Rust
   suite passes 653/653 and the release build succeeds.
+- New-world generation accepts Archipelago, Continents, and Pangaea landforms
+  via `--landform`, with Continents as the default. Seeded deterministic checks
+  verify each option is repeatable and produces a distinct landmass field.
+  OpenCiv3's `MapGenerator.GetNoiseScale` uses scales .2, .05, and .02 for
+  these choices. CivCraft approximates that progression with 12, 6, and 3
+  initial subdivision bands; its noise algorithm and continent acceptance
+  rules do not match OpenCiv3. This setting is wired end to end but remains a
+  provisional mapping pending a Civ III-native noise field. Seed-42 map
+  captures passed scene checks at
+  `/tmp/civ3-landform-archipelago/world.png`,
+  `/tmp/civ3-landform-continents/world.png`, and
+  `/tmp/civ3-landform-pangaea/world.png`; the initial unit's fog of war means
+  these captures show only the local start area, so they do not validate global
+  landmass shape. A structural test checks deterministic output and observes
+  the expected ordering in land-component count (Archipelago > Continents >
+  Pangaea) and largest land-component size (Pangaea > Archipelago). The full
+  suite and release build pass.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from

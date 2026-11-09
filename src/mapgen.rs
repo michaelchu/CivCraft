@@ -16,8 +16,6 @@
 use crate::sim::{PLAYER_COUNT, PLAYER_SLOTS, Terrain, TerrainBase, Tile, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
-const INITIAL_DIVISIONS: i32 = 6;
-
 /// Water coverage choices exposed by Civ III's world setup.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum OceanCoverage {
@@ -113,6 +111,46 @@ impl Default for WorldAge {
     }
 }
 
+/// Landmass scale choices exposed by Civ III's world setup.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Landform {
+    Archipelago,
+    Continents,
+    Pangaea,
+}
+
+impl Landform {
+    // OpenCiv3 uses noise scales .2, .05, and .02 respectively. The current
+    // subdivision generator cannot express those scales directly; initial
+    // divisions approximate the same progression from small to broad forms.
+    fn initial_divisions(self) -> i32 {
+        match self {
+            Self::Archipelago => 12,
+            Self::Continents => 6,
+            Self::Pangaea => 3,
+        }
+    }
+}
+
+impl std::str::FromStr for Landform {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "archipelago" => Ok(Self::Archipelago),
+            "continents" => Ok(Self::Continents),
+            "pangaea" => Ok(Self::Pangaea),
+            _ => Err("landform must be archipelago, continents, or pangaea".into()),
+        }
+    }
+}
+
+impl Default for Landform {
+    fn default() -> Self {
+        Self::Continents
+    }
+}
+
 /// Civ III world-generation choices. Additional world-setup controls will
 /// join this struct as their generation behavior is migrated.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -120,6 +158,7 @@ pub(crate) struct Civ3WorldSettings {
     pub(crate) ocean_coverage: OceanCoverage,
     pub(crate) climate: Climate,
     pub(crate) age: WorldAge,
+    pub(crate) landform: Landform,
 }
 
 impl Default for OceanCoverage {
@@ -294,7 +333,7 @@ impl Generator {
         }
     }
 
-    fn height_field(&self, rng: &mut MapRng) -> Vec<i32> {
+    fn height_field(&self, rng: &mut MapRng, divisions: i32) -> Vec<i32> {
         let mut heights = vec![None; self.wrap.tile_count()];
         let step = self.wrap.width() + self.wrap.height();
         let ymax = if self.wrap.wraps_y() {
@@ -302,18 +341,18 @@ impl Generator {
         } else {
             self.wrap.height() - 1
         };
-        let grid = |size, axis| size * axis / INITIAL_DIVISIONS;
+        let grid = |size, axis| size * axis / divisions;
         let near_edge = |y: i32| !self.wrap.wraps_y() && (y < 4 || y >= self.wrap.height() - 4);
         let avoid_edge = (100 - self.land_percent()) * step / 100 + step / 3;
-        for x in 0..INITIAL_DIVISIONS {
-            for y in 0..INITIAL_DIVISIONS + i32::from(!self.wrap.wraps_y()) {
+        for x in 0..divisions {
+            for y in 0..divisions + i32::from(!self.wrap.wraps_y()) {
                 let y = grid(ymax, y);
                 heights[self.index(grid(self.wrap.width(), x), y)] =
                     Some(rng.below(2 * step) - step - if near_edge(y) { avoid_edge } else { 0 });
             }
         }
-        for x in 0..INITIAL_DIVISIONS {
-            for y in 0..INITIAL_DIVISIONS {
+        for x in 0..divisions {
+            for y in 0..divisions {
                 self.subdivide(
                     &mut heights,
                     rng,
@@ -442,10 +481,11 @@ impl Generator {
         // field. Reuse the local deterministic field builder with its
         // documented seed offset as an explicit implementation approximation.
         let mut relief_rng = MapRng::new(seed.wrapping_add(0xfeed));
-        let mut relief = self.height_field(&mut relief_rng);
+        let mut relief = self.height_field(&mut relief_rng, 6);
         rank_field(&mut relief, 1000);
         loop {
-            let mut heights = self.height_field(&mut rng);
+            let mut heights =
+                self.height_field(&mut rng, self.settings.landform.initial_divisions());
             rank_field(&mut heights, 1000);
             let (mut terrain, temperature) = self.terrain_pass(&heights, &relief, &mut rng);
             let mut tiles: Vec<_> = terrain

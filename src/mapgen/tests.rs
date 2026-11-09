@@ -209,6 +209,7 @@ fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
                 ocean_coverage,
                 climate: Climate::default(),
                 age: WorldAge::default(),
+                landform: Landform::default(),
             };
             let first = generate_with_settings(42, wrap, settings);
             let second = generate_with_settings(42, wrap, settings);
@@ -245,6 +246,7 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
                 ocean_coverage: OceanCoverage::default(),
                 climate,
                 age: WorldAge::default(),
+                landform: Landform::default(),
             },
         )
     };
@@ -273,6 +275,7 @@ fn civ3_world_age_controls_relief_and_volcano_frequency() {
                 ocean_coverage: OceanCoverage::default(),
                 climate: Climate::default(),
                 age,
+                landform: Landform::default(),
             },
         )
     };
@@ -299,6 +302,61 @@ fn civ3_world_age_controls_relief_and_volcano_frequency() {
     assert!(relief_count(&young) > relief_count(&middle));
     assert!(relief_count(&middle) > relief_count(&old));
     assert!(volcano_count(&young) > volcano_count(&old));
+}
+
+#[test]
+fn civ3_landform_choices_are_deterministic_and_change_landmass_scale() {
+    let forms = [
+        Landform::Archipelago,
+        Landform::Continents,
+        Landform::Pangaea,
+    ];
+    let maps: Vec<_> = forms
+        .into_iter()
+        .map(|landform| {
+            let settings = Civ3WorldSettings {
+                landform,
+                ..Civ3WorldSettings::default()
+            };
+            let first = generate_with_settings(42, MapWrap::X, settings);
+            let second = generate_with_settings(42, MapWrap::X, settings);
+            assert_eq!(
+                bincode::serialize(&first.tiles).unwrap(),
+                bincode::serialize(&second.tiles).unwrap()
+            );
+            first
+        })
+        .collect();
+    let checksums: Vec<_> = maps.iter().map(|map| map_checksum(&map.tiles)).collect();
+    let topology = Generator {
+        wrap: MapWrap::X,
+        settings: Civ3WorldSettings::default(),
+    };
+    let land_components: Vec<_> = maps
+        .iter()
+        .map(|map| {
+            let terrain: Vec<_> = map.tiles.iter().map(|tile| tile.terrain).collect();
+            let components = topology.components(&terrain, false);
+            (
+                components.len(),
+                components.iter().map(Vec::len).max().unwrap_or(0),
+            )
+        })
+        .collect();
+    assert_ne!(checksums[0], checksums[1]);
+    assert_ne!(checksums[1], checksums[2]);
+    assert_ne!(checksums[0], checksums[2]);
+    assert!(land_components[0].0 > land_components[1].0);
+    assert!(land_components[1].0 > land_components[2].0);
+    assert!(land_components[2].1 > land_components[0].1);
+}
+
+#[test]
+fn landform_parser_accepts_civ3_world_setup_choices() {
+    assert_eq!("archipelago".parse(), Ok(Landform::Archipelago));
+    assert_eq!("CONTINENTS".parse(), Ok(Landform::Continents));
+    assert_eq!("pangaea".parse(), Ok(Landform::Pangaea));
+    assert!("islands".parse::<Landform>().is_err());
 }
 
 #[test]

@@ -84,10 +84,18 @@ async fn main() {
             eprintln!("Invalid --world-age value: {error}");
             std::process::exit(2);
         });
+    let landform = argument_value("--landform")
+        .unwrap_or_else(|| "continents".to_owned())
+        .parse::<mapgen::Landform>()
+        .unwrap_or_else(|error| {
+            eprintln!("Invalid --landform value: {error}");
+            std::process::exit(2);
+        });
     let world_settings = mapgen::Civ3WorldSettings {
         ocean_coverage,
         climate,
         age,
+        landform,
     };
     let renderer_name = argument_value("--renderer").unwrap_or_else(|| "civ3".to_owned());
     let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {
