@@ -39,6 +39,7 @@ impl super::Generator {
     pub(super) fn terrain_pass(
         &self,
         heights: &[i32],
+        relief: &[i32],
         rng: &mut MapRng,
     ) -> (Vec<Terrain>, Vec<i32>) {
         let mut dummy_temperature: Vec<_> = (0..self.wrap.tile_count())
@@ -47,7 +48,6 @@ impl super::Generator {
         rank_field(&mut dummy_temperature, 1000);
         let shore = self.shore();
         let lowland = self.lowland();
-        let highland = self.highland();
         let normalized_height = |tile: usize| heights[tile];
         let mut terrain: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
@@ -87,33 +87,17 @@ impl super::Generator {
         rank_field(&mut temperature, 1000);
 
         let mut available = vec![false; self.wrap.tile_count()];
+        let (hill_low, hill_high, mountain_low, mountain_high, volcano_percent) =
+            self.settings.age.relief_bands();
         for tile in 0..self.wrap.tile_count() {
             if terrain[tile] != Terrain::Plains {
                 continue;
             }
-            let higher = self
-                .within(tile, 2)
-                .filter(|&next| heights[next] > heights[tile])
-                .count() as i32;
-            let local_peak = self.within(tile, 2).all(|next| heights[next] <= highland)
-                && self
-                    .neighbors(tile)
-                    .all(|next| heights[next] <= heights[tile])
-                && higher <= 2
-                && (highland - shore) * higher <= (heights[tile] - shore) * 4;
-            let high_plateau = self
-                .within(tile, 1)
-                .all(|next| heights[next] + (1000 - highland) / 5 >= highland);
-            if (heights[tile] > highland && (rng.below(10) > 5 || !high_plateau)) || local_peak {
-                let (hills_weight, mountain_weight) = if temperature[tile] >= COLD {
-                    if rng.below(10) < 4 { (30, 70) } else { (30, 0) }
-                } else if rng.below(10) < 8 {
-                    (0, 70)
-                } else {
-                    (30, 70)
-                };
-                terrain[tile] = if rng.below(hills_weight + mountain_weight) < hills_weight {
-                    Terrain::Hills
+            if (hill_low..hill_high).contains(&relief[tile]) {
+                terrain[tile] = Terrain::Hills;
+            } else if (mountain_low..mountain_high).contains(&relief[tile]) {
+                terrain[tile] = if rng.below(100) < volcano_percent {
+                    Terrain::Volcano
                 } else {
                     Terrain::Mountains
                 };

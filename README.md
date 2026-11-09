@@ -47,10 +47,11 @@ cargo run --release -- --seed 12345
 
 New maps default to Civ III's 70% ocean coverage and Normal climate. Select
 the documented ocean coverage with `--ocean-coverage 60`, `70`, or `80`, and
-climate with `--climate arid`, `normal`, or `wet`:
+climate with `--climate arid`, `normal`, or `wet`. World age uses
+`--world-age 3`, `4`, or `5` billion years:
 
 ```sh
-cargo run --release -- --seed 42 --ocean-coverage 60 --climate wet
+cargo run --release -- --seed 42 --ocean-coverage 60 --climate wet --world-age 3
 ```
 
 ## Map wrapping
@@ -68,7 +69,7 @@ flow. Existing WrapXY saves are not loadable.
 
 The renderer and primary generation, movement, pathfinding, city work-area,
 and visibility paths use Civ III's staggered grid. Map generation settings are
-still being migrated; map size, landform, temperature, and age are not yet
+still being migrated; map size, landform, and temperature are not yet
 selectable.
 
 ## Map tilesets

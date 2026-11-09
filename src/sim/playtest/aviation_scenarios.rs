@@ -75,6 +75,8 @@ impl Simulation {
         let tile = self.tile_mut(nx, ny);
         tile.terrain = Terrain::Grassland;
         tile.base = None;
+        tile.river = false;
+        tile.river_edges = 0;
         self.create_city(1, nx, ny);
         if protected {
             self.cities

@@ -76,12 +76,50 @@ impl Default for Climate {
     }
 }
 
+/// World age controls the amount of hilly and mountainous terrain.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WorldAge {
+    Billion3,
+    Billion4,
+    Billion5,
+}
+
+impl WorldAge {
+    fn relief_bands(self) -> (i32, i32, i32, i32, i32) {
+        match self {
+            Self::Billion3 => (150, 300, 600, 750, 5),
+            Self::Billion4 => (200, 300, 650, 750, 3),
+            Self::Billion5 => (230, 300, 680, 750, 1),
+        }
+    }
+}
+
+impl std::str::FromStr for WorldAge {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "3" => Ok(Self::Billion3),
+            "4" => Ok(Self::Billion4),
+            "5" => Ok(Self::Billion5),
+            _ => Err("world age must be 3, 4, or 5 billion years".into()),
+        }
+    }
+}
+
+impl Default for WorldAge {
+    fn default() -> Self {
+        Self::Billion4
+    }
+}
+
 /// Civ III world-generation choices. Additional world-setup controls will
 /// join this struct as their generation behavior is migrated.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Civ3WorldSettings {
     pub(crate) ocean_coverage: OceanCoverage,
     pub(crate) climate: Climate,
+    pub(crate) age: WorldAge,
 }
 
 impl Default for OceanCoverage {
@@ -158,10 +196,6 @@ impl Generator {
 
     fn lowland(&self) -> i32 {
         self.shore() + (1000 - self.shore()) * 28 / 100
-    }
-
-    fn highland(&self) -> i32 {
-        self.shore() + (1000 - self.shore()) * 70 / 100
     }
 
     fn index(&self, x: i32, y: i32) -> usize {
@@ -404,10 +438,16 @@ impl Generator {}
 impl Generator {
     pub(crate) fn generate(&self, seed: u64) -> GeneratedMap {
         let mut rng = MapRng::new(seed);
+        // OpenCiv3 seeds its relief noise independently from the landmass
+        // field. Reuse the local deterministic field builder with its
+        // documented seed offset as an explicit implementation approximation.
+        let mut relief_rng = MapRng::new(seed.wrapping_add(0xfeed));
+        let mut relief = self.height_field(&mut relief_rng);
+        rank_field(&mut relief, 1000);
         loop {
             let mut heights = self.height_field(&mut rng);
             rank_field(&mut heights, 1000);
-            let (mut terrain, temperature) = self.terrain_pass(&heights, &mut rng);
+            let (mut terrain, temperature) = self.terrain_pass(&heights, &relief, &mut rng);
             let mut tiles: Vec<_> = terrain
                 .iter()
                 .copied()

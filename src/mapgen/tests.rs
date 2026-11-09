@@ -154,28 +154,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0xeb916cf67f024044,
-            [(5, 20), (20, 40), (21, 10), (23, 24), (23, 60), (30, 6)],
+            0xa2141c4265ac5fe7,
+            [(6, 4), (6, 21), (20, 15), (20, 62), (22, 41), (29, 2)],
         ),
         (
             42,
-            0xb2902b18950323c0,
-            [(2, 43), (6, 19), (12, 6), (13, 28), (20, 41), (25, 22)],
+            0xb62fc9537416342c,
+            [(2, 40), (10, 12), (13, 28), (18, 10), (24, 17), (31, 17)],
         ),
         (
             12345,
-            0x1b2f3192ba21e8e4,
-            [(4, 39), (5, 12), (11, 49), (14, 18), (17, 43), (26, 8)],
+            0x63d803ff7648b7e2,
+            [(3, 41), (5, 22), (12, 26), (18, 42), (20, 20), (25, 9)],
         ),
         (
             700001,
-            0x84a7eedd9e6cafd1,
-            [(6, 7), (11, 39), (17, 20), (22, 35), (28, 10), (28, 50)],
+            0x261892ccc978152b,
+            [(6, 11), (10, 40), (14, 29), (20, 63), (23, 49), (27, 10)],
         ),
         (
             2147483647,
-            0x61807fce6d563209,
-            [(3, 49), (9, 37), (15, 54), (20, 43), (24, 30), (30, 23)],
+            0x561e87213c37d652,
+            [(4, 55), (7, 4), (11, 30), (16, 42), (21, 17), (24, 43)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {
@@ -208,6 +208,7 @@ fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
             let settings = Civ3WorldSettings {
                 ocean_coverage,
                 climate: Climate::default(),
+                age: WorldAge::default(),
             };
             let first = generate_with_settings(42, wrap, settings);
             let second = generate_with_settings(42, wrap, settings);
@@ -243,6 +244,7 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
             Civ3WorldSettings {
                 ocean_coverage: OceanCoverage::default(),
                 climate,
+                age: WorldAge::default(),
             },
         )
     };
@@ -262,6 +264,44 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
 }
 
 #[test]
+fn civ3_world_age_controls_relief_and_volcano_frequency() {
+    let generate_age = |age| {
+        generate_with_settings(
+            42,
+            MapWrap::XY,
+            Civ3WorldSettings {
+                ocean_coverage: OceanCoverage::default(),
+                climate: Climate::default(),
+                age,
+            },
+        )
+    };
+    let young = generate_age(WorldAge::Billion3);
+    let middle = generate_age(WorldAge::Billion4);
+    let old = generate_age(WorldAge::Billion5);
+    let relief_count = |map: &GeneratedMap| {
+        map.tiles
+            .iter()
+            .filter(|tile| {
+                matches!(
+                    tile.terrain,
+                    Terrain::Hills | Terrain::Mountains | Terrain::Volcano
+                )
+            })
+            .count()
+    };
+    let volcano_count = |map: &GeneratedMap| {
+        map.tiles
+            .iter()
+            .filter(|tile| tile.terrain == Terrain::Volcano)
+            .count()
+    };
+    assert!(relief_count(&young) > relief_count(&middle));
+    assert!(relief_count(&middle) > relief_count(&old));
+    assert!(volcano_count(&young) > volcano_count(&old));
+}
+
+#[test]
 fn civ3_ocean_coverage_parser_accepts_documented_world_setup_values() {
     assert_eq!("60".parse(), Ok(OceanCoverage::Percent60));
     assert_eq!("70".parse(), Ok(OceanCoverage::Percent70));
@@ -275,6 +315,14 @@ fn civ3_climate_parser_accepts_documented_world_setup_values() {
     assert_eq!("normal".parse(), Ok(Climate::Normal));
     assert_eq!("wet".parse(), Ok(Climate::Wet));
     assert!("humid".parse::<Climate>().is_err());
+}
+
+#[test]
+fn civ3_world_age_parser_accepts_documented_world_setup_values() {
+    assert_eq!("3".parse(), Ok(WorldAge::Billion3));
+    assert_eq!("4".parse(), Ok(WorldAge::Billion4));
+    assert_eq!("5".parse(), Ok(WorldAge::Billion5));
+    assert!("6".parse::<WorldAge>().is_err());
 }
 
 #[cfg(test)]
@@ -415,13 +463,13 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
         assert_eq!((wrap.width(), wrap.height()), (width, height));
         let map = generate_with_wrap(seed, wrap);
         let checksum = map_checksum(&map.tiles);
+        let mut starts = map.starts.to_vec();
+        starts.sort_unstable();
         assert_eq!(
             checksum,
             u64::from_str_radix(fields[4], 16).unwrap(),
             "terrain/altitude/extras for {wrap} seed {seed}"
         );
-        let mut starts = map.starts.to_vec();
-        starts.sort_unstable();
         let expected: Vec<(i32, i32)> = fields[5]
             .split(';')
             .map(|pair| {

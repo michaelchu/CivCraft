@@ -167,6 +167,18 @@ intended end state; a completed phase requires the evidence listed below.
   `/tmp/civ3-climate-normal/world.png`, and
   `/tmp/civ3-climate-wet/world.png`. The full Rust suite passes 651/651 and
   the release build succeeds.
+- New-world generation accepts 3, 4, or 5 billion years via `--world-age`,
+  defaulting to 4. CivCraft builds a second deterministic relief field using
+  OpenCiv3's `0xfeed` seed offset, then applies the source's age-specific hill
+  and mountain percentile bands and volcano probabilities. Age tests verify
+  decreasing relief and volcano frequency from 3B to 5B. The relief noise
+  algorithm is CivCraft's existing subdivision field, not OpenCiv3's `.2`
+  scale noise map, so this remains an implementation approximation. Volcanoes
+  still receive an inferred Grassland base because the current terrain model
+  does not retain the pre-overlay base terrain. Seed-42 UI reviews passed and
+  were inspected at `/tmp/civ3-age-3/world.png`,
+  `/tmp/civ3-age-4/world.png`, and `/tmp/civ3-age-5/world.png`; the full Rust
+  suite passes 653/653 and the release build succeeds.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from

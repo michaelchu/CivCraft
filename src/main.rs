@@ -77,9 +77,17 @@ async fn main() {
             eprintln!("Invalid --climate value: {error}");
             std::process::exit(2);
         });
+    let age = argument_value("--world-age")
+        .unwrap_or_else(|| "4".to_owned())
+        .parse::<mapgen::WorldAge>()
+        .unwrap_or_else(|error| {
+            eprintln!("Invalid --world-age value: {error}");
+            std::process::exit(2);
+        });
     let world_settings = mapgen::Civ3WorldSettings {
         ocean_coverage,
         climate,
+        age,
     };
     let renderer_name = argument_value("--renderer").unwrap_or_else(|| "civ3".to_owned());
     let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {
