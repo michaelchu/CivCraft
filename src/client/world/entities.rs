@@ -6,6 +6,10 @@ fn centered_sprite_position(center: Vec2, width: f32, height: f32) -> Vec2 {
     center - vec2(width, height) * 0.5
 }
 
+fn centered_text_baseline(row_top: f32, row_height: f32, metrics: TextDimensions) -> f32 {
+    row_top + (row_height - metrics.height) * 0.5 + metrics.offset_y
+}
+
 impl Game {
     pub(in crate::client) fn draw_city_map(
         &self,
@@ -174,60 +178,150 @@ impl Game {
 
     pub(super) fn draw_city_label(&self, city: &City, center: Vec2) {
         let zoom = self.zoom;
-        let label = format!("{}  {}", city.name, city.size);
-        let font_size = (14.0 * zoom).max(10.0);
-        let metrics = measure_text(&label, None, font_size as u16, 1.0);
+        let detail = self.city_bar_detail(city);
+        let top_text = detail.as_ref().map_or_else(
+            || city.name.clone(),
+            |detail| format!("{} : {}", city.name, detail.growth),
+        );
+        let center_font = (11.0 * zoom).max(9.0);
+        let top_metrics = measure_text(&top_text, None, center_font as u16, 1.0);
+        let bottom_metrics = detail
+            .as_ref()
+            .map(|detail| measure_text(&detail.production, None, center_font as u16, 1.0));
         // The reference selection ring is tile-sized; its bottom must clear
         // the label too, regardless of which unit is currently focused.
         let top = super::city_bar::label_top(center.y, zoom);
-        let padding = 3.0;
-        let detail = self.city_bar_detail(city);
-        let detail_font = (11.0 * zoom).max(9.0);
-        let detail_width = detail.as_ref().map_or(0.0, |text| {
-            measure_text(text, None, detail_font as u16, 1.0).width
-        });
-        let width = metrics.width.max(detail_width);
-        let detail_height = if detail.is_some() {
-            detail_font + padding
-        } else {
-            0.0
-        };
-        let height = metrics.height + padding * 2.0 + detail_height;
-        let left = center.x - width * 0.5 - 6.0;
+        let horizontal_padding = (6.0 * zoom).max(4.0);
+        let vertical_padding = (3.0 * zoom).max(2.0);
+        let center_width = (top_metrics
+            .width
+            .max(bottom_metrics.as_ref().map_or(0.0, |metrics| metrics.width))
+            + horizontal_padding * 2.0)
+            .max((94.0 * zoom).max(82.0));
+        let row_height = (center_font + vertical_padding).max(12.0);
+        let row_count = if detail.is_some() { 2.0 } else { 1.0 };
+        let height = row_height * row_count + vertical_padding;
+        let size_text = city.size.to_string();
+        let size_font = (19.0 * zoom).max(14.0);
+        let size_metrics = measure_text(&size_text, None, size_font as u16, 1.0);
+        let star_radius = (7.0 * zoom).max(5.5);
+        let side_padding = (4.0 * zoom).max(2.5);
+        let side_width = size_metrics.width.max(star_radius * 2.0) + side_padding * 2.0;
+        let width = center_width + side_width * 2.0;
+        let left = center.x - width * 0.5;
+        let owner_color = player_color(city.owner);
+
+        // Civ III's city banner is a three-part bar: population, two centered
+        // information rows, and a capital badge.
+        draw_rectangle(left, top, side_width, height, owner_color);
         draw_rectangle(
-            left,
+            left + side_width,
             top,
-            width + 12.0,
+            center_width,
             height,
             Color::from_rgba(19, 20, 18, 220),
         );
-        draw_rectangle(left, top, 3.0, height, player_color(city.owner));
-        draw_text(
-            &label,
-            center.x - metrics.width * 0.5,
-            top + padding + metrics.offset_y,
-            font_size,
-            Color::from_rgba(244, 235, 201, 255),
+        draw_rectangle(
+            left + side_width + center_width,
+            top,
+            side_width,
+            height,
+            owner_color,
         );
-        if let Some(detail) = detail {
-            text_in(
-                &detail,
-                center.x - detail_width * 0.5,
-                top + metrics.height + padding * 2.0 + detail_font * 0.8,
-                detail_font,
-                width,
-                Color::from_rgba(194, 205, 181, 255),
+        draw_rectangle_lines(
+            left,
+            top,
+            width,
+            height,
+            1.0,
+            Color::from_rgba(15, 15, 13, 235),
+        );
+        draw_line(
+            left + side_width,
+            top,
+            left + side_width,
+            top + height,
+            1.0,
+            Color::from_rgba(15, 15, 13, 235),
+        );
+        draw_line(
+            left + side_width + center_width,
+            top,
+            left + side_width + center_width,
+            top + height,
+            1.0,
+            Color::from_rgba(15, 15, 13, 235),
+        );
+        if detail.is_some() {
+            draw_line(
+                left + side_width,
+                top + row_height,
+                left + side_width + center_width,
+                top + row_height,
+                1.0,
+                Color::from_rgba(92, 92, 83, 210),
             );
         }
-        // Banners use the owning civilization's gameplay color.
-        let pole_x = left - 9.0;
-        draw_line(pole_x, top + 1.0, pole_x, top + 16.0, 1.0, LIGHTGRAY);
-        draw_triangle(
-            vec2(pole_x, top + 1.0),
-            vec2(pole_x + 8.0, top + 4.5),
-            vec2(pole_x, top + 8.0),
-            player_color(city.owner),
+
+        draw_text(
+            &size_text,
+            left + (side_width - size_metrics.width) * 0.5,
+            centered_text_baseline(top, height, size_metrics),
+            size_font,
+            WHITE,
         );
+
+        let text_left = left + side_width;
+        draw_text(
+            &top_text,
+            text_left + (center_width - top_metrics.width) * 0.5,
+            centered_text_baseline(top, row_height, top_metrics),
+            center_font,
+            Color::from_rgba(244, 235, 201, 255),
+        );
+        if let (Some(detail), Some(metrics)) = (detail.as_ref(), bottom_metrics.as_ref()) {
+            draw_text(
+                &detail.production,
+                text_left + (center_width - metrics.width) * 0.5,
+                centered_text_baseline(top + row_height, row_height, *metrics),
+                center_font,
+                Color::from_rgba(222, 220, 202, 255),
+            );
+        }
+
+        if city.buildings.contains(&Building::PALACE)
+            || city.buildings.contains(&Building::ECCLESIASTICAL_PALACE)
+        {
+            let star_center = vec2(
+                left + side_width + center_width + side_width * 0.5,
+                top + height * 0.5,
+            );
+            let outer = star_radius;
+            let inner = outer * 0.43;
+            let mut points = [Vec2::ZERO; 10];
+            for (index, point) in points.iter_mut().enumerate() {
+                let angle =
+                    -std::f32::consts::FRAC_PI_2 + index as f32 * std::f32::consts::PI / 5.0;
+                let radius = if index % 2 == 0 { outer } else { inner };
+                *point = star_center + vec2(angle.cos(), angle.sin()) * radius;
+            }
+            for index in 0..points.len() {
+                draw_triangle(
+                    star_center,
+                    points[index],
+                    points[(index + 1) % points.len()],
+                    Color::from_rgba(255, 225, 67, 255),
+                );
+                draw_line(
+                    points[index].x,
+                    points[index].y,
+                    points[(index + 1) % points.len()].x,
+                    points[(index + 1) % points.len()].y,
+                    1.0,
+                    Color::from_rgba(42, 34, 12, 255),
+                );
+            }
+        }
         if self.selected_city == Some(city.id) {
             draw_diamond_lines(
                 center,
@@ -323,8 +417,8 @@ impl Game {
 
 #[cfg(test)]
 mod tests {
-    use super::centered_sprite_position;
-    use macroquad::prelude::vec2;
+    use super::{centered_sprite_position, centered_text_baseline};
+    use macroquad::prelude::{TextDimensions, vec2};
 
     #[test]
     fn city_sprite_bounds_are_centered_on_the_tile() {
@@ -333,5 +427,18 @@ mod tests {
             let top_left = centered_sprite_position(tile_center, size.x, size.y);
             assert_eq!(top_left + size * 0.5, tile_center);
         }
+    }
+
+    #[test]
+    fn city_label_text_is_vertically_centered_in_its_row() {
+        let metrics = TextDimensions {
+            width: 40.0,
+            height: 8.0,
+            offset_y: 7.0,
+        };
+        let baseline = centered_text_baseline(20.0, 14.0, metrics);
+        let raster_top = baseline - metrics.offset_y;
+        assert_eq!(raster_top - 20.0, 3.0);
+        assert_eq!(20.0 + 14.0 - (raster_top + metrics.height), 3.0);
     }
 }

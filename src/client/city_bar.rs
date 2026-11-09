@@ -16,28 +16,33 @@ fn build_turns(stock: i32, cost: i32, surplus: i32) -> Option<i32> {
         None
     }
 }
-fn growth_text(food: i32, capacity: i32, surplus: i32, can_grow: bool) -> String {
+fn growth_turns_text(food: i32, capacity: i32, surplus: i32, can_grow: bool) -> String {
     if food + surplus >= capacity && !can_grow {
-        "Growth blocked".into()
+        "blocked".into()
     } else if food + surplus >= capacity {
-        "Growth 1".into()
+        "1".into()
     } else if surplus > 0 {
-        format!("Growth {}", (capacity - food + surplus - 1) / surplus)
+        ((capacity - food + surplus - 1) / surplus).to_string()
     } else if surplus < 0 {
-        format!("Famine {}", 1 - food / surplus)
+        format!("famine {}", 1 - food / surplus)
     } else {
-        "Growth -".into()
+        "-".into()
     }
 }
 
+pub(super) struct CityBarDetail {
+    pub(super) growth: String,
+    pub(super) production: String,
+}
+
 impl Game {
-    pub(super) fn city_bar_detail(&self, city: &City) -> Option<String> {
+    pub(super) fn city_bar_detail(&self, city: &City) -> Option<CityBarDetail> {
         // Production and food stocks are private city information.
         if city.owner != HUMAN {
             return None;
         }
         let forecast = self.sim.city_forecast(city);
-        let growth = growth_text(
+        let growth = growth_turns_text(
             city.food,
             Simulation::growth_box(city.size),
             forecast.food_surplus(city.size, forecast.support.food),
@@ -68,13 +73,13 @@ impl Game {
                     .flatten()
                     .filter(|turns| *turns <= 999);
                 format!(
-                    "{} {}",
+                    "{} : {}",
                     city.production.name(),
                     turns.map_or_else(|| "-".into(), |t| t.to_string())
                 )
             }
         };
-        Some(format!("{production} · {growth}"))
+        Some(CityBarDetail { growth, production })
     }
 }
 
@@ -92,10 +97,10 @@ mod tests {
         assert_eq!(build_turns(30, 30, 0), Some(1));
         assert_eq!(build_turns(0, 30, 0), None);
         assert_eq!(build_turns(1, 30, 10), Some(3));
-        assert_eq!(growth_text(0, 20, 3, true), "Growth 7");
-        assert_eq!(growth_text(18, 20, 2, false), "Growth blocked");
-        assert_eq!(growth_text(18, 20, 2, true), "Growth 1");
-        assert_eq!(growth_text(4, 20, -2, true), "Famine 3");
-        assert_eq!(growth_text(0, 20, 0, true), "Growth -");
+        assert_eq!(growth_turns_text(0, 20, 3, true), "7");
+        assert_eq!(growth_turns_text(18, 20, 2, false), "blocked");
+        assert_eq!(growth_turns_text(18, 20, 2, true), "1");
+        assert_eq!(growth_turns_text(4, 20, -2, true), "famine 3");
+        assert_eq!(growth_turns_text(0, 20, 0, true), "-");
     }
 }
