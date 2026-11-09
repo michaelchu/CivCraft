@@ -151,6 +151,45 @@ impl Default for Landform {
     }
 }
 
+/// Temperature options exposed by Civ III's world setup.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Temperature {
+    Cool,
+    Temperate,
+    Warm,
+}
+
+impl Temperature {
+    // The generator stores a 0..=1000 heat rank. Shift the distribution to
+    // approximate the source's temperature-dependent biome bands.
+    pub(crate) fn heat_bias(self) -> i32 {
+        match self {
+            Self::Cool => -80,
+            Self::Temperate => 0,
+            Self::Warm => 80,
+        }
+    }
+}
+
+impl std::str::FromStr for Temperature {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "cool" => Ok(Self::Cool),
+            "temperate" => Ok(Self::Temperate),
+            "warm" => Ok(Self::Warm),
+            _ => Err("temperature must be cool, temperate, or warm".into()),
+        }
+    }
+}
+
+impl Default for Temperature {
+    fn default() -> Self {
+        Self::Temperate
+    }
+}
+
 /// Civ III world-generation choices. Additional world-setup controls will
 /// join this struct as their generation behavior is migrated.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -159,6 +198,7 @@ pub(crate) struct Civ3WorldSettings {
     pub(crate) climate: Climate,
     pub(crate) age: WorldAge,
     pub(crate) landform: Landform,
+    pub(crate) temperature: Temperature,
 }
 
 impl Default for OceanCoverage {

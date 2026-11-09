@@ -85,6 +85,10 @@ impl super::Generator {
             })
             .collect();
         rank_field(&mut temperature, 1000);
+        let temperature_bias = self.settings.temperature.heat_bias();
+        for heat in &mut temperature {
+            *heat = (*heat + temperature_bias).clamp(0, 1000);
+        }
 
         let mut available = vec![false; self.wrap.tile_count()];
         let (hill_low, hill_high, mountain_low, mountain_high, volcano_percent) =
@@ -112,12 +116,18 @@ impl super::Generator {
         // bands by climate. Scale the existing patch-growth heuristic in the
         // same direction; these shares are an approximation, not its exact
         // height-map algorithm or verified original Civ III behavior.
-        let (forest_share, jungle_share, marsh_share, desert_share, dry_water_limit) =
+        let (forest_share, jungle_share, marsh_share, climate_desert_share, dry_water_limit) =
             match self.settings.climate {
                 super::Climate::Wet => (24, 6, 12, 4, 1),
                 super::Climate::Normal => (16, 4, 7, 8, 2),
                 super::Climate::Arid => (8, 2, 3, 16, 3),
             };
+        let temperature_desert_shift = match self.settings.temperature {
+            super::Temperature::Cool => -2,
+            super::Temperature::Temperate => 0,
+            super::Temperature::Warm => 2,
+        };
+        let desert_share = (climate_desert_share as i32 + temperature_desert_shift).max(0) as usize;
         // Shares are relative to the land left after relief.
         let mut patches = [
             remaining * forest_share / 80,

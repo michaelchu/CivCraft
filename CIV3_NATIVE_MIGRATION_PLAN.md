@@ -196,6 +196,20 @@ intended end state; a completed phase requires the evidence listed below.
   the expected ordering in land-component count (Archipelago > Continents >
   Pangaea) and largest land-component size (Pangaea > Archipelago). The full
   suite and release build pass.
+- New-world generation accepts Cool, Temperate, and Warm via `--temperature`,
+  defaulting to Temperate. CivCraft shifts the effective 0..1000 heat rank by
+  -80, 0, or +80 before assigning temperature-sensitive terrain; it also
+  shifts the desert patch quota down or up by two share units. Deterministic
+  seed-42 checks confirm Cool creates more Tundra and Warm more Desert.
+  OpenCiv3 instead uses a separate `.4`-scale seeded noise map with
+  temperature-specific percentile bands and latitude cutoffs. The heat-rank
+  and quota adjustments are explicit approximations until CivCraft has an
+  independent temperature noise field. Seed-42 world captures passed scene
+  checks and were inspected at `/tmp/civ3-temperature-cool/world.png`,
+  `/tmp/civ3-temperature-temperate/world.png`, and
+  `/tmp/civ3-temperature-warm/world.png`; fog limits the captures to the local
+  starting area, so regional/global temperature distribution still needs a
+  revealed-map gallery.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from

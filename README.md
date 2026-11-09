@@ -46,13 +46,15 @@ cargo run --release -- --seed 12345
 ```
 
 New maps default to Civ III's 70% ocean coverage, Normal climate, Continents
-landform, and 4 billion year age. Select ocean coverage with `--ocean-coverage
-60`, `70`, or `80`, climate with `--climate arid`, `normal`, or `wet`, and
-landform with `--landform archipelago`, `continents`, or `pangaea`. World age
-uses `--world-age 3`, `4`, or `5` billion years:
+landform, Temperate temperature, and 4 billion year age. Select ocean
+coverage with `--ocean-coverage 60`, `70`, or `80`, climate with `--climate
+arid`, `normal`, or `wet`, landform with `--landform archipelago`,
+`continents`, or `pangaea`, and temperature with `--temperature cool`,
+`temperate`, or `warm`. World age uses `--world-age 3`, `4`, or `5` billion
+years:
 
 ```sh
-cargo run --release -- --seed 42 --ocean-coverage 60 --climate wet --world-age 3 --landform archipelago
+cargo run --release -- --seed 42 --ocean-coverage 60 --climate wet --world-age 3 --landform archipelago --temperature warm
 ```
 
 ## Map wrapping
@@ -70,9 +72,9 @@ flow. Existing WrapXY saves are not loadable.
 
 The renderer and primary generation, movement, pathfinding, city work-area,
 and visibility paths use Civ III's staggered grid. Map generation settings are
-still being migrated; map size and temperature are not yet selectable. Landform
-controls are available, but their current subdivision-based scale mapping is
-an approximation of the OpenCiv3 noise scales.
+still being migrated; map size is not yet selectable. Landform uses a
+subdivision-based scale mapping; temperature shifts the generated heat rank
+and desert share. Both approximate OpenCiv3's separate seeded noise maps.
 
 ## Map tilesets
 

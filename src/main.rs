@@ -91,11 +91,19 @@ async fn main() {
             eprintln!("Invalid --landform value: {error}");
             std::process::exit(2);
         });
+    let temperature = argument_value("--temperature")
+        .unwrap_or_else(|| "temperate".to_owned())
+        .parse::<mapgen::Temperature>()
+        .unwrap_or_else(|error| {
+            eprintln!("Invalid --temperature value: {error}");
+            std::process::exit(2);
+        });
     let world_settings = mapgen::Civ3WorldSettings {
         ocean_coverage,
         climate,
         age,
         landform,
+        temperature,
     };
     let renderer_name = argument_value("--renderer").unwrap_or_else(|| "civ3".to_owned());
     let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {

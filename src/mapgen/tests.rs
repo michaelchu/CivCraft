@@ -210,6 +210,7 @@ fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
                 climate: Climate::default(),
                 age: WorldAge::default(),
                 landform: Landform::default(),
+                temperature: Temperature::default(),
             };
             let first = generate_with_settings(42, wrap, settings);
             let second = generate_with_settings(42, wrap, settings);
@@ -247,6 +248,7 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
                 climate,
                 age: WorldAge::default(),
                 landform: Landform::default(),
+                temperature: Temperature::default(),
             },
         )
     };
@@ -276,6 +278,7 @@ fn civ3_world_age_controls_relief_and_volcano_frequency() {
                 climate: Climate::default(),
                 age,
                 landform: Landform::default(),
+                temperature: Temperature::default(),
             },
         )
     };
@@ -357,6 +360,43 @@ fn landform_parser_accepts_civ3_world_setup_choices() {
     assert_eq!("CONTINENTS".parse(), Ok(Landform::Continents));
     assert_eq!("pangaea".parse(), Ok(Landform::Pangaea));
     assert!("islands".parse::<Landform>().is_err());
+}
+
+#[test]
+fn civ3_temperature_choices_shift_cold_and_dry_terrain() {
+    let generate_temperature = |temperature| {
+        generate_with_settings(
+            42,
+            MapWrap::X,
+            Civ3WorldSettings {
+                temperature,
+                ..Civ3WorldSettings::default()
+            },
+        )
+    };
+    let cool = generate_temperature(Temperature::Cool);
+    let temperate = generate_temperature(Temperature::Temperate);
+    let warm = generate_temperature(Temperature::Warm);
+    let count = |map: &GeneratedMap, terrain| {
+        map.tiles
+            .iter()
+            .filter(|tile| tile.terrain == terrain)
+            .count()
+    };
+    assert!(count(&cool, Terrain::Tundra) > count(&warm, Terrain::Tundra));
+    assert!(count(&warm, Terrain::Desert) > count(&cool, Terrain::Desert));
+    assert_eq!(
+        bincode::serialize(&temperate.tiles).unwrap(),
+        bincode::serialize(&generate_temperature(Temperature::Temperate).tiles).unwrap()
+    );
+}
+
+#[test]
+fn temperature_parser_accepts_civ3_world_setup_choices() {
+    assert_eq!("cool".parse(), Ok(Temperature::Cool));
+    assert_eq!("TEMPERATE".parse(), Ok(Temperature::Temperate));
+    assert_eq!("warm".parse(), Ok(Temperature::Warm));
+    assert!("hot".parse::<Temperature>().is_err());
 }
 
 #[test]
