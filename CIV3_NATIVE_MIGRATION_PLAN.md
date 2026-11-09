@@ -244,13 +244,12 @@ intended end state; a completed phase requires the evidence listed below.
   allocated in every campaign so the Barbarian owner remains at fixed index 16.
   This leaves unused slots inactive on smaller maps and keeps global
   barbarian-owner comparisons in place; migration to a per-campaign Barbarian
-  index is still open. The full 664-test suite passes after this change, but
-  end-to-end diplomacy/conquest/barbarian/save-load/UI coverage across all five
-  sizes remains required; a turn is currently exercised only at Tiny size.
-  Custom
-  dimensions currently use the Standard eight-civ roster until a civilization
-  count selector is exposed. The full Rust suite passes 666/666 with the roster
-  and starting-tech changes.
+  index is still open. Runtime checks now advance both Tiny and Huge campaigns
+  through a turn, but end-to-end diplomacy/conquest/barbarian/save-load/UI
+  coverage across all five sizes remains required. Custom dimensions currently
+  use the Standard eight-civ roster until a civilization count selector is
+  exposed. The full Rust suite previously passed 666/666 with the roster and
+  starting-tech changes; the expanded Tiny/Huge turn check passes separately.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from
