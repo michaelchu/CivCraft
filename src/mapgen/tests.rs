@@ -151,6 +151,37 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
     }
 }
 
+#[test]
+fn river_course_can_turn_toward_a_nearby_outlet() {
+    let map = generate(42);
+    let wrap = map.map_wrap;
+    let generator = Generator {
+        wrap,
+        settings: Civ3WorldSettings::default(),
+        civilization_count: PLAYER_COUNT,
+    };
+    let mut tiles = map.tiles;
+    for tile in &mut tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.river = false;
+        tile.river_edges = 0;
+    }
+
+    let spring = wrap.index(5, 8);
+    let northeast = wrap.index(5, 7);
+    let east = wrap.index(6, 8);
+    let outlet = wrap.index(6, 9);
+    tiles[outlet].terrain = Terrain::Coast;
+
+    let mut heights = vec![100; wrap.tile_count()];
+    heights[northeast] = 0;
+    let course = generator
+        .trace_river(&tiles, &heights, spring, &mut MapRng::new(7))
+        .expect("river reaches the nearby outlet");
+
+    assert_eq!(course, [spring, northeast, east]);
+}
+
 #[cfg(test)]
 #[test]
 fn civ3_world_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
@@ -208,28 +239,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0x2da7e88716bdae8d,
-            [(0, 12), (2, 46), (4, 33), (8, 41), (17, 33), (18, 54)],
+            0xa0261076a308dd19,
+            [(0, 12), (3, 46), (4, 29), (12, 53), (15, 22), (16, 43)],
         ),
         (
             42,
-            0xb1c4916c795eedca,
-            [(16, 55), (17, 16), (17, 32), (22, 38), (23, 21), (28, 16)],
+            0xdbb87b94116639d3,
+            [(14, 31), (16, 55), (17, 16), (22, 21), (24, 43), (29, 16)],
         ),
         (
             12345,
-            0xc0ae270efb0f6128,
-            [(6, 54), (14, 24), (16, 52), (25, 52), (27, 37), (28, 21)],
+            0x4def39301b1f56f0,
+            [(6, 56), (14, 21), (14, 50), (22, 43), (27, 28), (28, 13)],
         ),
         (
             700001,
-            0x9ffde7e6304100d7,
-            [(5, 30), (6, 60), (9, 47), (14, 36), (17, 55), (25, 30)],
+            0x43925fb10239b5fe,
+            [(6, 60), (12, 40), (14, 29), (22, 52), (23, 35), (24, 21)],
         ),
         (
             2147483647,
-            0x108d9a510b0bb1bf,
-            [(16, 44), (17, 27), (18, 9), (24, 50), (25, 24), (27, 10)],
+            0x84c8b929036f8474,
+            [(16, 34), (17, 45), (18, 7), (18, 25), (24, 48), (29, 12)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {

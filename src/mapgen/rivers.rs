@@ -251,7 +251,11 @@ impl super::Generator {
                 .count();
             let next = candidates[rng.below(ties as i32) as usize].1;
             blocked[current] = true;
-            for neighbor in self.civ3_neighbors(current) {
+            // Reserve the same four junction-link neighbors used by the
+            // course graph. Blocking all eight Civ III neighbors also blocks
+            // both possible turns after a diagonal step, leaving only the
+            // straight-ahead continuation and producing ruler-straight rivers.
+            for neighbor in self.river_neighbors(current) {
                 blocked[neighbor] = true;
             }
             current = next;
