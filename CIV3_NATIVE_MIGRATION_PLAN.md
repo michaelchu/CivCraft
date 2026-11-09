@@ -549,6 +549,12 @@ example `civilization-style.romans = roman` or
 `asian`, `american`, `european`, `middle_eastern`, and `roman`; omitted
 civilization mappings use the game's built-in defaults.
 
+The `civ3-city-sprites` review passed using the original PCX theme with
+`civilization-style.romans = asian`, and the screenshot was visually compared
+with a default-style baseline. The Roman cities changed to the Asian sheet as
+configured. Captures: `/tmp/civ3-city-style-review/civ3-city-sprites.png` and
+`/tmp/civ3-city-style-default-review/civ3-city-sprites.png` (seed 42).
+
 Complete when:
 
 - The complete Sn00py set loads directly from its PCX files, including city
