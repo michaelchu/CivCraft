@@ -87,10 +87,12 @@ intended end state; a completed phase requires the evidence listed below.
   a fully native Civ III renderer or world model.
 - `Tile` now retains a separate `base_terrain` for Civ III transition art;
   generated forest, jungle, hill, mountain, marsh, and volcano tiles no longer
-  have to use their feature name as the base sheet. The current generator
-  infers these bases from broad temperature bands because it does not yet
-  generate Civ III base terrain and overlays independently. This mapping is
-  explicitly provisional and must be replaced by the native generator.
+  have to use their feature name as the base sheet. Terrain generation now
+  retains the base ground selected from its biome field before applying
+  age-controlled relief and vegetation features. This removes the prior
+  post-hoc temperature-band inference and keeps feature art aligned with the
+  generated biome. The biome, relief, and feature assignment algorithms remain
+  approximations of OpenCiv3 and are not documented Civ III internals.
 - Tiles retain reciprocal eight-direction `river_edges`. River source checks,
   course tracing, drainage scoring, merging, and outlets now use Civ III
   staggered neighbors through the storage adapter; generated edges are written
@@ -177,12 +179,14 @@ intended end state; a completed phase requires the evidence listed below.
   uses the `0xfeed` seed offset and `.2` scale with eight octave layers in a
   cylindrical 3D simplex-noise field. CivCraft uses classic simplex rather
   than OpenCiv3's OpenSimplex implementation, so this remains an implementation
-  approximation. Volcanoes
-  still receive an inferred Grassland base because the current terrain model
-  does not retain the pre-overlay base terrain. Seed-42 UI reviews passed and
-  were inspected at `/tmp/civ3-age-3/world.png`,
+  approximation. The generator now retains each tile's biome-derived base
+  terrain before relief and feature overlays, including volcanoes; a seed-42
+  check verifies feature tiles retain all four land base types. A seed-42
+  generated-world review passed and was visually inspected at
+  `/tmp/civ3-base-field-world/world.png`. Earlier age reviews were inspected
+  at `/tmp/civ3-age-3/world.png`,
   `/tmp/civ3-age-4/world.png`, and `/tmp/civ3-age-5/world.png`; the full Rust
-  suite passes 653/653 and the release build succeeds.
+  suite passes 663/663 and the release build succeeds.
 - New-world generation accepts Archipelago, Continents, and Pangaea landforms
   via `--landform`, with Continents as the default. Seeded deterministic checks
   verify each option is repeatable and produces a distinct landmass field.

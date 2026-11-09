@@ -572,7 +572,7 @@ impl Generator {
                 self.settings.landform.noise_scale(),
             );
             rank_field(&mut heights, 1000);
-            let (mut terrain, temperature) =
+            let (mut terrain, mut base_terrain, temperature) =
                 self.terrain_pass(&heights, &relief, &biome_field, &mut rng);
             let mut tiles: Vec<_> = terrain
                 .iter()
@@ -580,7 +580,7 @@ impl Generator {
                 .enumerate()
                 .map(|(index, terrain)| Tile {
                     terrain,
-                    base_terrain: inferred_base_terrain(terrain, temperature[index]),
+                    base_terrain: base_terrain[index],
                     altitude: heights[index],
                     hut: false,
                     river: false,
@@ -610,16 +610,17 @@ impl Generator {
                 .collect();
             self.place_rivers(&mut tiles, &river_heights, &temperature, &mut rng);
             self.finish_water(&mut terrain, &mut rng);
-            for (tile, &terrain) in tiles.iter_mut().zip(&terrain) {
+            for (index, (tile, &terrain)) in tiles.iter_mut().zip(&terrain).enumerate() {
                 tile.terrain = terrain;
                 if terrain.is_water() {
-                    tile.base_terrain = match terrain {
+                    base_terrain[index] = match terrain {
                         Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
                         Terrain::Sea => TerrainBase::Sea,
                         Terrain::Ocean => TerrainBase::Ocean,
-                        _ => tile.base_terrain,
+                        _ => base_terrain[index],
                     };
                 }
+                tile.base_terrain = base_terrain[index];
             }
             // In Civ III, Flood Plains are a desert terrain variant on river
             // tiles. Rivers are represented per tile here, so use the marked
@@ -660,72 +661,15 @@ impl Generator {
     }
 }
 
-/// The current generator stores a single terrain value, so feature tiles lose
-/// their original base ground. Keep a provisional base for the Civ III painter
-/// using broad temperature bands. This is an implementation inference, not a
-/// documented Civ III generation rule; the native generator should replace it.
-fn inferred_base_terrain(terrain: Terrain, temperature: i32) -> TerrainBase {
-    match terrain {
-        Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
-        Terrain::Sea => TerrainBase::Sea,
-        Terrain::Ocean => TerrainBase::Ocean,
-        Terrain::Glacier => TerrainBase::Ice,
-        Terrain::Forest => {
-            if temperature < COLD {
-                TerrainBase::Tundra
-            } else if temperature < TROPICAL {
-                TerrainBase::Plains
-            } else {
-                TerrainBase::Grassland
-            }
-        }
-        Terrain::Jungle => TerrainBase::Grassland,
-        Terrain::Hills | Terrain::Mountains => {
-            if temperature < VERY_COLD {
-                TerrainBase::Tundra
-            } else {
-                TerrainBase::Plains
-            }
-        }
-        Terrain::Marsh | Terrain::Volcano => TerrainBase::Grassland,
-        Terrain::FloodPlains | Terrain::Desert => TerrainBase::Desert,
-        Terrain::Plains => TerrainBase::Plains,
-        Terrain::Tundra => TerrainBase::Tundra,
-        Terrain::Grassland | Terrain::GrasslandShield => TerrainBase::Grassland,
-    }
-}
-
 #[cfg(test)]
 mod civ3_base_terrain_tests {
     use super::*;
 
     #[test]
-    fn feature_surface_keeps_a_climate_inferred_base_ground() {
-        assert_eq!(
-            inferred_base_terrain(Terrain::Forest, VERY_COLD - 1),
-            TerrainBase::Tundra
-        );
-        assert_eq!(
-            inferred_base_terrain(Terrain::Forest, COLD),
-            TerrainBase::Plains
-        );
-        assert_eq!(
-            inferred_base_terrain(Terrain::Jungle, TROPICAL),
-            TerrainBase::Grassland
-        );
-        assert_eq!(
-            inferred_base_terrain(Terrain::FloodPlains, TROPICAL),
-            TerrainBase::Desert
-        );
-        assert_eq!(
-            inferred_base_terrain(Terrain::Ocean, TROPICAL),
-            TerrainBase::Ocean
-        );
-    }
-
-    #[test]
-    fn generated_features_keep_nonwater_ground_and_water_bands_stay_aligned() {
+    fn generated_feature_tiles_keep_their_assigned_biome_and_relief_ground() {
         let map = generate_with_wrap(42, MapWrap::X);
+        let mut feature_count = 0;
+        let mut base_ground_seen = [false; 4];
         for tile in &map.tiles {
             let expected_water_ground = match tile.terrain {
                 Terrain::Coast | Terrain::Lake => Some(TerrainBase::Coast),
@@ -737,15 +681,22 @@ mod civ3_base_terrain_tests {
                 assert_eq!(tile.base_terrain, expected);
             }
             if TerrainBase::is_feature_terrain(tile.terrain) {
-                assert!(matches!(
-                    tile.base_terrain,
-                    TerrainBase::Grassland
-                        | TerrainBase::Plains
-                        | TerrainBase::Desert
-                        | TerrainBase::Tundra
-                ));
+                let index = match tile.base_terrain {
+                    TerrainBase::Grassland => 0,
+                    TerrainBase::Plains => 1,
+                    TerrainBase::Desert => 2,
+                    TerrainBase::Tundra => 3,
+                    _ => panic!(
+                        "land feature {:?} has non-land base terrain {:?}",
+                        tile.terrain, tile.base_terrain
+                    ),
+                };
+                feature_count += 1;
+                base_ground_seen[index] = true;
             }
         }
+        assert!(feature_count > 0);
+        assert!(base_ground_seen.into_iter().all(|seen| seen));
     }
 
     #[test]

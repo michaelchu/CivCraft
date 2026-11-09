@@ -42,7 +42,7 @@ impl super::Generator {
         relief: &[i32],
         biome_field: &[i32],
         rng: &mut MapRng,
-    ) -> (Vec<Terrain>, Vec<i32>) {
+    ) -> (Vec<Terrain>, Vec<TerrainBase>, Vec<i32>) {
         let mut dummy_temperature: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| self.colatitude(tile))
             .collect();
@@ -87,6 +87,15 @@ impl super::Generator {
             .collect();
         rank_field(&mut temperature, 1000);
 
+        let mut base_terrain: Vec<_> = terrain
+            .iter()
+            .map(|&ground| match ground {
+                Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
+                Terrain::Sea => TerrainBase::Sea,
+                Terrain::Ocean => TerrainBase::Ocean,
+                _ => TerrainBase::Grassland,
+            })
+            .collect();
         let mut available = vec![false; self.wrap.tile_count()];
         let (hill_low, hill_high, mountain_low, mountain_high, volcano_percent) =
             self.settings.age.relief_bands();
@@ -103,6 +112,18 @@ impl super::Generator {
             if terrain[tile] != Terrain::Plains {
                 continue;
             }
+            let ground = if (tundra_low..tundra_high).contains(&biome_field[tile])
+                && self.colatitude(tile) < tundra_latitude
+            {
+                TerrainBase::Tundra
+            } else if (desert_low..desert_high).contains(&biome_field[tile]) {
+                TerrainBase::Desert
+            } else if (plains_low..plains_high).contains(&biome_field[tile]) {
+                TerrainBase::Plains
+            } else {
+                TerrainBase::Grassland
+            };
+            base_terrain[tile] = ground;
             if (hill_low..hill_high).contains(&relief[tile]) {
                 terrain[tile] = Terrain::Hills;
             } else if (mountain_low..mountain_high).contains(&relief[tile]) {
@@ -111,17 +132,16 @@ impl super::Generator {
                 } else {
                     Terrain::Mountains
                 };
-            } else if (tundra_low..tundra_high).contains(&biome_field[tile])
-                && self.colatitude(tile) < tundra_latitude
-            {
-                terrain[tile] = Terrain::Tundra;
-            } else if (desert_low..desert_high).contains(&biome_field[tile]) {
-                terrain[tile] = Terrain::Desert;
-            } else if (plains_low..plains_high).contains(&biome_field[tile]) {
-                terrain[tile] = Terrain::Plains;
             } else {
-                terrain[tile] = Terrain::Grassland;
-                available[tile] = true;
+                terrain[tile] = match ground {
+                    TerrainBase::Tundra => Terrain::Tundra,
+                    TerrainBase::Desert => Terrain::Desert,
+                    TerrainBase::Plains => Terrain::Plains,
+                    _ => {
+                        available[tile] = true;
+                        Terrain::Grassland
+                    }
+                };
             }
         }
 
@@ -218,7 +238,7 @@ impl super::Generator {
                 plains -= 1;
             }
         }
-        (terrain, temperature)
+        (terrain, base_terrain, temperature)
     }
 
     pub(super) fn finish_water(&self, terrain: &mut [Terrain], _rng: &mut MapRng) {
