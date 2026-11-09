@@ -4,6 +4,8 @@
 use super::*;
 const SOURCE_W: usize = 126;
 const SOURCE_H: usize = 64;
+const CIV3_RIVER_CELL_W: usize = 128;
+const CIV3_RIVER_CELL_H: usize = 64;
 const HEX_SIDE: f32 = 16.0;
 const WIDTH: usize = TILE_SPRITE_W;
 const HEIGHT: usize = TILE_SPRITE_H;
@@ -47,6 +49,15 @@ pub(super) fn civ3_river_sheet(index: usize, has_water: bool) -> Civ3RiverSheet 
 pub(super) enum Civ3RiverSheet {
     Delta,
     Mountain,
+}
+
+pub(super) fn civ3_river_sprite(index: usize) -> Rect {
+    Rect::new(
+        (index % 4 * CIV3_RIVER_CELL_W) as f32,
+        (index / 4 * CIV3_RIVER_CELL_H) as f32,
+        CIV3_RIVER_CELL_W as f32,
+        CIV3_RIVER_CELL_H as f32,
+    )
 }
 
 #[derive(Clone, Copy, Default)]
@@ -181,6 +192,14 @@ mod tests {
         assert_eq!(civ3_junction_index(0, 0, 1 << 1, 0), Some(8));
         assert_eq!(civ3_junction_index(0, 0, 0, 0), None);
         assert_eq!(civ3_junction_index(1 << 4, 0, 0, 0), Some(0));
+    }
+
+    #[test]
+    fn civ3_river_masks_select_full_128_by_64_atlas_cells() {
+        assert_eq!(civ3_river_sprite(0), Rect::new(0.0, 0.0, 128.0, 64.0));
+        assert_eq!(civ3_river_sprite(3), Rect::new(384.0, 0.0, 128.0, 64.0));
+        assert_eq!(civ3_river_sprite(12), Rect::new(0.0, 192.0, 128.0, 64.0));
+        assert_eq!(civ3_river_sprite(15), Rect::new(384.0, 192.0, 128.0, 64.0));
     }
 
     #[test]

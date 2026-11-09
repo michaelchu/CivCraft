@@ -1178,12 +1178,7 @@ impl Civ3 {
             WHITE,
             DrawTextureParams {
                 dest_size: Some(size),
-                source: Some(Rect::new(
-                    (index % 4 * WIDTH) as f32,
-                    (index / 4 * HEIGHT) as f32,
-                    WIDTH as f32,
-                    HEIGHT as f32,
-                )),
+                source: Some(super::rivers::civ3_river_sprite(index)),
                 ..Default::default()
             },
         );

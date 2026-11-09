@@ -98,9 +98,16 @@ intended end state; a completed phase requires the evidence listed below.
   staggered neighbors through the storage adapter; generated edges are written
   directly from each course step. Civ III rendering reads the four-tile
   junction flags and loads Sn00py's `deltaRivers.pcx` and `mtnRivers.pcx`
-  through the `river-delta` and `river-mountain` manifest roles. The drainage
-  scoring remains a provisional heuristic over the current elevation field;
-  it is not evidence of the original Civ III generator.
+  through the `river-delta` and `river-mountain` manifest roles. The river
+  atlas is 4×4 cells of 128×64 pixels; a prior renderer crop used the scaled
+  destination size (96×48) as the source cell size, sampling across adjacent
+  masks and breaking continuous paths visually. Source crops now use the full
+  128×64 atlas cell and scale to the destination. A regression check covers
+  all four atlas corners, and the generated-river review was inspected at
+  `/tmp/civ3-river-atlas-crop-review/rivers-generated.png` (report:
+  `/tmp/civ3-river-atlas-crop-review/report.json`). The drainage scoring
+  remains a provisional heuristic over the current elevation field; it is not
+  evidence of the original Civ III generator.
 - Native irrigation rendering now selects the 4×4 PCX sheet cell from visible
   diagonal irrigated neighbors on the Civ III staggered grid, and selects the
   terrain-specific sheet from `base_terrain`. The direction-to-bit mapping is
