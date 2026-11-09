@@ -53,7 +53,7 @@ mod infrastructure_tests {
             }
             let mut sim = Simulation::new(map);
             if knowledge == fog::Knowledge::Visible {
-                sim.ui_review_reveal_poles();
+                sim.ui_review_reveal_all_tiles();
             }
             let game = Game::from_simulation(sim);
             assert_eq!(game.edge_water_rows().collect::<Vec<_>>(), [-2, -1, 48, 49]);

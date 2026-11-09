@@ -34,6 +34,8 @@ cargo build --offline --release
 
 The gallery covers 44 scenarios, including the campaign intro and three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The `diplomacy-negotiation` fixture first offers peace without compensation and verifies the rejection, then adds gold, resubmits, and checks that peace is signed and gold deducted. Other scenarios provide controlled examples for developed cities, diplomacy, first contact and war status, leader avatars, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
+The `world` scene reveals every generated tile and centers the map at the minimum zoom. Use a wide window (1600×900) to inspect landmass shape, biome bands, and polar edges across generation settings. It does not change normal game visibility.
+
 For a quick on-demand check, select a scene by name:
 
 ```sh

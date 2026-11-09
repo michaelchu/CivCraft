@@ -764,7 +764,7 @@ impl Simulation {
 }
 
 impl Simulation {
-    pub(crate) fn ui_review_reveal_poles(&mut self) {
+    pub(crate) fn ui_review_reveal_all_tiles(&mut self) {
         for tile in &mut self.tiles {
             tile.seen = true;
             tile.visible = true;

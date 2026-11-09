@@ -88,6 +88,15 @@ impl Game {
         *self = Game::from_simulation(baseline.clone());
         set_review_pointer(Some(vec2(-1.0, -1.0)));
         self.autosave_enabled = false;
+        if scene == 0 {
+            self.sim.ui_review_reveal_all_tiles();
+            self.zoom = MIN_ZOOM;
+            self.focus_camera_on(
+                self.sim.map_wrap.width() / 2,
+                self.sim.map_wrap.height() / 2,
+            );
+            return;
+        }
         if scene == 42 {
             self.intro_open = true;
             return;
@@ -189,7 +198,7 @@ impl Game {
                 return;
             }
             33 | 34 => {
-                self.sim.ui_review_reveal_poles();
+                self.sim.ui_review_reveal_all_tiles();
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(
                     self.sim.map_wrap.width() / 2,
@@ -800,5 +809,21 @@ mod tests {
         assert!(a.sim.cities().iter().any(|c| c.owner == HUMAN));
         assert!(!b.sim.cities().iter().any(|c| c.owner == HUMAN));
         assert!(!sources.initial.cities().iter().any(|c| c.owner == HUMAN));
+    }
+
+    #[test]
+    fn world_review_reveals_and_fits_the_generated_map() {
+        let initial = Simulation::new(crate::mapgen::generate_with_wrap(
+            42,
+            crate::sim::topology::MapWrap::X,
+        ));
+        let sources = UiReviewSources::new(&initial);
+        let mut game = Game::from_simulation(initial);
+        game.prepare_ui_review(0, &sources);
+        assert!((0..game.sim.map_wrap.height()).all(|y| {
+            (0..game.sim.map_wrap.width())
+                .all(|x| game.sim.tile(x, y).seen && game.sim.tile(x, y).visible)
+        }));
+        assert_eq!(game.zoom, MIN_ZOOM);
     }
 }
