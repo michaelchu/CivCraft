@@ -151,16 +151,44 @@ flags. See `UI_PARITY_AUDIT.md` for source pointers and validation coverage.
 ## Fog transitions
 
 `--ui-scene fog-transitions` captures visible/remembered/unknown boundaries
-using the original Amplio2 9×9 fog atlas and its four-tile intersection mapping.
-Its second capture follows a real Move command and checks that simulation
-visibility changed. The same corner pass masks irrelevant tiles in the city
-worked-tile view. Full-world gallery runs also exercise generated maps, rivers,
-city masks, horizontal wrapping and polar limits. The renderer draws each
-lattice corner once, before units and labels; remembered terrain and borders
-no longer apply a second tint. The four three-state samples map to the atlas's
-81 cells, with the all-visible cell intentionally unused as in the Amplio2
-sprite spec. The review checks horizontal wrapping and non-wrapping polar
-samples.
+using the original Civ III `Art/Terrain/FogOfWar.pcx` 9×9 alpha atlas and the
+four-neighbor mapping used by OpenCiv3. Unknown, remembered, and visible map to
+atlas values 0, 1, and 2; north/west states select columns, and east/south
+states select rows. The all-visible cell is skipped because it contains
+alignment pixels. The second capture follows a real Move command and checks
+that simulation visibility changed. The same corner pass masks irrelevant
+tiles in the city worked-tile view. Full-world gallery runs also exercise
+generated maps, rivers, city masks, horizontal wrapping and polar limits. The
+renderer draws each lattice corner once, before units and labels; remembered
+terrain and borders no longer apply a second tint. Hovering a known map tile
+temporarily renders it as active, matching OpenCiv3's `TileInfo.targetTile`
+behavior without changing simulation visibility. The fog image uses the
+source palette's inverse-red alpha, transparent palette indices 254/255,
+nearest-neighbor sampling, and a 0.999-cell source crop. CivCraft remaps the
+alpha using `FOG_ALPHA_GAMMA` (currently 1.8; 1.0 preserves source opacity) to
+tighten the edge toward the original game's appearance. This code-level value
+is the tuning point; there is no runtime control. The fog pass follows
+map art and grid, then precedes units and labels, matching
+[OpenCiv3's FogOfWarLayer](https://github.com/C7-Game/OpenCiv3/blob/Development/C7/Map/FogOfWarLayer.cs)
+and its [PCX alpha decoder](https://github.com/C7-Game/OpenCiv3/blob/Development/C7/Textures/PCXToGodot.cs).
+OpenCiv3's terrain base pass also draws neighboring base sprites before fog.
+CivCraft draws a one-tile unseen terrain fringe around the known boundary so
+the atlas can fade it into black; deeper unexplored terrain remains hidden.
+
+Visual check on 2026-11-09: the `fog-transitions` scene was captured and
+visually inspected at seed 42, 1280×720, 800×600, and 1600×900. All five
+report checks passed at each size, including all three knowledge states and
+the post-move visibility change. The fixture uses flat grassland and one unit
+to isolate the edge. Inspection confirmed the sharp perimeter came from
+omitting unknown neighbor terrain beneath the fog atlas and filling those
+cells with opaque black diamonds. After adding the OpenCiv3-style terrain
+fringe and letting the atlas mask it, the remembered area fades into the black
+unexplored boundary. The source atlas has 16 alpha levels (including
+transparent and opaque) and does not ship with a separate Dither sprite;
+OpenCiv3 applies its alpha atlas directly. CivCraft's gamma curve tightens
+that ramp without adding a separate dither layer. The remaining differences
+from the supplied Civ III screenshot are the flat diagnostic map and CivCraft
+interface.
 
 ### Rendering gap scenarios
 

@@ -361,11 +361,19 @@ impl<'a> Civ3WorldPainter<'a> {
         // forests, hills, and mountains.
         for &(x, y, center) in &order {
             let tile = game.sim.render_tile(x, y);
-            if !tile.seen {
-                draw_diamond(center, tile_w, tile_h, BLACK);
+            // OpenCiv3's terrain pass contributes neighboring base sprites
+            // before fog. CivCraft's base sprites don't have that same overlap,
+            // so provide a one-tile underlay around the entire known boundary.
+            // The fog atlas masks this fringe into black; deeper unknown
+            // terrain remains hidden.
+            let fog_fringe = game
+                .sim
+                .map_wrap
+                .civ3_neighbors(x, y)
+                .any(|(nx, ny)| game.sim.render_tile(nx, ny).seen);
+            if !tile.seen && !fog_fringe {
                 continue;
             }
-
             self.draw_map_base(x, y, center, tile_w, tile_h);
         }
 
@@ -392,12 +400,21 @@ impl<'a> Civ3WorldPainter<'a> {
         }
         // Blend corners after terrain/cities and before units, labels and focus
         // sprites. Visual water inherits polar-row fog.
+        let pointer = ui_pointer();
+        let target_tile = viewport
+            .contains(pointer)
+            .then(|| game.screen_to_world(pointer))
+            .flatten();
         for &(x, y, center) in &order {
-            let (mx, my) = native_to_map(x, y);
-            game.draw_corner_fog(assets, center, tile_w, tile_h, |dx, dy| {
-                let (nx, ny) = map_to_native(mx + dx, my + dy);
-                game.world_fog_knowledge(nx, ny)
-            });
+            game.draw_fog_intersection(
+                assets,
+                center,
+                tile_w,
+                tile_h,
+                (x, y),
+                target_tile,
+                |nx, ny| game.world_fog_knowledge(nx, ny),
+            );
         }
         // Complete corner fog for the decorative rows and their southern edge.
         let bottom = game.sim.map_wrap.height() + map_view::EDGE_WATER_ROWS;
@@ -408,11 +425,16 @@ impl<'a> Civ3WorldPainter<'a> {
                 if center.y > viewport.bottom() + tile_h || center.y < viewport.y - tile_h {
                     continue;
                 }
-                let (mx, my) = native_to_map(x, y);
-                game.draw_corner_fog(assets, center, tile_w, tile_h, |dx, dy| {
-                    let (nx, ny) = map_to_native(mx + dx, my + dy);
-                    game.world_fog_knowledge(nx, ny)
-                });
+                let clamped_y = y.clamp(0, game.sim.map_wrap.height() - 1);
+                game.draw_fog_intersection(
+                    assets,
+                    center,
+                    tile_w,
+                    tile_h,
+                    (x, clamped_y),
+                    target_tile,
+                    |nx, ny| game.world_fog_knowledge(nx, ny),
+                );
             }
         }
         for &(x, y, center) in &order {

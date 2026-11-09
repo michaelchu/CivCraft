@@ -235,7 +235,11 @@ impl Game {
             28 => {
                 let unit = self.sim.ui_review_fog();
                 self.selected_unit = Some(unit);
-                self.zoom = Self::ui_review_map_zoom();
+                self.zoom = if Self::viewport_rect().w < 760.0 {
+                    0.55
+                } else {
+                    0.7
+                };
             }
             25..=27 => {
                 let (unit, _) = self.sim.ui_review_animation_setup(scene != 25);

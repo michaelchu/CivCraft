@@ -71,7 +71,7 @@ pub(crate) fn window_conf() -> Conf {
 
 pub(crate) struct Assets {
     pub(super) civ3: super::tileset::Civ3,
-    pub(super) fog: Texture2D,
+    pub(super) source_fog: Texture2D,
     pub(super) resource_icons: Texture2D,
     // The legacy unit atlas remains for compact non-map UI icons only.
     pub(super) units: Texture2D,
@@ -103,15 +103,10 @@ impl Assets {
         .expect("valid generated resource icon sheet");
         let resource_icons = Texture2D::from_image(&resource_icon_image);
         resource_icons.set_filter(FilterMode::Linear);
-        let fog_image = Image::from_file_with_format(
-            include_bytes!("../../assets/amplio2_fog.png"),
-            None,
-        )
-        .expect("valid Amplio2 fog atlas");
-        let fog = Texture2D::from_image(&crate::client::fog::build_atlas(&fog_image));
-        // Fog cells have isolated gutters, so linear sampling can soften the
-        // transition without bleeding a neighboring atlas state.
-        fog.set_filter(FilterMode::Linear);
+        let source_fog_image = super::tileset::load_source_fog_atlas()?;
+        let source_fog = Texture2D::from_image(&source_fog_image);
+        // Match OpenCiv3's nearest-filter sampling of the source fog atlas.
+        source_fog.set_filter(FilterMode::Nearest);
         let units_image =
             Image::from_file_with_format(include_bytes!("../../assets/amplio2_units.png"), None)
                 .expect("valid unit UI atlas");
@@ -190,7 +185,7 @@ impl Assets {
         }
         Ok(Self {
             civ3,
-            fog,
+            source_fog,
             resource_icons,
             units,
             leader_avatar_badges,

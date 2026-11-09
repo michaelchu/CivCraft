@@ -1,13 +1,12 @@
 # Original files used
 
-The map renderer uses the Amplio2 fog transition atlas alongside Civ III
-artwork and native vector overlays. Compact unit icons in non-map city and
-context panels also use Amplio2 artwork. Original artist and source information
-is retained below.
+The map renderer reads Civ III's `Art/Terrain/FogOfWar.pcx` from the sibling
+source folder and uses it as a 9×9 visibility-transition alpha atlas. Compact
+unit icons in non-map city and context panels still use Amplio2 artwork.
+Original artist and source information is retained below.
 
 | Project file | Original source path | Use |
 | --- | --- | --- |
-| assets/amplio2_fog.png and .spec | Freeciv `data/amplio2/fog.png` and `fog.spec` | Three-state corner fog transitions; Brendon Oram (Yautja) |
 | assets/amplio2_units.png | Freeciv `data/amplio2/units.png` | Small unit icons in non-map UI panels; original artist credits are retained in the source sheet |
 
 No logo, splash screen, flag, nation emblem, music, or sound file is included. Selection, status markers, routes and combat effects use Civ III art or vector drawing.

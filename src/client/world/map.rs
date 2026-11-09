@@ -105,7 +105,6 @@ impl Game {
                     .render_tile(x, y.clamp(0, self.sim.map_wrap.height() - 1))
                     .seen
                 {
-                    draw_diamond(center, tile_w, tile_h, BLACK);
                     continue;
                 }
                 assets

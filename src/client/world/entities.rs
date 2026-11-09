@@ -92,16 +92,28 @@ impl Game {
                 }
             }
         }
-        for &(dx, dy, _, _, center, _) in &tiles {
-            let (mx, my) = native_to_map(city.x, city.y);
-            self.draw_corner_fog(assets, center, layout.tile_w, layout.tile_h, |ox, oy| {
-                let (nx, ny) = map_to_native(mx + dx + ox, my + dy + oy);
-                if !radius.contains(&(dx + ox, dy + oy)) {
-                    super::fog::Knowledge::Unknown
-                } else {
-                    self.fog_knowledge(nx, ny)
-                }
-            });
+        for &(_, _, x, y, center, _) in &tiles {
+            let city_center = (city.x, city.y);
+            self.draw_fog_intersection(
+                assets,
+                center,
+                layout.tile_w,
+                layout.tile_h,
+                (x, y),
+                None,
+                |nx, ny| {
+                    if self
+                        .sim
+                        .map_wrap
+                        .civ3_distance(city_center.0, city_center.1, nx, ny)
+                        > 2
+                    {
+                        super::fog::Knowledge::Unknown
+                    } else {
+                        self.fog_knowledge(nx, ny)
+                    }
+                },
+            );
         }
         for &(_, _, x, y, center, relevant) in &tiles {
             if relevant {

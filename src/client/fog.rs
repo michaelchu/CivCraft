@@ -23,31 +23,50 @@ impl Game {
         }
     }
 
-    pub(super) fn draw_corner_fog(
+    pub(super) fn draw_fog_intersection(
         &self,
         assets: &Assets,
         center: Vec2,
         w: f32,
         h: f32,
+        tile: (i32, i32),
+        target_tile: Option<(i32, i32)>,
         at: impl Fn(i32, i32) -> Knowledge,
     ) {
-        let states = corner_group(at);
-        if states == [Knowledge::Visible; 4] {
+        // OpenCiv3 renders the north intersection of each tile: its north
+        // neighbor, the tile itself as south, and its northeast/northwest
+        // neighbors as east/west. Resolve them through the same staggered
+        // Civ III topology used by movement and visibility.
+        let neighbor = |direction| {
+            self.sim
+                .map_wrap
+                .civ3_neighbor(tile.0, tile.1, direction)
+                .map_or(Knowledge::Unknown, |coord| {
+                    fog_status(coord, target_tile, &at)
+                })
+        };
+        let north = neighbor(0); // NORTH
+        let south = fog_status(tile, target_tile, &at);
+        let east = neighbor(1); // NORTHEAST
+        let west = neighbor(7); // NORTHWEST
+        let (row, col) = source_fog_cell(north, south, east, west);
+        // OpenCiv3 skips atlas cell (8, 8), where all four surrounding tiles
+        // are currently visible.
+        if (row, col) == (8, 8) {
             return;
         }
-        let (row, col) = source_cell(states);
         draw_texture_ex(
-            &assets.fog,
+            &assets.source_fog,
             center.x - w * 0.5,
             center.y - h,
             WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(w, h)),
                 source: Some(Rect::new(
-                    1.0 + col as f32 * 98.0,
-                    1.0 + row as f32 * 50.0,
-                    96.0,
-                    48.0,
+                    col as f32 * 128.0,
+                    row as f32 * 64.0,
+                    128.0 * 0.999,
+                    64.0 * 0.999,
                 )),
                 ..Default::default()
             },
@@ -55,43 +74,38 @@ impl Game {
     }
 }
 
-pub(super) fn source_cell(states: [Knowledge; 4]) -> (usize, usize) {
-    // Amplio2's fog.spec is ordered remembered (f), visible (k), unknown (u).
-    let index = |state| match state {
-        Knowledge::Remembered => 0,
-        Knowledge::Visible => 1,
-        Knowledge::Unknown => 2,
-    };
-    (
-        index(states[0]) * 3 + index(states[1]),
-        index(states[2]) * 3 + index(states[3]),
-    )
-}
-
-pub(super) fn corner_group(at: impl Fn(i32, i32) -> Knowledge) -> [Knowledge; 4] {
-    // Clockwise tiles around this lattice corner, matching fog.spec tags.
-    [at(-1, -1), at(0, -1), at(0, 0), at(-1, 0)]
-}
-
-pub(super) fn build_atlas(source: &Image) -> Image {
-    assert_eq!((source.width(), source.height()), (864, 432));
-    let mut atlas = Image::gen_image_color(9 * 98, 9 * 50, BLANK);
-    let src = source.get_image_data();
-    let dst = atlas.get_image_data_mut();
-    for row in 0..9 {
-        for col in 0..9 {
-            if (row, col) == (4, 4) {
-                continue;
-            }
-            for y in 0..50usize {
-                for x in 0..98usize {
-                    let sx = x.saturating_sub(1).min(95);
-                    let sy = y.saturating_sub(1).min(47);
-                    dst[(row * 50 + y) * 882 + col * 98 + x] =
-                        src[(row * 48 + sy) * 864 + col * 96 + sx];
-                }
-            }
-        }
+fn fog_status(
+    coord: (i32, i32),
+    target_tile: Option<(i32, i32)>,
+    at: &impl Fn(i32, i32) -> Knowledge,
+) -> Knowledge {
+    if coord.0 < 0 || coord.1 < 0 {
+        return Knowledge::Unknown;
     }
-    atlas
+    let knowledge = at(coord.0, coord.1);
+    if knowledge != Knowledge::Unknown && Some(coord) == target_tile {
+        Knowledge::Visible
+    } else {
+        knowledge
+    }
+}
+
+/// Match OpenCiv3's 9x9 FogOfWar atlas indexing. `north` and `west` select
+/// the column; `east` and `south` select the row. Each state contributes 0
+/// when unknown, 1 when remembered, and 2 when currently visible, with the
+/// west/south state in the high trit.
+pub(super) fn source_fog_cell(
+    north: Knowledge,
+    south: Knowledge,
+    east: Knowledge,
+    west: Knowledge,
+) -> (usize, usize) {
+    let active = |state| match state {
+        Knowledge::Unknown => 0,
+        Knowledge::Remembered => 1,
+        Knowledge::Visible => 2,
+    };
+    let column = active(north) + active(west) * 3;
+    let row = active(east) + active(south) * 3;
+    (row, column)
 }

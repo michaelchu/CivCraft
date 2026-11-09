@@ -437,58 +437,37 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         for tile in &mut self.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.base_terrain = TerrainBase::Grassland;
+            tile.altitude = 0;
+            tile.hut = false;
+            tile.river = false;
+            tile.river_edges = 0;
+            tile.resource = None;
+            tile.road = false;
+            tile.railroad = false;
+            tile.irrigation = false;
+            tile.farmland = false;
+            tile.pollution = false;
+            tile.fallout = false;
+            tile.base = None;
+            tile.mine = false;
+            tile.oil_well = false;
+            tile.oil_platform = false;
             tile.seen = false;
             tile.visible = false;
             tile.owner = None;
+            tile.border_city = None;
+            tile.last_seen_owner = None;
+            tile.stealth_visible = false;
         }
-        // Start from the generated map so explored terrain reads like a real
-        // early campaign instead of a synthetic stripe pattern.
-        let city_pos = (18, 24);
-        let city_tile = self.tile_mut(city_pos.0, city_pos.1);
-        city_tile.terrain = Terrain::Grassland;
-        city_tile.base_terrain = TerrainBase::Grassland;
         let id = self.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
-        self.create_city(HUMAN, city_pos.0, city_pos.1);
-        let city = self.cities.last_mut().unwrap();
-        city.name = "Rome".into();
-        city.size = 3;
-        // Give this scene a compact coastal starting region with varied land,
-        // a river, and an explored shoreline around the city and unit.
-        for y in 18i32..=30 {
-            let coast_x = 23 + (y * 7).rem_euclid(5) - 2;
-            for x in 13..=28 {
-                let tile = self.tile_mut(x, y);
-                if x > coast_x {
-                    tile.terrain = Terrain::Sea;
-                    tile.base_terrain = TerrainBase::Sea;
-                } else {
-                    tile.base_terrain = TerrainBase::Grassland;
-                    tile.terrain = if (14..=17).contains(&x) && (20..=26).contains(&y) {
-                        Terrain::Forest
-                    } else if (x * 3 + y * 5).rem_euclid(11) == 0 {
-                        Terrain::Hills
-                    } else if (x + y * 2).rem_euclid(7) == 0 {
-                        Terrain::Plains
-                    } else {
-                        Terrain::Grassland
-                    };
-                }
-            }
-        }
-        for (x, y) in [(19, 21), (20, 22), (21, 23), (22, 24)] {
-            self.tile_mut(x, y).river = true;
-        }
-        self.tile_mut(19, 24).road = true;
-        self.tile_mut(20, 24).road = true;
-        super::topology::rebuild_civ3_river_edges(self.map_wrap, &mut self.tiles);
         self.refresh_visibility();
         for y in 0..self.map_wrap.height() {
             for x in 0..self.map_wrap.width() {
-                let (mx, my) = native_to_map(x, y);
-                let (cx, cy) = native_to_map(20, 24);
-                let distance = isohex_vector_distance(mx - cx, my - cy);
+                let distance = self.map_wrap.civ3_distance(x, y, 20, 24);
                 let tile = self.tile_mut(x, y);
-                tile.seen = distance <= 4;
+                tile.seen = distance <= 6;
                 tile.visible = distance <= 3;
                 tile.known_by[HUMAN] = tile.seen;
             }

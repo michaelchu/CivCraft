@@ -16,6 +16,8 @@ const PAGE: usize = 12;
 const SIDES: [(i32, i32); 4] = [(0, -1), (1, 0), (0, 1), (-1, 0)];
 // OpenCiv3's PCX loader uses the same default palette transparency indices.
 const DEFAULT_PCX_TRANSPARENT_INDICES: [u8; 2] = [254, 255];
+// 1.0 preserves the source alpha; higher values tighten the black fog fade.
+const FOG_ALPHA_GAMMA: f32 = 1.8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Ground {
@@ -44,6 +46,30 @@ fn locate_source_root() -> Result<PathBuf, String> {
 
 fn locate_default_art() -> Result<PathBuf, String> {
     locate_source_root().map(|source| source.join("Conquests/Art"))
+}
+
+pub(crate) fn load_source_fog_atlas() -> Result<Image, String> {
+    let path = locate_source_root()?.join("Art/Terrain/FogOfWar.pcx");
+    let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let mut image =
+        decode_pcx(&bytes, &[254, 255]).map_err(|error| format!("{}: {error}", path.display()))?;
+    if (image.width, image.height) != (1152, 576) {
+        return Err(format!(
+            "{}: expected a 1152x576 Civ III fog atlas, got {}x{}",
+            path.display(),
+            image.width,
+            image.height
+        ));
+    }
+    // FogOfWar.pcx stores opacity inversely in its grayscale palette; magenta
+    // color-key pixels stay transparent even though they also have a palette value.
+    for pixel in image.bytes.chunks_exact_mut(4) {
+        let opacity = (255.0 - f32::from(pixel[0])) / 255.0;
+        let curved_opacity = opacity.powf(FOG_ALPHA_GAMMA);
+        pixel[3] = (f32::from(pixel[3]) * curved_opacity).round() as u8;
+        pixel[0..3].fill(0);
+    }
+    Ok(image)
 }
 
 fn irrigation_source(index: usize) -> Rect {
@@ -125,9 +151,7 @@ impl Tileset {
     pub(crate) fn select(name: &str, theme: Option<&str>) -> Result<Self, String> {
         match (name, theme) {
             ("civ3" | "conquests", Some(path)) => Ok(Self::Civ3(path.into())),
-            ("civ3" | "conquests", None) => {
-                locate_default_art().map(Self::Civ3)
-            }
+            ("civ3" | "conquests", None) => locate_default_art().map(Self::Civ3),
             ("snoopy" | "snoopy-standard" | "snoopy-greener" | "snoopy-extended", None) => {
                 let folder = match name {
                     "snoopy-standard" => "Sn00pys Terrain",
@@ -139,7 +163,9 @@ impl Tileset {
                 })
             }
             (_, Some(_)) => Err("--tileset-theme requires --tileset civ3 or conquests".into()),
-            _ => Err(format!("Unknown tileset '{name}'. Available: civ3, snoopy-standard, snoopy-greener, snoopy-extended")),
+            _ => Err(format!(
+                "Unknown tileset '{name}'. Available: civ3, snoopy-standard, snoopy-greener, snoopy-extended"
+            )),
         }
     }
 
@@ -284,8 +310,15 @@ impl Theme {
             }
         }
         let fallback_roots = if root.file_name().is_some_and(|name| name == "Art")
-            && root.parent().and_then(Path::file_name).is_some_and(|name| name == "Conquests")
-            && root.parent().and_then(Path::parent).and_then(Path::file_name).is_some_and(|name| name == "source")
+            && root
+                .parent()
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == "Conquests")
+            && root
+                .parent()
+                .and_then(Path::parent)
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == "source")
         {
             let source = root.parent().and_then(Path::parent).unwrap();
             vec![source.join("civ3PTW/Art"), source.join("Art")]
@@ -316,20 +349,29 @@ impl Theme {
             .map(Vec::as_slice)
             .unwrap_or(&DEFAULT_PCX_TRANSPARENT_INDICES);
         let mut roots = vec![self.root.as_path()];
-        if override_path.is_none() { roots.extend(self.fallback_roots.iter().map(PathBuf::as_path)); }
+        if override_path.is_none() {
+            roots.extend(self.fallback_roots.iter().map(PathBuf::as_path));
+        }
         let mut last_missing = None;
         let (path, image) = 'roots: loop {
             for root in roots.iter().copied() {
                 let path = root.join(relative);
                 match read_theme_image(&path, transparent_indices) {
                     Ok(image) => break 'roots image,
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => last_missing = Some(path),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                        last_missing = Some(path)
+                    }
                     Err(error) => return Err(format!("{}: {error}", path.display())),
                 }
             }
-            if !required && override_path.is_none() { return Ok(None); }
+            if !required && override_path.is_none() {
+                return Ok(None);
+            }
             let path = last_missing.unwrap_or_else(|| self.root.join(relative));
-            let error = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found in configured source art folders");
+            let error = std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "file not found in configured source art folders",
+            );
             return Err(format!("{}: {error}", path.display()));
         };
         if image.width < size.0 || image.height < size.1 {
@@ -424,9 +466,9 @@ fn read_theme_image(
                     ext.eq_ignore_ascii_case("pcx") || ext.eq_ignore_ascii_case("png")
                 });
                 if is_supported
-                    && candidate.file_stem().is_some_and(|stem| {
-                        stem.to_string_lossy().eq_ignore_ascii_case(&wanted)
-                    })
+                    && candidate
+                        .file_stem()
+                        .is_some_and(|stem| stem.to_string_lossy().eq_ignore_ascii_case(&wanted))
                 {
                     candidates.push(candidate);
                 }
@@ -1699,8 +1741,13 @@ mod tests {
             "Terrain/irrigation PLAINS.pcx",
             "Terrain/irrigation DESETT.pcx",
             "Terrain/irrigation TUNDRA.pcx",
-            "Cities/rASIAN.PCX", "Cities/rAMER.PCX", "Cities/rEURO.PCX",
-            "Cities/rMIDEAST.PCX", "Cities/rROMAN.PCX", "resources.pcx", "resources_shadows.pcx",
+            "Cities/rASIAN.PCX",
+            "Cities/rAMER.PCX",
+            "Cities/rEURO.PCX",
+            "Cities/rMIDEAST.PCX",
+            "Cities/rROMAN.PCX",
+            "resources.pcx",
+            "resources_shadows.pcx",
         ];
 
         for relative_path in files {
@@ -1722,20 +1769,37 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../source");
         let cases = [
             ("civ3", root.join("Conquests/Art")),
-            ("snoopy-standard", root.join("civ3PTW/Scenarios/Sn00pys Terrain/Art")),
-            ("snoopy-greener", root.join("civ3PTW/Scenarios/Sn00pys TerrainG/Art")),
-            ("snoopy-extended", root.join("civ3PTW/Scenarios/Sn00pys TerrainX/Art")),
+            (
+                "snoopy-standard",
+                root.join("civ3PTW/Scenarios/Sn00pys Terrain/Art"),
+            ),
+            (
+                "snoopy-greener",
+                root.join("civ3PTW/Scenarios/Sn00pys TerrainG/Art"),
+            ),
+            (
+                "snoopy-extended",
+                root.join("civ3PTW/Scenarios/Sn00pys TerrainX/Art"),
+            ),
         ];
         for (name, expected) in cases {
             let selected = Tileset::select(name, None).unwrap();
             let Tileset::Civ3(path) = selected;
-            assert_eq!(path.canonicalize().unwrap(), expected.canonicalize().unwrap());
+            assert_eq!(
+                path.canonicalize().unwrap(),
+                expected.canonicalize().unwrap()
+            );
         }
     }
 
     #[test]
     fn every_selectable_tileset_resolves_required_terrain_sheets() {
-        let cases = ["civ3", "snoopy-standard", "snoopy-greener", "snoopy-extended"];
+        let cases = [
+            "civ3",
+            "snoopy-standard",
+            "snoopy-greener",
+            "snoopy-extended",
+        ];
         let required = [
             ("desert-grass-plains", "XDGP", (1152, 576)),
             ("desert-grass-coast", "XDGC", (1152, 576)),
@@ -1754,10 +1818,14 @@ mod tests {
             let Tileset::Civ3(root) = Tileset::select(name, None).unwrap();
             let theme = Theme::read(&root).unwrap();
             for (role, file, size) in required {
-                let image = theme.image(role, &format!("Terrain/{file}.png"), size, true)
+                let image = theme
+                    .image(role, &format!("Terrain/{file}.png"), size, true)
                     .unwrap_or_else(|error| panic!("{name} {role}: {error}"))
                     .unwrap();
-                assert!(image.width >= size.0 && image.height >= size.1, "{name} {role}");
+                assert!(
+                    image.width >= size.0 && image.height >= size.1,
+                    "{name} {role}"
+                );
             }
         }
     }
@@ -1935,11 +2003,11 @@ mod tests {
             ("pollution", "pollution", (640, 320)),
             ("craters", "craters", (640, 320)),
         ] {
-            let image = theme.image(name, &format!("Terrain/{file}.png"), size, true).unwrap().unwrap();
-            assert_eq!(
-                (image.width, image.height), size,
-                "{name}"
-            );
+            let image = theme
+                .image(name, &format!("Terrain/{file}.png"), size, true)
+                .unwrap()
+                .unwrap();
+            assert_eq!((image.width, image.height), size, "{name}");
         }
         assert_eq!(
             building_source(TerrainBuilding::Fortress),
@@ -1960,11 +2028,11 @@ mod tests {
         let theme = Theme::read(&locate_default_art().unwrap()).unwrap();
         for (name, dimensions) in [("roads.pcx", (2048, 1024)), ("railroads.pcx", (2048, 1088))] {
             let role = name.trim_end_matches(".pcx");
-            let image = theme.image(role, &format!("Terrain/{role}.png"), (2048, 1024), true).unwrap().unwrap();
-            assert_eq!(
-                (image.width, image.height), dimensions,
-                "{role}"
-            );
+            let image = theme
+                .image(role, &format!("Terrain/{role}.png"), (2048, 1024), true)
+                .unwrap()
+                .unwrap();
+            assert_eq!((image.width, image.height), dimensions, "{role}");
         }
         assert_eq!(route_source(0), Rect::new(0.0, 0.0, 128.0, 64.0));
         assert_eq!(route_source(15), Rect::new(1920.0, 0.0, 128.0, 64.0));
@@ -2029,7 +2097,10 @@ mod tests {
             Tobacco,
         ];
         let theme = Theme::read(&locate_default_art().unwrap()).unwrap();
-        let mut image = theme.image("resources", "resources.png", (300, 300), true).unwrap().unwrap();
+        let mut image = theme
+            .image("resources", "resources.png", (300, 300), true)
+            .unwrap()
+            .unwrap();
         let present = prepare_resource_sheet(&mut image, None);
         let mut seen = std::collections::HashSet::new();
         for resource in resources {
