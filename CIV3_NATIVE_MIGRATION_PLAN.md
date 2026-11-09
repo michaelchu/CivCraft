@@ -149,15 +149,22 @@ intended end state; a completed phase requires the evidence listed below.
   still need replacement.
 - New-world generation now accepts Civ III's 60%, 70%, and 80% ocean-coverage
   choices; 70% is the default, and `--ocean-coverage` exposes them at launch.
-  The setting changes the ranked elevation threshold and scales river targets
-  with the resulting land percentage. Deterministic checks verify water
-  coverage increases across the three choices. OpenCiv3's `WorldSetup.cs` and
-  `GameSetup.cs` also default to 70%; this is an implementation-reference
-  alignment. UI captures of seed 42 at 60%, 70%, and 80% were inspected at
-  `/tmp/civ3-ocean-60/world.png`, `/tmp/civ3-ocean-70/world.png`, and
-  `/tmp/civ3-ocean-80/world.png`; each report passed its scene check. The
-  release build and full Rust suite (649/649) pass. Map dimensions remain
-  fixed, and landform, temperature, and age settings are not implemented.
+  The initial Coast, Sea, and Ocean classes now use the source's three
+  `FindSeaLevel` thresholds over the sampled 8-bit OpenSimplex height field:
+  requested ocean coverage, 90% of that coverage, and 70%. The eight-step
+  integer search is unit-tested against 60/54/42% thresholds on a linear
+  8-bit field. The shelf repair then converts water beside land to Coast and
+  Ocean beside Coast to Sea, following OpenCiv3's `FixContinentalShelf` pass.
+  This is an implementation-reference alignment, not evidence of original
+  Civ III internals. OpenCiv3's `FindSeaLevel` counts every map coordinate,
+  including alternating coordinates not populated as game tiles; CivCraft
+  currently stores every coordinate as a tile, so threshold sampling covers
+  the coordinate grid but the playable tile topology still differs.
+  Deterministic coverage checks pass for all three settings;
+  the new default seed-42 map was visually inspected at
+  `/tmp/civ3-sealevel-review/world.png` and its UI scene check passed
+  (`/tmp/civ3-sealevel-review/report.json`). OpenCiv3's `WorldSetup.cs` and
+  `GameSetup.cs` also default to 70%.
 - New-world generation also accepts Arid, Normal, and Wet climates via
   `--climate`, defaulting to Normal as OpenCiv3's world setup does. CivCraft
   adjusts its existing forest, jungle, marsh, and desert patch quotas and dry

@@ -558,17 +558,6 @@ impl Generator {
     }
 }
 
-fn ocean_at_depth(depth: i32) -> Terrain {
-    // The manual names Coast, Sea, and Ocean but does not specify generation
-    // thresholds. These are project heuristics over the generated depth field;
-    // finish_water guarantees an adjacent-water Coast fringe.
-    match depth {
-        0..=17 => Terrain::Coast,
-        18..=52 => Terrain::Sea,
-        _ => Terrain::Ocean,
-    }
-}
-
 fn random_tile(count: usize, rng: &mut MapRng, eligible: impl Fn(usize) -> bool) -> Option<usize> {
     for _ in 0..count / 10 {
         let tile = rng.below(count as i32) as usize;
@@ -600,13 +589,14 @@ impl Generator {
         rank_field(&mut biome_field, 1000);
         let mut attempt = 0_u64;
         loop {
-            let mut heights = self.height_field(
+            let water_heights = self.height_field(
                 seed.wrapping_add(0x1234_u64.wrapping_mul(attempt)),
                 self.settings.landform.noise_scale(),
             );
+            let mut heights = water_heights.clone();
             rank_field(&mut heights, 1000);
             let (mut terrain, mut base_terrain, temperature) =
-                self.terrain_pass(&heights, &relief, &biome_field, &mut rng);
+                self.terrain_pass(&heights, &water_heights, &relief, &biome_field, &mut rng);
             let mut tiles: Vec<_> = terrain
                 .iter()
                 .copied()

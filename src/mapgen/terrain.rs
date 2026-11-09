@@ -12,6 +12,28 @@ struct PatchGrowth<'a, Eligible> {
     rng: &'a mut MapRng,
 }
 
+// Mirrors OpenCiv3 HeightMap.FindSeaLevel over the sampled, normalized 8-bit
+// field. Water occupies heights strictly below the returned threshold.
+fn find_sea_level(heights: &[i32], percent_water: i32) -> i32 {
+    let mut low = 0;
+    let mut high = 255;
+    let mut threshold = 128;
+    for _ in 0..8 {
+        let water_tiles = heights.iter().filter(|&&height| height < threshold).count();
+        let current_percent = (water_tiles * 100 / heights.len()) as i32;
+        if current_percent < percent_water {
+            low = threshold;
+        } else {
+            high = threshold;
+        }
+        threshold = (low + high) / 2;
+        if low >= high - 1 {
+            break;
+        }
+    }
+    threshold
+}
+
 impl<Eligible: Fn(usize) -> bool> PatchGrowth<'_, Eligible> {
     fn grow(&mut self, tile: usize, budget: i32, biome: Terrain) {
         if *self.remaining == 0 {
@@ -39,6 +61,7 @@ impl super::Generator {
     pub(super) fn terrain_pass(
         &self,
         heights: &[i32],
+        water_heights: &[i32],
         relief: &[i32],
         biome_field: &[i32],
         rng: &mut MapRng,
@@ -47,25 +70,25 @@ impl super::Generator {
             .map(|tile| self.colatitude(tile))
             .collect();
         rank_field(&mut dummy_temperature, 1000);
+        let ocean_coverage = self.settings.ocean_coverage.percent();
+        let sea_level = find_sea_level(water_heights, ocean_coverage);
+        let medium_water_level = find_sea_level(water_heights, ocean_coverage * 9 / 10);
+        let deep_water_level = find_sea_level(water_heights, ocean_coverage * 7 / 10);
         let shore = self.shore();
         let lowland = self.lowland();
-        let normalized_height = |tile: usize| heights[tile];
         let mut terrain: Vec<_> = (0..self.wrap.tile_count())
             .map(|tile| {
-                if normalized_height(tile) >= shore {
+                let height = water_heights[tile];
+                if height > sea_level {
                     return Terrain::Plains;
                 }
-                let depth = (shore - normalized_height(tile)) * 100 / shore;
-                let mut water = 0;
-                let mut land = 0;
-                for next in self.neighbors(tile) {
-                    if normalized_height(next) >= shore {
-                        land = 1;
-                        break;
-                    }
-                    water += 1;
+                if height > medium_water_level {
+                    Terrain::Coast
+                } else if height > deep_water_level {
+                    Terrain::Sea
+                } else {
+                    Terrain::Ocean
                 }
-                ocean_at_depth((depth + 30 * (water - land) / (water + land)).min(100))
             })
             .collect();
 
@@ -290,5 +313,18 @@ impl super::Generator {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_sea_level;
+
+    #[test]
+    fn sea_levels_match_reference_threshold_search() {
+        let heights: Vec<_> = (0..=255).collect();
+        assert_eq!(find_sea_level(&heights, 60), 153);
+        assert_eq!(find_sea_level(&heights, 54), 138);
+        assert_eq!(find_sea_level(&heights, 42), 107);
     }
 }
