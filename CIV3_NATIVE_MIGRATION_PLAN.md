@@ -208,6 +208,16 @@ intended end state; a completed phase requires the evidence listed below.
   `/tmp/civ3-fullmap-temperate/world.png`, and
   `/tmp/civ3-fullmap-warm/world.png`; the full-map gallery should also be used
   across more seeds before claiming regional distribution fidelity.
+- Map dimensions are no longer fixed in the campaign topology. `--map-size
+  WIDTHxHEIGHT` sets an even horizontal-wrap map between 16 and 512 tiles on
+  each side;
+  the dimensions flow through generation, simulation tile storage, indexing,
+  bounded polar rows, and render bounds. A seeded 80x60 generation check
+  verifies tile count, start bounds, and ocean boundary rows. This is an
+  explicit dimension override, not yet the named Tiny–Huge menu: published
+  preset dimensions vary by Civ III edition, and their mapping still needs a
+  confirmed C3C source. Arbitrary dimensions also do not claim parity with the
+  original game's map-size scaling rules.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from

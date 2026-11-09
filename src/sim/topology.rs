@@ -133,11 +133,16 @@ pub(crate) fn wrapped_map_vector(from_x: i32, from_y: i32, to_x: i32, to_y: i32)
 }
 
 /// Per-campaign geometry. Never global: different saves can coexist in tests.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub(crate) enum MapWrap {
-    #[default]
-    X,
-    XY,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct MapWrap {
+    width: i32,
+    height: i32,
+    wraps_y: bool,
+}
+impl Default for MapWrap {
+    fn default() -> Self {
+        Self::X
+    }
 }
 impl std::str::FromStr for MapWrap {
     type Err = String;
@@ -155,24 +160,41 @@ impl std::fmt::Display for MapWrap {
     }
 }
 impl MapWrap {
-    pub(crate) const fn width(self) -> i32 {
-        match self {
-            Self::X => 3 * source_map_linear_scale(MAP_TARGET_TILES, 3, 2) * MAP_EVEN_FACTOR,
-            Self::XY => MAP_W,
+    pub(crate) const X: Self = Self {
+        width: 3 * source_map_linear_scale(MAP_TARGET_TILES, 3, 2) * MAP_EVEN_FACTOR,
+        height: 2
+            * source_map_linear_scale(MAP_TARGET_TILES, 3, 2)
+            * MAP_EVEN_FACTOR
+            * MAP_ISO_FACTOR,
+        wraps_y: false,
+    };
+    pub(crate) const XY: Self = Self {
+        width: MAP_W,
+        height: MAP_H,
+        wraps_y: true,
+    };
+    pub(crate) fn with_dimensions(width: i32, height: i32) -> Result<Self, String> {
+        if !(16..=512).contains(&width)
+            || !(16..=512).contains(&height)
+            || width % 2 != 0
+            || height % 2 != 0
+        {
+            return Err("map dimensions must be even and between 16 and 512 tiles per side".into());
         }
+        Ok(Self {
+            width,
+            height,
+            wraps_y: false,
+        })
+    }
+    pub(crate) const fn width(self) -> i32 {
+        self.width
     }
     pub(crate) const fn height(self) -> i32 {
-        match self {
-            Self::X => {
-                2 * source_map_linear_scale(MAP_TARGET_TILES, 3, 2)
-                    * MAP_EVEN_FACTOR
-                    * MAP_ISO_FACTOR
-            }
-            Self::XY => MAP_H,
-        }
+        self.height
     }
     pub(crate) const fn tile_count(self) -> usize {
-        (self.width() * self.height()) as usize
+        self.width() as usize * self.height() as usize
     }
     pub(crate) fn index(self, x: i32, y: i32) -> usize {
         (y.rem_euclid(self.height()) * self.width() + x.rem_euclid(self.width())) as usize
@@ -194,7 +216,7 @@ impl MapWrap {
         })
     }
     pub(crate) fn wraps_y(self) -> bool {
-        self == Self::XY
+        self.wraps_y
     }
     pub(crate) fn normalize(self, x: i32, y: i32) -> Option<(i32, i32)> {
         if self.wraps_y() {
@@ -411,6 +433,19 @@ pub(super) fn legacy_wrap() -> MapWrap {
 #[cfg(test)]
 mod wrap_tests {
     use super::*;
+
+    #[test]
+    fn custom_horizontal_map_size_controls_normalization_and_storage() {
+        let map = MapWrap::with_dimensions(80, 60).unwrap();
+        assert_eq!(
+            (map.width(), map.height(), map.tile_count()),
+            (80, 60, 4800)
+        );
+        assert_eq!(map.normalize(81, 12), Some((1, 12)));
+        assert_eq!(map.normalize(2, -1), None);
+        assert!(!map.wraps_y());
+        assert!(MapWrap::with_dimensions(81, 60).is_err());
+    }
     use crate::sim::{Command, HUMAN, Simulation, Terrain, UnitKind};
     #[test]
     fn wrap_options_are_explicit_and_cylinder_is_default() {

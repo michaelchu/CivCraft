@@ -54,8 +54,13 @@ arid`, `normal`, or `wet`, landform with `--landform archipelago`,
 years:
 
 ```sh
-cargo run --release -- --seed 42 --ocean-coverage 60 --climate wet --world-age 3 --landform archipelago --temperature warm
+cargo run --release -- --seed 42 --map-size 100x100 --ocean-coverage 60 --climate wet --world-age 3 --landform archipelago --temperature warm
 ```
+
+Map dimensions can be overridden with `--map-size WIDTHxHEIGHT`. Dimensions
+must be even and between 16 and 512 tiles per side. This explicit dimension
+override is not yet a mapping of Civ III's named Tiny through Huge presets;
+those preset dimensions need edition-specific source verification.
 
 ## Map wrapping
 

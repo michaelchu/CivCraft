@@ -719,6 +719,25 @@ mod civ3_base_terrain_tests {
             }
         }
     }
+
+    #[test]
+    fn custom_map_dimensions_flow_through_generation() {
+        let wrap = MapWrap::with_dimensions(80, 60).unwrap();
+        let map = generate_with_wrap(43, wrap);
+        assert_eq!(map.map_wrap, wrap);
+        assert_eq!(map.tiles.len(), 80 * 60);
+        assert!(
+            map.starts
+                .iter()
+                .all(|start| { (0..80).contains(&start.0) && (1..59).contains(&start.1) })
+        );
+        assert!(map.tiles[..80].iter().all(|tile| tile.terrain.is_water()));
+        assert!(
+            map.tiles[80 * 59..]
+                .iter()
+                .all(|tile| tile.terrain.is_water())
+        );
+    }
 }
 
 struct Generator {
@@ -742,7 +761,7 @@ pub(crate) fn generate_with_settings(
 ) -> GeneratedMap {
     let generator = Generator { wrap, settings };
     let mut map = generator.generate(seed);
-    if wrap == MapWrap::X {
+    if !wrap.wraps_y() {
         // The polar cap is a visual boundary in Civ III, not generated land.
         for y in [0, wrap.height() - 1] {
             for x in 0..wrap.width() {

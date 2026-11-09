@@ -54,6 +54,14 @@ fn ensure_parent(path: &str) {
     }
 }
 
+fn parse_map_size(value: &str) -> Result<sim::topology::MapWrap, String> {
+    let (width, height) = value
+        .split_once('x')
+        .and_then(|(width, height)| Some((width.parse::<i32>().ok()?, height.parse::<i32>().ok()?)))
+        .ok_or_else(|| "map size must be WIDTHxHEIGHT, for example 100x100".to_owned())?;
+    sim::topology::MapWrap::with_dimensions(width, height)
+}
+
 #[macroquad::main(window_conf)]
 /// Starts the game or one of its automated capture and playtest modes.
 async fn main() {
@@ -62,7 +70,16 @@ async fn main() {
         std::process::exit(2);
     }
     // Civ III campaigns use a horizontally wrapped map with bounded poles.
-    let wrap = sim::topology::MapWrap::X;
+    // Dimensions can be selected independently of wrapping so generation,
+    // simulation storage, and rendering all receive one consistent topology.
+    let wrap = if let Some(value) = argument_value("--map-size") {
+        parse_map_size(&value).unwrap_or_else(|error| {
+            eprintln!("Invalid --map-size value: {error}");
+            std::process::exit(2);
+        })
+    } else {
+        sim::topology::MapWrap::X
+    };
     let ocean_coverage = argument_value("--ocean-coverage")
         .unwrap_or_else(|| "70".to_owned())
         .parse::<mapgen::OceanCoverage>()
@@ -368,6 +385,15 @@ async fn main() {
 #[cfg(test)]
 mod argument_tests {
     use super::*;
+
+    #[test]
+    fn map_size_argument_requires_valid_even_dimensions() {
+        assert_eq!(parse_map_size("80x60").unwrap().tile_count(), 4800);
+        for invalid in ["80", "81x60", "8x60", "513x60", "80xno"] {
+            assert!(parse_map_size(invalid).is_err(), "accepted {invalid}");
+        }
+    }
+
     #[test]
     fn automation_flags_cannot_silently_fall_back_to_interactive_play() {
         for values in [
