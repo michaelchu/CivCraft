@@ -543,6 +543,12 @@ transparent keys and shadow data according to each sheet's role; do not flatten
 resource shadows into ordinary terrain or discard palette information needed
 by keyed artwork. Keep PNG support as an optional theme format.
 
+City civilizations can override their sheet mapping in the same manifest, for
+example `civilization-style.romans = roman` or
+`civilization-style.greeks = european`. The five sheet roles remain
+`asian`, `american`, `european`, `middle_eastern`, and `roman`; omitted
+civilization mappings use the game's built-in defaults.
+
 Complete when:
 
 - The complete Sn00py set loads directly from its PCX files, including city

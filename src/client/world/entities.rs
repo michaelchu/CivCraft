@@ -134,7 +134,7 @@ impl Game {
             };
             let row = i32::from(observed.civ3_era.min(3));
             (
-                civ3.city_texture_at(observed.civ3_style),
+                civ3.city_texture_at(observed.civ3_style, observed.city.owner),
                 Rect::new(col as f32 * 167.0, row as f32 * 95.0, 167.0, 95.0),
                 90.0 * zoom,
                 54.0 * zoom,

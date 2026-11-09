@@ -154,6 +154,7 @@ struct Theme {
     root: PathBuf,
     paths: HashMap<String, String>,
     transparent_indices: HashMap<String, Vec<u8>>,
+    civilization_city_styles: HashMap<String, String>,
 }
 
 impl Theme {
@@ -165,6 +166,7 @@ impl Theme {
         };
         let mut paths = HashMap::new();
         let mut transparent_indices = HashMap::new();
+        let mut civilization_city_styles = HashMap::new();
         if !path.is_dir() || manifest.exists() {
             let contents = fs::read_to_string(&manifest)
                 .map_err(|error| format!("{}: {error}", manifest.display()))?;
@@ -243,6 +245,31 @@ impl Theme {
                             ));
                         }
                     }
+                } else if let Some(civilization) = key.strip_prefix("civilization-style.") {
+                    let valid_civilization = !civilization.is_empty()
+                        && civilization.chars().all(|character| {
+                            character.is_ascii_lowercase()
+                                || character.is_ascii_digit()
+                                || character == '-'
+                        });
+                    let valid_style = CITY_STYLES.iter().any(|(style, _)| *style == value);
+                    if valid_civilization
+                        && valid_style
+                        && !civilization_city_styles.contains_key(civilization)
+                    {
+                        civilization_city_styles.insert(civilization.to_owned(), value.to_owned());
+                    } else {
+                        return Err(format!(
+                            "{}:{}: expected a unique civilization-style.<slug> mapping to one of {}",
+                            manifest.display(),
+                            index + 1,
+                            CITY_STYLES
+                                .iter()
+                                .map(|(style, _)| *style)
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ));
+                    }
                 } else if valid(key) && !value.is_empty() && !paths.contains_key(key) {
                     paths.insert(key.to_owned(), value.to_owned());
                 } else {
@@ -258,6 +285,7 @@ impl Theme {
             root: root.to_owned(),
             paths,
             transparent_indices,
+            civilization_city_styles,
         })
     }
 
@@ -740,6 +768,7 @@ pub(super) struct Civ3 {
     river_mountain: Texture2D,
     resources: Option<ResourceArt>,
     cities: HashMap<&'static str, Texture2D>,
+    civilization_city_styles: HashMap<String, String>,
 }
 
 struct Civ3UnitArt {
@@ -780,6 +809,14 @@ const CITY_STYLES: [(&str, &str); 5] = [
     ("middle_eastern", "rMIDEAST"),
     ("roman", "rROMAN"),
 ];
+
+fn civilization_city_style<'a>(
+    civilization_name: &str,
+    mappings: &'a HashMap<String, String>,
+) -> Option<&'a str> {
+    let slug = civilization_name.to_ascii_lowercase().replace(' ', "-");
+    mappings.get(&slug).map(String::as_str)
+}
 
 impl Civ3 {
     pub(super) fn load(path: &Path) -> Result<Self, String> {
@@ -1007,6 +1044,7 @@ impl Civ3 {
             river_mountain,
             resources,
             cities,
+            civilization_city_styles: theme.civilization_city_styles.clone(),
         })
     }
 
@@ -1014,7 +1052,14 @@ impl Civ3 {
         self.cities.get(style).unwrap_or(&self.cities["european"])
     }
 
-    pub(super) fn city_texture_at(&self, style: u8) -> &Texture2D {
+    pub(super) fn city_texture_at(&self, style: u8, owner: usize) -> &Texture2D {
+        if let Some(civilization) = crate::rules::civilizations::CIVILIZATIONS.get(owner) {
+            if let Some(style) =
+                civilization_city_style(civilization.name, &self.civilization_city_styles)
+            {
+                return self.city_texture(style);
+            }
+        }
         let style = ["asian", "american", "european", "middle_eastern", "roman"]
             .get(style as usize)
             .copied()
@@ -1684,6 +1729,47 @@ mod tests {
         );
         assert_eq!(theme.transparent_indices["river-delta"], [254, 255]);
         assert_eq!(theme.transparent_indices["river-mountain"], [254, 255]);
+        fs::remove_file(manifest).unwrap();
+        fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn theme_manifest_maps_civilizations_to_civ3_city_styles() {
+        let directory = std::env::temp_dir().join(format!(
+            "civ3-city-style-theme-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        let manifest = directory.join("tileset.conf");
+        fs::write(
+            &manifest,
+            "civilization-style.romans = roman\ncivilization-style.greeks = european\ncivilization-style.egyptians = middle_eastern\n",
+        )
+        .unwrap();
+        let theme = Theme::read(&directory).unwrap();
+        assert_eq!(theme.civilization_city_styles["romans"], "roman");
+        assert_eq!(theme.civilization_city_styles["greeks"], "european");
+        assert_eq!(
+            theme.civilization_city_styles["egyptians"],
+            "middle_eastern"
+        );
+        assert_eq!(
+            civilization_city_style("Romans", &theme.civilization_city_styles),
+            Some("roman")
+        );
+        assert_eq!(
+            civilization_city_style("Greeks", &theme.civilization_city_styles),
+            Some("european")
+        );
+
+        fs::write(&manifest, "civilization-style.romans = nonexistent\n").unwrap();
+        assert!(
+            Theme::read(&directory)
+                .err()
+                .unwrap()
+                .contains("civilization-style")
+        );
         fs::remove_file(manifest).unwrap();
         fs::remove_dir(directory).unwrap();
     }
