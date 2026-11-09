@@ -72,9 +72,10 @@ flow. Existing WrapXY saves are not loadable.
 
 The renderer and primary generation, movement, pathfinding, city work-area,
 and visibility paths use Civ III's staggered grid. Map generation settings are
-still being migrated; map size is not yet selectable. Landform uses a
-subdivision-based scale mapping; temperature shifts the generated heat rank
-and desert share. Both approximate OpenCiv3's separate seeded noise maps.
+still being migrated; map size is not yet selectable. Landform and temperature
+use independently seeded subdivision fields with OpenCiv3-derived percentile
+bands. Their noise algorithm and spatial scale remain approximations of
+OpenCiv3's OpenSimplex maps.
 
 ## Map tilesets
 

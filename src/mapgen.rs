@@ -160,14 +160,29 @@ pub(crate) enum Temperature {
 }
 
 impl Temperature {
-    // The generator stores a 0..=1000 heat rank. Shift the distribution to
-    // approximate the source's temperature-dependent biome bands.
-    pub(crate) fn heat_bias(self) -> i32 {
-        match self {
-            Self::Cool => -80,
-            Self::Temperate => 0,
-            Self::Warm => 80,
-        }
+    // OpenCiv3's AssignBiomes uses percentile bands and a latitude cutoff for
+    // tundra. Latitude is represented here as 0 at the poles and 1000 at the
+    // equator, the inverse of absolute degrees latitude.
+    fn biome_bands(self, climate: Climate) -> (i32, i32, i32, i32, i32, i32, i32) {
+        let (tundra_low, tundra_high, tundra_latitude, plains_high, desert_high) = match self {
+            Self::Cool => (700, 930, 500, 300, 600),
+            Self::Temperate => (770, 930, 344, 350, 650),
+            Self::Warm => (830, 930, 267, 400, 700),
+        };
+        let (plains_boost, desert_boost) = if climate == Climate::Arid {
+            (80, 50)
+        } else {
+            (0, 0)
+        };
+        (
+            tundra_low,
+            tundra_high,
+            tundra_latitude,
+            150,
+            plains_high + plains_boost,
+            450,
+            desert_high + desert_boost,
+        )
     }
 }
 
@@ -523,11 +538,15 @@ impl Generator {
         let mut relief_rng = MapRng::new(seed.wrapping_add(0xfeed));
         let mut relief = self.height_field(&mut relief_rng, 6);
         rank_field(&mut relief, 1000);
+        let mut biome_rng = MapRng::new(seed.wrapping_add(0xdad));
+        let mut biome_field = self.height_field(&mut biome_rng, 8);
+        rank_field(&mut biome_field, 1000);
         loop {
             let mut heights =
                 self.height_field(&mut rng, self.settings.landform.initial_divisions());
             rank_field(&mut heights, 1000);
-            let (mut terrain, temperature) = self.terrain_pass(&heights, &relief, &mut rng);
+            let (mut terrain, temperature) =
+                self.terrain_pass(&heights, &relief, &biome_field, &mut rng);
             let mut tiles: Vec<_> = terrain
                 .iter()
                 .copied()

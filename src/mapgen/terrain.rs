@@ -40,6 +40,7 @@ impl super::Generator {
         &self,
         heights: &[i32],
         relief: &[i32],
+        biome_field: &[i32],
         rng: &mut MapRng,
     ) -> (Vec<Terrain>, Vec<i32>) {
         let mut dummy_temperature: Vec<_> = (0..self.wrap.tile_count())
@@ -85,14 +86,19 @@ impl super::Generator {
             })
             .collect();
         rank_field(&mut temperature, 1000);
-        let temperature_bias = self.settings.temperature.heat_bias();
-        for heat in &mut temperature {
-            *heat = (*heat + temperature_bias).clamp(0, 1000);
-        }
 
         let mut available = vec![false; self.wrap.tile_count()];
         let (hill_low, hill_high, mountain_low, mountain_high, volcano_percent) =
             self.settings.age.relief_bands();
+        let (
+            tundra_low,
+            tundra_high,
+            tundra_latitude,
+            plains_low,
+            plains_high,
+            desert_low,
+            desert_high,
+        ) = self.settings.temperature.biome_bands(self.settings.climate);
         for tile in 0..self.wrap.tile_count() {
             if terrain[tile] != Terrain::Plains {
                 continue;
@@ -105,7 +111,16 @@ impl super::Generator {
                 } else {
                     Terrain::Mountains
                 };
+            } else if (tundra_low..tundra_high).contains(&biome_field[tile])
+                && self.colatitude(tile) < tundra_latitude
+            {
+                terrain[tile] = Terrain::Tundra;
+            } else if (desert_low..desert_high).contains(&biome_field[tile]) {
+                terrain[tile] = Terrain::Desert;
+            } else if (plains_low..plains_high).contains(&biome_field[tile]) {
+                terrain[tile] = Terrain::Plains;
             } else {
+                terrain[tile] = Terrain::Grassland;
                 available[tile] = true;
             }
         }
@@ -116,25 +131,17 @@ impl super::Generator {
         // bands by climate. Scale the existing patch-growth heuristic in the
         // same direction; these shares are an approximation, not its exact
         // height-map algorithm or verified original Civ III behavior.
-        let (forest_share, jungle_share, marsh_share, climate_desert_share, dry_water_limit) =
-            match self.settings.climate {
-                super::Climate::Wet => (24, 6, 12, 4, 1),
-                super::Climate::Normal => (16, 4, 7, 8, 2),
-                super::Climate::Arid => (8, 2, 3, 16, 3),
-            };
-        let temperature_desert_shift = match self.settings.temperature {
-            super::Temperature::Cool => -2,
-            super::Temperature::Temperate => 0,
-            super::Temperature::Warm => 2,
+        let (forest_share, jungle_share, marsh_share, dry_water_limit) = match self.settings.climate
+        {
+            super::Climate::Wet => (24, 6, 12, 1),
+            super::Climate::Normal => (16, 4, 7, 2),
+            super::Climate::Arid => (8, 2, 3, 3),
         };
-        let desert_share = (climate_desert_share as i32 + temperature_desert_shift).max(0) as usize;
         // Shares are relative to the land left after relief.
         let mut patches = [
             remaining * forest_share / 80,
             remaining * jungle_share / 80,
             remaining * marsh_share / 80,
-            remaining * desert_share / 80,
-            0,
         ];
         let mut plains = remaining - patches.iter().sum::<usize>();
         while plains > 0 || patches.iter().any(|&count| count > 0) {
@@ -153,9 +160,7 @@ impl super::Generator {
                     match pass {
                         0 => heat >= VERY_COLD,
                         1 => heat >= TROPICAL,
-                        2 => heat >= COLD && !dry && heights[tile] < lowland,
-                        3 => heat >= VERY_COLD && dry && heights[tile] >= lowland,
-                        _ => heat >= VERY_COLD && heights[tile] >= lowland,
+                        _ => heat >= COLD && !dry && heights[tile] < lowland,
                     }
                 };
                 if let Some(seed) = random_tile(self.wrap.tile_count(), rng, |tile| {
@@ -165,8 +170,6 @@ impl super::Generator {
                         (Terrain::Forest, 50, 60),
                         (Terrain::Jungle, 50, 50),
                         (Terrain::Marsh, 100, 50),
-                        (Terrain::Desert, 100, 80),
-                        (Terrain::Desert, 100, 40),
                     ][pass];
                     rng.below(weight);
                     PatchGrowth {
@@ -183,7 +186,6 @@ impl super::Generator {
                     let leftover = std::mem::take(&mut patches[pass]);
                     match pass {
                         1 | 2 => patches[0] += leftover,
-                        3 => patches[4] += leftover,
                         _ => plains += leftover,
                     }
                 }

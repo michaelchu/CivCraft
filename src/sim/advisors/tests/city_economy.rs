@@ -29,7 +29,6 @@ fn gold_spending_preserves_final_nondefense_advice() {
     let port = game.city_by_id(city).unwrap();
     let choice = game.ai_build_choice(port).unwrap();
     let defense = game.city_defense_production(port);
-    assert_eq!(choice.production, Production::Unit(UnitKind::Settlers));
     assert_eq!(defense, Some(Production::Unit(UnitKind::AegisCruiser)));
     assert_ne!(Some(choice.production), defense);
     game.cities

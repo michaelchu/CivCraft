@@ -186,30 +186,28 @@ intended end state; a completed phase requires the evidence listed below.
   these choices. CivCraft approximates that progression with 12, 6, and 3
   initial subdivision bands; its noise algorithm and continent acceptance
   rules do not match OpenCiv3. This setting is wired end to end but remains a
-  provisional mapping pending a Civ III-native noise field. Seed-42 map
-  captures passed scene checks at
-  `/tmp/civ3-landform-archipelago/world.png`,
-  `/tmp/civ3-landform-continents/world.png`, and
-  `/tmp/civ3-landform-pangaea/world.png`; the initial unit's fog of war means
-  these captures show only the local start area, so they do not validate global
-  landmass shape. A structural test checks deterministic output and observes
+  provisional mapping pending a Civ III-native noise field. Seed-42 full-map
+  captures passed scene checks at `/tmp/civ3-fullmap-archipelago/world.png`,
+  `/tmp/civ3-fullmap-continents/world.png`, and
+  `/tmp/civ3-fullmap-pangaea/world.png`; the different island, multi-continent,
+  and connected landmass patterns were visually inspected. A structural test
+  checks deterministic output and observes
   the expected ordering in land-component count (Archipelago > Continents >
   Pangaea) and largest land-component size (Pangaea > Archipelago). The full
   suite and release build pass.
 - New-world generation accepts Cool, Temperate, and Warm via `--temperature`,
-  defaulting to Temperate. CivCraft shifts the effective 0..1000 heat rank by
-  -80, 0, or +80 before assigning temperature-sensitive terrain; it also
-  shifts the desert patch quota down or up by two share units. Deterministic
-  seed-42 checks confirm Cool creates more Tundra and Warm more Desert.
-  OpenCiv3 instead uses a separate `.4`-scale seeded noise map with
-  temperature-specific percentile bands and latitude cutoffs. The heat-rank
-  and quota adjustments are explicit approximations until CivCraft has an
-  independent temperature noise field. Seed-42 world captures passed scene
-  checks and were inspected at `/tmp/civ3-temperature-cool/world.png`,
-  `/tmp/civ3-temperature-temperate/world.png`, and
-  `/tmp/civ3-temperature-warm/world.png`; fog limits the captures to the local
-  starting area, so regional/global temperature distribution still needs a
-  revealed-map gallery.
+  defaulting to Temperate. It uses an independent seeded subdivision field
+  (`seed + 0xdad`) ranked into OpenCiv3's temperature-specific percentile bands
+  for tundra, plains, and desert, including the arid-climate boosts and
+  tundra-latitude limits. Cool produces more Tundra than Warm; Warm produces
+  more Desert than Cool in the deterministic seed-42 check. OpenCiv3 uses a
+  separate `.4`-scale OpenSimplex map, so the field generator and spatial
+  scale remain approximations. The `world` review scene now reveals and fits
+  the generated map. Seed-42 screenshots were inspected at
+  `/tmp/civ3-fullmap-cool/world.png`,
+  `/tmp/civ3-fullmap-temperate/world.png`, and
+  `/tmp/civ3-fullmap-warm/world.png`; the full-map gallery should also be used
+  across more seeds before claiming regional distribution fidelity.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from
