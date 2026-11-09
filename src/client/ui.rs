@@ -125,12 +125,3 @@ pub(super) fn ui_pointer() -> Vec2 {
 pub(crate) fn set_review_pointer(pointer: Option<Vec2>) {
     REVIEW_POINTER.with(|value| value.set(pointer));
 }
-
-/// Keep automated captures deterministic; animate normal gameplay at 6 Hz.
-pub(super) fn selection_animation_frame() -> usize {
-    if REVIEW_POINTER.with(|pointer| pointer.get().is_some()) {
-        0
-    } else {
-        (get_time() * 6.0).floor() as usize % 4
-    }
-}

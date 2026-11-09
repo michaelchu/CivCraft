@@ -71,7 +71,7 @@ fn city_appearance_disorder_matches_full_forecast_after_policy_changes() {
 }
 
 #[test]
-fn fog_preserves_terrain_extras_and_city_graphics_until_reobserved() {
+fn fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.ui_review_observed_map();
     assert!(game.ui_review_observed_map_valid(false));
@@ -80,11 +80,11 @@ fn fog_preserves_terrain_extras_and_city_graphics_until_reobserved() {
         .into_iter()
         .find(|c| c.city.x == 20 && c.city.y == 24)
         .unwrap();
-    assert!(remembered.art_cell.1 >= 5, "remembered city retains walls");
     assert_eq!(
-        remembered.art_cell.0, 2,
-        "remembered Greek city retains classical artwork"
+        remembered.civ3_style, 2,
+        "remembered Greek city retains its Civ III style"
     );
+    assert!(remembered.city.buildings.contains(&Building::CITY_WALLS));
     assert_eq!(game.render_tile(19, 23).terrain, Terrain::Forest);
     assert!(!game.render_tile(20, 24).visible);
     let observed_random = game.random_snapshot();
@@ -95,8 +95,7 @@ fn fog_preserves_terrain_extras_and_city_graphics_until_reobserved() {
         .into_iter()
         .find(|c| c.city.x == 20 && c.city.y == 24)
         .unwrap();
-    assert!(current.art_cell.1 < 5);
-    assert_eq!(current.art_cell.0, 8);
+    assert_eq!(current.civ3_style, 2);
     assert_eq!(
         observed_random,
         game.random_snapshot(),

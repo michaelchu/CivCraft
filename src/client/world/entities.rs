@@ -132,30 +132,18 @@ impl Game {
         center: Vec2,
         zoom: f32,
     ) {
-        let (texture, source, city_w, city_h) = if let Some(civ3) = &assets.civ3 {
-            // Civ III sheets are four eras by three population bands:
-            // ancient/medieval/industrial/modern, then small/medium/large.
-            let col = match observed.city.size {
-                1..=6 => 0,
-                7..=12 => 1,
-                _ => 2,
-            };
-            let row = i32::from(observed.civ3_era.min(3));
-            (
-                civ3.city_texture_at(observed.civ3_style, observed.city.owner),
-                Rect::new(col as f32 * 167.0, row as f32 * 95.0, 167.0, 95.0),
-                90.0 * zoom,
-                54.0 * zoom,
-            )
-        } else {
-            let (row, col) = observed.art_cell;
-            (
-                &assets.cities,
-                isolated_sprite_source(row, col, 96.0, 72.0),
-                69.0 * zoom,
-                52.0 * zoom,
-            )
+        // Civ III sheets are four eras by three population bands.
+        let col = match observed.city.size {
+            1..=6 => 0,
+            7..=12 => 1,
+            _ => 2,
         };
+        let row = i32::from(observed.civ3_era.min(3));
+        let texture = assets
+            .civ3
+            .city_texture_at(observed.civ3_style, observed.city.owner);
+        let source = Rect::new(col as f32 * 167.0, row as f32 * 95.0, 167.0, 95.0);
+        let (city_w, city_h) = (90.0 * zoom, 54.0 * zoom);
         let position = centered_sprite_position(center, city_w, city_h);
         draw_texture_ex(
             texture,
@@ -342,52 +330,58 @@ impl Game {
         action: super::super::tileset::Civ3UnitAction,
         animation_progress: f32,
     ) {
-        let (sprite_row, sprite_col) = unit_sprite(unit.kind);
         let unit_w = 58.0 * self.zoom;
         let unit_h = 44.0 * self.zoom;
         let is_selected = self.selected_unit == Some(unit.id);
         if is_selected {
-            // Amplio2 unit.select:0..3, animated at Freeciv-web's 6 Hz.
-            let frame = super::ui::selection_animation_frame();
-            draw_texture_ex(
-                &assets.selection,
-                center.x - TILE_W * self.zoom * 0.5,
-                center.y - TILE_H * self.zoom * 0.5,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(TILE_W * self.zoom, TILE_H * self.zoom)),
-                    source: Some(Rect::new(frame as f32 * 96.0, 0.0, 96.0, 48.0)),
-                    ..Default::default()
-                },
+            draw_diamond_lines(
+                center,
+                TILE_W * self.zoom * 0.94,
+                TILE_H * self.zoom * 0.9,
+                (2.5 * self.zoom).max(1.5),
+                Color::from_rgba(255, 226, 88, 230),
             );
         }
-        let native_unit_drawn = assets.civ3.as_ref().is_some_and(|tileset| {
-            tileset.draw_unit(
-                unit.kind,
-                unit.owner,
-                unit.facing,
-                action,
-                animation_progress,
-                center,
-                self.zoom,
-                unit.moves_left > 0,
-            )
-        });
+        let native_unit_drawn = assets.civ3.draw_unit(
+            unit.kind,
+            unit.owner,
+            unit.facing,
+            action,
+            animation_progress,
+            center,
+            self.zoom,
+            unit.moves_left > 0,
+        );
         if !native_unit_drawn {
-            draw_texture_ex(
-                &assets.units,
-                center.x - unit_w * 0.5,
-                center.y - unit_h + 9.0 * self.zoom,
-                if unit.moves_left > 0 {
-                    WHITE
-                } else {
-                    Color::new(0.62, 0.66, 0.68, 1.0)
-                },
-                DrawTextureParams {
-                    dest_size: Some(vec2(unit_w, unit_h)),
-                    source: Some(isolated_sprite_source(sprite_row, sprite_col, 64.0, 48.0)),
-                    ..Default::default()
-                },
+            let color = if unit.moves_left > 0 {
+                player_color(unit.owner)
+            } else {
+                Color::from_rgba(115, 120, 125, 255)
+            };
+            draw_ellipse(
+                center.x,
+                center.y - 9.0 * self.zoom,
+                unit_w * 0.35,
+                unit_h * 0.42,
+                0.0,
+                color,
+            );
+            draw_ellipse_lines(
+                center.x,
+                center.y - 9.0 * self.zoom,
+                unit_w * 0.35,
+                unit_h * 0.42,
+                0.0,
+                (1.5 * self.zoom).max(1.0),
+                BLACK,
+            );
+            draw_line(
+                center.x,
+                center.y - unit_h * 0.55,
+                center.x,
+                center.y + unit_h * 0.25,
+                (2.0 * self.zoom).max(1.0),
+                WHITE,
             );
         }
         self.draw_unit_status(assets, unit, center);

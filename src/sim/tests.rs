@@ -64,7 +64,10 @@ fn civ3_map_roster_controls_active_players_and_score_standings() {
         for owner in expected..MAX_CIVILIZATIONS {
             assert!(!game.player_alive(owner));
         }
-        if matches!(size, crate::mapgen::Civ3MapSize::Tiny | crate::mapgen::Civ3MapSize::Huge) {
+        if matches!(
+            size,
+            crate::mapgen::Civ3MapSize::Tiny | crate::mapgen::Civ3MapSize::Huge
+        ) {
             game.end_turn();
             assert_eq!(game.turn, 2);
         }
@@ -73,7 +76,7 @@ fn civ3_map_roster_controls_active_players_and_score_standings() {
 
 #[test]
 fn newly_founded_city_claims_only_its_center_and_nearest_eight_tiles() {
-    for wrap in [MapWrap::X, MapWrap::XY] {
+    for wrap in [MapWrap::X] {
         let mut game = Simulation::new(crate::mapgen::generate_with_wrap(42, wrap));
         game.cities.clear();
         for tile in &mut game.tiles {
@@ -155,8 +158,8 @@ fn isohex_neighbors_and_wrapping_match_freeciv_distance() {
 #[test]
 fn generated_world_uses_reference_dimensions_and_start_positions() {
     assert_eq!(MAP_TARGET_TILES, 2_000);
-    assert_eq!(MAP_LINEAR_SCALE, 16);
-    assert_eq!((MAP_W, MAP_H), (32, 64));
+    assert_eq!(MAP_LINEAR_SCALE, 6);
+    assert_eq!((MAP_W, MAP_H), (36, 48));
     let first = crate::mapgen::generate(42);
     let terrain = |map: &crate::mapgen::GeneratedMap| {
         map.tiles

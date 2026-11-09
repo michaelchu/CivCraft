@@ -63,12 +63,9 @@ impl<'a> Civ3WorldPainter<'a> {
 
     pub(super) fn draw_map_base(&self, x: i32, y: i32, center: Vec2, width: f32, height: f32) {
         let game = self.game;
-        let assets = self.assets;
-        if let Some(tileset) = &assets.civ3 {
-            tileset.draw_base(game, x, y, center, vec2(width, height));
-        } else {
-            game.draw_map_base_fallback(assets, x, y, center, width, height);
-        }
+        self.assets
+            .civ3
+            .draw_base(game, x, y, center, vec2(width, height));
     }
 
     pub(super) fn draw_map_layer(
@@ -80,35 +77,24 @@ impl<'a> Civ3WorldPainter<'a> {
         has_city: bool,
     ) {
         match layer {
-            map_layers::MapLayer::Blend if self.assets.civ3.is_some() => {}
-            map_layers::MapLayer::Water if self.assets.civ3.is_some() => {
-                self.draw_water_layer(x, y, geometry, has_city);
-            }
-            map_layers::MapLayer::Roads if self.assets.civ3.is_some() => {
-                if !self.draw_road_layer(x, y, geometry) {
-                    self.game
-                        .draw_map_layer_fallback(self.assets, layer, x, y, geometry, has_city);
-                }
-            }
-            map_layers::MapLayer::Special1 if self.assets.civ3.is_some() => {
-                self.draw_special1(x, y, geometry);
-            }
-            map_layers::MapLayer::Special2 if self.assets.civ3.is_some() => {
-                self.draw_special2(x, y, geometry);
-            }
+            map_layers::MapLayer::Blend => {}
             map_layers::MapLayer::Terrain => {
                 let tile = self.game.sim.render_tile(x, y);
-                let drawn = self.assets.civ3.as_ref().is_some_and(|tileset| {
-                    tileset.draw_overlay(tile.terrain, (x, y), geometry.center, geometry.size())
-                });
-                if !drawn {
-                    self.game
-                        .draw_map_layer_fallback(self.assets, layer, x, y, geometry, has_city);
-                }
+                self.assets.civ3.draw_overlay(
+                    tile.terrain,
+                    (x, y),
+                    geometry.center,
+                    geometry.size(),
+                );
             }
-            _ => self
-                .game
-                .draw_map_layer_fallback(self.assets, layer, x, y, geometry, has_city),
+            map_layers::MapLayer::Water => self.draw_water_layer(x, y, geometry, has_city),
+            map_layers::MapLayer::Roads => {
+                self.draw_road_layer(x, y, geometry);
+            }
+            map_layers::MapLayer::Special1 => self.draw_special1(x, y, geometry),
+            map_layers::MapLayer::Special2 => self.draw_special2(x, y, geometry),
+            map_layers::MapLayer::Grid => self.game.draw_grid_layer(x, y, geometry),
+            map_layers::MapLayer::City => {}
         }
     }
 
@@ -117,96 +103,41 @@ impl<'a> Civ3WorldPainter<'a> {
         let game = self.game;
         let assets = self.assets;
         let tile = game.sim.render_tile(x, y);
-        if matches!(tile.base, Some(Base::Fort | Base::Fortress))
-            && !assets.civ3.as_ref().is_some_and(|tileset| {
-                tileset.draw_terrain_building(
-                    TerrainBuilding::Fortress,
-                    geometry.center,
-                    geometry.size(),
-                )
-            })
-        {
-            let row = i32::from(tile.base == Some(Base::Fort));
-            game.draw_base_sprite(
-                assets,
+        if matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
+            assets.civ3.draw_terrain_building(
+                TerrainBuilding::Fortress,
                 geometry.center,
-                geometry.width,
-                geometry.height,
-                row,
-                4,
+                geometry.size(),
             );
         }
         if tile.oil_platform {
-            let drawn = assets.civ3.as_ref().is_some_and(|tileset| {
-                tileset.draw_optional_improvement("oil-platform", geometry.center, geometry.size())
-            });
-            if !drawn {
-                game.draw_terrain_extra(
-                    &assets.terrain,
-                    geometry.center,
-                    geometry.width,
-                    geometry.height,
-                    7,
-                    6,
-                );
-            }
+            assets
+                .civ3
+                .draw_optional_improvement("oil-platform", geometry.center, geometry.size());
         } else if tile.oil_well {
-            let drawn = assets.civ3.as_ref().is_some_and(|tileset| {
-                tileset.draw_optional_improvement("oil-well", geometry.center, geometry.size())
-            });
-            if !drawn {
-                game.draw_terrain_extra(
-                    &assets.terrain,
-                    geometry.center,
-                    geometry.width,
-                    geometry.height,
-                    0,
-                    6,
-                );
-            }
-        } else if tile.mine
-            && !assets.civ3.as_ref().is_some_and(|tileset| {
-                tileset.draw_terrain_building(
-                    TerrainBuilding::Mine,
-                    geometry.center,
-                    geometry.size(),
-                )
-            })
-        {
-            game.draw_terrain_extra(
-                &assets.terrain,
+            assets
+                .civ3
+                .draw_optional_improvement("oil-well", geometry.center, geometry.size());
+        } else if tile.mine {
+            assets.civ3.draw_terrain_building(
+                TerrainBuilding::Mine,
                 geometry.center,
-                geometry.width,
-                geometry.height,
-                3,
-                6,
+                geometry.size(),
             );
         }
         if tile.hut {
-            let drawn = assets.civ3.as_ref().is_some_and(|tileset| {
-                tileset.draw_terrain_building(
-                    TerrainBuilding::BarbarianCamp,
-                    geometry.center,
-                    geometry.size(),
-                )
-            });
-            if !drawn {
-                game.draw_terrain_extra(
-                    &assets.terrain,
-                    geometry.center,
-                    geometry.width,
-                    geometry.height,
-                    5,
-                    6,
-                );
-            }
+            assets.civ3.draw_terrain_building(
+                TerrainBuilding::BarbarianCamp,
+                geometry.center,
+                geometry.size(),
+            );
         }
         if let Some(resource) = tile
             .active_resource()
             .filter(|&resource| game.sim.resource_visible_to(HUMAN, resource))
-            && !assets.civ3.as_ref().is_some_and(|tileset| {
-                tileset.draw_resource(resource, geometry.center, geometry.size())
-            })
+            && !assets
+                .civ3
+                .draw_resource(resource, geometry.center, geometry.size())
         {
             let (row, col) = resource.icon_cell();
             game.draw_resource_icon(
@@ -221,6 +152,7 @@ impl<'a> Civ3WorldPainter<'a> {
     }
 
     fn draw_special2(&self, x: i32, y: i32, geometry: TileGeometry) {
+        use super::super::tileset::TerrainBuilding;
         let game = self.game;
         let assets = self.assets;
         let tile = game.sim.render_tile(x, y);
@@ -230,19 +162,9 @@ impl<'a> Civ3WorldPainter<'a> {
             } else {
                 "airbase"
             };
-            if !assets.civ3.as_ref().is_some_and(|tileset| {
-                tileset.draw_optional_improvement(role, geometry.center, geometry.size())
-            }) {
-                let row = i32::from(tile.base == Some(Base::Airstrip));
-                game.draw_base_sprite(
-                    assets,
-                    geometry.center,
-                    geometry.width,
-                    geometry.height,
-                    row,
-                    0,
-                );
-            }
+            assets
+                .civ3
+                .draw_optional_improvement(role, geometry.center, geometry.size());
         }
         let contamination_index = |pollution: bool| {
             let diagonal_directions = [7, 1, 3, 5]; // NW, NE, SE, SW
@@ -266,71 +188,40 @@ impl<'a> Civ3WorldPainter<'a> {
                 .unsigned_abs() as usize;
             contamination_sprite_index(diagonals, variation)
         };
-        if tile.pollution
-            && !assets.civ3.as_ref().is_some_and(|tileset| {
-                tileset.draw_contamination(
-                    false,
-                    contamination_index(true),
-                    geometry.center,
-                    geometry.size(),
-                )
-            })
-        {
-            game.draw_terrain_extra(
-                &assets.terrain,
+        if tile.pollution {
+            assets.civ3.draw_contamination(
+                false,
+                contamination_index(true),
                 geometry.center,
-                geometry.width,
-                geometry.height,
-                4,
-                6,
+                geometry.size(),
             );
         }
-        if tile.fallout
-            && !assets.civ3.as_ref().is_some_and(|tileset| {
-                tileset.draw_contamination(
-                    true,
-                    contamination_index(false),
-                    geometry.center,
-                    geometry.size(),
-                )
-            })
-        {
-            game.draw_terrain_extra(
-                &assets.terrain,
+        if tile.fallout {
+            assets.civ3.draw_contamination(
+                true,
+                contamination_index(false),
                 geometry.center,
-                geometry.width,
-                geometry.height,
-                6,
-                6,
+                geometry.size(),
             );
         }
         if !tile.visible && matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
-            let row = i32::from(tile.base == Some(Base::Fort));
-            game.draw_base_sprite(
-                assets,
+            assets.civ3.draw_terrain_building(
+                TerrainBuilding::Fortress,
                 geometry.center,
-                geometry.width,
-                geometry.height,
-                row,
-                3,
+                geometry.size(),
             );
         }
     }
 
     fn draw_water_layer(&self, x: i32, y: i32, geometry: TileGeometry, has_city: bool) {
         let game = self.game;
-        let assets = self.assets;
-        let TileGeometry {
-            center,
-            width,
-            height,
-        } = geometry;
+        let TileGeometry { center, .. } = geometry;
         let tile = game.sim.render_tile(x, y);
         if !has_city {
             if tile.farmland {
-                // The current source set has no separately identified farmland
-                // sheet; retain this fallback until its native cell is mapped.
-                game.draw_terrain_extra(&assets.terrain, center, width, height, 2, 6);
+                self.assets
+                    .civ3
+                    .draw_optional_improvement("farmland", center, geometry.size());
             } else if tile.irrigation {
                 let wrap = game.sim.map_wrap;
                 let diagonal_directions = [7, 1, 5, 3]; // NW, NE, SW, SE
@@ -341,24 +232,19 @@ impl<'a> Civ3WorldPainter<'a> {
                     })
                 });
                 let index = irrigation_sprite_index(diagonals);
-                let drawn = assets.civ3.as_ref().is_some_and(|tileset| {
-                    tileset.draw_irrigation(tile.base_terrain, center, geometry.size(), index)
-                });
-                if !drawn {
-                    game.draw_terrain_extra(&assets.terrain, center, width, height, 1, 6);
-                }
+                self.assets
+                    .civ3
+                    .draw_irrigation(tile.base_terrain, center, geometry.size(), index);
             }
         }
-        assets
+        self.assets
             .civ3
-            .as_ref()
-            .expect("native water layer requires Civ III tileset")
             .draw_river(game, x, y, center, geometry.size());
     }
 
     fn draw_road_layer(&self, x: i32, y: i32, geometry: TileGeometry) -> bool {
         let game = self.game;
-        let tileset = self.assets.civ3.as_ref().expect("Civ III route atlas");
+        let tileset = &self.assets.civ3;
         let tile = game.sim.render_tile(x, y);
         if !tile.road && !tile.railroad {
             return true;
@@ -515,7 +401,7 @@ impl<'a> Civ3WorldPainter<'a> {
         }
         // Complete corner fog for the decorative rows and their southern edge.
         let bottom = game.sim.map_wrap.height() + map_view::EDGE_WATER_ROWS;
-        let bottom_corner = (!game.sim.map_wrap.wraps_y()).then_some(bottom);
+        let bottom_corner = Some(bottom);
         for y in game.edge_water_rows().chain(bottom_corner) {
             for x in 0..game.sim.map_wrap.width() {
                 let center = game.world_screen_position(x, y);

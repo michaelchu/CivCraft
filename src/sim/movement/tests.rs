@@ -64,7 +64,11 @@ fn player_goto_continues_across_turns_until_destination() {
     assert_ne!(first_turn_position, destination);
     assert_eq!(game.unit_goto_tiles.get(&id), Some(&destination));
 
-    game.units.iter_mut().find(|unit| unit.id == id).unwrap().moves_left = 0;
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == id)
+        .unwrap()
+        .moves_left = 0;
     game.progress_player_unit_activities(HUMAN);
     game.continue_player_gotos();
 
@@ -77,10 +81,18 @@ fn player_goto_continues_across_turns_until_destination() {
     assert_eq!(game.unit_goto_tiles.get(&id), Some(&destination));
 
     for _ in 0..4 {
-        game.units.iter_mut().find(|unit| unit.id == id).unwrap().moves_left = 0;
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == id)
+            .unwrap()
+            .moves_left = 0;
         game.progress_player_unit_activities(HUMAN);
         game.continue_player_gotos();
-        if (game.unit_by_id(id).unwrap().x, game.unit_by_id(id).unwrap().y) == destination {
+        if (
+            game.unit_by_id(id).unwrap().x,
+            game.unit_by_id(id).unwrap().y,
+        ) == destination
+        {
             break;
         }
     }
@@ -159,7 +171,13 @@ fn civ3_move_command_rejects_an_invalid_direction_without_moving() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
     assert!(!game.apply(Command::MoveCiv3(id, CIV3_DIRS.len())));
-    assert_eq!((game.unit_by_id(id).unwrap().x, game.unit_by_id(id).unwrap().y), (10, 20));
+    assert_eq!(
+        (
+            game.unit_by_id(id).unwrap().x,
+            game.unit_by_id(id).unwrap().y
+        ),
+        (10, 20)
+    );
 }
 
 #[test]

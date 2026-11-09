@@ -26,24 +26,6 @@ fn finite_contact_expires_and_only_physical_events_refresh_it() {
 }
 
 #[test]
-fn legacy_contact_migration_gives_one_bounded_window_without_callbacks() {
-    let mut game = war_planning_game();
-    game.diplomacy.entry((HUMAN, 2)).or_default();
-    game.diplomatic_contact_until.clear();
-    let rng = game.random_snapshot();
-    let trust = game.diplomacy[&(HUMAN, 1)].trust;
-    game.seed_legacy_diplomatic_contacts();
-    assert_eq!(game.diplomatic_contact_until[&(HUMAN, 1)], game.turn + 20);
-    assert!(!game.diplomatic_contact_until.contains_key(&(HUMAN, 2)));
-    assert_eq!(game.random_snapshot(), rng);
-    assert_eq!(game.diplomacy[&(HUMAN, 1)].trust, trust);
-    assert_eq!(game.diplomacy[&(HUMAN, 1)].first_contact, Some(1));
-    game.turn += 20;
-    game.seed_legacy_diplomatic_contacts();
-    assert!(!game.can_negotiate(1));
-}
-
-#[test]
 fn ordinary_combat_and_city_conquest_do_not_fabricate_incidents() {
     let mut game = war_planning_game();
     let city = game.cities.iter_mut().find(|city| city.owner == 1).unwrap();

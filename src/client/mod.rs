@@ -8,23 +8,19 @@
 //!
 //! Rendering is split by screen responsibility: `world` draws map contents,
 //! `hud` and the view modules draw controls and dialogs, and `assets` plus
-//! `tileset` provide the selected artwork. `render_backend` isolates renderer
-//! selection from game state. UI review helpers exercise these same screens
+//! `tileset` provide Civ III artwork. `render_backend` owns the supported map
+//! projection and painter. UI review helpers exercise these same screens
 //! through the normal frame path.
 
 mod actions;
 mod assets;
 mod sprite_metadata;
 pub(crate) use assets::{Assets, native_unit_rendering_playtest, window_conf};
-use assets::{TILE_SPRITE_H, TILE_SPRITE_W};
-use sprite_metadata::{
-    bordered_sprite_source, isolated_sprite_source, ocean_cell_source, player_color, unit_sprite,
-};
+use sprite_metadata::{isolated_sprite_source, player_color, unit_sprite};
 mod city_bar;
 mod city_manager;
 mod city_map;
-// Geometry is staged independently until the dedicated renderer adopts it.
-#[allow(dead_code)]
+#[allow(dead_code)] // Standalone projection helpers are retained for geometry regression fixtures.
 mod civ3_geometry;
 mod flc;
 mod fog;
@@ -43,7 +39,6 @@ mod rivers;
 mod routes;
 mod spaceship_view;
 mod spy_view;
-mod terrain;
 mod tileset;
 pub(crate) use tileset::Tileset;
 mod territory;

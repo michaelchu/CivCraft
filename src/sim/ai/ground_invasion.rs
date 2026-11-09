@@ -60,7 +60,10 @@ impl Simulation {
             let assigned = self.ai_ground_targets.get(&actor.id) == Some(&city.id);
             let radius = self.unit_move_rate(actor) / MOVE_FRAGMENTS;
             let local = undefended
-                && self.map_wrap.civ3_distance(actor.x, actor.y, city.x, city.y) <= radius;
+                && self
+                    .map_wrap
+                    .civ3_distance(actor.x, actor.y, city.x, city.y)
+                    <= radius;
             let marks = i32::from(assigned) + i32::from(local);
             if marks == 0 {
                 continue;
@@ -86,8 +89,8 @@ impl Simulation {
             u.owner == owner && u.id != except && !u.kind.is_military() && u.kind.is_naval()
         }) {
             let assigned = self.ai_ground_targets.get(&boat.id) == Some(&city.id);
-            let local = undefended
-                && self.map_wrap.civ3_distance(boat.x, boat.y, city.x, city.y) <= 2;
+            let local =
+                undefended && self.map_wrap.civ3_distance(boat.x, boat.y, city.x, city.y) <= 2;
             if assigned || local {
                 for cargo in self
                     .units
@@ -217,7 +220,10 @@ impl Simulation {
                 && !u.kind.is_aircraft()
                 && !u.kind.is_naval()
                 && (u.transport.is_none() || u.kind.has_marine_attack())
-                && self.map_wrap.civ3_distance(u.x, u.y, defender.x, defender.y) <= 1
+                && self
+                    .map_wrap
+                    .civ3_distance(u.x, u.y, defender.x, defender.y)
+                    <= 1
                 && !self.treaty_blocks_move(u, defender.x, defender.y)
                 && self.best_defender_id(u, defender.x, defender.y).is_some()
         }) {
@@ -344,9 +350,8 @@ impl Simulation {
                     if u.id == unit.id || !self.allied(unit.owner, u.owner) || rating(u) == 0 {
                         return None;
                     }
-                    let nearby = i32::from(
-                        self.map_wrap.civ3_distance(u.x, u.y, city.x, city.y) <= 1,
-                    );
+                    let nearby =
+                        i32::from(self.map_wrap.civ3_distance(u.x, u.y, city.x, city.y) <= 1);
                     let assigned = i32::from(self.ai_ground_targets.get(&u.id) == Some(&city.id));
                     (nearby + assigned > 0).then_some((u, nearby + assigned))
                 })

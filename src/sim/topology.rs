@@ -2,8 +2,8 @@
 //!
 //! Map coordinates are adapted to Civ III's staggered square grid. Conversion,
 //! neighbor offsets, distance, and [`MapWrap`] live here so callers use one
-//! definition of adjacency and seam behavior. `MapWrap::X` wraps east/west and
-//! treats polar rows as map edges; `MapWrap::XY` wraps both axes.
+//! definition of adjacency and seam behavior. Campaign maps wrap east/west and
+//! treat polar rows as bounded edges.
 //!
 //! Normalize coordinates through the selected topology before indexing map
 //! arrays. The topology is part of the generated campaign and must be chosen
@@ -16,8 +16,8 @@ const TILES_PER_PLAYER: i32 = 100;
 pub(crate) const LAND_PERCENT: i32 = 30;
 pub(crate) const MAP_TARGET_TILES: i32 =
     PLAYER_COUNT as i32 * TILES_PER_PLAYER * PERCENT_SCALE / LAND_PERCENT;
-const MAP_X_RATIO: i32 = 1;
-const MAP_Y_RATIO: i32 = 1;
+const MAP_X_RATIO: i32 = 3;
+const MAP_Y_RATIO: i32 = 2;
 const MAP_EVEN_FACTOR: i32 = 2;
 const MAP_ISO_FACTOR: i32 = 2;
 
@@ -103,7 +103,7 @@ pub(crate) fn map_to_native(map_x: i32, map_y: i32) -> (i32, i32) {
 }
 
 pub(crate) fn wrap_native(native_x: i32, native_y: i32) -> (i32, i32) {
-    (native_x.rem_euclid(MAP_W), native_y.rem_euclid(MAP_H))
+    (native_x.rem_euclid(MAP_W), native_y)
 }
 
 pub(crate) fn map_pos_to_native(map_x: i32, map_y: i32) -> (i32, i32) {
@@ -137,7 +137,6 @@ pub(crate) fn wrapped_map_vector(from_x: i32, from_y: i32, to_x: i32, to_y: i32)
 pub(crate) struct MapWrap {
     width: i32,
     height: i32,
-    wraps_y: bool,
 }
 impl Default for MapWrap {
     fn default() -> Self {
@@ -149,14 +148,13 @@ impl std::str::FromStr for MapWrap {
     fn from_str(value: &str) -> Result<Self, String> {
         match value.to_ascii_lowercase().as_str() {
             "x" | "wrapx" => Ok(Self::X),
-            "xy" | "wrapx|wrapy" => Ok(Self::XY),
-            _ => Err("--wrap must be x (horizontal only) or xy (both axes)".into()),
+            _ => Err("map topology is horizontal wrap only".into()),
         }
     }
 }
 impl std::fmt::Display for MapWrap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(if self.wraps_y() { "xy" } else { "x" })
+        f.write_str("x")
     }
 }
 impl MapWrap {
@@ -166,12 +164,6 @@ impl MapWrap {
             * source_map_linear_scale(MAP_TARGET_TILES, 3, 2)
             * MAP_EVEN_FACTOR
             * MAP_ISO_FACTOR,
-        wraps_y: false,
-    };
-    pub(crate) const XY: Self = Self {
-        width: MAP_W,
-        height: MAP_H,
-        wraps_y: true,
     };
     pub(crate) fn with_dimensions(width: i32, height: i32) -> Result<Self, String> {
         if !(16..=512).contains(&width)
@@ -181,11 +173,7 @@ impl MapWrap {
         {
             return Err("map dimensions must be even and between 16 and 512 tiles per side".into());
         }
-        Ok(Self {
-            width,
-            height,
-            wraps_y: false,
-        })
+        Ok(Self { width, height })
     }
     pub(crate) const fn width(self) -> i32 {
         self.width
@@ -197,7 +185,11 @@ impl MapWrap {
         self.width() as usize * self.height() as usize
     }
     pub(crate) fn index(self, x: i32, y: i32) -> usize {
-        (y.rem_euclid(self.height()) * self.width() + x.rem_euclid(self.width())) as usize
+        assert!(
+            (0..self.height()).contains(&y),
+            "off-map polar tile ({x},{y})"
+        );
+        (y * self.width() + x.rem_euclid(self.width())) as usize
     }
     pub(crate) fn position(self, index: usize) -> (i32, i32) {
         (index as i32 % self.width(), index as i32 / self.width())
@@ -215,17 +207,10 @@ impl MapWrap {
             })
         })
     }
-    pub(crate) fn wraps_y(self) -> bool {
-        self.wraps_y
-    }
     pub(crate) fn normalize(self, x: i32, y: i32) -> Option<(i32, i32)> {
-        if self.wraps_y() {
-            Some((x.rem_euclid(self.width()), y.rem_euclid(self.height())))
-        } else {
-            (0..self.height())
-                .contains(&y)
-                .then_some((x.rem_euclid(self.width()), y))
-        }
+        (0..self.height())
+            .contains(&y)
+            .then_some((x.rem_euclid(self.width()), y))
     }
     pub(crate) fn offset(self, x: i32, y: i32, dx: i32, dy: i32) -> Option<(i32, i32)> {
         let (mx, my) = native_to_map(x, y);
@@ -263,26 +248,18 @@ impl MapWrap {
     pub(crate) fn civ3_neighbors(self, x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> + use<> {
         (0..CIV3_DIRS.len()).filter_map(move |direction| self.civ3_neighbor(x, y, direction))
     }
-    /// Shortest step count on the Civ III neighbor graph, including this
-    /// campaign's horizontal and optional vertical seams.
+    /// Shortest step count on the horizontally wrapped Civ III neighbor graph.
     pub(crate) fn civ3_distance(self, ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
         let start_x = 2 * ax + ay.rem_euclid(2);
         let target_x = 2 * bx + by.rem_euclid(2);
-        let vertical_wraps = if self.wraps_y() {
-            [-self.height(), 0, self.height()]
-        } else {
-            [0, 0, 0]
-        };
         let horizontal_period = 2 * self.width();
         let mut distance = i32::MAX;
         for horizontal_wrap in -1..=1 {
-            for vertical_wrap in vertical_wraps {
-                let dx = target_x + horizontal_wrap * horizontal_period - start_x;
-                let dy = by + vertical_wrap - ay;
-                // The eight legal generators change the doubled-grid
-                // Manhattan norm by two, so this is their exact step count.
-                distance = distance.min((dx.abs() + dy.abs()) / 2);
-            }
+            let dx = target_x + horizontal_wrap * horizontal_period - start_x;
+            let dy = by - ay;
+            // The eight legal generators change the doubled-grid
+            // Manhattan norm by two, so this is their exact step count.
+            distance = distance.min((dx.abs() + dy.abs()) / 2);
         }
         distance
     }
@@ -327,9 +304,7 @@ impl MapWrap {
         let (dx, dy) = *CIV3_DIRS.get(direction)?;
         let grid_x = 2 * x + y.rem_euclid(2) + dx;
         let neighbor_y = y + dy;
-        let neighbor_y = if self.wraps_y() {
-            neighbor_y.rem_euclid(self.height())
-        } else if (0..self.height()).contains(&neighbor_y) {
+        let neighbor_y = if (0..self.height()).contains(&neighbor_y) {
             neighbor_y
         } else {
             return None;
@@ -425,11 +400,6 @@ pub(crate) fn prune_civ3_river_edges(wrap: MapWrap, tiles: &mut [Tile]) {
         }
     }
 }
-/// V1–14 were always toroidal, independently of the current CLI default.
-pub(super) fn legacy_wrap() -> MapWrap {
-    MapWrap::XY
-}
-
 #[cfg(test)]
 mod wrap_tests {
     use super::*;
@@ -443,15 +413,14 @@ mod wrap_tests {
         );
         assert_eq!(map.normalize(81, 12), Some((1, 12)));
         assert_eq!(map.normalize(2, -1), None);
-        assert!(!map.wraps_y());
         assert!(MapWrap::with_dimensions(81, 60).is_err());
     }
     use crate::sim::{Command, HUMAN, Simulation, Terrain, UnitKind};
     #[test]
-    fn wrap_options_are_explicit_and_cylinder_is_default() {
+    fn horizontal_wrap_is_the_only_supported_topology() {
         assert_eq!(MapWrap::default(), MapWrap::X);
         assert_eq!("x".parse::<MapWrap>().unwrap(), MapWrap::X);
-        assert_eq!("xy".parse::<MapWrap>().unwrap(), MapWrap::XY);
+        assert!("xy".parse::<MapWrap>().is_err());
         assert!("y".parse::<MapWrap>().is_err());
         assert!("none".parse::<MapWrap>().is_err());
         assert_eq!(
@@ -459,17 +428,15 @@ mod wrap_tests {
             Some((MapWrap::X.width() - 1, 0))
         );
         assert_eq!(MapWrap::X.normalize(0, -1), None);
-        assert_eq!(MapWrap::XY.normalize(0, -1), Some((0, MAP_H - 1)));
     }
 
     #[test]
     fn civ3_neighbors_are_reciprocal_across_rows_seams_and_bounded_poles() {
-        for wrap in [MapWrap::X, MapWrap::XY] {
+        for wrap in [MapWrap::X] {
             for y in 0..wrap.height() {
                 for x in 0..wrap.width() {
                     for direction in 0..CIV3_DIRS.len() {
                         let Some((nx, ny)) = wrap.civ3_neighbor(x, y, direction) else {
-                            assert!(!wrap.wraps_y());
                             assert!(!(0..wrap.height()).contains(&(y + CIV3_DIRS[direction].1)));
                             continue;
                         };
@@ -499,7 +466,7 @@ mod wrap_tests {
 
     #[test]
     fn civ3_neighbor_iterator_exposes_all_eight_directions() {
-        for wrap in [MapWrap::X, MapWrap::XY] {
+        for wrap in [MapWrap::X] {
             let (x, y) = (wrap.width() / 2, wrap.height() / 2);
             let neighbors: Vec<_> = wrap.civ3_neighbors(x, y).collect();
             let expected: Vec<_> = (0..CIV3_DIRS.len())
@@ -511,8 +478,8 @@ mod wrap_tests {
     }
 
     #[test]
-    fn civ3_distance_matches_neighbor_graph_with_horizontal_and_vertical_wraps() {
-        for wrap in [MapWrap::X, MapWrap::XY] {
+    fn civ3_distance_matches_neighbor_graph_with_horizontal_wrap() {
+        for wrap in [MapWrap::X] {
             let origins = [
                 (0, 0),
                 (wrap.width() - 1, 1),
@@ -535,7 +502,7 @@ mod wrap_tests {
 
     #[test]
     fn civ3_radius_matches_full_distance_field_at_edges_and_wraps() {
-        for wrap in [MapWrap::X, MapWrap::XY] {
+        for wrap in [MapWrap::X] {
             for origin in [(0, 0), (wrap.width() - 1, wrap.height() - 1)] {
                 let distances = wrap.civ3_distances_from(origin.0, origin.1);
                 let radius: HashSet<_> = wrap
@@ -556,7 +523,7 @@ mod wrap_tests {
 
     #[test]
     fn civ3_city_radius_has_twenty_one_distinct_tiles_and_wraps_at_the_seam() {
-        for wrap in [MapWrap::X, MapWrap::XY] {
+        for wrap in [MapWrap::X] {
             let center = (wrap.width() - 1, wrap.height() / 2);
             let radius: Vec<_> = wrap.city_radius(center.0, center.1).collect();
             let unique: std::collections::HashSet<_> =
@@ -609,7 +576,7 @@ mod wrap_tests {
 
     #[test]
     fn each_campaign_obeys_its_seams_for_movement_sight_routes_and_city_radius() {
-        for wrap in [MapWrap::X, MapWrap::XY] {
+        for wrap in [MapWrap::X] {
             let mut sim = Simulation::new(crate::mapgen::generate_with_wrap(42, wrap));
             sim.units.clear();
             sim.cities.clear();
@@ -628,26 +595,19 @@ mod wrap_tests {
             let id = sim.spawn_unit(HUMAN, UnitKind::Warrior, 10, 0);
             sim.refresh_visibility();
             let other = (10, wrap.height() - 1);
-            assert_eq!(sim.tile(other.0, other.1).visible, wrap.wraps_y());
+            assert!(!sim.tile(other.0, other.1).visible);
             assert_eq!(
                 sim.map_wrap.civ3_neighbors(10, 0).any(|p| p == other),
-                wrap.wraps_y()
+                false
             );
             let actor = sim.units[0].clone();
             let path = sim.plan_route(&actor, other.0, other.1, true);
-            if wrap.wraps_y() {
-                assert_eq!(path.len(), 1);
-            } else {
-                assert!(path.len() > 20);
-            }
-            assert_eq!(sim.apply(Command::Move(id, 0, -1)), wrap.wraps_y());
+            assert!(path.len() > 20);
+            assert!(!sim.apply(Command::Move(id, 0, -1)));
             let city = sim.create_city(HUMAN, 10, 0);
             let _ = city;
             let radius: Vec<_> = sim.map_city_radius(sim.cities.last().unwrap()).collect();
-            assert_eq!(
-                radius.iter().any(|p| p.3 >= wrap.height() - 2),
-                wrap.wraps_y()
-            );
+            assert_eq!(radius.iter().any(|p| p.3 >= wrap.height() - 2), false);
             assert!(radius.iter().all(|p| (0..wrap.height()).contains(&p.3)));
             // Population loss must remove fields across this mode's actual seam.
             let mut edge_city = sim.cities.last().unwrap().clone();
@@ -670,7 +630,7 @@ mod campaign_geometry_tests {
     #[test]
     fn both_geometries_coexist_while_campaigns_found_and_advance() {
         for seed in [42, 1337] {
-            let mut games = [MapWrap::X, MapWrap::XY]
+            let mut games = [MapWrap::X]
                 .map(|wrap| Simulation::new(crate::mapgen::generate_with_wrap(seed, wrap)));
             for sim in &mut games {
                 assert_eq!(sim.tiles.len(), sim.map_wrap.tile_count());

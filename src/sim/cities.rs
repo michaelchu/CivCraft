@@ -12,7 +12,7 @@ impl Simulation {
     }
 
     pub(super) fn city_radius_at(x: i32, y: i32) -> impl Iterator<Item = (i32, i32, i32, i32)> {
-        MapWrap::XY.city_radius(x, y)
+        MapWrap::X.city_radius(x, y)
     }
 
     pub(crate) fn map_city_radius(

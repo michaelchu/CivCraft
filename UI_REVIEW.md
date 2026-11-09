@@ -1,5 +1,18 @@
 # UI structure and visual review
 
+## Current renderer contract
+
+The supported map path is the Civ III renderer with horizontal wrap and bounded
+north/south edges. Use `--ui-review` to capture the north-pole, south-pole,
+terrain, river, and wrap-seam scenes at desktop and compact sizes. Inspect the
+actual PNGs for continuous ocean backing at both poles, connected terrain and
+river art, and clean horizontal viewport seams. WrapXY scenes and prior
+Amplio2-atlas checks are retired.
+
+The detailed notes below record historical implementation and review work.
+Their Amplio2 atlas claims, old save compatibility checks, and former WrapXY
+comparisons are not current behavior or validation requirements.
+
 The client uses Macroquad's immediate-mode renderer. View files own their screen-specific content; `src/client/ui.rs` owns shared pixel-measured text fitting, panel framing, dialog text bounds, gutters, grid sizing and pagination. Buttons and meters remain shared primitives in `src/client/mod.rs`.
 
 This is deliberately a small shared UI layer rather than a retained widget framework. Screen-specific game state and graph rendering remain in their existing modules. Some view coordinates still use local offsets; the UI is more consistent but is not completely free of duplicated layout code.
@@ -138,16 +151,16 @@ flags. See `UI_PARITY_AUDIT.md` for source pointers and validation coverage.
 ## Fog transitions
 
 `--ui-scene fog-transitions` captures visible/remembered/unknown boundaries
-using the original Amplio2 corner atlas. Its second capture follows a real
-Move command and checks that simulation visibility changed. The same corner
-pass masks irrelevant tiles in the city worked-tile view. Full-world gallery
-runs also exercise generated maps, rivers, city masks, horizontal wrapping
-and polar limits. The renderer draws each lattice corner once, before units
-and labels; remembered terrain and borders no longer apply a second tint.
-Tests verify all 81 state-to-cell mappings, atlas alpha, horizontal wrapping
-and non-wrapping polar samples. The all-visible cell is intentionally unused,
-as in the reference's sprite spec. Runtime cells have one-pixel gutters,
-so fractional zoom cannot sample adjacent sprites or the unused credits cell.
+using the original Amplio2 9×9 fog atlas and its four-tile intersection mapping.
+Its second capture follows a real Move command and checks that simulation
+visibility changed. The same corner pass masks irrelevant tiles in the city
+worked-tile view. Full-world gallery runs also exercise generated maps, rivers,
+city masks, horizontal wrapping and polar limits. The renderer draws each
+lattice corner once, before units and labels; remembered terrain and borders
+no longer apply a second tint. The four three-state samples map to the atlas's
+81 cells, with the all-visible cell intentionally unused as in the Amplio2
+sprite spec. The review checks horizontal wrapping and non-wrapping polar
+samples.
 
 ### Rendering gap scenarios
 
@@ -157,22 +170,14 @@ and pollution over a city, then opens its city work map. `remembered-map` freeze
 a foreign city's former name, walls, style and terrain until vision returns.
 `goto-preview` positions the shared test pointer over a multi-turn destination
 and then executes the real GoTo command. See [RENDERING_PARITY.md](RENDERING_PARITY.md)
-for reference sources, save migration and fidelity boundaries.
+for reference sources and fidelity boundaries.
 
 ### Wrap and polar checks
 
 `north-pole` and `south-pole` reveal the actual generated terrain and focus the
-viewport at its northern/southern limits. CivCraft campaigns use Civ III's
-horizontal wrap only; WrapXY is retained in low-level geometry tests, not as a
-launch or save mode.
-
-Wrap validation: 562/562 Rust tests, including reproducible cylinder generation,
-12-turn cylinder campaigns, per-mode movement/sight/path/city-radius checks,
-new-save mode persistence, and unchanged torus seed oracles. Both modes passed
-278/278 native gameplay checks and all 36 gallery scenes at 1280x720 and 800x600
-(49 desktop / 50 compact captures per mode). Polar sprites, camera clearance,
-minimap seam outlines and actual blocked/allowed crossing screenshots were
-visually inspected. Formatting and whitespace checks passed.
+viewport at its northern/southern limits. Campaign maps wrap horizontally and
+have bounded polar edges. Review the generated north/south screenshots and
+horizontal viewport seams after rendering changes.
 
 ### Native polar backing and camera
 
@@ -181,13 +186,9 @@ World and city work maps clear to reference black. Camera geometry tests cover
 subpixel zoom and oversized viewports; see RENDERING_PARITY.md for source
 locations and current policy.
 
-Polar rendering validation: 565/565 Rust tests; 278/278 native gameplay checks
-in each wrap mode; all 36 gallery scenarios at both desktop and compact sizes.
-WrapX produced 49 desktop / 50 compact captures; WrapXY produced 51 / 52,
-including camera-seam before/after views. Pixel sampling of the native north
-boundary confirmed WrapX black (0,0,0), while the same position in WrapXY
-contained real terrain (0,41,136). Polar and city-map captures were visually
-inspected; formatting and whitespace checks passed.
+The current rendering cleanup removes the former two-axis wrap path. Validate
+polar limits and horizontal seam screenshots for the single supported map
+topology.
 
 ### Terrain atlas and seam checks
 
@@ -196,9 +197,9 @@ show all terrain types in adjacent patches at 0.625×, 0.82×, and 1.35× zoom.
 Each captures a fractional camera position and a second position after panning.
 Inspect uniform water interiors, coastlines, lake/ice corners, and connected
 forest/jungle and hill/mountain edges for straight grid lines or gaps. Run at
-both desktop and compact sizes and in both wrap modes when changing terrain
-sampling. The gallery assertions check execution and bounds; screenshots still
-require visual inspection.
+both desktop and compact sizes when changing terrain sampling. The gallery
+assertions check execution and bounds; screenshots still require visual
+inspection.
 
 Land, connected overlays, and lake/ice cells use isolated padded atlas cells.
 Lake and ocean mask edges have textured backing clipped to the tile diamond,
@@ -206,12 +207,9 @@ using the matching water artwork. Ocean masks overlap their raster edges by one 
 at fractional zoom. A reusable mesh avoids per-tile allocations.
 This replaces the flat water backing, which could show dark lake diagonals.
 
-Terrain seam validation: 53 client tests passed. All 39 gallery scenes passed
-at 1280x720 with WrapX (55 captures) and 800x600 with WrapXY (58 captures).
-Terrain captures at all three zooms and after fractional panning were inspected,
-along with the city work map. Lake diagonals and enlarged coastline gaps were
-corrected during inspection. These checks cover the listed configurations;
-visual assertions alone do not prove every possible camera/zoom combination.
+The older terrain seam capture counts describe a superseded renderer and should
+not be used as current validation evidence. Capture the current Civ III scenes
+at both desktop and compact sizes.
 
 ### Ice transitions
 
@@ -233,9 +231,8 @@ source pixel into transparency. Lake cells are unchanged.
 
 ### Native map dimensions and polar generation
 
-Campaigns use the Civ III 36×48 horizontal map topology. Historical Freeciv
-goldens and WrapXY geometry remain available only as internal comparison tests;
-the desktop game no longer offers WrapXY as a mode.
+Campaigns use the Civ III 36×48 horizontal map topology with bounded polar
+edges. The former WrapXY topology is removed from the supported game paths.
 
 ### WrapX ocean boundaries
 

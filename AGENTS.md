@@ -124,10 +124,10 @@ For focused screenshot galleries and visual review, see `UI_REVIEW.md` and the
 
 ## Checking map-generation goldens
 
-Campaigns use Civ III's horizontal map topology and 36×48 tile preset. The old
-WrapXY topology is retained only in historical reference fixtures and is not a
-supported game mode. Generate maps with the desired topology from the start;
-changing `sim.map_wrap` after generation leaves arrays inconsistent.
+Campaigns use Civ III's horizontal map topology and 36×48 tile preset. All
+campaign maps wrap horizontally and have bounded polar edges. Generate maps
+with the desired dimensions from the start; changing `sim.map_wrap` after
+generation leaves arrays inconsistent.
 
 `tests/fixtures/freeciv_mapgen_vectors.tsv` contains raw Freeciv 3.3.90.14-dev
 (eb8c703) terrain, altitude, extras and starting locations for historical
@@ -147,5 +147,4 @@ python3 tools/generate_mapgen_oracles.py --server /path/to/freeciv-server \
 ```
 
 The reference server binds localhost even without clients, so sandboxed runs may
-need desktop/network approval. Compare both wrapping modes when running
-polar/seam galleries. Unit goldens do not validate rendering.
+need desktop/network approval. Unit goldens do not validate rendering.

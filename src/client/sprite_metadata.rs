@@ -20,14 +20,6 @@ pub(super) fn isolated_sprite_source(row: i32, col: i32, width: f32, height: f32
     )
 }
 
-pub(super) fn ocean_cell_source(matches: [u8; 4]) -> (usize, usize) {
-    let [north, east, south, west] = matches;
-    (
-        8 - (east as usize + 3 * south as usize),
-        8 - (north as usize + 3 * west as usize),
-    )
-}
-
 const PLAYER_COLORS: [Color; MAX_CIVILIZATIONS + 1] = [
     Color::from_rgba(236, 61, 58, 255),
     Color::from_rgba(245, 213, 55, 255),
@@ -57,25 +49,6 @@ pub(super) fn player_color(owner: usize) -> Color {
 }
 
 impl Terrain {
-    pub(super) fn sprite_row(self) -> Option<i32> {
-        match self {
-            Self::Desert => Some(0),
-            Self::Plains => Some(1),
-            Self::Grassland => Some(2),
-            Self::Forest => Some(3),
-            Self::Hills => Some(4),
-            Self::Mountains => Some(5),
-            Self::Tundra => Some(6),
-            Self::Marsh => Some(8),
-            Self::Glacier => Some(7),
-            Self::Jungle => Some(9),
-            Self::GrasslandShield => Some(2),
-            Self::FloodPlains => Some(0),
-            Self::Volcano => Some(5),
-            Self::Coast | Self::Sea | Self::Ocean | Self::Lake => None,
-        }
-    }
-
     pub(super) fn minimap_color(self) -> Color {
         match self {
             Self::Coast => Color::from_rgba(30, 140, 191, 255),

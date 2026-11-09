@@ -111,7 +111,10 @@ fn wonder_helpers_respect_seven_turn_route_and_queued_contributions() {
         tile.river = false;
     }
     let mut distant = helper_city.clone();
-    (distant.x, distant.y) = offset_native_by_map(wonder_city.x, wonder_city.y, 20, 15);
+    (distant.x, distant.y) = (
+        (wonder_city.x + game.map_wrap.width() / 2).rem_euclid(game.map_wrap.width()),
+        0,
+    );
     assert!(game.wonder_helper_production_choice(&distant).is_none());
 }
 

@@ -232,39 +232,6 @@ impl Simulation {
         (built && cleaned, rejects_land)
     }
 
-    pub(crate) fn world_seam_work_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.cities.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.resource = None;
-            tile.hut = false;
-            tile.river = false;
-            tile.irrigation = false;
-            tile.owner = None;
-        }
-        let home = (10, 0);
-        let site = (10, 1);
-        let water = offset_native_by_map(site.0, site.1, -1, -1);
-        self.tile_mut(water.0, water.1).terrain = Terrain::Sea;
-        self.create_city(HUMAN, home.0, home.1);
-        let port = self.is_port(&self.cities[0]);
-        let radius =
-            Self::city_radius(&self.cities[0]).count() == Self::city_radius_at(10, 24).count();
-        let claimed = self.tile(water.0, water.1).owner == Some(HUMAN);
-        let worker = self.spawn_unit(HUMAN, UnitKind::Worker, site.0, site.1);
-        let started = self.apply(Command::Work(worker, WorkKind::Irrigation));
-        for _ in 0..5 {
-            self.update_activities_and_restore();
-        }
-        water.1 == self.map_wrap.height() - 1
-            && port
-            && radius
-            && claimed
-            && started
-            && self.tile(site.0, site.1).irrigation
-    }
-
     pub(crate) fn transport_auto_worker_playtest(&self) -> bool {
         let mut game = self.clone();
         game.units.clear();

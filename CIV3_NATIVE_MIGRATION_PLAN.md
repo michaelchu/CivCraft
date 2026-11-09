@@ -3,6 +3,12 @@
 Status: active migration plan, written 2026-11-08. This plan defines the
 intended end state; a completed phase requires the evidence listed below.
 
+Rendering status update (2026-11-09): The Amplio2 map renderer and map-art
+fallbacks have been removed. Civ III is the only selectable renderer and map
+tileset; horizontal wrap with bounded polar rows is the only campaign topology.
+Only the compact non-map unit icon atlas remains from Amplio2. Older save
+formats are unsupported.
+
 ## Authority and evidence
 
 - The Civ III manual in `civ3_manual.pdf` is the gameplay authority. Its
@@ -37,7 +43,7 @@ intended end state; a completed phase requires the evidence listed below.
 - Freeciv code, data and existing CivCraft behavior are migration context only.
   They do not define the target rules or rendering behavior.
 
-## Current verified baseline
+## Prior implementation baseline (before 2026-11-09 renderer cleanup)
 
 - Civ III terrain art can be loaded through the existing shared map draw path.
 - OpenCiv3 marks `C7/Assets/Art/Units/units_32.png` as placeholder artwork;
@@ -76,15 +82,10 @@ intended end state; a completed phase requires the evidence listed below.
   when PNG defaults are absent and accepts city-style manifest roles. Default
   tileset selection prefers the neighboring Sn00py `Art` directory when
   present and falls back to the bundled Civ III sheets.
-- Civ III artwork and the Civ III geometry backend are now the CLI defaults.
-  `--renderer amplio2` remains available for comparison. Civ III world-pass
-  orchestration now lives in the `Civ3WorldPainter` in
-  `src/client/world/civ3.rs`, and `Civ3Renderer` invokes it directly. The
-  painter takes game state and assets explicitly but still delegates tile
-  drawing to shared `Game` map-layer helpers; Amplio2 currently delegates to
-  the same painter, so it is not an independent legacy renderer. Simulation
-  storage/topology and most terrain choices remain incomplete. This is not yet
-  a fully native Civ III renderer or world model.
+- Civ III artwork and geometry are the only supported map path. The
+  `Civ3WorldPainter` in `src/client/world/civ3.rs` owns ordered map passes.
+  Simulation storage/topology and most terrain choices remain incomplete.
+  This is not yet a fully native Civ III world model.
 - `Tile` now retains a separate `base_terrain` for Civ III transition art;
   generated forest, jungle, hill, mountain, marsh, and volcano tiles no longer
   have to use their feature name as the base sheet. Terrain generation now
@@ -446,7 +447,7 @@ intended end state; a completed phase requires the evidence listed below.
   nearest-eight workable area and larger city radius; shortest-path rank and
   the size proxy are implementation choices. Focused
   regression coverage verifies the eight claims and rejects working an
-  unowned rank-two tile in both wrap modes. Full `cargo test --offline` passes
+  unowned rank-two tile with horizontal wrap and bounded poles. Full `cargo test --offline` passes
   640/640. The focused `campaign-worked-tiles` UI review passed all 12 checks
   at seed 42 and its Civ III city radius screenshot was inspected:
   `/tmp/civ3-border-review/campaign-worked-tiles.png` (report:
@@ -555,7 +556,7 @@ Complete when:
   including map seams and bounded top/bottom edges.
 - Forward projection and picking agree for every tile center and for points on
   each tile's diamond edges/corners at integer and fractional zoom.
-- Tests cover even/odd rows, wrapped and bounded maps, and edge tiles without
+- Tests cover even/odd rows, horizontal seams, bounded poles, and edge tiles without
   relying on Amplio2 projection helpers.
 - The module's documented rules are tied to manual page 8 where documented;
   any storage/indexing choices inferred from OpenCiv3 are explicitly labeled.
@@ -574,8 +575,8 @@ Complete when:
   back to Amplio2 projection or tile indexing.
 - Screenshot review covers land/water transitions, Sn00py PCX art, resources,
   cities, units, polar edges, wrapped horizontal seams, and the city work map.
-- The Civ III renderer is now the default. Complete the remaining paths before
-  removing the Amplio2 comparison backend.
+- Civ III is the only supported renderer. Keep all drawing and input paths on
+  its geometry and painter.
 
 ### 3. Mod-ready PCX asset pipeline
 
@@ -664,22 +665,23 @@ Complete when:
 
 ### 7. Amplio2 retirement and final audit
 
-Remove the Amplio2 renderer, projection, art loading, compatibility branches,
-and obsolete checks after all runtime paths and fixtures use the Civ III
-implementation. Remove stale Freeciv behavior only after the corresponding
-Civ III replacement has evidence.
+The renderer cleanup is implemented: Civ III is the only renderer and tileset,
+the map painter has no Amplio2 artwork fallback, and the only remaining
+Amplio2 atlas is loaded by compact non-map unit panels. WrapXY branches and
+save migrations are removed; older save formats are unsupported. The current
+campaign save schema uses header V18.
 
-Complete when:
+Closeout evidence for this cleanup:
 
-- A source and configuration audit finds no Amplio2 runtime dependency or
-  Freeciv-derived target behavior left in scope.
-- The default executable starts with Civ III renderer and Sn00py theme without
-  opt-in flags or PNG conversion.
-- Automated tests, requested gameplay scenarios, and visual galleries pass;
-  screenshots have been inspected at normal and compact sizes and at map
-  boundaries.
-- The final report lists completed systems, validation evidence, remaining
-  fidelity gaps, and all behavior still based on inference.
+- Source audit: no WrapXY topology or Amplio2 map-art load path remains.
+- Build: `cargo build --offline` passes.
+- Regression suite: `cargo test --offline -- --format terse` passes.
+- Visual review should inspect the Civ III north/south pole, terrain, river,
+  and horizontal-seam screenshots at normal and compact sizes.
+
+The wider Civ III gameplay and map-generation migration remains open. This
+cleanup does not claim that all Freeciv-derived behavior has been audited or
+replaced.
 
 ## Migration order
 

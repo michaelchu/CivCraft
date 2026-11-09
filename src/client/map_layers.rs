@@ -1,5 +1,4 @@
-//! Amplio2's map-wide painter passes, shared by the world and city work map.
-//! Reference: data/amplio2.tilespec layer_order; client/tilespec.c LAYER_*.
+//! Ordered Civ III map-painter passes, shared by the world and city work map.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum MapLayer {
     Blend,
@@ -25,7 +24,7 @@ pub(super) const MAP_LAYERS: [MapLayer; 8] = [
 mod tests {
     use super::*;
     #[test]
-    fn reference_water_roads_city_and_pollution_order_is_explicit() {
+    fn water_roads_city_and_pollution_order_is_explicit() {
         let index = |layer| MAP_LAYERS.iter().position(|&l| l == layer).unwrap();
         assert!(index(MapLayer::Blend) < index(MapLayer::Terrain));
         assert!(index(MapLayer::Terrain) < index(MapLayer::Water));

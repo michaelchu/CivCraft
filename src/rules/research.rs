@@ -336,8 +336,8 @@ impl Tech {
         )
     }
 
-    /// CivCraft-only advances retained for save compatibility and legacy
-    /// effects. Their effects now ride on the closest Civ III advance and
+    /// CivCraft-only advances retained for current ruleset effects. Their
+    /// effects now ride on the closest Civ III advance and
     /// they are not separate research choices.
     pub(crate) fn civ3_equivalent(self) -> Option<Self> {
         match self {

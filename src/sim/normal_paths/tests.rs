@@ -92,7 +92,10 @@ fn native_risk_paths_can_spend_more_movement_to_avoid_a_vulnerable_stack() {
     assert_eq!(cost, 3 * MOVE_FRAGMENTS);
     let mut position = (10, 20);
     for step in path {
-        position = sim.map_wrap.civ3_offset(position.0, position.1, step.0, step.1).unwrap();
+        position = sim
+            .map_wrap
+            .civ3_offset(position.0, position.1, step.0, step.1)
+            .unwrap();
         assert_ne!(position, stack);
     }
     assert_eq!(position, target);
@@ -117,7 +120,11 @@ fn overlap_stops_after_one_nonnative_tile_and_sanity_still_checks_known_map() {
     }
     let actor = unit(&mut sim, 1, UnitKind::Caravel);
     let center = civ3_east(&sim, (10, 20), 2);
-    for point in sim.map_wrap.civ3_neighbors(center.0, center.1).chain(std::iter::once(center)) {
+    for point in sim
+        .map_wrap
+        .civ3_neighbors(center.0, center.1)
+        .chain(std::iter::once(center))
+    {
         sim.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
     }
     let outer = civ3_east(&sim, (10, 20), 1);

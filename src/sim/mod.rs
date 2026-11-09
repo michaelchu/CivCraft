@@ -159,7 +159,6 @@ struct MapObservation {
 pub(crate) struct Simulation {
     pub(crate) world_seed: u64,
     pub(crate) civilization_count: usize,
-    #[serde(skip, default = "topology::legacy_wrap")]
     pub(crate) map_wrap: MapWrap,
     tiles: Vec<Tile>,
     units: Vec<Unit>,
@@ -506,7 +505,7 @@ impl Simulation {
     /// Returns the tile at a valid map coordinate.
     pub(crate) fn tile(&self, x: i32, y: i32) -> &Tile {
         debug_assert!(
-            self.map_wrap.wraps_y() || (0..self.map_wrap.height()).contains(&y),
+            (0..self.map_wrap.height()).contains(&y),
             "off-map cylinder tile ({x},{y})"
         );
         &self.tiles[self.map_wrap.index(x, y)]
@@ -514,7 +513,7 @@ impl Simulation {
 
     fn tile_mut(&mut self, x: i32, y: i32) -> &mut Tile {
         debug_assert!(
-            self.map_wrap.wraps_y() || (0..self.map_wrap.height()).contains(&y),
+            (0..self.map_wrap.height()).contains(&y),
             "off-map cylinder tile ({x},{y})"
         );
         let idx = self.map_wrap.index(x, y);

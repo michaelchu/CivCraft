@@ -79,8 +79,11 @@ impl Simulation {
                 && (u.kind.stats().attack > 0 || u.kind.is_diplomatic())
                 && self.map_wrap.civ3_distance(x, y, u.x, u.y) <= 2
                 && (self.worker_enemy_native(u.kind, x, y)
-                    || (u.kind.is_naval() && u.kind != UnitKind::Submarine
-                        && self.map_wrap.civ3_neighbors(x, y)
+                    || (u.kind.is_naval()
+                        && u.kind != UnitKind::Submarine
+                        && self
+                            .map_wrap
+                            .civ3_neighbors(x, y)
                             .any(|(tx, ty)| self.tile(tx, ty).terrain.is_water())))
         })
     }

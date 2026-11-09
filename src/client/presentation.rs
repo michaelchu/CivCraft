@@ -121,12 +121,6 @@ impl Game {
                     let period = self.sim.map_wrap.width() as f32 * TILE_W * self.zoom;
                     let dx = map_view::shortest_wrapped_delta(to_center.x - from_center.x, period);
                     let dy = to_center.y - from_center.y;
-                    let period_y = self.sim.map_wrap.height() as f32 * TILE_H * 0.5 * self.zoom;
-                    let dy = if self.sim.map_wrap.wraps_y() {
-                        map_view::shortest_wrapped_delta(dy, period_y)
-                    } else {
-                        dy
-                    };
                     from_center + vec2(dx, dy) * phase.x
                 }
                 _ => project(unit.x, unit.y),
@@ -156,16 +150,19 @@ impl Game {
                 if let Some(loser) = loser {
                     let center = project(loser.x, loser.y);
                     let frame = (((elapsed - explosion_start) / 0.020) as i32).min(4);
-                    draw_texture_ex(
-                        &assets.explosions,
-                        center.x - 15.0 * self.zoom,
-                        center.y - 15.0 * self.zoom,
-                        WHITE,
-                        DrawTextureParams {
-                            dest_size: Some(vec2(30.0, 30.0) * self.zoom),
-                            source: Some(Rect::new(0.0, frame as f32 * 30.0, 30.0, 30.0)),
-                            ..Default::default()
-                        },
+                    let radius = (7.0 + frame as f32 * 3.0) * self.zoom;
+                    draw_circle(
+                        center.x,
+                        center.y,
+                        radius,
+                        Color::new(1.0, 0.42, 0.08, 0.72),
+                    );
+                    draw_circle_lines(
+                        center.x,
+                        center.y,
+                        radius,
+                        (2.0 * self.zoom).max(1.0),
+                        Color::from_rgba(255, 222, 115, 240),
                     );
                 }
             }

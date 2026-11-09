@@ -295,8 +295,8 @@ impl Simulation {
         remote
             .buildings
             .retain(|&building| building != Building::PALACE);
-        (remote.x, remote.y) = offset_native_by_map(12, 24, 30, 0);
-        let waste = self.government_food_output(&remote, 100, Government::Communism) == 85;
+        (remote.x, remote.y) = offset_native_by_map(12, 24, 18, 0);
+        let waste = self.government_food_output(&remote, 100, Government::Communism) == 91;
         self.players[1].government = Government::Despotism;
         self.players[1].rates = [0, 0, 100];
         for tile in &mut self.tiles {

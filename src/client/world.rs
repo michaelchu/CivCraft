@@ -11,30 +11,6 @@ fn render_neighbor(wrap: MapWrap, x: i32, y: i32, dx: i32, dy: i32) -> Option<(i
     wrap.offset(x, y, dx, dy)
 }
 
-fn road_sprite_cells(rail: bool, city: bool, neighbors: [(bool, bool); 6]) -> Vec<(i32, i32)> {
-    let cols = [1, 3, 4, 5, 7, 8];
-    let mut cells = Vec::with_capacity(7);
-    // Native roads are complete before rails; raw road must not cover rail centers.
-    for (index, &(road, other_rail)) in neighbors.iter().enumerate() {
-        if road && !(rail && other_rail) {
-            cells.push((12, cols[index]));
-        }
-    }
-    if rail {
-        for (index, &(_, other_rail)) in neighbors.iter().enumerate() {
-            if other_rail {
-                cells.push((13, cols[index]));
-            }
-        }
-        if !city && !neighbors.iter().any(|n| n.1) {
-            cells.push((13, 0));
-        }
-    } else if !city && !neighbors.iter().any(|n| n.0) {
-        cells.push((12, 0));
-    }
-    cells
-}
-
 #[cfg(test)]
 mod infrastructure_tests {
     use super::*;
@@ -62,11 +38,6 @@ mod infrastructure_tests {
                 assert!(game.sim.map_wrap.normalize(2, padding).is_none());
             }
         }
-        let torus = Game::from_simulation(Simulation::new(crate::mapgen::generate_with_wrap(
-            42,
-            MapWrap::XY,
-        )));
-        assert_eq!(torus.edge_water_rows().count(), 0);
     }
 
     #[test]
@@ -81,16 +52,6 @@ mod infrastructure_tests {
             Some((MapWrap::X.width() - 1, 0))
         );
     }
-    #[test]
-    fn mixed_rail_junction_finishes_roads_before_rails_and_keeps_isolated_rail() {
-        let mut near = [(false, false); 6];
-        near[0] = (true, true);
-        near[1] = (true, false);
-        assert_eq!(road_sprite_cells(true, false, near), [(12, 3), (13, 1)]);
-        near[0] = (false, false);
-        assert_eq!(road_sprite_cells(true, false, near), [(12, 3), (13, 0)]);
-        assert!(road_sprite_cells(false, true, [(false, false); 6]).is_empty());
-    }
 }
 
 /// Civ III staggered-diamond tile centers relative to the viewport center.
@@ -104,7 +65,7 @@ pub(super) fn civ3_world_screen_position(
     x: i32,
     y: i32,
 ) -> Vec2 {
-    let geometry = Civ3Geometry::new_wrapped(wrap.width() * 2, wrap.height(), true, wrap.wraps_y())
+    let geometry = Civ3Geometry::new(wrap.width() * 2, wrap.height(), true)
         .expect("valid Civ III world geometry");
     let (grid_x, grid_y) = geometry
         .storage_to_grid(x, y)
@@ -114,55 +75,13 @@ pub(super) fn civ3_world_screen_position(
     let camera_py = (camera.y + 1.0) * CIV3_CELL_H;
     let width_px = wrap.width() as f32 * 2.0 * CIV3_CELL_W;
     let dx = (tile_px - camera_px + width_px * 0.5).rem_euclid(width_px) - width_px * 0.5;
-    let mut dy = tile_py - camera_py;
-    if wrap.wraps_y() {
-        let height_px = wrap.height() as f32 * CIV3_CELL_H;
-        dy = (dy + height_px * 0.5).rem_euclid(height_px) - height_px * 0.5;
-    }
+    let dy = tile_py - camera_py;
     const ART_SCALE: f32 = 0.75;
     vec2(
         viewport.x + viewport.w * 0.5 + dx * ART_SCALE * zoom,
         viewport.y + viewport.h * 0.5 + dy * ART_SCALE * zoom,
     )
 }
-/// Legacy projection retained only while the old backend remains selectable.
-pub(super) fn amplio2_world_screen_position(
-    wrap: MapWrap,
-    viewport: Rect,
-    camera: Vec2,
-    zoom: f32,
-    x: i32,
-    y: i32,
-) -> Vec2 {
-    let tile_x = (2 * x + y.rem_euclid(2)) as f32;
-    let half_width = wrap.width() as f32;
-    let dx = (tile_x - camera.x + half_width).rem_euclid(2.0 * half_width) - half_width;
-    let dy = y as f32 - camera.y;
-    let dy = if wrap.wraps_y() {
-        (dy + wrap.height() as f32 * 0.5).rem_euclid(wrap.height() as f32)
-            - wrap.height() as f32 * 0.5
-    } else {
-        dy
-    };
-    vec2(
-        viewport.x + viewport.w * 0.5 + dx * TILE_W * 0.5 * zoom,
-        viewport.y + viewport.h * 0.5 + dy * TILE_H * 0.5 * zoom,
-    )
-}
-
-/// Kept for legacy projection checks until Amplio2 is retired.
-#[cfg(test)]
-fn world_screen_position(
-    wrap: MapWrap,
-    viewport: Rect,
-    camera: Vec2,
-    zoom: f32,
-    x: i32,
-    y: i32,
-) -> Vec2 {
-    amplio2_world_screen_position(wrap, viewport, camera, zoom, x, y)
-}
-
 fn visible_world_tiles(
     wrap: MapWrap,
     viewport: Rect,
@@ -178,11 +97,7 @@ fn visible_world_tiles(
     let last = (camera.y + (viewport.bottom() + 80.0 - origin) / step)
         .ceil()
         .min((wrap.height() - 1) as f32) as i32;
-    let (first, last) = if wrap.wraps_y() {
-        (0, wrap.height() - 1)
-    } else {
-        (first, last)
-    };
+    let (first, last) = (first, last);
     let mut tiles = Vec::with_capacity(((last - first + 1).max(0) * wrap.width()) as usize);
     for y in first..=last {
         for x in 0..wrap.width() {
@@ -196,9 +111,6 @@ fn visible_world_tiles(
             }
             tiles.push((x, y, center));
         }
-    }
-    if wrap.wraps_y() {
-        tiles.sort_by(|a, b| a.2.y.total_cmp(&b.2.y));
     }
     tiles
 }
@@ -224,7 +136,14 @@ mod visibility_tests {
                             (
                                 x,
                                 y,
-                                world_screen_position(MapWrap::X, viewport, camera, zoom, x, y),
+                                civ3_world_screen_position(
+                                    MapWrap::X,
+                                    viewport,
+                                    camera,
+                                    zoom,
+                                    x,
+                                    y,
+                                ),
                             )
                         })
                         .collect();
@@ -241,7 +160,7 @@ mod visibility_tests {
                             viewport,
                             camera,
                             zoom,
-                            &render_backend::Amplio2Renderer,
+                            &render_backend::Civ3Renderer,
                         ),
                         reference
                     );
@@ -311,37 +230,5 @@ mod representative_tests {
                 .id,
             cargo.id
         );
-    }
-}
-
-#[cfg(test)]
-mod wrap_projection_tests {
-    use super::*;
-    #[test]
-    fn torus_rows_cross_the_vertical_seam_in_painter_order() {
-        let viewport = Rect::new(0.0, 46.0, 964.0, 550.0);
-        let camera = vec2(20.0, MAP_H as f32 - 0.2);
-        let torus = visible_world_tiles(
-            MapWrap::XY,
-            viewport,
-            camera,
-            1.0,
-            &render_backend::Amplio2Renderer,
-        );
-        assert!(torus.iter().any(|t| t.1 == 0));
-        assert!(torus.iter().any(|t| t.1 == MAP_H - 1));
-        assert!(torus.windows(2).all(|p| p[0].2.y <= p[1].2.y));
-        let cylinder = visible_world_tiles(
-            MapWrap::X,
-            viewport,
-            camera,
-            1.0,
-            &render_backend::Amplio2Renderer,
-        );
-        assert!(cylinder.iter().all(|t| t.1 > MAP_H / 2));
-        let a = world_screen_position(MapWrap::XY, viewport, camera, 1.0, 10, MAP_H - 1);
-        let (x, y) = MapWrap::XY.offset(10, MAP_H - 1, 1, 0).unwrap();
-        let b = world_screen_position(MapWrap::XY, viewport, camera, 1.0, x, y);
-        assert!((a.y - b.y).abs() <= TILE_H * 0.5 + 0.01);
     }
 }

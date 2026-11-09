@@ -96,7 +96,8 @@ const IRRIGATION: [(&str, &str); 4] = [
     ("irrigation-desert", "irrigation DESETT"),
     ("irrigation-tundra", "irrigation TUNDRA"),
 ];
-const OPTIONAL_IMPROVEMENTS: [(&str, &str); 4] = [
+const OPTIONAL_IMPROVEMENTS: [(&str, &str); 5] = [
+    ("farmland", "farmland"),
     ("oil-well", "oil-well"),
     ("oil-platform", "oil-platform"),
     ("airstrip", "airstrip"),
@@ -111,14 +112,12 @@ pub(super) enum TerrainBuilding {
 }
 
 pub(crate) enum Tileset {
-    Amplio2,
     Civ3(PathBuf),
 }
 
 impl Tileset {
     pub(crate) fn select(name: &str, theme: Option<&str>) -> Result<Self, String> {
         match (name, theme) {
-            ("amplio2", None) => Ok(Self::Amplio2),
             ("civ3", Some(path)) => Ok(Self::Civ3(path.into())),
             ("civ3", None) => {
                 let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
@@ -135,16 +134,13 @@ impl Tileset {
                         "Civ III art not found. Install it under tilesets/civ3 or use --tileset-theme PATH.".into()
                     })
             }
-            ("amplio2", Some(_)) => Err("--tileset-theme requires --tileset civ3".into()),
-            _ => Err(format!(
-                "Unknown tileset '{name}'. Available tilesets: amplio2, civ3"
-            )),
+            (_, Some(_)) => Err("--tileset-theme requires --tileset civ3".into()),
+            _ => Err(format!("Unknown tileset '{name}'. Available tileset: civ3")),
         }
     }
 
     pub(crate) fn name(&self) -> &'static str {
         match self {
-            Self::Amplio2 => "amplio2",
             Self::Civ3(_) => "civ3",
         }
     }
@@ -204,6 +200,7 @@ impl Theme {
                                 | "pollution"
                                 | "craters"
                                 | "oil-well"
+                                | "farmland"
                                 | "oil-platform"
                                 | "airstrip"
                                 | "airbase"
@@ -1321,7 +1318,7 @@ impl Civ3 {
     pub(super) fn draw_base(&self, game: &Game, x: i32, y: i32, center: Vec2, size: Vec2) {
         let wrap = game.sim.map_wrap;
         let px = 2 * x + y.rem_euclid(2);
-        let fallback = if (0..wrap.height()).contains(&y) || wrap.wraps_y() {
+        let fallback = if (0..wrap.height()).contains(&y) {
             render_ground(game.sim.render_tile(x, y))
         } else {
             Ice
@@ -1349,11 +1346,7 @@ impl Civ3 {
                 });
             let variant = if tiles.contains(&Ice) || tiles == [Ocean; 4] {
                 let x = jx.rem_euclid(2 * wrap.width());
-                let y = if wrap.wraps_y() {
-                    jy.rem_euclid(wrap.height())
-                } else {
-                    jy
-                };
+                let y = jy;
                 // Even/odd junction rows select the matching texture noise phase.
                 (2 * ((x.div_euclid(2) * 37 + y * 13).rem_euclid(4)) + y.rem_euclid(2)) as u8
             } else {
@@ -1801,7 +1794,7 @@ mod tests {
         let manifest = directory.join("tileset.conf");
         fs::write(
             &manifest,
-            "terrain-buildings = Terrain/TerrainBuildings.pcx\npollution = Terrain/pollution.pcx\ncraters = Terrain/craters.png\noil-well = Terrain/oil-well.pcx\noil-platform = Terrain/oil-platform.png\nairstrip = Terrain/airstrip.pcx\nairbase = Terrain/airbase.png\nunit-warrior = Units/Warrior/Default.flc\nunit-warrior-run = Units/Warrior/Run.flc\nunit-warrior-attack = Units/Warrior/Attack.flc\nunit-stealth-fighter = Units/Stealth Fighter/Default.flc\n",
+            "terrain-buildings = Terrain/TerrainBuildings.pcx\npollution = Terrain/pollution.pcx\ncraters = Terrain/craters.png\nfarmland = Terrain/farmland.pcx\noil-well = Terrain/oil-well.pcx\noil-platform = Terrain/oil-platform.png\nairstrip = Terrain/airstrip.pcx\nairbase = Terrain/airbase.png\nunit-warrior = Units/Warrior/Default.flc\nunit-warrior-run = Units/Warrior/Run.flc\nunit-warrior-attack = Units/Warrior/Attack.flc\nunit-stealth-fighter = Units/Stealth Fighter/Default.flc\n",
         )
         .unwrap();
         let theme = Theme::read(&directory).unwrap();

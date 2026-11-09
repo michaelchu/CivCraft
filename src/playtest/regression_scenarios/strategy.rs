@@ -160,12 +160,6 @@ impl Playtest {
                 "Human gifts, shared vision, paid direct alliances, and Senate-blocked war preparation followed the reference treaty policies.".to_owned()));
         }
 
-        if frame == 652 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("world_seam_work", sim.world_seam_work_playtest(),
-                "City radius, territory, ports, and completed irrigation used neighbors across the wrapped world seam.".to_owned()));
-        }
-
         if frame == 655 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (remote, reservations, shelter) = sim.ai_worker_planning_playtest();

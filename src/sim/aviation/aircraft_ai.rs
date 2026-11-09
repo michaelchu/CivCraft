@@ -222,7 +222,10 @@ impl Simulation {
                         .unwrap()
                         .clone();
                     if let Some(primary) = self.unit_by_id(primary)
-                        && self.map_wrap.civ3_distance(live.x, live.y, primary.x, primary.y) == 1
+                        && self
+                            .map_wrap
+                            .civ3_distance(live.x, live.y, primary.x, primary.y)
+                            == 1
                     {
                         if let Some(direction) = CIV3_DIRS.iter().position(|&(dx, dy)| {
                             self.map_wrap.civ3_offset(live.x, live.y, dx, dy)

@@ -212,8 +212,7 @@ impl Simulation {
             UpgradeUnit(id, target, price) => self.upgrade_unit(id, target, price),
             HomeCity(_) => self.change_home_city(unit_index.unwrap()),
             Research(goal) => {
-                if ((goal.data().is_none() || !goal.is_civ3_advance())
-                    && goal != Tech::FUTURE)
+                if ((goal.data().is_none() || !goal.is_civ3_advance()) && goal != Tech::FUTURE)
                     || self.has_tech(HUMAN, goal)
                 {
                     return false;

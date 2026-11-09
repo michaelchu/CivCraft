@@ -1,6 +1,6 @@
 //! Application entry point and runtime coordinator for CivCraft.
 //!
-//! Startup parses command-line options, chooses the map topology, renderer, and
+//! Startup parses command-line options, chooses the map topology and
 //! tileset, then either creates a new [`sim::Simulation`] or restores one from
 //! a campaign save. The same frame loop serves interactive play, screenshots,
 //! desktop playtests, and UI review captures; automated modes disable ordinary
@@ -123,11 +123,7 @@ async fn main() {
         landform,
         temperature,
     };
-    let renderer_name = argument_value("--renderer").unwrap_or_else(|| "civ3".to_owned());
-    let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {
-        eprintln!("{error}");
-        std::process::exit(2);
-    });
+    let renderer = client::create_renderer("civ3").expect("Civ III renderer is available");
     let tileset_name = argument_value("--tileset").unwrap_or_else(|| "civ3".to_owned());
     let theme = argument_value("--tileset-theme");
     let tileset = Tileset::select(&tileset_name, theme.as_deref()).unwrap_or_else(|error| {
@@ -181,12 +177,6 @@ async fn main() {
             });
         match result {
             Ok(simulation) => {
-                if simulation.map_wrap.wraps_y() {
-                    eprintln!(
-                        "This campaign uses the retired WrapXY map mode and cannot be loaded."
-                    );
-                    std::process::exit(2);
-                }
                 Game::from_simulation_with_renderer(simulation, std::rc::Rc::clone(&renderer))
             }
             Err(error) => {

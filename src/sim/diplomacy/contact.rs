@@ -73,23 +73,6 @@ impl Simulation {
                     .is_some_and(|until| self.turn < until))
     }
 
-    pub(in crate::sim) fn seed_legacy_diplomatic_contacts(&mut self) {
-        // V1–V8 recorded first contact but no last-contact counter. Give known
-        // living factions one bounded migration window without replaying
-        // physical contact, first-contact callbacks, or random draws.
-        let until = self.turn.saturating_add(20);
-        for (&(a, b), relation) in &self.diplomacy {
-            if a != BARBARIANS
-                && b != BARBARIANS
-                && relation.first_contact.is_some()
-                && self.player_alive(a)
-                && self.player_alive(b)
-            {
-                self.diplomatic_contact_until.entry((a, b)).or_insert(until);
-            }
-        }
-    }
-
     pub(in crate::sim) fn refresh_diplomatic_contact_effects(&mut self) {
         // srv_main.c:do_have_contacts_effect runs after city refresh at phase
         // end, before the turn advances. Civ2Civ3 grants this via Marco Polo.

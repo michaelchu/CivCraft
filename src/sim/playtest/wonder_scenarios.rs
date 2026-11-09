@@ -60,13 +60,14 @@ impl Simulation {
     pub(crate) fn theatre_and_crusade_playtest(&mut self) -> (bool, bool, bool) {
         let (x, y) = (self.cities[0].x, self.cities[0].y);
         let home = self.cities[0].id;
-        let (tx, ty) = offset_native_by_map(x, y, 8, 0);
-        let (rx, ry) = offset_native_by_map(x, y, -8, 0);
+        let width = self.map_wrap.width();
+        let (tx, ty) = ((x + 8).rem_euclid(width), y);
+        let (rx, ry) = ((x - 8).rem_euclid(width), y);
         self.create_city(HUMAN, tx, ty);
         self.create_city(1, rx, ry);
         self.players[HUMAN].government = Government::Democracy;
         self.cities[0].size = 4;
-        let (ux, uy) = offset_native_by_map(x, y, 4, 0);
+        let (ux, uy) = ((x + 4).rem_euclid(width), y);
         self.tile_mut(ux, uy).owner = None;
         for _ in 0..2 {
             self.spawn_unit(HUMAN, UnitKind::Warrior, ux, uy);

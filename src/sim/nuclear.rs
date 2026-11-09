@@ -142,10 +142,12 @@ mod tests {
         game.native_random = None;
         game.rng = 2; // First xorshift draw is zero: the unit does not survive.
         assert!(game.apply(Command::Detonate(missile)));
-        assert!(!game
-            .units
-            .iter()
-            .any(|unit| [missile, friend].contains(&unit.id)));
+        assert!(
+            !game
+                .units
+                .iter()
+                .any(|unit| [missile, friend].contains(&unit.id))
+        );
         assert!(game.units.iter().any(|unit| unit.id == safe));
 
         let mut survive = Simulation::new(crate::mapgen::generate(42));

@@ -17,7 +17,7 @@ The fixed roster uses six civilizations from Civilization III. You lead the Roma
 | Chinese | Mao Zedong | Beijing |
 | Japanese | Tokugawa | Kyoto |
 
-Each civilization has its own ordered city names and an initial Amplio2 city style. City names skip names already used anywhere in the world, then use “New” names when the list runs out. Captured cities keep their names. Existing saves retain their city names; the former six faction labels upgrade when loaded. This roster and its current defaults are implementation details, not a claim of Civ III rules fidelity; Civ III traits and unique units are not fully represented.
+Each civilization has its own ordered city names and Civ III city style. City names skip names already used anywhere in the world, then use “New” names when the list runs out. Captured cities keep their names. Save loading accepts only the current format; older saves are unsupported. This roster and its current defaults are implementation details, not a claim of Civ III rules fidelity; Civ III traits and unique units are not fully represented.
 
 ## Play
 
@@ -72,8 +72,8 @@ cargo run --release -- --seed 42
 
 The playable map does not generate land on its top and bottom edge rows. The
 Civ III `polarICEcaps-final.png` artwork supplies the visual polar caps outside
-the playable map. The old WrapXY option has been removed from the game launch
-flow. Existing WrapXY saves are not loadable.
+the playable map. Campaign maps wrap horizontally and have bounded polar
+edges. The former WrapXY mode and older save formats are unsupported.
 
 The renderer and primary generation, movement, pathfinding, city work-area,
 and visibility paths use Civ III's staggered grid. Map generation settings are
@@ -93,18 +93,15 @@ default; otherwise CivCraft loads the bundled theme in
 cargo run --release -- --tileset civ3 --seed 42
 ```
 
-The selection applies to the world map and the city work map. It is independent
-of `--renderer` and works with new maps and existing saves. The Civ III tileset
-uses the Civ III river sheets. Unit art can be overridden per unit with an FLC
-animation from a mod; units without a configured FLC still use the legacy
-shared atlas while unit-art migration continues.
+The selection applies to the world map and the city work map. The Civ III tileset
+supplies map terrain and unit animations. Unit art can be overridden per unit
+with an FLC animation from a mod; units without configured FLC art use a vector
+map marker. Compact non-map panels retain a small shared unit icon atlas.
 Resource icons come from the selected theme’s resource sheet. A missing sheet
 or a transparent icon cell uses the existing fallback resource icon.
 
-The Civ III geometry backend is the default renderer. It controls map
-projection and tile picking. The map painter and simulation topology are still
-shared with the legacy implementation, so this is an incremental migration;
-`--renderer amplio2` remains available for comparison during development.
+The Civ III geometry backend is the only supported renderer. It controls map
+projection and tile picking.
 
 Use `--tileset-theme PATH` with `--tileset civ3` to select a local art directory
 or a manifest file. An art directory can follow the original filenames, with
@@ -167,7 +164,7 @@ The research screen lists unit and building unlocks from the implemented catalog
 
 --screenshot followed by a PNG path renders 120 frames, saves the current game view, and exits.
 
---self-test followed by a JSON path runs the desktop gameplay scenarios, including city management, diplomacy, warfare, AI advisors, and save migration, writes the results, and exits. Rust regression tests run with `cargo test --offline`. Failed desktop checks return a nonzero exit status.
+--self-test followed by a JSON path runs the desktop gameplay scenarios, including city management, diplomacy, warfare, and AI advisors, writes the results, and exits. Rust regression tests run with `cargo test --offline`. Failed desktop checks return a nonzero exit status.
 
 `--ui-review /tmp/civcraft-ui --seed 42` captures the visual gallery and writes a JSON report. Add `--ui-scene touching-borders` (or another scene name) for a focused run. The gallery includes normal campaign flows driven through UI hit testing; see [UI_REVIEW.md](UI_REVIEW.md) for scenarios, profiling details, and validation limits.
 
@@ -177,7 +174,7 @@ The project is hosted at [michaelchu/CivCraft](https://github.com/michaelchu/Civ
 
 ## Focus of this build
 
-The implementation includes governments, diplomacy and espionage, naval and air warfare, wonders, and spaceship progression. The manual-based gameplay rules catalog and gap audit have not yet been populated. Network multiplayer, arbitrary Lua rulesets, scenarios, and the map editor remain outside this build's scope. The source tree contains several different desktop clients, so this build uses the normal Amplio2 isometric art with a compact SDL-style game layout rather than copying one operating-system window exactly.
+The implementation includes governments, diplomacy and espionage, naval and air warfare, wonders, and spaceship progression. The manual-based gameplay rules catalog and gap audit have not yet been populated. Network multiplayer, arbitrary Lua rulesets, scenarios, and the map editor remain outside this build's scope. This build uses Civ III map artwork with a compact SDL-style game layout.
 
-Map-rendering reference comparisons, remembered-map save compatibility, terrain
-artwork and go-to previews are documented in [RENDERING_PARITY.md](RENDERING_PARITY.md).
+Historical map-rendering comparisons and current visual-review guidance are
+documented in [RENDERING_PARITY.md](RENDERING_PARITY.md) and [UI_REVIEW.md](UI_REVIEW.md).

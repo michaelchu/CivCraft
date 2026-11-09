@@ -416,19 +416,13 @@ impl Generator {
         let grid_bx = 2 * bx + by.rem_euclid(2);
         let raw_dx = grid_bx - grid_ax;
         let raw_dy = by - ay;
-        let vertical_wraps = self.wrap.wraps_y();
         (-1..=1)
-            .flat_map(|horizontal_wrap| {
-                let vertical_wraps = vertical_wraps.then_some(-1..=1).into_iter().flatten();
-                std::iter::once(0)
-                    .chain(vertical_wraps)
-                    .map(move |vertical_wrap| {
-                        let dx = raw_dx + horizontal_wrap * 2 * self.wrap.width();
-                        let dy = raw_dy + vertical_wrap * self.wrap.height();
-                        let diagonal_a = (dx + dy) / 2;
-                        let diagonal_b = (dx - dy) / 2;
-                        diagonal_a.abs().max(diagonal_b.abs())
-                    })
+            .map(|horizontal_wrap| {
+                let dx = raw_dx + horizontal_wrap * 2 * self.wrap.width();
+                let dy = raw_dy;
+                let diagonal_a = (dx + dy) / 2;
+                let diagonal_b = (dx - dy) / 2;
+                diagonal_a.abs().max(diagonal_b.abs())
             })
             .min()
             .unwrap_or(i32::MAX)
@@ -528,32 +522,8 @@ const TROPICAL: i32 = 572;
 
 impl Generator {
     fn colatitude(&self, tile: usize) -> i32 {
-        if !self.wrap.wraps_y() {
-            let (_, y) = self.wrap.position(tile);
-            let latitude =
-                (1000.0 - 2000.0 * f64::from(y) / f64::from(self.wrap.height() - 1)) as i32;
-            return 1000 - latitude.abs();
-        }
-        // Freeciv's torus projection folds two circular polar regions around
-        // a diagonal equator in natural (staggered) coordinates.
-        let (native_x, native_y) = self.wrap.position(tile);
-        let x = f64::from(2 * native_x + native_y % 2) / f64::from(2 * self.wrap.width() - 1);
-        let y = f64::from(native_y) / f64::from(self.wrap.height() - 1);
-        let mut x = 1.0 - 2.0 * x.min(1.0 - x);
-        let mut y = 2.0 * y.min(1.0 - y);
-        let flipped = x + y > 1.0;
-        if flipped {
-            x = 1.0 - x;
-            y = 1.0 - y;
-        }
-        let colatitude =
-            1.5 * (x * x * y + x * y * y) - 0.5 * (x * x * x + y * y * y) + 1.5 * (x * x + y * y);
-        let southness = if flipped {
-            (2.0 - colatitude) / 2.0
-        } else {
-            colatitude / 2.0
-        };
-        let latitude = (1000.0 * (1.0 - southness) - 1000.0 * southness) as i32;
+        let (_, y) = self.wrap.position(tile);
+        let latitude = (1000.0 - 2000.0 * f64::from(y) / f64::from(self.wrap.height() - 1)) as i32;
         1000 - latitude.abs()
     }
 }
@@ -755,7 +725,7 @@ struct Generator {
 /// Historical reference preset, retained for existing oracle fixtures.
 /// Generates a world using the default horizontal-wrap topology.
 pub(crate) fn generate(seed: u64) -> GeneratedMap {
-    generate_with_wrap(seed, MapWrap::XY)
+    generate_with_wrap(seed, MapWrap::X)
 }
 /// Generates a reproducible world using `wrap` from the start of generation.
 pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
@@ -794,7 +764,7 @@ fn generate_with_civilization_count(
         civilization_count,
     };
     let mut map = generator.generate(seed);
-    if !wrap.wraps_y() {
+    {
         // The polar cap is a visual boundary in Civ III, not generated land.
         for y in [0, wrap.height() - 1] {
             for x in 0..wrap.width() {

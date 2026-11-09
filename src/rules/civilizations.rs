@@ -10,7 +10,6 @@ pub(crate) struct Civilization {
     pub(crate) name: &'static str,
     pub(crate) leader: &'static str,
     pub(crate) cities: &'static [&'static str], // Capital first.
-    pub(crate) city_style: &'static str,
     pub(crate) civ3_city_style: u8,
     pub(crate) starting_techs: [Tech; 2],
     pub(crate) legacy_name: &'static str,
@@ -20,7 +19,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Romans",
         leader: "Julius Caesar",
-        city_style: "Classical",
         civ3_city_style: 4,
         starting_techs: [Tech::WARRIOR_CODE, Tech::ALPHABET],
         legacy_name: "Crimson League",
@@ -74,7 +72,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Greeks",
         leader: "Alexander",
-        city_style: "Classical",
         civ3_city_style: 2,
         starting_techs: [Tech::ALPHABET, Tech::BRONZE_WORKING],
         legacy_name: "Golden Compact",
@@ -113,7 +110,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Egyptians",
         leader: "Cleopatra",
-        city_style: "Babylonian",
         civ3_city_style: 3,
         starting_techs: [Tech::CEREMONIAL_BURIAL, Tech::MASONRY],
         legacy_name: "Azure Assembly",
@@ -157,7 +153,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Babylonians",
         leader: "Hammurabi",
-        city_style: "Babylonian",
         civ3_city_style: 3,
         starting_techs: [Tech::BRONZE_WORKING, Tech::CEREMONIAL_BURIAL],
         legacy_name: "Violet Court",
@@ -195,7 +190,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Chinese",
         leader: "Mao Zedong",
-        city_style: "Asian",
         civ3_city_style: 0,
         starting_techs: [Tech::WARRIOR_CODE, Tech::MASONRY],
         legacy_name: "Amber Union",
@@ -208,7 +202,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Japanese",
         leader: "Tokugawa",
-        city_style: "Asian",
         civ3_city_style: 0,
         starting_techs: [Tech::THE_WHEEL, Tech::CEREMONIAL_BURIAL],
         legacy_name: "Rose Confederacy",
@@ -244,7 +237,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Germany",
         leader: "Bismarck",
-        city_style: "European",
         civ3_city_style: 2,
         starting_techs: [Tech::WARRIOR_CODE, Tech::BRONZE_WORKING],
         legacy_name: "Iron Confederation",
@@ -270,7 +262,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Russia",
         leader: "Catherine",
-        city_style: "European",
         civ3_city_style: 2,
         starting_techs: [Tech::POTTERY, Tech::BRONZE_WORKING],
         legacy_name: "Northern Union",
@@ -319,7 +310,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "America",
         leader: "Lincoln",
-        city_style: "European",
         civ3_city_style: 1,
         starting_techs: [Tech::POTTERY, Tech::MASONRY],
         legacy_name: "Free States",
@@ -369,7 +359,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "France",
         leader: "Joan d'Arc",
-        city_style: "European",
         civ3_city_style: 2,
         starting_techs: [Tech::ALPHABET, Tech::MASONRY],
         legacy_name: "Silver Republic",
@@ -400,7 +389,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "India",
         leader: "Gandhi",
-        city_style: "Asian",
         civ3_city_style: 0,
         starting_techs: [Tech::ALPHABET, Tech::CEREMONIAL_BURIAL],
         legacy_name: "Indus Union",
@@ -427,7 +415,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Persia",
         leader: "Xerxes",
-        city_style: "Babylonian",
         civ3_city_style: 3,
         starting_techs: [Tech::BRONZE_WORKING, Tech::MASONRY],
         legacy_name: "Sunlit Empire",
@@ -466,7 +453,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Aztecs",
         leader: "Montezuma",
-        city_style: "Tropical",
         civ3_city_style: 1,
         starting_techs: [Tech::WARRIOR_CODE, Tech::POTTERY],
         legacy_name: "Obsidian Empire",
@@ -512,7 +498,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Zululand",
         leader: "Shaka",
-        city_style: "Tropical",
         civ3_city_style: 3,
         starting_techs: [Tech::WARRIOR_CODE, Tech::POTTERY],
         legacy_name: "Red Shield",
@@ -538,7 +523,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "Iroquois",
         leader: "Hiawatha",
-        city_style: "Celtic",
         civ3_city_style: 1,
         starting_techs: [Tech::POTTERY, Tech::ALPHABET],
         legacy_name: "Haudenosaunee",
@@ -577,7 +561,6 @@ pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
     Civilization {
         name: "England",
         leader: "Elizabeth",
-        city_style: "European",
         civ3_city_style: 2,
         starting_techs: [Tech::ALPHABET, Tech::POTTERY],
         legacy_name: "Lion Kingdom",

@@ -8,7 +8,6 @@ use std::collections::BTreeMap;
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct ObservedCity {
     pub(crate) city: City,
-    pub(crate) art_cell: (i32, i32),
     pub(crate) civ3_style: u8,
     pub(crate) civ3_era: u8,
     pub(crate) occupied: bool,
@@ -152,12 +151,6 @@ impl Simulation {
         let luxury = self.city_trade(city, trade)[2];
         ObservedCity {
             city: city.clone(),
-            art_cell: crate::rules::city_art::city_art_cell(
-                crate::rules::city_art::initial_style(city.owner),
-                city.size,
-                |tech| self.has_tech(city.owner, tech),
-                |building| city.buildings.contains(&building),
-            ),
             // Civ III supplies five cultural sheets; the default mapping is
             // data on each civilization and can be overridden by its theme.
             civ3_style: crate::rules::civilizations::CIVILIZATIONS
@@ -366,45 +359,6 @@ impl Simulation {
         }
     }
 
-    /// Pre-V14 files have no visual snapshots. Preserve all recorded route
-    /// facts; reconstruct the remaining artwork once, never on each redraw.
-    pub(super) fn migrate_render_memory(&mut self) {
-        for (index, tile) in self.tiles.iter().enumerate() {
-            for owner in 0..self.players.len() {
-                if !tile.known_by[owner] || owner == BARBARIANS {
-                    continue;
-                }
-                let mut observed = tile.clone();
-                observed.seen = true;
-                observed.visible = false;
-                observed.stealth_visible = false;
-                if owner == HUMAN
-                    && !tile.visible
-                    && let Some(Some(route)) = self.route_memory.get(index)
-                {
-                    observed.terrain = route.terrain;
-                    observed.road = route.road;
-                    observed.railroad = route.railroad;
-                    observed.river = route.river;
-                }
-                self.observed_map
-                    .tiles
-                    .insert((owner, index), (0, observed));
-            }
-        }
-        for city in &self.cities {
-            for owner in 0..self.players.len() {
-                if self.tile(city.x, city.y).known_by[owner] && owner != BARBARIANS {
-                    let mut observed = self.observed_city(city);
-                    observed.remembered = true;
-                    self.observed_map
-                        .cities
-                        .insert((owner, city.id), (0, observed));
-                }
-            }
-        }
-    }
-
     pub(super) fn valid_render_memory(&self) -> bool {
         self.observed_map
             .tiles
@@ -434,8 +388,6 @@ impl Simulation {
                         && city.size > 0
                         && *revision <= self.observed_map.revision
                         && observed.remembered
-                        && (0..20).contains(&observed.art_cell.0)
-                        && (0..10).contains(&observed.art_cell.1)
                         && observed.civ3_style < 5
                         && observed.civ3_era < 4
                 })

@@ -161,7 +161,10 @@ fn cargo_uses_carrier_speed_and_disembark_delay_and_can_outpace_walking() {
     let home = (10, 24);
     game.tile_mut(home.0, home.1).terrain = Terrain::Grassland;
     game.create_city(1, home.0, home.1);
-    let sea = offset_native_by_map(home.0, home.1, -4, 0);
+    let mut sea = home;
+    for _ in 0..4 {
+        sea = game.map_wrap.civ3_neighbor(sea.0, sea.1, 2).unwrap();
+    }
     let ferry = game.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
     let troop = game.spawn_unit(HUMAN, UnitKind::Warrior, sea.0, sea.1);
     assert!(game.board_specific_ship(troop, ferry));
@@ -169,7 +172,7 @@ fn cargo_uses_carrier_speed_and_disembark_delay_and_can_outpace_walking() {
     let soldier = game.unit_by_id(troop).unwrap();
     assert!(game.danger_route_turns(soldier, &city).is_none());
     assert_eq!(game.city_danger_arrival(soldier, &city), Some(1));
-    let far = offset_native_by_map(home.0, home.1, 25, 0);
+    let far = (0, 0);
     for unit in game
         .units
         .iter_mut()

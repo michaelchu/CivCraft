@@ -116,9 +116,9 @@ impl Simulation {
         // Generated starting units can reveal the probe tiles during contact setup.
         self.units.clear();
         self.sign_pact(HUMAN, 1, Pact::Ceasefire);
-        let land = (10, 24);
-        let sea = (11, 24);
-        let unexplored = (12, 24);
+        let land = (18, 35);
+        let sea = self.map_wrap.civ3_neighbor(land.0, land.1, 2).unwrap();
+        let unexplored = self.map_wrap.civ3_neighbor(land.0, land.1, 3).unwrap();
         for (point, terrain, known) in [
             (land, Terrain::Grassland, true),
             (sea, Terrain::Sea, true),
@@ -145,7 +145,8 @@ impl Simulation {
             && !self.tile(sea.0, sea.1).seen
             && self.players[HUMAN].gold == price - 1;
         self.players[HUMAN].gold = price;
-        let paid = self.apply(Command::BuyMap(1, TreatyMap::Sea))
+        let bought = self.apply(Command::BuyMap(1, TreatyMap::Sea));
+        let paid = bought
             && self.players[HUMAN].gold == 0
             && self.tile(sea.0, sea.1).seen
             && !self.tile(land.0, land.1).seen;

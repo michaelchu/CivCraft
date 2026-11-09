@@ -291,14 +291,14 @@ mod city_output_tests {
         let game = fixture();
         let mut city = game.cities[0].clone();
         city.buildings.clear();
-        (city.x, city.y) = offset_native_by_map(city.x, city.y, 30, 0);
+        (city.x, city.y) = offset_native_by_map(city.x, city.y, 18, 0);
         assert_eq!(
             game.government_food_output(&city, 100, Government::Despotism),
-            85
+            91
         );
         assert_eq!(
             game.government_output_waste_under(&city, 100, 100, None, Government::Despotism),
-            (30, 20)
+            (54, 44)
         );
         city.buildings.push(Building::ECCLESIASTICAL_PALACE);
         // city.c:nearest_gov_center's first branch uses evaluated city,
@@ -319,15 +319,15 @@ mod city_output_tests {
         let mut city = game.cities[0].clone();
         city.buildings
             .retain(|&building| building != Building::PALACE);
-        (city.x, city.y) = offset_native_by_map(city.x, city.y, 30, 0);
+        (city.x, city.y) = offset_native_by_map(city.x, city.y, 18, 0);
         assert_eq!(
             game.government_food_output(&city, 100, Government::Communism),
-            85
+            91
         );
         city.buildings.push(Building::GRANARY);
         assert_eq!(
             game.government_food_output(&city, 100, Government::Communism),
-            92
+            95
         );
         city.buildings.push(Building::COURTHOUSE);
         assert_eq!(

@@ -194,9 +194,10 @@ impl ResearchTree {
             .iter()
             .filter(|(tech, _)| tech.era() == era)
             .map(|(_, center)| (center.x - NODE_SIZE.x * 0.5, center.x + NODE_SIZE.x * 0.5))
-            .fold((f32::INFINITY, f32::NEG_INFINITY), |(left, right), bounds| {
-                (left.min(bounds.0), right.max(bounds.1))
-            });
+            .fold(
+                (f32::INFINITY, f32::NEG_INFINITY),
+                |(left, right), bounds| (left.min(bounds.0), right.max(bounds.1)),
+            );
         Rect::new(left, 0.0, right - left, self.size.y)
     }
 

@@ -65,8 +65,7 @@ impl Simulation {
         self.run_ai_player(BARBARIANS);
         self.ai_free_bulbs.clear();
         for owner in 0..self.players.len() {
-            if !self.player_alive(owner)
-                || (owner < BARBARIANS && owner >= self.civilization_count)
+            if !self.player_alive(owner) || (owner < BARBARIANS && owner >= self.civilization_count)
             {
                 continue;
             }

@@ -3,158 +3,6 @@
 use super::*;
 
 impl Game {
-    /// Compatibility entry point for the Amplio2 comparison backend. The map
-    /// painter itself is the dedicated Civ III pass implementation.
-    pub(in crate::client) fn draw_world_map(&self, assets: &Assets) {
-        self.draw_civ3_world_map(assets);
-    }
-
-    fn ocean_match_type(&self, x: i32, y: i32) -> u8 {
-        match self.sim.render_tile(x, y).terrain {
-            Terrain::Ocean => 0,
-            Terrain::Coast | Terrain::Sea | Terrain::Lake | Terrain::Glacier => 1,
-            _ => 2,
-        }
-    }
-
-    fn ocean_neighbor_match(&self, x: i32, y: i32, dx: i32, dy: i32, current: u8) -> u8 {
-        let (mx, my) = native_to_map(x, y);
-        let (neighbor_x, neighbor_y) = map_to_native(mx + dx, my + dy);
-        let Some((neighbor_x, neighbor_y)) = self.sim.map_wrap.normalize(neighbor_x, neighbor_y)
-        else {
-            return current;
-        };
-        if self.sim.render_tile(neighbor_x, neighbor_y).seen {
-            self.ocean_match_type(neighbor_x, neighbor_y)
-        } else {
-            current
-        }
-    }
-
-    fn draw_ocean_sprite(
-        &self,
-        assets: &Assets,
-        x: i32,
-        y: i32,
-        geometry: TileGeometry,
-        tint: Color,
-    ) {
-        let TileGeometry {
-            center,
-            width: tile_w,
-            height: tile_h,
-        } = geometry;
-        let current = self.ocean_match_type(x, y);
-        let nearby = |dx, dy| self.ocean_neighbor_match(x, y, dx, dy, current);
-
-        // Each visual corner belongs to four map tiles. Amplio2 stores all
-        // land/shallow/deep combinations as a four-terrain cell group; the
-        // generated corner atlas contributes only this tile's quarter.
-        let groups = [
-            [nearby(-1, -1), nearby(0, -1), current, nearby(-1, 0)],
-            [nearby(0, -1), nearby(1, -1), nearby(1, 0), current],
-            [current, nearby(1, 0), nearby(1, 1), nearby(0, 1)],
-            [nearby(-1, 0), current, nearby(0, 1), nearby(-1, 1)],
-        ];
-
-        for (corner, matches) in groups.into_iter().enumerate() {
-            let (source_row, source_col) = ocean_cell_source(matches);
-            assets.draw_ocean_corner(
-                center,
-                tile_w,
-                tile_h,
-                isolated_sprite_source(
-                    (corner * 9 + source_row) as i32,
-                    source_col as i32,
-                    96.0,
-                    48.0,
-                ),
-                tint,
-            );
-        }
-    }
-
-    pub(super) fn draw_map_base_fallback(
-        &self,
-        assets: &Assets,
-        x: i32,
-        y: i32,
-        center: Vec2,
-        width: f32,
-        height: f32,
-    ) {
-        let terrain = self.sim.render_tile(x, y).terrain;
-        if terrain.is_water() || terrain == Terrain::Glacier {
-            assets.draw_masked_terrain_backing(terrain, center, width, height);
-        } else {
-            draw_diamond(center, width, height, terrain.minimap_color());
-        }
-        self.draw_terrain_sprite(assets, x, y, center, width, height);
-    }
-
-    fn draw_terrain_sprite(
-        &self,
-        assets: &Assets,
-        x: i32,
-        y: i32,
-        center: Vec2,
-        tile_w: f32,
-        tile_h: f32,
-    ) {
-        let terrain = self.sim.render_tile(x, y).terrain;
-        let tint = WHITE;
-
-        if terrain == Terrain::Lake {
-            self.draw_lake_sprite(assets, x, y, center, tile_w, tile_h);
-            return;
-        }
-        if terrain.is_water() {
-            self.draw_ocean_sprite(
-                assets,
-                x,
-                y,
-                TileGeometry::new(center, tile_w, tile_h),
-                tint,
-            );
-            return;
-        }
-
-        let row = terrain.sprite_row().expect("land terrain sprite row");
-        draw_texture_ex(
-            &assets.terrain,
-            center.x - tile_w * 0.5,
-            center.y - tile_h * 0.5,
-            tint,
-            DrawTextureParams {
-                dest_size: Some(vec2(tile_w, tile_h)),
-                source: Some(isolated_sprite_source(row, 0, 96.0, 48.0)),
-                ..Default::default()
-            },
-        );
-    }
-
-    pub(super) fn draw_terrain_extra(
-        &self,
-        texture: &Texture2D,
-        center: Vec2,
-        tile_w: f32,
-        tile_h: f32,
-        source_row: i32,
-        source_col: i32,
-    ) {
-        draw_texture_ex(
-            texture,
-            center.x - tile_w * 0.5,
-            center.y - tile_h * 0.5,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(tile_w, tile_h)),
-                source: Some(isolated_sprite_source(source_row, source_col, 96.0, 48.0)),
-                ..Default::default()
-            },
-        );
-    }
-
     pub(super) fn draw_resource_icon(
         &self,
         texture: &Texture2D,
@@ -182,105 +30,6 @@ impl Game {
                 ..Default::default()
             },
         );
-    }
-
-    pub(super) fn draw_base_sprite(
-        &self,
-        assets: &Assets,
-        center: Vec2,
-        w: f32,
-        h: f32,
-        row: i32,
-        col: i32,
-    ) {
-        draw_texture_ex(
-            &assets.bases,
-            center.x - w * 0.5,
-            center.y - h,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(w, h * 1.5)),
-                source: Some(bordered_sprite_source(row, col, 96.0, 72.0)),
-                ..Default::default()
-            },
-        );
-    }
-
-    fn draw_river(&self, assets: &Assets, x: i32, y: i32, center: Vec2, tile_w: f32, tile_h: f32) {
-        if let Some(civ3) = &assets.civ3 {
-            civ3.draw_river(self, x, y, center, vec2(tile_w, tile_h));
-            return;
-        }
-        let tile = self.sim.render_tile(x, y);
-        let water = tile.terrain.is_water();
-        if !water && !tile.river {
-            return;
-        }
-
-        let neighbors = ISOHEX_DIRS.map(|(dx, dy)| {
-            let Some((nx, ny)) = render_neighbor(self.sim.map_wrap, x, y, dx, dy) else {
-                return super::rivers::RiverNeighbor {
-                    known: false,
-                    river: false,
-                    water: false,
-                };
-            };
-            let tile = self.sim.render_tile(nx, ny);
-            super::rivers::RiverNeighbor {
-                known: tile.seen,
-                river: tile.river,
-                water: tile.terrain.is_water(),
-            }
-        });
-        let mask = super::rivers::connection_mask(water, neighbors);
-        let draw_sprite = |source| {
-            draw_texture_ex(
-                &assets.rivers,
-                center.x - tile_w * 0.5,
-                center.y - tile_h * 0.5,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(tile_w, tile_h)),
-                    source: Some(source),
-                    ..Default::default()
-                },
-            )
-        };
-        if water {
-            for direction in 0..6 {
-                if mask & (1 << direction) != 0 {
-                    draw_sprite(super::rivers::mouth_sprite(direction));
-                }
-            }
-        } else {
-            draw_sprite(super::rivers::river_sprite(mask));
-        }
-    }
-
-    fn draw_road_sprites(
-        &self,
-        assets: &Assets,
-        x: i32,
-        y: i32,
-        geometry: TileGeometry,
-        has_city: bool,
-    ) {
-        let TileGeometry {
-            center,
-            width: tile_w,
-            height: tile_h,
-        } = geometry;
-        let neighbors = ISOHEX_DIRS.map(|(dx, dy)| {
-            render_neighbor(self.sim.map_wrap, x, y, dx, dy).map_or((false, false), |(nx, ny)| {
-                let tile = self.sim.render_tile(nx, ny);
-                (tile.seen && tile.road, tile.seen && tile.railroad)
-            })
-        });
-        for (row, col) in
-            road_sprite_cells(self.sim.render_tile(x, y).railroad, has_city, neighbors)
-        {
-            self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, row, col);
-        }
     }
 
     fn draw_territory_border(
@@ -323,22 +72,14 @@ impl Game {
 
     pub(super) fn edge_water_rows(&self) -> impl Iterator<Item = i32> + use<> {
         let height = self.sim.map_wrap.height();
-        let count = if self.sim.map_wrap.wraps_y() {
-            0
-        } else {
-            map_view::EDGE_WATER_ROWS
-        };
+        let count = map_view::EDGE_WATER_ROWS;
         (-count..0).chain(height..height + count)
     }
 
     pub(super) fn world_fog_knowledge(&self, x: i32, y: i32) -> fog::Knowledge {
         // Decorative water inherits knowledge from the closest real polar row.
         // City work maps keep their ordinary off-map fog behavior.
-        let y = if self.sim.map_wrap.wraps_y() {
-            y
-        } else {
-            y.clamp(0, self.sim.map_wrap.height() - 1)
-        };
+        let y = y.clamp(0, self.sim.map_wrap.height() - 1);
         self.fog_knowledge(x, y)
     }
 
@@ -367,21 +108,9 @@ impl Game {
                     draw_diamond(center, tile_w, tile_h, BLACK);
                     continue;
                 }
-                if let Some(tileset) = &assets.civ3 {
-                    tileset.draw_base(self, x, y, center, vec2(tile_w, tile_h));
-                    continue;
-                }
-                assets.draw_masked_terrain_backing(Terrain::Ocean, center, tile_w, tile_h);
-                let (row, col) = ocean_cell_source([0; 4]);
-                for corner in 0..4 {
-                    assets.draw_ocean_corner(
-                        center,
-                        tile_w,
-                        tile_h,
-                        isolated_sprite_source(corner * 9 + row as i32, col as i32, 96.0, 48.0),
-                        WHITE,
-                    );
-                }
+                assets
+                    .civ3
+                    .draw_base(self, x, y, center, vec2(tile_w, tile_h));
             }
         }
     }
@@ -396,117 +125,25 @@ impl Game {
         h: f32,
     ) {
         let tile = self.sim.render_tile(x, y);
-        if tile.visible
-            && let Some(Base::Fort | Base::Fortress) = tile.base
-        {
-            let row = i32::from(tile.base == Some(Base::Fort));
-            self.draw_base_sprite(assets, center, w, h, row, 3);
+        if tile.visible && matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
+            assets.civ3.draw_terrain_building(
+                super::super::tileset::TerrainBuilding::Fortress,
+                center,
+                vec2(w, h),
+            );
         }
     }
 
-    /// The same ordered passes drive world rendering and the city work map.
-    pub(super) fn draw_map_layer_fallback(
-        &self,
-        assets: &Assets,
-        layer: map_layers::MapLayer,
-        x: i32,
-        y: i32,
-        geometry: TileGeometry,
-        has_city: bool,
-    ) {
-        use map_layers::MapLayer;
-        let TileGeometry {
-            center,
-            width: tile_w,
-            height: tile_h,
-        } = geometry;
-        let tile = self.sim.render_tile(x, y);
-        match layer {
-            MapLayer::Blend => {
-                if assets.civ3.is_none() {
-                    self.draw_terrain_blending(assets, x, y, center, tile_w, tile_h);
-                }
-            }
-            MapLayer::Terrain => {
-                if !assets.civ3.as_ref().is_some_and(|tileset| {
-                    tileset.draw_overlay(tile.terrain, (x, y), center, geometry.size())
-                }) {
-                    self.draw_matched_terrain_overlay(assets, x, y, center, tile_w, tile_h);
-                }
-            }
-            MapLayer::Water => {
-                // Native fill_irrigation_sprite_array suppresses fields under cities.
-                if !has_city {
-                    if tile.farmland {
-                        self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 2, 6);
-                    } else if tile.irrigation {
-                        self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 1, 6);
-                    }
-                }
-                self.draw_river(assets, x, y, center, tile_w, tile_h);
-            }
-            MapLayer::Roads => {
-                if tile.road || tile.railroad {
-                    self.draw_road_sprites(assets, x, y, geometry, has_city);
-                }
-            }
-            MapLayer::Special1 => {
-                if let Some(Base::Fort | Base::Fortress) = tile.base {
-                    let row = i32::from(tile.base == Some(Base::Fort));
-                    self.draw_base_sprite(assets, center, tile_w, tile_h, row, 4);
-                }
-                if tile.oil_platform {
-                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 7, 6);
-                } else if tile.oil_well {
-                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 0, 6);
-                } else if tile.mine {
-                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 3, 6);
-                }
-                if tile.hut {
-                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 5, 6);
-                }
-                if let Some(resource) = tile
-                    .active_resource()
-                    .filter(|&resource| self.sim.resource_visible_to(HUMAN, resource))
-                    && !assets.civ3.as_ref().is_some_and(|tileset| {
-                        tileset.draw_resource(resource, center, geometry.size())
-                    })
-                {
-                    let (row, col) = resource.icon_cell();
-                    self.draw_resource_icon(
-                        &assets.resource_icons,
-                        center,
-                        tile_w,
-                        tile_h,
-                        row,
-                        col,
-                    );
-                }
-            }
-            MapLayer::Grid => {
-                if let Some(owner) = self.playback.tile_owner(&self.sim, x, y) {
-                    self.draw_territory_border(x, y, owner, center, tile_w, tile_h);
-                }
-            }
-            MapLayer::City => {}
-            MapLayer::Special2 => {
-                if let Some(Base::Airstrip | Base::Airbase) = tile.base {
-                    let row = i32::from(tile.base == Some(Base::Airstrip));
-                    self.draw_base_sprite(assets, center, tile_w, tile_h, row, 0);
-                }
-                if tile.pollution {
-                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 4, 6);
-                }
-                if tile.fallout {
-                    self.draw_terrain_extra(&assets.terrain, center, tile_w, tile_h, 6, 6);
-                }
-                if !tile.visible
-                    && let Some(Base::Fort | Base::Fortress) = tile.base
-                {
-                    let row = i32::from(tile.base == Some(Base::Fort));
-                    self.draw_base_sprite(assets, center, tile_w, tile_h, row, 3);
-                }
-            }
+    pub(super) fn draw_grid_layer(&self, x: i32, y: i32, geometry: TileGeometry) {
+        if let Some(owner) = self.playback.tile_owner(&self.sim, x, y) {
+            self.draw_territory_border(
+                x,
+                y,
+                owner,
+                geometry.center,
+                geometry.width,
+                geometry.height,
+            );
         }
     }
 }

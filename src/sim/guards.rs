@@ -281,7 +281,12 @@ impl Simulation {
         let Some(guard) = self.unit_by_id(id).cloned() else {
             return;
         };
-        if guard.moves_left <= 0 || self.map_wrap.civ3_distance(guard.x, guard.y, actor.x, actor.y) != 1 {
+        if guard.moves_left <= 0
+            || self
+                .map_wrap
+                .civ3_distance(guard.x, guard.y, actor.x, actor.y)
+                != 1
+        {
             return;
         }
         let direction = CIV3_DIRS.iter().position(|&(dx, dy)| {
@@ -524,7 +529,11 @@ impl Simulation {
                 );
                 let loss = actor.kind.stats().cost;
                 let desire = ((f64::from(benefit + loss) * chance - f64::from(loss)) * 17.0) as i32;
-                let threshold = if self.map_wrap.civ3_distance(actor.x, actor.y, target.0, target.1) == 1 {
+                let threshold = if self
+                    .map_wrap
+                    .civ3_distance(actor.x, actor.y, target.0, target.1)
+                    == 1
+                {
                     68
                 } else {
                     99999
@@ -615,7 +624,9 @@ impl Simulation {
                 // has not reached the rendezvous or an adjacent tile yet.
                 if !result.alive
                     || self.unit_by_id(id).is_none_or(|u| {
-                        self.map_wrap.civ3_distance(u.x, u.y, destination.0, destination.1) > 1
+                        self.map_wrap
+                            .civ3_distance(u.x, u.y, destination.0, destination.1)
+                            > 1
                     })
                 {
                     return true;

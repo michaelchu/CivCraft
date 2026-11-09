@@ -53,11 +53,7 @@ impl Game {
             vec2(rect.x, rect.y) + (self.camera_overview_position() + vec2(1.0, 0.5)) * scale;
         let width = viewport.w * scale / (TILE_W * 0.5 * self.zoom);
         let height = viewport.h * scale / (TILE_H * 0.5 * self.zoom);
-        let shifts_y = if self.sim.map_wrap.wraps_y() {
-            vec![-rect.h, 0.0, rect.h]
-        } else {
-            vec![0.0]
-        };
+        let shifts_y = [0.0];
         for &wrap_y in &shifts_y {
             for wrap_x in [-rect.w, 0.0, rect.w] {
                 let left = camera.x + wrap_x - width * 0.5;

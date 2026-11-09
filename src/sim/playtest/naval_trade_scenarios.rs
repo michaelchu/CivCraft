@@ -101,8 +101,24 @@ impl Simulation {
     }
 
     pub(crate) fn ai_merchant_playtest_setup(&mut self) -> (u32, u32, u32) {
-        let human = self.cities_owned_by(HUMAN).next().unwrap();
-        let (x, y, destination) = (human.x, human.y, human.id);
+        let destination = self.cities_owned_by(HUMAN).next().unwrap().id;
+        // Keep this shared ferry fixture away from the bounded polar rows so
+        // each scenario tests transport logic instead of map-edge placement.
+        let (x, y) = (10, 24);
+        let old_center = self
+            .city_by_id(destination)
+            .map(|city| (city.x, city.y))
+            .unwrap();
+        self.tile_mut(old_center.0, old_center.1).owner = None;
+        let center = self.tile_mut(x, y);
+        center.terrain = Terrain::Grassland;
+        center.owner = Some(HUMAN);
+        let city = self
+            .cities
+            .iter_mut()
+            .find(|city| city.id == destination)
+            .unwrap();
+        (city.x, city.y) = (x, y);
         let (mx, my) = offset_native_by_map(x, y, 1, 0);
         let (nx, ny) = offset_native_by_map(x, y, 5, 0);
         self.tile_mut(mx, my).terrain = Terrain::Grassland;

@@ -65,7 +65,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
         assert!(tiles.iter().any(|tile| tile.hut));
         assert!(map.starts.iter().all(|&(x, y)| {
             !tiles[(Generator {
-                wrap: MapWrap::XY,
+                wrap: MapWrap::X,
                 settings: Civ3WorldSettings::default(),
                 civilization_count: PLAYER_COUNT,
             })
@@ -96,7 +96,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                 assert!(!tile.terrain.is_water());
                 assert!(
                     (Generator {
-                        wrap: MapWrap::XY,
+                        wrap: MapWrap::X,
                         settings: Civ3WorldSettings::default(),
                         civilization_count: PLAYER_COUNT,
                     })
@@ -107,7 +107,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
             if tile.resource.is_some() {
                 assert!(
                     (Generator {
-                        wrap: MapWrap::XY,
+                        wrap: MapWrap::X,
                         settings: Civ3WorldSettings::default(),
                         civilization_count: PLAYER_COUNT,
                     })
@@ -132,7 +132,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                 assert!(!tiles[current].terrain.is_water());
                 has_outlet |= tiles[current].terrain == Terrain::Tundra;
                 for next in (Generator {
-                    wrap: MapWrap::XY,
+                    wrap: MapWrap::X,
                     settings: Civ3WorldSettings::default(),
                     civilization_count: PLAYER_COUNT,
                 })
@@ -185,7 +185,7 @@ fn river_course_can_turn_toward_a_nearby_outlet() {
 #[cfg(test)]
 #[test]
 fn civ3_world_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
-    for wrap in [MapWrap::X, MapWrap::XY] {
+    for wrap in [MapWrap::X] {
         for seed in [42, 12345] {
             let map = generate_with_wrap(seed, wrap);
             assert!(
@@ -239,28 +239,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0xa0261076a308dd19,
-            [(0, 12), (3, 46), (4, 29), (12, 53), (15, 22), (16, 43)],
+            0xc99e25509c307d15,
+            [(0, 9), (1, 28), (9, 36), (13, 40), (15, 32), (20, 43)],
         ),
         (
             42,
-            0xdbb87b94116639d3,
-            [(14, 31), (16, 55), (17, 16), (22, 21), (24, 43), (29, 16)],
+            0xcbe1d1150de36cb4,
+            [(8, 23), (16, 44), (17, 21), (19, 36), (22, 15), (29, 30)],
         ),
         (
             12345,
-            0x4def39301b1f56f0,
-            [(6, 56), (14, 21), (14, 50), (22, 43), (27, 28), (28, 13)],
+            0x3878fb1c3a928403,
+            [(1, 21), (7, 42), (15, 14), (16, 27), (28, 37), (32, 18)],
         ),
         (
             700001,
-            0x43925fb10239b5fe,
-            [(6, 60), (12, 40), (14, 29), (22, 52), (23, 35), (24, 21)],
+            0x67c4a644e69da62c,
+            [(2, 42), (5, 22), (8, 39), (16, 10), (18, 26), (21, 39)],
         ),
         (
             2147483647,
-            0x84c8b929036f8474,
-            [(16, 34), (17, 45), (18, 7), (18, 25), (24, 48), (29, 12)],
+            0x9b86547b7c1c92d8,
+            [(18, 24), (18, 41), (20, 12), (26, 31), (28, 43), (32, 9)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {
@@ -281,7 +281,7 @@ fn default_worlds_match_civcraft_resource_goldens() {
 
 #[test]
 fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
-    let wrap = MapWrap::XY;
+    let wrap = MapWrap::X;
     let coverages = [
         OceanCoverage::Percent60,
         OceanCoverage::Percent70,
@@ -313,7 +313,7 @@ fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
     assert!(water_counts[0] < water_counts[1]);
     assert!(water_counts[1] < water_counts[2]);
     for (count, coverage) in water_counts.into_iter().zip([60_usize, 70, 80]) {
-        let actual = count * 100 / MapWrap::XY.tile_count();
+        let actual = count * 100 / MapWrap::X.tile_count();
         assert!(
             actual.abs_diff(coverage) <= 1,
             "requested {coverage}% ocean coverage but generated {actual}%"
@@ -323,7 +323,7 @@ fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
 
 #[test]
 fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
-    let wrap = MapWrap::XY;
+    let wrap = MapWrap::X;
     let map_for = |climate| {
         generate_with_settings(
             42,
@@ -357,7 +357,7 @@ fn civ3_world_age_controls_relief_and_volcano_frequency() {
     let generate_age = |age| {
         generate_with_settings(
             42,
-            MapWrap::XY,
+            MapWrap::X,
             Civ3WorldSettings {
                 ocean_coverage: OceanCoverage::default(),
                 climate: Climate::default(),
@@ -515,7 +515,7 @@ mod wrap_generation_tests {
 
     #[test]
     fn generated_terrain_neighbors_use_reciprocal_civ3_eight_way_topology() {
-        for wrap in [MapWrap::X, MapWrap::XY] {
+        for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,
                 settings: Civ3WorldSettings::default(),
@@ -590,7 +590,7 @@ mod wrap_generation_tests {
                 g.neighbors(g.index(10, 0))
                     .all(|i| g.wrap.position(i).1 < g.wrap.height() / 2)
             );
-            assert_ne!(
+            assert_eq!(
                 bincode::serialize(&a.tiles).unwrap(),
                 bincode::serialize(&generate(seed).tiles).unwrap()
             );
@@ -599,7 +599,7 @@ mod wrap_generation_tests {
 
     #[test]
     fn civ3_shelf_rules_put_coast_by_land_and_sea_by_coast() {
-        for wrap in [MapWrap::X, MapWrap::XY] {
+        for wrap in [MapWrap::X] {
             let generator = Generator {
                 wrap,
                 settings: Civ3WorldSettings::default(),

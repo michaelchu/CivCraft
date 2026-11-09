@@ -415,7 +415,6 @@ impl Game {
         if matches!(scene, 33 | 34) {
             let viewport = Self::viewport_rect();
             let camera = self.camera_overview_position();
-            let wrapping = self.sim.map_wrap.wraps_y();
             if phase == 1 {
                 let y = if scene == 33 {
                     0
@@ -423,9 +422,7 @@ impl Game {
                     self.sim.map_wrap.height() - 1
                 };
                 let point = self.world_screen_position(self.sim.map_wrap.width() / 2, y);
-                let expected = if wrapping {
-                    viewport.y + viewport.h * 0.5
-                } else if scene == 33 {
+                let expected = if scene == 33 {
                     viewport.y + map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5 - 1.0
                 } else {
                     viewport.bottom() - map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
@@ -443,13 +440,7 @@ impl Game {
             }
             if phase == 6 {
                 // Same camera-coordinate change/normalization as real panning.
-                let delta = if wrapping {
-                    if scene == 33 {
-                        -(self.sim.map_wrap.height() + 1)
-                    } else {
-                        self.sim.map_wrap.height() + 1
-                    }
-                } else if scene == 33 {
+                let delta = if scene == 33 {
                     -4 * self.sim.map_wrap.height()
                 } else {
                     4 * self.sim.map_wrap.height()
@@ -457,65 +448,44 @@ impl Game {
                 self.camera += Vec2::splat(delta as f32 * 0.5);
                 self.normalize_camera();
                 let after = self.camera_overview_position().y;
-                let expected = if wrapping {
-                    camera.y + if scene == 33 { -1.0 } else { 1.0 }
+                sequence.check(
+                    "camera_stops_at_polar_limit",
+                    (after - camera.y).abs() < 0.02,
+                )?;
+                let previous_zoom = self.zoom;
+                self.zoom = MIN_ZOOM;
+                self.normalize_camera();
+                let y = if scene == 33 {
+                    0
                 } else {
-                    camera.y
+                    self.sim.map_wrap.height() - 1
+                };
+                let point = self.world_screen_position(self.sim.map_wrap.width() / 2, y);
+                let expected = if scene == 33 {
+                    viewport.y + map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5 - 1.0
+                } else {
+                    viewport.bottom() - map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
+                        + 1.0
                 };
                 sequence.check(
-                    "camera_stops_or_wraps_at_polar_limit",
-                    (after - expected).abs() < 0.02,
+                    "zoomed_out_edge_water_fills_viewport",
+                    (point.y - expected).abs() < 0.02,
                 )?;
-                if !wrapping {
-                    let previous_zoom = self.zoom;
-                    self.zoom = MIN_ZOOM;
-                    self.normalize_camera();
-                    let y = if scene == 33 {
-                        0
-                    } else {
-                        self.sim.map_wrap.height() - 1
-                    };
-                    let point = self.world_screen_position(self.sim.map_wrap.width() / 2, y);
-                    let expected = if scene == 33 {
-                        viewport.y + map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
-                            - 1.0
-                    } else {
-                        viewport.bottom()
-                            - map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
-                            + 1.0
-                    };
-                    sequence.check(
-                        "zoomed_out_edge_water_fills_viewport",
-                        (point.y - expected).abs() < 0.02,
-                    )?;
-                    return Ok((self.zoom - previous_zoom).abs() > 0.001);
-                }
-                return Ok(true);
+                return Ok((self.zoom - previous_zoom).abs() > 0.001);
             }
             return Ok(false);
         }
         if scene == 35 {
             if phase == 6 {
                 let id = self.selected_unit.unwrap();
-                let wrapping = self.sim.map_wrap.wraps_y();
                 let moved = self.move_selected(Command::Move(id, 0, -1), id);
-                sequence.check("movement_obeys_configured_vertical_seam", moved == wrapping)?;
+                sequence.check("movement_stops_at_polar_edge", !moved)?;
                 let unit = self.sim.unit_by_id(id).unwrap();
+                sequence.check("bounded_map_keeps_unit_in_place", unit.y == 0)?;
                 sequence.check(
-                    "vertical_seam_has_expected_destination",
-                    unit.y
-                        == if wrapping {
-                            self.sim.map_wrap.height() - 1
-                        } else {
-                            0
-                        },
+                    "bounded_map_still_accepts_real_move",
+                    self.move_selected(Command::Move(id, 1, 0), id),
                 )?;
-                if !wrapping {
-                    sequence.check(
-                        "bounded_map_still_accepts_real_move",
-                        self.move_selected(Command::Move(id, 1, 0), id),
-                    )?;
-                }
                 self.sim.take_visual_events();
                 self.playback.finish();
                 return Ok(true);

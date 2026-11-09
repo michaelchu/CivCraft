@@ -9,10 +9,15 @@ fn approach(roll: i32) -> (Simulation, u32, (i32, i32)) {
         .iter()
         .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Explorer)
         .unwrap();
-    let (id, x, y) = (explorer.id, explorer.x, explorer.y);
+    let id = explorer.id;
+    let (x, y) = (10, 20);
+    let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
+    (unit.x, unit.y) = (x, y);
     let (nx, ny) = offset_native_by_map(x, y, 0, -1);
+    game.tile_mut(x, y).terrain = Terrain::Grassland;
     game.tile_mut(nx, ny).terrain = Terrain::Plains;
     game.tile_mut(nx, ny).hut = true;
+    game.refresh_visibility();
     let seed = (1..)
         .find(|&seed| {
             game.set_random_seed(seed);

@@ -3,7 +3,6 @@
 use super::*;
 
 pub(super) fn neighbors(x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> {
-    // Test/scenario helper for the historical torus fixture.
     ISOHEX_DIRS
         .into_iter()
         .map(move |(dx, dy)| offset_native_by_map(x, y, dx, dy))
@@ -193,37 +192,6 @@ mod tests {
     fn transport_workers_build_deep_ocean_platforms_and_clean_but_cannot_do_sea_excluded_work() {
         let game = Simulation::new(crate::mapgen::generate(42));
         assert_eq!(game.transport_worker_actions_playtest(), (true, true));
-    }
-
-    #[test]
-    fn wrapped_world_seam_preserves_neighbors_irrigation_ports_and_city_radius() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        assert!(game.world_seam_work_playtest());
-        game.units.clear();
-        game.cities.clear();
-        for tile in &mut game.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.river = false;
-            tile.irrigation = false;
-            tile.owner = None;
-        }
-        let home = (10, 0);
-        let across = offset_native_by_map(home.0, home.1, -1, -1);
-        assert_eq!(across.1, MAP_H - 2);
-        assert!(
-            game.map_wrap
-                .civ3_neighbors(home.0, home.1)
-                .any(|position| position == across)
-        );
-        assert!(!game.can_irrigate_at(HUMAN, home.0, home.1));
-        game.tile_mut(across.0, across.1).terrain = Terrain::Sea;
-        assert!(game.can_irrigate_at(HUMAN, home.0, home.1));
-        game.create_city(HUMAN, home.0, home.1);
-        assert!(game.is_port(&game.cities[0]));
-        let seam_tiles: Vec<_> = Simulation::city_radius(&game.cities[0]).collect();
-        assert!(seam_tiles.iter().any(|&(_, _, x, y)| (x, y) == across));
-        assert_eq!(game.tile(across.0, across.1).owner, Some(HUMAN));
-        assert_eq!(seam_tiles.len(), Simulation::city_radius_at(10, 24).count());
     }
 
     #[test]

@@ -1,5 +1,11 @@
 # Rendering parity — 2026-11-06
 
+Historical report: the Amplio2 implementation and validation described below
+have since been retired. Current map rendering uses Civ III sheets and vector
+overlays; horizontal wrap with bounded poles is the only topology, and older
+save formats are unsupported. The historical WrapXY notes below describe a
+removed path and are not supported behavior or current validation guidance.
+
 This work addresses the five map-rendering gaps from the rendering audit. It
 uses the local native Freeciv client as the source for Amplio2 sprite selection,
 layering and remembered information, and keeps CivCraft's local single-player

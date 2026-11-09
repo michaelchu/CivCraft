@@ -1,20 +1,15 @@
-//! Campaign persistence, input validation, migration, and runtime restoration.
+//! Current campaign persistence, input validation, and runtime restoration.
 //!
-//! Saves encode the durable part of [`Simulation`] with a versioned binary
-//! format. Loading rejects malformed or incompatible payloads, applies the
-//! ordered migrations in `migrations`, and reconstructs transient state such as
-//! visibility, route caches, and unit indexes before gameplay resumes.
+//! Saves encode the durable part of [`Simulation`] with the current versioned
+//! binary format. Older formats are not migrated or loaded.
 //!
 //! When adding persistent fields, decide whether they belong in the save,
-//! provide a safe default or migration for existing campaigns, and update the
-//! round-trip and corruption checks. Runtime caches should remain excluded when
+//! update the round-trip and corruption checks. Runtime caches should remain excluded when
 //! they can be derived from saved state.
 
 use super::*;
 use bincode::Options;
-mod migrations;
 mod playtest;
-use migrations::*;
 use std::{
     fs::{self, OpenOptions},
     io::{self, Read, Write},
@@ -22,8 +17,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-// Preserve the existing map wire format while making save/replay comparisons
-// independent of each HashMap's randomized bucket order.
+// Make save/replay comparisons independent of randomized HashMap bucket order.
 pub(super) fn serialize_unit_map<S, V>(
     map: &std::collections::HashMap<u32, V>,
     serializer: S,
@@ -36,37 +30,11 @@ where
     serde::Serialize::serialize(&ordered, serializer)
 }
 
-const HEADER_V1: &[u8] = b"CIVCRAFT\0\x01";
-const HEADER_V2: &[u8] = b"CIVCRAFT\0\x02";
-const HEADER_V3: &[u8] = b"CIVCRAFT\0\x03";
-const HEADER_V4: &[u8] = b"CIVCRAFT\0\x04";
-const HEADER_V5: &[u8] = b"CIVCRAFT\0\x05";
-const HEADER_V6: &[u8] = b"CIVCRAFT\0\x06";
-const HEADER_V7: &[u8] = b"CIVCRAFT\0\x07";
-const HEADER_V8: &[u8] = b"CIVCRAFT\0\x08";
-const HEADER_V9: &[u8] = b"CIVCRAFT\0\x09";
-const HEADER_V10: &[u8] = b"CIVCRAFT\0\x0a";
-const HEADER_V11: &[u8] = b"CIVCRAFT\0\x0b";
-const HEADER_V12: &[u8] = b"CIVCRAFT\0\x0c";
-const HEADER_V13: &[u8] = b"CIVCRAFT\0\x0d";
-const HEADER_V14: &[u8] = b"CIVCRAFT\0\x0e";
-const HEADER_V16: &[u8] = b"CIVCRAFT\0\x10";
-const HEADER: &[u8] = b"CIVCRAFT\0\x11";
+const HEADER: &[u8] = b"CIVCRAFT\0\x12";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
 type UnitTargets = std::collections::BTreeMap<u32, u32>;
-type LegacyStrategy7 = (
-    PairMemory<diplomacy::WarPlan>,
-    PairMemory<i32>,
-    std::collections::BTreeMap<usize, i32>,
-    UnitTargets,
-);
-type LegacyStrategy7Early = (
-    PairMemory<diplomacy::WarPlan>,
-    PairMemory<i32>,
-    std::collections::BTreeMap<usize, i32>,
-);
 type Strategy8 = (
     PairMemory<diplomacy::WarPlan>,
     PairMemory<i32>,
@@ -184,23 +152,7 @@ impl Simulation {
         let mut file = fs::File::open(path)?;
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
-        if header != HEADER
-            && header != HEADER_V14
-            && header != HEADER_V16
-            && header != HEADER_V13
-            && header != HEADER_V12
-            && header != HEADER_V11
-            && header != HEADER_V10
-            && header != HEADER_V9
-            && header != HEADER_V8
-            && header != HEADER_V7
-            && header != HEADER_V6
-            && header != HEADER_V5
-            && header != HEADER_V4
-            && header != HEADER_V3
-            && header != HEADER_V2
-            && header != HEADER_V1
-        {
+        if header != HEADER {
             return Err(invalid("Unsupported CivCraft save format"));
         }
         let mut payload = Vec::new();
@@ -208,291 +160,183 @@ impl Simulation {
         if payload.len() as u64 > MAX_PAYLOAD {
             return Err(invalid("CivCraft save exceeds the size limit"));
         }
-        let mut game: Self;
-        if header == HEADER_V1 {
-            game = decode_payload(&payload)?;
-            migrate_research_sentinels(&mut game);
-            game.validate_campaign()?;
-            game.remember_route_tiles(true);
-        } else {
-            let decode_error = |error: bincode::Error| invalid(error.to_string());
-            let (loaded, memory, reserves, missions, founders, observations, ai_strategy) =
-                match header.as_slice() {
-                    HEADER_V2 => {
-                        let (loaded, memory) = decode_payload(&payload)?;
-                        (
-                            loaded,
-                            memory,
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                        )
-                    }
-                    HEADER_V3 => {
-                        let (loaded, memory, reserves) = decode_payload(&payload)?;
-                        (
-                            loaded,
-                            memory,
-                            reserves,
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                        )
-                    }
-                    HEADER_V4 => {
-                        let (loaded, memory, reserves, missions) = decode_payload(&payload)?;
-                        (
-                            loaded,
-                            memory,
-                            reserves,
-                            missions,
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                        )
-                    }
-                    HEADER_V5 => {
-                        let (loaded, memory, reserves, missions, founders) =
-                            decode_payload(&payload)?;
-                        (
-                            loaded,
-                            memory,
-                            reserves,
-                            missions,
-                            founders,
-                            Default::default(),
-                            Default::default(),
-                        )
-                    }
-                    HEADER_V6 => {
-                        let (loaded, memory, reserves, missions, founders, observations) =
-                            decode_payload(&payload)?;
-                        (
-                            loaded,
-                            memory,
-                            reserves,
-                            missions,
-                            founders,
-                            observations,
-                            Default::default(),
-                        )
-                    }
-                    HEADER_V7 => upgrade_strategy(decode_v7(&payload).map_err(decode_error)?),
-                    HEADER_V8 => {
-                        upgrade_strategy(decode_payload::<CampaignPayload<Strategy8>>(&payload)?)
-                    }
-                    HEADER_V9 => decode_payload(&payload)?,
-                    HEADER_V10 => decode_v10(&payload).map_err(decode_error)?,
-                    HEADER_V11 => decode_v11(&payload).map_err(decode_error)?,
-                    HEADER_V12 => decode_v12(&payload).map_err(decode_error)?,
-                    HEADER_V13 => decode_v13(&payload).map_err(decode_error)?,
-                    HEADER_V14 => decode_v14(&payload).map_err(decode_error)?,
-                    HEADER_V16 => decode_v15(&payload).map_err(decode_error)?,
-                    _ => decode_v15(&payload).map_err(decode_error)?,
-                };
-            let (
-                (
-                    war_plans,
-                    space_warnings,
-                    free_bulbs,
-                    ground_targets,
-                    merchant_missions,
-                    settlement_targets,
-                    diplomatic_memory,
-                    merchant_birth_turns,
-                ),
-                (ferries, government_cache, contact_until),
-            ): Strategy9 = ai_strategy;
-            let observations: AiMapMemory = observations;
-            let founders: std::collections::BTreeMap<u32, usize> = founders;
-            let missions: std::collections::BTreeMap<u32, u32> = missions;
-            let reserves: std::collections::BTreeMap<usize, i32> = reserves;
-            let memory: Vec<Option<movement::RouteTile>> = memory;
-            game = loaded;
-            if header != HEADER {
-                migrate_research_sentinels(&mut game);
-            }
-            game.validate_campaign()?;
-            if memory.len() != game.tiles.len()
-                || memory.iter().flatten().any(|tile| {
-                    tile.city_owner
-                        .is_some_and(|owner| owner >= game.players.len())
-                })
-            {
-                return Err(invalid("Invalid remembered map"));
-            }
-            if reserves
-                .iter()
-                .any(|(&owner, &price)| owner >= game.players.len() || price <= 0)
-            {
-                return Err(invalid("Invalid AI purchase reserve"));
-            }
-            game.route_memory = memory;
-            if missions.iter().any(|(&unit, &city)| {
-                unit == 0 || unit >= game.next_unit_id || city == 0 || city >= game.next_city_id
-            }) {
-                return Err(invalid("Invalid AI city mission"));
-            }
-            game.ai_purchase_reserve = reserves;
-            if founders.iter().any(|(&city, &owner)| {
-                city == 0 || city >= game.next_city_id || owner >= game.players.len()
-            }) {
-                return Err(invalid("Invalid city founder"));
-            }
-            game.agent_city_targets = missions;
-            game.city_founders = founders;
-            if observations.iter().any(|(&(owner, index), tile)| {
-                owner == HUMAN
-                    || owner == BARBARIANS
-                    || owner >= game.players.len()
-                    || index >= game.tiles.len()
-                    || tile.owner.is_some_and(|owner| owner >= game.players.len())
-                    || tile
-                        .route
-                        .city_owner
-                        .is_some_and(|owner| owner >= game.players.len())
-            }) {
-                return Err(invalid("Invalid AI map observation"));
-            }
-            game.ai_map_memory = observations;
-            if war_plans.keys().any(|&(owner, rival)| {
-                owner >= game.players.len()
-                    || rival >= game.players.len()
-                    || owner == rival
-                    || owner == BARBARIANS
-                    || rival == BARBARIANS
-            }) {
-                return Err(invalid("Invalid AI war plan"));
-            }
-            game.ai_war_plans = war_plans;
-            if space_warnings.iter().any(|(&(owner, rival), &timer)| {
-                owner >= game.players.len()
-                    || rival >= game.players.len()
-                    || owner == rival
-                    || owner == BARBARIANS
-                    || rival == BARBARIANS
-                    || timer < 0
-            }) {
-                return Err(invalid("Invalid AI space warning"));
-            }
-            game.ai_space_warnings = space_warnings;
-            if free_bulbs
-                .keys()
-                .any(|&owner| owner >= game.players.len() || owner == BARBARIANS)
-            {
-                return Err(invalid("Invalid AI free research bulbs"));
-            }
-            game.ai_free_bulbs = free_bulbs;
-            if ground_targets.iter().any(|(&unit, &city)| {
-                !game.units.iter().any(|actor| actor.id == unit)
-                    || !game.cities.iter().any(|target| target.id == city)
-            }) {
-                return Err(invalid("Invalid AI ground mission"));
-            }
-            game.ai_ground_targets = ground_targets;
-            if merchant_missions.iter().any(|(&unit, mission)| {
-                !game.units.iter().any(|actor| {
-                    actor.id == unit
-                        && matches!(actor.kind, UnitKind::Caravan | UnitKind::Freight)
-                        && actor.owner == mission.owner
-                }) || !game.cities.iter().any(|city| city.id == mission.city)
-            }) {
-                return Err(invalid("Invalid AI merchant mission"));
-            }
-            game.ai_merchant_missions = merchant_missions;
-            if settlement_targets.iter().any(|(&unit, reservation)| {
-                let (x, y) = reservation.destination;
-                !game.units.iter().any(|actor| {
-                    actor.id == unit
-                        && actor.kind == UnitKind::Settlers
-                        && actor.owner == reservation.owner
-                }) || !(0..game.map_wrap.width()).contains(&x)
-                    || !(0..game.map_wrap.height()).contains(&y)
-                    || reservation.worker.is_some_and(|(x, y)| {
-                        !(0..game.map_wrap.width()).contains(&x)
-                            || !(0..game.map_wrap.height()).contains(&y)
-                    })
-            }) {
-                return Err(invalid("Invalid AI settlement reservation"));
-            }
-            game.ai_settlement_targets = settlement_targets;
-            if diplomatic_memory.keys().any(|&(owner, rival)| {
-                owner >= game.players.len()
-                    || rival >= game.players.len()
-                    || owner == rival
-                    || owner == BARBARIANS
-                    || rival == BARBARIANS
-            }) {
-                return Err(invalid("Invalid AI diplomatic memory"));
-            }
-            if diplomatic_memory.values().any(|memory| {
-                memory.spam < 0
-                    || memory.asked_peace < 0
-                    || memory.asked_alliance < 0
-                    || memory.asked_ceasefire < 0
-            }) {
-                return Err(invalid("Invalid AI diplomatic timers"));
-            }
-            game.ai_diplomatic_memory = diplomatic_memory;
-            if merchant_birth_turns.iter().any(|(&id, &born)| {
-                born > game.turn
-                    || !game.units.iter().any(|unit| {
-                        unit.id == id && matches!(unit.kind, UnitKind::Caravan | UnitKind::Freight)
-                    })
-            }) {
-                return Err(invalid("Invalid merchant birth turn"));
-            }
-            game.merchant_birth_turns = merchant_birth_turns;
-            if !ferries.valid(&game.units) {
-                return Err(invalid("Invalid AI ferry registry"));
-            }
-            if government_cache.iter().any(|(&owner, cache)| {
-                owner >= game.players.len()
-                    || cache.evaluated_turn > game.turn
-                    || cache.next_evaluation < cache.evaluated_turn
-                    || cache.scores.iter().any(|score| !score.is_finite())
-            }) {
-                return Err(invalid("Invalid AI government cache"));
-            }
-            if contact_until.keys().any(|&(a, b)| {
-                a >= b || b >= game.players.len() || a == BARBARIANS || b == BARBARIANS
-            }) {
-                return Err(invalid("Invalid diplomatic contact"));
-            }
-            game.ai_ferries = ferries;
-            game.ai_government_cache = government_cache;
-            game.diplomatic_contact_until = contact_until;
-        }
-        if matches!(
-            header.as_slice(),
-            HEADER | HEADER_V16 | HEADER_V14 | HEADER_V13 | HEADER_V12
-        ) && !game.list_order.valid(&game.units, &game.cities)
+        let (loaded, memory, reserves, missions, founders, observations, ai_strategy) =
+            decode_current(&payload).map_err(|error| invalid(error.to_string()))?;
+        let mut game = loaded;
+        let (
+            (
+                war_plans,
+                space_warnings,
+                free_bulbs,
+                ground_targets,
+                merchant_missions,
+                settlement_targets,
+                diplomatic_memory,
+                merchant_birth_turns,
+            ),
+            (ferries, government_cache, contact_until),
+        ): Strategy9 = ai_strategy;
+        let observations: AiMapMemory = observations;
+        let founders: std::collections::BTreeMap<u32, usize> = founders;
+        let missions: std::collections::BTreeMap<u32, u32> = missions;
+        let reserves: std::collections::BTreeMap<usize, i32> = reserves;
+        let memory: Vec<Option<movement::RouteTile>> = memory;
+        game.validate_campaign()?;
+        if memory.len() != game.tiles.len()
+            || memory.iter().flatten().any(|tile| {
+                tile.city_owner
+                    .is_some_and(|owner| owner >= game.players.len())
+            })
         {
+            return Err(invalid("Invalid remembered map"));
+        }
+        if reserves
+            .iter()
+            .any(|(&owner, &price)| owner >= game.players.len() || price <= 0)
+        {
+            return Err(invalid("Invalid AI purchase reserve"));
+        }
+        game.route_memory = memory;
+        if missions.iter().any(|(&unit, &city)| {
+            unit == 0 || unit >= game.next_unit_id || city == 0 || city >= game.next_city_id
+        }) {
+            return Err(invalid("Invalid AI city mission"));
+        }
+        game.ai_purchase_reserve = reserves;
+        if founders.iter().any(|(&city, &owner)| {
+            city == 0 || city >= game.next_city_id || owner >= game.players.len()
+        }) {
+            return Err(invalid("Invalid city founder"));
+        }
+        game.agent_city_targets = missions;
+        game.city_founders = founders;
+        if observations.iter().any(|(&(owner, index), tile)| {
+            owner == HUMAN
+                || owner == BARBARIANS
+                || owner >= game.players.len()
+                || index >= game.tiles.len()
+                || tile.owner.is_some_and(|owner| owner >= game.players.len())
+                || tile
+                    .route
+                    .city_owner
+                    .is_some_and(|owner| owner >= game.players.len())
+        }) {
+            return Err(invalid("Invalid AI map observation"));
+        }
+        game.ai_map_memory = observations;
+        if war_plans.keys().any(|&(owner, rival)| {
+            owner >= game.players.len()
+                || rival >= game.players.len()
+                || owner == rival
+                || owner == BARBARIANS
+                || rival == BARBARIANS
+        }) {
+            return Err(invalid("Invalid AI war plan"));
+        }
+        game.ai_war_plans = war_plans;
+        if space_warnings.iter().any(|(&(owner, rival), &timer)| {
+            owner >= game.players.len()
+                || rival >= game.players.len()
+                || owner == rival
+                || owner == BARBARIANS
+                || rival == BARBARIANS
+                || timer < 0
+        }) {
+            return Err(invalid("Invalid AI space warning"));
+        }
+        game.ai_space_warnings = space_warnings;
+        if free_bulbs
+            .keys()
+            .any(|&owner| owner >= game.players.len() || owner == BARBARIANS)
+        {
+            return Err(invalid("Invalid AI free research bulbs"));
+        }
+        game.ai_free_bulbs = free_bulbs;
+        if ground_targets.iter().any(|(&unit, &city)| {
+            !game.units.iter().any(|actor| actor.id == unit)
+                || !game.cities.iter().any(|target| target.id == city)
+        }) {
+            return Err(invalid("Invalid AI ground mission"));
+        }
+        game.ai_ground_targets = ground_targets;
+        if merchant_missions.iter().any(|(&unit, mission)| {
+            !game.units.iter().any(|actor| {
+                actor.id == unit
+                    && matches!(actor.kind, UnitKind::Caravan | UnitKind::Freight)
+                    && actor.owner == mission.owner
+            }) || !game.cities.iter().any(|city| city.id == mission.city)
+        }) {
+            return Err(invalid("Invalid AI merchant mission"));
+        }
+        game.ai_merchant_missions = merchant_missions;
+        if settlement_targets.iter().any(|(&unit, reservation)| {
+            let (x, y) = reservation.destination;
+            !game.units.iter().any(|actor| {
+                actor.id == unit
+                    && actor.kind == UnitKind::Settlers
+                    && actor.owner == reservation.owner
+            }) || !(0..game.map_wrap.width()).contains(&x)
+                || !(0..game.map_wrap.height()).contains(&y)
+                || reservation.worker.is_some_and(|(x, y)| {
+                    !(0..game.map_wrap.width()).contains(&x)
+                        || !(0..game.map_wrap.height()).contains(&y)
+                })
+        }) {
+            return Err(invalid("Invalid AI settlement reservation"));
+        }
+        game.ai_settlement_targets = settlement_targets;
+        if diplomatic_memory.keys().any(|&(owner, rival)| {
+            owner >= game.players.len()
+                || rival >= game.players.len()
+                || owner == rival
+                || owner == BARBARIANS
+                || rival == BARBARIANS
+        }) {
+            return Err(invalid("Invalid AI diplomatic memory"));
+        }
+        if diplomatic_memory.values().any(|memory| {
+            memory.spam < 0
+                || memory.asked_peace < 0
+                || memory.asked_alliance < 0
+                || memory.asked_ceasefire < 0
+        }) {
+            return Err(invalid("Invalid AI diplomatic timers"));
+        }
+        game.ai_diplomatic_memory = diplomatic_memory;
+        if merchant_birth_turns.iter().any(|(&id, &born)| {
+            born > game.turn
+                || !game.units.iter().any(|unit| {
+                    unit.id == id && matches!(unit.kind, UnitKind::Caravan | UnitKind::Freight)
+                })
+        }) {
+            return Err(invalid("Invalid merchant birth turn"));
+        }
+        game.merchant_birth_turns = merchant_birth_turns;
+        if !ferries.valid(&game.units) {
+            return Err(invalid("Invalid AI ferry registry"));
+        }
+        if government_cache.iter().any(|(&owner, cache)| {
+            owner >= game.players.len()
+                || cache.evaluated_turn > game.turn
+                || cache.next_evaluation < cache.evaluated_turn
+                || cache.scores.iter().any(|score| !score.is_finite())
+        }) {
+            return Err(invalid("Invalid AI government cache"));
+        }
+        if contact_until
+            .keys()
+            .any(|&(a, b)| a >= b || b >= game.players.len() || a == BARBARIANS || b == BARBARIANS)
+        {
+            return Err(invalid("Invalid diplomatic contact"));
+        }
+        game.ai_ferries = ferries;
+        game.ai_government_cache = government_cache;
+        game.diplomatic_contact_until = contact_until;
+        if !game.list_order.valid(&game.units, &game.cities) {
             return Err(invalid("Invalid native entity list order"));
         }
-        if !matches!(
-            header.as_slice(),
-            HEADER | HEADER_V16 | HEADER_V14 | HEADER_V13 | HEADER_V12
-        ) {
-            // Legacy saves did not record arrival/transfer history. Infer
-            // creation order; exact historical tile order is unrecoverable.
-            game.sync_list_order();
-        }
-        if matches!(header.as_slice(), HEADER | HEADER_V16 | HEADER_V14 | HEADER_V13) {
-            if !game.valid_cargo_order() {
-                return Err(invalid("Invalid transport cargo order"));
-            }
-        } else {
-            game.sync_cargo_order();
-        }
-        if !matches!(
-            header.as_slice(),
-            HEADER | HEADER_V16 | HEADER_V14 | HEADER_V13 | HEADER_V12 | HEADER_V11 | HEADER_V10 | HEADER_V9
-        ) {
-            game.seed_legacy_diplomatic_contacts();
+        if !game.valid_cargo_order() {
+            return Err(invalid("Invalid transport cargo order"));
         }
         if !game.validate_ai_guards() {
             return Err(invalid("Invalid AI bodyguard assignments"));
@@ -518,20 +362,6 @@ impl Simulation {
         // unless activity is ACTIVITY_GOTO. This engine has no queued native
         // GOTO activity; task destinations are reconstructed by the advisors.
         game.unit_goto_tiles.clear();
-        // Preserve the save layout and custom city names. Only migrate the six
-        // exact former faction labels, leaving rebels and custom names alone.
-        for (player, civ) in game
-            .players
-            .iter_mut()
-            .zip(crate::rules::civilizations::CIVILIZATIONS.iter())
-        {
-            if player.name == civ.legacy_name {
-                player.name = civ.name.to_owned();
-            }
-        }
-        if header != HEADER && header != HEADER_V16 && header != HEADER_V14 {
-            game.migrate_render_memory();
-        }
         if !game.valid_render_memory() {
             return Err(invalid("Invalid observed rendering map"));
         }
@@ -602,10 +432,33 @@ impl Simulation {
     }
 }
 
-fn decode_payload<T: serde::de::DeserializeOwned>(payload: &[u8]) -> io::Result<T> {
-    codec()
-        .deserialize(payload)
-        .map_err(|error| invalid(error.to_string()))
+fn decode_current(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Error> {
+    let (
+        mut campaign,
+        (current, guard_targets, unit_guards, city_rapture, goto_tiles),
+        order,
+        (random, cargo),
+        observed,
+        wrap,
+    ): (
+        CampaignPayload<Strategy9>,
+        Extras11,
+        list_order::ListOrder,
+        Extras13,
+        observed_map::ObservedMap,
+        MapWrap,
+    ) = codec().deserialize(payload)?;
+    campaign.0.climate_current = current;
+    campaign.0.ai_guard_targets = guard_targets;
+    campaign.0.ai_unit_guards = unit_guards;
+    campaign.0.city_rapture = city_rapture;
+    campaign.0.unit_goto_tiles = goto_tiles;
+    campaign.0.list_order = order;
+    campaign.0.native_random = random;
+    campaign.0.cargo_order = cargo;
+    campaign.0.observed_map = observed;
+    campaign.0.map_wrap = wrap;
+    Ok(campaign)
 }
 
 fn codec() -> impl Options {

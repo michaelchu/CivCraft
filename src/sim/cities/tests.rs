@@ -49,7 +49,7 @@ fn city_events_preserve_other_manual_workers_and_normal_build_completion_does_no
     game.tile_mut(manual.0, manual.1).terrain = Terrain::Mountains;
     game.cities[0].worked_tiles = vec![manual];
     game.cities[0].specialists = [0; 3];
-    game.create_city(HUMAN, 30, 60);
+    game.create_city(HUMAN, 30, 40);
     assert_eq!(game.cities[0].worked_tiles, vec![manual]);
     game.cities[1].size = 2;
     game.cities[1].specialists = [0, 0, 1];
@@ -80,7 +80,7 @@ fn population_loss_removes_specialists_before_native_city_index_workers() {
     city.specialists = [1, 1, 1];
     city.worked_tiles = vec![second, first];
     city.size -= 4;
-    city.remove_citizen_assignments(4, MapWrap::XY);
+    city.remove_citizen_assignments(4, MapWrap::X);
     assert_eq!(city.specialists, [0; 3]);
     assert_eq!(city.worked_tiles, vec![second]);
 }
@@ -114,10 +114,10 @@ fn migrants_cost_population_and_obey_join_size_limits() {
     let city = &mut game.cities[0];
     city.production = Production::Unit(UnitKind::Migrants);
     city.shields = 10;
-    assert!(city.resolve_production(MapWrap::XY).is_none());
+    assert!(city.resolve_production(MapWrap::X).is_none());
     city.size = 2;
     assert_eq!(
-        city.resolve_production(MapWrap::XY),
+        city.resolve_production(MapWrap::X),
         Some((Production::Unit(UnitKind::Migrants), 10))
     );
     assert_eq!(city.size, 1);
