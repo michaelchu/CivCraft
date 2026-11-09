@@ -309,28 +309,22 @@ impl Simulation {
         let Some(unit) = self.unit_by_id(id).cloned() else {
             return;
         };
-        let (mx, my) = native_to_map(unit.x, unit.y);
         let mut destinations = Vec::new();
-        for dx in -2..=2 {
-            for dy in -2..=2 {
-                if (dx, dy) == (0, 0) {
-                    continue;
-                }
-                let (nx, ny) = map_to_native(mx + dx, my + dy);
-                let Some((x, y)) = self.map_wrap.normalize(nx, ny) else {
-                    continue;
-                };
-                if self.movement_cost_for(&unit, x, y).is_some()
-                    && (!unit.kind.is_aircraft() || self.refuel_site(unit.owner, x, y))
-                    && self.cities.iter().all(|city| {
-                        (city.x, city.y) != (x, y) || self.allied(unit.owner, city.owner)
-                    })
-                    && self.units.iter().all(|other| {
-                        (other.x, other.y) != (x, y) || self.allied(unit.owner, other.owner)
-                    })
-                {
-                    destinations.push((x, y));
-                }
+        for (x, y, distance) in self.map_wrap.civ3_radius(unit.x, unit.y, 2) {
+            if distance == 0 {
+                continue;
+            }
+            if self.movement_cost_for(&unit, x, y).is_some()
+                && (!unit.kind.is_aircraft() || self.refuel_site(unit.owner, x, y))
+                && self
+                    .cities
+                    .iter()
+                    .all(|city| (city.x, city.y) != (x, y) || self.allied(unit.owner, city.owner))
+                && self.units.iter().all(|other| {
+                    (other.x, other.y) != (x, y) || self.allied(unit.owner, other.owner)
+                })
+            {
+                destinations.push((x, y));
             }
         }
         if destinations.is_empty() {
