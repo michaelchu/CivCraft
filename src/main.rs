@@ -123,13 +123,13 @@ async fn main() {
         landform,
         temperature,
     };
-    let renderer = client::create_renderer("civ3").expect("Civ III renderer is available");
     let tileset_name = argument_value("--tileset").unwrap_or_else(|| "civ3".to_owned());
     let theme = argument_value("--tileset-theme");
     let tileset = Tileset::select(&tileset_name, theme.as_deref()).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(2);
     });
+    let renderer = client::create_renderer("civ3").expect("Civ III renderer is available");
     let screenshot_path = argument_value("--screenshot");
     let self_test_path = argument_value("--self-test");
     let ui_review = argument_value("--ui-review");

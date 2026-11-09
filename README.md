@@ -84,9 +84,12 @@ OpenCiv3's OpenSimplex maps.
 
 ## Map tilesets
 
-The default terrain art comes from the original game files copied under
-`Art/`, with Conquests taking priority over PTW and base Civ III when paths
-overlap. To choose a Snoopy terrain variant, use one of these names:
+The game reads original terrain art from a sibling `source/` folder at startup.
+Place `source/` beside `app/`, containing the original `Conquests/Art`,
+`civ3PTW/Art`, and base `Art` folders. Conquests takes priority, with PTW and
+base Civ III filling missing paths. CivCraft reports an error and exits if the
+source art folder is unavailable. Snoopy terrain variants are read directly
+from their PTW scenario folders. Select a variant with:
 
 ```sh
 cargo run --release -- --tileset snoopy-standard --seed 42

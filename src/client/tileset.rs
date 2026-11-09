@@ -30,14 +30,20 @@ enum Ground {
 }
 use Ground::*;
 
-fn locate_bundled_civ3_theme() -> Result<PathBuf, String> {
+fn locate_source_root() -> Result<PathBuf, String> {
     let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
     let exe = std::env::current_exe().map_err(|error| error.to_string())?;
     cwd.ancestors()
         .chain(exe.ancestors().skip(1))
-        .map(|parent| parent.join("Art"))
-        .find(|path| path.join("Terrain").is_dir())
-        .ok_or_else(|| "Bundled original Civ III Art folder was not found".to_owned())
+        .map(|parent| parent.join("source"))
+        .find(|path| path.join("Conquests/Art/Terrain").is_dir())
+        .ok_or_else(|| {
+            "Civ III source assets were not found. Place the 'source' folder beside 'app' (with Conquests/Art, civ3PTW/Art, and Art) before starting CivCraft.".to_owned()
+        })
+}
+
+fn locate_default_art() -> Result<PathBuf, String> {
+    locate_source_root().map(|source| source.join("Conquests/Art"))
 }
 
 fn irrigation_source(index: usize) -> Rect {
@@ -120,16 +126,7 @@ impl Tileset {
         match (name, theme) {
             ("civ3" | "conquests", Some(path)) => Ok(Self::Civ3(path.into())),
             ("civ3" | "conquests", None) => {
-                let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
-                let exe = std::env::current_exe().map_err(|error| error.to_string())?;
-                cwd.ancestors()
-                    .chain(exe.ancestors().skip(1))
-                    .map(|parent| parent.join("Art"))
-                    .find(|path| path.join("Terrain").is_dir())
-                    .map(Self::Civ3)
-                    .ok_or_else(|| {
-                        "Original Civ III art not found under app/Art or use --tileset-theme PATH.".into()
-                    })
+                locate_default_art().map(Self::Civ3)
             }
             ("snoopy" | "snoopy-standard" | "snoopy-greener" | "snoopy-extended", None) => {
                 let folder = match name {
@@ -137,13 +134,9 @@ impl Tileset {
                     "snoopy-extended" => "Sn00pys TerrainX",
                     _ => "Sn00pys TerrainG",
                 };
-                let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
-                let exe = std::env::current_exe().map_err(|error| error.to_string())?;
-                cwd.ancestors().chain(exe.ancestors().skip(1))
-                    .map(|parent| parent.join("Tilesets").join(folder).join("Art"))
-                    .find(|path| path.join("Terrain").is_dir())
-                    .map(Self::Civ3)
-                    .ok_or_else(|| format!("Tileset '{name}' art was not found under app/Tilesets"))
+                locate_source_root().map(|source| {
+                    Self::Civ3(source.join("civ3PTW/Scenarios").join(folder).join("Art"))
+                })
             }
             (_, Some(_)) => Err("--tileset-theme requires --tileset civ3 or conquests".into()),
             _ => Err(format!("Unknown tileset '{name}'. Available: civ3, snoopy-standard, snoopy-greener, snoopy-extended")),
@@ -159,6 +152,7 @@ impl Tileset {
 
 struct Theme {
     root: PathBuf,
+    fallback_roots: Vec<PathBuf>,
     paths: HashMap<String, String>,
     transparent_indices: HashMap<String, Vec<u8>>,
     civilization_city_styles: HashMap<String, String>,
@@ -289,8 +283,18 @@ impl Theme {
                 }
             }
         }
+        let fallback_roots = if root.file_name().is_some_and(|name| name == "Art")
+            && root.parent().and_then(Path::file_name).is_some_and(|name| name == "Conquests")
+            && root.parent().and_then(Path::parent).and_then(Path::file_name).is_some_and(|name| name == "source")
+        {
+            let source = root.parent().and_then(Path::parent).unwrap();
+            vec![source.join("civ3PTW/Art"), source.join("Art")]
+        } else {
+            Vec::new()
+        };
         Ok(Self {
             root: root.to_owned(),
+            fallback_roots,
             paths,
             transparent_indices,
             civilization_city_styles,
@@ -305,24 +309,28 @@ impl Theme {
         required: bool,
     ) -> Result<Option<Image>, String> {
         let override_path = self.paths.get(key);
-        let path = self
-            .root
-            .join(override_path.map_or(default, String::as_str));
+        let relative = override_path.map_or(default, String::as_str);
         let transparent_indices = self
             .transparent_indices
             .get(key)
             .map(Vec::as_slice)
             .unwrap_or(&DEFAULT_PCX_TRANSPARENT_INDICES);
-        let (path, image) = match read_theme_image(&path, transparent_indices) {
-            Ok(image) => image,
-            Err(error)
-                if !required
-                    && override_path.is_none()
-                    && error.kind() == std::io::ErrorKind::NotFound =>
-            {
-                return Ok(None);
+        let mut roots = vec![self.root.as_path()];
+        if override_path.is_none() { roots.extend(self.fallback_roots.iter().map(PathBuf::as_path)); }
+        let mut last_missing = None;
+        let (path, image) = 'roots: loop {
+            for root in roots.iter().copied() {
+                let path = root.join(relative);
+                match read_theme_image(&path, transparent_indices) {
+                    Ok(image) => break 'roots image,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => last_missing = Some(path),
+                    Err(error) => return Err(format!("{}: {error}", path.display())),
+                }
             }
-            Err(error) => return Err(format!("{}: {error}", path.display())),
+            if !required && override_path.is_none() { return Ok(None); }
+            let path = last_missing.unwrap_or_else(|| self.root.join(relative));
+            let error = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found in configured source art folders");
+            return Err(format!("{}: {error}", path.display()));
         };
         if image.width < size.0 || image.height < size.1 {
             return Err(format!(
@@ -899,7 +907,7 @@ impl Civ3 {
                 image
             } else {
                 if fallback_theme.is_none() {
-                    *fallback_theme = Some(Theme::read(&locate_bundled_civ3_theme()?)?);
+                    *fallback_theme = Some(Theme::read(&locate_default_art()?)?);
                 }
                 fallback_theme
                     .as_ref()
@@ -925,7 +933,7 @@ impl Civ3 {
                 image
             } else {
                 if fallback_theme.is_none() {
-                    *fallback_theme = Some(Theme::read(&locate_bundled_civ3_theme()?)?);
+                    *fallback_theme = Some(Theme::read(&locate_default_art()?)?);
                 }
                 fallback_theme
                     .as_ref()
@@ -1668,7 +1676,7 @@ mod tests {
     #[test]
     fn decodes_the_original_sn00py_civ3_theme_assets() {
         let art = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("Tilesets/Sn00pys TerrainG/Art");
+            .join("../source/civ3PTW/Scenarios/Sn00pys TerrainG/Art");
 
         let files = [
             "Terrain/XDGP.pcx",
@@ -1711,12 +1719,12 @@ mod tests {
 
     #[test]
     fn selects_original_default_and_all_bundled_snoopy_terrain_paths() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../source");
         let cases = [
-            ("civ3", root.join("Art")),
-            ("snoopy-standard", root.join("Tilesets/Sn00pys Terrain/Art")),
-            ("snoopy-greener", root.join("Tilesets/Sn00pys TerrainG/Art")),
-            ("snoopy-extended", root.join("Tilesets/Sn00pys TerrainX/Art")),
+            ("civ3", root.join("Conquests/Art")),
+            ("snoopy-standard", root.join("civ3PTW/Scenarios/Sn00pys Terrain/Art")),
+            ("snoopy-greener", root.join("civ3PTW/Scenarios/Sn00pys TerrainG/Art")),
+            ("snoopy-extended", root.join("civ3PTW/Scenarios/Sn00pys TerrainX/Art")),
         ];
         for (name, expected) in cases {
             let selected = Tileset::select(name, None).unwrap();
@@ -1921,19 +1929,16 @@ mod tests {
 
     #[test]
     fn original_improvement_sheets_match_reference_atlas_dimensions() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("Art/Terrain");
-        for (name, dimensions) in [
-            ("TerrainBuildings.PCX", (512, 256)),
-            ("pollution.pcx", (640, 320)),
-            ("craters.pcx", (640, 320)),
+        let theme = Theme::read(&locate_default_art().unwrap()).unwrap();
+        for (name, file, size) in [
+            ("terrain-buildings", "TerrainBuildings", (512, 256)),
+            ("pollution", "pollution", (640, 320)),
+            ("craters", "craters", (640, 320)),
         ] {
-            let path = root.join(name);
-            let image = decode_pcx(&fs::read(&path).unwrap(), &DEFAULT_PCX_TRANSPARENT_INDICES).unwrap();
+            let image = theme.image(name, &format!("Terrain/{file}.png"), size, true).unwrap().unwrap();
             assert_eq!(
-                (image.width, image.height),
-                dimensions,
-                "{}",
-                path.display()
+                (image.width, image.height), size,
+                "{name}"
             );
         }
         assert_eq!(
@@ -1952,14 +1957,13 @@ mod tests {
 
     #[test]
     fn original_route_sheets_preserve_the_sixteen_by_sixteen_cell_grid() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("Art/Terrain");
+        let theme = Theme::read(&locate_default_art().unwrap()).unwrap();
         for (name, dimensions) in [("roads.pcx", (2048, 1024)), ("railroads.pcx", (2048, 1088))] {
-            let path = root.join(name);
-            let image = decode_pcx(&fs::read(&path).unwrap(), &DEFAULT_PCX_TRANSPARENT_INDICES).unwrap();
+            let role = name.trim_end_matches(".pcx");
+            let image = theme.image(role, &format!("Terrain/{role}.png"), (2048, 1024), true).unwrap().unwrap();
             assert_eq!(
                 (image.width, image.height), dimensions,
-                "{}",
-                path.display()
+                "{role}"
             );
         }
         assert_eq!(route_source(0), Rect::new(0.0, 0.0, 128.0, 64.0));
@@ -2024,8 +2028,8 @@ mod tests {
             Sugar,
             Tobacco,
         ];
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("Art/resources.pcx");
-        let mut image = decode_pcx(&fs::read(path).unwrap(), &DEFAULT_PCX_TRANSPARENT_INDICES).unwrap();
+        let theme = Theme::read(&locate_default_art().unwrap()).unwrap();
+        let mut image = theme.image("resources", "resources.png", (300, 300), true).unwrap().unwrap();
         let present = prepare_resource_sheet(&mut image, None);
         let mut seen = std::collections::HashSet::new();
         for resource in resources {
