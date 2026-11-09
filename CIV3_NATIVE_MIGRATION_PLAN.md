@@ -227,8 +227,22 @@ intended end state; a completed phase requires the evidence listed below.
   `/tmp/civ3-size-standard-review/world.png` (report:
   `/tmp/civ3-size-standard-review/report.json`). The same source lists
   4/6/8/12/16 civilizations for the five sizes, while CivCraft still creates
-  six total players at every size. Matching those player limits and scaling
-  world generation around active player count remain follow-up work.
+  six total players at every size. This cannot be fixed only in map placement:
+  `GeneratedMap.starts` is a six-element array, `Simulation::new` creates a
+  fixed six-player roster, and `src/rules/civilizations.rs` currently defines
+  only six civilizations. Barbarian ownership is the global constant
+  `BARBARIANS = PLAYER_COUNT`, embedded in diplomacy, scoring, AI, and save
+  validation. The roster migration must first carry a dynamic civilization
+  count and start vector from world-size settings into `Simulation`, expand
+  the civilization catalog to at least sixteen unique playable entries, and
+  make initial research/player setup data-driven for each entry. Give the
+  Barbarian owner an explicit per-campaign slot, then replace fixed-count
+  loops and global-owner comparisons with campaign values. It must also scale
+  start-site scoring from the active civilization count. Completion requires
+  all five sizes to start exactly 4/6/8/12/16 civilizations and pass turn,
+  diplomacy, conquest, barbarian, save/load, and UI checks at the smallest and
+  largest counts. Existing tests assume the six-civilization default and will
+  need explicit size fixtures where that is the behavior under test.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from
@@ -245,6 +259,12 @@ intended end state; a completed phase requires the evidence listed below.
   resource shadows, and river-role overrides. The default PCX indices are
   based on OpenCiv3's loader configuration, not confirmed original-engine
   internals.
+- `decodes_the_original_sn00py_civ3_theme_assets` now exercises the decoder
+  against 29 source PCX sheets from the adjacent Sn00py reference checkout
+  (terrain transitions, water, polar, overlays, irrigation, rivers, all five
+  city styles, resources, and resource shadows). It passed locally; it skips
+  when that adjacent reference directory is absent, so packaged CI still needs
+  its own committed or provisioned representative PCX fixtures.
 - `src/client/civ3_geometry.rs` holds a first-pass Civ III grid contract:
   parity-valid staggered coordinates, flat indexing, eight reciprocal
   neighbors, horizontal wrapping, pixel centers, and diamond picking.

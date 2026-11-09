@@ -1603,6 +1603,63 @@ mod tests {
     }
 
     #[test]
+    fn decodes_the_original_sn00py_civ3_theme_assets() {
+        let art =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Sn00pys Terrain Greener (C3C)/Art");
+        // The mod is an adjacent reference checkout rather than a vendored
+        // dependency. Keep this test useful in the project checkout without
+        // making a clone that omits the reference directory fail its suite.
+        if !art.is_dir() {
+            return;
+        }
+
+        let files = [
+            "Terrain/XDGP.pcx",
+            "Terrain/XDGC.pcx",
+            "Terrain/XDPC.pcx",
+            "Terrain/XPGC.pcx",
+            "Terrain/XTGC.pcx",
+            "Terrain/XGGC.pcx",
+            "Terrain/wCSO.pcx",
+            "Terrain/wSSS.pcx",
+            "Terrain/wOOO.pcx",
+            "Terrain/polarICEcaps-final.pcx",
+            "Terrain/deltaRivers.pcx",
+            "Terrain/mtnRivers.pcx",
+            "Terrain/grassland forests (normal).pcx",
+            "Terrain/marsh.pcx",
+            "Terrain/XHILLS.PCX",
+            "Terrain/Mountains.pcx",
+            "Terrain/floodplains.pcx",
+            "Terrain/Volcanos.pcx",
+            "Terrain/irrigation.pcx",
+            "Terrain/irrigation PLAINS.pcx",
+            "Terrain/irrigation DESETT.pcx",
+            "Terrain/irrigation TUNDRA.pcx",
+            "Cities/rASIAN.PCX",
+            "Cities/rAMER.PCX",
+            "Cities/rEURO.PCX",
+            "Cities/rMIDEAST.PCX",
+            "Cities/rROMAN.PCX",
+            "resources.pcx",
+            "resources_shadows.pcx",
+        ];
+
+        for relative_path in files {
+            let path = art.join(relative_path);
+            let bytes = fs::read(&path).unwrap_or_else(|error| {
+                panic!(
+                    "could not read reference Civ III asset {}: {error}",
+                    path.display()
+                )
+            });
+            let image = decode_pcx(&bytes, &DEFAULT_PCX_TRANSPARENT_INDICES)
+                .unwrap_or_else(|error| panic!("could not decode {}: {error}", path.display()));
+            assert!(image.width > 0 && image.height > 0, "{}", path.display());
+        }
+    }
+
+    #[test]
     fn theme_manifest_accepts_original_civ3_river_sheet_roles() {
         let directory = std::env::temp_dir().join(format!(
             "civ3-river-theme-{}-{}",
