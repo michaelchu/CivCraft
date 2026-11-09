@@ -158,16 +158,12 @@ impl Simulation {
                 |tech| self.has_tech(city.owner, tech),
                 |building| city.buildings.contains(&building),
             ),
-            // Civ III supplies five cultural sheets and four historical rows.
-            // Our six-civilization roster maps Romans/Greeks, Egypt/Babylon,
-            // and China/Japan onto the corresponding supplied cultures.
-            civ3_style: match city.owner {
-                0 => 4,     // Roman
-                1 => 2,     // European
-                2 | 3 => 3, // Middle Eastern
-                4 | 5 => 0, // Asian
-                _ => 2,
-            },
+            // Civ III supplies five cultural sheets; the default mapping is
+            // data on each civilization and can be overridden by its theme.
+            civ3_style: crate::rules::civilizations::CIVILIZATIONS
+                .get(city.owner)
+                .map(|civilization| civilization.civ3_city_style)
+                .unwrap_or(2),
             civ3_era: Tech::all()
                 .filter(|&tech| self.has_tech(city.owner, tech))
                 .map(|tech| match tech.era() {

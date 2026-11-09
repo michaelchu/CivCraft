@@ -231,15 +231,15 @@ intended end state; a completed phase requires the evidence listed below.
   `/tmp/civ3-size-standard-review/world.png` (report:
   `/tmp/civ3-size-standard-review/report.json`). The same source lists
   4/6/8/12/16 civilizations for the five sizes, while CivCraft still creates
-  six total players at every size. This cannot be fixed only in map placement:
-  `GeneratedMap.starts` is a six-element array, `Simulation::new` creates a
-  fixed six-player roster, and `src/rules/civilizations.rs` currently defines
-  only six civilizations. Barbarian ownership is the global constant
+  six active civilizations at every size. The catalog now contains the first
+  sixteen Civ III leaders and city lists from OpenCiv3's Civ III ruleset, but
+  count selection is not wired through gameplay. This cannot be fixed only in
+  map placement: `GeneratedMap.starts` is a six-element array, `Simulation::new`
+  creates a fixed six-player roster, and Barbarian ownership is the global constant
   `BARBARIANS = PLAYER_COUNT`, embedded in diplomacy, scoring, AI, and save
-  validation. The roster migration must first carry a dynamic civilization
-  count and start vector from world-size settings into `Simulation`, expand
-  the civilization catalog to at least sixteen unique playable entries, and
-  make initial research/player setup data-driven for each entry. Give the
+  validation. The roster migration must carry a dynamic civilization count
+  and start vector from world-size settings into `Simulation`, make initial
+  research/player setup data-driven for each entry, and give the
   Barbarian owner an explicit per-campaign slot, then replace fixed-count
   loops and global-owner comparisons with campaign values. It must also scale
   start-site scoring from the active civilization count. Completion requires
