@@ -45,8 +45,9 @@ impl super::Generator {
         terrain: &[Terrain],
         tiles: &[Tile],
         temperature: &[i32],
+        civilization_count: usize,
         rng: &mut MapRng,
-    ) -> Option<[(i32, i32); PLAYER_COUNT]> {
+    ) -> Option<Vec<(i32, i32)>> {
         let yields: Vec<_> = tiles
             .iter()
             .map(|tile| {
@@ -129,23 +130,24 @@ impl super::Generator {
         }
 
         // startpos.c deliberately divides integers before assigning efactor.
-        let efactor = (PLAYER_COUNT / (self.wrap.tile_count() / 1000).max(1) / 4) as f64;
+        let efactor = (civilization_count / (self.wrap.tile_count() / 1000).max(1) / 4) as f64;
         let single_share = (0.5 + 0.8 * efactor) / (1.0 + efactor);
         let variable_share = (0.65 + 0.8 * efactor) / (1.0 + efactor);
-        let mut starts = Vec::with_capacity(PLAYER_COUNT);
+        let mut starts = Vec::with_capacity(civilization_count);
         for single_continent in [true, false] {
             if single_continent
-                && (goodness[best] < 1500 * PLAYER_COUNT as i32
+                && (goodness[best] < 1500 * civilization_count as i32
                     || f64::from(goodness[best]) < f64::from(total) * single_share)
             {
                 continue;
             }
             let mut allocated = vec![0; groups.len()];
             if single_continent {
-                allocated[best] = PLAYER_COUNT;
+                allocated[best] = civilization_count;
             } else {
-                let per_player = (f64::from(total) * variable_share / PLAYER_COUNT as f64) as i32;
-                let mut slots = PLAYER_COUNT;
+                let per_player =
+                    (f64::from(total) * variable_share / civilization_count as f64) as i32;
+                let mut slots = civilization_count;
                 for &id in &ranked {
                     if slots == 0 {
                         break;
@@ -177,13 +179,13 @@ impl super::Generator {
                 if let Some(tile) = random_tile(self.wrap.tile_count(), rng, eligible) {
                     remaining[landmass[tile]] -= 1;
                     starts.push(tile);
-                    if starts.len() == PLAYER_COUNT {
-                        return starts
-                            .into_iter()
-                            .map(|tile| self.wrap.position(tile))
-                            .collect::<Vec<_>>()
-                            .try_into()
-                            .ok();
+                    if starts.len() == civilization_count {
+                        return Some(
+                            starts
+                                .into_iter()
+                                .map(|tile| self.wrap.position(tile))
+                                .collect(),
+                        );
                     }
                 } else {
                     threshold = threshold * 95 / 100;

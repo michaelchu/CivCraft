@@ -77,7 +77,7 @@ async fn main() {
             std::process::exit(2);
         })
         .unwrap_or_default();
-    let wrap = map_size.topology().unwrap_or_else(|error| {
+    map_size.topology().unwrap_or_else(|error| {
         eprintln!("Invalid --map-size value: {error}");
         std::process::exit(2);
     });
@@ -196,7 +196,7 @@ async fn main() {
         }
     } else {
         Game::new_with_renderer(
-            mapgen::generate_with_settings(seed, wrap, world_settings),
+            mapgen::generate_for_civ3_size(seed, map_size, world_settings),
             std::rc::Rc::clone(&renderer),
         )
     };

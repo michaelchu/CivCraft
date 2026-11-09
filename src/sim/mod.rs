@@ -110,9 +110,10 @@ pub(crate) use model::*;
 use topology::*;
 
 pub(crate) const PLAYER_COUNT: usize = 6;
+pub(crate) const MAX_CIVILIZATIONS: usize = 16;
 pub(crate) const HUMAN: usize = 0;
 pub(crate) const PLAYER_SLOTS: usize = 512;
-pub(crate) const BARBARIANS: usize = PLAYER_COUNT;
+pub(crate) const BARBARIANS: usize = MAX_CIVILIZATIONS;
 const PERCENT_SCALE: i32 = 100;
 const CITY_MIN_DISTANCE: i32 = 3;
 pub(crate) const MOVE_FRAGMENTS: i32 = 6;
@@ -157,6 +158,7 @@ struct MapObservation {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Simulation {
     pub(crate) world_seed: u64,
+    pub(crate) civilization_count: usize,
     #[serde(skip, default = "topology::legacy_wrap")]
     pub(crate) map_wrap: MapWrap,
     tiles: Vec<Tile>,
@@ -358,6 +360,7 @@ impl Simulation {
             map_wrap,
             tiles,
             starts,
+            civilization_count,
             game_random,
         } = map;
 
@@ -378,7 +381,8 @@ impl Simulation {
             Tech::WARRIOR_CODE,
         ];
         let mut players = Vec::new();
-        for i in 0..PLAYER_COUNT {
+        for i in 0..MAX_CIVILIZATIONS {
+            let setup = i % PLAYER_COUNT;
             players.push(Player {
                 name: crate::rules::civilizations::CIVILIZATIONS[i]
                     .name
@@ -388,16 +392,16 @@ impl Simulation {
                 government: Government::Despotism,
                 revolution_target: None,
                 revolution_turn: None,
-                known: vec![free_techs[i]],
-                researching: research_targets[i],
+                known: vec![free_techs[setup]],
+                researching: research_targets[setup],
                 research_goal: [
-                    research_targets[i],
+                    research_targets[setup],
                     Tech::IRON_WORKING,
                     Tech::THE_WHEEL,
                     Tech::MATHEMATICS,
                     Tech::IRON_WORKING,
                     Tech::THE_WHEEL,
-                ][i],
+                ][setup],
                 future_techs: 0,
                 research: 0,
                 last_science: 0,
@@ -423,7 +427,7 @@ impl Simulation {
 
         let mut units = Vec::new();
         let mut next_unit_id = 1;
-        for (owner, start) in starts.iter().take(PLAYER_COUNT).enumerate() {
+        for (owner, start) in starts.iter().take(civilization_count).enumerate() {
             for kind in [
                 UnitKind::Settlers,
                 UnitKind::Worker,
@@ -439,6 +443,7 @@ impl Simulation {
 
         let mut game = Self {
             world_seed: seed,
+            civilization_count,
             map_wrap,
             tiles,
             units,
@@ -497,7 +502,7 @@ impl Simulation {
             ai_government_cache: Default::default(),
             diplomatic_contact_until: Default::default(),
         };
-        for owner in 1..PLAYER_COUNT {
+        for owner in 1..civilization_count {
             game.players[owner].researching = game.research_target(owner);
         }
         let initial_contacts: Vec<_> = game
@@ -623,6 +628,9 @@ impl Simulation {
     }
 
     fn run_ai_last_activities(&mut self, owner: usize) {
+        if owner != BARBARIANS && (owner >= self.civilization_count || !self.player_alive(owner)) {
+            return;
+        }
         // ai/default/aihand.c:dai_do_last_activities runs government and
         // taxes before city management and spending, then research.
         self.clear_ai_tech_wants(owner);

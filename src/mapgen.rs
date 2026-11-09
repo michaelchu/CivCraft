@@ -42,6 +42,20 @@ impl Civ3MapSize {
         };
         MapWrap::with_dimensions(width, height)
     }
+
+    pub(crate) const fn civilization_count(self) -> usize {
+        match self {
+            Self::Tiny => 4,
+            Self::Small => 6,
+            Self::Standard => 8,
+            Self::Large => 12,
+            Self::Huge => 16,
+            // Custom dimensions have no fixed Civ III preset count; use the
+            // Standard roster until the UI exposes an explicit civilization
+            // selector for custom maps.
+            Self::Custom(_, _) => 8,
+        }
+    }
 }
 
 impl std::str::FromStr for Civ3MapSize {
@@ -298,7 +312,8 @@ pub(crate) struct GeneratedMap {
     pub(crate) map_wrap: MapWrap,
     pub(crate) game_random: crate::sim::FreecivRng,
     pub(crate) tiles: Vec<Tile>,
-    pub(crate) starts: [(i32, i32); PLAYER_COUNT],
+    pub(crate) starts: Vec<(i32, i32)>,
+    pub(crate) civilization_count: usize,
 }
 
 /// Produces a process-local seed for a newly generated world.
@@ -638,12 +653,16 @@ impl Generator {
             // The default reference setup draws one nation and leader for each
             // of six AI slots, then consumes the map-seed draw before saving
             // the game RNG state used for start allocation.
-            for _ in 0..2 * PLAYER_COUNT + 1 {
+            for _ in 0..2 * self.civilization_count + 1 {
                 start_rng.draw(u32::MAX);
             }
-            if let Some(starts) =
-                self.start_positions(&terrain, &tiles, &temperature, &mut start_rng)
-            {
+            if let Some(starts) = self.start_positions(
+                &terrain,
+                &tiles,
+                &temperature,
+                self.civilization_count,
+                &mut start_rng,
+            ) {
                 let game_random =
                     crate::sim::FreecivRng::from_map_state(start_rng.values, start_rng.next)
                         .expect("map RNG cursor is valid");
@@ -653,6 +672,7 @@ impl Generator {
                     game_random,
                     tiles,
                     starts,
+                    civilization_count: self.civilization_count,
                 };
             }
             // Retry from the same RNG stream when a world has too few viable sites.
@@ -722,6 +742,7 @@ mod civ3_base_terrain_tests {
 struct Generator {
     wrap: MapWrap,
     settings: Civ3WorldSettings,
+    civilization_count: usize,
 }
 /// Historical reference preset, retained for existing oracle fixtures.
 /// Generates a world using the default horizontal-wrap topology.
@@ -738,7 +759,32 @@ pub(crate) fn generate_with_settings(
     wrap: MapWrap,
     settings: Civ3WorldSettings,
 ) -> GeneratedMap {
-    let generator = Generator { wrap, settings };
+    generate_with_civilization_count(seed, wrap, settings, PLAYER_COUNT)
+}
+
+pub(crate) fn generate_for_civ3_size(
+    seed: u64,
+    map_size: Civ3MapSize,
+    settings: Civ3WorldSettings,
+) -> GeneratedMap {
+    let wrap = map_size
+        .topology()
+        .expect("validated Civ III map size has valid dimensions");
+    generate_with_civilization_count(seed, wrap, settings, map_size.civilization_count())
+}
+
+fn generate_with_civilization_count(
+    seed: u64,
+    wrap: MapWrap,
+    settings: Civ3WorldSettings,
+    civilization_count: usize,
+) -> GeneratedMap {
+    assert!((4..=16).contains(&civilization_count));
+    let generator = Generator {
+        wrap,
+        settings,
+        civilization_count,
+    };
     let mut map = generator.generate(seed);
     if !wrap.wraps_y() {
         // The polar cap is a visual boundary in Civ III, not generated land.

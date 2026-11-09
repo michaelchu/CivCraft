@@ -6,6 +6,23 @@ use crate::sim::Resource;
 const TILE_COUNT: usize = (MAP_W * MAP_H) as usize;
 
 #[test]
+fn civ3_map_sizes_select_their_rosters_and_generate_matching_starts() {
+    for (size, expected) in [
+        (Civ3MapSize::Tiny, 4),
+        (Civ3MapSize::Small, 6),
+        (Civ3MapSize::Standard, 8),
+        (Civ3MapSize::Large, 12),
+        (Civ3MapSize::Huge, 16),
+    ] {
+        assert_eq!(size.civilization_count(), expected);
+    }
+
+    let tiny = generate_for_civ3_size(42, Civ3MapSize::Tiny, Civ3WorldSettings::default());
+    assert_eq!(tiny.civilization_count, 4);
+    assert_eq!(tiny.starts.len(), 4);
+}
+
+#[test]
 fn map_cursor_conversion_continues_the_same_native_stream() {
     for seed in [0, 42, u64::MAX] {
         let mut map = MapRng::new(seed);
@@ -33,6 +50,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
             !tiles[(Generator {
                 wrap: MapWrap::XY,
                 settings: Civ3WorldSettings::default(),
+                civilization_count: PLAYER_COUNT,
             })
             .index(x, y)]
             .hut
@@ -47,6 +65,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                     (Generator {
                         wrap: MapWrap::XY,
                         settings: Civ3WorldSettings::default(),
+                        civilization_count: PLAYER_COUNT,
                     })
                     .within(index, 3)
                     .all(|next| next == index || !tiles[next].hut)
@@ -57,6 +76,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                     (Generator {
                         wrap: MapWrap::XY,
                         settings: Civ3WorldSettings::default(),
+                        civilization_count: PLAYER_COUNT,
                     })
                     .neighbors(index)
                     .all(|next| tiles[next].resource.is_none())
@@ -81,6 +101,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                 for next in (Generator {
                     wrap: MapWrap::XY,
                     settings: Civ3WorldSettings::default(),
+                    civilization_count: PLAYER_COUNT,
                 })
                 .civ3_neighbors(current)
                 {
@@ -334,6 +355,7 @@ fn civ3_landform_choices_are_deterministic_and_change_landmass_scale() {
     let topology = Generator {
         wrap: MapWrap::X,
         settings: Civ3WorldSettings::default(),
+        civilization_count: PLAYER_COUNT,
     };
     let land_components: Vec<_> = maps
         .iter()
@@ -433,6 +455,7 @@ mod wrap_generation_tests {
             let generator = Generator {
                 wrap,
                 settings: Civ3WorldSettings::default(),
+                civilization_count: PLAYER_COUNT,
             };
             let y = wrap.height() / 2;
             for x in [0, wrap.width() / 2, wrap.width() - 1] {
@@ -494,6 +517,7 @@ mod wrap_generation_tests {
             let g = Generator {
                 wrap: MapWrap::X,
                 settings: Civ3WorldSettings::default(),
+                civilization_count: PLAYER_COUNT,
             };
             assert_eq!(g.colatitude(0), 0);
             assert_eq!(g.colatitude(g.wrap.tile_count() - 1), 0);
@@ -515,6 +539,7 @@ mod wrap_generation_tests {
             let generator = Generator {
                 wrap,
                 settings: Civ3WorldSettings::default(),
+                civilization_count: PLAYER_COUNT,
             };
             let land = generator.index(wrap.width() / 2, wrap.height() / 2);
             let mut terrain = vec![Terrain::Ocean; wrap.tile_count()];

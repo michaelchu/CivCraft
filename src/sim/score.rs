@@ -55,7 +55,9 @@ impl Simulation {
 
     pub(crate) fn score_standings(&self) -> Vec<(usize, i32)> {
         let mut scores: Vec<_> = (0..self.players.len())
-            .filter(|&owner| owner != BARBARIANS)
+            .filter(|&owner| {
+                owner != BARBARIANS && (owner < self.civilization_count || owner > BARBARIANS)
+            })
             .map(|owner| (owner, self.civilization_score(owner)))
             .collect();
         scores.sort_by_key(|&(owner, score)| (!self.player_alive(owner), std::cmp::Reverse(score)));

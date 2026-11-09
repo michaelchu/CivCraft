@@ -87,6 +87,9 @@ impl Simulation {
     }
 
     pub(super) fn run_ai_player(&mut self, owner: usize) {
+        if owner != BARBARIANS && (owner >= self.civilization_count || !self.player_alive(owner)) {
+            return;
+        }
         // dai_do_first_activities assesses danger (and its research feedback)
         // before moving units; do_last_activities clears these wants later.
         self.record_ai_first_activity_tech_wants(owner);

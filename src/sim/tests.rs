@@ -39,6 +39,24 @@ fn railroad_research_upgrades_centers_and_enables_worker_tracks() {
 use super::*;
 
 #[test]
+fn civ3_map_roster_controls_active_players_and_score_standings() {
+    let map = crate::mapgen::generate_for_civ3_size(
+        42,
+        crate::mapgen::Civ3MapSize::Tiny,
+        crate::mapgen::Civ3WorldSettings::default(),
+    );
+    let game = Simulation::new(map);
+    assert_eq!(game.civilization_count, 4);
+    assert_eq!(game.score_standings().len(), 4);
+    for owner in 0..4 {
+        assert!(game.player_alive(owner));
+    }
+    for owner in 4..MAX_CIVILIZATIONS {
+        assert!(!game.player_alive(owner));
+    }
+}
+
+#[test]
 fn newly_founded_city_claims_only_its_center_and_nearest_eight_tiles() {
     for wrap in [MapWrap::X, MapWrap::XY] {
         let mut game = Simulation::new(crate::mapgen::generate_with_wrap(42, wrap));
@@ -138,7 +156,7 @@ fn generated_world_uses_reference_dimensions_and_start_positions() {
 
     for seed in 0..32 {
         let map = crate::mapgen::generate(seed);
-        let starts = map.starts;
+        let starts = map.starts.clone();
         let game = Simulation::new(map);
         assert_eq!(game.tiles.len(), (MAP_W * MAP_H) as usize);
         for (i, &(x, y)) in starts.iter().enumerate() {

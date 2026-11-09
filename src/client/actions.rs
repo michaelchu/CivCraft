@@ -216,8 +216,8 @@ impl Game {
                 self.diplomacy_target = Some(owner);
                 self.treaty_draft = None;
                 self.treaty_feedback = None;
-                self.treaty_item_page = [0; PLAYER_COUNT];
-                self.treaty_item_group = [0; PLAYER_COUNT];
+                self.treaty_item_page = [0; MAX_CIVILIZATIONS];
+                self.treaty_item_group = [0; MAX_CIVILIZATIONS];
                 self.diplomacy_page = 0;
                 self.city_deals = None;
                 self.reviewed_offer = None;

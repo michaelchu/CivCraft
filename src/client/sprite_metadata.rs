@@ -28,13 +28,23 @@ pub(super) fn ocean_cell_source(matches: [u8; 4]) -> (usize, usize) {
     )
 }
 
-const PLAYER_COLORS: [Color; PLAYER_COUNT + 1] = [
+const PLAYER_COLORS: [Color; MAX_CIVILIZATIONS + 1] = [
     Color::from_rgba(236, 61, 58, 255),
     Color::from_rgba(245, 213, 55, 255),
     Color::from_rgba(56, 207, 226, 255),
     Color::from_rgba(151, 92, 212, 255),
     Color::from_rgba(241, 145, 42, 255),
     Color::from_rgba(225, 77, 171, 255),
+    Color::from_rgba(76, 166, 94, 255),
+    Color::from_rgba(85, 121, 217, 255),
+    Color::from_rgba(169, 178, 56, 255),
+    Color::from_rgba(72, 187, 154, 255),
+    Color::from_rgba(201, 109, 178, 255),
+    Color::from_rgba(209, 186, 82, 255),
+    Color::from_rgba(78, 154, 190, 255),
+    Color::from_rgba(175, 106, 79, 255),
+    Color::from_rgba(122, 182, 77, 255),
+    Color::from_rgba(147, 121, 198, 255),
     Color::from_rgba(179, 187, 191, 255),
 ];
 

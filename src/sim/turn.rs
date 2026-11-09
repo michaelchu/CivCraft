@@ -52,7 +52,10 @@ impl Simulation {
             self.run_automated_unit(id);
         }
         for owner in 1..self.players.len() {
-            if owner == BARBARIANS {
+            if owner == BARBARIANS
+                || !self.player_alive(owner)
+                || (owner < BARBARIANS && owner >= self.civilization_count)
+            {
                 continue;
             }
             self.run_ai_player(owner);
@@ -62,6 +65,11 @@ impl Simulation {
         self.run_ai_player(BARBARIANS);
         self.ai_free_bulbs.clear();
         for owner in 0..self.players.len() {
+            if !self.player_alive(owner)
+                || (owner < BARBARIANS && owner >= self.civilization_count)
+            {
+                continue;
+            }
             self.restore_player_units(owner);
             let income = self.process_player_cities(owner);
             self.finish_player_national_activities(owner, income);
