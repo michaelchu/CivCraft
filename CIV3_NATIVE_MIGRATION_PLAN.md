@@ -230,23 +230,20 @@ intended end state; a completed phase requires the evidence listed below.
   renderer capture passed its scene check and was visually inspected at
   `/tmp/civ3-size-standard-review/world.png` (report:
   `/tmp/civ3-size-standard-review/report.json`). The same source lists
-  4/6/8/12/16 civilizations for the five sizes, while CivCraft still creates
-  six active civilizations at every size. The catalog now contains the first
-  sixteen Civ III leaders and city lists from OpenCiv3's Civ III ruleset, but
-  count selection is not wired through gameplay. This cannot be fixed only in
-  map placement: `GeneratedMap.starts` is a six-element array, `Simulation::new`
-  creates a fixed six-player roster, and Barbarian ownership is the global constant
-  `BARBARIANS = PLAYER_COUNT`, embedded in diplomacy, scoring, AI, and save
-  validation. The roster migration must carry a dynamic civilization count
-  and start vector from world-size settings into `Simulation`, make initial
-  research/player setup data-driven for each entry, and give the
-  Barbarian owner an explicit per-campaign slot, then replace fixed-count
-  loops and global-owner comparisons with campaign values. It must also scale
-  start-site scoring from the active civilization count. Completion requires
-  all five sizes to start exactly 4/6/8/12/16 civilizations and pass turn,
-  diplomacy, conquest, barbarian, save/load, and UI checks at the smallest and
-  largest counts. Existing tests assume the six-civilization default and will
-  need explicit size fixtures where that is the behavior under test.
+  4/6/8/12/16 civilizations for Tiny through Huge. Map size now selects that
+  active count in new games, `GeneratedMap.starts` carries a vector, start-site
+  scoring scales with the roster, and `Simulation` initializes the corresponding
+  starting units and AI research. Tiny generation is checked for four starts; a
+  runtime check verifies four active players and excludes inactive roster slots
+  from score standings. The sixteen Civ III player slots are currently
+  allocated in every campaign so the Barbarian owner remains at fixed index 16.
+  This leaves unused slots inactive on smaller maps and keeps global
+  barbarian-owner comparisons in place; migration to a per-campaign Barbarian
+  index is still open. The full 664-test suite passes after this change, but
+  end-to-end start/turn/diplomacy/barbarian/save-load/UI coverage across all five
+  sizes is still required, especially at the 4- and 16-civ extremes. Custom
+  dimensions currently use the Standard eight-civ roster until a civilization
+  count selector is exposed.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from
