@@ -16,6 +16,74 @@
 use crate::sim::{PLAYER_COUNT, PLAYER_SLOTS, Terrain, TerrainBase, Tile, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
+/// Named world sizes from OpenCiv3's Civ III ruleset data. Dimensions are
+/// imported game data; OpenCiv3's generation code is only an implementation
+/// reference for how those dimensions are consumed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Civ3MapSize {
+    Tiny,
+    Small,
+    #[default]
+    Standard,
+    Large,
+    Huge,
+    Custom(i32, i32),
+}
+
+impl Civ3MapSize {
+    pub(crate) fn topology(self) -> Result<MapWrap, String> {
+        let (width, height) = match self {
+            Self::Tiny => (60, 60),
+            Self::Small => (80, 80),
+            Self::Standard => (100, 100),
+            Self::Large => (130, 130),
+            Self::Huge => (160, 160),
+            Self::Custom(width, height) => (width, height),
+        };
+        MapWrap::with_dimensions(width, height)
+    }
+}
+
+impl std::str::FromStr for Civ3MapSize {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "tiny" => Ok(Self::Tiny),
+            "small" => Ok(Self::Small),
+            "standard" => Ok(Self::Standard),
+            "large" => Ok(Self::Large),
+            "huge" => Ok(Self::Huge),
+            dimensions => {
+                let (width, height) = dimensions
+                    .split_once('x')
+                    .and_then(|(width, height)| {
+                        Some((width.parse::<i32>().ok()?, height.parse::<i32>().ok()?))
+                    })
+                    .ok_or_else(|| {
+                        "map size must be tiny, small, standard, large, huge, or WIDTHxHEIGHT"
+                            .to_owned()
+                    })?;
+                MapWrap::with_dimensions(width, height)?;
+                Ok(Self::Custom(width, height))
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Civ3MapSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tiny => f.write_str("tiny"),
+            Self::Small => f.write_str("small"),
+            Self::Standard => f.write_str("standard"),
+            Self::Large => f.write_str("large"),
+            Self::Huge => f.write_str("huge"),
+            Self::Custom(width, height) => write!(f, "{width}x{height}"),
+        }
+    }
+}
+
 /// Water coverage choices exposed by Civ III's world setup.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum OceanCoverage {

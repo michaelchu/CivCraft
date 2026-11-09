@@ -57,10 +57,10 @@ years:
 cargo run --release -- --seed 42 --map-size 100x100 --ocean-coverage 60 --climate wet --world-age 3 --landform archipelago --temperature warm
 ```
 
-Map dimensions can be overridden with `--map-size WIDTHxHEIGHT`. Dimensions
-must be even and between 16 and 512 tiles per side. This explicit dimension
-override is not yet a mapping of Civ III's named Tiny through Huge presets;
-those preset dimensions need edition-specific source verification.
+Choose Civ III's Tiny, Small, Standard, Large, or Huge world with
+`--map-size tiny|small|standard|large|huge`; Standard (100×100) is the
+default. Mods and custom scenarios can use `--map-size WIDTHxHEIGHT` with even
+dimensions from 16 to 512 tiles per side.
 
 ## Map wrapping
 

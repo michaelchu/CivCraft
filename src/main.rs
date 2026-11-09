@@ -54,12 +54,8 @@ fn ensure_parent(path: &str) {
     }
 }
 
-fn parse_map_size(value: &str) -> Result<sim::topology::MapWrap, String> {
-    let (width, height) = value
-        .split_once('x')
-        .and_then(|(width, height)| Some((width.parse::<i32>().ok()?, height.parse::<i32>().ok()?)))
-        .ok_or_else(|| "map size must be WIDTHxHEIGHT, for example 100x100".to_owned())?;
-    sim::topology::MapWrap::with_dimensions(width, height)
+fn parse_map_size(value: &str) -> Result<mapgen::Civ3MapSize, String> {
+    value.parse()
 }
 
 #[macroquad::main(window_conf)]
@@ -72,14 +68,19 @@ async fn main() {
     // Civ III campaigns use a horizontally wrapped map with bounded poles.
     // Dimensions can be selected independently of wrapping so generation,
     // simulation storage, and rendering all receive one consistent topology.
-    let wrap = if let Some(value) = argument_value("--map-size") {
-        parse_map_size(&value).unwrap_or_else(|error| {
+    let map_size = argument_value("--map-size")
+        .as_deref()
+        .map(parse_map_size)
+        .transpose()
+        .unwrap_or_else(|error| {
             eprintln!("Invalid --map-size value: {error}");
             std::process::exit(2);
         })
-    } else {
-        sim::topology::MapWrap::X
-    };
+        .unwrap_or_default();
+    let wrap = map_size.topology().unwrap_or_else(|error| {
+        eprintln!("Invalid --map-size value: {error}");
+        std::process::exit(2);
+    });
     let ocean_coverage = argument_value("--ocean-coverage")
         .unwrap_or_else(|| "70".to_owned())
         .parse::<mapgen::OceanCoverage>()
@@ -204,8 +205,19 @@ async fn main() {
         std::process::exit(2);
     });
     println!(
-        "World seed: {} · wrap: {} · renderer: {} · tileset: {}",
+        "World seed: {} · map size: {} ({}×{}) · wrap: {} · renderer: {} · tileset: {}",
         game.sim.world_seed,
+        if args.iter().any(|arg| arg == "--load") {
+            format!(
+                "{}x{}",
+                game.sim.map_wrap.width(),
+                game.sim.map_wrap.height()
+            )
+        } else {
+            map_size.to_string()
+        },
+        game.sim.map_wrap.width(),
+        game.sim.map_wrap.height(),
         game.sim.map_wrap,
         renderer.name(),
         tileset.name()
@@ -387,9 +399,26 @@ mod argument_tests {
     use super::*;
 
     #[test]
-    fn map_size_argument_requires_valid_even_dimensions() {
-        assert_eq!(parse_map_size("80x60").unwrap().tile_count(), 4800);
-        for invalid in ["80", "81x60", "8x60", "513x60", "80xno"] {
+    fn map_size_argument_matches_civ3_presets_and_validates_custom_dimensions() {
+        for (name, dimensions) in [
+            ("tiny", (60, 60)),
+            ("small", (80, 80)),
+            ("standard", (100, 100)),
+            ("large", (130, 130)),
+            ("huge", (160, 160)),
+        ] {
+            let wrap = parse_map_size(name).unwrap().topology().unwrap();
+            assert_eq!((wrap.width(), wrap.height()), dimensions);
+        }
+        assert_eq!(
+            parse_map_size("80x60")
+                .unwrap()
+                .topology()
+                .unwrap()
+                .tile_count(),
+            4800
+        );
+        for invalid in ["80", "81x60", "8x60", "513x60", "80xno", "giant"] {
             assert!(parse_map_size(invalid).is_err(), "accepted {invalid}");
         }
     }

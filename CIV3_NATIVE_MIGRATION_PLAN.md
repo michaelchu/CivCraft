@@ -208,16 +208,24 @@ intended end state; a completed phase requires the evidence listed below.
   `/tmp/civ3-fullmap-temperate/world.png`, and
   `/tmp/civ3-fullmap-warm/world.png`; the full-map gallery should also be used
   across more seeds before claiming regional distribution fidelity.
-- Map dimensions are no longer fixed in the campaign topology. `--map-size
-  WIDTHxHEIGHT` sets an even horizontal-wrap map between 16 and 512 tiles on
-  each side;
-  the dimensions flow through generation, simulation tile storage, indexing,
-  bounded polar rows, and render bounds. A seeded 80x60 generation check
-  verifies tile count, start bounds, and ocean boundary rows. This is an
-  explicit dimension override, not yet the named Tiny–Huge menu: published
-  preset dimensions vary by Civ III edition, and their mapping still needs a
-  confirmed C3C source. Arbitrary dimensions also do not claim parity with the
-  original game's map-size scaling rules.
+- Map dimensions are no longer fixed in the campaign topology. `--map-size`
+  accepts the named Tiny (60×60), Small (80×80), Standard (100×100), Large
+  (130×130), and Huge (160×160) presets, plus custom even `WIDTHxHEIGHT`
+  dimensions from 16 to 512 tiles per side. The preset dimensions match
+  `../../OpenCiv3/C7/Lua/civ3/ruleset.json`'s `worldSizes` data. That file is
+  imported Civ III rules data within an implementation reference; this source
+  establishes the data used by OpenCiv3, not a claim that OpenCiv3 reproduces
+  the original engine. The values also agree with the [CivFanatics Civ III
+  Info Center](https://civfanatics.com/civ3/infocenter/). Dimensions flow
+  through generation, simulation tile storage, indexing, bounded polar rows,
+  and render bounds. A seeded 80×60 custom generation check verifies tile
+  count, start bounds, and ocean boundary rows. Standard's seed-42 Civ III
+  renderer capture passed its scene check and was visually inspected at
+  `/tmp/civ3-size-standard-review/world.png` (report:
+  `/tmp/civ3-size-standard-review/report.json`). The same source lists
+  4/6/8/12/16 civilizations for the five sizes, while CivCraft still creates
+  six total players at every size. Matching those player limits and scaling
+  world generation around active player count remain follow-up work.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from
