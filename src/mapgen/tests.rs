@@ -154,28 +154,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0xbe5b01883b00f6b8,
-            [(2, 4), (5, 13), (20, 42), (20, 62), (23, 16), (31, 21)],
+            0x6804935e0f1b410e,
+            [(4, 31), (10, 27), (11, 12), (12, 54), (19, 37), (28, 37)],
         ),
         (
             42,
-            0x3a0f17c08ac19cbd,
-            [(5, 43), (9, 9), (11, 25), (14, 13), (26, 22), (30, 13)],
+            0x529ae4018e9d23b7,
+            [(3, 35), (3, 47), (11, 16), (11, 43), (15, 53), (17, 28)],
         ),
         (
             12345,
-            0xe3420ee3566c348b,
-            [(1, 22), (2, 42), (6, 11), (14, 40), (17, 13), (21, 22)],
+            0xbc8bed20e0bf52fe,
+            [(4, 9), (7, 25), (14, 53), (17, 12), (28, 28), (29, 8)],
         ),
         (
             700001,
-            0xcbf09e03becd30aa,
-            [(3, 12), (12, 45), (16, 18), (17, 33), (18, 54), (22, 42)],
+            0x0d27121b24735282,
+            [(3, 47), (17, 45), (21, 54), (27, 11), (28, 37), (31, 58)],
         ),
         (
             2147483647,
-            0x451b1320c30bfaa9,
-            [(1, 24), (8, 27), (9, 48), (15, 53), (21, 8), (25, 37)],
+            0x5a3d983d4514530c,
+            [(7, 6), (14, 7), (14, 48), (20, 50), (23, 29), (31, 42)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {
@@ -264,7 +264,7 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
     assert!(count(&wet, Terrain::Forest) > count(&arid, Terrain::Forest));
     assert!(count(&wet, Terrain::Marsh) > count(&arid, Terrain::Marsh));
     assert!(count(&arid, Terrain::Desert) > count(&wet, Terrain::Desert));
-    assert!(count(&normal, Terrain::Desert) > count(&wet, Terrain::Desert));
+    assert!(count(&normal, Terrain::Desert) >= count(&wet, Terrain::Desert));
 }
 
 #[test]

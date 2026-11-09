@@ -188,14 +188,12 @@ pub(crate) enum Landform {
 }
 
 impl Landform {
-    // OpenCiv3 uses noise scales .2, .05, and .02 respectively. The current
-    // subdivision generator cannot express those scales directly; initial
-    // divisions approximate the same progression from small to broad forms.
-    fn initial_divisions(self) -> i32 {
+    // OpenCiv3's world setup uses these scales for its landmass field.
+    fn noise_scale(self) -> f64 {
         match self {
-            Self::Archipelago => 12,
-            Self::Continents => 6,
-            Self::Pangaea => 3,
+            Self::Archipelago => 0.2,
+            Self::Continents => 0.05,
+            Self::Pangaea => 0.02,
         }
     }
 }
@@ -290,6 +288,7 @@ impl Default for OceanCoverage {
     }
 }
 
+mod noise;
 mod placement;
 mod rivers;
 mod terrain;
@@ -421,77 +420,36 @@ impl Generator {
     }
 }
 
-// Subdivide the initial wrapped blocks using Freeciv's edge and center
-// midpoint scheme, reducing the perturbation to two thirds at each level.
 impl Generator {
-    fn subdivide(&self, heights: &mut [Option<i32>], rng: &mut MapRng, step: i32, rect: [i32; 4]) {
-        let [left, top, right, bottom] = rect;
-        if right == left || bottom == top || (right - left == 1 && bottom - top == 1) {
-            return;
-        }
-        let mx = (left + right) / 2;
-        let my = (top + bottom) / 2;
-        let [nw, ne, sw, se] = [(left, top), (right, top), (left, bottom), (right, bottom)]
-            .map(|(x, y)| heights[self.index(x, y)].unwrap_or(0));
-        for (x, y, base) in [
-            (mx, top, (nw + ne) / 2),
-            (mx, bottom, (sw + se) / 2),
-            (left, my, (nw + sw) / 2),
-            (right, my, (ne + se) / 2),
-            (mx, my, (nw + ne + sw + se) / 4),
-        ] {
-            let tile = self.index(x, y);
-            if heights[tile].is_none_or(|height| height == 0) {
-                heights[tile] = Some(base + rng.below(step) - step / 2);
-            }
-        }
-        let step = (step * 2 / 3).max(1);
-        for child in [
-            [left, top, mx, my],
-            [left, my, mx, bottom],
-            [mx, top, right, my],
-            [mx, my, right, bottom],
-        ] {
-            self.subdivide(heights, rng, step, child);
-        }
-    }
-
-    fn height_field(&self, rng: &mut MapRng, divisions: i32) -> Vec<i32> {
-        let mut heights = vec![None; self.wrap.tile_count()];
-        let step = self.wrap.width() + self.wrap.height();
-        let ymax = if self.wrap.wraps_y() {
-            self.wrap.height()
-        } else {
-            self.wrap.height() - 1
-        };
-        let grid = |size, axis| size * axis / divisions;
-        let near_edge = |y: i32| !self.wrap.wraps_y() && (y < 4 || y >= self.wrap.height() - 4);
-        let avoid_edge = (100 - self.land_percent()) * step / 100 + step / 3;
-        for x in 0..divisions {
-            for y in 0..divisions + i32::from(!self.wrap.wraps_y()) {
-                let y = grid(ymax, y);
-                heights[self.index(grid(self.wrap.width(), x), y)] =
-                    Some(rng.below(2 * step) - step - if near_edge(y) { avoid_edge } else { 0 });
-            }
-        }
-        for x in 0..divisions {
-            for y in 0..divisions {
-                self.subdivide(
-                    &mut heights,
-                    rng,
-                    step,
-                    [
-                        grid(self.wrap.width(), x),
-                        grid(ymax, y),
-                        grid(self.wrap.width(), x + 1),
-                        grid(ymax, y + 1),
-                    ],
-                );
-            }
-        }
-        heights
-            .into_iter()
-            .map(|height| 8 * height.unwrap_or(0) + rng.below(4) - 2)
+    fn height_field(&self, seed: u64, scale: f64) -> Vec<i32> {
+        const NOISE_WIDTH: i32 = 128;
+        const NOISE_HEIGHT: i32 = 64;
+        let noise = noise::Simplex3::new(seed);
+        let x_radius = f64::from(NOISE_WIDTH) / (std::f64::consts::PI * 2.0);
+        (0..self.wrap.tile_count())
+            .map(|tile| {
+                let (map_x, map_y) = self.wrap.position(tile);
+                let x = map_x * NOISE_WIDTH / self.wrap.width();
+                let y = map_y * NOISE_HEIGHT / self.wrap.height();
+                let theta = f64::from(x) / f64::from(NOISE_WIDTH) * std::f64::consts::TAU;
+                let mut amplitude = 1.0;
+                let mut frequency = 1.0;
+                let mut value = 0.0;
+                for octave in 0..8 {
+                    let octave_scale = scale * frequency;
+                    let offset = f64::from(octave) * 1000.0;
+                    let sample_x = 1000.0 + octave_scale * x_radius * theta.sin() + offset;
+                    let sample_y = 1000.0 + octave_scale * x_radius * theta.cos() + offset;
+                    let sample_z = 1000.0 + octave_scale * f64::from(y) + offset;
+                    value += noise.sample(sample_x, sample_y, sample_z) * amplitude;
+                    amplitude *= 0.5;
+                    frequency *= 2.0;
+                }
+                let normalized_y = f64::from(y) / f64::from(NOISE_HEIGHT - 1);
+                let polar_distance = (normalized_y - 0.5).abs() * 2.0;
+                value *= 1.0 - polar_distance * polar_distance;
+                (value * 1_000_000.0) as i32
+            })
             .collect()
     }
 
@@ -603,15 +561,16 @@ impl Generator {
         // OpenCiv3 seeds its relief noise independently from the landmass
         // field. Reuse the local deterministic field builder with its
         // documented seed offset as an explicit implementation approximation.
-        let mut relief_rng = MapRng::new(seed.wrapping_add(0xfeed));
-        let mut relief = self.height_field(&mut relief_rng, 6);
+        let mut relief = self.height_field(seed.wrapping_add(0xfeed), 0.2);
         rank_field(&mut relief, 1000);
-        let mut biome_rng = MapRng::new(seed.wrapping_add(0xdad));
-        let mut biome_field = self.height_field(&mut biome_rng, 8);
+        let mut biome_field = self.height_field(seed.wrapping_add(0xdad), 0.4);
         rank_field(&mut biome_field, 1000);
+        let mut attempt = 0_u64;
         loop {
-            let mut heights =
-                self.height_field(&mut rng, self.settings.landform.initial_divisions());
+            let mut heights = self.height_field(
+                seed.wrapping_add(0x1234_u64.wrapping_mul(attempt)),
+                self.settings.landform.noise_scale(),
+            );
             rank_field(&mut heights, 1000);
             let (mut terrain, temperature) =
                 self.terrain_pass(&heights, &relief, &biome_field, &mut rng);
@@ -696,6 +655,7 @@ impl Generator {
                 };
             }
             // Retry from the same RNG stream when a world has too few viable sites.
+            attempt = attempt.wrapping_add(1);
         }
     }
 }

@@ -162,7 +162,9 @@ intended end state; a completed phase requires the evidence listed below.
   tile threshold in the same directions as OpenCiv3's `AddVegetation` and
   `AssignBiomes`. The quota mapping is an explicit approximation: OpenCiv3 uses
   separate seeded height maps and probability bands, which CivCraft does not
-  yet reproduce. Directional biome checks pass, as do seed-42 UI reviews at
+  yet reproduce exactly. The separate temperature field now uses the
+  tileable noise implementation described below. Directional biome checks
+  pass, as do seed-42 UI reviews at
   `/tmp/civ3-climate-arid/world.png`,
   `/tmp/civ3-climate-normal/world.png`, and
   `/tmp/civ3-climate-wet/world.png`. The full Rust suite passes 651/651 and
@@ -171,9 +173,11 @@ intended end state; a completed phase requires the evidence listed below.
   defaulting to 4. CivCraft builds a second deterministic relief field using
   OpenCiv3's `0xfeed` seed offset, then applies the source's age-specific hill
   and mountain percentile bands and volcano probabilities. Age tests verify
-  decreasing relief and volcano frequency from 3B to 5B. The relief noise
-  algorithm is CivCraft's existing subdivision field, not OpenCiv3's `.2`
-  scale noise map, so this remains an implementation approximation. Volcanoes
+  decreasing relief and volcano frequency from 3B to 5B. The relief field now
+  uses the `0xfeed` seed offset and `.2` scale with eight octave layers in a
+  cylindrical 3D simplex-noise field. CivCraft uses classic simplex rather
+  than OpenCiv3's OpenSimplex implementation, so this remains an implementation
+  approximation. Volcanoes
   still receive an inferred Grassland base because the current terrain model
   does not retain the pre-overlay base terrain. Seed-42 UI reviews passed and
   were inspected at `/tmp/civ3-age-3/world.png`,
@@ -183,26 +187,25 @@ intended end state; a completed phase requires the evidence listed below.
   via `--landform`, with Continents as the default. Seeded deterministic checks
   verify each option is repeatable and produces a distinct landmass field.
   OpenCiv3's `MapGenerator.GetNoiseScale` uses scales .2, .05, and .02 for
-  these choices. CivCraft approximates that progression with 12, 6, and 3
-  initial subdivision bands; its noise algorithm and continent acceptance
-  rules do not match OpenCiv3. This setting is wired end to end but remains a
-  provisional mapping pending a Civ III-native noise field. Seed-42 full-map
-  captures passed scene checks at `/tmp/civ3-fullmap-archipelago/world.png`,
-  `/tmp/civ3-fullmap-continents/world.png`, and
-  `/tmp/civ3-fullmap-pangaea/world.png`; the different island, multi-continent,
+  these choices. CivCraft now uses those scales in its eight-octave cylindrical
+  simplex-noise field. It still uses classic simplex rather than OpenCiv3's
+  OpenSimplex, and its continent acceptance rules differ. Seed-42 full-map
+  captures passed scene checks at `/tmp/civ3-simplex-archipelago/world.png`,
+  `/tmp/civ3-simplex-continents/world.png`, and
+  `/tmp/civ3-simplex-pangaea/world.png`; the different island, multi-continent,
   and connected landmass patterns were visually inspected. A structural test
   checks deterministic output and observes
   the expected ordering in land-component count (Archipelago > Continents >
   Pangaea) and largest land-component size (Pangaea > Archipelago). The full
   suite and release build pass.
 - New-world generation accepts Cool, Temperate, and Warm via `--temperature`,
-  defaulting to Temperate. It uses an independent seeded subdivision field
-  (`seed + 0xdad`) ranked into OpenCiv3's temperature-specific percentile bands
+  defaulting to Temperate. It uses an independent seeded cylindrical simplex
+  field (`seed + 0xdad`, scale `.4`) ranked into OpenCiv3's temperature-specific percentile bands
   for tundra, plains, and desert, including the arid-climate boosts and
   tundra-latitude limits. Cool produces more Tundra than Warm; Warm produces
   more Desert than Cool in the deterministic seed-42 check. OpenCiv3 uses a
-  separate `.4`-scale OpenSimplex map, so the field generator and spatial
-  scale remain approximations. The `world` review scene now reveals and fits
+  separate `.4`-scale OpenSimplex map; the noise family remains an
+  approximation. The `world` review scene now reveals and fits
   the generated map. Seed-42 screenshots were inspected at
   `/tmp/civ3-fullmap-cool/world.png`,
   `/tmp/civ3-fullmap-temperate/world.png`, and

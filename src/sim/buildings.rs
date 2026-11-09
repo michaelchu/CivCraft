@@ -574,8 +574,8 @@ mod transaction_tests {
     #[test]
     fn rush_fills_shield_stock_at_reference_prices_and_locks_the_target() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        game.tile_mut(10, 20).terrain = Terrain::Grassland;
-        game.create_city(HUMAN, 10, 20);
+        game.tile_mut(24, 15).terrain = Terrain::Grassland;
+        game.create_city(HUMAN, 24, 15);
         let id = game.cities[0].id;
         assert!(!game.apply(Command::RushProduction(id)));
         game.turn += 1;

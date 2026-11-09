@@ -528,9 +528,8 @@ mod transport_tests {
     #[test]
     fn ports_build_transports_only_with_their_tech_and_upgrade_obsolete_production() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        let (x, y) = (10, 20);
-        for (dx, dy) in ISOHEX_DIRS {
-            let (tx, ty) = offset_native_by_map(x, y, dx, dy);
+        let (x, y) = (24, 15);
+        for (tx, ty) in game.map_wrap.civ3_neighbors(x, y) {
             game.tile_mut(tx, ty).terrain = Terrain::Grassland;
         }
         game.create_city(HUMAN, x, y);
@@ -539,7 +538,7 @@ mod transport_tests {
         let galleon = Production::Unit(UnitKind::Galleon);
         game.players[HUMAN].known.push(Tech::ASTRONOMY);
         assert!(!game.apply(Command::Produce(id, caravel)));
-        let (sx, sy) = offset_native_by_map(x, y, 1, 0);
+        let (sx, sy) = game.map_wrap.civ3_neighbors(x, y).next().unwrap();
         game.tile_mut(sx, sy).terrain = Terrain::Lake;
         assert!(game.apply(Command::Produce(id, caravel)));
         assert!(!game.apply(Command::Produce(id, galleon)));
