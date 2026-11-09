@@ -5,7 +5,7 @@ use super::*;
 impl Simulation {
     pub(crate) fn ferry_research_playtest(&mut self) -> (bool, bool, bool) {
         let (x, y) = (10, 24);
-        for (nx, ny) in super::terrain_work::neighbors(x, y).chain([(x, y)]) {
+        for (nx, ny) in self.map_wrap.civ3_neighbors(x, y).chain([(x, y)]) {
             self.tile_mut(nx, ny).terrain = Terrain::Grassland;
         }
         self.create_city(1, x, y);

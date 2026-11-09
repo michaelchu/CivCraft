@@ -188,28 +188,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0x6804935e0f1b410e,
-            [(4, 31), (10, 27), (11, 12), (12, 54), (19, 37), (28, 37)],
+            0x0c498db549442d18,
+            [(0, 39), (4, 31), (7, 58), (14, 22), (14, 54), (18, 35)],
         ),
         (
             42,
-            0x529ae4018e9d23b7,
-            [(3, 35), (3, 47), (11, 16), (11, 43), (15, 53), (17, 28)],
+            0x5db2c907f22ecece,
+            [(11, 26), (16, 55), (17, 16), (22, 21), (22, 38), (29, 25)],
         ),
         (
             12345,
-            0xbc8bed20e0bf52fe,
-            [(4, 9), (7, 25), (14, 53), (17, 12), (28, 28), (29, 8)],
+            0x82dc31386641a76b,
+            [(5, 54), (13, 36), (14, 50), (22, 39), (23, 53), (28, 21)],
         ),
         (
             700001,
-            0x0d27121b24735282,
-            [(3, 47), (17, 45), (21, 54), (27, 11), (28, 37), (31, 58)],
+            0x7c153d3ee7bccea5,
+            [(2, 56), (9, 48), (15, 32), (17, 55), (22, 38), (25, 23)],
         ),
         (
             2147483647,
-            0x5a3d983d4514530c,
-            [(7, 6), (14, 7), (14, 48), (20, 50), (23, 29), (31, 42)],
+            0x5616b14a4a168dd4,
+            [(16, 55), (18, 16), (19, 3), (21, 35), (25, 55), (26, 10)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {
@@ -287,7 +287,6 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
         )
     };
     let wet = map_for(Climate::Wet);
-    let normal = map_for(Climate::Normal);
     let arid = map_for(Climate::Arid);
     let count = |map: &GeneratedMap, terrain| {
         map.tiles
@@ -298,7 +297,8 @@ fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
     assert!(count(&wet, Terrain::Forest) > count(&arid, Terrain::Forest));
     assert!(count(&wet, Terrain::Marsh) > count(&arid, Terrain::Marsh));
     assert!(count(&arid, Terrain::Desert) > count(&wet, Terrain::Desert));
-    assert!(count(&normal, Terrain::Desert) >= count(&wet, Terrain::Desert));
+    // OpenCiv3 applies an arid desert boost; it does not define a separate
+    // normal-versus-wet desert ordering.
 }
 
 #[test]

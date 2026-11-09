@@ -439,13 +439,15 @@ impl Generator {
     fn height_field(&self, seed: u64, scale: f64) -> Vec<i32> {
         const NOISE_WIDTH: i32 = 128;
         const NOISE_HEIGHT: i32 = 64;
-        let noise = noise::Simplex3::new(seed);
+        let noise = noise::OpenSimplex3::new(seed);
         let x_radius = f64::from(NOISE_WIDTH) / (std::f64::consts::PI * 2.0);
-        (0..self.wrap.tile_count())
-            .map(|tile| {
-                let (map_x, map_y) = self.wrap.position(tile);
-                let x = map_x * NOISE_WIDTH / self.wrap.width();
-                let y = map_y * NOISE_HEIGHT / self.wrap.height();
+        // OpenCiv3 generates and globally normalizes a fixed 128x64 field,
+        // then nearest-samples it at map coordinates. Keeping that order
+        // matters: normalizing only the samples for one map size changes the
+        // height thresholds when the map is resized.
+        let mut source = Vec::with_capacity((NOISE_WIDTH * NOISE_HEIGHT) as usize);
+        for y in 0..NOISE_HEIGHT {
+            for x in 0..NOISE_WIDTH {
                 let theta = f64::from(x) / f64::from(NOISE_WIDTH) * std::f64::consts::TAU;
                 let mut amplitude = 1.0;
                 let mut frequency = 1.0;
@@ -463,7 +465,23 @@ impl Generator {
                 let normalized_y = f64::from(y) / f64::from(NOISE_HEIGHT - 1);
                 let polar_distance = (normalized_y - 0.5).abs() * 2.0;
                 value *= 1.0 - polar_distance * polar_distance;
-                (value * 1_000_000.0) as i32
+                source.push(value);
+            }
+        }
+        let min = source.iter().copied().fold(f64::INFINITY, f64::min);
+        let max = source.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let range = max - min;
+        let source: Vec<i32> = source
+            .into_iter()
+            .map(|value| (((value - min) / range).clamp(0.0, 1.0) * 255.0) as i32)
+            .collect();
+
+        (0..self.wrap.tile_count())
+            .map(|tile| {
+                let (map_x, map_y) = self.wrap.position(tile);
+                let x = (map_x * NOISE_WIDTH / self.wrap.width()) as usize;
+                let y = (map_y * NOISE_HEIGHT / self.wrap.height()) as usize;
+                source[y * NOISE_WIDTH as usize + x]
             })
             .collect()
     }

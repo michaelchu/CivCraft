@@ -175,46 +175,62 @@ intended end state; a completed phase requires the evidence listed below.
   defaulting to 4. CivCraft builds a second deterministic relief field using
   OpenCiv3's `0xfeed` seed offset, then applies the source's age-specific hill
   and mountain percentile bands and volcano probabilities. Age tests verify
-  decreasing relief and volcano frequency from 3B to 5B. The relief field now
-  uses the `0xfeed` seed offset and `.2` scale with eight octave layers in a
-  cylindrical 3D simplex-noise field. CivCraft uses classic simplex rather
-  than OpenCiv3's OpenSimplex implementation, so this remains an implementation
-  approximation. The generator now retains each tile's biome-derived base
+  decreasing relief and volcano frequency from 3B to 5B. Its noise primitive is
+  now a Rust 3D OpenSimplex port of `C7GameData/MapGenNoise.cs`, including the
+  3D contribution and lookup tables, signed seed permutation, and gradient
+  evaluator. It uses the source's `.2` scale, eight octaves, and cylindrical
+  sampling. It also builds the source's fixed 128×64 field, applies polar
+  attenuation before global min/max normalization to 8-bit heights, then
+  nearest-samples that field at map coordinates. Unit checks cover deterministic
+  seed behavior and finite normalized samples; five-seed map captures were
+  refreshed for both topologies. The generator still uses its own terrain
+  assignment, percentile thresholding, and feature rules; those remain
+  implementation approximations. OpenCiv3's `HeightMap` and `MapGenerator`
+  document this sampling pipeline as an implementation reference, not verified
+  original Civ III internals.
+  The generator retains each tile's biome-derived base
   terrain before relief and feature overlays, including volcanoes; a seed-42
   check verifies feature tiles retain all four land base types. A seed-42
   generated-world review passed and was visually inspected at
   `/tmp/civ3-base-field-world/world.png`. Earlier age reviews were inspected
   at `/tmp/civ3-age-3/world.png`,
-  `/tmp/civ3-age-4/world.png`, and `/tmp/civ3-age-5/world.png`; the full Rust
-  suite passes 663/663 and the release build succeeds.
+  `/tmp/civ3-age-4/world.png`, and `/tmp/civ3-age-5/world.png`; those captures
+  predate the OpenSimplex replacement and require rerendering for a fresh age
+  comparison.
 - New-world generation accepts Archipelago, Continents, and Pangaea landforms
   via `--landform`, with Continents as the default. Seeded deterministic checks
   verify each option is repeatable and produces a distinct landmass field.
   OpenCiv3's `MapGenerator.GetNoiseScale` uses scales .2, .05, and .02 for
   these choices. CivCraft now uses those scales in its eight-octave cylindrical
-  simplex-noise field. It still uses classic simplex rather than OpenCiv3's
-  OpenSimplex, and its continent acceptance rules differ. Seed-42 full-map
-  captures passed scene checks at `/tmp/civ3-simplex-archipelago/world.png`,
+  OpenSimplex field. Its continent acceptance and retry rules still differ.
+  Prior Seed-42 full-map captures at `/tmp/civ3-simplex-archipelago/world.png`,
   `/tmp/civ3-simplex-continents/world.png`, and
-  `/tmp/civ3-simplex-pangaea/world.png`; the different island, multi-continent,
-  and connected landmass patterns were visually inspected. A structural test
-  checks deterministic output and observes
-  the expected ordering in land-component count (Archipelago > Continents >
-  Pangaea) and largest land-component size (Pangaea > Archipelago). The full
-  suite and release build pass.
+  `/tmp/civ3-simplex-pangaea/world.png` predate the OpenSimplex replacement and
+  need new visual review. A structural test
+  checks deterministic output and observes the expected ordering in
+  land-component count (Archipelago > Continents > Pangaea) and largest
+  land-component size (Pangaea > Archipelago).
 - New-world generation accepts Cool, Temperate, and Warm via `--temperature`,
-  defaulting to Temperate. It uses an independent seeded cylindrical simplex
-  field (`seed + 0xdad`, scale `.4`) ranked into OpenCiv3's temperature-specific percentile bands
-  for tundra, plains, and desert, including the arid-climate boosts and
+  defaulting to Temperate. It uses an independent seeded cylindrical
+  OpenSimplex field (`seed + 0xdad`, scale `.4`) ranked into OpenCiv3's
+  temperature-specific percentile bands for tundra, plains, and desert,
+  including the arid-climate boosts and
   tundra-latitude limits. Cool produces more Tundra than Warm; Warm produces
   more Desert than Cool in the deterministic seed-42 check. OpenCiv3 uses a
-  separate `.4`-scale OpenSimplex map; the noise family remains an
-  approximation. The `world` review scene now reveals and fits
-  the generated map. Seed-42 screenshots were inspected at
-  `/tmp/civ3-fullmap-cool/world.png`,
-  `/tmp/civ3-fullmap-temperate/world.png`, and
-  `/tmp/civ3-fullmap-warm/world.png`; the full-map gallery should also be used
-  across more seeds before claiming regional distribution fidelity.
+  separate `.4`-scale OpenSimplex map. Biome band thresholds and the choice to
+  rank the CivCraft tile field remain approximations. The earlier
+  `civ3-fullmap-*` captures predate the OpenSimplex port. A new seed-42 Standard
+  world review passed its scene check and was visually inspected at
+  `/tmp/civ3-opensimplex-review/world.png` (report:
+  `/tmp/civ3-opensimplex-review/report.json`). That capture uses default world
+  settings; climate, age, and landform galleries still need fresh screenshots.
+  The normalized fixed-grid sampling was visually inspected in a new seed-42
+  capture at `/tmp/civ3-fixed-heightfield-review/world.png`; its scene check
+  passed (`/tmp/civ3-fixed-heightfield-review/report.json`). The full Rust
+  suite passes 667/667 and the offline release build succeeds with the
+  OpenSimplex port and fixed-grid sampling. `civcraft_mapgen_vectors.tsv` was
+  regenerated for five seeds in both wrap modes; raw Freeciv oracle vectors
+  are unchanged.
 - Map dimensions are no longer fixed in the campaign topology. `--map-size`
   accepts the named Tiny (60×60), Small (80×80), Standard (100×100), Large
   (130×130), and Huge (160×160) presets, plus custom even `WIDTHxHEIGHT`

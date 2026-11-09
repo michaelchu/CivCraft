@@ -84,8 +84,7 @@ impl Simulation {
             .map(|(_, _, x, y)| (x, y))
             .filter(|&(x, y)| {
                 let tile = self.tile(x, y);
-                !tile.has_contamination(target)
-                    && !tile.terrain.is_water()
+                !tile.has_contamination(target) && !tile.terrain.is_water()
             })
             .collect();
         if candidates.is_empty() {
@@ -108,6 +107,9 @@ mod tests {
     #[test]
     fn pollution_can_spawn_and_cleanup_restores_output_one_extra_at_a_time() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
+        for (_, _, x, y) in Simulation::city_radius_at(10, 20) {
+            game.tile_mut(x, y).terrain = Terrain::Grassland;
+        }
         game.create_city(HUMAN, 10, 20);
         let city = game.cities[0].clone();
         assert_eq!(game.pollution_risk(&city, 20), 0);

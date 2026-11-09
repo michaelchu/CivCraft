@@ -10,12 +10,18 @@ fn gold_spending_preserves_final_nondefense_advice() {
         let port = game.city_by_id(city).unwrap();
         (port.x, port.y)
     };
+    let target = game
+        .units
+        .iter()
+        .find(|unit| unit.kind == UnitKind::Battleship)
+        .map(|unit| (unit.x, unit.y))
+        .unwrap();
     game.players[1]
         .known
         .extend([Tech::LITERATURE, Tech::CONSTRUCTION, Tech::ROBOTICS]);
     game.players[1].rates = [0, 100, 0];
     for (_, _, x, y) in Simulation::city_radius_at(position.0, position.1) {
-        if game.tile(x, y).terrain.is_water() {
+        if (x, y) == target {
             continue;
         }
         let tile = game.tile_mut(x, y);
@@ -213,5 +219,8 @@ fn city_output_priorities_raise_the_bid_for_a_library_technology() {
 fn offensive_choice_amortizes_balanced_risk_even_with_existing_shield_stock() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     let (selected, advanced, blocked) = game.offensive_production_playtest();
-    assert!(selected && advanced && blocked, "{selected} {advanced} {blocked}");
+    assert!(
+        selected && advanced && blocked,
+        "{selected} {advanced} {blocked}"
+    );
 }
