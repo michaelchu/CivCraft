@@ -70,7 +70,17 @@ async fn main() {
             eprintln!("Invalid --ocean-coverage value: {error}");
             std::process::exit(2);
         });
-    let world_settings = mapgen::Civ3WorldSettings { ocean_coverage };
+    let climate = argument_value("--climate")
+        .unwrap_or_else(|| "normal".to_owned())
+        .parse::<mapgen::Climate>()
+        .unwrap_or_else(|error| {
+            eprintln!("Invalid --climate value: {error}");
+            std::process::exit(2);
+        });
+    let world_settings = mapgen::Civ3WorldSettings {
+        ocean_coverage,
+        climate,
+    };
     let renderer_name = argument_value("--renderer").unwrap_or_else(|| "civ3".to_owned());
     let renderer = client::create_renderer(&renderer_name).unwrap_or_else(|error| {
         eprintln!("{error}");

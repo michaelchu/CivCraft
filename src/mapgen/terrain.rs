@@ -124,13 +124,22 @@ impl super::Generator {
 
         let terrain_water: Vec<_> = terrain.iter().map(|tile| tile.is_water()).collect();
         let remaining = available.iter().filter(|&&open| open).count();
-        // Civ2Civ3 defaults: temperature 60, wetness 50, steepness 30.
-        // Quotas are relative to the land still available after relief.
+        // OpenCiv3 varies forest probability, jungle latitude bands, and marsh
+        // bands by climate. Scale the existing patch-growth heuristic in the
+        // same direction; these shares are an approximation, not its exact
+        // height-map algorithm or verified original Civ III behavior.
+        let (forest_share, jungle_share, marsh_share, desert_share, dry_water_limit) =
+            match self.settings.climate {
+                super::Climate::Wet => (24, 6, 12, 4, 1),
+                super::Climate::Normal => (16, 4, 7, 8, 2),
+                super::Climate::Arid => (8, 2, 3, 16, 3),
+            };
+        // Shares are relative to the land left after relief.
         let mut patches = [
-            remaining * 16 / 80,
-            remaining * 4 / 80,
-            remaining * 7 / 80,
-            remaining * 8 / 80,
+            remaining * forest_share / 80,
+            remaining * jungle_share / 80,
+            remaining * marsh_share / 80,
+            remaining * desert_share / 80,
             0,
         ];
         let mut plains = remaining - patches.iter().sum::<usize>();
@@ -146,7 +155,7 @@ impl super::Generator {
                             .neighbors(tile)
                             .filter(|&next| terrain_water[next])
                             .count()
-                            <= 2;
+                            <= dry_water_limit;
                     match pass {
                         0 => heat >= VERY_COLD,
                         1 => heat >= TROPICAL,

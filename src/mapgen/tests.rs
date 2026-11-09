@@ -205,7 +205,10 @@ fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
     let water_counts: Vec<_> = coverages
         .into_iter()
         .map(|ocean_coverage| {
-            let settings = Civ3WorldSettings { ocean_coverage };
+            let settings = Civ3WorldSettings {
+                ocean_coverage,
+                climate: Climate::default(),
+            };
             let first = generate_with_settings(42, wrap, settings);
             let second = generate_with_settings(42, wrap, settings);
             assert_eq!(
@@ -231,11 +234,47 @@ fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
 }
 
 #[test]
+fn civ3_climate_choices_shift_biomes_in_the_expected_direction() {
+    let wrap = MapWrap::XY;
+    let map_for = |climate| {
+        generate_with_settings(
+            42,
+            wrap,
+            Civ3WorldSettings {
+                ocean_coverage: OceanCoverage::default(),
+                climate,
+            },
+        )
+    };
+    let wet = map_for(Climate::Wet);
+    let normal = map_for(Climate::Normal);
+    let arid = map_for(Climate::Arid);
+    let count = |map: &GeneratedMap, terrain| {
+        map.tiles
+            .iter()
+            .filter(|tile| tile.terrain == terrain)
+            .count()
+    };
+    assert!(count(&wet, Terrain::Forest) > count(&arid, Terrain::Forest));
+    assert!(count(&wet, Terrain::Marsh) > count(&arid, Terrain::Marsh));
+    assert!(count(&arid, Terrain::Desert) > count(&wet, Terrain::Desert));
+    assert!(count(&normal, Terrain::Desert) > count(&wet, Terrain::Desert));
+}
+
+#[test]
 fn civ3_ocean_coverage_parser_accepts_documented_world_setup_values() {
     assert_eq!("60".parse(), Ok(OceanCoverage::Percent60));
     assert_eq!("70".parse(), Ok(OceanCoverage::Percent70));
     assert_eq!("80".parse(), Ok(OceanCoverage::Percent80));
     assert!("75".parse::<OceanCoverage>().is_err());
+}
+
+#[test]
+fn civ3_climate_parser_accepts_documented_world_setup_values() {
+    assert_eq!("arid".parse(), Ok(Climate::Arid));
+    assert_eq!("normal".parse(), Ok(Climate::Normal));
+    assert_eq!("wet".parse(), Ok(Climate::Wet));
+    assert!("humid".parse::<Climate>().is_err());
 }
 
 #[cfg(test)]

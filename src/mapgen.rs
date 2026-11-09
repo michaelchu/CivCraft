@@ -49,11 +49,39 @@ impl std::str::FromStr for OceanCoverage {
     }
 }
 
+/// Climate choices from Civ III world setup.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Climate {
+    Arid,
+    Normal,
+    Wet,
+}
+
+impl std::str::FromStr for Climate {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "arid" => Ok(Self::Arid),
+            "normal" => Ok(Self::Normal),
+            "wet" => Ok(Self::Wet),
+            _ => Err("climate must be arid, normal, or wet".into()),
+        }
+    }
+}
+
+impl Default for Climate {
+    fn default() -> Self {
+        Self::Normal
+    }
+}
+
 /// Civ III world-generation choices. Additional world-setup controls will
 /// join this struct as their generation behavior is migrated.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Civ3WorldSettings {
     pub(crate) ocean_coverage: OceanCoverage,
+    pub(crate) climate: Climate,
 }
 
 impl Default for OceanCoverage {

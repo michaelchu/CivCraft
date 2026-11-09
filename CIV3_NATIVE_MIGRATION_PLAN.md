@@ -155,8 +155,18 @@ intended end state; a completed phase requires the evidence listed below.
   `/tmp/civ3-ocean-60/world.png`, `/tmp/civ3-ocean-70/world.png`, and
   `/tmp/civ3-ocean-80/world.png`; each report passed its scene check. The
   release build and full Rust suite (649/649) pass. Map dimensions remain
-  fixed, and landform, climate, temperature, and age settings are not
-  implemented.
+  fixed, and landform, temperature, and age settings are not implemented.
+- New-world generation also accepts Arid, Normal, and Wet climates via
+  `--climate`, defaulting to Normal as OpenCiv3's world setup does. CivCraft
+  adjusts its existing forest, jungle, marsh, and desert patch quotas and dry
+  tile threshold in the same directions as OpenCiv3's `AddVegetation` and
+  `AssignBiomes`. The quota mapping is an explicit approximation: OpenCiv3 uses
+  separate seeded height maps and probability bands, which CivCraft does not
+  yet reproduce. Directional biome checks pass, as do seed-42 UI reviews at
+  `/tmp/civ3-climate-arid/world.png`,
+  `/tmp/civ3-climate-normal/world.png`, and
+  `/tmp/civ3-climate-wet/world.png`. The full Rust suite passes 651/651 and
+  the release build succeeds.
 - Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
   sea/ocean cells touching land become coast, then ocean cells touching coast
   become sea. This preserves the generated initial depth classes farther from
