@@ -145,6 +145,13 @@ intended end state; a completed phase requires the evidence listed below.
   topology/water/golden checks pass. This changes neighborhood behavior only;
   the elevation field, Freeciv-derived map RNG, fixed land ratio, and missing
   user-selectable Civ III world settings still need replacement.
+- Water shelf correction now follows OpenCiv3's `FixContinentalShelf` passes:
+  sea/ocean cells touching land become coast, then ocean cells touching coast
+  become sea. This preserves the generated initial depth classes farther from
+  shore, replacing the prior fixed distance bands. Tests verify the shoreline
+  invariant in both wrap modes, and CivCraft generation vectors were refreshed
+  separately from raw Freeciv references. This is an OpenCiv3 implementation
+  reference; the manual does not document Civ III's internal shelf algorithm.
 - River sheets previously displayed their index-254 bright-green background
   because the decoder only recognized magenta RGB. A focused capture after
   applying the PCX palette transparency indices shows the background removed;
@@ -220,6 +227,9 @@ intended end state; a completed phase requires the evidence listed below.
   emits Civ III directions; the old `Command::Move(dx, dy)` remains only as a
   compatibility path for playtest and legacy unit scenarios and still needs
   retirement or fixture migration.
+- Units displaced by a traded city now search a radius of two Civ III graph
+  steps for a legal destination instead of scanning legacy map-coordinate
+  offsets. All 647 Rust tests pass after this migration.
 - Human directional movement now has a Civ III direction-index command for all
   eight staggered-grid neighbors. Arrow keys and the numeric keypad select the
   corresponding Civ III steps, and FLC facing rows follow OpenCiv3's direction

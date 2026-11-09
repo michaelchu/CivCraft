@@ -137,31 +137,31 @@ fn map_checksum(tiles: &[Tile]) -> u64 {
 fn default_worlds_match_civcraft_resource_goldens() {
     // These capture generated terrain, resource placement, and sorted starts
     // using Civ III's eight-direction topology.
-    let cases = [
+    let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0x851368d7b62bc472,
+            0xeb916cf67f024044,
             [(5, 20), (20, 40), (21, 10), (23, 24), (23, 60), (30, 6)],
         ),
         (
             42,
-            0x01ca8f9faa73604a,
+            0xb2902b18950323c0,
             [(2, 43), (6, 19), (12, 6), (13, 28), (20, 41), (25, 22)],
         ),
         (
             12345,
-            0xb992bf3c10f20afe,
-            [(4, 14), (4, 39), (11, 49), (14, 18), (17, 43), (26, 8)],
+            0x1b2f3192ba21e8e4,
+            [(4, 39), (5, 12), (11, 49), (14, 18), (17, 43), (26, 8)],
         ),
         (
             700001,
-            0xb2726925df5f493d,
+            0x84a7eedd9e6cafd1,
             [(6, 7), (11, 39), (17, 20), (22, 35), (28, 10), (28, 50)],
         ),
         (
             2147483647,
-            0x226fa981839df87d,
-            [(3, 49), (9, 37), (15, 54), (19, 39), (24, 30), (30, 23)],
+            0x61807fce6d563209,
+            [(3, 49), (9, 37), (15, 54), (20, 43), (24, 30), (30, 23)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {
@@ -261,29 +261,35 @@ mod wrap_generation_tests {
     }
 
     #[test]
-    fn civ3_water_depths_form_contiguous_coast_sea_ocean_bands() {
-        let wrap = MapWrap::X;
-        let generator = Generator { wrap };
-        let land = generator.index(wrap.width() / 2, wrap.height() / 2);
-        let mut terrain = vec![Terrain::Ocean; wrap.tile_count()];
-        terrain[land] = Terrain::Grassland;
-        generator.finish_water(&mut terrain, &mut MapRng::new(0));
+    fn civ3_shelf_rules_put_coast_by_land_and_sea_by_coast() {
+        for wrap in [MapWrap::X, MapWrap::XY] {
+            let generator = Generator { wrap };
+            let land = generator.index(wrap.width() / 2, wrap.height() / 2);
+            let mut terrain = vec![Terrain::Ocean; wrap.tile_count()];
+            terrain[land] = Terrain::Grassland;
+            generator.finish_water(&mut terrain, &mut MapRng::new(0));
 
-        for (tile, &water) in terrain.iter().enumerate() {
-            if !water.is_water() {
-                continue;
+            for (tile, &water) in terrain.iter().enumerate() {
+                let adjacent: Vec<_> = generator.neighbors(tile).collect();
+                if water.is_water() && adjacent.iter().any(|&next| !terrain[next].is_water()) {
+                    assert_eq!(
+                        water,
+                        Terrain::Coast,
+                        "shoreline at {:?}",
+                        wrap.position(tile)
+                    );
+                }
+                if water == Terrain::Ocean {
+                    assert!(
+                        adjacent.iter().all(|&next| terrain[next] != Terrain::Coast),
+                        "ocean directly borders coast at {:?} on {wrap}",
+                        wrap.position(tile)
+                    );
+                }
             }
-            let distance = (1..=4).find(|&radius| {
-                generator
-                    .within(tile, radius)
-                    .any(|near| !terrain[near].is_water())
-            });
-            let expected = match distance {
-                Some(1) => Terrain::Coast,
-                Some(_) => Terrain::Sea,
-                None => Terrain::Ocean,
-            };
-            assert_eq!(water, expected, "water depth at {:?}", wrap.position(tile));
+            assert!(terrain.contains(&Terrain::Coast));
+            assert!(terrain.contains(&Terrain::Sea));
+            assert!(terrain.contains(&Terrain::Ocean));
         }
     }
 }

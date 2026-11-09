@@ -214,67 +214,26 @@ impl super::Generator {
     }
 
     pub(super) fn finish_water(&self, terrain: &mut [Terrain], _rng: &mut MapRng) {
-        if !self.wrap.wraps_y() {
-            // Use contiguous distance bands for Civ III campaigns. Keeping
-            // the initial elevation class here allowed isolated deep-water
-            // tiles to interrupt the coastal shelf and made sharp teeth.
-            for tile in 0..terrain.len() {
-                if terrain[tile].is_water() {
-                    let distance = (1..=4).find(|&radius| {
-                        self.within(tile, radius)
-                            .any(|next| !terrain[next].is_water())
-                    });
-                    terrain[tile] = match distance {
-                        Some(1) => Terrain::Coast,
-                        Some(_) => Terrain::Sea,
-                        None => Terrain::Ocean,
-                    };
-                }
+        // OpenCiv3's FixContinentalShelf pass converts water next to land to
+        // Coast, then converts Ocean next to Coast to Sea. It preserves the
+        // generator's initial depth classes beyond those two shelf rules.
+        // This is an implementation reference; Civ III's original internal
+        // algorithm is not documented in the manual.
+        for tile in 0..terrain.len() {
+            if !matches!(terrain[tile], Terrain::Sea | Terrain::Ocean) {
+                continue;
             }
-        } else {
-            // Preserve the retired torus generator only for historical tests.
-            for tile in 0..terrain.len() {
-                if !terrain[tile].is_water() {
-                    continue;
-                }
-                if let Some(distance) = (1..=4).find(|&radius| {
-                    self.within(tile, radius)
-                        .any(|next| !terrain[next].is_water())
-                }) {
-                    terrain[tile] = match (distance, terrain[tile]) {
-                        (1, _) => Terrain::Coast,
-                        (_, Terrain::Coast) => Terrain::Sea,
-                        (_, water) => water,
-                    };
-                }
+            if self.neighbors(tile).any(|next| !terrain[next].is_water()) {
+                terrain[tile] = Terrain::Coast;
             }
-            let water_before_smoothing = terrain.to_vec();
-            for tile in 0..terrain.len() {
-                if water_before_smoothing[tile].is_water() {
-                    let coastline = self
-                        .neighbors(tile)
-                        .any(|next| !water_before_smoothing[next].is_water());
-                    if coastline {
-                        terrain[tile] = Terrain::Coast;
-                        continue;
-                    }
-                    let shallow = self
-                        .neighbors(tile)
-                        .filter(|&next| {
-                            matches!(water_before_smoothing[next], Terrain::Coast | Terrain::Sea)
-                        })
-                        .count();
-                    let deep = self
-                        .neighbors(tile)
-                        .filter(|&next| water_before_smoothing[next] == Terrain::Ocean)
-                        .count();
-                    let threshold = 2 * ISOHEX_DIRS.len() / 3;
-                    if shallow >= threshold {
-                        terrain[tile] = Terrain::Sea;
-                    } else if deep >= threshold {
-                        terrain[tile] = Terrain::Ocean;
-                    }
-                }
+        }
+        for tile in 0..terrain.len() {
+            if terrain[tile] == Terrain::Ocean
+                && self
+                    .neighbors(tile)
+                    .any(|next| terrain[next] == Terrain::Coast)
+            {
+                terrain[tile] = Terrain::Sea;
             }
         }
 
