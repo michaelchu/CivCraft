@@ -17,9 +17,22 @@ fn civ3_map_sizes_select_their_rosters_and_generate_matching_starts() {
         assert_eq!(size.civilization_count(), expected);
     }
 
-    let tiny = generate_for_civ3_size(42, Civ3MapSize::Tiny, Civ3WorldSettings::default());
-    assert_eq!(tiny.civilization_count, 4);
-    assert_eq!(tiny.starts.len(), 4);
+    for (size, expected) in [
+        (Civ3MapSize::Tiny, 4),
+        (Civ3MapSize::Small, 6),
+        (Civ3MapSize::Standard, 8),
+        (Civ3MapSize::Large, 12),
+        (Civ3MapSize::Huge, 16),
+    ] {
+        let map = generate_for_civ3_size(42, size, Civ3WorldSettings::default());
+        assert_eq!(map.civilization_count, expected, "{size}");
+        assert_eq!(map.starts.len(), expected, "{size}");
+        assert_eq!(
+            map.tiles.len(),
+            size.topology().unwrap().tile_count(),
+            "{size}"
+        );
+    }
 }
 
 #[test]

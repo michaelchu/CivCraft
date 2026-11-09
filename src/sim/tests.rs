@@ -40,25 +40,34 @@ use super::*;
 
 #[test]
 fn civ3_map_roster_controls_active_players_and_score_standings() {
-    let map = crate::mapgen::generate_for_civ3_size(
-        42,
-        crate::mapgen::Civ3MapSize::Tiny,
-        crate::mapgen::Civ3WorldSettings::default(),
-    );
-    let game = Simulation::new(map);
-    assert_eq!(game.civilization_count, 4);
-    assert_eq!(game.score_standings().len(), 4);
-    for owner in 0..4 {
-        assert!(game.player_alive(owner));
-        assert_eq!(
-            game.players[owner].known,
-            crate::rules::civilizations::CIVILIZATIONS[owner]
-                .starting_techs
-                .to_vec()
+    for (size, expected) in [
+        (crate::mapgen::Civ3MapSize::Tiny, 4),
+        (crate::mapgen::Civ3MapSize::Huge, 16),
+    ] {
+        let map = crate::mapgen::generate_for_civ3_size(
+            42,
+            size,
+            crate::mapgen::Civ3WorldSettings::default(),
         );
-    }
-    for owner in 4..MAX_CIVILIZATIONS {
-        assert!(!game.player_alive(owner));
+        let mut game = Simulation::new(map);
+        assert_eq!(game.civilization_count, expected);
+        assert_eq!(game.score_standings().len(), expected);
+        for owner in 0..expected {
+            assert!(game.player_alive(owner));
+            assert_eq!(
+                game.players[owner].known,
+                crate::rules::civilizations::CIVILIZATIONS[owner]
+                    .starting_techs
+                    .to_vec()
+            );
+        }
+        for owner in expected..MAX_CIVILIZATIONS {
+            assert!(!game.player_alive(owner));
+        }
+        if size == crate::mapgen::Civ3MapSize::Tiny {
+            game.end_turn();
+            assert_eq!(game.turn, 2);
+        }
     }
 }
 

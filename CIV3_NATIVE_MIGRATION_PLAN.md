@@ -236,15 +236,18 @@ intended end state; a completed phase requires the evidence listed below.
   starting units and AI research. All sixteen starting-tech pairs are now read
   from the civilization roster, matching `startingTechs` in OpenCiv3's
   `C7/Lua/civ3/ruleset.json`; this is imported ruleset data, not proof of the
-  original engine's implementation. Tiny generation is checked for four starts;
-  a runtime check verifies four active players and excludes inactive roster
-  slots from score standings. The sixteen Civ III player slots are currently
+  original engine's implementation. Seed-42 generation checks all five sizes
+  produce 4/6/8/12/16 starts and matching tile dimensions. Runtime checks build
+  Tiny and Huge campaigns, verify their active rosters, and advance a Tiny
+  campaign through one turn. Inactive slots are excluded from score standings.
+  The sixteen Civ III player slots are currently
   allocated in every campaign so the Barbarian owner remains at fixed index 16.
   This leaves unused slots inactive on smaller maps and keeps global
   barbarian-owner comparisons in place; migration to a per-campaign Barbarian
   index is still open. The full 664-test suite passes after this change, but
-  end-to-end start/turn/diplomacy/barbarian/save-load/UI coverage across all five
-  sizes is still required, especially at the 4- and 16-civ extremes. Custom
+  end-to-end diplomacy/conquest/barbarian/save-load/UI coverage across all five
+  sizes remains required; a turn is currently exercised only at Tiny size.
+  Custom
   dimensions currently use the Standard eight-civ roster until a civilization
   count selector is exposed. The full Rust suite passes 666/666 with the roster
   and starting-tech changes.
