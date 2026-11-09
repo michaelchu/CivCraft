@@ -15,4 +15,5 @@ No logo, splash screen, flag, nation emblem, music, or sound file is included. S
 ## Civilization identities
 
 The six fixed identities and leaders follow [Civilization III’s roster](https://civfanatics.com/civ3/infocenter/). City-name spellings and ordering follow the Civilization Wiki’s Civ III lists for [Romans](https://civilization.fandom.com/wiki/Roman_cities_(Civ3)), [Greeks](https://civilization.fandom.com/wiki/Greek_cities_(Civ3)), [Egyptians](https://civilization.fandom.com/wiki/Egyptian_cities_(Civ3)), [Babylonians](https://civilization.fandom.com/wiki/Babylonian_cities_(Civ3)), [Chinese](https://civilization.fandom.com/wiki/Chinese_cities_(Civ3)) and [Japanese](https://civilization.fandom.com/wiki/Japanese_cities_(Civ3)). The default build uses the artwork documented above. The optional Civ III
-tileset loads its PNGs from `tilesets/civ3/` at runtime.
+tileset loads original game PCX terrain from `Art/Terrain/` by default. The
+selectable Snoopy terrain variants load from `Tilesets/<variant>/Art/Terrain/`.

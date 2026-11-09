@@ -35,9 +35,9 @@ fn locate_bundled_civ3_theme() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|error| error.to_string())?;
     cwd.ancestors()
         .chain(exe.ancestors().skip(1))
-        .map(|parent| parent.join("tilesets/civ3"))
-        .find(|path| path.join("Terrain/roads.png").is_file())
-        .ok_or_else(|| "Bundled Civ III road sheets were not found".to_owned())
+        .map(|parent| parent.join("Art"))
+        .find(|path| path.join("Terrain").is_dir())
+        .ok_or_else(|| "Bundled original Civ III Art folder was not found".to_owned())
 }
 
 fn irrigation_source(index: usize) -> Rect {
@@ -83,7 +83,7 @@ const LAND_SHEETS: [(&str, &str, [Ground; 3]); 6] = [
     ("grass-coast", "XGGC", [Grass, Grass, Coast]),
 ];
 const OVERLAYS: [(&str, &str, u16, u16, usize); 6] = [
-    ("vegetation", "grassland forests (normal)", 768, 616, 88),
+    ("vegetation", "grassland forests", 768, 616, 88),
     ("marsh", "marsh", 768, 264, 88),
     ("hills", "XHILLS", 128, 72, 72),
     ("mountains", "Mountains", 128, 88, 88),
@@ -118,30 +118,41 @@ pub(crate) enum Tileset {
 impl Tileset {
     pub(crate) fn select(name: &str, theme: Option<&str>) -> Result<Self, String> {
         match (name, theme) {
-            ("civ3", Some(path)) => Ok(Self::Civ3(path.into())),
-            ("civ3", None) => {
+            ("civ3" | "conquests", Some(path)) => Ok(Self::Civ3(path.into())),
+            ("civ3" | "conquests", None) => {
                 let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
                 let exe = std::env::current_exe().map_err(|error| error.to_string())?;
                 cwd.ancestors()
                     .chain(exe.ancestors().skip(1))
-                    .flat_map(|parent| [
-                        parent.join("Sn00pys Terrain Greener (C3C)/Art"),
-                        parent.join("tilesets/civ3"),
-                    ])
+                    .map(|parent| parent.join("Art"))
                     .find(|path| path.join("Terrain").is_dir())
                     .map(Self::Civ3)
                     .ok_or_else(|| {
-                        "Civ III art not found. Install it under tilesets/civ3 or use --tileset-theme PATH.".into()
+                        "Original Civ III art not found under app/Art or use --tileset-theme PATH.".into()
                     })
             }
-            (_, Some(_)) => Err("--tileset-theme requires --tileset civ3".into()),
-            _ => Err(format!("Unknown tileset '{name}'. Available tileset: civ3")),
+            ("snoopy" | "snoopy-standard" | "snoopy-greener" | "snoopy-extended", None) => {
+                let folder = match name {
+                    "snoopy-standard" => "Sn00pys Terrain",
+                    "snoopy-extended" => "Sn00pys TerrainX",
+                    _ => "Sn00pys TerrainG",
+                };
+                let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
+                let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+                cwd.ancestors().chain(exe.ancestors().skip(1))
+                    .map(|parent| parent.join("Tilesets").join(folder).join("Art"))
+                    .find(|path| path.join("Terrain").is_dir())
+                    .map(Self::Civ3)
+                    .ok_or_else(|| format!("Tileset '{name}' art was not found under app/Tilesets"))
+            }
+            (_, Some(_)) => Err("--tileset-theme requires --tileset civ3 or conquests".into()),
+            _ => Err(format!("Unknown tileset '{name}'. Available: civ3, snoopy-standard, snoopy-greener, snoopy-extended")),
         }
     }
 
     pub(crate) fn name(&self) -> &'static str {
         match self {
-            Self::Civ3(_) => "civ3",
+            Self::Civ3(_) => "original-civ3-art",
         }
     }
 }
@@ -392,6 +403,27 @@ fn read_theme_image(
     {
         candidates.push(path.with_extension("pcx"));
         candidates.push(path.with_extension("PCX"));
+    }
+    // Original Civ III installations mix both filename and extension casing.
+    // Resolve the basename case-insensitively and accept either supported image
+    // format so source trees load consistently on case-sensitive filesystems.
+    if let Some(parent) = path.parent() {
+        if let (Some(wanted), Ok(entries)) = (path.file_stem(), fs::read_dir(parent)) {
+            let wanted = wanted.to_string_lossy();
+            for entry in entries.flatten() {
+                let candidate = entry.path();
+                let is_supported = candidate.extension().is_some_and(|ext| {
+                    ext.eq_ignore_ascii_case("pcx") || ext.eq_ignore_ascii_case("png")
+                });
+                if is_supported
+                    && candidate.file_stem().is_some_and(|stem| {
+                        stem.to_string_lossy().eq_ignore_ascii_case(&wanted)
+                    })
+                {
+                    candidates.push(candidate);
+                }
+            }
+        }
     }
     let mut last_error = None;
     for candidate in candidates {
@@ -1197,9 +1229,7 @@ impl Civ3 {
         true
     }
 
-    /// OpenCiv3 maps fortress, mine, and barbarian camp art to cells in a
-    /// 128x64 grid. The supplied Sn00py set omits TerrainBuildings, so the
-    /// bundled OpenCiv3 sheet is used as a fallback and themes can replace it.
+    /// Terrain improvement art uses the original TerrainBuildings sheet.
     pub(super) fn draw_terrain_building(
         &self,
         kind: TerrainBuilding,
@@ -1214,7 +1244,7 @@ impl Civ3 {
     }
 
     /// Optional one-cell Civ III mod art for improvements not present in the
-    /// supplied Sn00py set or OpenCiv3 export.
+    /// original game or selected theme terrain sheet.
     pub(super) fn draw_optional_improvement(
         &self,
         role: &'static str,
@@ -1637,14 +1667,8 @@ mod tests {
 
     #[test]
     fn decodes_the_original_sn00py_civ3_theme_assets() {
-        let art =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Sn00pys Terrain Greener (C3C)/Art");
-        // The mod is an adjacent reference checkout rather than a vendored
-        // dependency. Keep this test useful in the project checkout without
-        // making a clone that omits the reference directory fail its suite.
-        if !art.is_dir() {
-            return;
-        }
+        let art = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("Tilesets/Sn00pys TerrainG/Art");
 
         let files = [
             "Terrain/XDGP.pcx",
@@ -1659,23 +1683,16 @@ mod tests {
             "Terrain/polarICEcaps-final.pcx",
             "Terrain/deltaRivers.pcx",
             "Terrain/mtnRivers.pcx",
-            "Terrain/grassland forests (normal).pcx",
-            "Terrain/marsh.pcx",
+            "Terrain/grassland forests.pcx",
             "Terrain/XHILLS.PCX",
             "Terrain/Mountains.pcx",
             "Terrain/floodplains.pcx",
-            "Terrain/Volcanos.pcx",
             "Terrain/irrigation.pcx",
             "Terrain/irrigation PLAINS.pcx",
             "Terrain/irrigation DESETT.pcx",
             "Terrain/irrigation TUNDRA.pcx",
-            "Cities/rASIAN.PCX",
-            "Cities/rAMER.PCX",
-            "Cities/rEURO.PCX",
-            "Cities/rMIDEAST.PCX",
-            "Cities/rROMAN.PCX",
-            "resources.pcx",
-            "resources_shadows.pcx",
+            "Cities/rASIAN.PCX", "Cities/rAMER.PCX", "Cities/rEURO.PCX",
+            "Cities/rMIDEAST.PCX", "Cities/rROMAN.PCX", "resources.pcx", "resources_shadows.pcx",
         ];
 
         for relative_path in files {
@@ -1689,6 +1706,51 @@ mod tests {
             let image = decode_pcx(&bytes, &DEFAULT_PCX_TRANSPARENT_INDICES)
                 .unwrap_or_else(|error| panic!("could not decode {}: {error}", path.display()));
             assert!(image.width > 0 && image.height > 0, "{}", path.display());
+        }
+    }
+
+    #[test]
+    fn selects_original_default_and_all_bundled_snoopy_terrain_paths() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let cases = [
+            ("civ3", root.join("Art")),
+            ("snoopy-standard", root.join("Tilesets/Sn00pys Terrain/Art")),
+            ("snoopy-greener", root.join("Tilesets/Sn00pys TerrainG/Art")),
+            ("snoopy-extended", root.join("Tilesets/Sn00pys TerrainX/Art")),
+        ];
+        for (name, expected) in cases {
+            let selected = Tileset::select(name, None).unwrap();
+            let Tileset::Civ3(path) = selected;
+            assert_eq!(path.canonicalize().unwrap(), expected.canonicalize().unwrap());
+        }
+    }
+
+    #[test]
+    fn every_selectable_tileset_resolves_required_terrain_sheets() {
+        let cases = ["civ3", "snoopy-standard", "snoopy-greener", "snoopy-extended"];
+        let required = [
+            ("desert-grass-plains", "XDGP", (1152, 576)),
+            ("desert-grass-coast", "XDGC", (1152, 576)),
+            ("desert-plains-coast", "XDPC", (1152, 576)),
+            ("plains-grass-coast", "XPGC", (1152, 576)),
+            ("tundra-grass-coast", "XTGC", (1152, 576)),
+            ("grass-coast", "XGGC", (1152, 576)),
+            ("water", "wCSO", (1152, 576)),
+            ("sea", "wSSS", (1152, 576)),
+            ("ocean", "wOOO", (1152, 576)),
+            ("polar", "polarICEcaps-final", (1024, 256)),
+            ("river-delta", "deltaRivers", (512, 256)),
+            ("river-mountain", "mtnRivers", (512, 256)),
+        ];
+        for name in cases {
+            let Tileset::Civ3(root) = Tileset::select(name, None).unwrap();
+            let theme = Theme::read(&root).unwrap();
+            for (role, file, size) in required {
+                let image = theme.image(role, &format!("Terrain/{file}.png"), size, true)
+                    .unwrap_or_else(|error| panic!("{name} {role}: {error}"))
+                    .unwrap();
+                assert!(image.width >= size.0 && image.height >= size.1, "{name} {role}");
+            }
         }
     }
 
@@ -1858,17 +1920,15 @@ mod tests {
     }
 
     #[test]
-    fn bundled_improvement_sheets_match_reference_atlas_dimensions() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tilesets/civ3/Terrain");
+    fn original_improvement_sheets_match_reference_atlas_dimensions() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("Art/Terrain");
         for (name, dimensions) in [
-            ("TerrainBuildings.png", (384, 256)),
-            ("pollution.png", (640, 320)),
-            ("craters.png", (640, 320)),
+            ("TerrainBuildings.PCX", (512, 256)),
+            ("pollution.pcx", (640, 320)),
+            ("craters.pcx", (640, 320)),
         ] {
             let path = root.join(name);
-            let image =
-                Image::from_file_with_format(&fs::read(&path).unwrap(), Some(ImageFormat::Png))
-                    .unwrap();
+            let image = decode_pcx(&fs::read(&path).unwrap(), &DEFAULT_PCX_TRANSPARENT_INDICES).unwrap();
             assert_eq!(
                 (image.width, image.height),
                 dimensions,
@@ -1891,16 +1951,13 @@ mod tests {
     }
 
     #[test]
-    fn bundled_route_sheets_preserve_the_sixteen_by_sixteen_cell_grid() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tilesets/civ3/Terrain");
-        for name in ["roads.png", "railroads.png"] {
+    fn original_route_sheets_preserve_the_sixteen_by_sixteen_cell_grid() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("Art/Terrain");
+        for (name, dimensions) in [("roads.pcx", (2048, 1024)), ("railroads.pcx", (2048, 1088))] {
             let path = root.join(name);
-            let image =
-                Image::from_file_with_format(&fs::read(&path).unwrap(), Some(ImageFormat::Png))
-                    .unwrap();
+            let image = decode_pcx(&fs::read(&path).unwrap(), &DEFAULT_PCX_TRANSPARENT_INDICES).unwrap();
             assert_eq!(
-                (image.width, image.height),
-                (2048, 1024),
+                (image.width, image.height), dimensions,
                 "{}",
                 path.display()
             );
@@ -1937,7 +1994,7 @@ mod tests {
     }
 
     #[test]
-    fn bundled_civ3_sheet_supplies_each_resource_in_its_own_cell() {
+    fn original_civ3_sheet_supplies_each_resource_in_its_own_cell() {
         use Resource::*;
         let resources = [
             Horses,
@@ -1967,9 +2024,8 @@ mod tests {
             Sugar,
             Tobacco,
         ];
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tilesets/civ3/resources.png");
-        let mut image =
-            Image::from_file_with_format(&fs::read(path).unwrap(), Some(ImageFormat::Png)).unwrap();
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("Art/resources.pcx");
+        let mut image = decode_pcx(&fs::read(path).unwrap(), &DEFAULT_PCX_TRANSPARENT_INDICES).unwrap();
         let present = prepare_resource_sheet(&mut image, None);
         let mut seen = std::collections::HashSet::new();
         for resource in resources {

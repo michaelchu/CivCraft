@@ -84,17 +84,19 @@ OpenCiv3's OpenSimplex maps.
 
 ## Map tilesets
 
-The Civ III tileset is the default. When the Sn00py terrain mod folder is
-available beside the project checkout, its original PCX artwork is used by
-default; otherwise CivCraft loads the bundled theme in
-[`tilesets/civ3/`](tilesets/README.md). To select it explicitly, launch with:
+The default terrain art comes from the original game files copied under
+`Art/`, with Conquests taking priority over PTW and base Civ III when paths
+overlap. To choose a Snoopy terrain variant, use one of these names:
 
 ```sh
-cargo run --release -- --tileset civ3 --seed 42
+cargo run --release -- --tileset snoopy-standard --seed 42
+cargo run --release -- --tileset snoopy-greener --seed 42
+cargo run --release -- --tileset snoopy-extended --seed 42
 ```
 
-The selection applies to the world map and the city work map. The Civ III tileset
-supplies map terrain and unit animations. Unit art can be overridden per unit
+The selection applies to terrain on the world map and city work map. Other art
+continues to use its existing paths while it is migrated separately. Unit art
+can be overridden per unit
 with an FLC animation from a mod; units without configured FLC art use a vector
 map marker. Compact non-map panels retain a small shared unit icon atlas.
 Resource icons come from the selected theme’s resource sheet. A missing sheet
