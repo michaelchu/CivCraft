@@ -2,6 +2,10 @@
 
 use super::*;
 
+fn centered_sprite_position(center: Vec2, width: f32, height: f32) -> Vec2 {
+    center - vec2(width, height) * 0.5
+}
+
 impl Game {
     pub(in crate::client) fn draw_city_map(
         &self,
@@ -148,10 +152,11 @@ impl Game {
                 52.0 * zoom,
             )
         };
+        let position = centered_sprite_position(center, city_w, city_h);
         draw_texture_ex(
             texture,
-            center.x - city_w * 0.5,
-            center.y - city_h + 9.0 * zoom,
+            position.x,
+            position.y,
             WHITE,
             DrawTextureParams {
                 dest_size: Some(vec2(city_w, city_h)),
@@ -312,6 +317,21 @@ impl Game {
                 (13.0 * self.zoom).max(10.0),
                 WHITE,
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::centered_sprite_position;
+    use macroquad::prelude::vec2;
+
+    #[test]
+    fn city_sprite_bounds_are_centered_on_the_tile() {
+        let tile_center = vec2(320.0, 240.0);
+        for size in [vec2(90.0, 54.0), vec2(69.0, 52.0)] {
+            let top_left = centered_sprite_position(tile_center, size.x, size.y);
+            assert_eq!(top_left + size * 0.5, tile_center);
         }
     }
 }
