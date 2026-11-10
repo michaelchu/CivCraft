@@ -430,6 +430,20 @@ documentation, not as evidence for field behavior.
   1,000-year doubling point, turn accrual, Fascist capture suppression, and
   named-map victory thresholds; they do not validate border expansion, capture
   culture retention, or resistance initiation and garrison resolution.
+- After adding the rival-culture requirement for empire-wide victory,
+  `CIVCRAFT_SOURCE_DIR=../source cargo test --offline culture -- --nocapture`
+  passed all 14 culture-named tests, including a deterministic boundary case:
+  60,000 culture does not win against a living rival at 30,001, and does win
+  against one at exactly 30,000. The 20,000 single-city win remains independent.
+- Rebuilt release and ran the desktop `--self-test` with seed 42 and the
+  installed source directory. The fresh report
+  `/tmp/civcraft-playtest-culture-x232cJ/report.json` records 2/11 checks
+  passing. Failures: move (no scripted move), act/economy (treasury/research
+  interaction), city_tiles (entertainer reassignment), airstrip/airbase (worker
+  controls unavailable), and dependent government/civil-war/diplomacy checks
+  skipped. Foundation and HUD passed. The desktop suite contains no
+  culture-victory or border-culture assertion, so it does not independently
+  validate the new rival-culture condition or the culture system as a whole.
 - `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
   passed; the capture path sets suppression, and culture resumes after owner
   nationality exceeds half of the population.
