@@ -7,7 +7,10 @@ use super::*;
 fn six_civilizations_found_capitals_then_use_unique_names_after_capture_and_loss() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     for owner in 0..PLAYER_COUNT {
-        let civ = &crate::rules::civilizations::CIVILIZATIONS[owner];
+        let civ = crate::rules::civilizations::by_id(
+            game.players[owner].civilization_id.as_deref().unwrap(),
+        )
+        .unwrap();
         assert_eq!(game.players[owner].name, civ.name);
         assert_eq!(game.players[owner].leader_name(), civ.leader);
         game.create_city(owner, 10 + owner as i32 * 4, 20);

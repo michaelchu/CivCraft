@@ -68,12 +68,16 @@ impl Simulation {
     }
 
     pub(super) fn city_name(&self, owner: usize) -> String {
-        if let Some(name) = crate::rules::civilizations::next_city_name(owner, |name| {
-            self.cities
-                .iter()
-                .any(|city| city.name.eq_ignore_ascii_case(name))
-        }) {
-            return name;
+        if let Some(civilization_id) = self.players[owner].civilization_id.as_deref() {
+            if let Some(name) =
+                crate::rules::civilizations::next_city_name(civilization_id, |name| {
+                    self.cities
+                        .iter()
+                        .any(|city| city.name.eq_ignore_ascii_case(name))
+                })
+            {
+                return name;
+            }
         }
         // Rebels/barbarians retain their own identity, without borrowing a nation.
         for number in 1.. {
@@ -440,10 +444,8 @@ impl Simulation {
         government: Government,
     ) -> (i32, i32, i32) {
         let celebrating = self.base_city_celebrating(city);
-        let tile_penalty = matches!(
-            government,
-            Government::Despotism | Government::Anarchy
-        ) && granted != Some(Tech::STEAM_POWER)
+        let tile_penalty = matches!(government, Government::Despotism | Government::Anarchy)
+            && granted != Some(Tech::STEAM_POWER)
             && !self.has_tech(city.owner, Tech::STEAM_POWER)
             && !self.has_active_wonder(city.owner, Building::PYRAMIDS)
             && self.city_rapture.get(&city.id).copied().unwrap_or(0) <= 0;

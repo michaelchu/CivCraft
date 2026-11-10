@@ -62,6 +62,7 @@ impl Game {
             assets.civ3.draw_unit_icon(
                 unit.kind,
                 unit.owner,
+                self.sim.players()[unit.owner].civilization_id.as_deref(),
                 self.sim.research_era(unit.owner).index(),
                 vec2(x + 18.0, card.y + 21.5),
                 vec2(36.0, 27.0),

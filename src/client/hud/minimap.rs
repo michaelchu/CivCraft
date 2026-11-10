@@ -33,7 +33,10 @@ impl Game {
         {
             let origin = self.minimap_tile_origin(rect, city.x, city.y);
             let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);
-            let color = player_color(city.owner);
+            let color = player_color(
+                self.sim.players()[city.owner].civilization_id.as_deref(),
+                city.owner,
+            );
             if let Some(part) = marker.intersect(rect) {
                 draw_rectangle(part.x, part.y, part.w, part.h, color);
             }

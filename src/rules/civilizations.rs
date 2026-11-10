@@ -1,613 +1,177 @@
-//! Civ III civilization identities and city-name lists.
-//! The 16 playable leaders, starting technologies, and capital-first city
-//! lists follow the adjacent OpenCiv3 Civ III ruleset; legacy aliases remain
-//! for local save migrations. Starting technologies match the adjacent OpenCiv3 Civ III
-//! ruleset; OpenCiv3 is an implementation/data reference, not proof of original
-//! engine internals.
-use crate::rules::Tech;
+//! Source-backed Civilization III: Conquests civilization catalog.
+//!
+//! `civilizations.tsv` contains the playable RACE records in the installed
+//! Conquests BIQ order. OpenCiv3's ruleset JSON is the checked-in extraction
+//! reference; the original BIQ remains the authority for names and city order.
+//! City-style IDs are a renderer mapping because the BIQ stores culture groups,
+//! not the five Civ III city-sheet IDs.
 
+use crate::rules::Tech;
+use std::sync::OnceLock;
+
+#[derive(Debug)]
 pub(crate) struct Civilization {
-    pub(crate) name: &'static str,
-    pub(crate) leader: &'static str,
-    pub(crate) cities: &'static [&'static str], // Capital first.
+    pub(crate) id: String,
+    /// Existing CivCraft display name, retained where possible for save/UI compatibility.
+    pub(crate) name: String,
+    pub(crate) source_name: String,
+    pub(crate) noun: String,
+    pub(crate) adjective: String,
+    pub(crate) leader: String,
+    pub(crate) cities: Vec<String>,
     pub(crate) civ3_city_style: u8,
     pub(crate) starting_techs: [Tech; 2],
-    pub(crate) legacy_name: &'static str,
+    pub(crate) primary_color_index: u8,
+    pub(crate) secondary_color_index: u8,
+    pub(crate) legacy_names: Vec<String>,
+    pub(crate) source_race_index: usize,
 }
 
-pub(crate) const CIVILIZATIONS: [Civilization; 16] = [
-    Civilization {
-        name: "Romans",
-        leader: "Julius Caesar",
-        civ3_city_style: 4,
-        starting_techs: [Tech::WARRIOR_CODE, Tech::ALPHABET],
-        legacy_name: "Crimson League",
-        cities: &[
-            "Rome",
-            "Veii",
-            "Antium",
-            "Cumae",
-            "Neapolis",
-            "Pompeii",
-            "Pisae",
-            "Ravenna",
-            "Hispalis",
-            "Viroconium",
-            "Lugdunum",
-            "Lutetia",
-            "Byzantium",
-            "Brundisium",
-            "Syracuse",
-            "Caesaraugusta",
-            "Palmyra",
-            "Jerusalem",
-            "Caesarea",
-            "Tarentum",
-            "Nicomedia",
-            "Seleucia",
-            "Artaxata",
-            "Aurelianorum",
-            "Hippo Regius",
-            "Nicopolis",
-            "Londinium",
-            "Eburacum",
-            "Arretium",
-            "Gordion",
-            "Agrippina",
-            "Cyrene",
-            "Tyrus",
-            "Verona",
-            "Corfinium",
-            "Mediolanum",
-            "Treveri",
-            "Sirmium",
-            "Augustadorum",
-            "Trapezus",
-            "Bagacum",
-            "Lauriacum",
-            "Teurnia",
-            "Curia",
-        ],
-    },
-    Civilization {
-        name: "Greeks",
-        leader: "Alexander",
-        civ3_city_style: 2,
-        starting_techs: [Tech::ALPHABET, Tech::BRONZE_WORKING],
-        legacy_name: "Golden Compact",
-        cities: &[
-            "Athens",
-            "Sparta",
-            "Thermopylae",
-            "Corinth",
-            "Delphi",
-            "Pharsalos",
-            "Knossos",
-            "Argos",
-            "Mycenae",
-            "Herakleia",
-            "Ephesus",
-            "Thessalonica",
-            "Rhodes",
-            "Eretria",
-            "Troy",
-            "Marathon",
-            "Halicarnassus",
-            "Pergamon",
-            "Miletos",
-            "Artemisium",
-            "Megara",
-            "Phocaea",
-            "Sicyon",
-            "Gortyn",
-            "Mytilene",
-            "Tegea",
-            "Syracuse",
-            "Apollonia",
-            "Apolyton",
-        ],
-    },
-    Civilization {
-        name: "Egyptians",
-        leader: "Cleopatra",
-        civ3_city_style: 3,
-        starting_techs: [Tech::CEREMONIAL_BURIAL, Tech::MASONRY],
-        legacy_name: "Azure Assembly",
-        cities: &[
-            "Thebes",
-            "Memphis",
-            "Heliopolis",
-            "Elephantine",
-            "Alexandria",
-            "Pi-Ramesses",
-            "Giza",
-            "Byblos",
-            "El-Amarna",
-            "Hieraconpolis",
-            "Abydos",
-            "Asyut",
-            "Avaris",
-            "Lisht",
-            "Buto",
-            "Edfu",
-            "Pithom",
-            "Busiris",
-            "Kahun",
-            "Athribis",
-            "Mendes",
-            "Elashmunein",
-            "Tanis",
-            "Bubastis",
-            "Oryx",
-            "Sebennytus",
-            "Akhmin",
-            "Khaty",
-            "Tehneh",
-            "Siut",
-            "Damanhur",
-            "Telloh",
-            "Dendera",
-            "Iseum",
-        ],
-    },
-    Civilization {
-        name: "Babylonians",
-        leader: "Hammurabi",
-        civ3_city_style: 3,
-        starting_techs: [Tech::BRONZE_WORKING, Tech::CEREMONIAL_BURIAL],
-        legacy_name: "Violet Court",
-        // Original release roster, before Conquests moved Sumerian names.
-        cities: &[
-            "Babylon",
-            "Ur",
-            "Nineveh",
-            "Ashur",
-            "Ellipi",
-            "Akkad",
-            "Uruk",
-            "Eridu",
-            "Samarra",
-            "Lagash",
-            "Kish",
-            "Nippur",
-            "Shuruppak",
-            "Zariqum",
-            "Sippar",
-            "Izibia",
-            "Larsa",
-            "Nimrud",
-            "Zamua",
-            "Khorsabad",
-            "Hindana",
-            "Tell Wilaya",
-            "Umma",
-            "Adab",
-            "Telloh",
-            "Nina",
-            "Ebla",
-        ],
-    },
-    Civilization {
-        name: "Chinese",
-        leader: "Mao Zedong",
-        civ3_city_style: 0,
-        starting_techs: [Tech::WARRIOR_CODE, Tech::MASONRY],
-        legacy_name: "Amber Union",
-        cities: &[
-            "Beijing", "Shanghai", "Canton", "Nanking", "Tsingtao", "Xinjian", "Chengdu",
-            "Hangchow", "Tientsin", "Tatung", "Macao", "Anyang", "Shantung", "Chinan", "Kaifeng",
-            "Ningpo", "Paoting", "Yangchow",
-        ],
-    },
-    Civilization {
-        name: "Japanese",
-        leader: "Tokugawa",
-        civ3_city_style: 0,
-        starting_techs: [Tech::THE_WHEEL, Tech::CEREMONIAL_BURIAL],
-        legacy_name: "Rose Confederacy",
-        cities: &[
-            "Kyoto",
-            "Osaka",
-            "Tokyo",
-            "Edo",
-            "Satsuma",
-            "Kagoshima",
-            "Nara",
-            "Nagoya",
-            "Izumo",
-            "Nagasaki",
-            "Yokohama",
-            "Shimonoseki",
-            "Matsuyama",
-            "Sapporo",
-            "Hakodate",
-            "Ise",
-            "Toyama",
-            "Fukushima",
-            "Suo",
-            "Bizen",
-            "Echizen",
-            "Izumi",
-            "Omi",
-            "Echigo",
-            "Kozuke",
-            "Sado",
-        ],
-    },
-    Civilization {
-        name: "Germany",
-        leader: "Bismarck",
-        civ3_city_style: 2,
-        starting_techs: [Tech::WARRIOR_CODE, Tech::BRONZE_WORKING],
-        legacy_name: "Iron Confederation",
-        cities: &[
-            "Berlin",
-            "Leipzig",
-            "Hamburg",
-            "Konigsberg",
-            "Frankfurt",
-            "Munich",
-            "Heidelburg",
-            "Nuremberg",
-            "Cologne",
-            "Hannover",
-            "Bremen",
-            "Stuttgart",
-            "Bonn",
-            "Salzburg",
-            "Dortmund",
-            "Brandenburg",
-        ],
-    },
-    Civilization {
-        name: "Russia",
-        leader: "Catherine",
-        civ3_city_style: 2,
-        starting_techs: [Tech::POTTERY, Tech::BRONZE_WORKING],
-        legacy_name: "Northern Union",
-        cities: &[
-            "Moscow",
-            "St. Petersburg",
-            "Novgorod",
-            "Rostov",
-            "Yaroslavl'",
-            "Yekaterinburg",
-            "Yakutsk",
-            "Vladivostok",
-            "Smolensk",
-            "Orenburg",
-            "Krasnoyarsk",
-            "Khabarovsk",
-            "Bryansk",
-            "Tver'",
-            "Kazan'",
-            "Novosibirsk",
-            "Magadan",
-            "Murmansk",
-            "Irkutsk",
-            "Chita",
-            "Samara",
-            "Arkhangel'sk",
-            "Chelyabinsk",
-            "Tobol'sk",
-            "Vologda",
-            "Omsk",
-            "Astrakhan'",
-            "Kursk",
-            "Saratov",
-            "Tula",
-            "Vladimir",
-            "Perm'",
-            "Voronezh",
-            "Pskov",
-            "Staraya Russa",
-            "Kostroma",
-            "Nizhniy Novgorod",
-            "Suzdal'",
-            "Magnitogorsk",
-        ],
-    },
-    Civilization {
-        name: "America",
-        leader: "Lincoln",
-        civ3_city_style: 1,
-        starting_techs: [Tech::POTTERY, Tech::MASONRY],
-        legacy_name: "Free States",
-        cities: &[
-            "Washington",
-            "New York",
-            "Boston",
-            "Philadelphia",
-            "Atlanta",
-            "Chicago",
-            "Seattle",
-            "San Francisco",
-            "Miami",
-            "Houston",
-            "Buffalo",
-            "St. Louis",
-            "Detroit",
-            "New Orleans",
-            "Baltimore",
-            "Denver",
-            "Cincinnati",
-            "Dallas",
-            "Memphis",
-            "Los Angeles",
-            "Cleveland",
-            "Kansas City",
-            "San Diego",
-            "Richmond",
-            "Las Vegas",
-            "Phoenix",
-            "Albuquerque",
-            "Portland",
-            "Minneapolis",
-            "Pittsburgh",
-            "Oakland",
-            "Tampa Bay",
-            "Orlando",
-            "Tacoma",
-            "Santa Fe",
-            "Olympia",
-            "Hunt Valley",
-            "Springfield",
-            "Palo Alto",
-            "Spokane",
-        ],
-    },
-    Civilization {
-        name: "France",
-        leader: "Joan d'Arc",
-        civ3_city_style: 2,
-        starting_techs: [Tech::ALPHABET, Tech::MASONRY],
-        legacy_name: "Silver Republic",
-        cities: &[
-            "Paris",
-            "Orleans",
-            "Lyons",
-            "Rheims",
-            "Tours",
-            "Marseilles",
-            "Chartres",
-            "Avignon",
-            "Besancon",
-            "Rouen",
-            "Grenoble",
-            "Dijon",
-            "Amiens",
-            "Cherbourg",
-            "Poitiers",
-            "Toulouse",
-            "Bayonne",
-            "Strasbourg",
-            "Brest",
-            "Bordeaux",
-            "Rennes",
-        ],
-    },
-    Civilization {
-        name: "India",
-        leader: "Gandhi",
-        civ3_city_style: 0,
-        starting_techs: [Tech::ALPHABET, Tech::CEREMONIAL_BURIAL],
-        legacy_name: "Indus Union",
-        cities: &[
-            "Delhi",
-            "Bombay",
-            "Madras",
-            "Bangalore",
-            "Calcutta",
-            "Lahore",
-            "Karachi",
-            "Kolhapur",
-            "Jaipur",
-            "Hyderabad",
-            "Bengal",
-            "Chittagong",
-            "Punjab",
-            "Dacca",
-            "Indus",
-            "Ganges",
-            "Pune",
-        ],
-    },
-    Civilization {
-        name: "Persia",
-        leader: "Xerxes",
-        civ3_city_style: 3,
-        starting_techs: [Tech::BRONZE_WORKING, Tech::MASONRY],
-        legacy_name: "Sunlit Empire",
-        cities: &[
-            "Persepolis",
-            "Pasargadae",
-            "Arbela",
-            "Antioch",
-            "Gordium",
-            "Bactra",
-            "Sidon",
-            "Tyre",
-            "Sardis",
-            "Samaria",
-            "Hamadan",
-            "Ergili",
-            "Dariush Kabir",
-            "Ghulaman",
-            "Zohak",
-            "Istakhr",
-            "Jinjan",
-            "Borazjan",
-            "Herat",
-            "Dakyanus",
-            "Bampur",
-            "Tureng Tepe",
-            "Merv",
-            "Behistun",
-            "Kandahar",
-            "Altin Tepe",
-            "Bunyan",
-            "Charsadda",
-            "Ura Tyube",
-        ],
-    },
-    Civilization {
-        name: "Aztecs",
-        leader: "Montezuma",
-        civ3_city_style: 1,
-        starting_techs: [Tech::WARRIOR_CODE, Tech::POTTERY],
-        legacy_name: "Obsidian Empire",
-        cities: &[
-            "Tenochtitlan",
-            "Teotihuacan",
-            "Tlatelolco",
-            "Texcoco",
-            "Tlaxcala",
-            "Calixtlahuaca",
-            "Xochicalco",
-            "Tlacopan",
-            "Atzcapotzalco",
-            "Tzintzuntzen",
-            "Malinalco",
-            "Tula",
-            "Tamuin",
-            "Teayo",
-            "Cempoala",
-            "Chalco",
-            "Tlalmanalco",
-            "Ixtapaluca",
-            "Huexotla",
-            "Tepexpan",
-            "Tepetlaoxtoc",
-            "Chiconautla",
-            "Zitlaltepec",
-            "Coyotepec",
-            "Tequixquiac",
-            "Jilotzingo",
-            "Tlapanaloya",
-            "Tultitlan",
-            "Ecatepec",
-            "Coatepec",
-            "Chalchihuites",
-            "Chiauhtia",
-            "Chapultepec",
-            "Itzapalapa",
-            "Ayotzinco",
-            "Iztapam",
-        ],
-    },
-    Civilization {
-        name: "Zululand",
-        leader: "Shaka",
-        civ3_city_style: 3,
-        starting_techs: [Tech::WARRIOR_CODE, Tech::POTTERY],
-        legacy_name: "Red Shield",
-        cities: &[
-            "Zimbabwe",
-            "Ulundi",
-            "Bapedi",
-            "Hlobane",
-            "Isandhlwana",
-            "Intombe",
-            "Mpondo",
-            "Ngome",
-            "Swazi",
-            "Tugela",
-            "Umtata",
-            "Umfolozi",
-            "Ibabanago",
-            "Isipezi",
-            "Amatikulu",
-            "Zunguin",
-        ],
-    },
-    Civilization {
-        name: "Iroquois",
-        leader: "Hiawatha",
-        civ3_city_style: 1,
-        starting_techs: [Tech::POTTERY, Tech::ALPHABET],
-        legacy_name: "Haudenosaunee",
-        cities: &[
-            "Salamanca",
-            "Niagara Falls",
-            "Grand River",
-            "Allegheny",
-            "Cattaraugus",
-            "Oil Springs",
-            "Tonawanda",
-            "Mauch Chunk",
-            "St. Regis",
-            "Centralia",
-            "Akwesasne",
-            "Tyendenaga",
-            "Kahnawake",
-            "Caughnawaga",
-            "Oka",
-            "Chondote",
-            "Gandasetaigon",
-            "Ganogeh",
-            "Gayagaahe",
-            "Gewauga",
-            "Goigouen",
-            "Kawauka",
-            "Kente",
-            "Kiohero",
-            "Owego",
-            "Neodakheat",
-            "Oiogouen",
-            "Skannayutenate",
-            "Onnontare",
-        ],
-    },
-    Civilization {
-        name: "England",
-        leader: "Elizabeth",
-        civ3_city_style: 2,
-        starting_techs: [Tech::ALPHABET, Tech::POTTERY],
-        legacy_name: "Lion Kingdom",
-        cities: &[
-            "London",
-            "York",
-            "Nottingham",
-            "Hastings",
-            "Canterbury",
-            "Coventry",
-            "Warwick",
-            "Newcastle",
-            "Oxford",
-            "Liverpool",
-            "Dover",
-            "Brighton",
-            "Norwich",
-            "Leeds",
-            "Reading",
-            "Birmingham",
-            "Richmond",
-            "Exeter",
-            "Cambridge",
-            "Gloucester",
-            "Manchester",
-            "Bristol",
-            "Leicester",
-            "Carlisle",
-            "Ipswich",
-            "Portsmouth",
-            "Berwick",
-            "Bath",
-            "The Mumbles",
-        ],
-    },
-];
+fn field<'a>(fields: &'a [&str], index: usize, line: usize) -> &'a str {
+    fields
+        .get(index)
+        .copied()
+        .unwrap_or_else(|| panic!("missing civilization catalog field on row {line}"))
+}
 
-pub(crate) fn next_city_name(owner: usize, occupied: impl Fn(&str) -> bool) -> Option<String> {
-    let civ = CIVILIZATIONS.get(owner)?;
-    for &name in civ.cities {
+fn parse_tech(name: &str, line: usize) -> Tech {
+    Tech::all()
+        .find(|&tech| tech.name() == name)
+        .unwrap_or_else(|| panic!("unknown starting technology {name:?} on row {line}"))
+}
+
+fn parse_catalog() -> Vec<Civilization> {
+    let mut lines = include_str!("../../data/rulesets/civ3_conquests/civilizations.tsv").lines();
+    let header = lines.next().expect("civilization catalog has a header");
+    assert_eq!(
+        header.split('\t').count(),
+        14,
+        "civilization catalog schema changed"
+    );
+    let mut result = Vec::new();
+    for (zero_line, line) in lines.enumerate() {
+        let line_number = zero_line + 2;
+        let fields = line.split('\t').collect::<Vec<_>>();
+        assert_eq!(
+            fields.len(),
+            14,
+            "invalid civilization catalog row {line_number}"
+        );
+        let parse_index = |index: usize| {
+            field(&fields, index, line_number)
+                .parse::<usize>()
+                .unwrap_or_else(|error| {
+                    panic!("invalid catalog index on row {line_number}: {error}")
+                })
+        };
+        let parse_color = |index: usize| {
+            u8::try_from(parse_index(index))
+                .unwrap_or_else(|error| panic!("invalid color index on row {line_number}: {error}"))
+        };
+        let source_race_index = parse_index(12);
+        assert_eq!(
+            source_race_index,
+            result.len() + 1,
+            "catalog must preserve BIQ RACE order"
+        );
+        let cities = field(&fields, 13, line_number)
+            .split('|')
+            .filter(|city| !city.is_empty())
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        assert!(!cities.is_empty(), "empty city list on row {line_number}");
+        result.push(Civilization {
+            id: field(&fields, 0, line_number).to_owned(),
+            name: field(&fields, 1, line_number).to_owned(),
+            source_name: field(&fields, 2, line_number).to_owned(),
+            noun: field(&fields, 3, line_number).to_owned(),
+            adjective: field(&fields, 4, line_number).to_owned(),
+            leader: field(&fields, 5, line_number).to_owned(),
+            primary_color_index: parse_color(6),
+            secondary_color_index: parse_color(7),
+            civ3_city_style: parse_color(8),
+            starting_techs: [
+                parse_tech(field(&fields, 9, line_number), line_number),
+                parse_tech(field(&fields, 10, line_number), line_number),
+            ],
+            legacy_names: field(&fields, 11, line_number)
+                .split(';')
+                .filter(|name| !name.is_empty())
+                .map(str::to_owned)
+                .collect(),
+            source_race_index,
+            cities,
+        });
+    }
+    assert_eq!(
+        result.len(),
+        31,
+        "Conquests has 31 playable civilization records"
+    );
+    result
+}
+
+pub(crate) fn all() -> &'static [Civilization] {
+    static CIVILIZATIONS: OnceLock<Vec<Civilization>> = OnceLock::new();
+    CIVILIZATIONS.get_or_init(parse_catalog)
+}
+
+pub(crate) fn by_id(id: &str) -> Option<&'static Civilization> {
+    all().iter().find(|civilization| civilization.id == id)
+}
+
+pub(crate) fn by_name(name: &str) -> Option<&'static Civilization> {
+    all().iter().find(|civilization| {
+        civilization.name.eq_ignore_ascii_case(name)
+            || civilization.source_name.eq_ignore_ascii_case(name)
+            || civilization.noun.eq_ignore_ascii_case(name)
+            || civilization
+                .legacy_names
+                .iter()
+                .any(|legacy| legacy.eq_ignore_ascii_case(name))
+    })
+}
+
+/// Keep Rome as the human civilization and vary the AI roster by world seed.
+/// This uses a local SplitMix stream, so roster selection does not consume any
+/// map-generation or gameplay random draws.
+pub(crate) fn select_roster(seed: u64, slot_count: usize) -> Vec<&'static Civilization> {
+    let catalog = all();
+    assert!((1..=16).contains(&slot_count));
+    let roman = catalog
+        .iter()
+        .position(|civilization| civilization.id == "rome")
+        .expect("Conquests roster contains Rome");
+    let mut candidates = (0..catalog.len())
+        .filter(|&index| index != roman)
+        .collect::<Vec<_>>();
+    let mut state = seed ^ 0x4356_3343_4956_5331;
+    for index in (1..candidates.len()).rev() {
+        state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut value = state;
+        value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        value ^= value >> 31;
+        candidates.swap(index, (value as usize) % (index + 1));
+    }
+    std::iter::once(&catalog[roman])
+        .chain(candidates.into_iter().map(|index| &catalog[index]))
+        .take(slot_count)
+        .collect()
+}
+
+pub(crate) fn next_city_name(
+    civilization_id: &str,
+    occupied: impl Fn(&str) -> bool,
+) -> Option<String> {
+    let civilization = by_id(civilization_id)?;
+    for name in &civilization.cities {
         if !occupied(name) {
-            return Some(name.to_owned());
+            return Some(name.clone());
         }
     }
-    // Deterministic unlimited overflow, also checking captured/renamed cities.
     for generation in 1.. {
-        for &name in civ.cities {
+        for name in &civilization.cities {
             let candidate = match generation {
                 1 if name == "Tokyo" => "Neo-Tokyo".to_owned(),
                 1 => format!("New {name}"),
@@ -624,69 +188,82 @@ pub(crate) fn next_city_name(owner: usize, occupied: impl Fn(&str) -> bool) -> O
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
-    fn civ3_roster_has_sixteen_distinct_leaders_and_capitals() {
-        assert_eq!(CIVILIZATIONS.len(), 16);
-        for (index, civ) in CIVILIZATIONS.iter().enumerate() {
-            assert!(!civ.leader.is_empty());
-            assert!(
-                civ.civ3_city_style < 5,
-                "invalid city style for {}",
-                civ.name
+    fn conquests_civilization_catalog_covers_31_unique_source_races() {
+        assert_eq!(all().len(), 31);
+        for (index, civilization) in all().iter().enumerate() {
+            assert_eq!(civilization.source_race_index, index + 1);
+            assert!(!civilization.leader.is_empty());
+            assert!(civilization.civ3_city_style < 5);
+            assert!((civilization.primary_color_index as usize) < 32);
+            assert!((civilization.secondary_color_index as usize) < 32);
+            assert_eq!(
+                civilization.cities.first().map(String::as_str),
+                Some(match civilization.source_name.as_str() {
+                    "Rome" => "Rome",
+                    "Egypt" => "Thebes",
+                    "Greece" => "Athens",
+                    "Babylon" => "Babylon",
+                    _ => civilization.cities[0].as_str(),
+                })
             );
             assert_eq!(
-                next_city_name(index, |_| false).as_deref(),
-                Some(civ.cities[0])
+                civilization
+                    .cities
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len(),
+                civilization.cities.len()
             );
-            for prior in &CIVILIZATIONS[..index] {
-                assert_ne!(civ.name, prior.name);
-                assert_ne!(civ.leader, prior.leader);
-                assert_ne!(civ.cities[0], prior.cities[0]);
-            }
-            let unique: std::collections::HashSet<_> = civ.cities.iter().collect();
-            assert_eq!(unique.len(), civ.cities.len());
         }
     }
 
     #[test]
-    fn civ3_starting_technologies_match_the_ruleset_for_all_sixteen_civs() {
-        let expected = [
-            [Tech::WARRIOR_CODE, Tech::ALPHABET],
-            [Tech::ALPHABET, Tech::BRONZE_WORKING],
-            [Tech::CEREMONIAL_BURIAL, Tech::MASONRY],
-            [Tech::BRONZE_WORKING, Tech::CEREMONIAL_BURIAL],
-            [Tech::WARRIOR_CODE, Tech::MASONRY],
-            [Tech::THE_WHEEL, Tech::CEREMONIAL_BURIAL],
-            [Tech::WARRIOR_CODE, Tech::BRONZE_WORKING],
-            [Tech::POTTERY, Tech::BRONZE_WORKING],
-            [Tech::POTTERY, Tech::MASONRY],
-            [Tech::ALPHABET, Tech::MASONRY],
-            [Tech::ALPHABET, Tech::CEREMONIAL_BURIAL],
-            [Tech::BRONZE_WORKING, Tech::MASONRY],
-            [Tech::WARRIOR_CODE, Tech::POTTERY],
-            [Tech::WARRIOR_CODE, Tech::POTTERY],
-            [Tech::POTTERY, Tech::ALPHABET],
-            [Tech::ALPHABET, Tech::POTTERY],
-        ];
-        assert_eq!(CIVILIZATIONS.map(|civ| civ.starting_techs), expected);
+    fn source_names_and_legacy_save_labels_resolve_to_the_same_civilization() {
+        assert_eq!(by_name("Germany").unwrap().id, "germany");
+        assert_eq!(by_name("Germans").unwrap().id, "germany");
+        assert_eq!(by_name("Iron Confederation").unwrap().id, "germany");
+        assert_eq!(by_name("Maya").unwrap().id, "maya");
+        assert_eq!(by_name("Mayans").unwrap().id, "maya");
     }
 
     #[test]
-    fn city_lists_skip_used_names_and_overflow_without_duplicates() {
+    fn map_roster_keeps_rome_and_is_seeded_without_changing_civ_count() {
+        for count in [4, 6, 8, 12, 16] {
+            let first = select_roster(42, count);
+            assert_eq!(first.len(), count);
+            assert_eq!(first[0].id, "rome");
+            assert_eq!(
+                first
+                    .iter()
+                    .map(|civ| civ.id.as_str())
+                    .collect::<std::collections::HashSet<_>>()
+                    .len(),
+                count
+            );
+            assert_eq!(
+                select_roster(42, count)
+                    .iter()
+                    .map(|civ| &civ.id)
+                    .collect::<Vec<_>>(),
+                first.iter().map(|civ| &civ.id).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn city_names_follow_source_order_and_overflow_without_duplicates() {
+        assert_eq!(next_city_name("rome", |_| false).as_deref(), Some("Rome"));
         assert_eq!(
-            next_city_name(0, |n| n == "Rome" || n == "Antium").as_deref(),
-            Some("Veii")
+            next_city_name("rome", |name| name == "Rome" || name == "Veii").as_deref(),
+            Some("Antium")
         );
-        let names = CIVILIZATIONS[0].cities;
+        let cities = &by_id("rome").unwrap().cities;
         assert_eq!(
-            next_city_name(0, |n| names.contains(&n)).as_deref(),
+            next_city_name("rome", |name| cities.iter().any(|city| city == name)).as_deref(),
             Some("New Rome")
         );
-        assert_eq!(
-            next_city_name(0, |n| names.contains(&n) || n == "New Rome").as_deref(),
-            Some("New Veii")
-        );
-        assert_eq!(next_city_name(6, |_| false).as_deref(), Some("Berlin"));
-        assert!(next_city_name(16, |_| false).is_none());
+        assert!(next_city_name("unknown", |_| false).is_none());
     }
 }

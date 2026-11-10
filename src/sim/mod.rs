@@ -351,20 +351,19 @@ impl Simulation {
             game_random,
         } = map;
 
+        let roster = crate::rules::civilizations::select_roster(seed, MAX_CIVILIZATIONS);
         let mut players = Vec::new();
         for i in 0..MAX_CIVILIZATIONS {
+            let civilization = roster[i];
             players.push(Player {
-                name: crate::rules::civilizations::CIVILIZATIONS[i]
-                    .name
-                    .to_owned(),
+                name: civilization.name.clone(),
+                civilization_id: Some(civilization.id.clone()),
                 gold: 50,
                 rates: [60, 40, 0],
                 government: Government::Despotism,
                 revolution_target: None,
                 revolution_turn: None,
-                known: crate::rules::civilizations::CIVILIZATIONS[i]
-                    .starting_techs
-                    .to_vec(),
+                known: civilization.starting_techs.to_vec(),
                 researching: Tech::IRON_WORKING,
                 research_goal: Tech::IRON_WORKING,
                 future_techs: 0,
@@ -376,6 +375,7 @@ impl Simulation {
 
         players.push(Player {
             name: "Barbarians".to_owned(),
+            civilization_id: None,
             gold: 0,
             rates: [60, 40, 0],
             government: Government::Despotism,

@@ -212,6 +212,8 @@ impl City {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Player {
     pub(crate) name: String,
+    #[serde(default)]
+    pub(crate) civilization_id: Option<String>,
     pub(crate) gold: i32,
     pub(crate) rates: [i32; 3],
     pub(crate) government: crate::sim::Government,
@@ -227,15 +229,18 @@ pub(crate) struct Player {
 }
 
 impl Player {
-    pub(crate) fn leader_name(&self) -> &'static str {
-        crate::rules::civilizations::CIVILIZATIONS
-            .iter()
-            .find(|civ| self.name == civ.name || self.name == civ.legacy_name)
-            .map(|civ| civ.leader)
-            .unwrap_or(if self.name == "Barbarians" {
-                "Chieftain"
-            } else {
-                "Rebel Council"
+    pub(crate) fn leader_name(&self) -> String {
+        self.civilization_id
+            .as_deref()
+            .and_then(crate::rules::civilizations::by_id)
+            .or_else(|| crate::rules::civilizations::by_name(&self.name))
+            .map(|civilization| civilization.leader.clone())
+            .unwrap_or_else(|| {
+                if self.name == "Barbarians" {
+                    "Chieftain".to_owned()
+                } else {
+                    "Rebel Council".to_owned()
+                }
             })
     }
 }

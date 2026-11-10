@@ -31,7 +31,24 @@ pub(crate) struct Assets {
 }
 
 impl Assets {
-    pub(super) fn leader_portrait(&self, owner: usize, attitude: &str) -> Option<&Texture2D> {
+    fn legacy_portrait_slot(civilization_id: &str) -> Option<usize> {
+        match civilization_id {
+            "rome" => Some(0),
+            "greece" => Some(1),
+            "egypt" => Some(2),
+            "babylon" => Some(3),
+            "china" => Some(4),
+            "japan" => Some(5),
+            _ => None,
+        }
+    }
+
+    pub(super) fn leader_portrait(
+        &self,
+        civilization_id: Option<&str>,
+        attitude: &str,
+    ) -> Option<&Texture2D> {
+        let slot = Self::legacy_portrait_slot(civilization_id?)?;
         let attitude_index = match attitude {
             "Furious" => 0,
             "Annoyed" => 1,
@@ -40,7 +57,12 @@ impl Assets {
             "Gracious" => 4,
             _ => 2,
         };
-        self.leader_portraits.get(owner)?.get(attitude_index)
+        self.leader_portraits.get(slot)?.get(attitude_index)
+    }
+
+    pub(super) fn leader_avatar_badge(&self, civilization_id: Option<&str>) -> Option<&Texture2D> {
+        self.leader_avatar_badges
+            .get(Self::legacy_portrait_slot(civilization_id?)?)
     }
 
     pub(crate) fn new(tileset: &super::Tileset) -> Result<Self, String> {

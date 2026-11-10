@@ -396,7 +396,10 @@ impl Game {
         }
 
         let center = Rect::new(center_x, content_y, center_width, side_height);
-        let portrait = assets.leader_portrait(owner, attitude);
+        let portrait = assets.leader_portrait(
+            self.sim.players()[owner].civilization_id.as_deref(),
+            attitude,
+        );
         let max_portrait_w = (center_width * 0.5).clamp(116.0, 168.0);
         let max_portrait_h = (side_height * 0.35).clamp(148.0, 182.0);
         let portrait_aspect = portrait.map_or(0.75, |texture| texture.width() / texture.height());

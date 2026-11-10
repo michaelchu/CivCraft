@@ -75,6 +75,7 @@ impl Simulation {
         ];
         let rebel_player = Player {
             name: REBEL_NAMES[(rebel - PLAYER_COUNT - 1) % REBEL_NAMES.len()].to_owned(),
+            civilization_id: None,
             gold,
             rates: [60, 40, 0],
             government: Government::Despotism,

@@ -153,8 +153,10 @@ impl Simulation {
             city: city.clone(),
             // Civ III supplies five cultural sheets; the default mapping is
             // data on each civilization and can be overridden by its theme.
-            civ3_style: crate::rules::civilizations::CIVILIZATIONS
-                .get(city.owner)
+            civ3_style: self.players[city.owner]
+                .civilization_id
+                .as_deref()
+                .and_then(crate::rules::civilizations::by_id)
                 .map(|civilization| civilization.civ3_city_style)
                 .unwrap_or(2),
             civ3_era: Tech::all()

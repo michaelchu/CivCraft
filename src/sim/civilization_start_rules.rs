@@ -78,6 +78,8 @@ fn profiles() -> &'static [StartProfile] {
 }
 
 pub(super) fn get(civilization: &str) -> Option<&'static StartProfile> {
+    let civilization = crate::rules::civilizations::by_name(civilization)
+        .map_or(civilization, |civ| civ.noun.as_str());
     let source_name = match civilization {
         // The runtime's display labels are singular; Conquests BIQ Race names
         // (and the profile table) use these source plural/demonym forms.
@@ -89,6 +91,8 @@ pub(super) fn get(civilization: &str) -> Option<&'static StartProfile> {
         "Persia" => "Persians",
         "Zululand" => "Zulus",
         "England" => "English",
+        "Zulu" => "Zulus",
+        "Maya" => "Mayans",
         name => name,
     };
     profiles()

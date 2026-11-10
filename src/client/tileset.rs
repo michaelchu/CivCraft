@@ -437,9 +437,14 @@ fn load_campaign_unit_ini_paths(
             let key = if variant == 0 {
                 role.clone()
             } else {
-                let era = ["ancient-times", "middle-ages", "industrial-ages", "modern-times"]
-                    .get(variant)
-                    .ok_or_else(|| format!("{} has too many era art variants", fields[1]))?;
+                let era = [
+                    "ancient-times",
+                    "middle-ages",
+                    "industrial-ages",
+                    "modern-times",
+                ]
+                .get(variant)
+                .ok_or_else(|| format!("{} has too many era art variants", fields[1]))?;
                 format!("{role}-era-{era}")
             };
             paths
@@ -1428,10 +1433,10 @@ impl Civ3 {
         self.cities.get(style).unwrap_or(&self.cities["european"])
     }
 
-    pub(super) fn city_texture_at(&self, style: u8, owner: usize) -> &Texture2D {
-        if let Some(civilization) = crate::rules::civilizations::CIVILIZATIONS.get(owner) {
+    pub(super) fn city_texture_at(&self, style: u8, civilization_id: Option<&str>) -> &Texture2D {
+        if let Some(civilization) = civilization_id.and_then(crate::rules::civilizations::by_id) {
             if let Some(style) =
-                civilization_city_style(civilization.name, &self.civilization_city_styles)
+                civilization_city_style(&civilization.name, &self.civilization_city_styles)
             {
                 return self.city_texture(style);
             }
@@ -1508,6 +1513,7 @@ impl Civ3 {
         &self,
         kind: UnitKind,
         owner: usize,
+        civilization_id: Option<&str>,
         era: usize,
         center: Vec2,
         bounds: Vec2,
@@ -1529,6 +1535,7 @@ impl Civ3 {
         self.draw_unit(
             kind,
             owner,
+            civilization_id,
             2,
             era,
             Civ3UnitAction::Default,
@@ -1545,6 +1552,7 @@ impl Civ3 {
         &self,
         kind: UnitKind,
         owner: usize,
+        civilization_id: Option<&str>,
         facing: u8,
         era: usize,
         action: Civ3UnitAction,
@@ -1568,10 +1576,14 @@ impl Civ3 {
             Civ3UnitAction::Plant => Some(format!("{role}-jungle")),
             _ => None,
         };
-        let selected_role = [Some(action_role.as_str()), alternate_role.as_deref(), Some(role.as_str())]
-            .into_iter()
-            .flatten()
-            .find(|candidate| self.unit_animation_sources.contains_key(*candidate));
+        let selected_role = [
+            Some(action_role.as_str()),
+            alternate_role.as_deref(),
+            Some(role.as_str()),
+        ]
+        .into_iter()
+        .flatten()
+        .find(|candidate| self.unit_animation_sources.contains_key(*candidate));
         let Some(selected_role) = selected_role else {
             return false;
         };
@@ -1621,7 +1633,7 @@ impl Civ3 {
         } else {
             Color::new(0.62, 0.66, 0.68, 1.0)
         };
-        let team = super::player_color(owner);
+        let team = super::player_color(civilization_id, owner);
         let team_tint = if has_moves {
             team
         } else {

@@ -171,7 +171,14 @@ impl Game {
             .sim
             .contacted_civilizations(HUMAN)
             .into_iter()
-            .filter_map(|owner| Some((owner, assets.leader_avatar_badges.get(owner)?)))
+            .filter_map(|owner| {
+                Some((
+                    owner,
+                    assets.leader_avatar_badge(
+                        self.sim.players()[owner].civilization_id.as_deref(),
+                    )?,
+                ))
+            })
             .collect();
         let size = 56.0;
         let step = size + 5.0;

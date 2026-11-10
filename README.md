@@ -2,11 +2,11 @@
 
 The [Civ III rules catalog](CIV3_MANUAL_RULES.md) records sourced terrain and selected gameplay rules. The [gameplay gap audit](GAMEPLAY_GAP_AUDIT.md) is a worksheet for comparing those rules with the implementation; that broader audit has not started.
 
-CivCraft is an offline Rust strategy game whose intended gameplay target is Civilization III. Its current implementation includes legacy Freeciv/Civ2Civ3-derived systems that have not yet been fully audited against the supplied Civ III manual. Six civilizations explore a horizontally wrapped, staggered-square world, develop cities, research technologies, negotiate treaties, trade, fight land, sea, and air wars, and pursue conquest or spaceship victory.
+CivCraft is an offline Rust strategy game whose intended gameplay target is Civilization III. Its current implementation includes legacy Freeciv/Civ2Civ3-derived systems that have not yet been fully audited against the supplied Civ III manual. Up to sixteen civilizations drawn from the complete 31-civilization Conquests roster explore a horizontally wrapped, staggered-square world, develop cities, research technologies, negotiate treaties, trade, fight land, sea, and air wars, and pursue conquest or spaceship victory.
 
 ## Civilizations
 
-The fixed roster uses six civilizations from Civilization III. You lead the Romans; the other five are AI opponents.
+Each campaign selects a seeded roster from the 31 playable Civilization III: Conquests civilizations. Rome is the human civilization; the remaining participants are AI opponents. Map presets retain their participant counts: Tiny 4, Small 6, Standard 8, Large 12, and Huge 16.
 
 | Civilization | Leader | First capital |
 | --- | --- | --- |
@@ -17,7 +17,7 @@ The fixed roster uses six civilizations from Civilization III. You lead the Roma
 | Chinese | Mao Zedong | Beijing |
 | Japanese | Tokugawa | Kyoto |
 
-Each civilization has its own ordered city names and Civ III city style. City names skip names already used anywhere in the world, then use “New” names when the list runs out. Captured cities keep their names. Save loading accepts only the current format; older saves are unsupported. The campaign catalog includes the standard Conquests unit roster, including unique units, but Civ III civilization traits and some unit-specific rules are not fully represented.
+Each civilization has its own ordered Conquests city names, leader, starting technologies, and BIQ primary and secondary colors. City names skip names already used anywhere in the world, then use “New” names when the list runs out. Captured cities keep their names. Save loading accepts only the current format; older saves are unsupported. The campaign catalog includes the standard Conquests unit roster, including unique units, but Civ III civilization traits and some unit-specific rules are not fully represented.
 
 ## Play
 

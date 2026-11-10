@@ -49,7 +49,10 @@ impl Game {
         ];
         let edge_neighbors = [(0, -1), (1, 0), (0, 1), (-1, 0)];
         let opacity = 0.95; // The shared fog layer handles remembered borders.
-        let color = with_alpha(player_color(owner), opacity);
+        let color = with_alpha(
+            player_color(self.sim.players()[owner].civilization_id.as_deref(), owner),
+            opacity,
+        );
         let width = (3.5 * tile_w / TILE_W).clamp(2.75, 4.75);
         let shadow = Color::new(0.025, 0.035, 0.04, opacity * 0.9);
         let thread = Color::new(

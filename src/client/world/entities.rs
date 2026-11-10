@@ -151,9 +151,12 @@ impl Game {
             _ => 2,
         };
         let row = i32::from(observed.civ3_era.min(3));
-        let texture = assets
-            .civ3
-            .city_texture_at(observed.civ3_style, observed.city.owner);
+        let texture = assets.civ3.city_texture_at(
+            observed.civ3_style,
+            self.sim.players()[observed.city.owner]
+                .civilization_id
+                .as_deref(),
+        );
         let source = Rect::new(col as f32 * 167.0, row as f32 * 95.0, 167.0, 95.0);
         let (city_w, city_h) = (90.0 * zoom, 54.0 * zoom);
         let position = centered_sprite_position(center, city_w, city_h);
@@ -209,7 +212,10 @@ impl Game {
         let side_width = size_metrics.width.max(star_radius * 2.0) + side_padding * 2.0;
         let width = center_width + side_width * 2.0;
         let left = center.x - width * 0.5;
-        let owner_color = player_color(city.owner);
+        let civ_id = self.sim.players()[city.owner].civilization_id.as_deref();
+        let owner_color = player_color(civ_id, city.owner);
+        let secondary_color =
+            super::sprite_metadata::secondary_civilization_color(civ_id, city.owner);
 
         // Civ III's city banner is a three-part bar: population, two centered
         // information rows, and a capital badge.
@@ -226,7 +232,7 @@ impl Game {
             top,
             side_width,
             height,
-            owner_color,
+            secondary_color,
         );
         draw_rectangle_lines(
             left,
@@ -358,6 +364,7 @@ impl Game {
         let native_unit_drawn = assets.civ3.draw_unit(
             unit.kind,
             unit.owner,
+            self.sim.players()[unit.owner].civilization_id.as_deref(),
             unit.facing,
             self.sim.research_era(unit.owner).index(),
             action,
@@ -369,7 +376,10 @@ impl Game {
         );
         if !native_unit_drawn {
             let color = if unit.moves_left > 0 {
-                player_color(unit.owner)
+                player_color(
+                    self.sim.players()[unit.owner].civilization_id.as_deref(),
+                    unit.owner,
+                )
             } else {
                 Color::from_rgba(115, 120, 125, 255)
             };
@@ -404,7 +414,10 @@ impl Game {
             center.x - 21.0 * self.zoom,
             center.y - 25.0 * self.zoom,
             (5.0 * self.zoom).max(3.2),
-            player_color(unit.owner),
+            player_color(
+                self.sim.players()[unit.owner].civilization_id.as_deref(),
+                unit.owner,
+            ),
         );
         if stack_count > 1 {
             draw_circle(

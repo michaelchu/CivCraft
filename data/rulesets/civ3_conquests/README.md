@@ -169,3 +169,21 @@ their unit-specific action paths. The former hardcoded stat and metadata
 fallbacks have also been removed. Some Freeciv-derived mechanics remain in
 shared simulation code, and some Conquests flags and mechanics are not yet
 implemented as Civ III rules. These require a broader behavior audit.
+# Civilization roster
+
+`civilizations.tsv` contains the 31 playable Conquests `RACE` records in BIQ
+order. The first record is Rome; the separate Barbarian record is deliberately
+excluded. `source_race_index` preserves the BIQ record index. `source_name`,
+`noun`, `adjective`, and `leader` are the extracted source identity fields;
+`cities` preserves ordered `RACE_CityName` entries. `primary_color_index` and
+`secondary_color_index` correspond to the BIQ `DefaultColor` and `UniqueColor`
+palette IDs. `ntp00.pcx` through `ntp31.pcx` in the original source artwork
+provide the renderer team-color ramps; CivCraft uses the first ramp color for
+the primary tint and uses the secondary ID for the city-banner accent.
+
+OpenCiv3's `ruleset.json` is the checked-in extraction reference, and its BIQ
+importer maps those fields from `RACE` and `RaceCityName`; the original
+`source/Conquests/conquests.biq` remains authoritative. The `city_style` column
+is a CivCraft renderer mapping to one of the five city-sheet styles, not a BIQ
+field. Existing map presets still determine how many roster entries participate
+in a campaign (4, 6, 8, 12, or 16); the full 31 are available across seeds.
