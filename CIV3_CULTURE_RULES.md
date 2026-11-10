@@ -645,9 +645,15 @@ documentation, not as evidence for field behavior.
   capture-time resistance comparisons are computed. The false-means-clear
   semantics are inferred from the setting and the installed MPTournament
   release-note contrast, not confirmed in a controlled original-game scenario.
-  Other scenario BIQs with the flag enabled are recorded in the export but are
-  not selectable as CivCraft runtime rulesets. The exact per-civilization
-  accounting effect of enabled retention remains unresolved.
+  A deterministic test now asserts the inferred default result at the empire
+  level: the captured city's 300 culture stops counting for its former owner,
+  its stored 75 points are not credited to the captor, and another 500-point
+  owned city remains counted. This follows the Civilopedia's definition of
+  civilization culture as the sum of owned city values, but does not settle
+  whether the original game also maintains a distinct lifetime total or hidden
+  per-civilization city memory. Other scenario BIQs with the flag enabled are
+  recorded in the export but are not selectable as CivCraft runtime rulesets;
+  enabled-retention accounting remains unresolved.
 - Culture-producing structures now retain their builder-civilization identity.
   Their culture is credited only while that civilization owns the city; age is
   reset during capture so a builder that recaptures the city resumes output
@@ -788,7 +794,13 @@ documentation, not as evidence for field behavior.
   accumulation, capture and recapture building age, threshold-driven borders,
   contested claims, score separation, and cultural victory. Passing tests do
   not settle the source conflicts around capture attribution, advanced border
-  thresholds, or inferred city-flip formulas.- `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
+  thresholds, or inferred city-flip formulas.
+- From a clean archive of committed `HEAD` with the updated capture test
+  source, `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline standard_conquests_capture_drops_city_culture_without_crediting_the_captor`:
+  1 passed. The case checks pre/post civilization totals under the inferred
+  `RetainCulture=0` interpretation; it does not verify the original Conquests
+  runtime or resolve the historical-total source conflict.
+- `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
   passed; the capture path sets suppression, and culture resumes after owner
   nationality exceeds half of the population.
 - `cargo test --offline fascist_city_culture_waits_for_an_assimilated_population_majority`:

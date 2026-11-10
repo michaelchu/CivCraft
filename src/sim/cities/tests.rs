@@ -4,15 +4,19 @@ use super::production::Growth;
 use super::*;
 
 #[test]
-fn standard_conquests_capture_discards_the_captured_city_culture_ledger() {
+fn standard_conquests_capture_drops_city_culture_without_crediting_the_captor() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
     game.create_city(1, 20, 24);
+    game.create_city(HUMAN, 30, 24);
     let city_id = game.cities[1].id;
     game.cities[1].add_culture(1, 300);
     game.cities[1].add_culture(HUMAN, 75);
+    game.cities[2].add_culture(HUMAN, 500);
+    assert_eq!(game.civilization_culture(1), 300);
+    assert_eq!(game.civilization_culture(HUMAN), 500);
     game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
 
@@ -23,6 +27,8 @@ fn standard_conquests_capture_discards_the_captured_city_culture_ledger() {
     assert_eq!(city.culture_for_civilization(1), 0);
     assert_eq!(city.culture_for_civilization(HUMAN), 0);
     assert_eq!(city.culture_by_civilization, [(HUMAN, 0)]);
+    assert_eq!(game.civilization_culture(1), 0);
+    assert_eq!(game.civilization_culture(HUMAN), 500);
 }
 
 #[test]
