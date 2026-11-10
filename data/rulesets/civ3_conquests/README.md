@@ -209,10 +209,12 @@ SHA-256, section names, and source record indices. It includes all BLDG culture
 output, CULT ratio/resistance records, RULE border and culture-level settings,
 RACE culture-group indices, GAME cultural-victory and capture-retention fields,
 GOVT assimilation and pairwise fields, and all DIFF settings. GOVT pairwise
-interpretation, the raw GAME cultural-victory flag, and enabled
-`GAME.RetainCulture` accounting remain unresolved; the default Conquests
-capture path interprets its disabled flag as clearing the captured city's
-culture ledger. See
+interpretation and enabled `GAME.RetainCulture` accounting remain unresolved;
+the default Conquests capture path interprets its disabled flag as clearing
+the captured city's culture ledger. The effective cultural-victory gate is
+exported to `culture_victory_settings.tsv` using the community reverse-engineered
+rule that default victory conditions enable cultural victory even when its
+individual flag is off. See
 `CIV3_CULTURE_RULES.md` before using them as gameplay rules.
 `culture_capture_settings.tsv` records `GAME.RetainCulture` for all 29 BIQs
 installed under `source/Conquests`, retaining each `GAME` record index and BIQ
@@ -225,6 +227,9 @@ obsolescence metadata.
 `culture_victory.tsv` records the Conquests Civilopedia's one-city threshold
 and civilization totals for each named map size. Its Standard total is checked
 against the BIQ `GAME.AllCitiesCultureWin` value.
+`culture_victory_settings.tsv` preserves `GAME.default_victory_conditions`, the
+individual cultural-victory flag, their effective result, the `GAME` record
+index, and the BIQ hash.
 
 Regenerate it from the installed BIQ with:
 

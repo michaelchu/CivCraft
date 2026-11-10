@@ -175,6 +175,47 @@ fn culture_victory_thresholds() -> &'static [CultureVictoryThresholds] {
     })
 }
 
+fn cultural_victory_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        let mut lines = include_str!(
+            "../../data/rulesets/civ3_conquests/culture_victory_settings.tsv"
+        )
+        .lines();
+        assert_eq!(
+            lines.next(),
+            Some("source_section\tsource_record_index\tdefault_victory_conditions\tcultural_victory_flag\teffective_cultural_victory\tbiq_sha256"),
+            "invalid Conquests culture-victory settings header"
+        );
+        let fields = lines
+            .next()
+            .expect("missing Conquests culture-victory settings");
+        assert!(lines.next().is_none(), "unexpected extra culture-victory settings");
+        let fields = fields.split('\t').collect::<Vec<_>>();
+        assert_eq!(fields.len(), 6, "invalid Conquests culture-victory settings row");
+        assert_eq!(fields[0], "GAME");
+        assert_eq!(fields[1], "0");
+        assert_eq!(
+            fields[5],
+            "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+        );
+        let default_victories = fields[2].parse::<u8>().expect("invalid default victory flag");
+        assert!(default_victories <= 1);
+        let cultural_flag = match fields[3] {
+            "true" => true,
+            "false" => false,
+            value => panic!("invalid individual cultural-victory flag: {value:?}"),
+        };
+        let effective = effective_cultural_victory(default_victories == 1, cultural_flag);
+        assert_eq!(fields[4], effective.to_string());
+        effective
+    })
+}
+
+fn effective_cultural_victory(default_conditions: bool, individual_flag: bool) -> bool {
+    default_conditions || individual_flag
+}
+
 fn culture_victory_thresholds_for_map(map_wrap: MapWrap) -> Option<CultureVictoryThresholds> {
     let name = match (map_wrap.width(), map_wrap.height()) {
         (60, 60) => "Tiny",
@@ -234,7 +275,7 @@ impl Simulation {
     }
 
     pub(super) fn check_cultural_victory(&mut self) {
-        if self.game_over.is_some() {
+        if self.game_over.is_some() || !cultural_victory_enabled() {
             return;
         }
         let Some(thresholds) = culture_victory_thresholds_for_map(self.map_wrap) else {
@@ -345,6 +386,10 @@ mod tests {
 
     #[test]
     fn source_map_size_thresholds_drive_cultural_victory() {
+        assert!(cultural_victory_enabled());
+        assert!(effective_cultural_victory(true, false));
+        assert!(effective_cultural_victory(false, true));
+        assert!(!effective_cultural_victory(false, false));
         let thresholds = culture_victory_thresholds();
         assert_eq!(
             thresholds

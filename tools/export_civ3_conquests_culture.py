@@ -68,6 +68,11 @@ def main() -> None:
         default=Path("data/rulesets/civ3_conquests/culture_victory.tsv"),
     )
     parser.add_argument(
+        "--victory-settings-table",
+        type=Path,
+        default=Path("data/rulesets/civ3_conquests/culture_victory_settings.tsv"),
+    )
+    parser.add_argument(
         "--resistance-band-table",
         type=Path,
         default=Path("data/rulesets/civ3_conquests/culture_resistance_bands.tsv"),
@@ -369,8 +374,9 @@ def main() -> None:
 
     result["field_notes"] = {
         "game_cultural_victory_flag": (
-            "Raw GAME flag. The same record enables default victory conditions, "
-            "so this flag alone does not establish the effective standard-game setting."
+            "Raw GAME flag. CivFanatics editor-rules reverse-engineering says "
+            "Default Victory Conditions enables cultural victory even when this "
+            "individual flag is false. The effective setting is exported separately."
         ),
         "game_retain_culture_on_capture": (
             "Raw GAME.RetainCulture scenario property. The installed Conquests "
@@ -420,6 +426,21 @@ def main() -> None:
                 f"{name}\t{one_city_threshold}\t{threshold}\t"
                 f"Conquests/Text/Civilopedia.txt#GCON_Victory\t{biq_hash}\n"
             )
+    with args.victory_settings_table.open("w") as table:
+        game = result["game"]
+        default_victories = game["default_victory_conditions"]
+        if default_victories not in (0, 1):
+            raise ValueError(f"Unexpected GAME.DefaultVictoryConditions value: {default_victories}")
+        cultural_flag = game["cultural_victory_flag"]
+        effective_cultural_victory = bool(default_victories) or cultural_flag
+        table.write(
+            "source_section\tsource_record_index\tdefault_victory_conditions\t"
+            "cultural_victory_flag\teffective_cultural_victory\tbiq_sha256\n"
+        )
+        table.write(
+            f"GAME\t0\t{default_victories}\t{str(cultural_flag).lower()}\t"
+            f"{str(effective_cultural_victory).lower()}\t{biq_hash}\n"
+        )
     with args.resistance_band_table.open("w") as table:
         table.write(
             "source_section\tsource_record_index\tname\tculture_ratio_numerator\t"

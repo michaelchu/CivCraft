@@ -384,9 +384,8 @@ documentation, not as evidence for field behavior.
   larger cultural advantage is favorable in resistance, diplomacy, and
   competing territorial claims. CivCraft now sums the culture ledger entries
   only from cities currently owned by that civilization. The per-civilization
-  city ledger remains intact on capture so a later recapture can restore that
-  civilization's city culture; whether `GAME.RetainCulture` changes this
-  storage behavior remains unresolved.
+  city ledger is cleared on combat capture when the installed main BIQ's
+  `GAME.RetainCulture=0`; enabled retention in scenario BIQs remains unresolved.
 - Conquests Civilopedia gives a 20,000-point single-city cultural victory and
   lists civilization totals of 60,000 / 80,000 / 100,000 / 130,000 / 160,000
   for Tiny through Huge maps. The installed BIQ `GAME` fields specify 20,000
@@ -411,9 +410,15 @@ documentation, not as evidence for field behavior.
   culture modifier. Their `MilitaryLaw` value is `1` at all eight levels; it is
   not applied to culture or occupation resistance without supporting evidence.
 - Conquests Civilopedia lists cultural victory among its six basic win paths.
-  The BIQ uses default victory conditions; enabling this path in CivCraft's
-  default campaigns follows that official description. Custom victory toggles
-  are not represented in the current campaign setup.
+  The main BIQ has `GAME.default_victory_conditions=1` and an individual
+  `cultural_victory_flag=false`. CivFanatics' reverse-engineered editor-rules
+  reference says default victory conditions enable cultural victory even when
+  the individual flag is off. CivCraft now computes effective enablement as
+  `default_victory_conditions || cultural_victory_flag`, using the reproducible
+  `culture_victory_settings.tsv` export. This interpretation is community
+  reverse-engineering, not extracted editor-help text or controlled observation;
+  custom scenario victory settings are not selectable at runtime. Source checked
+  2026-11-10: [CivFanatics, “Editor Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
 - Exact formulas for diplomacy, city defection, and culture comparison bands
   remain unverified. Custom map sizes have no Civilopedia civilization-total
   threshold and are left without culture-victory evaluation.
@@ -428,9 +433,11 @@ documentation, not as evidence for field behavior.
   civilizations, the greater civilization culture now determines ownership,
   following the installed Civilopedia. Equal-culture ties, geometry, and the
   eligibility rules remain unresolved.
-- `src/sim/cities.rs::capture_city_if_needed` transfers ownership/nationality
-  and applies capture effects, but does not initialize resistance from
-  culture comparisons. The city resistance count is currently test-set only.
+- `src/sim/cities.rs::capture_city_if_needed` initializes resistance from the
+  captured nationality's civilization culture. The CULT/GOVT formulas are
+  community reverse-engineered; exact behavior still needs controlled Conquests
+  confirmation. Resisters are excluded from work and peace/garrison resolution
+  is implemented with the documented or reverse-engineered limits in this file.
 - Standard Conquests `GAME.RetainCulture=0` is now read from the reproducible
   capture-settings export and clears the captured city's culture ledger after
   capture-time resistance comparisons are computed. The false-means-clear
@@ -501,11 +508,12 @@ documentation, not as evidence for field behavior.
 - Playable civilizations now retain the raw BIQ `RACE.CultureGroup` index in
   their rules record. It remains separate from culture-point accumulation;
   group-specific gameplay effects are unresolved.
-- Cultural victory now checks the current owner's single-city culture against
-  20,000 and civilization culture against the Civilopedia threshold for the
-  five named map sizes. The Standard 100,000 total is cross-checked against
-  `GAME.AllCitiesCultureWin`. Other `GAME` flag combinations and custom-size
-  scaling remain unsupported pending source settings or observation.
+- Cultural victory now checks effective victory enablement, the current owner's
+  single-city culture against 20,000, and civilization culture against the
+  Civilopedia threshold for the five named map sizes. The Standard 100,000 total
+  is cross-checked against `GAME.AllCitiesCultureWin`. The enablement formula is
+  reverse-engineered; custom scenario flags and custom-size scaling remain
+  unsupported.
 
 ## Current validation (2026-11-10)
 
