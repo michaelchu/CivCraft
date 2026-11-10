@@ -32,25 +32,44 @@ fn standard_conquests_capture_drops_city_culture_without_crediting_the_captor() 
 }
 
 #[test]
-fn retain_culture_capture_keeps_the_city_culture_ledger() {
+fn retain_culture_capture_keeps_city_culture_and_its_border_reach() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.owner = None;
+        tile.border_city = None;
+        tile.known_by[HUMAN] = true;
+    }
+    game.create_city(1, 2, 24);
     game.create_city(1, 10, 24);
-    game.create_city(1, 20, 24);
     let city_id = game.cities[1].id;
-    game.cities[1].add_culture(1, 300);
-    game.cities[1].add_culture(HUMAN, 75);
+    game.cities[1].add_culture(1, 1_000);
     game.sign_pact(HUMAN, 1, Pact::War);
-    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
 
-    game.capture_city_with_culture_retention(attacker, 20, 24, true);
+    game.capture_city_with_culture_retention(attacker, 10, 24, true);
 
     let city = &game.cities[game.city_index_by_id(city_id).unwrap()];
     assert_eq!(city.owner, HUMAN);
-    assert_eq!(city.culture_for_civilization(1), 300);
-    assert_eq!(city.culture_for_civilization(HUMAN), 75);
-    assert_eq!(city.total_culture(), 375);
+    assert_eq!(city.culture_for_civilization(1), 1_000);
+    assert_eq!(city.culture_for_civilization(HUMAN), 0);
+    assert_eq!(city.total_culture(), 1_000);
+
+    let mut ring_tile = (10, 24);
+    for _ in 0..4 {
+        ring_tile = game
+            .map_wrap
+            .civ3_neighbor(ring_tile.0, ring_tile.1, 0)
+            .expect("retained culture ring stays inside the map");
+    }
+    assert_eq!(
+        game.map_wrap
+            .civ3_distance(10, 24, ring_tile.0, ring_tile.1),
+        4
+    );
+    assert_eq!(game.tile(ring_tile.0, ring_tile.1).owner, Some(HUMAN));
 }
 
 #[test]

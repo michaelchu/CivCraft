@@ -239,7 +239,6 @@ impl City {
             .map_or(0, |index| self.culture_by_civilization[index].1)
     }
 
-    #[cfg(test)]
     pub(crate) fn total_culture(&self) -> i64 {
         self.culture_by_civilization
             .iter()

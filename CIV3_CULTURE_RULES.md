@@ -94,6 +94,13 @@ parses 32 per-leader culture values in each city record and comments that
 recaptured cities regain their previous culture. This supports the storage
 shape used by CivCraft, but does not establish which operation
 `GAME.RetainCulture` performs or when those values survive a capture.
+For `RetainCulture=1`, border rank and same-rank local-culture comparisons now
+use the sum of the retained per-civilization city ledger. This follows the
+setting's description as retaining the city's culture and the Civilopedia's
+link between city culture and border influence. It is an
+implementation inference: the original game's treatment of retained culture
+for border reach has not been observed, and retained empire-wide culture
+attribution remains unresolved.
 
 The installed editor help, `../source/Conquests/Civ3ConquestsEdit.chm`, has
 indexed topics named `Culture_Ratio.htm`, `Resistance_Chance_Culture_.htm`,
@@ -660,6 +667,12 @@ documentation, not as evidence for field behavior.
   per-civilization city memory. Other scenario BIQs with the flag enabled are
   recorded in the export but are not selectable as CivCraft runtime rulesets;
   enabled-retention accounting remains unresolved.
+- Under a test-injected `RetainCulture=1`, retained city points now sustain
+  the city's cultural border reach after capture, using the summed local city
+  ledger. This is inferred from the setting description and Civilopedia link
+  between city culture and borders; no original Conquests runtime observation
+  confirms it. Civilization-wide attribution of those retained points remains
+  unresolved.
 - Culture-producing structures now retain their builder-civilization identity.
   Their culture is credited only while that civilization owns the city; age is
   reset during capture so a builder that recaptures the city resumes output
@@ -806,12 +819,19 @@ documentation, not as evidence for field behavior.
   1 passed. The case checks pre/post civilization totals under the inferred
   `RetainCulture=0` interpretation; it does not verify the original Conquests
   runtime or resolve the historical-total source conflict.
-- From a clean archive of committed `HEAD` with the updated capture code and
-  test source, `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline retain_culture_capture_keeps_the_city_culture_ledger`:
-  1 passed. This deterministic capture exercises the `RetainCulture=1` path
-  and confirms the city ledger is left intact. The installed standard BIQ
-  still sets the option to `0`; scenario BIQs with retention enabled are not
-  selectable runtime rulesets yet.
+- From a clean archive of committed `HEAD` with the updated capture, border,
+  and test sources, `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline retain_culture_capture_keeps_city_culture_and_its_border_reach`:
+  1 passed. The deterministic case exercises the `RetainCulture=1` path and
+  verifies the captured ledger and fourth-ring ownership. This tests the
+  implementation inference, not the original game; the installed standard
+  BIQ still sets the option to `0`, and scenario BIQs with retention enabled
+  are not selectable runtime rulesets yet.
+- From a clean archive of committed `HEAD` with the updated capture, border,
+  and city sources, `cargo test --offline border` passed 11 tests and
+  `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline culture` passed 31 tests. This includes default capture reset,
+  retained-capture border reach, ordinary border thresholds and claims, culture
+  production, and victory. These validate the implementation paths, not
+  original Conquests behavior for retained-culture border reach.
 - From a clean archive of committed `HEAD` with the updated capture test
   source, `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline capture_initializes_deterministic_resistance_from_foreign_population`:
   1 passed. A same-seed comparison with different pre-capture empire culture

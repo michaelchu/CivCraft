@@ -89,7 +89,11 @@ impl Simulation {
             // Conquests Civilopedia gives the city-culture thresholds; the
             // CivWiki/CivFanatics border investigation supplies the candidate
             // ring/rank interpretation. Later rings remain a documented lead.
-            let max_rank = city_cultural_border_rank(city.culture_for_civilization(city.owner));
+            // A retained-culture capture preserves the city's cultural reach
+            // even when those points were earned under its former owner.
+            // The editor option describes retaining city culture; the precise
+            // border-resolution behavior still lacks a controlled game check.
+            let max_rank = city_cultural_border_rank(city.total_culture());
             if rank == i32::MAX || rank > max_rank || !self.tiles[index].known_by[city.owner] {
                 return false;
             }
@@ -131,14 +135,14 @@ impl Simulation {
                         city.owner,
                         rank,
                         claim_strength(city),
-                        city.culture_for_civilization(city.owner),
+                        city.total_culture(),
                         city.founded_turn,
                     ));
                 }
             }
         }
         for (city_index, city) in self.cities.iter().enumerate() {
-            let max_rank = city_cultural_border_rank(city.culture_for_civilization(city.owner));
+            let max_rank = city_cultural_border_rank(city.total_culture());
             let radius = max_rank * 2 + 1;
             let (mx, my) = native_to_map(city.x, city.y);
             for dy in -radius..=radius {
@@ -150,7 +154,7 @@ impl Simulation {
                     let index = self.map_wrap.index(x, y);
                     let rank = city_distances[city_index][index];
                     let strength = claim_strength(city);
-                    let city_culture = city.culture_for_civilization(city.owner);
+                    let city_culture = city.total_culture();
                     let replaces = claims[index].is_none_or(
                         |(_, _, old_rank, old_strength, old_city_culture, old_founded_turn)| {
                             rank == 0
