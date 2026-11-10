@@ -402,6 +402,14 @@ impl Simulation {
                     || city.culture_building_years.iter().any(|&(building, year)| {
                         building >= Building::all().count() || year > self.year
                     })
+                    || city
+                        .culture_building_owners
+                        .windows(2)
+                        .any(|pair| pair[0].0 >= pair[1].0)
+                    || city
+                        .culture_building_owners
+                        .iter()
+                        .any(|&(building, owner)| building >= Building::all().count() || owner >= players)
                     || !production(city.production)
                     || city.worklist.iter().any(|&item| !production(item))
                     || city

@@ -113,6 +113,16 @@ pub(super) fn building_culture_per_turn(building: Building) -> Option<i32> {
         .map(|rule| rule.culture_per_turn)
 }
 
+pub(super) fn prepare_culture_buildings_for_capture(city: &mut City, old_owner: usize, year: i32) {
+    for building in city.buildings.clone() {
+        if building_culture_per_turn(building).is_none() {
+            continue;
+        }
+        city.ensure_culture_building_owner(building, old_owner);
+        city.reset_culture_building_age(building, year);
+    }
+}
+
 fn culture_victory_thresholds() -> &'static [CultureVictoryThresholds] {
     static THRESHOLDS: OnceLock<Vec<CultureVictoryThresholds>> = OnceLock::new();
     THRESHOLDS.get_or_init(|| {
@@ -209,6 +219,9 @@ impl Simulation {
             let Some(rate) = building_culture_per_turn(building) else {
                 continue;
             };
+            if self.cities[city_index].ensure_culture_building_owner(building, owner) != owner {
+                continue;
+            }
             let built_year = self.cities[city_index].culture_building_year(building, current_year);
             let age_multiplier = if current_year.saturating_sub(built_year) >= 1000 {
                 2
@@ -282,9 +295,9 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         game.year = 999;
-        game.cities[0].record_culture_building_completion(Building::PALACE, 999);
+        game.cities[0].record_culture_building_completion(Building::PALACE, HUMAN, 999);
         game.cities[0].buildings.push(Building::TEMPLE);
-        game.cities[0].record_culture_building_completion(Building::TEMPLE, 0);
+        game.cities[0].record_culture_building_completion(Building::TEMPLE, HUMAN, 0);
         game.record_city_culture(0);
         assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 3);
 
@@ -295,9 +308,9 @@ mod tests {
         game.cities[0].transfer_citizens(1);
         game.record_city_culture(0);
         assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 8);
-        assert_eq!(game.cities[0].culture_for_civilization(1), 5);
+        assert_eq!(game.cities[0].culture_for_civilization(1), 0);
         assert_eq!(game.civilization_culture(HUMAN), 0);
-        assert_eq!(game.civilization_culture(1), 5);
+        assert_eq!(game.civilization_culture(1), 0);
     }
 
     #[test]

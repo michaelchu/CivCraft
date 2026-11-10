@@ -71,6 +71,15 @@ checked 2026-11-10). It is not a controlled Conquests observation. The
 enabled MPTournament variant is not yet wired as a selectable runtime ruleset;
 whether its retained points stay attributed to prior civilizations or transfer
 to the captor remains unresolved.
+
+The CivFanatics Info Center also reports that captors receive no culture from
+existing structures, and that an original owner who recaptures the city resumes
+building culture without the old age bonus. CivCraft now records the builder
+civilization for each culture-producing structure, suppresses its output while
+another civilization owns the city, and restarts its age at capture. This is a
+community reverse-engineering lead, not official Civilopedia text or a
+controlled Conquests observation; see [“Culture,” captured cities](https://civfanatics.com/civ3/infocenter/),
+checked 2026-11-10.
 OpenCiv3 save-format lead only: `../openciv3/QueryCiv3/SavSections/City.cs`
 parses 32 per-leader culture values in each city record and comments that
 recaptured cities regain their previous culture. This supports the storage
@@ -430,6 +439,13 @@ documentation, not as evidence for field behavior.
   Other scenario BIQs with the flag enabled are recorded in the export but are
   not selectable as CivCraft runtime rulesets. The exact per-civilization
   accounting effect of enabled retention remains unresolved.
+- Culture-producing structures now retain their builder-civilization identity.
+  Their culture is credited only while that civilization owns the city; age is
+  reset during capture so a builder that recaptures the city resumes output
+  without its former age bonus. This follows a CivFanatics reverse-engineering
+  account, not an official Conquests passage or controlled run. Legacy saves
+  that predate building-origin tracking cannot recover the original builder;
+  missing origins fall back to the current owner.
 - `src/sim/achievements.rs` now checks the new culture ledger for its
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.

@@ -148,7 +148,7 @@ impl Simulation {
         city.specialists = [0, 0, 1];
         if first_city && owner != BARBARIANS {
             city.buildings.push(Building::PALACE);
-            city.record_culture_building_completion(Building::PALACE, self.year);
+            city.record_culture_building_completion(Building::PALACE, owner, self.year);
         }
         self.cities.push(city);
         self.list_order.city(self.cities.last().unwrap());
@@ -250,7 +250,11 @@ impl Simulation {
             .retain(|building| building.data().genus != Genus::SmallWonder);
         if first_city {
             self.cities[index].buildings.push(Building::PALACE);
-            self.cities[index].record_culture_building_completion(Building::PALACE, self.year);
+            self.cities[index].record_culture_building_completion(
+                Building::PALACE,
+                buyer,
+                self.year,
+            );
         }
 
         let mut affected = std::collections::BTreeSet::from([center]);
@@ -380,6 +384,11 @@ impl Simulation {
         if capital {
             self.lose_spaceship(old_owner);
         }
+        super::culture::prepare_culture_buildings_for_capture(
+            &mut self.cities[city_index],
+            old_owner,
+            self.year,
+        );
         if !super::culture::retain_culture_on_capture() {
             // The standard Conquests BIQ disables the scenario option that
             // keeps a captured city's accumulated culture.
@@ -414,7 +423,7 @@ impl Simulation {
             && let Some(capital) = self.cities.iter_mut().find(|city| city.owner == old_owner)
         {
             capital.buildings.push(Building::PALACE);
-            capital.record_culture_building_completion(Building::PALACE, self.year);
+            capital.record_culture_building_completion(Building::PALACE, old_owner, self.year);
         }
         self.rebuild_city_ownership_for_city_event(self.cities[city_index].id);
         self.refresh_diplomatic_contact_at(unit.owner, x, y);

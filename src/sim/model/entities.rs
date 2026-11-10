@@ -186,6 +186,10 @@ pub(crate) struct City {
     pub(in crate::sim) protected_shields: i32,
     pub(in crate::sim) production_before_switch: Option<(Production, i32)>,
     pub(crate) buildings: Vec<Building>,
+    /// Civilization that built each culture-producing structure. Output is
+    /// inactive while a different civilization owns its city.
+    #[serde(default)]
+    pub(in crate::sim) culture_building_owners: Vec<(usize, usize)>,
 }
 
 impl City {
@@ -212,6 +216,7 @@ impl City {
             history: 0,
             culture_by_civilization: vec![(owner, 0)],
             culture_building_years: Vec::new(),
+            culture_building_owners: Vec::new(),
             foreign_citizens: Vec::new(),
             culture_suppressed_until_majority_assimilated: false,
             airlift_used: false,
@@ -266,6 +271,7 @@ impl City {
     pub(in crate::sim) fn record_culture_building_completion(
         &mut self,
         building: Building,
+        civilization: usize,
         year: i32,
     ) {
         match self
@@ -276,6 +282,43 @@ impl City {
             Err(index) => self
                 .culture_building_years
                 .insert(index, (building.0, year)),
+        }
+        match self
+            .culture_building_owners
+            .binary_search_by_key(&building.0, |&(id, _)| id)
+        {
+            Ok(index) => self.culture_building_owners[index].1 = civilization,
+            Err(index) => self
+                .culture_building_owners
+                .insert(index, (building.0, civilization)),
+        }
+    }
+
+    pub(in crate::sim) fn ensure_culture_building_owner(
+        &mut self,
+        building: Building,
+        fallback_owner: usize,
+    ) -> usize {
+        match self
+            .culture_building_owners
+            .binary_search_by_key(&building.0, |&(id, _)| id)
+        {
+            Ok(index) => self.culture_building_owners[index].1,
+            Err(index) => {
+                self.culture_building_owners
+                    .insert(index, (building.0, fallback_owner));
+                fallback_owner
+            }
+        }
+    }
+
+    pub(in crate::sim) fn reset_culture_building_age(&mut self, building: Building, year: i32) {
+        match self
+            .culture_building_years
+            .binary_search_by_key(&building.0, |&(id, _)| id)
+        {
+            Ok(index) => self.culture_building_years[index].1 = year,
+            Err(index) => self.culture_building_years.insert(index, (building.0, year)),
         }
     }
 

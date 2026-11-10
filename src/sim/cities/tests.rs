@@ -36,7 +36,7 @@ fn fascist_capture_suppresses_culture_until_owner_nation_is_a_majority() {
     let city_id = game.cities[1].id;
     game.cities[1].size = 5;
     game.cities[1].buildings.push(Building::TEMPLE);
-    game.cities[1].record_culture_building_completion(Building::TEMPLE, game.year);
+    game.cities[1].record_culture_building_completion(Building::TEMPLE, 1, game.year);
     game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
 
@@ -51,7 +51,47 @@ fn fascist_capture_suppresses_culture_until_owner_nation_is_a_majority() {
     game.cities[index].foreign_citizens[0].1 = 1;
     game.record_city_culture(index);
     assert!(!game.cities[index].culture_suppressed_until_majority_assimilated);
-    assert_eq!(game.cities[index].culture_for_civilization(HUMAN), 2);
+    assert_eq!(game.cities[index].culture_for_civilization(HUMAN), 0);
+    game.cities[index].buildings.push(Building::LIBRARY);
+    game.cities[index].record_culture_building_completion(
+        Building::LIBRARY,
+        HUMAN,
+        game.year,
+    );
+    game.record_city_culture(index);
+    assert_eq!(game.cities[index].culture_for_civilization(HUMAN), 3);
+}
+
+#[test]
+fn captured_culture_buildings_wait_for_their_builder_and_restart_age_after_recapture() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.year = 0;
+    game.create_city(1, 10, 24);
+    game.create_city(1, 20, 24);
+    let city_id = game.cities[1].id;
+    game.cities[1].buildings.push(Building::TEMPLE);
+    game.cities[1].record_culture_building_completion(Building::TEMPLE, 1, -1500);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+    game.capture_city_if_needed(attacker, 20, 24);
+
+    let index = game.city_index_by_id(city_id).unwrap();
+    assert_eq!(game.cities[index].culture_building_owners, [(Building::TEMPLE.0, 1)]);
+    assert_eq!(game.cities[index].culture_building_year(Building::TEMPLE, 0), 0);
+    game.record_city_culture(index);
+    assert_eq!(game.cities[index].culture_for_civilization(HUMAN), 0);
+
+    game.year = 100;
+    let recapturer = game.spawn_unit(1, UnitKind::Warrior, 20, 24);
+    game.capture_city_if_needed(recapturer, 20, 24);
+    game.record_city_culture(index);
+    assert_eq!(game.cities[index].culture_for_civilization(1), 2);
+
+    game.year = 1100;
+    game.record_city_culture(index);
+    assert_eq!(game.cities[index].culture_for_civilization(1), 6);
 }
 
 #[test]

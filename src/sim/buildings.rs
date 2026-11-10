@@ -358,7 +358,7 @@ impl Simulation {
             .find(|city| city.id == city_id)
             .unwrap();
         city.buildings.push(building);
-        city.record_culture_building_completion(building, self.year);
+        city.record_culture_building_completion(building, owner, self.year);
         if matches!(
             building,
             Building::GREAT_LIBRARY | Building::ISAAC_NEWTONS_COLLEGE | Building::INTERNET
