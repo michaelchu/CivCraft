@@ -216,6 +216,14 @@ documentation, not as evidence for field behavior.
   city culture, and founding-order ties), but is not enough evidence to replace
   the current claim algorithm. Source checked 2026-11-10: [CivFanatics,
   “Border calculation”](https://forums.civfanatics.com/threads/border-calculation.75552/).
+- Implemented narrow Civilopedia-supported behavior: when the existing claim
+  model presents competing cities at the same distance rank, `borders.rs` now
+  prefers the civilization with the greater accumulated culture. This follows
+  installed `GCON_Culture`, which says civilization culture matters when rival
+  civilizations both have a legitimate claim to a square. Distance ordering
+  remains an existing model assumption; exact legitimacy, rank,
+  founding-order, and equal-culture handling still need Conquests observations.
+  City-size-based expansion limits are not replaced by this change.
 - Parameter-name lead, not yet confirmed from the installed Conquests help:
   Civ III patch notes mirrored by GameFront say “Border Expansion Multiplier”
   was renamed “Lvl. Multiplier,” while a CivFanatics editor reference describes
@@ -397,8 +405,10 @@ documentation, not as evidence for field behavior.
 - `src/sim/score.rs::record_history` still accumulates legacy building values
   into the score-only `history` value. It no longer drives the cultural
   achievements or the new culture ledger, but the old score calculation remains.
-- `src/sim/borders.rs` explicitly retains city-size-based border growth as an
-  approximation.
+- `src/sim/borders.rs` still retains city-size-based border growth as an
+  approximation. Rival claim strength now uses civilization culture for equal
+  distance ranks, based on the installed Civilopedia; border geometry and the
+  remaining tie rules are unresolved.
 - `src/sim/cities.rs::capture_city_if_needed` transfers ownership/nationality
   and applies capture effects, but does not initialize resistance from
   culture comparisons. The city resistance count is currently test-set only.

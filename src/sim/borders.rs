@@ -72,9 +72,16 @@ impl Simulation {
             .iter()
             .map(|city| self.map_wrap.civ3_distances_from(city.x, city.y))
             .collect();
+        let civilization_culture: Vec<_> = (0..self.players.len())
+            .map(|civilization| self.civilization_culture(civilization))
+            .collect();
         let claim_strength = |city_index: usize, city: &City, index: usize| {
             let rank = city_distances[city_index][index];
-            (rank, (city.size + 2).pow(2) / rank.max(1))
+            // The Conquests Civilopedia says civilization culture resolves
+            // squares for which rival civilizations both have a legitimate
+            // claim. Keep distance as the first criterion for this existing
+            // claim model, then compare the civilizations' accumulated culture.
+            (rank, civilization_culture[city.owner])
         };
         let claimable = |city: &City, index: usize, rank: i32| {
             if rank == 0 {
@@ -147,7 +154,9 @@ impl Simulation {
                     if claimable(city, index, rank)
                         && (rank == 0
                             || claims[index].is_none_or(|(_, _, old_rank, old_strength)| {
-                                old_rank > INITIAL_CITY_BORDER_RANK && strength > old_strength
+                                old_rank > INITIAL_CITY_BORDER_RANK
+                                    && (rank < old_rank
+                                        || (rank == old_rank && strength > old_strength))
                             }))
                     {
                         claims[index] = Some((city.id, city.owner, rank, strength));
