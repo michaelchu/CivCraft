@@ -509,8 +509,16 @@ documentation, not as evidence for field behavior.
   count, matching the Civilopedia's explicit statement that they cannot work.
   A peace treaty now clears the signatory nationality's resisters in cities
   owned by either signatory, following the Civilopedia's documented
-  war-ending resolution. Capture code does not set this count yet, and
-  garrison-based resolution remains unresolved. Save/load of the counts is
+  war-ending resolution. Capture code initializes per-nationality resistance
+  from pre-capture civilization culture, BIQ `CULT` chances, and the
+  `GOVT.ResistanceModifier` matrix. Continued resistance rolls use the BIQ's
+  continued chances and the same government adjustment; eligible ground
+  combat garrisons can quell up to `DIFF.MilitaryLaw` citizens per unit per
+  turn. These formulas are implemented from CivFanatics reverse-engineering,
+  not official Conquests text or a controlled Conquests observation. The
+  Conquests-only government entries, culture-ratio interval boundaries,
+  turn ordering, garrison selection when several nationalities resist, and
+  per-turn timing remain inferred or unresolved. Save/load of the counts is
   tested.
 - CivCraft has no civilization Mobilization state. Base-manual half-output
   wording cannot currently be applied to Conquests without confirming that it
@@ -541,11 +549,15 @@ documentation, not as evidence for field behavior.
 - These values are separate from the legacy `history` score counter. Culture
   achievements now read the new ledger; the score counter itself remains a
   legacy approximation used only in score standings.
-- The resistance state implements source-explicit labor exclusion and
-  resolution when the two parties make peace. Capture initialization and
-  garrison-based progression are not implemented: the installed editor-help
-  page bodies could not be extracted in this environment, and the original
-  Conquests runtime is unavailable for controlled observations.
+- The resistance state implements labor exclusion and peace resolution from
+  Conquests Civilopedia text, plus capture initialization and garrison-based
+  progression from BIQ values interpreted through the CivFanatics
+  reverse-engineering account. Deterministic tests cover culture-ratio bands,
+  government adjustments, continued chances, no-garrison behavior, artillery
+  exclusion, and per-unit quelling limits. These tests establish implementation
+  consistency with the selected interpretation, not parity with the original
+  Conquests executable. The original runtime is unavailable for controlled
+  observations.
 - Rush production is rejected when a city has any resisters, following the
   supplied base-game manual's explicit rule (printed p. 117). The Conquests
   Civilopedia does not mention rushing in its resistance entry, so this is
