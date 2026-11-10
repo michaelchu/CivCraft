@@ -651,6 +651,15 @@ documentation, not as evidence for field behavior.
 - `cargo test --offline cities_with_resisters_cannot_rush_production`: passed.
 - `cargo test --offline peace_quells_only_the_signatory_nationality_in_their_cities`:
   passed; unrelated nationalities and third-party cities retain their counts.
+- `CIVCRAFT_SOURCE_DIR=../source cargo test --offline assimilation`: 2 passed.
+  The deterministic cases check all eight exported government rates, movement
+  to a strict majority nationality, and no conversion on a tied population.
+- After the assimilation change, rebuilt release and ran the seed-42 desktop
+  `--self-test` with `CIVCRAFT_SOURCE_DIR=../source`. The complete fresh report
+  `/tmp/civcraft-playtest-culture-current-JElqok/report.json` records 2/11
+  checks passing (HUD and city foundation). Movement, economy, city labor, and
+  worker controls fail; government, civil-war, and diplomacy checks are skipped
+  because prerequisites fail. No culture-specific assertion is in this suite.
 - `cargo test --offline artillery_does_not_quell_resistance`: a deterministic
   case verifies that a Conquests artillery unit alone cannot reduce a city's
   resistor count, matching the reverse-engineered exclusion rule.
