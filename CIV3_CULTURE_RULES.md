@@ -455,11 +455,16 @@ documentation, not as evidence for field behavior.
   Source: `../source/Conquests/Text/Civilopedia.txt`, `GCON_Culture`,
   “Global Cultures.” The behavior is explicit qualitatively, but the BIQ's
   `RACE.CultureGroup` plus `GAME.CulturallyLinkedStart` do not specify the
-  placement algorithm or diplomacy adjustment. The main BIQ's linked-start
-  flag is false, so no culture-group start clustering is inferred for this
-  campaign. The diplomacy adjustment remains unimplemented pending an
-  official formula. The renderer's city-style mapping is separate and must
-  not be treated as the gameplay culture-group rule.
+  placement algorithm or numeric diplomacy adjustment. The main BIQ's
+  linked-start flag is false, so no culture-group start clustering is inferred
+  for this campaign. A CivFanatics attitude study reports a one-point favorable
+  AI-attitude modifier for sharing a culture group, but its author explicitly
+  tested unpatched Play the World 1.01, not Conquests. Treat this as a candidate
+  formula for Conquests confirmation, not as an implemented rule. Source
+  checked 2026-11-10: [CivFanatics, “AI Attitude Study”](https://civfanatics.com/civ3/strategy/game-mechanics/ai-attitude-study/),
+  especially “Starting attitudes,” which reports “-1 You are in the same
+  culture group.” The renderer's city-style mapping is separate and must not be
+  treated as the gameplay culture-group rule.
 - Base manual says relative civilization culture affects resistance,
   diplomacy, city defection, and cultural victory; it describes cultural
   defection as a nearby city switching sides under a sufficiently large culture
