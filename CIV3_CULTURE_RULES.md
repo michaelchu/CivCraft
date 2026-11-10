@@ -812,7 +812,7 @@ documentation, not as evidence for field behavior.
   `export_conquests_capture_culture_flags.py` run covered 29 BIQs and its
   `culture_capture_settings.tsv` also byte-matches. This confirms export
   reproducibility against the installed BIQ files.
-- Latest built desktop self-test, seed 42, report
+- Earlier built desktop self-test, seed 42, report
   `/tmp/civcraft-playtest-culture-akblbb/report.json`: process exited 1 and
   2/11 checks passed (foundation and HUD). Movement, act/economy, city tiles,
   and worker-control checks failed; government, civil-war, and diplomacy were
@@ -825,6 +825,13 @@ documentation, not as evidence for field behavior.
   city-tile reassignment, and worker controls failed, while government,
   civil-war, and diplomacy checks were skipped. The desktop suite has no
   culture-specific assertion; these failures do not assess assimilation tenure.
+- After separating custom-map single-city and empire-wide victory checks,
+  `cargo build --offline --release` succeeded and the seed-42 desktop self-test
+  completed with exit status 1. Latest report:
+  `/tmp/civcraft-playtest-culture-FyQQIG8m/report.json`. It passed 2/11 checks
+  (foundation and HUD); movement, act/economy, city-tile reassignment, and worker
+  controls failed, and government, civil-war, and diplomacy were skipped. The
+  suite contains no culture-specific assertion.
 
 - Re-ran with `CIVCRAFT_SOURCE_DIR=../source`: `cargo test --offline culture
   -- --nocapture` passed 13 culture-named checks; separate current save/load,
