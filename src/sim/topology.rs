@@ -263,6 +263,22 @@ impl MapWrap {
         }
         distance
     }
+
+    /// CivWiki's reverse-engineered culture-flip capital distance: max of the
+    /// two diagonal-axis spans plus half the shorter span. Horizontal map
+    /// wrapping shifts both axes, so compare the target's adjacent wrap images.
+    pub(crate) fn civ3_culture_distance(self, ax: i32, ay: i32, bx: i32, by: i32) -> f64 {
+        let (ax, ay) = native_to_map(ax, ay);
+        let (bx, by) = native_to_map(bx, by);
+        (-1..=1)
+            .map(|wrap| {
+                let dx = (bx + wrap * self.width() - ax).abs();
+                let dy = (by - wrap * self.width() - ay).abs();
+                f64::from(dx.max(dy)) + f64::from(dx.min(dy)) * 0.5
+            })
+            .fold(f64::INFINITY, f64::min)
+    }
+
     pub(crate) fn civ3_distances_from(self, x: i32, y: i32) -> Vec<i32> {
         let mut distances = vec![i32::MAX; (self.width() * self.height()) as usize];
         let origin = self.index(x, y);
@@ -498,6 +514,28 @@ mod wrap_tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn culture_flip_distance_uses_diagonal_axes_and_horizontal_wrap() {
+        let wrap = MapWrap::X;
+        let origin = (wrap.width() / 2, wrap.height() / 2);
+        let diagonal = offset_native_by_map(origin.0, origin.1, 4, 2);
+        assert_eq!(
+            wrap.civ3_culture_distance(origin.0, origin.1, diagonal.0, diagonal.1),
+            5.0
+        );
+
+        let seam_a = (0, wrap.height() / 2);
+        let seam_b = (wrap.width() - 1, wrap.height() / 2);
+        assert_eq!(
+            wrap.civ3_culture_distance(seam_a.0, seam_a.1, seam_b.0, seam_b.1),
+            1.5
+        );
+        assert_eq!(
+            wrap.civ3_culture_distance(seam_a.0, seam_a.1, seam_b.0, seam_b.1),
+            wrap.civ3_culture_distance(seam_b.0, seam_b.1, seam_a.0, seam_a.1)
+        );
     }
 
     #[test]

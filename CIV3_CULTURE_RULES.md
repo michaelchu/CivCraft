@@ -468,9 +468,12 @@ documentation, not as evidence for field behavior.
   where `x` and `y` are distances along the two diagonal map axes; it also says
   the Forbidden Palace and Secret Police HQ count as capitals. Thus
   `D = clamp(challenger_distance / defender_distance, 0.25, 4)`, and the
-  formula denominator is `2000 * D`. This differs from CivCraft's current
-  shortest-step map distance; wrapping and zero-distance handling remain
-  unverified for Conquests. The CivFanatics Conquests FAQ says WLTKD requires
+  formula denominator is `2000 * D`. `MapWrap::civ3_culture_distance` now
+  implements the cited diagonal-axis metric and chooses the closest horizontal
+  wrap image; deterministic checks cover an interior diagonal and the map
+  seam. The seam rule is a topology-based inference, not a controlled
+  Conquests observation. Zero-distance handling remains unresolved. The
+  CivFanatics Conquests FAQ says WLTKD requires
   size at least 6, no unhappy or resisting citizens, at least half the citizens
   happy, and food production of at least 2 per citizen. These criteria provide
   a reverse-engineered way to derive `H`, but the full formula and its
