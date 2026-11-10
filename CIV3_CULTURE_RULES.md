@@ -186,6 +186,25 @@ documentation, not as evidence for field behavior.
   resolved. Sources checked 2026-11-10: [“Editor Rules - Explained,” Border
   Factor](https://forums.civfanatics.com/threads/editor-rules-explained.210035/)
   and [“Civ1 clone in Civ3,” scenario discussion](https://forums.civfanatics.com/threads/civ1-clone-in-civ3.667077/).
+- The CivFanatics Info Center independently corroborates the first four
+  thresholds as 10, 100, 1,000, and 10,000 and says the amount increases by a
+  factor of ten each time. Its wording does not state whether that sequence
+  continues unchanged after 10,000. Thus it corroborates the ordinary-game
+  progression through 10,000 but does not reconcile the next threshold with
+  Conquests Civilopedia's 20,000 example. Source checked 2026-11-10:
+  [CivFanatics Info Center, “How can your borders expand?”](https://civfanatics.com/civ3/infocenter/).
+- Technical geometry lead, not adopted as a gameplay rule: C3X's open-source
+  Conquests executable mod has an ordered cultural-neighbor table and uses a
+  city's engine `cultural_level` as a ring limit for its configurable work
+  area. Its source labels successive coordinate rings and reports work-area
+  tile counts, but it does not implement or document the stock game's
+  territory-claim selection. Its extended work-area counts differ from the
+  Conquests guide's reported territory footprints, although those may be
+  different measures. This is useful for building geometry tests and
+  understanding the engine's level field, not for
+  deciding ownership or claiming parity. Sources checked 2026-11-10: [C3X
+  project explanation](https://github.com/maxpetul/C3X) and [C3X
+  `injected_code.c`, cultural-neighbor table and work-ring limit](https://raw.githubusercontent.com/maxpetul/C3X/master/source/injected_code.c#L389-L527).
 - Territory-claim lead from a 2004 CivFanatics player investigation: one post
   says candidate territory is constrained by city cultural rings; when multiple
   cities can claim a tile, the nearest ring level wins, then the stronger
