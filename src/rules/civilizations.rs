@@ -16,6 +16,7 @@ pub(crate) struct Civilization {
     pub(crate) name: String,
     pub(crate) source_name: String,
     pub(crate) noun: String,
+    #[allow(dead_code)] // Source-backed catalog metadata for future leader and UI text.
     pub(crate) adjective: String,
     pub(crate) leader: String,
     pub(crate) cities: Vec<String>,
@@ -24,8 +25,10 @@ pub(crate) struct Civilization {
     pub(crate) primary_color_index: u8,
     pub(crate) secondary_color_index: u8,
     pub(crate) legacy_names: Vec<String>,
+    #[allow(dead_code)] // Kept to preserve and validate the source BIQ record identity.
     pub(crate) source_race_index: usize,
     /// Raw Conquests RACE CultureGroup index; separate from culture points.
+    #[allow(dead_code)] // Kept as source metadata for city-style and culture rules.
     pub(crate) culture_group_index: i32,
 }
 

@@ -47,6 +47,7 @@ impl super::Simulation {
         independent && wartime && removal && ranged
     }
 
+    #[cfg(test)]
     pub(crate) fn ai_wonder_advisor_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();

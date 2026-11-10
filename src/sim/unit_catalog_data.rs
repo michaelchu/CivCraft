@@ -13,6 +13,7 @@ pub(super) enum UnitClass {
     Missile,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)] // Preserve source unit flags even when their gameplay is not implemented yet.
 pub(super) enum UnitFlag {
     AddToCity,
     AirAttacker,
@@ -76,6 +77,7 @@ pub(super) struct UnitMetadata {
     pub(super) class: UnitClass,
     pub(super) flags: u64,
     pub(super) ai_strategies: u32,
+    #[allow(dead_code)] // Source unit prerequisite retained for research and advisor behavior.
     pub(super) tech: Option<Tech>,
     pub(super) government: Option<Government>,
     pub(super) cargo: &'static [UnitClass],

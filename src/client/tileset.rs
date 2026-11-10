@@ -1130,6 +1130,7 @@ struct Civ3UnitArt {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[allow(dead_code)] // Retain the full Civ III action vocabulary for INI animation mappings.
 pub(super) enum Civ3UnitAction {
     #[default]
     Default,

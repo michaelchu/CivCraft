@@ -203,6 +203,7 @@ impl Simulation {
         received && shared && preserved && compensated && pending && resumed
     }
 
+    #[cfg(test)]
     pub(crate) fn ai_diplomatic_intelligence_playtest(&mut self) -> bool {
         self.units.clear();
         self.turn = 30;
@@ -228,6 +229,7 @@ impl Simulation {
         remembered && broken && held && agreed
     }
 
+    #[cfg(test)]
     pub(crate) fn ai_observer_incident_cadence_playtest(&mut self) -> bool {
         self.units.clear();
         for (owner, (x, y)) in [(HUMAN, (8, 24)), (1, (18, 24)), (2, (28, 24))] {
@@ -260,6 +262,7 @@ impl Simulation {
         fogged && stealth && detected && offended && offered && paced
     }
 
+    #[cfg(test)]
     pub(crate) fn ai_diplomatic_love_playtest(&mut self) -> bool {
         self.units.clear();
         for (owner, (x, y)) in [(HUMAN, (8, 20)), (1, (12, 24))] {
