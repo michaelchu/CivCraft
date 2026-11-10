@@ -390,6 +390,10 @@ fn culture_victory_thresholds() -> &'static [CultureVictoryThresholds] {
             "missing map-size victory thresholds"
         );
         assert_eq!(hashes.len(), 1, "culture victory table mixes BIQ versions");
+        assert!(
+            result.iter().all(|threshold| threshold.one_city == 20_000),
+            "Conquests one-city culture threshold must be 20,000 for every map size"
+        );
         assert_eq!(result[2].one_city, 20_000);
         assert_eq!(result[2].civilization, 100_000);
         result
@@ -499,18 +503,19 @@ impl Simulation {
         if self.game_over.is_some() || !cultural_victory_enabled() {
             return;
         }
-        let Some(thresholds) = culture_victory_thresholds_for_map(self.map_wrap) else {
-            return;
-        };
+        let one_city_threshold = culture_victory_thresholds()[0].one_city;
+        let civilization_threshold = culture_victory_thresholds_for_map(self.map_wrap)
+            .map(|thresholds| thresholds.civilization);
         for owner in 0..self.players.len() {
             if owner == BARBARIANS || !self.player_alive(owner) {
                 continue;
             }
             let city_winner = self.cities.iter().any(|city| {
-                city.owner == owner && city.culture_for_civilization(owner) >= thresholds.one_city
+                city.owner == owner && city.culture_for_civilization(owner) >= one_city_threshold
             });
             let civilization_total = self.civilization_culture(owner);
-            let civilization_winner = civilization_total >= thresholds.civilization
+            let civilization_winner = civilization_threshold
+                .is_some_and(|threshold| civilization_total >= threshold)
                 && (0..self.players.len()).all(|rival| {
                     rival == owner
                         || rival == BARBARIANS
@@ -917,6 +922,26 @@ mod tests {
                 .unwrap()
                 .contains("civilization culture")
         );
+    }
+
+    #[test]
+    fn custom_map_keeps_explicit_one_city_victory_but_no_empire_threshold_is_assumed() {
+        assert!(culture_victory_thresholds_for_map(MapWrap::X).is_none());
+        let mut game = Simulation::new(crate::mapgen::generate(45));
+        game.cities.clear();
+        for (x, y) in [(4, 4), (12, 4), (20, 4), (28, 4), (4, 20), (12, 20)] {
+            game.create_city(HUMAN, x, y);
+            game.cities.last_mut().unwrap().add_culture(HUMAN, 17_000);
+        }
+
+        // The empire total exceeds the Standard BIQ value, but the custom
+        // campaign topology has no source-backed civilization threshold.
+        game.check_cultural_victory();
+        assert!(game.game_over().is_none());
+
+        game.cities[0].add_culture(HUMAN, 3_000);
+        game.check_cultural_victory();
+        assert!(game.game_over().unwrap().contains("city culture"));
     }
 
     #[test]

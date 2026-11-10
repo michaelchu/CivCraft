@@ -659,7 +659,9 @@ documentation, not as evidence for field behavior.
   2026-11-10: [CivFanatics, “Editor Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
 - Exact formulas for diplomacy, city defection, and culture comparison bands
   remain unverified. Custom map sizes have no Civilopedia civilization-total
-  threshold and are left without culture-victory evaluation.
+  threshold, so their empire-wide culture victory remains unresolved and is not
+  evaluated. The Civilopedia's 20,000 single-city threshold is constant across
+  named map sizes and still applies on CivCraft's custom topology.
 
 ## Current CivCraft gap inventory
 
@@ -793,11 +795,16 @@ documentation, not as evidence for field behavior.
   single-city culture against 20,000, and civilization culture against the
   Civilopedia threshold for the five named map sizes. The Standard 100,000 total
   is cross-checked against `GAME.AllCitiesCultureWin`. The enablement formula is
-  reverse-engineered; custom scenario flags and custom-size scaling remain
-  unsupported.
+  reverse-engineered; custom scenario flags and custom-size empire-threshold
+  scaling remain unsupported. The explicit 20,000 single-city victory is still
+  checked on CivCraft's custom 36×48 campaign topology.
 
 ## Current validation (2026-11-10)
 
+- `cargo test --offline sim::culture::tests`: 17 passed. The added custom-map
+  case confirms that the explicit 20,000 single-city victory remains active on
+  the 36×48 campaign topology, while a 102,000 empire total does not assume a
+  threshold the Conquests Civilopedia does not provide for custom maps.
 - Re-unpacked the installed `../source/Conquests/conquests.biq` with
   `/private/tmp/civ3-blast`, then regenerated all nine culture, victory,
   resistance, and government exports to `/private/tmp/culture-repro-20261110`.
