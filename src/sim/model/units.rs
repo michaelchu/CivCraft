@@ -7,188 +7,347 @@ use crate::sim::{Base, Terrain};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum UnitKind {
-    Settlers,
+    // Conquests campaign identities in source roster order.
+    Settler,
     Worker,
-    Migrants,
-    Engineer,
-    Diplomat,
-    Spy,
+    Scout,
     Explorer,
+    Marine,
+    ModernParatrooper,
     Warrior,
-    Phalanx,
     Archer,
-    Legion,
-    Horseman,
+    Spearman,
+    Swordsman,
     Chariot,
+    Horseman,
+    Pikeman,
+    Longbowman,
+    Musketman,
+    Knight,
+    Rifleman,
+    Cavalry,
+    Infantry,
+    Tank,
+    MechInfantry,
+    ModernArmor,
     Catapult,
-    Musketeers,
-    Marines,
-    Knights,
-    Partisan,
     Cannon,
-    Bomber,
-    Fighter,
-    StealthFighter,
-    StealthBomber,
-    Helicopter,
-    Trireme,
+    Artillery,
+    RadarArtillery,
+    CruiseMissile,
+    TacticalNuke,
+    ICBM,
+    Galley,
     Caravel,
+    Frigate,
     Galleon,
+    Ironclad,
     Transport,
     Carrier,
-    Frigate,
-    Ironclad,
-    Destroyer,
-    Cruiser,
-    Battleship,
     Submarine,
+    Destroyer,
+    Battleship,
     AegisCruiser,
-    CruiseMissile,
-    Caravan,
-    Freight,
-    Nuclear,
-    BarbarianLeader,
-    Paratroopers,
-    Pikemen,
-    Riflemen,
-    AlpineTroops,
-    Fanatics,
-    MechInf,
-    Elephants,
-    Crusaders,
-    Dragoons,
-    Cavalry,
-    Armor,
-    Artillery,
-    Howitzer,
-    Leader,
-    Awacs,
-    Storm,
-    // Appended to preserve existing serialized discriminants.
-    Scout,
-    Longbowman,
-    Infantry,
-    ModernArmor,
-    Privateer,
-    JetFighter,
     NuclearSubmarine,
-    Icbm,
-    TacticalNuke,
+    Fighter,
+    Bomber,
+    Helicopter,
+    JetFighter,
+    StealthFighter,
+    StealthBomber,
+    Leader,
+    Army,
+    JaguarWarrior,
+    Bowman,
+    Hoplite,
+    Impi,
+    Legionary,
+    Immortals,
+    WarChariot,
+    Rider,
+    MountedWarrior,
+    Musketeer,
+    Samurai,
+    WarElephant,
+    Cossack,
+    Panzer,
+    ManOWar,
+    F15,
+    Privateer,
+    Keshik,
+    Conquistador,
+    Berserk,
+    Sipahi,
+    GallicSwordsman,
+    AnsarWarrior,
+    NumidianMercenary,
+    Hwacha,
+    MedievalInfantry,
+    Guerilla,
+    EnkiduWarrior,
+    ThreeManChariot,
+    Carrack,
+    SwissMercenary,
+    Trebuchet,
+    ChasquiScout,
+    JavelinThrower,
+    Dromon,
+    Cruiser,
+    Crusader,
+    AncientCavalry,
+    Curragh,
+    Paratrooper,
+    TOWInfantry,
+    Flak,
+    MobileSAM,
+
 }
 
 impl UnitKind {
-    // Source ruleset ordering is independent of enum/save discriminants.
-    pub(crate) const ALL_NATIVE: [Self; 66] = [
-        Self::Settlers,
-        Self::Migrants,
+    /// Matching source identity for units shared with the Conquests roster.
+    /// Legacy-only identities intentionally have no match and are not granted
+    /// campaign availability by the source rules table.
+    pub(crate) fn conquests_id(self) -> Option<&'static str> {
+        Some(match self {
+            Self::Settler => "settler",
+            Self::Worker => "worker",
+            Self::Explorer => "explorer",
+            Self::Warrior => "warrior",
+            Self::Archer => "archer",
+            Self::Horseman => "horseman",
+            Self::Chariot => "chariot",
+            Self::Catapult => "catapult",
+            Self::Musketman => "musketman",
+            Self::Marine => "marine",
+            Self::Knight => "knight",
+            Self::Cannon => "cannon",
+            Self::Bomber => "bomber",
+            Self::Fighter => "fighter",
+            Self::StealthFighter => "stealth_fighter",
+            Self::StealthBomber => "stealth_bomber",
+            Self::Helicopter => "helicopter",
+            Self::Galley => "galley",
+            Self::Caravel => "caravel",
+            Self::Galleon => "galleon",
+            Self::Transport => "transport",
+            Self::Carrier => "carrier",
+            Self::Frigate => "frigate",
+            Self::Ironclad => "ironclad",
+            Self::Destroyer => "destroyer",
+            Self::Cruiser => "cruiser",
+            Self::Battleship => "battleship",
+            Self::Submarine => "submarine",
+            Self::AegisCruiser => "aegis_cruiser",
+            Self::CruiseMissile => "cruise_missile",
+            Self::Paratrooper => "paratrooper",
+            Self::Pikeman => "pikeman",
+            Self::Rifleman => "rifleman",
+            Self::Cavalry => "cavalry",
+            Self::Tank => "tank",
+            Self::Artillery => "artillery",
+            Self::MechInfantry => "mech_infantry",
+            Self::Longbowman => "longbowman",
+            Self::Infantry => "infantry",
+            Self::ModernArmor => "modern_armor",
+            Self::Privateer => "privateer",
+            Self::JetFighter => "jet_fighter",
+            Self::NuclearSubmarine => "nuclear_submarine",
+            Self::ICBM => "icbm",
+            Self::TacticalNuke => "tactical_nuke",
+            Self::Crusader => "crusader",
+            Self::Leader => "leader",
+            Self::Scout => "scout",
+            Self::Guerilla => "guerilla",
+            Self::WarElephant => "war_elephant",
+            Self::ModernParatrooper => "modern_paratrooper",
+            Self::Spearman => "spearman",
+            Self::Swordsman => "swordsman",
+            Self::RadarArtillery => "radar_artillery",
+            Self::Army => "army",
+            Self::JaguarWarrior => "jaguar_warrior",
+            Self::Bowman => "bowman",
+            Self::Hoplite => "hoplite",
+            Self::Impi => "impi",
+            Self::Legionary => "legionary",
+            Self::Immortals => "immortals",
+            Self::WarChariot => "war_chariot",
+            Self::Rider => "rider",
+            Self::MountedWarrior => "mounted_warrior",
+            Self::Musketeer => "musketeer",
+            Self::Samurai => "samurai",
+            Self::Cossack => "cossack",
+            Self::Panzer => "panzer",
+            Self::ManOWar => "man_o_war",
+            Self::F15 => "f_15",
+            Self::Keshik => "keshik",
+            Self::Conquistador => "conquistador",
+            Self::Berserk => "berserk",
+            Self::Sipahi => "sipahi",
+            Self::GallicSwordsman => "gallic_swordsman",
+            Self::AnsarWarrior => "ansar_warrior",
+            Self::NumidianMercenary => "numidian_mercenary",
+            Self::Hwacha => "hwach_a",
+            Self::MedievalInfantry => "medieval_infantry",
+            Self::EnkiduWarrior => "enkidu_warrior",
+            Self::ThreeManChariot => "three_man_chariot",
+            Self::Carrack => "carrack",
+            Self::SwissMercenary => "swiss_mercenary",
+            Self::Trebuchet => "trebuchet",
+            Self::ChasquiScout => "chasqui_scout",
+            Self::JavelinThrower => "javelin_thrower",
+            Self::Dromon => "dromon",
+            Self::AncientCavalry => "ancient_cavalry",
+            Self::Curragh => "curragh",
+            Self::TOWInfantry => "tow_infantry",
+            Self::Flak => "flak",
+            Self::MobileSAM => "mobile_sam",
+        })
+    }
+
+    pub(crate) fn from_civ3_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "Settler" => Self::Settler,
+            "Worker" => Self::Worker,
+            "Scout" => Self::Scout,
+            "Chasqui Scout" => Self::ChasquiScout,
+            _ => return None,
+        })
+    }
+
+    pub(crate) fn from_conquests_id(id: &str) -> Option<Self> {
+        Self::ALL_NATIVE
+            .into_iter()
+            .find(|kind| kind.conquests_id() == Some(id))
+    }
+
+    // Conquests campaign iteration follows source roster order.
+    pub(crate) const ALL_NATIVE: [Self; 92] = [
+        Self::Settler,
         Self::Worker,
-        Self::Engineer,
+        Self::Scout,
+        Self::Explorer,
+        Self::Marine,
+        Self::ModernParatrooper,
         Self::Warrior,
-        Self::Phalanx,
         Self::Archer,
-        Self::Legion,
-        Self::Pikemen,
-        Self::Musketeers,
-        Self::Riflemen,
-        Self::AlpineTroops,
-        Self::Partisan,
-        Self::Fanatics,
-        Self::Marines,
-        Self::Paratroopers,
-        Self::MechInf,
-        Self::Horseman,
+        Self::Spearman,
+        Self::Swordsman,
         Self::Chariot,
-        Self::Elephants,
-        Self::Crusaders,
-        Self::Knights,
-        Self::Dragoons,
+        Self::Horseman,
+        Self::Pikeman,
+        Self::Longbowman,
+        Self::Musketman,
+        Self::Knight,
+        Self::Rifleman,
         Self::Cavalry,
-        Self::Armor,
+        Self::Infantry,
+        Self::Tank,
+        Self::MechInfantry,
+        Self::ModernArmor,
         Self::Catapult,
         Self::Cannon,
         Self::Artillery,
-        Self::Howitzer,
+        Self::RadarArtillery,
+        Self::CruiseMissile,
+        Self::TacticalNuke,
+        Self::ICBM,
+        Self::Galley,
+        Self::Caravel,
+        Self::Frigate,
+        Self::Galleon,
+        Self::Ironclad,
+        Self::Transport,
+        Self::Carrier,
+        Self::Submarine,
+        Self::Destroyer,
+        Self::Battleship,
+        Self::AegisCruiser,
+        Self::NuclearSubmarine,
         Self::Fighter,
         Self::Bomber,
         Self::Helicopter,
+        Self::JetFighter,
         Self::StealthFighter,
         Self::StealthBomber,
-        Self::Trireme,
-        Self::Caravel,
-        Self::Galleon,
-        Self::Frigate,
-        Self::Ironclad,
-        Self::Destroyer,
-        Self::Cruiser,
-        Self::AegisCruiser,
-        Self::Battleship,
-        Self::Submarine,
-        Self::Carrier,
-        Self::Transport,
-        Self::CruiseMissile,
-        Self::Nuclear,
-        Self::Diplomat,
-        Self::Spy,
-        Self::Caravan,
-        Self::Freight,
-        Self::Explorer,
         Self::Leader,
-        Self::BarbarianLeader,
-        Self::Awacs,
-        Self::Storm,
-        Self::Scout,
-        Self::Longbowman,
-        Self::Infantry,
-        Self::ModernArmor,
+        Self::Army,
+        Self::JaguarWarrior,
+        Self::Bowman,
+        Self::Hoplite,
+        Self::Impi,
+        Self::Legionary,
+        Self::Immortals,
+        Self::WarChariot,
+        Self::Rider,
+        Self::MountedWarrior,
+        Self::Musketeer,
+        Self::Samurai,
+        Self::WarElephant,
+        Self::Cossack,
+        Self::Panzer,
+        Self::ManOWar,
+        Self::F15,
         Self::Privateer,
-        Self::JetFighter,
-        Self::NuclearSubmarine,
-        Self::Icbm,
-        Self::TacticalNuke,
-    ];
-    #[cfg(test)]
-    pub(crate) const ALL: [Self; 66] = Self::ALL_NATIVE;
-    #[cfg(test)]
-    pub(crate) fn all() -> impl Iterator<Item = Self> {
-        Self::ALL_NATIVE.into_iter()
-    }
-    pub(in crate::sim) const SIMPLE_MILITARY: [Self; 35] = [
-        Self::Warrior,
-        Self::Phalanx,
-        Self::Archer,
-        Self::Legion,
-        Self::Pikemen,
-        Self::Musketeers,
-        Self::Riflemen,
-        Self::AlpineTroops,
-        Self::Partisan,
-        Self::Fanatics,
-        Self::Marines,
-        Self::Paratroopers,
-        Self::MechInf,
-        Self::Horseman,
-        Self::Chariot,
-        Self::Elephants,
-        Self::Crusaders,
-        Self::Knights,
-        Self::Dragoons,
-        Self::Cavalry,
-        Self::Armor,
-        Self::Catapult,
-        Self::Cannon,
-        Self::Artillery,
-        Self::Howitzer,
-        Self::Helicopter,
-        Self::Frigate,
-        Self::Ironclad,
-        Self::Destroyer,
+        Self::Keshik,
+        Self::Conquistador,
+        Self::Berserk,
+        Self::Sipahi,
+        Self::GallicSwordsman,
+        Self::AnsarWarrior,
+        Self::NumidianMercenary,
+        Self::Hwacha,
+        Self::MedievalInfantry,
+        Self::Guerilla,
+        Self::EnkiduWarrior,
+        Self::ThreeManChariot,
+        Self::Carrack,
+        Self::SwissMercenary,
+        Self::Trebuchet,
+        Self::ChasquiScout,
+        Self::JavelinThrower,
+        Self::Dromon,
         Self::Cruiser,
-        Self::AegisCruiser,
-        Self::Battleship,
-        Self::Longbowman,
-        Self::Infantry,
-        Self::ModernArmor,
+        Self::Crusader,
+        Self::AncientCavalry,
+        Self::Curragh,
+        Self::Paratrooper,
+        Self::TOWInfantry,
+        Self::Flak,
+        Self::MobileSAM,
     ];
+    #[cfg(test)]
+    pub(crate) const ALL: [Self; 92] = Self::ALL_NATIVE;
+
+    pub(in crate::sim) fn conquests_rule(self) -> &'static crate::sim::civ3_unit_rules::UnitRule {
+        crate::sim::civ3_unit_rules::get(
+            self.conquests_id()
+                .expect("campaign unit must have a Conquests identity"),
+        )
+        .expect("campaign unit must have an editable Conquests rule")
+    }
+
+    pub(in crate::sim) fn simple_military() -> Vec<Self> {
+        Self::ALL_NATIVE
+            .into_iter()
+            .filter(|kind| {
+                let class = kind.unit_class();
+                !kind.is_civilian()
+                    && !kind.is_missile()
+                    && kind.fuel_capacity() == 0
+                    && kind.transport_capacity() < 8
+                    && (class.is_ground()
+                        || matches!(
+                            class,
+                            unit_catalog::UnitClass::Air
+                                | unit_catalog::UnitClass::Helicopter
+                                | unit_catalog::UnitClass::Trireme
+                        )
+                        || class == unit_catalog::UnitClass::Sea
+                            && kind.stats().attack > 0
+                            && !kind.has_flag(unit_catalog::UnitFlag::OnlyNativeAttack))
+            })
+            .collect()
+    }
 
     pub(in crate::sim) fn hp_loss_percent(self) -> i32 {
         // Civ2Civ3 unit classes Air and Helicopter lose 10%; Missile and
@@ -201,91 +360,15 @@ impl UnitKind {
     }
 
     pub(in crate::sim) fn required_tech(self) -> Option<Tech> {
-        self.metadata().tech
+        self.conquests_rule().required_tech()
     }
 
-    pub(in crate::sim) fn required_resources(self) -> &'static [crate::sim::Resource] {
-        use crate::sim::Resource as R;
-        match self {
-            Self::Privateer => &[R::Saltpeter, R::Iron],
-            Self::Infantry => &[R::Rubber],
-            Self::ModernArmor => &[R::Oil, R::Rubber, R::Aluminum],
-            Self::JetFighter => &[R::Oil],
-            Self::NuclearSubmarine => &[R::Uranium],
-            Self::Icbm | Self::TacticalNuke => &[R::Aluminum, R::Uranium],
-            _ => &[],
-        }
+    pub(in crate::sim) fn required_resources(self) -> Vec<crate::sim::Resource> {
+        self.conquests_rule().resources()
     }
 
     pub(crate) fn name(self) -> &'static str {
-        match self {
-            Self::Pikemen => "Pikemen",
-            Self::Riflemen => "Riflemen",
-            Self::AlpineTroops => "Alpine Troops",
-            Self::Fanatics => "Fanatics",
-            Self::MechInf => "Mech. Inf.",
-            Self::Elephants => "Elephants",
-            Self::Crusaders => "Crusaders",
-            Self::Dragoons => "Dragoons",
-            Self::Cavalry => "Cavalry",
-            Self::Armor => "Armor",
-            Self::Artillery => "Artillery",
-            Self::Howitzer => "Howitzer",
-            Self::Leader => "Leader",
-            Self::Awacs => "AWACS",
-            Self::Storm => "Storm",
-            Self::Settlers => "Settlers",
-            Self::Worker => "Workers",
-            Self::Migrants => "Migrants",
-            Self::Engineer => "Engineers",
-            Self::Diplomat => "Diplomat",
-            Self::Spy => "Spy",
-            Self::Explorer => "Explorer",
-            Self::Warrior => "Warriors",
-            Self::Phalanx => "Phalanx",
-            Self::Archer => "Archers",
-            Self::Legion => "Legion",
-            Self::Horseman => "Horsemen",
-            Self::Chariot => "Chariot",
-            Self::Catapult => "Catapult",
-            Self::Musketeers => "Musketeers",
-            Self::Marines => "Marines",
-            Self::Paratroopers => "Paratroopers",
-            Self::Knights => "Knights",
-            Self::Galleon => "Galleon",
-            Self::Transport => "Transport",
-            Self::Carrier => "Carrier",
-            Self::Frigate => "Frigate",
-            Self::Ironclad => "Ironclad",
-            Self::Destroyer => "Destroyer",
-            Self::Cruiser => "Cruiser",
-            Self::Battleship => "Battleship",
-            Self::AegisCruiser => "AEGIS Cruiser",
-            Self::Submarine => "Submarine",
-            Self::CruiseMissile => "Cruise Missile",
-            Self::Nuclear => "Nuclear",
-            Self::BarbarianLeader => "Barbarian Leader",
-            Self::Caravan => "Caravan",
-            Self::Freight => "Freight",
-            Self::Trireme => "Trireme",
-            Self::Caravel => "Caravel",
-            Self::Cannon => "Cannon",
-            Self::Bomber => "Bomber",
-            Self::Fighter => "Fighter",
-            Self::Helicopter => "Helicopter",
-            Self::StealthFighter => "Stealth Fighter",
-            Self::StealthBomber => "Stealth Bomber",
-            Self::Partisan => "Partisan",
-            Self::Scout => "Scout",
-            Self::Longbowman => "Longbowman",
-            Self::Infantry => "Infantry",
-            Self::ModernArmor => "Modern Armor",
-            Self::Privateer => "Privateer",
-            Self::JetFighter => "Jet Fighter",
-            Self::NuclearSubmarine => "Nuclear Submarine",
-            Self::Icbm => "ICBM",
-            Self::TacticalNuke => "Tactical Nuke",
-        }
+        self.conquests_rule().name
     }
 
     pub(crate) fn is_native_on(
@@ -298,7 +381,7 @@ impl UnitKind {
     ) -> bool {
         if self.is_aircraft() {
             true
-        } else if self == Self::Trireme {
+        } else if self == Self::Galley {
             matches!(terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake) || river
         } else {
             terrain.is_water() == self.is_naval()
@@ -320,39 +403,37 @@ impl UnitKind {
         )
     }
 
-    pub(in crate::sim) fn earns_naval_veterancy(self) -> bool {
-        self.is_naval() && (self.is_military() || self == Self::Carrier)
-    }
-
     pub(crate) fn transport_capacity(self) -> usize {
         self.metadata().capacity
-    }
-
-    pub(crate) fn is_diplomatic(self) -> bool {
-        matches!(self, Self::Diplomat | Self::Spy)
     }
 
     pub(crate) fn can_clean(self) -> bool {
         self.is_worker()
     }
 
-    pub(in crate::sim) fn obsolete_by(self) -> &'static [Self] {
-        self.metadata().obsolete
+    pub(in crate::sim) fn obsolete_by(self) -> Option<Self> {
+        self.conquests_rule()
+            .upgrade_target_id()
+            .and_then(Self::from_conquests_id)
     }
 
     pub(crate) fn fuel_capacity(self) -> u8 {
         self.metadata().fuel
     }
 
+    pub(in crate::sim) fn operational_range(self) -> i32 {
+        self.conquests_rule().operational_range
+    }
+
     pub(in crate::sim) fn is_missile(self) -> bool {
         matches!(
             self,
-            Self::CruiseMissile | Self::Nuclear | Self::Icbm | Self::TacticalNuke
+            Self::CruiseMissile | Self::ICBM | Self::TacticalNuke
         )
     }
 
     pub(crate) fn is_nuclear_weapon(self) -> bool {
-        matches!(self, Self::Nuclear | Self::Icbm | Self::TacticalNuke)
+        matches!(self, Self::ICBM | Self::TacticalNuke)
     }
 
     pub(crate) fn is_aircraft(self) -> bool {
@@ -363,12 +444,27 @@ impl UnitKind {
         self.metadata().attacks_air
     }
 
+    pub(in crate::sim) fn can_rebase(self) -> bool {
+        self.conquests_rule().has_flag_3(12, 3)
+    }
+
     pub(in crate::sim) fn bombard_rate(self) -> i32 {
-        match self {
-            Self::Helicopter => 2,
-            Self::Bomber => 3,
-            Self::StealthBomber => 4,
-            _ => 0,
+        self.conquests_rule().rate_of_fire
+    }
+
+    pub(crate) fn bombard_range(self) -> i32 {
+        self.conquests_rule().bombard_range
+    }
+
+    pub(in crate::sim) fn bombard_strength(self) -> i32 {
+        self.conquests_rule().bombard_strength
+    }
+
+    pub(in crate::sim) fn has_lethal_bombard_against(self, target: Self) -> bool {
+        if target.is_naval() {
+            self.conquests_rule().has_lethal_sea_bombard()
+        } else {
+            self.conquests_rule().has_lethal_land_bombard()
         }
     }
 
@@ -377,10 +473,15 @@ impl UnitKind {
     }
 
     pub(in crate::sim) fn can_occupy_city(self) -> bool {
-        !self.is_civilian() && self.unit_class().can_occupy_city()
+        let class = self.unit_class();
+        !self.is_civilian()
+            && (class.can_occupy_city() || class == unit_catalog::UnitClass::SmallLand)
     }
 
     pub(crate) fn can_carry(self, kind: Self) -> bool {
+        if self.conquests_rule().has_flag_1(1, 6) {
+            return kind.conquests_rule().has_flag_1(0, 1);
+        }
         self.metadata().cargo.contains(&kind.unit_class())
     }
 
@@ -394,10 +495,7 @@ impl UnitKind {
 
     pub(crate) fn has_hostile_action(self) -> bool {
         use unit_catalog::UnitFlag;
-        !self.has_flag(UnitFlag::NonMil)
-            || self.has_flag(UnitFlag::Diplomat)
-            || self.has_flag(UnitFlag::Spy)
-            || self.has_flag(UnitFlag::Capturer)
+        !self.has_flag(UnitFlag::NonMil) || self.has_flag(UnitFlag::Capturer)
     }
 
     pub(crate) fn is_military(self) -> bool {

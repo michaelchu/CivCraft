@@ -349,9 +349,15 @@ formats are unsupported.
 - Nuclear blast coverage now uses the target square and eight Civ III
   neighbors, and each exposed unit gets the manual's 50% survival roll. The
   manual documents the affected squares and unit survival chance on printed
-  page 84. The prototype SDI interception radius of two Civ III steps remains
-  an inference; the manual identifies SDI Defense as the defense against most
-  nuclear attacks but does not specify its range or probability.
+  page 84. Nuclear weapons now use a dedicated target-selection command rather
+  than movement into a target. Conquests Civilopedia entries specify Tactical
+  Nuke bombard range 6, unlimited ICBM range, ICBMs stationary in their building
+  city, and a 75% SDI Defense interception chance against enemy ICBMs. The
+  launch validator enforces visibility, hostility, range, and the ICBM city
+  launch rule; SDI no longer grants a generic combat bonus against cruise
+  missiles. AI ICBMs prioritize the largest known hostile city and then known
+  enemy stacks. Human and AI strikes consume the weapon, and interception is
+  rolled only for ICBMs.
 - The shared `Simulation::map_distance` now delegates to `MapWrap::civ3_distance`,
   so remaining strategic range, ranking, and placement callers use Civ III graph
   steps instead of the old ISOHEX vector metric. Observer test fixtures now

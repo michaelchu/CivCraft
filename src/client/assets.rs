@@ -1,53 +1,6 @@
 //! Loading and preparing textures, sprites, and other renderer assets.
 
-use super::sprite_metadata::*;
 use super::*;
-
-// Give each sprite its own duplicated edge pixels, as if loaded separately.
-// Source sheets can contain opaque grid lines immediately outside the cells.
-fn isolated_atlas(
-    source: &Image,
-    width: usize,
-    height: usize,
-    cols: usize,
-    rows: usize,
-    bordered: bool,
-) -> Image {
-    let gap = usize::from(bordered);
-    isolated_atlas_at(source, width, height, cols, rows, (gap, gap), gap)
-}
-
-fn isolated_atlas_at(
-    source: &Image,
-    width: usize,
-    height: usize,
-    cols: usize,
-    rows: usize,
-    origin: (usize, usize),
-    gap: usize,
-) -> Image {
-    let mut atlas = Image::gen_image_color(
-        (cols * (width + 2)) as u16,
-        (rows * (height + 2)) as u16,
-        BLANK,
-    );
-    let stride = atlas.width();
-    let src = source.get_image_data();
-    let dst = atlas.get_image_data_mut();
-    for row in 0..rows {
-        for col in 0..cols {
-            for y in 0..height + 2 {
-                for x in 0..width + 2 {
-                    let sx = origin.0 + col * (width + gap) + x.saturating_sub(1).min(width - 1);
-                    let sy = origin.1 + row * (height + gap) + y.saturating_sub(1).min(height - 1);
-                    dst[(row * (height + 2) + y) * stride + col * (width + 2) + x] =
-                        src[sy * source.width() + sx];
-                }
-            }
-        }
-    }
-    atlas
-}
 
 pub(crate) fn window_conf() -> Conf {
     let args: Vec<_> = std::env::args().collect();
@@ -73,8 +26,6 @@ pub(crate) struct Assets {
     pub(super) civ3: super::tileset::Civ3,
     pub(super) source_fog: Texture2D,
     pub(super) resource_icons: Texture2D,
-    // The legacy unit atlas remains for compact non-map UI icons only.
-    pub(super) units: Texture2D,
     pub(super) leader_avatar_badges: Vec<Texture2D>,
     pub(super) leader_portraits: Vec<Vec<Texture2D>>,
 }
@@ -107,11 +58,6 @@ impl Assets {
         let source_fog = Texture2D::from_image(&source_fog_image);
         // Match OpenCiv3's nearest-filter sampling of the source fog atlas.
         source_fog.set_filter(FilterMode::Nearest);
-        let units_image =
-            Image::from_file_with_format(include_bytes!("../../assets/amplio2_units.png"), None)
-                .expect("valid unit UI atlas");
-        let units = Texture2D::from_image(&isolated_atlas(&units_image, 64, 48, 20, 3, true));
-        units.set_filter(FilterMode::Nearest);
         let leader_portraits = [
             [
                 include_bytes!("../../assets/leader_portraits/rome/furious.png").as_slice(),
@@ -187,60 +133,8 @@ impl Assets {
             civ3,
             source_fog,
             resource_icons,
-            units,
             leader_avatar_badges,
             leader_portraits,
         })
     }
 }
-
-pub(crate) fn native_unit_rendering_playtest() -> (bool, bool, bool) {
-    let atlas =
-        Image::from_file_with_format(include_bytes!("../../assets/amplio2_units.png"), None)
-            .expect("valid native unit atlas");
-    let pixels = atlas.get_image_data();
-    let visible = |kind| {
-        let (row, col) = unit_sprite(kind);
-        let source = bordered_sprite_source(row, col, 64.0, 48.0);
-        let (x, y) = (source.x as usize, source.y as usize);
-        x + 64 <= atlas.width()
-            && y + 48 <= atlas.height()
-            && (y..y + 48)
-                .any(|row| (x..x + 64).any(|col| pixels[row * atlas.width() + col][3] != 0))
-    };
-    let added = [
-        UnitKind::Pikemen,
-        UnitKind::Riflemen,
-        UnitKind::AlpineTroops,
-        UnitKind::Fanatics,
-        UnitKind::MechInf,
-        UnitKind::Elephants,
-        UnitKind::Crusaders,
-        UnitKind::Dragoons,
-        UnitKind::Cavalry,
-        UnitKind::Armor,
-        UnitKind::Artillery,
-        UnitKind::Howitzer,
-        UnitKind::Leader,
-        UnitKind::Awacs,
-        UnitKind::Storm,
-    ];
-    let complete =
-        UnitKind::ALL_NATIVE.len() == 66 && UnitKind::ALL_NATIVE.into_iter().all(visible);
-    let distinct = added
-        .into_iter()
-        .map(unit_sprite)
-        .collect::<std::collections::BTreeSet<_>>()
-        .len()
-        == 15;
-    let labels = added
-        .into_iter()
-        .all(|kind| !short_unit_name(kind).is_empty())
-        && short_unit_name(UnitKind::Awacs) == "AWACS"
-        && short_unit_name(UnitKind::MechInf) == "Mech. Inf.";
-    (complete, distinct, labels)
-}
-
-#[cfg(test)]
-#[path = "assets_tests.rs"]
-mod native_unit_tests;

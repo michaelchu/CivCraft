@@ -178,6 +178,7 @@ impl Tileset {
 
 struct Theme {
     root: PathBuf,
+    source_root: Option<PathBuf>,
     fallback_roots: Vec<PathBuf>,
     paths: HashMap<String, String>,
     transparent_indices: HashMap<String, Vec<u8>>,
@@ -309,6 +310,7 @@ impl Theme {
                 }
             }
         }
+        let source_root = locate_source_root().ok();
         let fallback_roots = if root.file_name().is_some_and(|name| name == "Art")
             && root
                 .parent()
@@ -325,8 +327,12 @@ impl Theme {
         } else {
             Vec::new()
         };
+        if let Some(source) = &source_root {
+            load_campaign_unit_ini_paths(source, &mut paths)?;
+        }
         Ok(Self {
             root: root.to_owned(),
+            source_root,
             fallback_roots,
             paths,
             transparent_indices,
@@ -386,15 +392,190 @@ impl Theme {
     }
 }
 
+fn load_campaign_unit_ini_paths(
+    source: &Path,
+    paths: &mut HashMap<String, String>,
+) -> Result<(), String> {
+    let roots = [
+        ("base", source.join("Art/Units")),
+        ("ptw", source.join("civ3PTW/Art/Units")),
+        ("conquests", source.join("Conquests/Art/Units")),
+    ]
+    .into_iter()
+    .collect::<HashMap<_, _>>();
+    let data = include_str!("../../data/rulesets/civ3_conquests/units.tsv");
+    let mut identities = 0;
+    for line in data.lines().skip(1) {
+        let fields = line.split('\t').collect::<Vec<_>>();
+        if fields.len() < 33 {
+            return Err("Civ III unit catalog has a malformed row while loading art".into());
+        }
+        identities += 1;
+        let role = format!("unit-{}", fields[0].replace('_', "-"));
+        let folders = fields[31].split('|').collect::<Vec<_>>();
+        let labels = fields[32].split('|').collect::<Vec<_>>();
+        if folders.len() != labels.len() {
+            return Err(format!(
+                "{} has unmatched art folder/root variants",
+                fields[1]
+            ));
+        }
+        for (variant, (folder, label)) in folders.into_iter().zip(labels).enumerate() {
+            let Some(root) = roots.get(label) else {
+                return Err(format!("{} has unknown art root '{label}'", fields[1]));
+            };
+            let directory = root.join(folder);
+            let ini = fs::read_dir(&directory)
+                .map_err(|error| format!("{}: {error}", directory.display()))?
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .find(|path| {
+                    path.extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("ini"))
+                })
+                .ok_or_else(|| format!("{}: no unit INI found", directory.display()))?;
+            let key = if variant == 0 {
+                role.clone()
+            } else {
+                let era = ["ancient-times", "middle-ages", "industrial-ages", "modern-times"]
+                    .get(variant)
+                    .ok_or_else(|| format!("{} has too many era art variants", fields[1]))?;
+                format!("{role}-era-{era}")
+            };
+            paths
+                .entry(key)
+                .or_insert_with(|| ini.to_string_lossy().into_owned());
+        }
+    }
+    if identities != 92 {
+        return Err(format!(
+            "expected 92 campaign units when loading art, got {identities}"
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Clone, Debug)]
+struct UnitAnimationSource {
+    role: String,
+    path: PathBuf,
+    timing_seconds: Option<f32>,
+    normal_speed: Option<u32>,
+    fast_speed: Option<u32>,
+}
+
+impl Theme {
+    fn resolve_theme_file(&self, reference: &str) -> Result<PathBuf, String> {
+        if Path::new(reference).is_absolute() && Path::new(reference).is_file() {
+            return Ok(Path::new(reference).to_owned());
+        }
+        let mut bases = vec![self.root.clone()];
+        bases.extend(self.fallback_roots.iter().cloned());
+        if let Some(source) = &self.source_root {
+            bases.push(source.clone());
+        }
+        for base in bases {
+            if let Some(path) = resolve_case_insensitive_path(&base, reference) {
+                return Ok(path);
+            }
+        }
+        Err(format!(
+            "{}: file '{reference}' was not found in the configured art roots",
+            self.root.display()
+        ))
+    }
+
+    fn resolve_unit_file(&self, ini_path: &Path, reference: &str) -> Result<PathBuf, String> {
+        let mut bases = Vec::with_capacity(self.fallback_roots.len() + 3);
+        if let Some(parent) = ini_path.parent() {
+            bases.push(parent.to_owned());
+            // Expansion manifests often name an animation shared from the
+            // same unit's base-game folder using only its filename. Search
+            // that corresponding unit directory before the broader art roots.
+            if let Some(unit_folder) = parent.file_name() {
+                bases.extend(
+                    self.fallback_roots
+                        .iter()
+                        .map(|root| root.join("Units").join(unit_folder)),
+                );
+                if let Some(source) = &self.source_root {
+                    bases.extend(
+                        [
+                            source.join("Conquests/Art"),
+                            source.join("civ3PTW/Art"),
+                            source.join("Art"),
+                        ]
+                        .into_iter()
+                        .map(|root| root.join("Units").join(unit_folder)),
+                    );
+                }
+            }
+        }
+        bases.push(self.root.clone());
+        bases.extend(self.fallback_roots.iter().cloned());
+        if let Some(source) = &self.source_root {
+            bases.push(source.clone());
+        }
+        bases.dedup();
+        for base in bases {
+            if let Some(path) = resolve_case_insensitive_path(&base, reference) {
+                return Ok(path);
+            }
+        }
+        Err(format!(
+            "{}: animation file '{reference}' was not found relative to the INI or in the configured Civ III art roots",
+            ini_path.display()
+        ))
+    }
+}
+
+fn resolve_case_insensitive_path(base: &Path, reference: &str) -> Option<PathBuf> {
+    let normalized = reference.trim().trim_matches('"').replace('\\', "/");
+    let mut current = if normalized.starts_with('/') {
+        PathBuf::from("/")
+    } else {
+        base.to_owned()
+    };
+    for component in normalized.split('/') {
+        if component.is_empty() || component == "." || component.ends_with(':') {
+            continue;
+        }
+        if component == ".." {
+            current.pop();
+            continue;
+        }
+        let exact = current.join(component);
+        if exact.exists() {
+            current = exact;
+            continue;
+        }
+        let matched = fs::read_dir(&current)
+            .ok()?
+            .filter_map(Result::ok)
+            .find(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(component)
+            })?;
+        current = matched.path();
+    }
+    current.is_file().then_some(current)
+}
+
 fn expand_unit_animation_ini(
-    root: &Path,
+    theme: &Theme,
     role: &str,
     relative_path: &str,
-) -> Result<Vec<(String, PathBuf)>, String> {
-    let ini_path = root.join(relative_path);
+) -> Result<Vec<UnitAnimationSource>, String> {
+    let ini_path = theme.resolve_theme_file(relative_path)?;
     let contents = fs::read_to_string(&ini_path)
         .map_err(|error| format!("{}: {error}", ini_path.display()))?;
-    let mut in_animations = false;
+    let mut section = String::new();
+    let mut animations_raw = Vec::<(String, String)>::new();
+    let mut timings = HashMap::<String, f32>::new();
+    let mut normal_speed = None;
+    let mut fast_speed = None;
     let mut animations = Vec::new();
     for line in contents.lines() {
         let line = line.split(';').next().unwrap_or_default().trim();
@@ -402,44 +583,116 @@ fn expand_unit_animation_ini(
             continue;
         }
         if line.starts_with('[') && line.ends_with(']') {
-            in_animations = line[1..line.len() - 1]
-                .trim()
-                .eq_ignore_ascii_case("Animations");
-            continue;
-        }
-        if !in_animations {
+            section = line[1..line.len() - 1].trim().to_ascii_uppercase();
             continue;
         }
         let Some((action, filename)) = line.split_once('=') else {
             continue;
         };
-        let filename = filename.trim();
-        if filename.is_empty() {
-            continue;
+        let action = action.trim().to_ascii_uppercase();
+        let value = filename.trim().trim_matches('"');
+        match section.as_str() {
+            "ANIMATIONS" if !value.is_empty() && value.to_ascii_lowercase().ends_with(".flc") => {
+                animations_raw.push((action, value.to_owned()));
+            }
+            "TIMING" if !value.is_empty() => {
+                let duration = value.parse::<f32>().map_err(|error| {
+                    format!(
+                        "{}: invalid [Timing] value for {action}: {error}",
+                        ini_path.display()
+                    )
+                })?;
+                if !duration.is_finite() || duration < 0.0 {
+                    return Err(format!(
+                        "{}: invalid negative/nonfinite timing for {action}",
+                        ini_path.display()
+                    ));
+                }
+                timings.insert(action, duration);
+            }
+            "SPEED" if !value.is_empty() => {
+                let speed = value.parse::<u32>().map_err(|error| {
+                    format!(
+                        "{}: invalid [Speed] value for {action}: {error}",
+                        ini_path.display()
+                    )
+                })?;
+                if speed == 0 {
+                    return Err(format!(
+                        "{}: [Speed] value for {action} must be positive",
+                        ini_path.display()
+                    ));
+                }
+                let slot = match action.as_str() {
+                    "NORMAL SPEED" => &mut normal_speed,
+                    "FAST SPEED" => &mut fast_speed,
+                    _ => continue,
+                };
+                if slot.is_some_and(|existing| existing != speed) {
+                    return Err(format!(
+                        "{}: conflicting [Speed] values for {action}",
+                        ini_path.display()
+                    ));
+                }
+                *slot = Some(speed);
+            }
+            _ => {}
         }
-        let suffix = match action.trim().to_ascii_uppercase().as_str() {
-            "DEFAULT" => "",
-            "RUN" => "-run",
-            "ATTACK1" => "-attack",
-            _ => continue,
-        };
-        let action_role = format!("{role}{suffix}");
-        let path = ini_path
-            .parent()
-            .unwrap_or(root)
-            .join(filename.trim_matches('"'));
-        animations.push((action_role, path));
     }
-    if !animations
-        .iter()
-        .any(|(action_role, _)| action_role == role)
-    {
+    for (action, filename) in animations_raw {
+        let suffix = unit_animation_suffix(&action);
+        let path = theme.resolve_unit_file(&ini_path, &filename)?;
+        animations.push(UnitAnimationSource {
+            role: format!("{role}{suffix}"),
+            path,
+            timing_seconds: timings.get(&action).copied(),
+            normal_speed,
+            fast_speed,
+        });
+    }
+    if !animations.iter().any(|animation| animation.role == role) {
         return Err(format!(
             "{}: [Animations] has no DEFAULT FLC",
             ini_path.display()
         ));
     }
     Ok(animations)
+}
+
+fn unit_animation_suffix(action: &str) -> String {
+    let suffix = match action {
+        "DEFAULT" => return String::new(),
+        "BLANK" => "blank",
+        "WALK" => "walk",
+        "RUN" => "run",
+        "ATTACK1" => "attack",
+        "ATTACK2" => "attack-2",
+        "ATTACK3" => "attack-3",
+        "DEFEND" => "defend",
+        "DEATH" => "death",
+        "DEAD" => "dead",
+        "FORTIFY" => "fortify",
+        "FORTIFYHOLD" => "fortify-hold",
+        "FIDGET" => "fidget",
+        "VICTORY" => "victory",
+        "TURNLEFT" => "turn-left",
+        "TURNRIGHT" => "turn-right",
+        "BUILD" => "build",
+        "ROAD" => "road",
+        "STOP_AT_LAST_FRAME" => "stop-at-last-frame",
+        "PAUSEROAD" => "pause-road",
+        "PAUSEMINE" => "pause-mine",
+        "PAUSEIRRIGATE" => "pause-irrigate",
+        "MINE" => "mine",
+        "IRRIGATE" => "irrigate",
+        "FORTRESS" => "fortress",
+        "CAPTURE" => "capture",
+        "FOREST" => "forest",
+        "PAUSEFOREST" => "pause-forest",
+        "JUNGLE" => "jungle",
+        _ => return format!("-{}", action.to_ascii_lowercase().replace('_', "-")),
+    };
+    format!("-{suffix}")
 }
 
 fn read_theme_image(
@@ -842,7 +1095,8 @@ pub(super) struct Civ3 {
     pollution: Option<Texture2D>,
     craters: Option<Texture2D>,
     optional_improvements: HashMap<&'static str, Texture2D>,
-    unit_art: HashMap<String, Civ3UnitArt>,
+    unit_art: RefCell<HashMap<String, Civ3UnitArt>>,
+    unit_animation_sources: HashMap<String, UnitAnimationSource>,
     river_delta: Texture2D,
     river_mountain: Texture2D,
     resources: Option<ResourceArt>,
@@ -856,27 +1110,87 @@ struct Civ3UnitArt {
     width: f32,
     height: f32,
     frame_count: usize,
+    frame_columns: usize,
     direction_count: usize,
     original_width: f32,
     original_height: f32,
     offset_left: f32,
     offset_top: f32,
+    timing_seconds: Option<f32>,
+    #[allow(dead_code)]
+    normal_speed: Option<u32>,
+    #[allow(dead_code)]
+    fast_speed: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum Civ3UnitAction {
     #[default]
     Default,
+    Blank,
+    Walk,
     Run,
     Attack,
+    Attack2,
+    Attack3,
+    Defend,
+    Death,
+    Dead,
+    Victory,
+    Fidget,
+    Fortify,
+    FortifyHold,
+    TurnLeft,
+    TurnRight,
+    StopAtLastFrame,
+    Build,
+    Road,
+    PauseRoad,
+    Mine,
+    PauseMine,
+    Irrigate,
+    PauseIrrigate,
+    Forest,
+    PauseForest,
+    Jungle,
+    Plant,
+    Fortress,
+    Capture,
 }
 
 impl Civ3UnitAction {
     fn role_suffix(self) -> Option<&'static str> {
         match self {
             Self::Default => None,
+            Self::Blank => Some("-blank"),
+            Self::Walk => Some("-walk"),
             Self::Run => Some("-run"),
             Self::Attack => Some("-attack"),
+            Self::Attack2 => Some("-attack-2"),
+            Self::Attack3 => Some("-attack-3"),
+            Self::Defend => Some("-defend"),
+            Self::Death => Some("-death"),
+            Self::Dead => Some("-dead"),
+            Self::Victory => Some("-victory"),
+            Self::Fidget => Some("-fidget"),
+            Self::Fortify => Some("-fortify"),
+            Self::FortifyHold => Some("-fortify-hold"),
+            Self::TurnLeft => Some("-turn-left"),
+            Self::TurnRight => Some("-turn-right"),
+            Self::StopAtLastFrame => Some("-stop-at-last-frame"),
+            Self::Build => Some("-build"),
+            Self::Road => Some("-road"),
+            Self::PauseRoad => Some("-pause-road"),
+            Self::Mine => Some("-mine"),
+            Self::PauseMine => Some("-pause-mine"),
+            Self::Irrigate => Some("-irrigate"),
+            Self::PauseIrrigate => Some("-pause-irrigate"),
+            Self::Forest => Some("-forest"),
+            Self::PauseForest => Some("-pause-forest"),
+            Self::Jungle => Some("-jungle"),
+            Self::Plant => Some("-forest"),
+            Self::Fortress => Some("-fortress"),
+            Self::Capture => Some("-capture"),
         }
     }
 }
@@ -1056,56 +1370,38 @@ impl Civ3 {
             texture.set_filter(FilterMode::Nearest);
             cities.insert(style, texture);
         }
-        let mut unit_art = HashMap::new();
         let unit_paths = theme
             .paths
             .iter()
             .filter(|(role, _)| role.starts_with("unit-"))
             .collect::<Vec<_>>();
-        let mut resolved_unit_paths = HashMap::new();
-        for (role, relative_path) in unit_paths
-            .iter()
-            .copied()
-            .filter(|(_, path)| !path.to_ascii_lowercase().ends_with(".ini"))
-        {
-            resolved_unit_paths.insert(role.clone(), theme.root.join(relative_path));
-        }
-        for (role, relative_path) in unit_paths
-            .iter()
-            .copied()
-            .filter(|(_, path)| path.to_ascii_lowercase().ends_with(".ini"))
-        {
-            for (action_role, path) in expand_unit_animation_ini(&theme.root, role, relative_path)?
-            {
-                resolved_unit_paths.entry(action_role).or_insert(path);
-            }
-        }
-        for (role, path) in resolved_unit_paths {
-            let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
-            let flic = super::flc::decode_flic(&bytes)
-                .map_err(|error| format!("{}: {error}", path.display()))?;
-            let (base_image, tint_image) = flic
-                .image_atlases()
-                .map_err(|error| format!("{}: {error}", path.display()))?;
-            let base = Texture2D::from_image(&base_image);
-            let tint = Texture2D::from_image(&tint_image);
-            base.set_filter(FilterMode::Nearest);
-            tint.set_filter(FilterMode::Nearest);
-            unit_art.insert(
+        let mut resolved_unit_paths = HashMap::<String, UnitAnimationSource>::new();
+        for (role, relative_path) in unit_paths.iter().copied().filter(|(_, path)| {
+            !Path::new(path)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("ini"))
+        }) {
+            resolved_unit_paths.insert(
                 role.clone(),
-                Civ3UnitArt {
-                    base,
-                    tint,
-                    width: flic.width as f32,
-                    height: flic.height as f32,
-                    frame_count: flic.animations[0].len(),
-                    direction_count: flic.animations.len(),
-                    original_width: flic.original_width.max(flic.width) as f32,
-                    original_height: flic.original_height.max(flic.height) as f32,
-                    offset_left: flic.offset_left as f32,
-                    offset_top: flic.offset_top as f32,
+                UnitAnimationSource {
+                    role: role.clone(),
+                    path: theme.resolve_theme_file(relative_path)?,
+                    timing_seconds: None,
+                    normal_speed: None,
+                    fast_speed: None,
                 },
             );
+        }
+        for (role, relative_path) in unit_paths.iter().copied().filter(|(_, path)| {
+            Path::new(path)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("ini"))
+        }) {
+            for animation in expand_unit_animation_ini(&theme, role, relative_path)? {
+                resolved_unit_paths
+                    .entry(animation.role.clone())
+                    .or_insert(animation);
+            }
         }
         Ok(Self {
             art,
@@ -1118,7 +1414,8 @@ impl Civ3 {
             pollution,
             craters,
             optional_improvements,
-            unit_art,
+            unit_art: RefCell::default(),
+            unit_animation_sources: resolved_unit_paths,
             river_delta,
             river_mountain,
             resources,
@@ -1146,33 +1443,158 @@ impl Civ3 {
         self.city_texture(style)
     }
 
+    fn unit_animation_role(&self, kind: UnitKind, era: usize) -> String {
+        let role = super::sprite_metadata::unit_art_role(kind);
+        let era_suffix = [
+            "ancient-times",
+            "middle-ages",
+            "industrial-ages",
+            "modern-times",
+        ]
+        .get(era)
+        .copied()
+        .unwrap_or("modern-times");
+        let era_role = format!("{role}-era-{era_suffix}");
+        if self.unit_animation_sources.contains_key(&era_role) {
+            era_role
+        } else {
+            role
+        }
+    }
+
+    fn load_unit_animation(&self, role: &str) -> Result<(), String> {
+        if self.unit_art.borrow().contains_key(role) {
+            return Ok(());
+        }
+        let source = self
+            .unit_animation_sources
+            .get(role)
+            .ok_or_else(|| format!("no Civ III animation is mapped for {role}"))?;
+        let bytes = fs::read(&source.path)
+            .map_err(|error| format!("{}: {error}", source.path.display()))?;
+        let flic = super::flc::decode_flic(&bytes)
+            .map_err(|error| format!("{}: {error}", source.path.display()))?;
+        let (base_image, tint_image) = flic
+            .image_atlases()
+            .map_err(|error| format!("{}: {error}", source.path.display()))?;
+        let base = Texture2D::from_image(&base_image);
+        let tint = Texture2D::from_image(&tint_image);
+        base.set_filter(FilterMode::Nearest);
+        tint.set_filter(FilterMode::Nearest);
+        self.unit_art.borrow_mut().insert(
+            role.to_owned(),
+            Civ3UnitArt {
+                base,
+                tint,
+                width: flic.width as f32,
+                height: flic.height as f32,
+                frame_count: flic.animations[0].len(),
+                frame_columns: flic.animations[0].len().min(4096 / flic.width),
+                direction_count: flic.animations.len(),
+                original_width: flic.original_width.max(flic.width) as f32,
+                original_height: flic.original_height.max(flic.height) as f32,
+                offset_left: flic.offset_left as f32,
+                offset_top: flic.offset_top as f32,
+                timing_seconds: source.timing_seconds,
+                normal_speed: source.normal_speed,
+                fast_speed: source.fast_speed,
+            },
+        );
+        Ok(())
+    }
+
+    /// Draw a compact unit portrait using the same source FLC art as the map.
+    pub(super) fn draw_unit_icon(
+        &self,
+        kind: UnitKind,
+        owner: usize,
+        era: usize,
+        center: Vec2,
+        bounds: Vec2,
+        has_moves: bool,
+    ) -> bool {
+        let role = self.unit_animation_role(kind, era);
+        if self.load_unit_animation(&role).is_err() {
+            return false;
+        }
+        let (width, height) = {
+            let loaded = self.unit_art.borrow();
+            let Some(art) = loaded.get(&role) else {
+                return false;
+            };
+            (art.original_width.max(1.0), art.original_height.max(1.0))
+        };
+        let scale = (bounds.x / width).min(bounds.y / height);
+        let zoom = scale * (64.0 / TILE_W);
+        self.draw_unit(
+            kind,
+            owner,
+            2,
+            era,
+            Civ3UnitAction::Default,
+            0.0,
+            None,
+            center,
+            zoom,
+            has_moves,
+        )
+    }
+
     /// Draw the first frame for a unit's current direction from a mod FLC.
     pub(super) fn draw_unit(
         &self,
         kind: UnitKind,
         owner: usize,
         facing: u8,
+        era: usize,
         action: Civ3UnitAction,
         progress: f32,
+        playback_duration_seconds: Option<f32>,
         center: Vec2,
         zoom: f32,
         has_moves: bool,
     ) -> bool {
-        let role = super::sprite_metadata::unit_art_role(kind);
+        let role = self.unit_animation_role(kind, era);
         let action_role = action
             .role_suffix()
             .map_or_else(|| role.clone(), |suffix| format!("{role}{suffix}"));
-        let Some(art) = self
-            .unit_art
-            .get(&action_role)
-            .or_else(|| self.unit_art.get(&role))
-        else {
+        let alternate_role = match action {
+            Civ3UnitAction::Attack2 | Civ3UnitAction::Attack3 => Some(format!("{role}-attack")),
+            Civ3UnitAction::FortifyHold => Some(format!("{role}-fortify")),
+            Civ3UnitAction::PauseRoad => Some(format!("{role}-road")),
+            Civ3UnitAction::PauseMine => Some(format!("{role}-mine")),
+            Civ3UnitAction::PauseIrrigate => Some(format!("{role}-irrigate")),
+            Civ3UnitAction::PauseForest => Some(format!("{role}-forest")),
+            Civ3UnitAction::Plant => Some(format!("{role}-jungle")),
+            _ => None,
+        };
+        let selected_role = [Some(action_role.as_str()), alternate_role.as_deref(), Some(role.as_str())]
+            .into_iter()
+            .flatten()
+            .find(|candidate| self.unit_animation_sources.contains_key(*candidate));
+        let Some(selected_role) = selected_role else {
             return false;
         };
+        if self.load_unit_animation(selected_role).is_err() {
+            return false;
+        }
+        let loaded_unit_art = self.unit_art.borrow();
+        let art = loaded_unit_art.get(selected_role).unwrap();
         let frame = if action == Civ3UnitAction::Default {
             0
         } else {
-            ((progress.clamp(0.0, 1.0) * art.frame_count as f32).floor() as usize)
+            let event_duration = playback_duration_seconds.unwrap_or(1.0).max(0.001);
+            let cycle_duration = art
+                .timing_seconds
+                .filter(|seconds| *seconds > 0.0)
+                .unwrap_or(event_duration);
+            let elapsed_cycles = progress.clamp(0.0, 1.0) * event_duration / cycle_duration;
+            let cycle_progress = if action == Civ3UnitAction::StopAtLastFrame {
+                elapsed_cycles.min(1.0)
+            } else {
+                elapsed_cycles.fract()
+            };
+            ((cycle_progress * art.frame_count as f32).floor() as usize)
                 .min(art.frame_count.saturating_sub(1))
         };
         let direction = if usize::from(facing) < art.direction_count {
@@ -1183,8 +1605,10 @@ impl Civ3 {
             0
         };
         let source = Rect::new(
-            frame as f32 * art.width,
-            direction as f32 * art.height,
+            (frame % art.frame_columns) as f32 * art.width,
+            (direction * art.frame_count.div_ceil(art.frame_columns) + frame / art.frame_columns)
+                as f32
+                * art.height,
             art.width,
             art.height,
         );
@@ -1960,39 +2384,138 @@ mod tests {
     }
 
     #[test]
-    fn civ3_unit_ini_expands_default_run_and_attack_animation_paths() {
+    fn civ3_unit_ini_expands_all_states_timings_and_shared_windows_paths() {
         let directory = std::env::temp_dir().join(format!(
             "civ3-unit-ini-theme-{}-{}",
             std::process::id(),
             std::thread::current().name().unwrap_or("test")
         ));
-        let unit_directory = directory.join("Units/Warrior");
+        let unit_directory = directory.join("civ3PTW/Art/Units/Berserk");
+        let shared_directory = directory.join("Art/Units/Longbowman");
         fs::create_dir_all(&unit_directory).unwrap();
-        let ini = unit_directory.join("Warrior.INI");
+        fs::create_dir_all(&shared_directory).unwrap();
+        let ini = unit_directory.join("Berserk.INI");
         fs::write(
             &ini,
-            "[Speed]\nFast Speed=225\n[Animations]\nDEFAULT=Default.flc\nRUN=Run.flc\nATTACK1=Attack.flc\nATTACK2=\n",
+            "[Speed]\nFast Speed=225\n[Animations]\nDEFAULT=Default.flc\nRUN=Run.flc\nATTACK1=AttackA.flc\nATTACK2=..\\..\\..\\..\\Art\\Units\\Longbowman\\AttackB.FLC\nDEATH=Death.flc\nFIDGET=Fidget.flc\nCAPTURE=Capture.flc\n[Timing]\nDEFAULT=0.5\nRUN=0.25\nATTACK1=0.4\nATTACK2=0.75\nDEATH=0.8\nFIDGET=1.25\nCAPTURE=0.5\n",
         )
         .unwrap();
-        let paths =
-            expand_unit_animation_ini(&directory, "unit-warrior", "Units/Warrior/Warrior.INI")
-                .unwrap()
-                .into_iter()
-                .map(|(role, path)| {
-                    (
-                        role,
-                        path.strip_prefix(&directory)
-                            .unwrap()
-                            .to_string_lossy()
-                            .replace('\\', "/"),
-                    )
-                })
-                .collect::<HashMap<_, _>>();
-        assert_eq!(paths["unit-warrior"], "Units/Warrior/Default.flc");
-        assert_eq!(paths["unit-warrior-run"], "Units/Warrior/Run.flc");
-        assert_eq!(paths["unit-warrior-attack"], "Units/Warrior/Attack.flc");
+        for filename in [
+            "Default.flc",
+            "Run.flc",
+            "AttackA.flc",
+            "Death.flc",
+            "Fidget.flc",
+            "Capture.flc",
+        ] {
+            fs::write(unit_directory.join(filename), b"stub").unwrap();
+        }
+        let shared_attack = shared_directory.join("AttackB.flc");
+        fs::write(&shared_attack, b"stub").unwrap();
+        let theme = Theme::read(&directory.join("civ3PTW/Art")).unwrap();
+        let animations =
+            expand_unit_animation_ini(&theme, "unit-berserk", "Units/Berserk/Berserk.INI").unwrap();
+        let by_role = animations
+            .iter()
+            .map(|animation| (animation.role.as_str(), animation))
+            .collect::<HashMap<_, _>>();
+        assert_eq!(by_role["unit-berserk"].timing_seconds, Some(0.5));
+        assert_eq!(by_role["unit-berserk-run"].timing_seconds, Some(0.25));
+        assert_eq!(by_role["unit-berserk-attack"].timing_seconds, Some(0.4));
+        assert_eq!(by_role["unit-berserk-attack-2"].timing_seconds, Some(0.75));
+        assert_eq!(by_role["unit-berserk-death"].timing_seconds, Some(0.8));
+        assert_eq!(by_role["unit-berserk-fidget"].timing_seconds, Some(1.25));
+        assert_eq!(by_role["unit-berserk-capture"].timing_seconds, Some(0.5));
+        assert!(
+            by_role["unit-berserk-attack-2"]
+                .path
+                .starts_with(&shared_directory)
+        );
+        assert!(by_role["unit-berserk-attack-2"].path.is_file());
         fs::remove_file(ini).unwrap();
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn every_campaign_unit_ini_animation_resolves_in_the_installed_art_roots() {
+        let theme = Theme::read(&locate_default_art().unwrap()).unwrap();
+        assert_eq!(
+            theme
+                .paths
+                .keys()
+                .filter(|role| role.starts_with("unit-"))
+                .count(),
+            98,
+            "all unit identities and era-specific Army/Leader INIs are mapped"
+        );
+        let source = theme.source_root.as_ref().unwrap();
+        let unit_roots = [
+            ("base", source.join("Art/Units")),
+            ("ptw", source.join("civ3PTW/Art/Units")),
+            ("conquests", source.join("Conquests/Art/Units")),
+        ]
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+        let mut unit_count = 0;
+        let mut ini_count = 0;
+        let mut animation_count = 0;
+        let mut decoded_files = std::collections::HashSet::new();
+        for line in include_str!("../../data/rulesets/civ3_conquests/units.tsv")
+            .lines()
+            .skip(1)
+        {
+            let fields = line.split('\t').collect::<Vec<_>>();
+            let role = format!("unit-{}", fields[0].replace('_', "-"));
+            let folders = fields[31].split('|').collect::<Vec<_>>();
+            let roots = fields[32].split('|').collect::<Vec<_>>();
+            assert_eq!(folders.len(), roots.len(), "{}", fields[1]);
+            unit_count += 1;
+            for (folder, root) in folders.into_iter().zip(roots) {
+                let directory = unit_roots[root].join(folder);
+                let mut ini_files = fs::read_dir(&directory)
+                    .unwrap_or_else(|error| panic!("{}: {error}", directory.display()))
+                    .filter_map(Result::ok)
+                    .map(|entry| entry.path())
+                    .filter(|path| {
+                        path.extension()
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("ini"))
+                    });
+                let ini = ini_files.next().unwrap();
+                assert!(ini_files.next().is_none(), "{}", directory.display());
+                let animations = expand_unit_animation_ini(&theme, &role, ini.to_str().unwrap())
+                    .unwrap_or_else(|error| panic!("{}: {error}", fields[1]));
+                assert!(
+                    animations.iter().any(|animation| animation.role == role),
+                    "{}",
+                    fields[1]
+                );
+                for animation in &animations {
+                    if decoded_files.insert(animation.path.clone()) {
+                        let bytes = fs::read(&animation.path).unwrap_or_else(|error| {
+                            panic!("{}: {error}", animation.path.display())
+                        });
+                        let flic = super::flc::decode_flic(&bytes).unwrap_or_else(|error| {
+                            panic!("{}: {error}", animation.path.display())
+                        });
+                        flic.image_atlases().unwrap_or_else(|error| {
+                            panic!("{}: {error}", animation.path.display())
+                        });
+                    }
+                }
+                animation_count += animations.len();
+                ini_count += 1;
+            }
+        }
+        assert_eq!(unit_count, 92);
+        assert_eq!(
+            ini_count, 98,
+            "Army and Leader each have four era-specific INIs"
+        );
+        assert!(
+            animation_count > ini_count,
+            "all nonempty declared actions should load"
+        );
+        assert!(decoded_files.len() > 300, "all campaign FLCs should decode");
     }
 
     #[test]

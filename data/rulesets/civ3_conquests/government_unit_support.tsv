@@ -1,0 +1,9 @@
+government	town_free_units	city_free_units	metropolis_free_units	cost_per_excess_unit_gold
+anarchy	0	0	0	1
+despotism	4	4	4	1
+monarchy	2	4	8	1
+communism	6	6	6	1
+republic	1	3	4	2
+democracy	0	0	0	1
+fascism	4	7	10	1
+feudalism	5	2	1	3

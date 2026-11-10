@@ -1,0 +1,32 @@
+civilization_id	civilization	source_biq	expansionist	militaristic	starting_unit_1	starting_unit_1_count	starting_unit_2	starting_unit_2_count	expansionist_bonus_unit	bonus_count
+romans	Romans	Conquests/conquests.biq#RACE[1]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	true	Settler	1	Worker	1		0
+egyptians	Egyptians	Conquests/conquests.biq#RACE[2]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+greeks	Greeks	Conquests/conquests.biq#RACE[3]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+babylonians	Babylonians	Conquests/conquests.biq#RACE[4]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+germans	Germans	Conquests/conquests.biq#RACE[5]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	true	Settler	1	Worker	1		0
+russians	Russians	Conquests/conquests.biq#RACE[6]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	true	false	Settler	1	Worker	1	Scout	1
+chinese	Chinese	Conquests/conquests.biq#RACE[7]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	true	Settler	1	Worker	1		0
+americans	Americans	Conquests/conquests.biq#RACE[8]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	true	false	Settler	1	Worker	1	Scout	1
+japanese	Japanese	Conquests/conquests.biq#RACE[9]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	true	Settler	1	Worker	1		0
+french	French	Conquests/conquests.biq#RACE[10]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+indians	Indians	Conquests/conquests.biq#RACE[11]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+persians	Persians	Conquests/conquests.biq#RACE[12]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+aztecs	Aztecs	Conquests/conquests.biq#RACE[13]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	true	Settler	1	Worker	1		0
+zulus	Zulus	Conquests/conquests.biq#RACE[14]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	true	true	Settler	1	Worker	1	Scout	1
+iroquois	Iroquois	Conquests/conquests.biq#RACE[15]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+english	English	Conquests/conquests.biq#RACE[16]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+mongols	Mongols	Conquests/conquests.biq#RACE[17]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	true	true	Settler	1	Worker	1	Scout	1
+spanish	Spanish	Conquests/conquests.biq#RACE[18]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+vikings	Vikings	Conquests/conquests.biq#RACE[19]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	true	Settler	1	Worker	1		0
+ottomans	Ottomans	Conquests/conquests.biq#RACE[20]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+celts	Celts	Conquests/conquests.biq#RACE[21]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+arabs	Arabs	Conquests/conquests.biq#RACE[22]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	true	false	Settler	1	Worker	1	Scout	1
+carthaginians	Carthaginians	Conquests/conquests.biq#RACE[23]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+koreans	Koreans	Conquests/conquests.biq#RACE[24]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+sumerians	Sumerians	Conquests/conquests.biq#RACE[25]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+hittites	Hittites	Conquests/conquests.biq#RACE[26]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	true	false	Settler	1	Worker	1	Scout	1
+dutch	Dutch	Conquests/conquests.biq#RACE[27]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+portuguese	Portuguese	Conquests/conquests.biq#RACE[28]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	true	false	Settler	1	Worker	1	Scout	1
+byzantines	Byzantines	Conquests/conquests.biq#RACE[29]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0
+inca	Inca	Conquests/conquests.biq#RACE[30]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	true	false	Settler	1	Worker	1	Chasqui Scout	1
+mayans	Mayans	Conquests/conquests.biq#RACE[31]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	false	false	Settler	1	Worker	1		0

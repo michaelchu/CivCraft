@@ -1,24 +1,6 @@
-//! Sprite atlas coordinates, variants, and player-color selection.
+//! Civ III unit-art roles and player-color selection.
 
 use super::*;
-
-pub(super) fn bordered_sprite_source(row: i32, col: i32, width: f32, height: f32) -> Rect {
-    Rect::new(
-        1.0 + col as f32 * (width + 1.0),
-        1.0 + row as f32 * (height + 1.0),
-        width,
-        height,
-    )
-}
-
-pub(super) fn isolated_sprite_source(row: i32, col: i32, width: f32, height: f32) -> Rect {
-    Rect::new(
-        1.0 + col as f32 * (width + 2.0),
-        1.0 + row as f32 * (height + 2.0),
-        width,
-        height,
-    )
-}
 
 const PLAYER_COLORS: [Color; MAX_CIVILIZATIONS + 1] = [
     Color::from_rgba(236, 61, 58, 255),
@@ -72,86 +54,10 @@ impl Terrain {
     }
 }
 
-pub(super) fn unit_sprite(kind: UnitKind) -> (i32, i32) {
-    match kind {
-        UnitKind::Settlers => (1, 4),
-        UnitKind::Migrants => (2, 17),
-        UnitKind::Worker => (2, 14),
-        UnitKind::Engineer => (2, 2),
-        UnitKind::Diplomat | UnitKind::BarbarianLeader => (0, 11),
-        UnitKind::Spy => (2, 1),
-        UnitKind::Explorer => (1, 13),
-        UnitKind::Warrior => (0, 18),
-        UnitKind::Phalanx => (1, 1),
-        UnitKind::Archer => (1, 8),
-        UnitKind::Legion => (0, 16),
-        UnitKind::Chariot => (0, 9),
-        UnitKind::Catapult => (0, 7),
-        UnitKind::Musketeers => (0, 19),
-        UnitKind::Marines => (2, 0),
-        UnitKind::Paratroopers => (2, 9),
-        UnitKind::Knights => (0, 15),
-        UnitKind::Partisan => (1, 16),
-        UnitKind::Cannon => (0, 4),
-        UnitKind::Bomber => (0, 3),
-        UnitKind::Fighter => (0, 12),
-        UnitKind::StealthFighter => (2, 7),
-        UnitKind::StealthBomber => (2, 6),
-        UnitKind::Helicopter => (2, 4),
-        UnitKind::Trireme => (1, 7),
-        UnitKind::Caravel => (1, 3),
-        UnitKind::Galleon => (1, 15),
-        UnitKind::Transport => (1, 6),
-        UnitKind::Carrier => (0, 6),
-        UnitKind::Frigate => (0, 13),
-        UnitKind::Ironclad => (0, 14),
-        UnitKind::Destroyer => (1, 11),
-        UnitKind::Cruiser => (0, 10),
-        UnitKind::Battleship => (0, 2),
-        UnitKind::Submarine => (1, 5),
-        UnitKind::AegisCruiser => (2, 8),
-        UnitKind::CruiseMissile => (1, 10),
-        UnitKind::Nuclear => (1, 0),
-        UnitKind::Caravan => (0, 5),
-        UnitKind::Freight => (1, 14),
-        UnitKind::Horseman => (0, 8),
-        UnitKind::Pikemen => (1, 17),
-        UnitKind::Riflemen => (1, 2),
-        UnitKind::AlpineTroops => (2, 5),
-        UnitKind::Fanatics => (2, 12),
-        UnitKind::MechInf => (0, 17),
-        UnitKind::Elephants => (2, 10),
-        UnitKind::Crusaders => (2, 11),
-        UnitKind::Dragoons => (1, 12),
-        UnitKind::Cavalry => (1, 9),
-        UnitKind::Armor => (0, 0),
-        UnitKind::Artillery => (2, 3),
-        UnitKind::Howitzer => (0, 1),
-        UnitKind::Leader => (2, 15),
-        UnitKind::Awacs => (2, 13),
-        UnitKind::Storm => (2, 18),
-        // Temporary visual fallbacks for the newly modeled Civ III roster;
-        // dedicated unit art is being handled separately.
-        UnitKind::Scout => (1, 13),
-        UnitKind::Longbowman => (1, 8),
-        UnitKind::Infantry => (1, 2),
-        UnitKind::ModernArmor => (0, 0),
-        UnitKind::Privateer => (0, 13),
-        UnitKind::JetFighter => (0, 12),
-        UnitKind::NuclearSubmarine => (1, 5),
-        UnitKind::Icbm | UnitKind::TacticalNuke => (1, 0),
-    }
-}
-
 pub(super) fn unit_art_role(kind: UnitKind) -> String {
-    let mut role = String::from("unit-");
-    for (index, character) in format!("{kind:?}").chars().enumerate() {
-        if character.is_ascii_uppercase() && index > 0 {
-            role.push('-');
-        }
-        role.push(character.to_ascii_lowercase());
-    }
-    role
+    kind.conquests_id()
+        .map(|id| format!("unit-{}", id.replace('_', "-")))
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -161,14 +67,26 @@ mod unit_art_role_tests {
 
     #[test]
     fn unit_art_roles_are_stable_kebab_case_manifest_keys() {
-        assert_eq!(unit_art_role(UnitKind::Settlers), "unit-settlers");
+        assert_eq!(unit_art_role(UnitKind::Settler), "unit-settler");
         assert_eq!(unit_art_role(UnitKind::Warrior), "unit-warrior");
         assert_eq!(
             unit_art_role(UnitKind::StealthFighter),
             "unit-stealth-fighter"
         );
-        assert_eq!(unit_art_role(UnitKind::MechInf), "unit-mech-inf");
-        assert_eq!(unit_art_role(UnitKind::Icbm), "unit-icbm");
+        assert_eq!(unit_art_role(UnitKind::MechInfantry), "unit-mech-infantry");
+        assert_eq!(unit_art_role(UnitKind::ICBM), "unit-icbm");
+    }
+
+    #[test]
+    fn all_active_conquests_identities_have_their_source_art_roles() {
+        assert_eq!(UnitKind::ALL_NATIVE.len(), 92);
+        for kind in UnitKind::ALL_NATIVE {
+            let id = kind.conquests_id().expect("active unit needs a source id");
+            assert_eq!(
+                unit_art_role(kind),
+                format!("unit-{}", id.replace('_', "-"))
+            );
+        }
     }
 }
 

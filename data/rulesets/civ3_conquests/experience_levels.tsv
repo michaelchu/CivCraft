@@ -1,0 +1,5 @@
+rank_id	rank_name	base_hit_points	retreat_bonus_percent	promotion_chance_per_mille	default_rank	source_biq	promotion_chance_source
+conscript	Conscript	2	34	500	false	Conquests/conquests.biq#EXPR[0]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	CivFanatics Civilization III FAQ, Warfare
+regular	Regular	3	50	250	true	Conquests/conquests.biq#EXPR[1]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	CivFanatics Civilization III FAQ, Warfare
+veteran	Veteran	4	58	125	false	Conquests/conquests.biq#EXPR[2]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	CivFanatics Civilization III FAQ, Warfare
+elite	Elite	5	66	0	false	Conquests/conquests.biq#EXPR[3]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c	CivFanatics Civilization III FAQ, Warfare

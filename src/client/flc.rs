@@ -42,7 +42,7 @@ fn checked_end(start: usize, length: usize, limit: usize) -> Result<usize, Strin
     Ok(end)
 }
 
-fn decode_brun(data: &[u8], width: usize, height: usize) -> Result<Vec<u8>, String> {
+fn decode_brun(data: &[u8], width: usize, height: usize) -> Result<(Vec<u8>, usize), String> {
     let mut pixels = vec![0; width * height];
     let mut at = 0;
     for y in 0..height {
@@ -81,10 +81,15 @@ fn decode_brun(data: &[u8], width: usize, height: usize) -> Result<Vec<u8>, Stri
             x += run;
         }
     }
-    Ok(pixels)
+    Ok((pixels, at))
 }
 
-fn apply_delta(data: &[u8], pixels: &mut [u8], width: usize, height: usize) -> Result<(), String> {
+fn apply_delta(
+    data: &[u8],
+    pixels: &mut [u8],
+    width: usize,
+    height: usize,
+) -> Result<usize, String> {
     let lines = usize::from(read_u16(data, 0)?);
     let mut at = 2;
     let mut y = 0usize;
@@ -158,7 +163,7 @@ fn apply_delta(data: &[u8], pixels: &mut [u8], width: usize, height: usize) -> R
         }
         y += 1;
     }
-    Ok(())
+    Ok(at)
 }
 
 pub(super) fn decode_flic(bytes: &[u8]) -> Result<Flic, String> {
@@ -225,13 +230,23 @@ pub(super) fn decode_flic(bytes: &[u8]) -> Result<Flic, String> {
             let mut chunk_at = offset + 16;
             for _ in 0..chunks {
                 let chunk_size = read_u32(bytes, chunk_at)? as usize;
-                let chunk_end = checked_end(chunk_at, chunk_size, frame_end)?;
-                if chunk_size < 6 {
-                    return Err("invalid FLC subchunk size".to_owned());
-                }
                 let chunk_type = read_u16(bytes, chunk_at + 4)?;
+                let chunk_data_at = chunk_at + 6;
+                let declared_end = chunk_at.checked_add(chunk_size);
+                let size_is_valid =
+                    chunk_size >= 6 && declared_end.is_some_and(|end| end <= frame_end);
+                // Some shipped Civ III palette chunks have an uninitialized
+                // 0xCDCDCDCD size word. Decode their packet stream to determine
+                // the actual end; all other chunks must carry a valid length.
+                let chunk_end = if size_is_valid {
+                    declared_end.unwrap()
+                } else if chunk_type == 4 {
+                    frame_end
+                } else {
+                    return Err("invalid FLC subchunk size".to_owned());
+                };
                 let data = &bytes[chunk_at + 6..chunk_end];
-                match chunk_type {
+                let consumed = match chunk_type {
                     4 => {
                         let packets = usize::from(read_u16(data, 0)?);
                         let mut cursor = 2usize;
@@ -266,12 +281,21 @@ pub(super) fn decode_flic(bytes: &[u8]) -> Result<Flic, String> {
                             color += count;
                             cursor = palette_end;
                         }
+                        cursor
                     }
                     7 => apply_delta(data, &mut pixels, width, height)?,
-                    15 => pixels = decode_brun(data, width, height)?,
+                    15 => {
+                        let (decoded, used) = decode_brun(data, width, height)?;
+                        pixels = decoded;
+                        used
+                    }
                     _ => return Err(format!("unsupported FLC subchunk type {chunk_type}")),
-                }
-                chunk_at = chunk_end;
+                };
+                chunk_at = if size_is_valid {
+                    chunk_end
+                } else {
+                    chunk_data_at + consumed
+                };
             }
             if chunk_at != frame_end {
                 return Err("FLC frame contains unaccounted bytes".to_owned());
@@ -348,13 +372,22 @@ impl Flic {
         {
             return Err("FLC directions have inconsistent frame counts".to_owned());
         }
+        // Keep each texture within a 4096px edge while retaining every frame.
+        // Long Conquests animations (for example TankAttackA) exceed this if
+        // frames are packed in a single horizontal strip.
+        let frame_columns = frame_count.min(4096 / self.width);
+        if frame_columns == 0 {
+            return Err("FLC frame is wider than the supported texture size".to_owned());
+        }
+        let frame_rows = frame_count.div_ceil(frame_columns);
         let atlas_width = self
             .width
-            .checked_mul(frame_count)
+            .checked_mul(frame_columns)
             .ok_or_else(|| "FLC frame atlas width overflow".to_owned())?;
         let atlas_height = self
             .height
-            .checked_mul(self.animations.len())
+            .checked_mul(frame_rows)
+            .and_then(|height| height.checked_mul(self.animations.len()))
             .ok_or_else(|| "FLC frame atlas height overflow".to_owned())?;
         if atlas_width > 4096 || atlas_height > 4096 || atlas_width * atlas_height > 16_777_216 {
             return Err("FLC frame atlas exceeds the supported texture size".to_owned());
@@ -375,8 +408,10 @@ impl Flic {
                 for y in 0..self.height {
                     let src_start = y * self.width;
                     let src_end = src_start + self.width;
-                    let dst_start =
-                        (direction * self.height + y) * atlas_width + frame_index * self.width;
+                    let frame_x = (frame_index % frame_columns) * self.width;
+                    let frame_y =
+                        (direction * frame_rows + frame_index / frame_columns) * self.height;
+                    let dst_start = (frame_y + y) * atlas_width + frame_x;
                     let dst_end = dst_start + self.width;
                     base.get_image_data_mut()[dst_start..dst_end]
                         .copy_from_slice(&frame_base.get_image_data()[src_start..src_end]);
