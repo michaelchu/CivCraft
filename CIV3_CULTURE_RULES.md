@@ -811,6 +811,13 @@ documentation, not as evidence for field behavior.
   and worker-control checks failed; government, civil-war, and diplomacy were
   skipped after a prerequisite failure. The report contains no culture-specific
   assertion, so this run does not establish culture gameplay parity.
+- After adding persistent assimilation-tenure state, `cargo build --offline
+  --release` succeeded and the seed-42 desktop self-test completed with exit
+  status 1. Fresh report: `/tmp/civcraft-playtest-culture-qOzOh69S/report.json`.
+  It again passed 2/11 checks (foundation and HUD); move, act/economy,
+  city-tile reassignment, and worker controls failed, while government,
+  civil-war, and diplomacy checks were skipped. The desktop suite has no
+  culture-specific assertion; these failures do not assess assimilation tenure.
 
 - Re-ran with `CIVCRAFT_SOURCE_DIR=../source`: `cargo test --offline culture
   -- --nocapture` passed 13 culture-named checks; separate current save/load,
