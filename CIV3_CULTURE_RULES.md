@@ -581,10 +581,11 @@ documentation, not as evidence for field behavior.
   60,000 culture does not win against a living rival at 30,001, and does win
   against one at exactly 30,000. The 20,000 single-city win remains independent.
 - Added culture-threshold unit coverage for city border rank at every explicit
-  Civilopedia threshold and around each boundary. The updated synthetic border
-  scenario passes with population-independent reach, culture-based expansion,
-  fog eligibility, and contested same-rank ownership changing in both
-  culture-total directions. These verify
+  Civilopedia threshold and around each boundary. A new end-to-end map scenario
+  also verifies that each threshold claims its next ring and not the following
+  ring. The synthetic border scenario passes with population-independent reach,
+  culture-based expansion, fog eligibility, and contested same-rank ownership
+  changing in both culture-total directions. These verify
   CivCraft's selected source-based implementation branches, not the original
   Conquests border geometry or disputed post-20,000 rules.
 - `cargo test --offline obsolete_conquests_wonder_keeps_its_culture_output`
