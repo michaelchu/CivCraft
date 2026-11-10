@@ -445,7 +445,10 @@ documentation, not as evidence for field behavior.
   without its former age bonus. This follows a CivFanatics reverse-engineering
   account, not an official Conquests passage or controlled run. Legacy saves
   that predate building-origin tracking cannot recover the original builder;
-  missing origins fall back to the current owner.
+  missing origins fall back to the current owner. Trade and civil-war city
+  transfers reassign existing structures to the recipient to preserve the
+  previous behavior; culture attribution for those noncombat transfers has no
+  Conquests-specific source and remains unresolved.
 - `src/sim/achievements.rs` now checks the new culture ledger for its
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.

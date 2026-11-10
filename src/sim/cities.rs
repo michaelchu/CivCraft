@@ -243,6 +243,7 @@ impl Simulation {
         let id = self.cities[index].id;
         let center = (self.cities[index].x, self.cities[index].y);
         let first_city = !self.cities.iter().any(|city| city.owner == buyer);
+        self.cities[index].assign_culture_building_ownership(buyer);
         self.cities[index].transfer_citizens(buyer);
         self.list_order.city(&self.cities[index]);
         self.cities[index]

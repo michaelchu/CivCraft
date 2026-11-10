@@ -312,6 +312,12 @@ impl City {
         }
     }
 
+    pub(in crate::sim) fn assign_culture_building_ownership(&mut self, civilization: usize) {
+        for (_, owner) in &mut self.culture_building_owners {
+            *owner = civilization;
+        }
+    }
+
     pub(in crate::sim) fn reset_culture_building_age(&mut self, building: Building, year: i32) {
         match self
             .culture_building_years
