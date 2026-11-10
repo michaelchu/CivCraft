@@ -413,6 +413,22 @@ documentation, not as evidence for field behavior.
   diplomacy, city defection, and cultural victory; it describes cultural
   defection as a nearby city switching sides under a sufficiently large culture
   imbalance. Sources: printed pages 131–132 and 153–154.
+- Conquests Civilopedia `GCON_Conversion` explicitly says low-culture cities in
+  low-culture civilizations may defect and lists foreign nationals, propaganda,
+  civil disorder, foreign territory, and a foreign capital as increasing risk;
+  ground combat units, We Love the Day, and proximity to the city's own capital
+  reduce it. `GCON_We_Love_The_King_Day` further says WLTKD halves defection
+  chance and requires a non-starving city with no resisters or unhappy citizens,
+  more happy citizens than content citizens, and typically size 6. These are
+  explicit qualitative Conquests rules, but no probability or resolution
+  procedure is given. `GAME.cultural_conversions_flag` is extracted as `false`
+  in the installed main BIQ (`culture_biq.json`, hash above); community editor
+  references identify this as the enable/disable switch. The supplied base
+  manual describes defection but does not establish this Conquests BIQ flag's
+  effect, so whether standard-game startup overrides the extracted false value
+  is unresolved. Sources: `../source/Conquests/Text/Civilopedia.txt`,
+  `GCON_Conversion` and `GCON_We_Love_The_King_Day`; [CivFanatics editor rules
+  explanation](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
 - Reverse-engineered formula candidate for city flips (secondary evidence,
   checked 2026-11-10): CivFanatics' FAQ gives
   `P = ((F + T) * Cc * H * (Cte / Cty) - G) / (2000 * D)`, where `F` is
