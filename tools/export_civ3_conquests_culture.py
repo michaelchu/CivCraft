@@ -52,6 +52,15 @@ def bit(value: int, index: int) -> bool:
     return bool(value & (1 << index))
 
 
+def effective_cultural_conversions(default_game_rules: int, flag: bool) -> bool:
+    if default_game_rules not in (0, 1):
+        raise ValueError(f"Unexpected GAME.DefaultGameRules value: {default_game_rules}")
+    # Default-game mode uses the engine's documented defaults rather than the
+    # raw per-scenario bit. The Civilization III Complete manual says this rule
+    # defaults ON.
+    return bool(default_game_rules) or flag
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--unpacked-biq", type=Path, required=True)
@@ -71,6 +80,11 @@ def main() -> None:
         "--victory-settings-table",
         type=Path,
         default=Path("data/rulesets/civ3_conquests/culture_victory_settings.tsv"),
+    )
+    parser.add_argument(
+        "--conversion-settings-table",
+        type=Path,
+        default=Path("data/rulesets/civ3_conquests/culture_conversion_settings.tsv"),
     )
     parser.add_argument(
         "--resistance-band-table",
@@ -225,15 +239,23 @@ def main() -> None:
         raise ValueError(
             f"Unexpected GAME.RetainCulture value: {retain_culture_raw}"
         )
+    default_game_rules = int_at(data, cursor + 4)
+    cultural_conversions_flag = bit(flags[1], 7)
     result["game"] = {
         "source_section": "GAME",
         "source_record_index": 0,
         "biq_sha256": biq_hash,
-        "default_game_rules": int_at(data, cursor + 4),
+        "default_game_rules": default_game_rules,
         "default_victory_conditions": int_at(data, cursor + 8),
         "cultural_victory_flag": bit(flags[0], 4),
         "culturally_linked_start": bit(flags[0], 6),
-        "cultural_conversions_flag": bit(flags[1], 7),
+        "cultural_conversions_flag": cultural_conversions_flag,
+        # GAME.DefaultGameRules selects engine defaults instead of the raw
+        # per-scenario switches. The Complete manual says conversions default
+        # ON; the individual raw flag is false in conquests.biq.
+        "effective_cultural_conversions": effective_cultural_conversions(
+            default_game_rules, cultural_conversions_flag
+        ),
         "retain_culture_on_capture_raw": retain_culture_raw,
         "retain_culture_on_capture": bool(retain_culture_raw),
         "one_city_culture_win": int_at(data, victory_offset + 8),
@@ -383,6 +405,12 @@ def main() -> None:
             "Default Victory Conditions enables cultural victory even when this "
             "individual flag is false. The effective setting is exported separately."
         ),
+        "game_cultural_conversions_flag": (
+            "Raw GAME flag. The Complete manual says Allow for Cultural "
+            "Conversions defaults ON. When GAME.DefaultGameRules is set, use "
+            "that default instead of the raw scenario flag; this interpretation "
+            "is recorded as an inference until controlled Conquests observation."
+        ),
         "game_retain_culture_on_capture": (
             "Raw GAME.RetainCulture scenario property. The installed Conquests "
             "readme says MPTournament enables captured-city culture retention. "
@@ -411,6 +439,7 @@ def main() -> None:
         args.culture_table,
         args.victory_table,
         args.victory_settings_table,
+        args.conversion_settings_table,
         args.resistance_band_table,
         args.government_resistance_table,
         args.military_law_table,
@@ -455,6 +484,19 @@ def main() -> None:
         table.write(
             f"GAME\t0\t{default_victories}\t{str(cultural_flag).lower()}\t"
             f"{str(effective_cultural_victory).lower()}\t{biq_hash}\n"
+        )
+    with args.conversion_settings_table.open("w") as table:
+        game = result["game"]
+        table.write(
+            "source_section\tsource_record_index\tdefault_game_rules\t"
+            "cultural_conversions_flag\teffective_cultural_conversions\t"
+            "biq_sha256\n"
+        )
+        table.write(
+            f"GAME\t0\t{game['default_game_rules']}\t"
+            f"{str(game['cultural_conversions_flag']).lower()}\t"
+            f"{str(game['effective_cultural_conversions']).lower()}\t"
+            f"{biq_hash}\n"
         )
     with args.resistance_band_table.open("w") as table:
         table.write(

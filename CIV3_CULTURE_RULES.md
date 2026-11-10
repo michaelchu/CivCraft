@@ -31,7 +31,7 @@ section/index and source hash.
 | `CULT` | Six named culture-ratio records, ratio numbers, propaganda chance, initial and continued resistance chances | Raw values extracted; initial and continued chances use the cited reverse-engineered model. Ratio-interval interpretation, Conquests-specific behavior, and turn ordering remain unconfirmed by controlled observation |
 | `RULE` | Town/City/Metropolis size names and caps; six culture-level names; raw parser field `BorderExpansionMultiplier=1000`; `BorderFactor=10` | Values extracted; exact field semantics and mapping to border thresholds/geometry not established |
 | `RACE` | 32 civilization records and raw culture-group index | Values extracted; group index semantics should remain separate from numeric culture totals |
-| `GAME` | Cultural-victory flag, one-city threshold `20,000`, all-cities threshold `100,000`, `RetainCulture` capture setting, domination terrain/population values | Values extracted; the main BIQ has `RetainCulture=0`; the installed release notes identify captured-city culture retention as an MPTournament change, whose BIQ has `RetainCulture=1` |
+| `GAME` | Cultural-conversion and cultural-victory flags, one-city threshold `20,000`, all-cities threshold `100,000`, `RetainCulture` capture setting, domination terrain/population values | Values extracted; main BIQ has `DefaultGameRules=1`, raw cultural-conversion flag false, and effective default ON per the Complete manual; `RetainCulture=0`; release notes identify captured-city culture retention as an MPTournament change, whose BIQ has `RetainCulture=1` |
 | `GOVT` | Assimilation chance by government; government-pair interaction fields | Assimilation values are extracted; per-citizen percent chance per turn follows CivFanatics editor help. Conquests Civilopedia plus a Firaxis producer explanation support waiting until the city nationality is a strict majority, though that producer post is base-game scoped. Conquests verification is absent. Base-government `ResistanceModifier` interpretation matches CivFanatics' reverse-engineered table; added-government application remains inferred |
 | `DIFF` | All eight difficulty records, including citizen content, cost, corruption, military-law, and support settings | All eight `MilitaryLaw` values are 1; CivFanatics identifies this as citizens quelled per ground combat unit. The connection is reverse-engineered, not confirmed in Conquests runtime |
 
@@ -422,13 +422,18 @@ documentation, not as evidence for field behavior.
   more happy citizens than content citizens, and typically size 6. These are
   explicit qualitative Conquests rules, but no probability or resolution
   procedure is given. `GAME.cultural_conversions_flag` is extracted as `false`
-  in the installed main BIQ (`culture_biq.json`, hash above); community editor
-  references identify this as the enable/disable switch. The supplied base
-  manual describes defection but does not establish this Conquests BIQ flag's
-  effect, so whether standard-game startup overrides the extracted false value
-  is unresolved. Sources: `../source/Conquests/Text/Civilopedia.txt`,
+  in the installed main BIQ (`culture_biq.json`, hash above), but
+  `GAME.DefaultGameRules=1`. The Civilization III Complete manual says “Allow
+  for Cultural Conversions” defaults ON, and the BIQ-format community
+  investigation reports default-game mode uses engine defaults instead of the
+  raw scenario switches. The exporter therefore records the effective setting
+  as ON, with the override interpretation labeled inferred pending controlled
+  observation. The supplied base manual independently describes defection.
+  Sources: `../source/Conquests/Text/Civilopedia.txt`,
   `GCON_Conversion` and `GCON_We_Love_The_King_Day`; [CivFanatics editor rules
-  explanation](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
+  explanation](https://forums.civfanatics.com/threads/editor-rules-explained.210035/),
+  [CivFanatics BIQ comparison](https://forums.civfanatics.com/threads/civ3-biq-compare.320673/page-3),
+  and [Civilization III Complete manual, “Allow for Cultural Conversions”](https://steamcdn-a.akamaihd.net/steam/apps/3910/manuals/manual.pdf?tI=).
 - Reverse-engineered formula candidate for city flips (secondary evidence,
   checked 2026-11-10): CivFanatics' FAQ gives
   `P = ((F + T) * Cc * H * (Cte / Cty) - G) / (2000 * D)`, where `F` is
