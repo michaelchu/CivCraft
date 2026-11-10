@@ -142,6 +142,17 @@ Lines connect each advance to its prerequisites, and gold highlights the branch 
 
 The research screen lists unit and building unlocks from the implemented catalog, including 92 standard Conquests campaign unit identities. Production checks the requirements represented by the implementation; whether these checks match the manual has not yet been broadly audited. Some associated systems and special-unit behavior are still under development.
 
+### Gameplay research sources
+
+When the Civilization III manual and shipped game materials do not document a
+mechanic fully, development research may use specialist community references
+such as CivFanatics, Civ Wiki, and similar Civ III resources. These can help
+recover undocumented or reverse-engineered formulas, but are secondary
+evidence: verify the game edition or patch they describe, follow citations to
+underlying sources when possible, and record links and any uncertainty in the
+rules catalog. See [AGENTS.md](AGENTS.md) for the research process used during
+implementation.
+
 ## Automated modes
 
 --screenshot followed by a PNG path renders 120 frames, saves the current game view, and exits.

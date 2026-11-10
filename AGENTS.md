@@ -13,12 +13,23 @@ rules; a gameplay gap audit has not been performed.
 When the manual does not specify a detail needed to establish an expected
 behavior, research Civ III-specific online sources. Prefer original game
 materials and official publications where available, then well-sourced
-specialist references. Record the source title, author or publisher, URL,
-edition/expansion/patch scope, relevant page or section, date checked, and the
-specific claim it supports in `CIV3_MANUAL_RULES.md`. Label supplementary
-claims separately from manual-derived claims; preserve conflicting evidence
-and do not resolve uncertainty by guessing. Freeciv behavior, existing code,
-tests, and previous parity claims are not Civ III evidence.
+specialist references, including community resources such as CivFanatics and
+Civ Wiki. These community sources are useful leads for undocumented or
+reverse-engineered mechanics and formulas; treat them as secondary evidence,
+not as authoritative game documentation. Follow their citations to original
+materials where possible and check which edition, expansion, or patch the
+claim covers.
+
+Do this research while implementing any mechanic whose expected behavior or
+formula is not established by the manual or other primary evidence; do not
+silently fill gaps from legacy code or assumptions. Record the source title,
+author or publisher when available, URL, edition/expansion/patch scope,
+relevant page or section, date checked, and the specific claim it supports in
+`CIV3_MANUAL_RULES.md`. Label supplementary claims separately from
+manual-derived claims, note when a formula is reverse-engineered or inferred,
+preserve conflicting evidence, and leave unresolved details explicit rather
+than guessing. Freeciv behavior, existing code, tests, and previous parity
+claims are not Civ III evidence.
 
 Use the catalog's [source-record format](CIV3_MANUAL_RULES.md#source-records),
 [technology-tree source leads](CIV3_MANUAL_RULES.md#technology-tree-source-leads),
