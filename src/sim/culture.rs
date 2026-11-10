@@ -366,6 +366,23 @@ mod tests {
     }
 
     #[test]
+    fn obsolete_conquests_wonder_keeps_its_culture_output() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        game.cities[0]
+            .buildings
+            .retain(|&building| building != Building::PALACE);
+        game.players[HUMAN].known.push(Tech::FLIGHT);
+        game.cities[0].buildings.push(Building::COLOSSUS);
+        game.cities[0].record_culture_building_completion(Building::COLOSSUS, HUMAN, game.year);
+
+        assert!(game.building_is_obsolete(&game.cities[0], Building::COLOSSUS, None));
+        game.record_city_culture(0);
+
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 3);
+    }
+
+    #[test]
     fn city_culture_accumulates_by_owner_and_doubles_at_one_thousand_years() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);

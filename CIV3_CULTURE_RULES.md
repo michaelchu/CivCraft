@@ -27,7 +27,7 @@ section/index and source hash.
 
 | BIQ section | Extracted data | Current confidence |
 |---|---|---|
-| `BLDG` | All 83 building records, culture, production cost, maintenance, required building/advance, obsolete advance, Civilopedia key, and raw flags | Source bytes and record offsets validated; gameplay applicability still needs rule checks for obsolete, captured, and wartime-footing cases |
+| `BLDG` | All 83 building records, culture, production cost, maintenance, required building/advance, obsolete advance, Civilopedia key, and raw flags | Source bytes and record offsets validated; obsolete wonder culture persistence is supported by the base manual and tested for the Conquests Colossus; capture and wartime-footing cases remain unresolved |
 | `CULT` | Six named culture-ratio records, ratio numbers, propaganda chance, initial and continued resistance chances | Raw values extracted; initial band selection follows the cited reverse-engineered account; continued-resistance procedure remains unverified |
 | `RULE` | Town/City/Metropolis size names and caps; six culture-level names; raw parser field `BorderExpansionMultiplier=1000`; `BorderFactor=10` | Values extracted; exact field semantics and mapping to border thresholds/geometry not established |
 | `RACE` | 32 civilization records and raw culture-group index | Values extracted; group index semantics should remain separate from numeric culture totals |
@@ -111,6 +111,14 @@ documentation, not as evidence for field behavior.
   footing. Source: `civ3_manual.pdf`, printed pages 114–115. These values are
   base-game evidence; the installed Conquests BLDG values take precedence for
   the Conquests catalog.
+- Base manual explicitly states that Wonder culture points continue to accrue
+  even after an advance makes the Wonder's special ability obsolete (printed
+  p. 101). The installed Conquests BIQ's `BLDG[32]` gives the Colossus 3 culture
+  per turn and Flight as its obsolete advance. CivCraft does not suppress its
+  culture after Flight; `obsolete_conquests_wonder_keeps_its_culture_output`
+  confirms this rule path against those Conquests values. This applies the base
+  manual's explicit shared mechanic to the Conquests record; it is not a
+  controlled original-game observation.
 - Edition-specific caveat: Conquests `GCON_Mobilization` says Mobilization is
   unlocked by Nationalism and describes its production/build restrictions, but
   does not say culture output is halved. The base-manual phrase “wartime
@@ -579,6 +587,12 @@ documentation, not as evidence for field behavior.
   culture-total directions. These verify
   CivCraft's selected source-based implementation branches, not the original
   Conquests border geometry or disputed post-20,000 rules.
+- `cargo test --offline obsolete_conquests_wonder_keeps_its_culture_output`
+  passes: after Flight makes the Conquests Colossus obsolete, its 3 culture per
+  turn still accrues, consistent with the base manual's printed p. 101 rule.
+- Latest `cargo test --offline culture -- --nocapture`: 20 passed, including
+  the obsolete-Wonder case; these are implementation checks, not runtime
+  observations of the original game.
 - Rebuilt release and ran the desktop `--self-test` with seed 42 and the
   installed source directory. The fresh report
   `/tmp/civcraft-playtest-culture-x232cJ/report.json` records 2/11 checks
