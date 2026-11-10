@@ -358,6 +358,21 @@ impl Simulation {
     }
 
     pub(super) fn capture_city_if_needed(&mut self, unit_id: u32, x: i32, y: i32) {
+        self.capture_city_with_culture_retention(
+            unit_id,
+            x,
+            y,
+            super::culture::retain_culture_on_capture(),
+        );
+    }
+
+    fn capture_city_with_culture_retention(
+        &mut self,
+        unit_id: u32,
+        x: i32,
+        y: i32,
+        retain_culture: bool,
+    ) {
         let Some(unit) = self.unit_by_id(unit_id).cloned() else {
             return;
         };
@@ -390,7 +405,7 @@ impl Simulation {
             old_owner,
             self.year,
         );
-        if !super::culture::retain_culture_on_capture() {
+        if !retain_culture {
             // The standard Conquests BIQ disables the scenario option that
             // keeps a captured city's accumulated culture.
             self.cities[city_index].clear_culture_for_capture(unit.owner);

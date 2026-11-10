@@ -806,6 +806,12 @@ documentation, not as evidence for field behavior.
   1 passed. The case checks pre/post civilization totals under the inferred
   `RetainCulture=0` interpretation; it does not verify the original Conquests
   runtime or resolve the historical-total source conflict.
+- From a clean archive of committed `HEAD` with the updated capture code and
+  test source, `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline retain_culture_capture_keeps_the_city_culture_ledger`:
+  1 passed. This deterministic capture exercises the `RetainCulture=1` path
+  and confirms the city ledger is left intact. The installed standard BIQ
+  still sets the option to `0`; scenario BIQs with retention enabled are not
+  selectable runtime rulesets yet.
 - From a clean archive of committed `HEAD` with the updated capture test
   source, `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline capture_initializes_deterministic_resistance_from_foreign_population`:
   1 passed. A same-seed comparison with different pre-capture empire culture
