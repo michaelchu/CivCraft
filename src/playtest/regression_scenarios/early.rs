@@ -108,7 +108,7 @@ impl Playtest {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (tie, strength, radius) = sim.city_borders_playtest();
             self.results.push(("city_border_claims", tie && strength && radius,
-                format!("Equal strength preserved the existing claim: {tie}. Stronger claims took outer tiles and respected permanent claims: {strength}. Borders expanded and contracted with population: {radius}.")));
+                format!("Equal culture preserved the existing claim: {tie}. Greater civilization culture won rival claims even at a farther rank: {strength}. The existing population-based expansion approximation still contracts: {radius}.")));
         }
 
         if frame == 449 && self.act_passed {

@@ -2,6 +2,9 @@
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 const INITIAL_CITY_BORDER_RANK: i32 = 1;
 
 impl Simulation {
@@ -75,13 +78,12 @@ impl Simulation {
         let civilization_culture: Vec<_> = (0..self.players.len())
             .map(|civilization| self.civilization_culture(civilization))
             .collect();
-        let claim_strength = |city_index: usize, city: &City, index: usize| {
-            let rank = city_distances[city_index][index];
-            // The Conquests Civilopedia says civilization culture resolves
-            // squares for which rival civilizations both have a legitimate
-            // claim. Keep distance as the first criterion for this existing
-            // claim model, then compare the civilizations' accumulated culture.
-            (rank, civilization_culture[city.owner])
+        let claim_strength = |city: &City| {
+            // The Conquests Civilopedia identifies civilization culture as the
+            // deciding factor when rival civilizations both have a legitimate
+            // claim. Distance limits eligibility above; it does not outrank
+            // civilization culture when choosing between eligible claims.
+            civilization_culture[city.owner]
         };
         let claimable = |city: &City, index: usize, rank: i32| {
             if rank == 0 {
@@ -130,9 +132,9 @@ impl Simulation {
                     .enumerate()
                     .find(|(_, candidate)| candidate.id == city.id)
                     .unwrap();
-                let (rank, strength) = claim_strength(city_index, city, index);
+                let rank = city_distances[city_index][index];
                 if claimable(city, index, rank) {
-                    claims[index] = Some((city.id, city.owner, rank, strength));
+                    claims[index] = Some((city.id, city.owner, rank, claim_strength(city)));
                 }
             }
         }
@@ -150,13 +152,12 @@ impl Simulation {
                         continue;
                     };
                     let index = self.map_wrap.index(x, y);
-                    let (rank, strength) = claim_strength(city_index, city, index);
+                    let rank = city_distances[city_index][index];
+                    let strength = claim_strength(city);
                     if claimable(city, index, rank)
                         && (rank == 0
                             || claims[index].is_none_or(|(_, _, old_rank, old_strength)| {
-                                old_rank > INITIAL_CITY_BORDER_RANK
-                                    && (rank < old_rank
-                                        || (rank == old_rank && strength > old_strength))
+                                old_rank != 0 && strength > old_strength
                             }))
                     {
                         claims[index] = Some((city.id, city.owner, rank, strength));

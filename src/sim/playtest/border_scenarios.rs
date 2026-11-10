@@ -87,15 +87,23 @@ impl Simulation {
             tile.known_by[1] = true;
         }
         self.rebuild_city_ownership();
-        let strength =
-            owner(self, 4) == Some(1) && owner(self, 3) == Some(1) && owner(self, 0) == Some(HUMAN);
+        let fog_restricted = fog_restricted && owner(self, 4) == Some(1);
+        self.cities[0].size = 12;
+        for tile in &mut self.tiles {
+            tile.known_by[HUMAN] = true;
+            tile.known_by[1] = true;
+        }
+        self.cities[0].add_culture(HUMAN, 1000);
+        self.rebuild_city_ownership();
+        let human_culture_wins = owner(self, 3) == Some(HUMAN);
+        self.cities[1].add_culture(1, 2000);
+        self.rebuild_city_ownership();
+        let rival_culture_wins = owner(self, 3) == Some(1);
+        let strength = human_culture_wins && rival_culture_wins;
         let expanded = owner(self, 4) == Some(1);
+        self.cities[0].size = 1;
         self.cities[1].size = 1;
         self.rebuild_city_ownership();
-        (
-            tie,
-            strength && fog_restricted,
-            expanded && owner(self, 4).is_none(),
-        )
+        (tie, strength && fog_restricted, expanded && owner(self, 4).is_none())
     }
 }

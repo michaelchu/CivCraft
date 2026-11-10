@@ -212,18 +212,23 @@ documentation, not as evidence for field behavior.
   reports diagonal gap tiles filling in as well. Other participants disagree
   about edge cases and tile stealing, and the discussion does not establish a
   clean rule for the installed Conquests version. This yields targeted tests
-  (adjacent vs. diagonal gaps, overlapping rings, equal levels, unequal local
-  city culture, and founding-order ties), but is not enough evidence to replace
-  the current claim algorithm. Source checked 2026-11-10: [CivFanatics,
+  (adjacent vs. diagonal gaps, overlapping rings, unequal local city culture,
+  and founding-order ties), but is not used to define stock Conquests claims.
+  Source checked 2026-11-10: [CivFanatics,
   “Border calculation”](https://forums.civfanatics.com/threads/border-calculation.75552/).
-- Implemented narrow Civilopedia-supported behavior: when the existing claim
-  model presents competing cities at the same distance rank, `borders.rs` now
-  prefers the civilization with the greater accumulated culture. This follows
-  installed `GCON_Culture`, which says civilization culture matters when rival
-  civilizations both have a legitimate claim to a square. Distance ordering
-  remains an existing model assumption; exact legitimacy, rank,
-  founding-order, and equal-culture handling still need Conquests observations.
-  City-size-based expansion limits are not replaced by this change.
+- Implemented literal Civilopedia claim comparison: for a tile with competing
+  non-center claims, `borders.rs` prefers the civilization with the greater
+  accumulated culture, regardless of distance rank. This treats distance and
+  the existing size-based footprint only as claim eligibility, not as the
+  winner among legitimate claims. Installed `GCON_Culture` names civilization
+  culture as the factor when rival civilizations both have a legitimate claim.
+  Exact claim eligibility, equal-culture ties, city-level claim ordering, and
+  border geometry still need controlled Conquests observations; the size-based
+  expansion limit is not replaced by this change. The deterministic synthetic
+  `city_borders_playtest` now reverses the civilization culture totals while
+  holding city positions and sizes fixed and checks that an outer contested
+  tile changes owner; this validates the implementation branch, not original
+  Conquests behavior.
 - Parameter-name lead, not yet confirmed from the installed Conquests help:
   Civ III patch notes mirrored by GameFront say “Border Expansion Multiplier”
   was renamed “Lvl. Multiplier,” while a CivFanatics editor reference describes
@@ -405,10 +410,11 @@ documentation, not as evidence for field behavior.
 - `src/sim/score.rs::record_history` still accumulates legacy building values
   into the score-only `history` value. It no longer drives the cultural
   achievements or the new culture ledger, but the old score calculation remains.
-- `src/sim/borders.rs` still retains city-size-based border growth as an
-  approximation. Rival claim strength now uses civilization culture for equal
-  distance ranks, based on the installed Civilopedia; border geometry and the
-  remaining tie rules are unresolved.
+- `src/sim/borders.rs` still retains city-size-based border growth and
+  claim-eligibility rules as approximations. Among eligible claims from rival
+  civilizations, the greater civilization culture now determines ownership,
+  following the installed Civilopedia. Equal-culture ties, geometry, and the
+  eligibility rules remain unresolved.
 - `src/sim/cities.rs::capture_city_if_needed` transfers ownership/nationality
   and applies capture effects, but does not initialize resistance from
   culture comparisons. The city resistance count is currently test-set only.
