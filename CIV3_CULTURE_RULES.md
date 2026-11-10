@@ -772,7 +772,12 @@ documentation, not as evidence for field behavior.
 - `cargo test --offline fascist_city_culture_waits_for_an_assimilated_population_majority`:
   passed; the suppression is Fascism-specific and lifts at the implemented
   strict-majority threshold.
-- `cargo test --offline resisting_citizens_are_not_available_for_tile_work`:
+- `CIVCRAFT_SOURCE_DIR=../source cargo test --offline resist`: 13 passed, 0
+  failed. This includes deterministic capture initialization, culture-ratio and
+  government adjustments, per-turn military quelling, artillery exclusion,
+  work and rush exclusion, war-ending resolution, and related resistance
+  checks. These tests verify the current implementation against its stated
+  expectations; they do not resolve the source gaps listed above.- `cargo test --offline resisting_citizens_are_not_available_for_tile_work`:
   passed; two counted resisters leave only two of four citizens available for
   tile work.
 - `cargo test --offline current_campaign_round_trip_preserves_gameplay_and_topology_state`:
