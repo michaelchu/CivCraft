@@ -145,7 +145,7 @@ City appearance uses the imported civ2civ3 style requirements and city image /
 visible walls effects plus Amplio2 sprite tags. The six historical civilizations
 have explicit initial themes; there is no Freeciv nation-selection feature.
 Their banners use the existing faction colors rather than unrelated national
-flags. See `UI_PARITY_AUDIT.md` for source pointers and validation coverage.
+flags.
 
 
 ## Fog transitions
@@ -197,8 +197,8 @@ land dither transitions and ice cliffs. `map-layers` shows a river/road crossing
 and pollution over a city, then opens its city work map. `remembered-map` freezes
 a foreign city's former name, walls, style and terrain until vision returns.
 `goto-preview` positions the shared test pointer over a multi-turn destination
-and then executes the real GoTo command. See [RENDERING_PARITY.md](RENDERING_PARITY.md)
-for reference sources and fidelity boundaries.
+and then executes the real GoTo command. The current renderer contract is
+summarized at the top of this document.
 
 ### Wrap and polar checks
 
@@ -211,8 +211,8 @@ horizontal viewport seams after rendering changes.
 
 The polar scenes check the bounded north/south camera and input projection.
 World and city work maps clear to reference black. Camera geometry tests cover
-subpixel zoom and oversized viewports; see RENDERING_PARITY.md for source
-locations and current policy.
+subpixel zoom and oversized viewports. Current map policy and screenshot checks
+are summarized at the top of this document.
 
 The current rendering cleanup removes the former two-axis wrap path. Validate
 polar limits and horizontal seam screenshots for the single supported map
@@ -271,4 +271,4 @@ show each cap; `-next` captures show minimum zoom.
 
 Gallery checks cover the extended camera anchors, actual boundary-row input,
 bounded panning and zoom-out coverage. See AGENTS.md for map-generation
-validation guidance and RENDERING_PARITY.md for visual comparison details.
+validation guidance and the current renderer contract at the top of this document.

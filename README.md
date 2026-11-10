@@ -1,8 +1,8 @@
 # CivCraft
 
-The manual-based gameplay rules catalog and future gap-audit worksheet are [CIV3_MANUAL_RULES.md](CIV3_MANUAL_RULES.md) and [GAMEPLAY_GAP_AUDIT.md](GAMEPLAY_GAP_AUDIT.md). Both are currently unpopulated; no gameplay audit against the manual has been completed.
+The [Civ III rules catalog](CIV3_MANUAL_RULES.md) records sourced terrain and selected gameplay rules. The [gameplay gap audit](GAMEPLAY_GAP_AUDIT.md) is a worksheet for comparing those rules with the implementation; that broader audit has not started.
 
-CivCraft is an offline Rust strategy game whose intended gameplay target is Civilization III. Its current implementation includes legacy Freeciv/Civ2Civ3-derived systems, but those systems have not yet been audited against the supplied Civ III manual. Six civilizations explore a horizontally wrapped isometric-hex world, develop cities, research technologies, negotiate treaties, trade, wage land, sea, and air warfare, and pursue conquest or spaceship victory.
+CivCraft is an offline Rust strategy game whose intended gameplay target is Civilization III. Its current implementation includes legacy Freeciv/Civ2Civ3-derived systems that have not yet been fully audited against the supplied Civ III manual. Six civilizations explore a horizontally wrapped, staggered-square world, develop cities, research technologies, negotiate treaties, trade, fight land, sea, and air wars, and pursue conquest or spaceship victory.
 
 ## Civilizations
 
@@ -17,7 +17,7 @@ The fixed roster uses six civilizations from Civilization III. You lead the Roma
 | Chinese | Mao Zedong | Beijing |
 | Japanese | Tokugawa | Kyoto |
 
-Each civilization has its own ordered city names and Civ III city style. City names skip names already used anywhere in the world, then use “New” names when the list runs out. Captured cities keep their names. Save loading accepts only the current format; older saves are unsupported. This roster and its current defaults are implementation details, not a claim of Civ III rules fidelity; Civ III traits and unique units are not fully represented.
+Each civilization has its own ordered city names and Civ III city style. City names skip names already used anywhere in the world, then use “New” names when the list runs out. Captured cities keep their names. Save loading accepts only the current format; older saves are unsupported. The campaign catalog includes the standard Conquests unit roster, including unique units, but Civ III civilization traits and some unit-specific rules are not fully represented.
 
 ## Play
 
@@ -76,11 +76,11 @@ the playable map. Campaign maps wrap horizontally and have bounded polar
 edges. The former WrapXY mode and older save formats are unsupported.
 
 The renderer and primary generation, movement, pathfinding, city work-area,
-and visibility paths use Civ III's staggered grid. Map generation settings are
-still being migrated; map size is not yet selectable. Landform and temperature
-use independently seeded subdivision fields with OpenCiv3-derived percentile
-bands. Their noise algorithm and spatial scale remain approximations of
-OpenCiv3's OpenSimplex maps.
+and visibility paths use Civ III's staggered grid. The options above are
+selectable, while landform and temperature use independently seeded
+subdivision fields with OpenCiv3-derived percentile bands. Their noise
+algorithm and spatial scale remain approximations of OpenCiv3's OpenSimplex
+maps.
 
 ## Map tilesets
 
@@ -163,7 +163,7 @@ cargo run --release -- --load civcraft-autosave.save
 
 Lines connect each advance to its prerequisites, and gold highlights the branch leading to your goal. Right or middle drag to pan, scroll to zoom, and use **Fit tree** for an overview or **Find goal** to return to your goal. Hover an advance to see its prerequisites and unlocks. Selecting a new goal only discards accumulated research if it changes the current target. Philosophy gives a free advance to the first civilization to discover it. After the named advances are complete, research continues with repeatable Future Tech.
 
-The research screen lists unit and building unlocks from the implemented catalog, including 57 current unit types. Production checks the requirements represented by the implementation; whether these checks match the manual has not yet been audited. Some associated systems and special-unit behavior are still under development.
+The research screen lists unit and building unlocks from the implemented catalog, including 92 standard Conquests campaign unit identities. Production checks the requirements represented by the implementation; whether these checks match the manual has not yet been broadly audited. Some associated systems and special-unit behavior are still under development.
 
 ## Automated modes
 
@@ -179,7 +179,7 @@ The project is hosted at [michaelchu/CivCraft](https://github.com/michaelchu/Civ
 
 ## Focus of this build
 
-The implementation includes governments, diplomacy and espionage, naval and air warfare, wonders, and spaceship progression. The manual-based gameplay rules catalog and gap audit have not yet been populated. Network multiplayer, arbitrary Lua rulesets, scenarios, and the map editor remain outside this build's scope. This build uses Civ III map artwork with a compact SDL-style game layout.
+The implementation includes governments, diplomacy and espionage, naval and air warfare, wonders, and spaceship progression. The rules catalog contains sourced expectations, while the broader manual-to-code gameplay audit remains outstanding. Network multiplayer, arbitrary Lua rulesets, scenarios, and the map editor remain outside this build's scope. This build uses Civ III map artwork with a compact SDL-style game layout.
 
-Historical map-rendering comparisons and current visual-review guidance are
-documented in [RENDERING_PARITY.md](RENDERING_PARITY.md) and [UI_REVIEW.md](UI_REVIEW.md).
+Current map-rendering behavior and visual-review guidance are documented in
+[UI_REVIEW.md](UI_REVIEW.md).
