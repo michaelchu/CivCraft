@@ -122,23 +122,14 @@ impl Simulation {
             return;
         }
 
-        // The Civilopedia describes assimilation into the majority nationality.
-        // Count the owner's implicit domestic population together with the
-        // explicitly stored foreign nationalities. Ties and cities without a
-        // strict majority are left unchanged rather than choosing a target.
+        // The Conquests Civilopedia identifies the majority nationality as the
+        // assimilation target. A Firaxis executive producer's explanation of
+        // the base-game rule says a captured nationality cannot assimilate
+        // until the city's current nationality is the strict majority. Keep
+        // that target rather than allowing a foreign nationality to absorb
+        // another foreign group.
         let owner = city.owner;
-        let size = city.size;
-        let mut populations = std::collections::BTreeMap::new();
-        populations.insert(owner, city.domestic_citizens());
-        for &(nationality, count) in &city.foreign_citizens {
-            *populations.entry(nationality).or_insert(0) += count;
-        }
-        let mut ranked = populations.into_iter().collect::<Vec<_>>();
-        ranked.sort_by_key(|&(nationality, count)| (std::cmp::Reverse(count), nationality));
-        let Some(&(majority, majority_count)) = ranked.first() else {
-            return;
-        };
-        if majority_count * 2 <= size {
+        if city.domestic_citizens() * 2 <= city.size {
             return;
         }
 
@@ -146,9 +137,6 @@ impl Simulation {
         let candidates = self.cities[index].foreign_citizens.clone();
         let mut conversions = Vec::new();
         for (nationality, population) in candidates {
-            if nationality == majority {
-                continue;
-            }
             let converted = (0..population)
                 .filter(|_| self.rand_below(100) < chance)
                 .count() as i32;
@@ -168,7 +156,9 @@ impl Simulation {
                     city.foreign_citizens.remove(position);
                 }
             }
-            city.add_citizen_nationality(majority, converted);
+            // Successful residents assimilate into the city's current owner
+            // nationality, which is the city nationality in this model.
+            debug_assert_ne!(nationality, owner);
         }
     }
 }
@@ -203,7 +193,7 @@ mod tests {
     }
 
     #[test]
-    fn assimilation_uses_conquests_government_chance_and_majority_nationality() {
+    fn assimilation_uses_conquests_government_chance_and_requires_owner_majority() {
         assert_eq!(government_assimilation_chance(Government::Anarchy), 1);
         assert_eq!(government_assimilation_chance(Government::Despotism), 1);
         assert_eq!(government_assimilation_chance(Government::Monarchy), 2);
@@ -221,8 +211,7 @@ mod tests {
         game.cities[0].foreign_citizens = vec![(1, 3), (2, 1)];
 
         // Choose a seed whose first per-citizen roll falls within the BIQ's
-        // 4-percent Democracy chance. Only nationality 2 is a minority; the
-        // majority nationality 1 is the assimilation target.
+        // 4-percent Democracy chance.
         let seed = (0..100_000)
             .find(|&seed| {
                 game.set_random_seed(seed);
@@ -231,13 +220,36 @@ mod tests {
             .expect("find successful deterministic assimilation roll");
         game.set_random_seed(seed);
         game.assimilate_citizen(0);
-        assert_eq!(game.cities[0].foreign_citizens, [(1, 4)]);
+        // A foreign nationality can outnumber another foreign nationality,
+        // but assimilation waits until the city's own nationality is a strict
+        // majority, as in Firaxis's documented 4-versus-3 example.
+        assert_eq!(game.cities[0].foreign_citizens, [(1, 3), (2, 1)]);
 
-        // A tie is not a majority, so it does not select an arbitrary target.
-        game.cities[0].size = 4;
-        game.cities[0].foreign_citizens = vec![(1, 1), (2, 2)];
+        game.cities[0].foreign_citizens = vec![(2, 1)];
         game.set_random_seed(seed);
         game.assimilate_citizen(0);
-        assert_eq!(game.cities[0].foreign_citizens, [(1, 1), (2, 2)]);
+        assert!(game.cities[0].foreign_citizens.is_empty());
+
+        // A citizen gets an independent roll: select a seed with two
+        // consecutive successful rolls and confirm both foreign citizens can
+        // assimilate in the same city turn.
+        let double_success_seed = (0..100_000)
+            .find(|&seed| {
+                game.set_random_seed(seed);
+                game.rand_below(100) < 4 && game.rand_below(100) < 4
+            })
+            .expect("find deterministic pair of assimilation successes");
+        game.cities[0].foreign_citizens = vec![(1, 1), (2, 1)];
+        game.set_random_seed(double_success_seed);
+        game.assimilate_citizen(0);
+        assert!(game.cities[0].foreign_citizens.is_empty());
+
+        // A tie between the city nationality and a foreign nationality also
+        // prevents assimilation.
+        game.cities[0].size = 4;
+        game.cities[0].foreign_citizens = vec![(2, 2)];
+        game.set_random_seed(seed);
+        game.assimilate_citizen(0);
+        assert_eq!(game.cities[0].foreign_citizens, [(2, 2)]);
     }
 }
