@@ -252,6 +252,35 @@ documentation, not as evidence for field behavior.
   diplomacy, city defection, and cultural victory; it describes cultural
   defection as a nearby city switching sides under a sufficiently large culture
   imbalance. Sources: printed pages 131–132 and 153–154.
+- Reverse-engineered formula candidate for city flips (secondary evidence,
+  checked 2026-11-10): CivFanatics' FAQ gives
+  `P = ((F + T) * Cc * H * (Cte / Cty) - G) / (2000 * D)`, where `F` is
+  foreign citizens with resisters counted twice, `T` is foreign-controlled
+  tiles in the city's 21-tile radius, `Cc` is 2 when the challenger has more
+  local city culture and 1 otherwise, `H` is 2 for disorder / 0.5 for WLTKD /
+  1 otherwise, `Cte/Cty` is total challenger-to-defender civilization culture,
+  `G` is the defender's garrison count, and `D` is based on relative capital
+  distance. CivFanatics' FAQ labels the tile count “working tiles under foreign
+  control,” while Firaxis staff's earlier explanation says the count is the
+  number of the 21 city-radius tiles inside the challenger's borders. Treat
+  `T`'s exact interpretation as unresolved until checked against Conquests.
+  The FAQ does not define `D` numerically. A 2003 CivFanatics forum post gives
+  `D` as relative distance to capitals and places the 2000 factor in the
+  denominator, but does not establish the path-distance metric or edge cases.
+  Firaxis staff member Dan Magaha reported in 2002 that the relative weights
+  were: foreign citizens and foreign territory as base values; capital-distance
+  ratio; civilization culture ratio; historical city culture (challenger ahead
+  doubles chance); disorder doubles; WLTKD halves; and land combat garrison
+  subtracts. This staff explanation supports the factors and multipliers, not
+  all constants in the later formula. It predates Conquests, so use as a
+  candidate model, not verified Conquests behavior. Sources: [CivFanatics FAQ,
+  “Culture flipping”](https://civfanatics.com/civ3/faq/), [Dan Magaha (Firaxis),
+  “Culture-Flipping Exposed”](https://forums.civfanatics.com/threads/culture-flipping-exposed.14337/),
+  and [CivFanatics forum formula discussion](https://forums.civfanatics.com/threads/how-do-you-prevent-disposing-defecting.72932/).
+  The first two are the strongest evidence here: the FAQ is a secondary
+  synthesis; Magaha attributes the qualitative factors to a conversation with
+  lead programmer Soren. Neither page establishes that Conquests retained every
+  base-game detail. The formula is not yet implemented.
 - Conquests Civilopedia says civilization culture is the sum of city culture
   values (“the sum of the cultural values of all of your cities”) and that
   larger cultural advantage is favorable in resistance, diplomacy, and
