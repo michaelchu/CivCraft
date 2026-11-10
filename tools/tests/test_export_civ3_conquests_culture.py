@@ -11,6 +11,9 @@ SPEC.loader.exec_module(MODULE)
 
 
 class EffectiveCulturalConversionTests(unittest.TestCase):
+    def test_secret_police_hq_maps_to_culture_capital_catalog_entry(self):
+        self.assertEqual(MODULE.CIVCRAFT_BUILDING_INDEX_BY_BIQ_INDEX[82], 90)
+
     def test_default_rules_use_the_documented_enabled_game_default(self):
         self.assertTrue(MODULE.effective_cultural_conversions(1, False))
 

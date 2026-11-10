@@ -472,7 +472,11 @@ documentation, not as evidence for field behavior.
   implements the cited diagonal-axis metric and chooses the closest horizontal
   wrap image; deterministic checks cover an interior diagonal and the map
   seam. The seam rule is a topology-based inference, not a controlled
-  Conquests observation. Zero-distance handling remains unresolved. The
+  Conquests observation. BLDG[82] Secret Police HQ is now mapped to catalog
+  entry 90, using its installed BIQ cost and Espionage requirement, so the
+  candidate calculation can recognize all three reported capital buildings.
+  When multiple capital buildings exist, choosing the closest is an explicit
+  implementation inference; zero-distance handling remains unresolved. The
   CivFanatics Conquests FAQ says WLTKD requires
   size at least 6, no unhappy or resisting citizens, at least half the citizens
   happy, and food production of at least 2 per citizen. These criteria provide
@@ -480,18 +484,20 @@ documentation, not as evidence for field behavior.
   interactions remain unconfirmed in the installed Conquests game. Sources:
   [CivWiki, “Flip probability”](https://civ-wiki.de/wiki/Flipwahrscheinlichkeit_(Civ3))
   and [CivFanatics Conquests FAQ](https://forums.civfanatics.com/threads/frequently-asked-questions-civ3-play-the-world-conquests.170282/).
-  `city_meets_wltkd_criteria` separately encodes the Civilopedia's no-starvation,
+  `city_meets_wltkd_criteria` encodes the Civilopedia's no-starvation,
   no-resister, no-unhappy, and more-happy-than-content conditions, with the
-  commonly reported size-6 threshold from the FAQ. Deterministic checks cover
-  each boundary. The predicate is not yet connected to city mood or turn
-  resolution.
-  `src/sim/culture.rs::city_flip_probability` implements the candidate
-  arithmetic in isolation, including the `2000 * D` denominator, distance
-  clamp, and foreign-national/resister weighting. Deterministic checks match
-  the CivWiki worked example and formula boundaries. This helper is not called
-  during turn resolution. Zero-total-culture or invalid capital-distance
-  ratios return unresolved (`None`) because available sources do not establish
-  the engine behavior for those undefined inputs. The candidate formula has
+  commonly reported size-6 threshold from the FAQ. `candidate_city_flip_probability_to`
+  now derives population, foreign-controlled radius tiles, city and civilization
+  culture, disorder, WLTKD, garrison, and capital distances from simulation
+  state before applying the candidate arithmetic. A deterministic scenario
+  covers those derived inputs, the garrison reduction, and doubled chance when
+  the challenger has greater local culture. This candidate calculation is
+  still not called during turn resolution. It returns unresolved (`None`) when
+  multiple foreign nationalities are present because the formula does not say
+  whether non-challenger foreigners contribute to `F`. Zero-total-culture or
+  invalid capital-distance ratios also return unresolved (`None`) because
+  available sources do not establish the engine behavior for those undefined
+  inputs. The candidate formula has
   not been controlled-observed in Conquests. Firaxis staff's 2002 explanation
   identifies land-based combat units with positive attack and defense as the
   garrison factor, and says each garrison subtracts from the chance. A 2004

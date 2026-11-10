@@ -137,6 +137,8 @@ impl Building {
     pub(crate) const BATTLEFIELD_MEDICINE: Self = Self(87);
     pub(crate) const SISTINE_CHAPEL: Self = Self(88);
     pub(crate) const KNIGHTS_TEMPLAR: Self = Self(89);
+    // Conquests BLDG[82], included because its headquarters counts as a culture-flip capital.
+    pub(crate) const SECRET_POLICE_HQ: Self = Self(90);
 
     pub(crate) fn history_per_turn(self) -> i32 {
         match self.0 {
@@ -947,5 +949,13 @@ const BUILDINGS: &[BuildingData] = &[
         upkeep: 0,
         requirements: &[(Tech(11), true)],
         obsolete: &[(Tech(97), true)],
+    },
+    BuildingData {
+        name: "Secret Police HQ",
+        genus: Genus::SmallWonder,
+        cost: 20,
+        upkeep: 0,
+        requirements: &[(Tech(26), true)],
+        obsolete: &[],
     },
 ];

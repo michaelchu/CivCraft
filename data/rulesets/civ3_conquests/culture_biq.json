@@ -1492,8 +1492,8 @@
       "required_advance_name": "Espionage",
       "rendered_obsolete_by_advance_index": -1,
       "rendered_obsolete_by_advance_name": null,
-      "civcraft_catalog_index": null,
-      "catalog_mapping_status": "zero-output; catalog mapping not needed",
+      "civcraft_catalog_index": 90,
+      "catalog_mapping_status": "mapped-zero-output",
       "flags_hex": "00000000080000002000000000000000"
     }
   ],
@@ -1602,13 +1602,13 @@
     "cultural_victory_flag": false,
     "culturally_linked_start": false,
     "cultural_conversions_flag": false,
+    "effective_cultural_conversions": true,
     "retain_culture_on_capture_raw": 0,
     "retain_culture_on_capture": false,
     "one_city_culture_win": 20000,
     "all_cities_culture_win": 100000,
     "domination_terrain": 66,
-    "domination_population": 66,
-    "effective_cultural_conversions": true
+    "domination_population": 66
   },
   "cultural_victory_thresholds": {
     "source_section": "Conquests/Text/Civilopedia.txt#GCON_Victory",
@@ -2713,10 +2713,10 @@
   ],
   "field_notes": {
     "game_cultural_victory_flag": "Raw GAME flag. CivFanatics editor-rules reverse-engineering says Default Victory Conditions enables cultural victory even when this individual flag is false. The effective setting is exported separately.",
+    "game_cultural_conversions_flag": "Raw GAME flag. The Complete manual says Allow for Cultural Conversions defaults ON. When GAME.DefaultGameRules is set, use that default instead of the raw scenario flag; this interpretation is recorded as an inference until controlled Conquests observation.",
     "game_retain_culture_on_capture": "Raw GAME.RetainCulture scenario property. The installed Conquests readme says MPTournament enables captured-city culture retention. CivCraft interprets the default Conquests false value as clearing the captured city's culture ledger, inferred from that contrast and CivFanatics reverse-engineering. The enabled setting's exact per-civilization accounting effect remains unresolved.",
     "government_interactions": "Raw GOVT pair fields follow the adjacent parser schema. Resistance percentage-point use matches CivFanatics for six base governments; Conquests-only Fascism/Feudalism application is inferred.",
     "race_culture_group_index": "Raw RACE index; keep separate from accumulated culture-point rules.",
-    "difficulty": "Raw DIFF settings are exported. All eight MilitaryLaw values are 1; CivFanatics identifies this setting as the per-unit resistance-quelling cap, a reverse-engineered interpretation not confirmed in Conquests.",
-    "game_cultural_conversions_flag": "Raw GAME flag. The Civilization III Complete manual says Allow for Cultural Conversions defaults ON. When GAME.DefaultGameRules is set, use that default instead of the raw scenario flag; this interpretation is an inference pending controlled Conquests observation."
+    "difficulty": "Raw DIFF settings are exported. All eight MilitaryLaw values are 1; CivFanatics identifies this setting as the per-unit resistance-quelling cap, a reverse-engineered interpretation not confirmed in Conquests."
   }
 }

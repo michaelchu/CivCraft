@@ -105,6 +105,130 @@ fn city_meets_wltkd_criteria(
         && happy > content
 }
 
+fn cultural_conversions_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        let mut lines = include_str!("../../data/rulesets/civ3_conquests/culture_conversion_settings.tsv").lines();
+        assert_eq!(
+            lines.next(),
+            Some("source_section\tsource_record_index\tdefault_game_rules\tcultural_conversions_flag\teffective_cultural_conversions\tbiq_sha256"),
+            "invalid Conquests cultural-conversion settings header"
+        );
+        let fields = lines.next().expect("missing Conquests cultural-conversion setting")
+            .split('\t').collect::<Vec<_>>();
+        assert_eq!(fields.len(), 6);
+        assert_eq!((fields[0], fields[1]), ("GAME", "0"));
+        assert_eq!(fields[5], "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c");
+        let raw = match fields[3] { "true" => true, "false" => false, value => panic!("invalid conversion flag {value:?}") };
+        let default_rules = fields[2].parse::<u8>().expect("invalid default-rules flag");
+        assert!(default_rules <= 1);
+        let effective = default_rules == 1 || raw;
+        assert_eq!(fields[4], effective.to_string());
+        assert!(lines.next().is_none(), "extra Conquests cultural-conversion settings");
+        effective
+    })
+}
+
+fn flip_capital(building: Building) -> bool {
+    matches!(
+        building,
+        Building::PALACE | Building::FORBIDDEN_PALACE | Building::SECRET_POLICE_HQ
+    )
+}
+
+#[allow(dead_code)] // Candidate assessment is kept separate from unverified flip resolution.
+fn candidate_city_flip_probability_to(
+    game: &Simulation,
+    city_id: u32,
+    challenger: usize,
+) -> Option<f64> {
+    if !cultural_conversions_enabled() || challenger >= game.civilization_count {
+        return Some(0.0);
+    }
+    let city = game.cities.iter().find(|city| city.id == city_id)?;
+    let defender = city.owner;
+    if defender >= game.civilization_count || defender == challenger {
+        return None;
+    }
+    if city
+        .foreign_citizens
+        .iter()
+        .any(|&(nationality, count)| count > 0 && nationality != challenger)
+    {
+        // The community formula does not say how multiple foreign nationalities
+        // contribute to a particular rival's F term.
+        return None;
+    }
+
+    let capital_distance = |civilization| {
+        game.cities
+            .iter()
+            .filter(|capital| {
+                capital.owner == civilization && capital.buildings.iter().copied().any(flip_capital)
+            })
+            .map(|capital| {
+                game.map_wrap
+                    .civ3_culture_distance(city.x, city.y, capital.x, capital.y)
+            })
+            .min_by(f64::total_cmp)
+    };
+    let challenger_capital_distance = capital_distance(challenger)?;
+    let defender_capital_distance = capital_distance(defender)?;
+    let forecast = game.city_forecast(city);
+    let (happy, unhappy, angry) = game.city_feelings(city, forecast.luxury);
+    let resisting_citizens = city
+        .resisting_citizens
+        .iter()
+        .find_map(|&(nationality, count)| (nationality == challenger).then_some(count))
+        .unwrap_or(0);
+    let celebrating_wltkd = city_meets_wltkd_criteria(
+        city.size,
+        forecast.food_surplus(city.size, 0),
+        city.resisting_citizens
+            .iter()
+            .map(|&(_, count)| count)
+            .sum(),
+        happy,
+        unhappy,
+        angry,
+    );
+    let foreign_citizens = city
+        .foreign_citizens
+        .iter()
+        .find_map(|&(nationality, count)| (nationality == challenger).then_some(count))
+        .unwrap_or(0);
+    let foreign_radius_tiles = game
+        .map_city_radius(city)
+        .filter(|&(_, _, x, y)| game.tile(x, y).owner == Some(challenger))
+        .count() as i32;
+    let defender_land_combat_garrison = game
+        .units
+        .iter()
+        .filter(|unit| {
+            unit.owner == defender
+                && (unit.x, unit.y) == (city.x, city.y)
+                && unit.kind.unit_class().is_ground()
+                && unit.kind.stats().attack > 0
+                && unit.kind.stats().defense > 0
+        })
+        .count() as i32;
+
+    city_flip_probability(CityFlipFactors {
+        foreign_citizens,
+        resisting_citizens,
+        foreign_radius_tiles,
+        challenger_city_culture: city.culture_for_civilization(challenger),
+        defender_city_culture: city.culture_for_civilization(defender),
+        challenger_total_culture: game.civilization_culture(challenger),
+        defender_total_culture: game.civilization_culture(defender),
+        disorder: forecast.disorder,
+        celebrating_wltkd,
+        defender_land_combat_garrison,
+        challenger_capital_distance,
+        defender_capital_distance,
+    })
+}
+
 pub(super) fn retain_culture_on_capture() -> bool {
     static RETAIN: OnceLock<bool> = OnceLock::new();
     *RETAIN.get_or_init(|| {
@@ -187,6 +311,13 @@ fn building_culture_rules() -> &'static [BuildingCulture] {
                     assert!(catalog_index < Building::all().count(), "unknown Building catalog ID");
                     assert!(culture > 0, "mapped culture row must contribute culture");
                     rules.push(BuildingCulture { catalog_index, culture_per_turn: culture });
+                }
+                "mapped-zero-output" => {
+                    let _catalog_index = fields[4]
+                        .parse::<usize>()
+                        .expect("mapped zero-output row requires catalog ID");
+                    assert!(_catalog_index < Building::all().count(), "unknown Building catalog ID");
+                    assert_eq!(culture, 0, "mapped zero-output building has culture");
                 }
                 "unresolved" => {
                     assert_eq!(fields[4], "-", "unresolved culture row has catalog ID");
@@ -414,6 +545,33 @@ impl Simulation {
 mod tests {
     use super::*;
 
+    fn candidate_flip_fixture() -> (Simulation, u32) {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        game.units.clear();
+        for tile in &mut game.tiles {
+            tile.owner = None;
+            tile.border_city = None;
+            tile.terrain = Terrain::Grassland;
+        }
+        game.create_city(HUMAN, 10, 24);
+        game.create_city(HUMAN, 14, 24);
+        game.create_city(1, 32, 24);
+        game.create_city(1, 24, 24);
+        game.cities[0].add_culture(HUMAN, 100);
+        game.cities[2].add_culture(1, 100);
+        let target = &mut game.cities[3];
+        target.foreign_citizens = vec![(HUMAN, 1)];
+        let target_id = target.id;
+        let (x, y) = game
+            .map_city_radius(&game.cities[3])
+            .find(|&(_, _, x, y)| (x, y) != (24, 24))
+            .map(|(_, _, x, y)| (x, y))
+            .unwrap();
+        game.tile_mut(x, y).owner = Some(HUMAN);
+        (game, target_id)
+    }
+
     #[test]
     fn reverse_engineered_city_flip_formula_matches_civwiki_example() {
         let factors = CityFlipFactors {
@@ -545,6 +703,49 @@ mod tests {
         assert!(!qualifies(6, 0, 0, 3, 0, 0)); // happy must exceed content
         assert!(!qualifies(6, 0, 0, 5, 1, 0));
         assert!(!qualifies(6, 0, 0, 5, 0, 1));
+    }
+
+    #[test]
+    fn candidate_flip_probability_derives_foreign_population_tiles_cultures_and_capitals() {
+        let (game, city_id) = candidate_flip_fixture();
+        assert!(cultural_conversions_enabled());
+        assert_eq!(Building::SECRET_POLICE_HQ.data().name, "Secret Police HQ");
+        let base = candidate_city_flip_probability_to(&game, city_id, HUMAN).unwrap();
+        assert!(base > 0.0);
+
+        let mut secret_police_capital = game.clone();
+        secret_police_capital.cities[0]
+            .buildings
+            .retain(|&building| building != Building::PALACE);
+        secret_police_capital.cities[0]
+            .buildings
+            .push(Building::SECRET_POLICE_HQ);
+        assert_eq!(
+            candidate_city_flip_probability_to(&secret_police_capital, city_id, HUMAN),
+            Some(base)
+        );
+
+        let mut garrisoned = game.clone();
+        let (x, y) = (garrisoned.cities[3].x, garrisoned.cities[3].y);
+        garrisoned.spawn_unit(1, UnitKind::Warrior, x, y);
+        let guarded = candidate_city_flip_probability_to(&garrisoned, city_id, HUMAN).unwrap();
+        assert!(guarded < base);
+
+        let mut stronger_local_culture = game.clone();
+        stronger_local_culture.cities[3].add_culture(HUMAN, 1);
+        let doubled =
+            candidate_city_flip_probability_to(&stronger_local_culture, city_id, HUMAN).unwrap();
+        assert!((doubled / base - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn candidate_flip_probability_leaves_multiple_foreign_nationalities_unresolved() {
+        let (mut game, city_id) = candidate_flip_fixture();
+        game.cities[3].foreign_citizens.push((2, 1));
+        assert_eq!(
+            candidate_city_flip_probability_to(&game, city_id, HUMAN),
+            None
+        );
     }
 
     #[test]

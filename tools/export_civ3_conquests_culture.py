@@ -26,7 +26,7 @@ CIVCRAFT_BUILDING_INDEX_BY_BIQ_INDEX = {
     45: 43, 46: 78, 47: 52, 48: 77, 49: 70, 50: 59, 51: 46,
     52: 75, 53: 79, 54: 81, 55: 82, 56: 80, 57: 83, 58: 84,
     59: 85, 60: 42, 61: 31, 62: 86, 63: 87, 74: 66, 78: 64,
-    79: 63, 80: 62, 81: 89,
+    79: 63, 80: 62, 81: 89, 82: 90,
 }
 
 
@@ -160,7 +160,8 @@ def main() -> None:
             "rendered_obsolete_by_advance_name": tech_name(int_at(data, cursor + 224)),
             "civcraft_catalog_index": CIVCRAFT_BUILDING_INDEX_BY_BIQ_INDEX.get(index),
             "catalog_mapping_status": (
-                "mapped" if index in CIVCRAFT_BUILDING_INDEX_BY_BIQ_INDEX
+                ("mapped" if int_at(data, cursor + 152) > 0 else "mapped-zero-output")
+                if index in CIVCRAFT_BUILDING_INDEX_BY_BIQ_INDEX
                 else "unresolved" if int_at(data, cursor + 152) > 0
                 else "zero-output; catalog mapping not needed"
             ),
