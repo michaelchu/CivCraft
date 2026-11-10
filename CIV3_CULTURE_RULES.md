@@ -206,6 +206,24 @@ documentation, not as evidence for field behavior.
   progression through 10,000 but does not reconcile the next threshold with
   Conquests Civilopedia's 20,000 example. Source checked 2026-11-10:
   [CivFanatics Info Center, “How can your borders expand?”](https://civfanatics.com/civ3/infocenter/).
+- More detailed reverse-engineering lead: CivWiki's “Regeln der Kulturgrenzen
+  (Civ3)” summarizes the CivFanatics investigation “The Eight Laws of Border
+  Dynamics” (forum thread 106882). It says a city that passes its nth border
+  threshold gains claims at distance and rank n+1; the thresholds are `10^n`;
+  lower claim rank wins; same-rank claims compare the claiming cities' culture,
+  then founding age, followed by a directional tie-break. It also says ocean
+  claims are capped at rank 2 and gives two diagonal-fill rules. The author
+  explicitly limits the rules to the first two cultural rings and reports
+  unexplained exceptions in rings three and four. This is a player-derived
+  model, not official documentation or controlled evidence from the installed
+  Conquests build. It materially improves the investigation plan, but does not
+  yet justify adopting the deeper-ring rules or changing the current
+  civilization-culture comparison: the Civilopedia describes civilization
+  culture as the factor when rival civilizations both have a legitimate claim,
+  while this account's same-rank comparison uses local city culture. Its
+  `10^n` sequence also conflicts with the Civilopedia's explicit 20,000
+  example after 10,000. Preserve these conflicts for controlled resolution.
+  Source checked 2026-11-10: [CivWiki, “Regeln der Kulturgrenzen (Civ3)”](https://civ-wiki.de/wiki/Regeln_der_Kulturgrenzen_%28Civ3%29), which attributes the rules to [CivFanatics, “The Eight Laws of Border Dynamics”](https://forums.civfanatics.com/showthread.php?t=106882); the forum page was not retrievable during this check.
 - Technical geometry lead, not adopted as a gameplay rule: C3X's open-source
   Conquests executable mod has an ordered cultural-neighbor table and uses a
   city's engine `cultural_level` as a ring limit for its configurable work
