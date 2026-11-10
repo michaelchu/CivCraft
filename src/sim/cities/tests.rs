@@ -4,6 +4,28 @@ use super::production::Growth;
 use super::*;
 
 #[test]
+fn standard_conquests_capture_discards_the_captured_city_culture_ledger() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(1, 10, 24);
+    game.create_city(1, 20, 24);
+    let city_id = game.cities[1].id;
+    game.cities[1].add_culture(1, 300);
+    game.cities[1].add_culture(HUMAN, 75);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+
+    game.capture_city_if_needed(attacker, 20, 24);
+
+    let city = &game.cities[game.city_index_by_id(city_id).unwrap()];
+    assert_eq!(city.owner, HUMAN);
+    assert_eq!(city.culture_for_civilization(1), 0);
+    assert_eq!(city.culture_for_civilization(HUMAN), 0);
+    assert_eq!(city.culture_by_civilization, [(HUMAN, 0)]);
+}
+
+#[test]
 fn fascist_capture_suppresses_culture_until_owner_nation_is_a_majority() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();

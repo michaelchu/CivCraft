@@ -380,6 +380,11 @@ impl Simulation {
         if capital {
             self.lose_spaceship(old_owner);
         }
+        if !super::culture::retain_culture_on_capture() {
+            // The standard Conquests BIQ disables the scenario option that
+            // keeps a captured city's accumulated culture.
+            self.cities[city_index].clear_culture_for_capture(unit.owner);
+        }
         self.cities[city_index].transfer_citizens(unit.owner);
         self.list_order.city(&self.cities[city_index]);
         if self.cities[city_index].size > 1 {

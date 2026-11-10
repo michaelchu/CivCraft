@@ -374,8 +374,11 @@ def main() -> None:
         ),
         "game_retain_culture_on_capture": (
             "Raw GAME.RetainCulture scenario property. The installed Conquests "
-            "readme says MPTournament enables captured-city culture retention; "
-            "the detailed per-civilization accounting effect is not established."
+            "readme says MPTournament enables captured-city culture retention. "
+            "CivCraft interprets the default Conquests false value as clearing "
+            "the captured city's culture ledger, inferred from that contrast "
+            "and CivFanatics reverse-engineering. The enabled setting's exact "
+            "per-civilization accounting effect remains unresolved."
         ),
         "government_interactions": (
             "Raw GOVT pair fields follow the adjacent parser schema. Resistance "

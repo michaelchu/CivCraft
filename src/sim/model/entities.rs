@@ -164,8 +164,8 @@ pub(crate) struct City {
     pub(in crate::sim) was_happy: bool,
     pub(in crate::sim) last_plague: Option<i32>,
     pub(in crate::sim) history: i32,
-    /// Accumulated gameplay culture, retained by its original civilization
-    /// when this city changes hands. Sorted by civilization slot for stable saves.
+    /// Accumulated gameplay culture, with capture retention controlled by the
+    /// active Conquests scenario setting. Sorted by civ slot for stable saves.
     pub(in crate::sim) culture_by_civilization: Vec<(usize, i64)>,
     /// BIQ building identity to completion year, used for the documented
     /// age-based doubling of each building's culture contribution.
@@ -256,6 +256,11 @@ impl City {
                 .culture_by_civilization
                 .insert(index, (civilization, amount)),
         }
+    }
+
+    pub(in crate::sim) fn clear_culture_for_capture(&mut self, new_owner: usize) {
+        self.culture_by_civilization.clear();
+        self.culture_by_civilization.push((new_owner, 0));
     }
 
     pub(in crate::sim) fn record_culture_building_completion(

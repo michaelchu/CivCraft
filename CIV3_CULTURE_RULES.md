@@ -61,12 +61,16 @@ shipped release-note case:
 | `Scenarios/MPTournament.biq` | 1 | `555921731b41667f81a6fc6709fdacce2c57706b123ebeb9648a59950d433185` |
 
 The setting aligns with `../source/Conquests/readme.txt`, which specifically
-says MPTournament captured cities retain culture. This confirms the setting is
-used across installed scenarios, but whether retention means preserving the
-previous civilization's city ledger, transferring the city total to the captor,
-or preserving only border value is still unknown. The current CivCraft ledger
-unconditionally preserves prior civilization entries, so that capture behavior
-remains a known mismatch until the setting's accounting effect is established.
+says MPTournament captured cities retain culture. The main Conquests BIQ has
+the setting disabled. CivCraft now clears a captured city's per-civilization
+culture ledger under that default setting. This is an inference from the raw
+flag and release-note contrast, supported by the CivFanatics Info Center's
+reverse-engineered description that captured cities normally lose their
+existing culture points ([“Culture,” captured cities](https://civfanatics.com/civ3/infocenter/),
+checked 2026-11-10). It is not a controlled Conquests observation. The
+enabled MPTournament variant is not yet wired as a selectable runtime ruleset;
+whether its retained points stay attributed to prior civilizations or transfer
+to the captor remains unresolved.
 OpenCiv3 save-format lead only: `../openciv3/QueryCiv3/SavSections/City.cs`
 parses 32 per-leader culture values in each city record and comments that
 recaptured cities regain their previous culture. This supports the storage
@@ -418,10 +422,14 @@ documentation, not as evidence for field behavior.
 - `src/sim/cities.rs::capture_city_if_needed` transfers ownership/nationality
   and applies capture effects, but does not initialize resistance from
   culture comparisons. The city resistance count is currently test-set only.
-- `GAME.RetainCulture` is exported but not consumed by capture logic.
-  Per-civilization city-ledger entries persist unconditionally; whether the
-  false setting should clear them or the true setting should transfer/retain
-  them in another form remains unresolved.
+- Standard Conquests `GAME.RetainCulture=0` is now read from the reproducible
+  capture-settings export and clears the captured city's culture ledger after
+  capture-time resistance comparisons are computed. The false-means-clear
+  semantics are inferred from the setting and the installed MPTournament
+  release-note contrast, not confirmed in a controlled original-game scenario.
+  Other scenario BIQs with the flag enabled are recorded in the export but are
+  not selectable as CivCraft runtime rulesets. The exact per-civilization
+  accounting effect of enabled retention remains unresolved.
 - `src/sim/achievements.rs` now checks the new culture ledger for its
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.

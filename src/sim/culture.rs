@@ -16,6 +16,43 @@ struct CultureVictoryThresholds {
     civilization: i64,
 }
 
+pub(super) fn retain_culture_on_capture() -> bool {
+    static RETAIN: OnceLock<bool> = OnceLock::new();
+    *RETAIN.get_or_init(|| {
+        let mut lines = include_str!(
+            "../../data/rulesets/civ3_conquests/culture_capture_settings.tsv"
+        )
+        .lines();
+        assert_eq!(
+            lines.next(),
+            Some("biq_path\tsource_section\tsource_record_index\tretain_culture_on_capture_raw\tretain_culture_on_capture\tbiq_sha256"),
+            "invalid Conquests capture-culture table header"
+        );
+        let mut matches = lines.filter_map(|line| {
+            let fields = line.split('\t').collect::<Vec<_>>();
+            assert_eq!(fields.len(), 6, "invalid Conquests capture-culture row");
+            (fields[0] == "conquests.biq").then_some(fields)
+        });
+        let fields = matches
+            .next()
+            .expect("missing main Conquests BIQ capture-culture setting");
+        assert!(
+            matches.next().is_none(),
+            "duplicate main Conquests BIQ capture-culture setting"
+        );
+        assert_eq!(fields[1], "GAME");
+        assert_eq!(fields[2], "0");
+        assert_eq!(
+            fields[5],
+            "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+        );
+        let raw = fields[3].parse::<u8>().expect("invalid RetainCulture byte");
+        assert!(raw <= 1, "unexpected RetainCulture value");
+        assert_eq!(fields[4], if raw == 1 { "true" } else { "false" });
+        raw == 1
+    })
+}
+
 fn building_culture_rules() -> &'static [BuildingCulture] {
     static RULES: OnceLock<Vec<BuildingCulture>> = OnceLock::new();
     RULES.get_or_init(|| {
