@@ -70,9 +70,16 @@ existing culture points ([“Culture,” captured cities](https://civfanatics.co
 checked 2026-11-10). A Conquests editor-rules reference says enabling
 `RetainCulture` keeps the conquered city's culture instead of dropping it to
 zero ([Vi.ki, “Editor and Modding”](https://civ3.vi.ki/editor-and-modding),
-checked 2026-11-10). Neither source establishes how retained points are
-attributed in the civilization-wide total. The enabled MPTournament variant
-is not yet wired as a selectable runtime ruleset.
+checked 2026-11-10). A Conquests strategy guide separately says that cities
+remember the amount of culture each civilization generated there, even after
+capture ([Denouement, “Cultural Borders”](https://gamefaqs.gamespot.com/pc/915016-civilization-iii-conquests/faqs/18251)).
+The CivFanatics Info Center likewise contains conflicting statements: its
+culture section says civilization totals never decrease on capture, that a
+losing civ loses cultural points when a city joins another, and that all
+existing city culture points are lost on capture. These may refer to distinct
+current-city, historical-per-civilization, and empire-total values; the sources
+do not reconcile them. The enabled MPTournament variant is not yet wired as a
+selectable runtime ruleset.
 
 The CivFanatics Info Center also reports that captors receive no culture from
 existing structures, and that an original owner who recaptures the city resumes
@@ -548,17 +555,19 @@ documentation, not as evidence for field behavior.
   competing territorial claims. CivCraft now sums the culture ledger entries
   only from cities currently owned by that civilization. The per-civilization
   city ledger is cleared on combat capture when the installed main BIQ's
-  `GAME.RetainCulture=0`; enabled retention in scenario BIQs remains unresolved.
-  An older general Civ III FAQ instead says a civilization's accumulated total
-  never decreases on capture, though its culture per turn does
-  ([Planet Civilization, “General Civ3 FAQ”](https://planetcivilization.gamespy.com/View9733.html?game=5&id=8&view=Faq.Detail),
-  checked 2026-11-10). That FAQ also describes city culture generation and
-  recapture age bonuses, but its text does not identify a Conquests version.
-  The Conquests-specific editor flag and Info Center describe city points
-  dropping to zero in the default setting, so the older FAQ is not sufficient
-  to overturn the current Conquests interpretation. Whether this reflects an
-  edition change or distinct displayed-versus-accounted totals remains open;
-  do not infer a lifetime accumulator from it.
+  `GAME.RetainCulture=0`. That models the city-value reset described by the
+  editor-rule reference, but it also erases each civilization's historical
+  city contribution. A Conquests strategy guide says the city remembers each
+  civilization's locally earned culture after capture, while the CivFanatics
+  Info Center makes conflicting claims about civilization totals and city
+  culture in the same article (culture section, “Effects of Culture,” lines
+  429 and 432–433 in the current web edition). The official Civilopedia says
+  civilization culture is the sum of city values but does not define capture
+  accounting. Therefore the current single ledger conflates present city
+  culture, historical per-civilization city memory, and civilization-wide
+  culture. Capture accounting remains unresolved and should not be claimed as
+  Conquests-faithful until controlled observation or stronger documentation
+  separates these values.
 - Conquests Civilopedia gives a 20,000-point single-city cultural victory and
   lists civilization totals of 60,000 / 80,000 / 100,000 / 130,000 / 160,000
   for Tiny through Huge maps. The installed BIQ `GAME` fields specify 20,000
@@ -578,7 +587,8 @@ documentation, not as evidence for field behavior.
   city is not. The one-city check uses the current owner's ledger entry, an
   inference from “one of your cities.” Under `GAME.RetainCulture=1`, whether
   retained points belong to the new owner, remain attributed to their builders,
-  or affect the city and civilization totals differently remains unresolved.
+  or affect city culture, historical city memory, and civilization totals
+  differently remains unresolved.
 - The installed `DIFF` records contain difficulty parameters but no explicit
   culture modifier. Their `MilitaryLaw` value is `1` at all eight levels; it is
   not applied to culture or occupation resistance without supporting evidence.
