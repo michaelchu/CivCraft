@@ -316,6 +316,17 @@ documentation, not as evidence for field behavior.
   lists civilization totals of 60,000 / 80,000 / 100,000 / 130,000 / 160,000
   for Tiny through Huge maps. The installed BIQ `GAME` fields specify 20,000
   and 100,000, matching the one-city threshold and Standard-map total.
+- Conquests-specific formula lead, now implemented: Denouement's *Civilization
+  III: Conquests Strategy Guide* says empire culture victory requires at least
+  twice the culture of every other civilization, in addition to the culture
+  threshold. The Conquests Civilopedia gives the threshold but omits this
+  competitor condition. CivCraft now checks that no living rival has more than
+  half the winner's current civilization culture; the one-city 20,000-point
+  condition remains independent. This is an edition-matched specialist guide,
+  not an official rules passage or controlled observation. Source checked
+  2026-11-10: [Denouement, “Cultural Calamity”](https://gamefaqs.gamespot.com/pc/915016-civilization-iii-conquests/faqs/18251),
+  especially its explicit description of the 100,000-point empire victory and
+  rival-half requirement.
 - The threshold values are explicit, but culture attribution for a captured
   city is not. The one-city check uses the current owner's ledger entry, an
   inference from “one of your cities.” Whether a captured city's retained

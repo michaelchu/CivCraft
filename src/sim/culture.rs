@@ -197,7 +197,14 @@ impl Simulation {
             let city_winner = self.cities.iter().any(|city| {
                 city.owner == owner && city.culture_for_civilization(owner) >= thresholds.one_city
             });
-            let civilization_winner = self.civilization_culture(owner) >= thresholds.civilization;
+            let civilization_total = self.civilization_culture(owner);
+            let civilization_winner = civilization_total >= thresholds.civilization
+                && (0..self.players.len()).all(|rival| {
+                    rival == owner
+                        || rival == BARBARIANS
+                        || !self.player_alive(rival)
+                        || self.civilization_culture(rival) <= civilization_total / 2
+                });
             if city_winner || civilization_winner {
                 let kind = if city_winner { "city" } else { "civilization" };
                 self.game_over = Some(format!(
@@ -351,5 +358,35 @@ mod tests {
                 .unwrap()
                 .contains("civilization culture")
         );
+    }
+
+    #[test]
+    fn civilization_culture_victory_requires_at_least_twice_each_living_rivals_culture() {
+        let game_with_rival_culture = |rival_culture: i64| {
+            let mut game = Simulation::new(crate::mapgen::generate_for_civ3_size(
+                44,
+                crate::mapgen::Civ3MapSize::Tiny,
+                crate::mapgen::Civ3WorldSettings::default(),
+            ));
+            for (x, y) in [(8, 10), (18, 10), (28, 10), (38, 10)] {
+                game.create_city(HUMAN, x, y);
+            }
+            game.create_city(1, 8, 30);
+            game.create_city(1, 28, 30);
+            for city in game.cities.iter_mut().take(4) {
+                city.add_culture(HUMAN, 15_000);
+            }
+            game.cities[4].add_culture(1, rival_culture / 2);
+            game.cities[5].add_culture(1, rival_culture - rival_culture / 2);
+            game
+        };
+
+        let mut blocked = game_with_rival_culture(30_001);
+        blocked.check_cultural_victory();
+        assert!(blocked.game_over().is_none());
+
+        let mut at_half = game_with_rival_culture(30_000);
+        at_half.check_cultural_victory();
+        assert!(at_half.game_over().unwrap().contains("civilization culture"));
     }
 }
