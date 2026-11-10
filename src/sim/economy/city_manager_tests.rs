@@ -4,6 +4,21 @@ use super::*;
 use std::collections::HashSet;
 
 #[test]
+fn resisting_citizens_are_not_available_for_tile_work() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(HUMAN, 10, 24);
+    game.cities[0].size = 4;
+    game.cities[0].resisting_citizens = 2;
+    game.reconcile_city_workers();
+
+    assert_eq!(game.cities[0].tile_workers(), 2);
+    assert_eq!(game.cities[0].worked_tiles.len(), 2);
+    assert_eq!(game.cities[0].specialists.iter().sum::<i32>(), 0);
+}
+
+#[test]
 fn military_police_limits_match_conquests_governments_and_require_attack_strength() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();

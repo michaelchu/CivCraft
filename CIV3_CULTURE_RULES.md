@@ -212,8 +212,11 @@ documentation, not as evidence for field behavior.
 - `src/sim/achievements.rs` now checks the new culture ledger for its
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.
-- `src/sim/model/entities.rs::City` has a culture ledger, but still has no
-  resisting-population state or resistance progression.
+- `City` now has a serialized `resisting_citizens` count. Counted resisters are
+  excluded from tile labor and from the specialist count, matching the
+  Civilopedia's explicit statement that they cannot work. Capture code does
+  not set this count yet; resistance creation and progression remain
+  unresolved. Save/load of the count is tested.
 - CivCraft has no civilization Mobilization state. Base-manual half-output
   wording cannot currently be applied to Conquests without confirming that it
   matches the installed edition's Mobilization behavior.
@@ -239,6 +242,10 @@ documentation, not as evidence for field behavior.
 - These values are separate from the legacy `history` score counter. Culture
   achievements now read the new ledger; the score counter itself remains a
   legacy approximation used only in score standings.
+- The new resistance field implements only the source-explicit labor
+  restriction. It is not initialized or resolved by gameplay: the installed
+  editor-help page bodies could not be extracted in this environment, and the
+  original Conquests runtime is unavailable for controlled observations.
 - Playable civilizations now retain the raw BIQ `RACE.CultureGroup` index in
   their rules record. It remains separate from culture-point accumulation;
   group-specific gameplay effects are unresolved.
@@ -254,6 +261,11 @@ documentation, not as evidence for field behavior.
   These cover building culture rates, per-civilization accumulation, the
   1,000-year doubling point, turn accrual, and named-map victory thresholds;
   they do not validate border expansion, capture attribution, or resistance.
+- `cargo test --offline resisting_citizens_are_not_available_for_tile_work`:
+  passed; two counted resisters leave only two of four citizens available for
+  tile work.
+- `cargo test --offline current_campaign_round_trip_preserves_gameplay_and_topology_state`:
+  passed with one resisting citizen preserved through save/load.
 - Used `/private/tmp/civ3-blast` to re-unpack the installed `conquests.biq` and
   regenerate `culture_biq.json`,
   `culture_buildings.tsv`, `culture_victory.tsv`, and the all-scenario capture

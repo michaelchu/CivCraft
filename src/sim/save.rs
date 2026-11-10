@@ -372,6 +372,8 @@ impl Simulation {
                 city.owner >= players
                     || !position(city.x, city.y)
                     || city.size <= 0
+                    || city.resisting_citizens < 0
+                    || city.resisting_citizens > city.size
                     || city.id >= self.next_city_id
                     || city
                         .foreign_citizens

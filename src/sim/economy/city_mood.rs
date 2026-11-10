@@ -78,7 +78,7 @@ impl Simulation {
         };
         let base = 4 - empire_penalty;
         let workers = city.tile_workers();
-        let specialists = city.size - workers;
+        let specialists = city.size - workers - city.resisting_citizens;
         let content = (base.clamp(0, city.size) - specialists).max(0);
         let mut angry = (-base).clamp(0, workers);
         let mut unhappy = workers - content - angry;
