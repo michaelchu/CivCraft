@@ -171,12 +171,15 @@ mod tests {
                     .count(),
                 1
             );
+            let bonus_unit = profile
+                .expansionist
+                .then(|| UnitKind::from_civ3_name(profile.expansionist_bonus_unit).unwrap());
             assert_eq!(
                 owner_units
                     .iter()
-                    .filter(|unit| unit.kind == UnitKind::Scout)
+                    .filter(|unit| Some(unit.kind) == bonus_unit)
                     .count(),
-                usize::from(profile.expansionist)
+                profile.bonus_count
             );
             assert!(
                 owner_units
