@@ -382,6 +382,10 @@ impl Simulation {
             self.remove_citizen_nationalities(city_index, 1);
             self.cities[city_index].remove_citizen_assignments(1, self.map_wrap);
         }
+        self.cities[city_index].culture_suppressed_until_majority_assimilated =
+            self.players[unit.owner].government == Government::Fascism
+                && self.cities[city_index].domestic_citizens() * 2
+                    <= self.cities[city_index].size;
         self.release_city_support(self.cities[city_index].id);
         self.cities[city_index].food = 0;
         self.cities[city_index].shields = 0;

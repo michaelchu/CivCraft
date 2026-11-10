@@ -20,6 +20,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     game.cities[0].record_culture_building_completion(Building::TEMPLE, -4000);
     game.cities[0].resisting_citizens = vec![(2, 1)];
     game.cities[0].foreign_citizens = vec![(2, 1)];
+    game.cities[0].culture_suppressed_until_majority_assimilated = true;
     game.set_random_seed(42);
     game.rand_below(1000);
     game.save_campaign(&path).unwrap();
@@ -32,6 +33,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.cities[0].culture_for_civilization(HUMAN), 375);
     assert_eq!(loaded.cities[0].culture_for_civilization(2), 125);
     assert_eq!(loaded.cities[0].resisting_citizens, [(2, 1)]);
+    assert!(loaded.cities[0].culture_suppressed_until_majority_assimilated);
     assert_eq!(
         loaded.cities[0].culture_building_years,
         [(Building::PALACE.0, -4000), (Building::TEMPLE.0, -4000)]

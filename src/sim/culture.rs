@@ -154,6 +154,17 @@ impl Simulation {
     pub(super) fn record_city_culture(&mut self, city_index: usize) {
         let current_year = self.year;
         let owner = self.cities[city_index].owner;
+        let domestic = self.cities[city_index].domestic_citizens();
+        if self.cities[city_index].culture_suppressed_until_majority_assimilated
+            && domestic * 2 > self.cities[city_index].size
+        {
+            self.cities[city_index].culture_suppressed_until_majority_assimilated = false;
+        }
+        if self.players[owner].government == Government::Fascism
+            && self.cities[city_index].culture_suppressed_until_majority_assimilated
+        {
+            return;
+        }
         let buildings = self.cities[city_index].buildings.clone();
         let mut culture_this_turn = 0_i64;
         for building in buildings {
@@ -244,6 +255,28 @@ mod tests {
         game.create_city(HUMAN, 10, 20);
         game.process_player_cities(HUMAN);
         assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 1);
+    }
+
+    #[test]
+    fn fascist_city_culture_waits_for_an_assimilated_population_majority() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        game.cities[0].size = 4;
+        game.cities[0].foreign_citizens = vec![(1, 2)];
+        game.cities[0].culture_suppressed_until_majority_assimilated = true;
+        game.players[HUMAN].government = Government::Fascism;
+
+        game.record_city_culture(0);
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 0);
+
+        game.players[HUMAN].government = Government::Despotism;
+        game.record_city_culture(0);
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 1);
+
+        game.players[HUMAN].government = Government::Fascism;
+        game.cities[0].foreign_citizens[0].1 = 1;
+        game.record_city_culture(0);
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 2);
     }
 
     #[test]

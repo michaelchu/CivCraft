@@ -170,6 +170,10 @@ pub(crate) struct City {
     /// age-based doubling of each building's culture contribution.
     pub(in crate::sim) culture_building_years: Vec<(usize, i32)>,
     pub(in crate::sim) foreign_citizens: Vec<(usize, i32)>,
+    /// Fascist conquests produce no culture until the owner's citizens form a
+    /// majority, per the Conquests Civilopedia.
+    #[serde(default)]
+    pub(in crate::sim) culture_suppressed_until_majority_assimilated: bool,
     pub(in crate::sim) airlift_used: bool,
     pub(crate) food: i32,
     pub(crate) shields: i32,
@@ -208,6 +212,7 @@ impl City {
             culture_by_civilization: vec![(owner, 0)],
             culture_building_years: Vec::new(),
             foreign_citizens: Vec::new(),
+            culture_suppressed_until_majority_assimilated: false,
             airlift_used: false,
             food: 0,
             shields: 0,

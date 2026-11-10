@@ -32,7 +32,7 @@ section/index and source hash.
 | `RULE` | Town/City/Metropolis size names and caps; six culture-level names; border multiplier `1000`; border factor `10` | Values extracted; mapping of parameters to exact border thresholds/geometry not established |
 | `RACE` | 32 civilization records and raw culture-group index | Values extracted; group index semantics should remain separate from numeric culture totals |
 | `GAME` | Cultural-victory flag, one-city threshold `20,000`, all-cities threshold `100,000`, `RetainCulture` capture setting, domination terrain/population values | Values extracted; the main BIQ has `RetainCulture=0`; the installed release notes identify captured-city culture retention as an MPTournament change, whose BIQ has `RetainCulture=1` |
-| `GOVT` | Assimilation chance by government; government-pair interaction fields | Assimilation values extracted; pairwise `ResistanceModifier` semantics are unverified and must not be treated as occupation-resistance rules without validation |
+| `GOVT` | Assimilation chance by government; government-pair interaction fields | Assimilation values extracted; pairwise `ResistanceModifier` semantics are unverified and must not be treated as occupation-resistance rules without validation. Fascist culture suppression is stated in Civilopedia text |
 | `DIFF` | All eight difficulty records, including citizen content, cost, corruption, military-law, and support settings | Exported for comparison; no explicit culture field appears, and adjacent difficulty values are not assumed to modify culture |
 
 The BIQ stores values, not the engine formulas that consume them. Keep the
@@ -107,6 +107,17 @@ documentation, not as evidence for field behavior.
   not applied based on the base-manual wording alone. Evidence: installed
   `../source/Conquests/Text/Civilopedia.txt`, `GCON_Mobilization`; base manual,
   printed page 114.
+- Conquests Civilopedia `GOVT_Fascism` explicitly says newly conquered cities
+  do not generate culture until a popular majority has been assimilated. CivCraft
+  now sets a serialized suppression flag when a Fascist capture leaves the
+  owner's nationality at no more than half the population; accumulation resumes
+  once the owner's citizens exceed half. The majority boundary is a literal
+  interpretation of the explicit phrase, but equality behavior has not been
+  checked in a controlled game scenario.
+- The same Fascism entry says newly conquered cities lose population but gives
+  no amount or sequence. CivCraft already applies its generic one-citizen
+  capture loss; whether Fascism adds another loss remains unresolved and may
+  affect how quickly the assimilation majority is reached.
 - Base manual: civilization culture is the combined culture points accumulated
   by its cities. Source: printed page 131.
 
@@ -213,8 +224,8 @@ documentation, not as evidence for field behavior.
 - `src/sim/achievements.rs` now checks the new culture ledger for its
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.
-- `City` now has a serialized `resisting_citizens` count. Counted resisters are
-  tracked by nationality and excluded from tile labor and the specialist
+- `City` now has serialized `resisting_citizens` counts by nationality.
+  Counted resisters are excluded from tile labor and the specialist
   count, matching the Civilopedia's explicit statement that they cannot work.
   A peace treaty now clears the signatory nationality's resisters in cities
   owned by either signatory, following the Civilopedia's documented
@@ -243,6 +254,10 @@ documentation, not as evidence for field behavior.
   processing. The Civilopedia/manual establish the doubling threshold, while
   first accrual timing on the completion turn still needs controlled
   confirmation.
+- Culture output is suspended after Fascist capture until the owner's citizens
+  form a majority of the population. The Civilopedia explicitly states this
+  Fascism rule; strict-majority arithmetic, including equality at 50%, is an
+  inferred boundary pending observation.
 - These values are separate from the legacy `history` score counter. Culture
   achievements now read the new ledger; the score counter itself remains a
   legacy approximation used only in score standings.
@@ -266,10 +281,17 @@ documentation, not as evidence for field behavior.
 
 ## Current validation (2026-11-10)
 
-- `cargo test --offline culture:: -- --nocapture`: all five culture tests pass.
+- `cargo test --offline culture:: -- --nocapture`: all six culture tests pass.
   These cover building culture rates, per-civilization accumulation, the
-  1,000-year doubling point, turn accrual, and named-map victory thresholds;
-  they do not validate border expansion, capture attribution, or resistance.
+  1,000-year doubling point, turn accrual, Fascist capture suppression, and
+  named-map victory thresholds; they do not validate border expansion, capture
+  culture retention, or resistance initiation and garrison resolution.
+- `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
+  passed; the capture path sets suppression, and culture resumes after owner
+  nationality exceeds half of the population.
+- `cargo test --offline fascist_city_culture_waits_for_an_assimilated_population_majority`:
+  passed; the suppression is Fascism-specific and lifts at the implemented
+  strict-majority threshold.
 - `cargo test --offline resisting_citizens_are_not_available_for_tile_work`:
   passed; two counted resisters leave only two of four citizens available for
   tile work.
@@ -278,6 +300,9 @@ documentation, not as evidence for field behavior.
 - `cargo test --offline cities_with_resisters_cannot_rush_production`: passed.
 - `cargo test --offline peace_quells_only_the_signatory_nationality_in_their_cities`:
   passed; unrelated nationalities and third-party cities retain their counts.
+- Full `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline`:
+  625 passed, 7 failed in unrelated AI advisor, civilization-start, and fogged
+  city-style checks; no culture, capture, resistance, or save tests failed.
 - Used `/private/tmp/civ3-blast` to re-unpack the installed `conquests.biq` and
   regenerate `culture_biq.json`,
   `culture_buildings.tsv`, `culture_victory.tsv`, and the all-scenario capture
