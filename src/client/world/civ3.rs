@@ -32,18 +32,40 @@ fn unit_animation_action(unit: &Unit) -> super::super::tileset::Civ3UnitAction {
     match unit.state {
         UnitState::Fortifying => Action::Fortify,
         UnitState::Fortified => Action::FortifyHold,
-        UnitState::Idle | UnitState::Sentry => Action::Fidget,
-        UnitState::AirSuperiority => Action::Fidget,
+        UnitState::Idle | UnitState::Sentry | UnitState::AirSuperiority => Action::Fidget,
     }
 }
 
-fn unit_animation_progress(action: super::super::tileset::Civ3UnitAction) -> (f32, Option<f32>) {
+fn unit_animation_progress(
+    action: super::super::tileset::Civ3UnitAction,
+    selected: bool,
+) -> (super::super::tileset::Civ3UnitAction, f32, Option<f32>) {
+    use super::super::tileset::Civ3UnitAction as Action;
+
+    if action == Action::Fidget {
+        if !selected {
+            return (Action::Default, 0.0, None);
+        }
+        // Play one slow gesture, then let the selected unit rest before the
+        // next one begins.
+        const FIDGET_PERIOD_SECONDS: f32 = 8.0;
+        const FIDGET_DURATION_SECONDS: f32 = 1.5;
+        let phase = (get_time() as f32).rem_euclid(FIDGET_PERIOD_SECONDS);
+        if phase >= FIDGET_DURATION_SECONDS {
+            return (Action::Default, 0.0, None);
+        }
+        return (
+            Action::Fidget,
+            phase / FIDGET_DURATION_SECONDS,
+            Some(FIDGET_DURATION_SECONDS),
+        );
+    }
     if action == super::super::tileset::Civ3UnitAction::Default {
-        (0.0, None)
+        (action, 0.0, None)
     } else {
         const AMBIENT_CYCLE_SECONDS: f32 = 3.0;
         let phase = (get_time() as f32 / AMBIENT_CYCLE_SECONDS).fract();
-        (phase, Some(AMBIENT_CYCLE_SECONDS))
+        (action, phase, Some(AMBIENT_CYCLE_SECONDS))
     }
 }
 
@@ -495,7 +517,8 @@ impl<'a> Civ3WorldPainter<'a> {
                     && !game.playback.is_active(unit.id)
                 {
                     let action = unit_animation_action(unit);
-                    let (progress, duration) = unit_animation_progress(action);
+                    let (action, progress, duration) =
+                        unit_animation_progress(action, false);
                     game.draw_unit(
                         assets,
                         unit,
@@ -526,7 +549,8 @@ impl<'a> Civ3WorldPainter<'a> {
                 && !game.playback.is_active(unit.id)
             {
                 let action = unit_animation_action(unit);
-                let (progress, duration) = unit_animation_progress(action);
+                let (action, progress, duration) =
+                    unit_animation_progress(action, true);
                 game.draw_unit(
                     assets,
                     unit,

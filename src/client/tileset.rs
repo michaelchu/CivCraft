@@ -1596,10 +1596,33 @@ impl Civ3 {
             0
         } else {
             let event_duration = playback_duration_seconds.unwrap_or(1.0).max(0.001);
-            let cycle_duration = art
+            // Ambient fidgets are scheduled as one finite gesture by the world
+            // renderer; don't replay the clip several times during that window.
+            let source_cycle_duration = art
                 .timing_seconds
                 .filter(|seconds| *seconds > 0.0)
                 .unwrap_or(event_duration);
+            let cycle_duration = if action == Civ3UnitAction::Fidget {
+                event_duration
+            } else if matches!(
+                action,
+                Civ3UnitAction::Build
+                    | Civ3UnitAction::Road
+                    | Civ3UnitAction::PauseRoad
+                    | Civ3UnitAction::Mine
+                    | Civ3UnitAction::PauseMine
+                    | Civ3UnitAction::Irrigate
+                    | Civ3UnitAction::PauseIrrigate
+                    | Civ3UnitAction::Forest
+                    | Civ3UnitAction::PauseForest
+                    | Civ3UnitAction::Jungle
+                    | Civ3UnitAction::Plant
+                    | Civ3UnitAction::Fortress
+            ) {
+                source_cycle_duration * 2.0
+            } else {
+                source_cycle_duration
+            };
             let elapsed_cycles = progress.clamp(0.0, 1.0) * event_duration / cycle_duration;
             let cycle_progress = if action == Civ3UnitAction::StopAtLastFrame {
                 elapsed_cycles.min(1.0)

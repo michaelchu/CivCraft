@@ -349,8 +349,10 @@ impl Game {
         animation_progress: f32,
         playback_duration_seconds: Option<f32>,
     ) {
-        let unit_w = 58.0 * self.zoom;
-        let unit_h = 44.0 * self.zoom;
+        const UNIT_SPRITE_SCALE: f32 = 0.85;
+        let unit_zoom = self.zoom * UNIT_SPRITE_SCALE;
+        let unit_w = 58.0 * unit_zoom;
+        let unit_h = 44.0 * unit_zoom;
         let is_selected = self.selected_unit == Some(unit.id);
         if is_selected {
             draw_diamond_lines(
@@ -371,7 +373,7 @@ impl Game {
             animation_progress,
             playback_duration_seconds,
             center,
-            self.zoom,
+            unit_zoom,
             unit.moves_left > 0,
         );
         if !native_unit_drawn {
