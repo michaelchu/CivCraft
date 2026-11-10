@@ -826,6 +826,22 @@ documentation, not as evidence for field behavior.
   resister labor/rush exclusion, peace resolution, and save/load paths. These
   are CivCraft regression scenarios; they do not establish the unresolved
   original-Conquests formulas or border geometry listed below.
+- Full checkout run with the same source path: `cargo test --offline` passed
+  656 of 665 tests; nine failures were reported in AI advisor, AI economy,
+  civilization-start, city-activity ordering, and observed-city-style tests.
+  None were culture/resistance-named. The city-activity ordering failure also
+  reproduces alone, but its fixture has no foreign citizens, so assimilation
+  performs no draws there. These failures do not exercise the culture rules;
+  they remain recorded as broader checkout validation failures, not fixed in
+  this bounded culture task. Failed tests: `quiet_empty_city_has_no_defense_bid_but_entertainer_can_request_police`,
+  `growth_constrained_city_prefers_aqueduct_to_available_expansion`,
+  `danger_counter_choice_assumes_the_next_full_turn_without_mutating_the_enemy`,
+  `transported_troops_and_paradrops_enter_city_danger_without_illegal_moves`,
+  `live_last_activities_apply_tax_before_advice_and_rearrange_workers_first`,
+  `new_campaign_starting_units_use_the_source_profiles`,
+  `city_activity_uses_native_list_then_random_selection_after_conversion`,
+  `fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved`,
+  and `integrated_advisor_scenarios`.
 - `cargo test --offline sim::culture::tests`: 17 passed. The added custom-map
   case confirms that the explicit 20,000 single-city victory remains active on
   the 36×48 campaign topology, while a 102,000 empire total does not assume a
