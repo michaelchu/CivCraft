@@ -301,6 +301,11 @@ documentation, not as evidence for field behavior.
 
 ## Current validation (2026-11-10)
 
+- Re-ran with `CIVCRAFT_SOURCE_DIR=../source`: `cargo test --offline culture
+  -- --nocapture` passed 13 culture-named checks; separate current save/load,
+  peace-resistance-resolution, and Fascist-capture-suppression test invocations
+  each passed. This verifies the checked-in paths, not the unimplemented
+  capture-time resistance or garrison-resolution formulas.
 - `cargo test --offline culture:: -- --nocapture`: all six culture tests pass.
   These cover building culture rates, per-civilization accumulation, the
   1,000-year doubling point, turn accrual, Fascist capture suppression, and
