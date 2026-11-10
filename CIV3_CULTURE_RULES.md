@@ -766,7 +766,12 @@ documentation, not as evidence for field behavior.
   skipped. Foundation and HUD passed. The desktop suite contains no
   culture-victory or border-culture assertion, so it does not independently
   validate the new rival-culture condition or the culture system as a whole.
-- `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
+- From a clean archive of committed `HEAD`, `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline culture`:
+  30 passed, 0 failed. Coverage includes culture rates, 999/1,000-year
+  accumulation, capture and recapture building age, threshold-driven borders,
+  contested claims, score separation, and cultural victory. Passing tests do
+  not settle the source conflicts around capture attribution, advanced border
+  thresholds, or inferred city-flip formulas.- `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
   passed; the capture path sets suppression, and culture resumes after owner
   nationality exceeds half of the population.
 - `cargo test --offline fascist_city_culture_waits_for_an_assimilated_population_majority`:
