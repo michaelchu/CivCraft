@@ -87,6 +87,11 @@ def main() -> None:
         type=Path,
         default=Path("data/rulesets/civ3_conquests/resistance_military_law.tsv"),
     )
+    parser.add_argument(
+        "--government-assimilation-table",
+        type=Path,
+        default=Path("data/rulesets/civ3_conquests/government_assimilation.tsv"),
+    )
     args = parser.parse_args()
 
     source = args.source_root.resolve()
@@ -402,6 +407,16 @@ def main() -> None:
     }
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    for table_path in (
+        args.culture_table,
+        args.victory_table,
+        args.victory_settings_table,
+        args.resistance_band_table,
+        args.government_resistance_table,
+        args.military_law_table,
+        args.government_assimilation_table,
+    ):
+        table_path.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n")
     with args.culture_table.open("w") as table:
         table.write(
@@ -473,6 +488,16 @@ def main() -> None:
             table.write(
                 f"DIFF\t{row['source_record_index']}\t{row['name']}\t"
                 f"{row['military_law']}\t{biq_hash}\n"
+            )
+    with args.government_assimilation_table.open("w") as table:
+        table.write(
+            "source_section\tsource_record_index\tgovernment\t"
+            "assimilation_chance_percent\tbiq_sha256\n"
+        )
+        for row in government_rows:
+            table.write(
+                f"GOVT\t{row['source_record_index']}\t{row['name']}\t"
+                f"{row['assimilation_chance']}\t{biq_hash}\n"
             )
     print(f"Exported Conquests culture inputs to {args.output}")
 

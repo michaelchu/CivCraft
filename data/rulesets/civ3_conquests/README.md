@@ -242,6 +242,7 @@ python3 tools/export_conquests_capture_culture_flags.py --blast /tmp/civ3-blast
 
 The culture exporter also writes `culture_resistance_bands.tsv` from `CULT`,
 `government_resistance.tsv` from the ordered `GOVT` pair matrix, and
+`government_assimilation.tsv` from the `GOVT.AssimilationChance` values, plus
 `resistance_military_law.tsv` from `DIFF`. These tables retain source indices
-and the installed BIQ hash; resistance use is documented separately as
-reverse-engineered or inferred.
+and the installed BIQ hash; resistance and assimilation use are documented
+separately as reverse-engineered, inferred, or Civilopedia-supported.

@@ -32,7 +32,7 @@ section/index and source hash.
 | `RULE` | Town/City/Metropolis size names and caps; six culture-level names; raw parser field `BorderExpansionMultiplier=1000`; `BorderFactor=10` | Values extracted; exact field semantics and mapping to border thresholds/geometry not established |
 | `RACE` | 32 civilization records and raw culture-group index | Values extracted; group index semantics should remain separate from numeric culture totals |
 | `GAME` | Cultural-victory flag, one-city threshold `20,000`, all-cities threshold `100,000`, `RetainCulture` capture setting, domination terrain/population values | Values extracted; the main BIQ has `RetainCulture=0`; the installed release notes identify captured-city culture retention as an MPTournament change, whose BIQ has `RetainCulture=1` |
-| `GOVT` | Assimilation chance by government; government-pair interaction fields | Assimilation values extracted; base-government `ResistanceModifier` interpretation is matched to CivFanatics' reverse-engineered table; added-gov application remains inferred. Fascist culture suppression is stated in Civilopedia text |
+| `GOVT` | Assimilation chance by government; government-pair interaction fields | Assimilation values extracted and used as per-turn percent chances based on the CivFanatics editor-rules description; targeting majority nationality follows the Civilopedia. Base-government `ResistanceModifier` interpretation matches CivFanatics' reverse-engineered table; added-government application remains inferred |
 | `DIFF` | All eight difficulty records, including citizen content, cost, corruption, military-law, and support settings | All eight `MilitaryLaw` values are 1; CivFanatics identifies this as citizens quelled per ground combat unit. The connection is reverse-engineered, not confirmed in Conquests runtime |
 
 The BIQ stores values, not the engine formulas that consume them. Keep the
@@ -313,6 +313,20 @@ documentation, not as evidence for field behavior.
   culture-ratio values; `GOVT` contains assimilation chances. Initial and
   continued resistance are implemented from the reverse-engineered formula
   below; the precise Conquests turn ordering still lacks controlled evidence.
+- The Conquests Civilopedia's `GCON_Assimilation` says foreign nationals
+  assimilate into the majority nationality after being part of a minority
+  population. It does not specify the odds or turn procedure. The installed
+  BIQ stores `GOVT.AssimilationChance` values, and CivFanatics' editor-rules
+  reference describes that field as the percent chance per turn for a citizen
+  to assimilate. CivCraft now rolls that chance for each foreign citizen and
+  moves successful citizens to a strict majority nationality; ties and cities
+  without an absolute majority do not assimilate. The target and chance source
+  are therefore edition-specific, but the strict-majority interpretation and
+  independent per-citizen draw procedure remain inferred pending controlled
+  Conquests observation. Base-manual modifiers from relative culture and
+  luxuries are not applied because no formula or Conquests-specific BIQ field
+  is established. Source checked 2026-11-10: [CivFanatics, “Editor Rules -
+  Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
 - The installed BIQ exports eight governments and an 8-by-8 raw
   `GOVT.ResistanceModifier` matrix, including values from -10 to +5; its record
   and opposing-government indices and source hash are preserved in
@@ -501,6 +515,12 @@ documentation, not as evidence for field behavior.
   transfers reassign existing structures to the recipient to preserve the
   previous behavior; culture attribution for those noncombat transfers has no
   Conquests-specific source and remains unresolved.
+- Foreign-national assimilation now uses the installed `GOVT` chance values
+  (Anarchy 1%, Despotism 1%, Monarchy 2%, Communism 4%, Republic 2%, Democracy
+  4%, Fascism 2%, Feudalism 3%) and targets a strict majority nationality, per
+  the Civilopedia and the secondary field description above. Relative culture,
+  luxuries, historical time spent in a minority, exact update ordering, and
+  whether no-absolute-majority cases should be eligible remain unresolved.
 - `src/sim/achievements.rs` now checks the new culture ledger for its
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.
