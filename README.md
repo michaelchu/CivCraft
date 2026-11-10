@@ -108,42 +108,12 @@ or a transparent icon cell uses the existing fallback resource icon.
 The Civ III geometry backend is the only supported renderer. It controls map
 projection and tile picking.
 
-Use `--tileset-theme PATH` with `--tileset civ3` to select a local art directory
-or a manifest file. An art directory can follow the original filenames, with
-`Terrain/` and the resource sheets at its root. A directory may also contain a
-`tileset.conf` file. Entries are `role = path`, with relative paths resolved from
-the manifest's directory. Sheets retain the Civ III cell layout.
-
-| Roles | Default filenames under the art directory |
-| --- | --- |
-| `desert-grass-plains`, `desert-grass-coast`, `desert-plains-coast`, `plains-grass-coast`, `tundra-grass-coast`, `grass-coast` | `Terrain/XDGP.png`, `XDGC.png`, `XDPC.png`, `XPGC.png`, `XTGC.png`, `XGGC.png` |
-| `water`, `ocean`, `polar` | `Terrain/wCSO.png`, `wOOO.png`, `polarICEcaps-final.png` |
-| `vegetation`, `marsh`, `hills`, `mountains` | `Terrain/grassland forests (normal).png`, `marsh.png`, `XHILLS.png`, `Mountains.png` |
-| `irrigation`, `irrigation-plains`, `irrigation-desert`, `irrigation-tundra` | `Terrain/irrigation.png`, `irrigation PLAINS.png`, `irrigation DESETT.png`, `irrigation TUNDRA.png` |
-| `roads`, `railroads` | `Terrain/roads.png`, `Terrain/railroads.png` |
-| `terrain-buildings`, `pollution`, `craters` | `Terrain/TerrainBuildings.png`, `Terrain/pollution.png`, `Terrain/craters.png` |
-| `oil-well`, `oil-platform`, `airstrip`, `airbase` | Optional one-cell `Terrain/<role>.png` sprites |
-| `resources`, `resource-shadows` | `resources.png`, `resources_shadows.png` |
-| `city-asian`, `city-american`, `city-european`, `city-middle_eastern`, `city-roman` | `Cities/rASIAN.png`, `rAMER.png`, `rEURO.png`, `rMIDEAST.png`, `rROMAN.png` |
-| `unit-<kind>`, `unit-<kind>-run`, `unit-<kind>-attack` | Optional `.flc` default, movement, and attack animations, or a unit `.ini` that maps them; for example `unit-warrior = Units/Warrior/Warrior.ini` |
-
-Each image role accepts PNG or 8-bit, single-plane RLE PCX artwork. If the default
-PNG path is absent, the loader checks the same basename with `.pcx` and `.PCX`.
-PCX magenta color-key pixels are decoded as transparent. City-style roles can
-be overridden in `tileset.conf` like the terrain and resource roles.
-
-Unit roles use lowercase kebab-case `UnitKind` names (`unit-stealth-fighter`,
-`unit-mech-inf`, `unit-settlers`). Point a base role to an FLC or Civ III unit
-`.ini`; the loader reads its `DEFAULT`, `RUN`, and `ATTACK1` entries and resolves
-those FLC paths relative to the `.ini`. Optional explicit `-run` and `-attack`
-roles override the corresponding `.ini` entries. Missing action roles fall back
-to the default FLC. Frames are packed into direction/frame atlases and selected
-using event progress, with palette team-color and shadow ranges preserved.
-Movement currently supports six facing directions due to the legacy simulation
-topology; full eight-way movement, broader Civ III action states, and automatic
-mapping of the full unit roster remain unfinished.
-
-The ground, water, and polar sheets are required. The other groups are optional.
+The selected built-in tileset supplies its terrain, water, polar, resource, and
+city art. The ground, water, and polar sheets are required; other art groups are
+optional. Images are loaded from the original Civ III filenames, accepting PNG
+or 8-bit, single-plane RLE PCX artwork. PCX magenta color-key pixels are
+decoded as transparent. Unit animations use the matching Civ III `.ini` and
+FLC files when available; the game currently maps only part of the unit roster.
 For two interactive windows, launch the binary from separate working
 directories so each instance has its own saves. For screenshot comparisons,
 use the same seed, wrap mode, window size, and scene with different

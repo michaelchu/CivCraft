@@ -148,11 +148,10 @@ pub(crate) enum Tileset {
 }
 
 impl Tileset {
-    pub(crate) fn select(name: &str, theme: Option<&str>) -> Result<Self, String> {
-        match (name, theme) {
-            ("civ3" | "conquests", Some(path)) => Ok(Self::Civ3(path.into())),
-            ("civ3" | "conquests", None) => locate_default_art().map(Self::Civ3),
-            ("snoopy" | "snoopy-standard" | "snoopy-greener" | "snoopy-extended", None) => {
+    pub(crate) fn select(name: &str) -> Result<Self, String> {
+        match name {
+            "civ3" | "conquests" => locate_default_art().map(Self::Civ3),
+            "snoopy" | "snoopy-standard" | "snoopy-greener" | "snoopy-extended" => {
                 let folder = match name {
                     "snoopy-standard" => "Sn00pys Terrain",
                     "snoopy-extended" => "Sn00pys TerrainX",
@@ -162,9 +161,8 @@ impl Tileset {
                     Self::Civ3(source.join("civ3PTW/Scenarios").join(folder).join("Art"))
                 })
             }
-            (_, Some(_)) => Err("--tileset-theme requires --tileset civ3 or conquests".into()),
             _ => Err(format!(
-                "Unknown tileset '{name}'. Available: civ3, snoopy-standard, snoopy-greener, snoopy-extended"
+                "Unknown tileset '{name}'. Available: civ3, conquests, snoopy-standard, snoopy-greener, snoopy-extended"
             )),
         }
     }
@@ -2295,7 +2293,7 @@ mod tests {
             ),
         ];
         for (name, expected) in cases {
-            let selected = Tileset::select(name, None).unwrap();
+            let selected = Tileset::select(name).unwrap();
             let Tileset::Civ3(path) = selected;
             assert_eq!(
                 path.canonicalize().unwrap(),
@@ -2327,7 +2325,7 @@ mod tests {
             ("river-mountain", "mtnRivers", (512, 256)),
         ];
         for name in cases {
-            let Tileset::Civ3(root) = Tileset::select(name, None).unwrap();
+            let Tileset::Civ3(root) = Tileset::select(name).unwrap();
             let theme = Theme::read(&root).unwrap();
             for (role, file, size) in required {
                 let image = theme

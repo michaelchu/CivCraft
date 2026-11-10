@@ -65,6 +65,10 @@ async fn main() {
         eprintln!("--wrap has been removed; CivCraft uses the Civ III horizontal map topology.");
         std::process::exit(2);
     }
+    if env::args().any(|arg| arg == "--tileset-theme") {
+        eprintln!("--tileset-theme has been removed; choose a built-in tileset with --tileset.");
+        std::process::exit(2);
+    }
     // Civ III campaigns use a horizontally wrapped map with bounded poles.
     // Dimensions can be selected independently of wrapping so generation,
     // simulation storage, and rendering all receive one consistent topology.
@@ -124,8 +128,7 @@ async fn main() {
         temperature,
     };
     let tileset_name = argument_value("--tileset").unwrap_or_else(|| "civ3".to_owned());
-    let theme = argument_value("--tileset-theme");
-    let tileset = Tileset::select(&tileset_name, theme.as_deref()).unwrap_or_else(|error| {
+    let tileset = Tileset::select(&tileset_name).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(2);
     });
