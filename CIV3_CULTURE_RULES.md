@@ -477,6 +477,11 @@ documentation, not as evidence for field behavior.
   interactions remain unconfirmed in the installed Conquests game. Sources:
   [CivWiki, “Flip probability”](https://civ-wiki.de/wiki/Flipwahrscheinlichkeit_(Civ3))
   and [CivFanatics Conquests FAQ](https://forums.civfanatics.com/threads/frequently-asked-questions-civ3-play-the-world-conquests.170282/).
+  `city_meets_wltkd_criteria` separately encodes the Civilopedia's no-starvation,
+  no-resister, no-unhappy, and more-happy-than-content conditions, with the
+  commonly reported size-6 threshold from the FAQ. Deterministic checks cover
+  each boundary. The predicate is not yet connected to city mood or turn
+  resolution.
   `src/sim/culture.rs::city_flip_probability` implements the candidate
   arithmetic in isolation, including the `2000 * D` denominator, distance
   clamp, and foreign-national/resister weighting. Deterministic checks match

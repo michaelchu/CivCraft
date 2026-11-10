@@ -83,6 +83,28 @@ fn city_flip_probability(factors: CityFlipFactors) -> Option<f64> {
     Some((numerator / (2000.0 * distance_factor)).clamp(0.0, 1.0))
 }
 
+/// Evaluate the installed Conquests Civilopedia's We Love the King Day
+/// criteria once the caller has derived food and citizen moods for the city.
+/// The FAQ supplies the commonly documented size-6 minimum; the Civilopedia
+/// itself describes the city as "typically" reaching that size.
+#[allow(dead_code)] // Used when the source-backed flip model is wired into turn resolution.
+fn city_meets_wltkd_criteria(
+    size: i32,
+    food_surplus: i32,
+    resisting_citizens: i32,
+    happy: i32,
+    unhappy: i32,
+    angry: i32,
+) -> bool {
+    let content = size - happy - unhappy - angry;
+    size >= 6
+        && food_surplus >= 0
+        && resisting_citizens == 0
+        && unhappy == 0
+        && angry == 0
+        && happy > content
+}
+
 pub(super) fn retain_culture_on_capture() -> bool {
     static RETAIN: OnceLock<bool> = OnceLock::new();
     *RETAIN.get_or_init(|| {
@@ -509,6 +531,20 @@ mod tests {
                 .abs()
                 < 1e-12
         );
+    }
+
+    #[test]
+    fn conquests_wltkd_requires_food_happiness_population_and_no_resisters() {
+        let qualifies = |size, food, resisters, happy, unhappy, angry| {
+            city_meets_wltkd_criteria(size, food, resisters, happy, unhappy, angry)
+        };
+        assert!(qualifies(6, 0, 0, 4, 0, 0));
+        assert!(!qualifies(5, 0, 0, 4, 0, 0));
+        assert!(!qualifies(6, -1, 0, 4, 0, 0));
+        assert!(!qualifies(6, 0, 1, 4, 0, 0));
+        assert!(!qualifies(6, 0, 0, 3, 0, 0)); // happy must exceed content
+        assert!(!qualifies(6, 0, 0, 5, 1, 0));
+        assert!(!qualifies(6, 0, 0, 5, 0, 1));
     }
 
     #[test]
