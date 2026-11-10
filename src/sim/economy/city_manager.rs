@@ -104,7 +104,7 @@ impl Simulation {
         city: &City,
         occupied: &std::collections::HashSet<(i32, i32)>,
     ) -> City {
-        let citizens = city.size.max(0) as usize;
+        let citizens = city.non_resisting_citizens().max(0) as usize;
         let mut city_tiles: Vec<_> = self.map_city_radius(city).collect();
         // common/city.c:compare_iter_index defines reproducible city indices.
         city_tiles.sort_by_key(|&(dx, dy, _, _)| city_radius_order_key(dx, dy));
@@ -412,7 +412,7 @@ impl Simulation {
         let mut current = CmPartial {
             counts: vec![0; lattice.production.len()],
             production: if emergency { [-CM_INFINITY; 6] } else { [0; 6] },
-            idle: city.size,
+            idle: city.non_resisting_citizens().max(0),
         };
         let mut best = current.clone();
         let mut best_fitness = (false, -i64::from(CM_INFINITY));
@@ -554,15 +554,18 @@ impl Simulation {
 }
 
 impl City {
-    pub(crate) fn tile_workers(&self) -> i32 {
+    pub(crate) fn non_resisting_citizens(&self) -> i32 {
         (self.size
-            - self.specialists.iter().sum::<i32>()
             - self
                 .resisting_citizens
                 .iter()
                 .map(|&(_, count)| count)
                 .sum::<i32>())
         .max(0)
+    }
+
+    pub(crate) fn tile_workers(&self) -> i32 {
+        (self.non_resisting_citizens() - self.specialists.iter().sum::<i32>()).max(0)
     }
 
     pub(in crate::sim) fn remove_specialists(&mut self, mut excess: i32) {

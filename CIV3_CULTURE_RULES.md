@@ -698,6 +698,9 @@ documentation, not as evidence for field behavior.
 - `City` now has serialized `resisting_citizens` counts by nationality.
   Counted resisters are excluded from tile labor and the specialist
   count, matching the Civilopedia's explicit statement that they cannot work.
+  Automated city-manager reassignment now caps tile and specialist assignments
+  at `city.size - resisting_population`, so reoptimizing a city cannot assign
+  a resisting citizen to either role.
   A peace treaty now clears the signatory nationality's resisters in cities
   owned by either signatory, following the Civilopedia's documented
   war-ending resolution. Capture code initializes per-nationality resistance
@@ -837,6 +840,12 @@ documentation, not as evidence for field behavior.
   1 passed. A same-seed comparison with different pre-capture empire culture
   exercises the implemented CULT ratio bands without original-game runtime
   confirmation.
+- Current worktree validation: `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline sim::economy::city_manager_tests`:
+  17 passed, including a new partial- and full-resistance case ensuring the
+  city manager leaves resisting citizens unassigned. `cargo test --offline
+  resist`: 14 passed. These confirm CivCraft's labor accounting; the
+  Conquests Civilopedia supplies the rule, but this is not an original-game
+  runtime observation.
 - `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
   passed; the capture path sets suppression, and culture resumes after owner
   nationality exceeds half of the population.
