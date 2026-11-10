@@ -147,6 +147,7 @@ impl Simulation {
     pub(crate) fn civilization_culture(&self, civilization: usize) -> i64 {
         self.cities
             .iter()
+            .filter(|city| city.owner == civilization)
             .map(|city| city.culture_for_civilization(civilization))
             .sum()
     }
@@ -247,6 +248,8 @@ mod tests {
         game.record_city_culture(0);
         assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 5);
         assert_eq!(game.cities[0].culture_for_civilization(1), 5);
+        assert_eq!(game.civilization_culture(HUMAN), 0);
+        assert_eq!(game.civilization_culture(1), 5);
     }
 
     #[test]

@@ -184,19 +184,22 @@ documentation, not as evidence for field behavior.
   defection as a nearby city switching sides under a sufficiently large culture
   imbalance. Sources: printed pages 131–132 and 153–154.
 - Conquests Civilopedia says civilization culture is the sum of city culture
-  values and that larger cultural advantage is favorable in resistance,
-  diplomacy, and competing territorial claims.
+  values (“the sum of the cultural values of all of your cities”) and that
+  larger cultural advantage is favorable in resistance, diplomacy, and
+  competing territorial claims. CivCraft now sums the culture ledger entries
+  only from cities currently owned by that civilization. The per-civilization
+  city ledger remains intact on capture so a later recapture can restore that
+  civilization's city culture; whether `GAME.RetainCulture` changes this
+  storage behavior remains unresolved.
 - Conquests Civilopedia gives a 20,000-point single-city cultural victory and
   lists civilization totals of 60,000 / 80,000 / 100,000 / 130,000 / 160,000
   for Tiny through Huge maps. The installed BIQ `GAME` fields specify 20,000
   and 100,000, matching the one-city threshold and Standard-map total.
 - The threshold values are explicit, but culture attribution for a captured
-  city is not. The current one-city check requires the city to be owned by the
-  winner and uses only that civilization's ledger entry; this is an inference
-  from “one of your cities” and needs a controlled capture/victory scenario.
-  Civilization totals currently sum that civilization's entries across all
-  city records, including cities it no longer owns; confirm this retention rule
-  in Conquests before treating it as exact.
+  city is not. The one-city check uses the current owner's ledger entry, an
+  inference from “one of your cities.” Whether a captured city's retained
+  value under `GAME.RetainCulture=1` is credited to the new owner or original
+  civilization remains unresolved pending observation.
 - The installed `DIFF` records contain difficulty parameters but no explicit
   culture modifier. Their `MilitaryLaw` value is `1` at all eight levels; it is
   not applied to culture or occupation resistance without supporting evidence.
@@ -218,9 +221,10 @@ documentation, not as evidence for field behavior.
 - `src/sim/cities.rs::capture_city_if_needed` transfers ownership/nationality
   and applies capture effects, but does not initialize resistance from
   culture comparisons. The city resistance count is currently test-set only.
-- `GAME.RetainCulture` is exported but not consumed by capture logic. Culture
-  history currently persists unconditionally even though the installed main
-  ruleset sets this scenario property to false.
+- `GAME.RetainCulture` is exported but not consumed by capture logic.
+  Per-civilization city-ledger entries persist unconditionally; whether the
+  false setting should clear them or the true setting should transfer/retain
+  them in another form remains unresolved.
 - `src/sim/achievements.rs` now checks the new culture ledger for its
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.
