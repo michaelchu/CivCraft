@@ -29,21 +29,6 @@ impl Simulation {
             })
     }
 
-    pub(crate) fn contacted_civilizations(&self, owner: usize) -> Vec<usize> {
-        let mut contacts: Vec<_> = self
-            .diplomacy_neighbors(owner)
-            .filter_map(|(other, relation)| {
-                (other != owner
-                    && other != BARBARIANS
-                    && self.player_alive(other)
-                    && relation.first_contact.is_some())
-                .then_some((relation.first_contact.unwrap_or_default(), other))
-            })
-            .collect();
-        contacts.sort_unstable();
-        contacts.into_iter().map(|(_, other)| other).collect()
-    }
-
     pub(crate) fn diplomatic_attitude(&self, owner: usize, other: usize) -> &'static str {
         // UI bands summarize the reference AI's [-1000, 1000] love scale.
         // They are display labels; the underlying diplomacy score is unchanged.

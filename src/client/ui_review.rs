@@ -330,12 +330,12 @@ impl Game {
             return Ok(true);
         }
         if scene == 39 && phase == 1 {
-            sequence.click(self, buttons, "leader_avatar_opens_diplomacy", |action| {
-                matches!(action, UiAction::OpenDiplomacyWith(1))
-            })?;
             sequence.check(
-                "selected_leader_screen_opened",
-                self.diplomacy_open && self.diplomacy_target == Some(1),
+                "first_contact_has_no_avatar_diplomacy_button",
+                !buttons
+                    .iter()
+                    .any(|(_, action)| matches!(action, UiAction::OpenDiplomacyWith(_)))
+                    && !self.diplomacy_open,
             )?;
             return Ok(true);
         }

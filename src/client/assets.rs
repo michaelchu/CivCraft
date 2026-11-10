@@ -26,7 +26,6 @@ pub(crate) struct Assets {
     pub(super) civ3: super::tileset::Civ3,
     pub(super) source_fog: Texture2D,
     pub(super) resource_icons: Texture2D,
-    pub(super) leader_avatar_badges: Vec<Texture2D>,
     pub(super) leader_portraits: Vec<Vec<Texture2D>>,
 }
 
@@ -58,11 +57,6 @@ impl Assets {
             _ => 2,
         };
         self.leader_portraits.get(slot)?.get(attitude_index)
-    }
-
-    pub(super) fn leader_avatar_badge(&self, civilization_id: Option<&str>) -> Option<&Texture2D> {
-        self.leader_avatar_badges
-            .get(Self::legacy_portrait_slot(civilization_id?)?)
     }
 
     pub(crate) fn new(tileset: &super::Tileset) -> Result<Self, String> {
@@ -132,20 +126,6 @@ impl Assets {
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
-        let leader_avatar_badges = [
-            include_bytes!("../../assets/leader_avatars/rome.png").as_slice(),
-            include_bytes!("../../assets/leader_avatars/greece.png").as_slice(),
-            include_bytes!("../../assets/leader_avatars/egypt.png").as_slice(),
-            include_bytes!("../../assets/leader_avatars/babylon.png").as_slice(),
-            include_bytes!("../../assets/leader_avatars/china.png").as_slice(),
-            include_bytes!("../../assets/leader_avatars/japan.png").as_slice(),
-        ]
-        .into_iter()
-        .map(|bytes| Texture2D::from_file_with_format(bytes, None))
-        .collect::<Vec<_>>();
-        for badge in &leader_avatar_badges {
-            badge.set_filter(FilterMode::Linear);
-        }
         for portraits in &leader_portraits {
             for portrait in portraits {
                 portrait.set_filter(FilterMode::Linear);
@@ -155,7 +135,6 @@ impl Assets {
             civ3,
             source_fog,
             resource_icons,
-            leader_avatar_badges,
             leader_portraits,
         })
     }

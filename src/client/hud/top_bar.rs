@@ -162,41 +162,4 @@ impl Game {
         }
     }
 
-    pub(super) fn draw_leader_portraits(
-        &self,
-        assets: &Assets,
-        actions: &mut Vec<(Rect, UiAction)>,
-    ) -> f32 {
-        let portraits: Vec<_> = self
-            .sim
-            .contacted_civilizations(HUMAN)
-            .into_iter()
-            .filter_map(|owner| {
-                Some((
-                    owner,
-                    assets.leader_avatar_badge(
-                        self.sim.players()[owner].civilization_id.as_deref(),
-                    )?,
-                ))
-            })
-            .collect();
-        let size = 56.0;
-        let step = size + 5.0;
-        let left = screen_width() - HUD_MARGIN - portraits.len() as f32 * step;
-        for (index, (owner, badge)) in portraits.into_iter().enumerate() {
-            let rect = Rect::new(left + 5.0 + index as f32 * step, TOP_H + 10.0, size, size);
-            draw_texture_ex(
-                badge,
-                rect.x,
-                rect.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(size, size)),
-                    ..Default::default()
-                },
-            );
-            actions.push((rect, UiAction::OpenDiplomacyWith(owner)));
-        }
-        left
-    }
 }

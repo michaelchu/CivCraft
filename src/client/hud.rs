@@ -37,8 +37,7 @@ impl Game {
 
         let action_width = screen_width() - 2.0 * (Self::corner_width() + 2.0 * HUD_MARGIN);
         self.draw_action_strip(&mut actions, action_width);
-        let portraits_left = self.draw_leader_portraits(assets, &mut actions);
-        self.draw_messages(&mut actions, portraits_left - 2.0 * HUD_MARGIN);
+        self.draw_messages(&mut actions, screen_width() - 2.0 * HUD_MARGIN);
         self.draw_top_bar(&mut actions);
         self.hud_elements_drawn += 1;
         self.hud_elements_drawn += 1;
