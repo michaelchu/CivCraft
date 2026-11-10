@@ -372,8 +372,16 @@ impl Simulation {
                 city.owner >= players
                     || !position(city.x, city.y)
                     || city.size <= 0
-                    || city.resisting_citizens < 0
-                    || city.resisting_citizens > city.size
+                    || city.resisting_citizens.windows(2).any(|pair| pair[0].0 >= pair[1].0)
+                    || city.resisting_citizens.iter().any(|&(owner, count)| {
+                        owner >= players || owner == city.owner || count <= 0
+                    })
+                    || city.resisting_citizens.iter().map(|&(_, count)| count).sum::<i32>()
+                        > city.size
+                    || city.specialists.iter().any(|&count| count < 0)
+                    || city.specialists.iter().sum::<i32>()
+                        + city.resisting_citizens.iter().map(|&(_, count)| count).sum::<i32>()
+                        > city.size
                     || city.id >= self.next_city_id
                     || city
                         .foreign_citizens

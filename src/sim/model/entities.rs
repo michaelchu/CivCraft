@@ -154,11 +154,11 @@ pub(crate) struct City {
     pub(crate) name: String,
     pub(crate) size: i32,
     pub(crate) specialists: [i32; 3],
-    /// Citizens resisting occupation cannot be assigned to work, per the
-    /// Conquests Civilopedia. The capture trigger and resolution formula are
-    /// ruleset-driven but remain unresolved.
+    /// Resisting citizens by nationality; they cannot work, per the Conquests
+    /// Civilopedia. Capture probabilities and garrison resolution remain
+    /// unresolved. Sorted by nationality slot for stable saves.
     #[serde(default)]
-    pub(in crate::sim) resisting_citizens: i32,
+    pub(in crate::sim) resisting_citizens: Vec<(usize, i32)>,
     pub(crate) worked_tiles: Vec<(i32, i32)>,
     pub(in crate::sim) was_happy: bool,
     pub(in crate::sim) last_plague: Option<i32>,
@@ -200,7 +200,7 @@ impl City {
             name,
             size: 1,
             specialists: [0; 3],
-            resisting_citizens: 0,
+            resisting_citizens: Vec::new(),
             worked_tiles: Vec::new(),
             was_happy: false,
             last_plague: None,

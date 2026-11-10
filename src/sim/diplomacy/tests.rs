@@ -3,6 +3,31 @@
 use super::*;
 
 #[test]
+fn peace_quells_only_the_signatory_nationality_in_their_cities() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.cities.clear();
+    game.create_city(HUMAN, 10, 24);
+    game.cities[0].size = 3;
+    game.cities[0].resisting_citizens = vec![(1, 2), (2, 1)];
+    game.cities[0].foreign_citizens = vec![(1, 2), (2, 1)];
+    game.create_city(1, 20, 24);
+    game.cities[1].size = 2;
+    game.cities[1].resisting_citizens = vec![(HUMAN, 1), (2, 1)];
+    game.cities[1].foreign_citizens = vec![(HUMAN, 1), (2, 1)];
+    game.create_city(3, 30, 24);
+    game.cities[2].resisting_citizens = vec![(1, 1)];
+    game.cities[2].foreign_citizens = vec![(1, 1)];
+
+    game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+    assert_eq!(game.cities[0].resisting_citizens, [(1, 2), (2, 1)]);
+    game.sign_pact(HUMAN, 1, Pact::Peace);
+
+    assert_eq!(game.cities[0].resisting_citizens, [(2, 1)]);
+    assert_eq!(game.cities[1].resisting_citizens, [(2, 1)]);
+    assert_eq!(game.cities[2].resisting_citizens, [(1, 1)]);
+}
+
+#[test]
 fn advisor_danger_distinguishes_love_pacts_excuses_and_allocated_enemy_allies() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();

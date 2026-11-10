@@ -143,8 +143,9 @@ documentation, not as evidence for field behavior.
   the war or garrisoning stronger forces can quell resistance.
 - Base manual adds that resisting citizens cannot work, occupation forces end
   resistance over time, and culture, government, and luxuries affect how fast;
-  nationality can persist after resistance and later assimilation. Sources:
-  printed pages 115–117 and 131–132.
+  nationality can persist after resistance and later assimilation. It also says
+  a city with any resisters cannot rush production. Sources: printed pages
+  104–105, 116–117, and 131–133.
 - The BIQ `CULT` section contains initial and continued resistance chances plus
   culture-ratio values; `GOVT` contains assimilation chances. Their turn-by-turn
   selection, rolls, and interaction with garrison strength, peace, government,
@@ -204,8 +205,8 @@ documentation, not as evidence for field behavior.
 - `src/sim/borders.rs` explicitly retains city-size-based border growth as an
   approximation.
 - `src/sim/cities.rs::capture_city_if_needed` transfers ownership/nationality
-  and applies capture effects, but has no resistance state or culture-based
-  capture comparison.
+  and applies capture effects, but does not initialize resistance from
+  culture comparisons. The city resistance count is currently test-set only.
 - `GAME.RetainCulture` is exported but not consumed by capture logic. Culture
   history currently persists unconditionally even though the installed main
   ruleset sets this scenario property to false.
@@ -213,10 +214,13 @@ documentation, not as evidence for field behavior.
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.
 - `City` now has a serialized `resisting_citizens` count. Counted resisters are
-  excluded from tile labor and from the specialist count, matching the
-  Civilopedia's explicit statement that they cannot work. Capture code does
-  not set this count yet; resistance creation and progression remain
-  unresolved. Save/load of the count is tested.
+  tracked by nationality and excluded from tile labor and the specialist
+  count, matching the Civilopedia's explicit statement that they cannot work.
+  A peace treaty now clears the signatory nationality's resisters in cities
+  owned by either signatory, following the Civilopedia's documented
+  war-ending resolution. Capture code does not set this count yet, and
+  garrison-based resolution remains unresolved. Save/load of the counts is
+  tested.
 - CivCraft has no civilization Mobilization state. Base-manual half-output
   wording cannot currently be applied to Conquests without confirming that it
   matches the installed edition's Mobilization behavior.
@@ -242,10 +246,15 @@ documentation, not as evidence for field behavior.
 - These values are separate from the legacy `history` score counter. Culture
   achievements now read the new ledger; the score counter itself remains a
   legacy approximation used only in score standings.
-- The new resistance field implements only the source-explicit labor
-  restriction. It is not initialized or resolved by gameplay: the installed
-  editor-help page bodies could not be extracted in this environment, and the
-  original Conquests runtime is unavailable for controlled observations.
+- The resistance state implements source-explicit labor exclusion and
+  resolution when the two parties make peace. Capture initialization and
+  garrison-based progression are not implemented: the installed editor-help
+  page bodies could not be extracted in this environment, and the original
+  Conquests runtime is unavailable for controlled observations.
+- Rush production is rejected when a city has any resisters, following the
+  supplied base-game manual's explicit rule (printed p. 117). The Conquests
+  Civilopedia does not mention rushing in its resistance entry, so this is
+  recorded as base-manual evidence rather than a Conquests-specific confirmation.
 - Playable civilizations now retain the raw BIQ `RACE.CultureGroup` index in
   their rules record. It remains separate from culture-point accumulation;
   group-specific gameplay effects are unresolved.
@@ -266,6 +275,9 @@ documentation, not as evidence for field behavior.
   tile work.
 - `cargo test --offline current_campaign_round_trip_preserves_gameplay_and_topology_state`:
   passed with one resisting citizen preserved through save/load.
+- `cargo test --offline cities_with_resisters_cannot_rush_production`: passed.
+- `cargo test --offline peace_quells_only_the_signatory_nationality_in_their_cities`:
+  passed; unrelated nationalities and third-party cities retain their counts.
 - Used `/private/tmp/civ3-blast` to re-unpack the installed `conquests.biq` and
   regenerate `culture_biq.json`,
   `culture_buildings.tsv`, `culture_victory.tsv`, and the all-scenario capture

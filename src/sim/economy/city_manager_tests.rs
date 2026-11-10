@@ -10,7 +10,8 @@ fn resisting_citizens_are_not_available_for_tile_work() {
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
     game.cities[0].size = 4;
-    game.cities[0].resisting_citizens = 2;
+    game.cities[0].resisting_citizens = vec![(HUMAN, 2)];
+    game.cities[0].foreign_citizens = vec![(HUMAN, 2)];
     game.reconcile_city_workers();
 
     assert_eq!(game.cities[0].tile_workers(), 2);

@@ -15,6 +15,7 @@ impl Simulation {
     pub(crate) fn rush_cost(&self, city: &City) -> Option<i32> {
         if city.founded_turn == self.turn
             || city.bought_production
+            || !city.resisting_citizens.is_empty()
             || !self.can_produce(city, city.production)
         {
             return None;
@@ -602,6 +603,17 @@ mod tests {
 #[cfg(test)]
 mod transaction_tests {
     use super::*;
+
+    #[test]
+    fn cities_with_resisters_cannot_rush_production() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 24, 15);
+        game.turn += 1;
+        game.cities[0].resisting_citizens = vec![(1, 1)];
+        game.cities[0].foreign_citizens = vec![(1, 1)];
+
+        assert_eq!(game.rush_cost(&game.cities[0]), None);
+    }
 
     #[test]
     fn rush_fills_shield_stock_at_reference_prices_and_locks_the_target() {

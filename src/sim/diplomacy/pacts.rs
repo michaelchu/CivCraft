@@ -190,6 +190,8 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact) {
+        let ends_war = matches!(self.pact(a, b), Pact::War | Pact::Ceasefire)
+            && proposed == Pact::Peace;
         let relation = self.diplomacy.entry(Self::relation_key(a, b)).or_default();
         relation.pact = if proposed == Pact::Peace {
             Pact::Armistice
@@ -202,6 +204,21 @@ impl Simulation {
             0
         };
         relation.offer = None;
+        if ends_war {
+            for city in &mut self.cities {
+                let nationality = if city.owner == a {
+                    Some(b)
+                } else if city.owner == b {
+                    Some(a)
+                } else {
+                    None
+                };
+                if let Some(nationality) = nationality {
+                    city.resisting_citizens
+                        .retain(|&(owner, _)| owner != nationality);
+                }
+            }
+        }
         // Native diplomacy has a permanent state independently of physical
         // contact; a treaty through an embassy can change NO_CONTACT without
         // calling first_contact. Its untouched first_contact_turn is zero.

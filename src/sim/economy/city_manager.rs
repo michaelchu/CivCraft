@@ -555,7 +555,14 @@ impl Simulation {
 
 impl City {
     pub(crate) fn tile_workers(&self) -> i32 {
-        (self.size - self.specialists.iter().sum::<i32>() - self.resisting_citizens).max(0)
+        (self.size
+            - self.specialists.iter().sum::<i32>()
+            - self
+                .resisting_citizens
+                .iter()
+                .map(|&(_, count)| count)
+                .sum::<i32>())
+        .max(0)
     }
 
     pub(in crate::sim) fn remove_specialists(&mut self, mut excess: i32) {
