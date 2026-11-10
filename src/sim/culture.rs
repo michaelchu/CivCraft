@@ -740,6 +740,41 @@ mod tests {
     }
 
     #[test]
+    fn repeated_capture_preserves_each_civilizations_historical_city_culture() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        game.units.clear();
+        for tile in &mut game.tiles {
+            tile.owner = None;
+            tile.border_city = None;
+            tile.terrain = Terrain::Grassland;
+        }
+        game.create_city(1, 10, 24);
+        let target_id = {
+            game.create_city(1, 20, 24);
+            game.cities[1].id
+        };
+        game.create_city(HUMAN, 30, 24);
+        game.cities[1].add_culture(1, 500);
+        game.sign_pact(HUMAN, 1, Pact::War);
+
+        let human_attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+        game.capture_city_if_needed(human_attacker, 20, 24);
+        let target_index = game.city_index_by_id(target_id).unwrap();
+        assert_eq!(game.cities[target_index].owner, HUMAN);
+        game.cities[target_index].add_culture(HUMAN, 125);
+
+        let original_owner_attacker = game.spawn_unit(1, UnitKind::Warrior, 20, 24);
+        game.capture_city_if_needed(original_owner_attacker, 20, 24);
+        let target_index = game.city_index_by_id(target_id).unwrap();
+        assert_eq!(game.cities[target_index].owner, 1);
+        assert_eq!(game.cities[target_index].culture_for_civilization(1), 0);
+        assert_eq!(game.cities[target_index].culture_for_civilization(HUMAN), 0);
+        assert_eq!(game.cities[target_index].historical_culture_for_civilization(1), 500);
+        assert_eq!(game.cities[target_index].historical_culture_for_civilization(HUMAN), 125);
+    }
+
+    #[test]
     fn conquests_wltkd_requires_food_happiness_population_and_no_resisters() {
         let qualifies = |size, food, resisters, happy, unhappy, angry| {
             city_meets_wltkd_criteria(size, food, resisters, happy, unhappy, angry)

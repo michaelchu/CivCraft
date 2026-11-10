@@ -992,6 +992,13 @@ documentation, not as evidence for field behavior.
   fail, with government, civil-war, and diplomacy checks skipped. These are
   not culture assertions. Report:
   `/tmp/civcraft-playtest-culture-memory-1AWWKJ/report.json`.
+- A follow-up `repeated_capture_preserves_each_civilizations_historical_city_culture`
+  regression passes. It captures a city, adds culture for its new owner, then
+  recaptures it and verifies both civilizations' historical local values remain
+  while current city culture resets under the installed `RetainCulture=0`
+  setting. This validates CivCraft's repeated-capture state handling against
+  the community-reported per-city memory behavior; it is not a controlled
+  Conquests observation.
 - `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline sim::advisors::tests` currently has 41 passing and 4 failing tests. The growth-priority scenario selects the Pyramids instead of the Aqueduct, one police-demand test unwraps no choice, and two embarked-paradrop threat scenarios fail.
   The history-bonus removal does not address those broader advisor gaps; no culture-specific AI priority is claimed.
 - `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
