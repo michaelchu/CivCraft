@@ -174,6 +174,29 @@ documentation, not as evidence for field behavior.
   2026-11-10: [Denouement, Civilization III:
   Conquests Strategy Guide, “Cultural Borders”](https://gamefaqs.gamespot.com/pc/915016-civilization-iii-conquests/faqs/18251);
   [CivFanatics, “Editor Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
+- New reverse-engineering lead, not yet adopted: the CivFanatics explanation
+  of editor rules says `BorderFactor=X` makes successive city-border thresholds
+  `X^n`; a scenario author reports testing `BorderFactor=7` and observing 7,
+  49, 343, etc. With the installed BIQ's `RULE.BorderFactor=10`, this predicts
+  10, 100, 1,000, 10,000, and 100,000. That agrees with the first four
+  Civilopedia examples but conflicts with its explicit 20,000 example. Another
+  CivFanatics scenario discussion also reports exponential thresholds, but is
+  not official documentation. The exponential sequence is a strong
+  Conquests-target lead, not a reconciled rule until the 20,000 discrepancy is
+  resolved. Sources checked 2026-11-10: [“Editor Rules - Explained,” Border
+  Factor](https://forums.civfanatics.com/threads/editor-rules-explained.210035/)
+  and [“Civ1 clone in Civ3,” scenario discussion](https://forums.civfanatics.com/threads/civ1-clone-in-civ3.667077/).
+- Territory-claim lead from a 2004 CivFanatics player investigation: one post
+  says candidate territory is constrained by city cultural rings; when multiple
+  cities can claim a tile, the nearest ring level wins, then the stronger
+  city's culture border, then earlier founding on an exact culture tie. It
+  reports diagonal gap tiles filling in as well. Other participants disagree
+  about edge cases and tile stealing, and the discussion does not establish a
+  clean rule for the installed Conquests version. This yields targeted tests
+  (adjacent vs. diagonal gaps, overlapping rings, equal levels, unequal local
+  city culture, and founding-order ties), but is not enough evidence to replace
+  the current claim algorithm. Source checked 2026-11-10: [CivFanatics,
+  “Border calculation”](https://forums.civfanatics.com/threads/border-calculation.75552/).
 - Parameter-name lead, not yet confirmed from the installed Conquests help:
   Civ III patch notes mirrored by GameFront say “Border Expansion Multiplier”
   was renamed “Lvl. Multiplier,” while a CivFanatics editor reference describes
