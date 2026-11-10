@@ -335,7 +335,10 @@ documentation, not as evidence for field behavior.
   -- --nocapture` passed 13 culture-named checks; separate current save/load,
   peace-resistance-resolution, and Fascist-capture-suppression test invocations
   each passed. This verifies the checked-in paths, not the unimplemented
-  capture-time resistance or garrison-resolution formulas.
+  capture-time resistance or garrison-resolution formulas. The city culture
+  scenario now checks the output at building age 999 and 1,000 years before
+  transferring the city, verifying the implemented doubling boundary and the
+  original-owner/new-owner culture ledgers separately.
 - `cargo test --offline culture:: -- --nocapture`: all six culture tests pass.
   These cover building culture rates, per-civilization accumulation, the
   1,000-year doubling point, turn accrual, Fascist capture suppression, and

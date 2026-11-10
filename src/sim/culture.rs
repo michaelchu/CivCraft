@@ -237,16 +237,20 @@ mod tests {
     fn city_culture_accumulates_by_owner_and_doubles_at_one_thousand_years() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
-        game.year = 1000;
-        game.cities[0].record_culture_building_completion(Building::PALACE, 1000);
+        game.year = 999;
+        game.cities[0].record_culture_building_completion(Building::PALACE, 999);
         game.cities[0].buildings.push(Building::TEMPLE);
         game.cities[0].record_culture_building_completion(Building::TEMPLE, 0);
         game.record_city_culture(0);
-        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 5);
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 3);
+
+        game.year = 1000;
+        game.record_city_culture(0);
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 8);
 
         game.cities[0].transfer_citizens(1);
         game.record_city_culture(0);
-        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 5);
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 8);
         assert_eq!(game.cities[0].culture_for_civilization(1), 5);
         assert_eq!(game.civilization_culture(HUMAN), 0);
         assert_eq!(game.civilization_culture(1), 5);
