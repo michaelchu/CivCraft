@@ -477,8 +477,15 @@ documentation, not as evidence for field behavior.
   interactions remain unconfirmed in the installed Conquests game. Sources:
   [CivWiki, “Flip probability”](https://civ-wiki.de/wiki/Flipwahrscheinlichkeit_(Civ3))
   and [CivFanatics Conquests FAQ](https://forums.civfanatics.com/threads/frequently-asked-questions-civ3-play-the-world-conquests.170282/).
-  The formula remains unimplemented; city-flip transfer effects and turn
-  ordering are unresolved.
+  `src/sim/culture.rs::city_flip_probability` implements the candidate
+  arithmetic in isolation, including the `2000 * D` denominator, distance
+  clamp, and foreign-national/resister weighting. Deterministic checks match
+  the CivWiki worked example and formula boundaries. This helper is not called
+  during turn resolution. Zero-total-culture or invalid capital-distance
+  ratios return unresolved (`None`) because available sources do not establish
+  the engine behavior for those undefined inputs. The candidate formula has
+  not been controlled-observed in Conquests; city-flip transfer effects and
+  turn ordering remain unresolved.
 - Conquests Civilopedia says civilization culture is the sum of city culture
   values (“the sum of the cultural values of all of your cities”) and that
   larger cultural advantage is favorable in resistance, diplomacy, and

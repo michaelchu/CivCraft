@@ -16,6 +16,73 @@ struct CultureVictoryThresholds {
     civilization: i64,
 }
 
+/// Inputs to the community reverse-engineered Conquests city-flip formula.
+///
+/// This calculation is intentionally kept separate from turn resolution:
+/// candidate tile geometry, capital selection on wrapped maps, and the exact
+/// consequences of a flip still need controlled Conquests confirmation.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CityFlipFactors {
+    foreign_citizens: i32,
+    resisting_citizens: i32,
+    foreign_radius_tiles: i32,
+    challenger_city_culture: i64,
+    defender_city_culture: i64,
+    challenger_total_culture: i64,
+    defender_total_culture: i64,
+    disorder: bool,
+    celebrating_wltkd: bool,
+    defender_land_combat_garrison: i32,
+    challenger_capital_distance: f64,
+    defender_capital_distance: f64,
+}
+
+/// Return the candidate flip probability as a fraction, when its ratios exist.
+///
+/// CivFanatics' Conquests FAQ supplies the factors, while CivWiki's
+/// reverse-engineered account supplies the `2000 * D` denominator and the
+/// 0.25–4 clamp for the relative capital-distance modifier. A zero or missing
+/// total-culture value and invalid distance return `None`: available sources
+/// do not specify the engine's behavior for those undefined ratios.
+#[allow(dead_code)] // Kept isolated until the remaining Conquests resolution rules are established.
+fn city_flip_probability(factors: CityFlipFactors) -> Option<f64> {
+    if factors.challenger_total_culture <= 0
+        || factors.defender_total_culture <= 0
+        || !factors.challenger_capital_distance.is_finite()
+        || !factors.defender_capital_distance.is_finite()
+        || factors.challenger_capital_distance <= 0.0
+        || factors.defender_capital_distance <= 0.0
+    {
+        return None;
+    }
+
+    // FAQ F is all foreign nationals plus one additional count per resister.
+    let foreign_pressure = factors.foreign_citizens.max(0)
+        + factors.resisting_citizens.max(0)
+        + factors.foreign_radius_tiles.clamp(0, 21);
+    let local_culture_factor = if factors.challenger_city_culture > factors.defender_city_culture {
+        2.0
+    } else {
+        1.0
+    };
+    let city_mood_factor = if factors.disorder {
+        2.0
+    } else if factors.celebrating_wltkd {
+        0.5
+    } else {
+        1.0
+    };
+    let distance_factor =
+        (factors.challenger_capital_distance / factors.defender_capital_distance).clamp(0.25, 4.0);
+    let numerator = foreign_pressure as f64
+        * local_culture_factor
+        * city_mood_factor
+        * (factors.challenger_total_culture as f64 / factors.defender_total_culture as f64)
+        - factors.defender_land_combat_garrison.max(0) as f64;
+
+    Some((numerator / (2000.0 * distance_factor)).clamp(0.0, 1.0))
+}
+
 pub(super) fn retain_culture_on_capture() -> bool {
     static RETAIN: OnceLock<bool> = OnceLock::new();
     *RETAIN.get_or_init(|| {
@@ -324,6 +391,75 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reverse_engineered_city_flip_formula_matches_civwiki_example() {
+        let factors = CityFlipFactors {
+            foreign_citizens: 0,
+            resisting_citizens: 0,
+            foreign_radius_tiles: 2,
+            challenger_city_culture: 0,
+            defender_city_culture: 0,
+            challenger_total_culture: 145,
+            defender_total_culture: 176,
+            disorder: false,
+            celebrating_wltkd: false,
+            defender_land_combat_garrison: 1,
+            challenger_capital_distance: 10.0,
+            defender_capital_distance: 9.0,
+        };
+
+        let probability = city_flip_probability(factors).unwrap();
+        assert!((probability - 0.00029).abs() < 0.00001);
+    }
+
+    #[test]
+    fn reverse_engineered_city_flip_formula_doubles_resisters_and_clamps_risk() {
+        let factors = CityFlipFactors {
+            foreign_citizens: 2,
+            resisting_citizens: 2,
+            foreign_radius_tiles: 2,
+            challenger_city_culture: 1,
+            defender_city_culture: 0,
+            challenger_total_culture: 100_000,
+            defender_total_culture: 1,
+            disorder: true,
+            celebrating_wltkd: false,
+            defender_land_combat_garrison: 0,
+            challenger_capital_distance: 1.0,
+            defender_capital_distance: 100.0,
+        };
+
+        // D is clamped to 0.25, and the resulting chance cannot exceed 100%.
+        assert_eq!(city_flip_probability(factors), Some(1.0));
+        assert_eq!(
+            city_flip_probability(CityFlipFactors {
+                defender_land_combat_garrison: 4_000_000,
+                ..factors
+            }),
+            Some(0.0)
+        );
+    }
+
+    #[test]
+    fn reverse_engineered_city_flip_formula_preserves_undefined_culture_ratio() {
+        let factors = CityFlipFactors {
+            foreign_citizens: 1,
+            resisting_citizens: 0,
+            foreign_radius_tiles: 0,
+            challenger_city_culture: 1,
+            defender_city_culture: 0,
+            challenger_total_culture: 1,
+            defender_total_culture: 0,
+            disorder: false,
+            celebrating_wltkd: false,
+            defender_land_combat_garrison: 0,
+            challenger_capital_distance: 1.0,
+            defender_capital_distance: 1.0,
+        };
+
+        assert_eq!(city_flip_probability(factors), None);
+    }
 
     #[test]
     fn city_border_rank_advances_at_conquests_civilopedia_thresholds() {
