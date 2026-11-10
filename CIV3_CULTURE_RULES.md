@@ -246,6 +246,14 @@ documentation, not as evidence for field behavior.
   progression through 10,000 but does not reconcile the next threshold with
   Conquests Civilopedia's 20,000 example. Source checked 2026-11-10:
   [CivFanatics Info Center, “How can your borders expand?”](https://civfanatics.com/civ3/infocenter/).
+- A second-hand source audit reaches the same limit: Vi.ki's “Culture and
+  Borders” review says the Complete manual points to the Civilopedia, and its
+  consulted sources give only a 2001 preview's first expansion at 10 culture;
+  it finds no source printing later thresholds as Conquests sets them. This
+  does not prove that later thresholds are unavailable, but it confirms that
+  the currently located published references do not settle whether the
+  installed `BorderFactor=10` continues past the Civilopedia's 20,000 example.
+  Source checked 2026-11-10: [Vi.ki, “Culture and Borders”](https://civ3.vi.ki/culture-and-borders).
 - A CivFanatics FAQ answer lists the same four tenfold thresholds and says a
   city does not reach 100,000 because it wins a cultural victory at 20,000.
   This gives secondary support for 20,000 being the final normal-game
