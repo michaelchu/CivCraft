@@ -462,6 +462,56 @@ mod tests {
     }
 
     #[test]
+    fn reverse_engineered_city_flip_formula_applies_mood_and_local_culture_factors() {
+        let base = CityFlipFactors {
+            foreign_citizens: 3,
+            resisting_citizens: 0,
+            foreign_radius_tiles: 4,
+            challenger_city_culture: 2,
+            defender_city_culture: 1,
+            challenger_total_culture: 2_000,
+            defender_total_culture: 1_000,
+            disorder: false,
+            celebrating_wltkd: false,
+            defender_land_combat_garrison: 0,
+            challenger_capital_distance: 10.0,
+            defender_capital_distance: 10.0,
+        };
+
+        assert!((city_flip_probability(base).unwrap() - 0.014).abs() < 1e-12);
+        assert!(
+            (city_flip_probability(CityFlipFactors {
+                celebrating_wltkd: true,
+                ..base
+            })
+            .unwrap()
+                - 0.007)
+                .abs()
+                < 1e-12
+        );
+        assert!(
+            (city_flip_probability(CityFlipFactors {
+                disorder: true,
+                ..base
+            })
+            .unwrap()
+                - 0.028)
+                .abs()
+                < 1e-12
+        );
+        assert!(
+            (city_flip_probability(CityFlipFactors {
+                challenger_city_culture: 1,
+                ..base
+            })
+            .unwrap()
+                - 0.007)
+                .abs()
+                < 1e-12
+        );
+    }
+
+    #[test]
     fn city_border_rank_advances_at_conquests_civilopedia_thresholds() {
         let cases = [
             (0, 1),

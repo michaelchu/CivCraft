@@ -484,8 +484,18 @@ documentation, not as evidence for field behavior.
   during turn resolution. Zero-total-culture or invalid capital-distance
   ratios return unresolved (`None`) because available sources do not establish
   the engine behavior for those undefined inputs. The candidate formula has
-  not been controlled-observed in Conquests; city-flip transfer effects and
-  turn ordering remain unresolved.
+  not been controlled-observed in Conquests. Firaxis staff's 2002 explanation
+  identifies land-based combat units with positive attack and defense as the
+  garrison factor, and says each garrison subtracts from the chance. A 2004
+  CivFanatics discussion tagged for Conquests reports that units in a flipped
+  city are destroyed and that a new defender appears; it does not establish
+  the new unit's selection algorithm. No official Conquests passage or
+  controlled observation available here confirms those outcomes. Unit handling
+  and exact turn-resolution timing therefore remain unresolved. Sources:
+  [Dan Magaha (Firaxis), “Culture-Flipping Exposed”]
+  (https://forums.civfanatics.com/threads/culture-flipping-exposed.14337/),
+  [CivFanatics, “Armies captured in culture flips?”]
+  (https://forums.civfanatics.com/threads/armies-captured-in-culture-flips.90904/).
 - Conquests Civilopedia says civilization culture is the sum of city culture
   values (“the sum of the cultural values of all of your cities”) and that
   larger cultural advantage is favorable in resistance, diplomacy, and
