@@ -141,6 +141,7 @@ impl Simulation {
                 }
             }
             self.record_history(index);
+            self.record_city_culture(index);
             // Buildings and population-cost units refresh city output before growth.
             let refreshed = self.cities[index].size != snapshot.size
                 || matches!(finished, Some((Production::Building(building), _))

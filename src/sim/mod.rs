@@ -43,6 +43,7 @@ pub(crate) use government::Government;
 mod achievements;
 mod citizens;
 mod climate;
+mod culture;
 mod disasters;
 mod ferries;
 mod fuel_paths;

@@ -29,6 +29,7 @@ impl City {
         let old_owner = self.owner;
         let domestic = self.domestic_citizens();
         self.owner = new_owner;
+        self.ensure_culture_civilization(new_owner);
         self.foreign_citizens
             .retain(|&(nation, _)| nation != new_owner);
         self.add_citizen_nationality(old_owner, domestic);
@@ -95,9 +96,13 @@ mod tests {
         let city = &mut game.cities[0];
         city.size = 4;
         city.add_citizen_nationality(HUMAN, 1);
+        city.add_culture(1, 125);
         city.transfer_citizens(HUMAN);
         assert_eq!(city.foreign_citizens, [(1, 3)]);
         assert_eq!(city.domestic_citizens(), 1);
+        assert_eq!(city.culture_for_civilization(1), 125);
+        assert_eq!(city.culture_for_civilization(HUMAN), 0);
+        city.add_culture(HUMAN, 40);
         city.size -= 1;
         assert_eq!(game.remove_citizen_nationalities(0, 1), 1);
         assert_eq!(game.cities[0].foreign_citizens, [(1, 2)]);
@@ -105,5 +110,8 @@ mod tests {
         game.assimilate_citizen(0);
         assert_eq!(game.cities[0].foreign_citizens, [(1, 1)]);
         assert_eq!(game.cities[0].domestic_citizens(), 2);
+        assert_eq!(game.cities[0].culture_for_civilization(1), 125);
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 40);
+        assert_eq!(game.cities[0].total_culture(), 165);
     }
 }

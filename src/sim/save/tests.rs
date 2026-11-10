@@ -15,6 +15,9 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     let path = temporary_save("save-round-trip");
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.create_city(HUMAN, 10, 20);
+    game.cities[0].add_culture(HUMAN, 375);
+    game.cities[0].add_culture(2, 125);
+    game.cities[0].record_culture_building_completion(Building::TEMPLE, -4000);
     game.set_random_seed(42);
     game.rand_below(1000);
     game.save_campaign(&path).unwrap();
@@ -24,6 +27,12 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.map_wrap, MapWrap::X);
     assert_eq!(loaded.random_snapshot(), game.random_snapshot());
     assert_eq!(loaded.turn, game.turn);
+    assert_eq!(loaded.cities[0].culture_for_civilization(HUMAN), 375);
+    assert_eq!(loaded.cities[0].culture_for_civilization(2), 125);
+    assert_eq!(
+        loaded.cities[0].culture_building_years,
+        [(Building::PALACE.0, -4000), (Building::TEMPLE.0, -4000)]
+    );
     assert_eq!(
         bincode::serialize(&loaded.cities).unwrap(),
         bincode::serialize(&game.cities).unwrap()

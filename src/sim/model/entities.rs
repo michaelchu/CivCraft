@@ -158,6 +158,12 @@ pub(crate) struct City {
     pub(in crate::sim) was_happy: bool,
     pub(in crate::sim) last_plague: Option<i32>,
     pub(in crate::sim) history: i32,
+    /// Accumulated gameplay culture, retained by its original civilization
+    /// when this city changes hands. Sorted by civilization slot for stable saves.
+    pub(in crate::sim) culture_by_civilization: Vec<(usize, i64)>,
+    /// BIQ building identity to completion year, used for the documented
+    /// age-based doubling of each building's culture contribution.
+    pub(in crate::sim) culture_building_years: Vec<(usize, i32)>,
     pub(in crate::sim) foreign_citizens: Vec<(usize, i32)>,
     pub(in crate::sim) airlift_used: bool,
     pub(crate) food: i32,
@@ -193,6 +199,8 @@ impl City {
             was_happy: false,
             last_plague: None,
             history: 0,
+            culture_by_civilization: vec![(owner, 0)],
+            culture_building_years: Vec::new(),
             foreign_citizens: Vec::new(),
             airlift_used: false,
             food: 0,
@@ -205,6 +213,79 @@ impl City {
             protected_shields: 0,
             production_before_switch: None,
             buildings: Vec::new(),
+        }
+    }
+
+    pub(crate) fn culture_for_civilization(&self, civilization: usize) -> i64 {
+        self.culture_by_civilization
+            .binary_search_by_key(&civilization, |&(slot, _)| slot)
+            .map_or(0, |index| self.culture_by_civilization[index].1)
+    }
+
+    pub(crate) fn total_culture(&self) -> i64 {
+        self.culture_by_civilization
+            .iter()
+            .map(|&(_, culture)| culture)
+            .sum()
+    }
+
+    pub(crate) fn add_culture(&mut self, civilization: usize, amount: i64) {
+        assert!(amount >= 0, "culture accumulation must be nonnegative");
+        match self
+            .culture_by_civilization
+            .binary_search_by_key(&civilization, |&(slot, _)| slot)
+        {
+            Ok(index) => {
+                self.culture_by_civilization[index].1 =
+                    self.culture_by_civilization[index].1.saturating_add(amount);
+            }
+            Err(index) => self
+                .culture_by_civilization
+                .insert(index, (civilization, amount)),
+        }
+    }
+
+    pub(in crate::sim) fn record_culture_building_completion(
+        &mut self,
+        building: Building,
+        year: i32,
+    ) {
+        match self
+            .culture_building_years
+            .binary_search_by_key(&building.0, |&(id, _)| id)
+        {
+            Ok(index) => self.culture_building_years[index].1 = year,
+            Err(index) => self
+                .culture_building_years
+                .insert(index, (building.0, year)),
+        }
+    }
+
+    pub(in crate::sim) fn culture_building_year(
+        &mut self,
+        building: Building,
+        fallback_year: i32,
+    ) -> i32 {
+        match self
+            .culture_building_years
+            .binary_search_by_key(&building.0, |&(id, _)| id)
+        {
+            Ok(index) => self.culture_building_years[index].1,
+            Err(index) => {
+                self.culture_building_years
+                    .insert(index, (building.0, fallback_year));
+                fallback_year
+            }
+        }
+    }
+
+    pub(in crate::sim) fn ensure_culture_civilization(&mut self, civilization: usize) {
+        if let Err(index) = self
+            .culture_by_civilization
+            .binary_search_by_key(&civilization, |&(slot, _)| slot)
+        {
+            self.culture_by_civilization
+                .insert(index, (civilization, 0));
         }
     }
 }

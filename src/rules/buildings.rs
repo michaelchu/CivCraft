@@ -135,6 +135,8 @@ impl Building {
     pub(crate) const WALL_STREET: Self = Self(85);
     pub(crate) const INTELLIGENCE_AGENCY: Self = Self(86);
     pub(crate) const BATTLEFIELD_MEDICINE: Self = Self(87);
+    pub(crate) const SISTINE_CHAPEL: Self = Self(88);
+    pub(crate) const KNIGHTS_TEMPLAR: Self = Self(89);
 
     pub(crate) fn history_per_turn(self) -> i32 {
         match self.0 {
@@ -929,5 +931,21 @@ const BUILDINGS: &[BuildingData] = &[
         upkeep: 0,
         requirements: &[(OwnerBuildingCount(74, 5), true)],
         obsolete: &[],
+    },
+    BuildingData {
+        name: "Sistine Chapel",
+        genus: Genus::GreatWonder,
+        cost: 600,
+        upkeep: 0,
+        requirements: &[(Tech(81), true)],
+        obsolete: &[],
+    },
+    BuildingData {
+        name: "Knights Templar",
+        genus: Genus::GreatWonder,
+        cost: 300,
+        upkeep: 0,
+        requirements: &[(Tech(11), true)],
+        obsolete: &[(Tech(97), true)],
     },
 ];

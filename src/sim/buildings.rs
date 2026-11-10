@@ -357,6 +357,7 @@ impl Simulation {
             .find(|city| city.id == city_id)
             .unwrap();
         city.buildings.push(building);
+        city.record_culture_building_completion(building, self.year);
         if matches!(
             building,
             Building::GREAT_LIBRARY | Building::ISAAC_NEWTONS_COLLEGE | Building::INTERNET
@@ -421,7 +422,7 @@ mod tests {
 
     #[test]
     fn researched_building_completes_and_unlocks_its_successor() {
-        assert_eq!(Building::all().count(), 88);
+        assert_eq!(Building::all().count(), 90);
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let settler = game
             .units
@@ -525,7 +526,7 @@ mod tests {
         game.cities.clear();
         game.create_city(HUMAN, 10, 20);
         game.create_city(HUMAN, 20, 20);
-        assert_eq!(Building::all().count(), 88);
+        assert_eq!(Building::all().count(), 90);
         assert_eq!(Building::APOLLO_PROGRAM.data().genus, Genus::SmallWonder);
         assert_eq!(Building::SDI_DEFENSE.data().genus, Genus::SmallWonder);
         game.cities[0].buildings.push(Building::APOLLO_PROGRAM);
@@ -533,6 +534,37 @@ mod tests {
             game.building_blocker(&game.cities[1], Building::APOLLO_PROGRAM)
                 .as_deref(),
             Some("Small Wonder already completed by this civilization")
+        );
+    }
+
+    #[test]
+    fn missing_conquests_culture_wonders_use_appended_catalog_ids_and_source_requirements() {
+        assert_eq!(Building::SISTINE_CHAPEL.0, 88);
+        assert_eq!(Building::KNIGHTS_TEMPLAR.0, 89);
+        assert_eq!(Building::SISTINE_CHAPEL.data().name, "Sistine Chapel");
+        assert_eq!(Building::SISTINE_CHAPEL.data().cost, 600);
+        assert_eq!(Building::SISTINE_CHAPEL.data().genus, Genus::GreatWonder);
+        assert!(
+            Building::SISTINE_CHAPEL
+                .data()
+                .requirements
+                .contains(&(Requirement::Tech(Tech::THEOLOGY.0), true))
+        );
+
+        assert_eq!(Building::KNIGHTS_TEMPLAR.data().name, "Knights Templar");
+        assert_eq!(Building::KNIGHTS_TEMPLAR.data().cost, 300);
+        assert_eq!(Building::KNIGHTS_TEMPLAR.data().genus, Genus::GreatWonder);
+        assert!(
+            Building::KNIGHTS_TEMPLAR
+                .data()
+                .requirements
+                .contains(&(Requirement::Tech(Tech::CHIVALRY.0), true))
+        );
+        assert!(
+            Building::KNIGHTS_TEMPLAR
+                .data()
+                .obsolete
+                .contains(&(Requirement::Tech(Tech::STEAM_POWER.0), true))
         );
     }
 

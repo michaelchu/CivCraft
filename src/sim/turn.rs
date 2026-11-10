@@ -122,6 +122,7 @@ impl Simulation {
             self.turn,
             year_label(self.year)
         ));
+        self.check_cultural_victory();
         self.check_game_over();
         if self.game_over.is_none() && !self.check_ranked_endgame() {
             self.advance_space_race();
@@ -129,6 +130,9 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn check_game_over(&mut self) {
+        if self.game_over.is_some() {
+            return;
+        }
         let human_survives = self.cities.iter().any(|c| c.owner == HUMAN)
             || self
                 .units

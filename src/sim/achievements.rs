@@ -118,8 +118,10 @@ impl Simulation {
                 .next()
                 .is_some_and(|first| nationalities.any(|nation| nation != first));
             let metropolis = cities.iter().any(|city| city.size >= 20);
-            let cultured_city = cities.iter().any(|city| city.history >= 1000);
-            let history: i32 = cities.iter().map(|city| city.history).sum();
+            let cultured_city = self
+                .cities
+                .iter()
+                .any(|city| city.culture_for_civilization(owner) >= 1_000);
             for (earned, achievement) in [
                 (map_known, EntireMap),
                 (land_ahoy, LandAhoy),
@@ -132,7 +134,7 @@ impl Simulation {
                     self.award_achievement(owner, achievement);
                 }
             }
-            if history + self.nation_scores[owner].achievement_culture >= 10_000 {
+            if self.civilization_culture(owner) >= 10_000 {
                 self.award_achievement(owner, CulturedNation);
             }
         }
@@ -148,7 +150,7 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         let city = &mut game.cities[0];
-        city.history = 9000;
+        city.add_culture(HUMAN, 10_000);
         city.size = 20;
         city.buildings
             .extend([Building::LIBRARY, Building::UNIVERSITY]);
@@ -164,5 +166,15 @@ mod tests {
         let culture = score.achievement_culture;
         game.check_achievements();
         assert_eq!(game.nation_scores[HUMAN].achievement_culture, culture);
+    }
+
+    #[test]
+    fn score_history_does_not_unlock_culture_achievements() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        game.cities[0].history = 10_000;
+        game.check_achievements();
+        let cultural = Achievement::CulturedCity.bit() | Achievement::CulturedNation.bit();
+        assert_eq!(game.nation_scores[HUMAN].achievements & cultural, 0);
     }
 }
