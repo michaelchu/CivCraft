@@ -32,16 +32,20 @@ enum Ground {
 }
 use Ground::*;
 
-fn locate_source_root() -> Result<PathBuf, String> {
-    let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
-    let exe = std::env::current_exe().map_err(|error| error.to_string())?;
-    cwd.ancestors()
-        .chain(exe.ancestors().skip(1))
-        .map(|parent| parent.join("source"))
-        .find(|path| path.join("Conquests/Art/Terrain").is_dir())
+pub(crate) fn locate_source_root() -> Result<PathBuf, String> {
+    let root = std::env::var_os("CIVCRAFT_SOURCE_DIR")
+        .map(PathBuf::from)
         .ok_or_else(|| {
-            "Civ III source assets were not found. Place the 'source' folder beside 'app' (with Conquests/Art, civ3PTW/Art, and Art) before starting CivCraft.".to_owned()
-        })
+            "CIVCRAFT_SOURCE_DIR is required. Set it to the Civ III install folder containing Conquests/Art/Terrain before starting CivCraft.".to_owned()
+        })?;
+    if root.join("Conquests/Art/Terrain").is_dir() {
+        Ok(root)
+    } else {
+        Err(format!(
+            "CIVCRAFT_SOURCE_DIR points to '{}', which does not look like a Civ III install folder (expected Conquests/Art/Terrain)",
+            root.display()
+        ))
+    }
 }
 
 fn locate_default_art() -> Result<PathBuf, String> {

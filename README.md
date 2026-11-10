@@ -84,17 +84,19 @@ maps.
 
 ## Map tilesets
 
-The game reads original terrain art from a sibling `source/` folder at startup.
-Place `source/` beside `app/`, containing the original `Conquests/Art`,
-`civ3PTW/Art`, and base `Art` folders. Conquests takes priority, with PTW and
-base Civ III filling missing paths. CivCraft reports an error and exits if the
-source art folder is unavailable. Snoopy terrain variants are read directly
-from their PTW scenario folders. Select a variant with:
+The game reads art from a Civilization III installation folder. Set
+`CIVCRAFT_SOURCE_DIR` to that folder before every launch; it must contain the
+original `Conquests/Art`, `civ3PTW/Art`, and base `Art` folders. The folder can
+have any name. Conquests art takes priority, with PTW and base Civ III filling
+missing paths. This install root is shared by the built-in tilesets and other
+Civ III asset lookups. Snoopy terrain variants are read directly from their
+PTW scenario folders. Select a tileset with:
 
 ```sh
-cargo run --release -- --tileset snoopy-standard --seed 42
-cargo run --release -- --tileset snoopy-greener --seed 42
-cargo run --release -- --tileset snoopy-extended --seed 42
+CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release -- --tileset civ3 --seed 42
+CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release -- --tileset snoopy-standard --seed 42
+CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release -- --tileset snoopy-greener --seed 42
+CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release -- --tileset snoopy-extended --seed 42
 ```
 
 The selection applies to terrain on the world map and city work map. Other art
@@ -102,7 +104,7 @@ continues to use its existing paths while it is migrated separately. Unit art
 can be overridden per unit
 with an FLC animation from a mod; units without configured FLC art use a vector
 map marker. Compact non-map panels retain a small shared unit icon atlas.
-Resource icons come from the selected theme’s resource sheet. A missing sheet
+Resource icons come from the selected tileset’s resource sheet. A missing sheet
 or a transparent icon cell uses the existing fallback resource icon.
 
 The Civ III geometry backend is the only supported renderer. It controls map
