@@ -29,7 +29,7 @@ section/index and source hash.
 |---|---|---|
 | `BLDG` | All 83 building records, culture, production cost, maintenance, required building/advance, obsolete advance, Civilopedia key, and raw flags | Source bytes and record offsets validated; gameplay applicability still needs rule checks for obsolete, captured, and wartime-footing cases |
 | `CULT` | Six named culture-ratio records, ratio numbers, propaganda chance, initial and continued resistance chances | Values extracted; exact selection/roll procedure not established |
-| `RULE` | Town/City/Metropolis size names and caps; six culture-level names; border multiplier `1000`; border factor `10` | Values extracted; mapping of parameters to exact border thresholds/geometry not established |
+| `RULE` | Town/City/Metropolis size names and caps; six culture-level names; raw parser field `BorderExpansionMultiplier=1000`; `BorderFactor=10` | Values extracted; exact field semantics and mapping to border thresholds/geometry not established |
 | `RACE` | 32 civilization records and raw culture-group index | Values extracted; group index semantics should remain separate from numeric culture totals |
 | `GAME` | Cultural-victory flag, one-city threshold `20,000`, all-cities threshold `100,000`, `RetainCulture` capture setting, domination terrain/population values | Values extracted; the main BIQ has `RetainCulture=0`; the installed release notes identify captured-city culture retention as an MPTournament change, whose BIQ has `RetainCulture=1` |
 | `GOVT` | Assimilation chance by government; government-pair interaction fields | Assimilation values extracted; pairwise `ResistanceModifier` semantics are unverified and must not be treated as occupation-resistance rules without validation. Fascist culture suppression is stated in Civilopedia text |
@@ -138,7 +138,9 @@ documentation, not as evidence for field behavior.
 - BIQ `RULE.BorderExpansionMultiplier` and `RULE.BorderFactor` are available in
   the export. Neither the Civilopedia nor the extracted values alone establishes
   the exact threshold sequence, expansion cadence, contested-claim tie breaks,
-  or border geometry. Those remain observation targets.
+  or border geometry. Those remain observation targets. The member name
+  `BorderExpansionMultiplier` is inherited from the OpenCiv3 BIQ layout parser;
+  it is not verified Conquests editor terminology.
 - OpenCiv3 investigation lead only: its city code derives expansion level from
   the base-10 logarithm of city culture, and its territory code applies tile
   rank and culture comparisons. The comments cite community forum rules; the
@@ -166,9 +168,23 @@ documentation, not as evidence for field behavior.
   Civilopedia's explicit example of an expansion at 20,000. Use these reports
   only to design an observation matrix: measure footprint and border claims
   immediately below, at, and above each Civilopedia threshold, including
-  20,000, with `RULE.BorderFactor=10` and `RULE.BorderExpansionMultiplier=1000`
-  recorded. Sources checked 2026-11-10: [Denouement, Civilization III:
+  20,000, while recording both raw `RULE` values. Also observe the civilization
+  culture-level label around candidate thresholds to determine whether the raw
+  `BorderExpansionMultiplier=1000` value controls those levels. Sources checked
+  2026-11-10: [Denouement, Civilization III:
   Conquests Strategy Guide, “Cultural Borders”](https://gamefaqs.gamespot.com/pc/915016-civilization-iii-conquests/faqs/18251);
+  [CivFanatics, “Editor Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
+- Parameter-name lead, not yet confirmed from the installed Conquests help:
+  Civ III patch notes mirrored by GameFront say “Border Expansion Multiplier”
+  was renamed “Lvl. Multiplier,” while a CivFanatics editor reference describes
+  Level Multiplier as setting civilization culture-level thresholds and Border
+  Factor as affecting city border-growth thresholds. This suggests the raw
+  `RULE.BorderExpansionMultiplier=1000` field may configure civilization culture
+  levels rather than the city-border formula. The evidence is a patch-note
+  mirror and community explanation, not the Conquests editor's page body; retain
+  the raw field and value, but do not use this interpretation as an implemented
+  rule until the installed help or controlled Conquests observations confirm
+  it. Sources checked 2026-11-10: [Civ III v1.29 patch notes mirror](https://www.gamefront.com/games/civilization-3/file/civilization-iii-v1-29-patch);
   [CivFanatics, “Editor Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
 
 ### Captured cities, resistance, nationality, and assimilation
