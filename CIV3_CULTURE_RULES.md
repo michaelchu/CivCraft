@@ -146,6 +146,22 @@ documentation, not as evidence for field behavior.
   thresholds 10, 100, and 1,000. This is consistent with some Civilopedia
   examples but does not account for the cited 20,000 threshold; it is not used
   to infer the remaining threshold sequence.
+- Additional community leads, not accepted as Conquests rules: the GameFAQs
+  Conquests strategy guide describes five city-culture bands (0–9, 10–99,
+  100–999, 1,000–9,999, and 10,000–99,999) and gives corresponding territory
+  footprints of 9, 21, 37, 57, and 81 tiles. A CivFanatics editor-rules post
+  says `Border Factor` controls the culture needed for expansion using an
+  exponential expression. These are secondary accounts, not controlled
+  observations or official documentation; their scope/version and the latter
+  expression's relationship to this BIQ's `BorderExpansionMultiplier` are not
+  established. The guide's 10,000–99,999 band also does not explain the
+  Civilopedia's explicit example of an expansion at 20,000. Use these reports
+  only to design an observation matrix: measure footprint and border claims
+  immediately below, at, and above each Civilopedia threshold, including
+  20,000, with `RULE.BorderFactor=10` and `RULE.BorderExpansionMultiplier=1000`
+  recorded. Sources checked 2026-11-10: [Denouement, Civilization III:
+  Conquests Strategy Guide, “Cultural Borders”](https://gamefaqs.gamespot.com/pc/915016-civilization-iii-conquests/faqs/18251);
+  [CivFanatics, “Editor Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
 
 ### Captured cities, resistance, nationality, and assimilation
 
@@ -353,8 +369,12 @@ and observed result for:
    scenarios differing only in `GAME.RetainCulture`: record each
    civilization's city/civilization culture and the city borders before capture,
    immediately after capture, and after several turns; repeat after recapture.
-3. City expansion thresholds and timing, then ownership conflicts at equal and
-   unequal city culture/rank, including contested map edges.
+3. City expansion thresholds and timing, recording the actual footprint size
+   and shape as well as ownership; test immediately below, at, and above 10,
+   100, 1,000, 10,000, 20,000, and 100,000. Then
+   test ownership conflicts at equal and unequal city culture/rank, including
+   contested map edges. Community-reported territory footprints are hypotheses
+   to compare against the game, not expected outcomes.
 4. Initial/continued resistance by citizen nationality and culture-ratio band;
    changes when war ends, garrison strength changes, luxuries change, or the
    government changes; worker assignment and food/output effects while
