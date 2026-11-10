@@ -777,14 +777,22 @@ documentation, not as evidence for field behavior.
   government adjustments, per-turn military quelling, artillery exclusion,
   work and rush exclusion, war-ending resolution, and related resistance
   checks. These tests verify the current implementation against its stated
-  expectations; they do not resolve the source gaps listed above.- `cargo test --offline resisting_citizens_are_not_available_for_tile_work`:
+  expectations; they do not resolve the source gaps listed above. The local
+  checkout could not compile this command because unrelated uncommitted edits
+  in `src/client/tileset.rs` fail type checking, so the test ran from a clean
+  archive of committed `HEAD` with the installed BIQ source directory.- `cargo test --offline resisting_citizens_are_not_available_for_tile_work`:
   passed; two counted resisters leave only two of four citizens available for
   tile work.
 - `cargo test --offline current_campaign_round_trip_preserves_gameplay_and_topology_state`:
   passed with one resisting citizen preserved through save/load.
 - `cargo test --offline cities_with_resisters_cannot_rush_production`: passed.
-- `cargo test --offline peace_quells_only_the_signatory_nationality_in_their_cities`:
-  passed; unrelated nationalities and third-party cities retain their counts.
+- From a clean archive of committed `HEAD`, `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline quells`:
+  2 passed, 0 failed. This includes peace quelling only the signatory
+  nationality in cities owned by either signatory, and the one-unit-per-turn
+  garrison case. The test command overlaps one test with the resistance run
+  above. Running the same command directly in the local checkout currently
+  fails to compile because of unrelated uncommitted `src/client/tileset.rs`
+  edits; those files were left untouched.
 - `CIVCRAFT_SOURCE_DIR=../source cargo test --offline assimilation`: 2 passed.
   The deterministic cases check all eight exported government rates, refusal
   to assimilate while the city nationality is not a strict majority, conversion
