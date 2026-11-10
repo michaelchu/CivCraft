@@ -423,7 +423,7 @@ mod tests {
 
     #[test]
     fn researched_building_completes_and_unlocks_its_successor() {
-        assert_eq!(Building::all().count(), 90);
+        assert_eq!(Building::all().count(), 91);
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let settler = game
             .units
@@ -527,7 +527,7 @@ mod tests {
         game.cities.clear();
         game.create_city(HUMAN, 10, 20);
         game.create_city(HUMAN, 20, 20);
-        assert_eq!(Building::all().count(), 90);
+        assert_eq!(Building::all().count(), 91);
         assert_eq!(Building::APOLLO_PROGRAM.data().genus, Genus::SmallWonder);
         assert_eq!(Building::SDI_DEFENSE.data().genus, Genus::SmallWonder);
         game.cities[0].buildings.push(Building::APOLLO_PROGRAM);
