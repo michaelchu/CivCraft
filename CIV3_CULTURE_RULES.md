@@ -344,6 +344,25 @@ documentation, not as evidence for field behavior.
   Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/);
   Barry Caudill, Firaxis Executive Producer, “Beating the Culture Flip,” post
   #13 (2002-03-22), [Apolyton forum archive](https://apolyton.net/forum/miscellaneous/archives/civ3-general-archive/57183-beating-the-culture-flip).
+- Assimilation evidence gap found on 2026-11-10: Conquests Civilopedia
+  `GCON_Assimilation` says a foreign national assimilates after being part of a
+  minority population “longer than not,” which explicitly describes a duration
+  condition. In a pre-Conquests forum discussion, a community participant
+  proposes that an individual must spend more time as a minority than as a
+  majority (post #12); Firaxis Executive Producer Barry Caudill confirms in
+  post #13 that assimilation has no chance until the right circumstances are
+  present, and then uses the strict-majority 4-vs-3 example to confirm a
+  per-turn chance. The exact tenure counters and their reset behavior are not
+  specified by the Civilopedia or BIQ. The current implementation checks only
+  whether the owner's nationality is presently a strict majority, so it
+  establishes the documented gate but does not track the Civilopedia's
+  duration condition. A faithful implementation needs citizen or cohort
+  majority/minority tenure that survives save/load. The FAQ article describes
+  resisters as a state over foreign nationals, but neither it nor the
+  Civilopedia establishes whether assimilation can occur while a citizen is
+  resisting; leave that interaction unresolved rather than inferring it.
+  Sources: installed Conquests Civilopedia `GCON_Assimilation`; [“Beating the
+  Culture Flip,” posts #12–13](https://apolyton.net/forum/miscellaneous/archives/civ3-general-archive/57183-beating-the-culture-flip).
 - The installed BIQ exports eight governments and an 8-by-8 raw
   `GOVT.ResistanceModifier` matrix, including values from -10 to +5; its record
   and opposing-government indices and source hash are preserved in
