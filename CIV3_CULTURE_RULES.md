@@ -33,7 +33,7 @@ section/index and source hash.
 | `RACE` | 32 civilization records and raw culture-group index | Values extracted; group index semantics should remain separate from numeric culture totals |
 | `GAME` | Cultural-victory flag, one-city threshold `20,000`, all-cities threshold `100,000`, `RetainCulture` capture setting, domination terrain/population values | Values extracted; the main BIQ has `RetainCulture=0`; the installed release notes identify captured-city culture retention as an MPTournament change, whose BIQ has `RetainCulture=1` |
 | `GOVT` | Assimilation chance by government; government-pair interaction fields | Assimilation values extracted; base-government `ResistanceModifier` interpretation is matched to CivFanatics' reverse-engineered table; added-gov application remains inferred. Fascist culture suppression is stated in Civilopedia text |
-| `DIFF` | All eight difficulty records, including citizen content, cost, corruption, military-law, and support settings | Exported for comparison; no explicit culture field appears, and adjacent difficulty values are not assumed to modify culture |
+| `DIFF` | All eight difficulty records, including citizen content, cost, corruption, military-law, and support settings | All eight `MilitaryLaw` values are 1; CivFanatics identifies this as citizens quelled per ground combat unit. The connection is reverse-engineered, not confirmed in Conquests runtime |
 
 The BIQ stores values, not the engine formulas that consume them. Keep the
 export as source data; do not directly make every field live gameplay behavior
@@ -246,17 +246,17 @@ documentation, not as evidence for field behavior.
   The manual's recapture exception (previously ruled citizens do not resist,
   p. 117) remains unconfirmed for Conquests and is not implemented.
 - The BIQ `CULT` section contains initial and continued resistance chances plus
-  culture-ratio values; `GOVT` contains assimilation chances. Initial resistance
-  is now implemented from the reverse-engineered formula below. Continued
-  resistance and garrison resolution still need Conquests evidence.
+  culture-ratio values; `GOVT` contains assimilation chances. Initial and
+  continued resistance are implemented from the reverse-engineered formula
+  below; the precise Conquests turn ordering still lacks controlled evidence.
 - The installed BIQ exports eight governments and an 8-by-8 raw
   `GOVT.ResistanceModifier` matrix, including values from -10 to +5; its record
   and opposing-government indices and source hash are preserved in
   `culture_biq.json`. `DIFF.MilitaryLaw` is 1 on all eight difficulty records.
-  These are established configured values; the base-government matrix use is
-  supported by the reverse-engineered source below, while Conquests-only
-  government behavior and whether `MilitaryLaw` is the per-unit quelling cap
-  remain unverified. The newer governments'
+  The base-government matrix use is supported by the reverse-engineered
+  source below, as is interpreting `MilitaryLaw` as the per-unit quelling cap.
+  The latter use is community-sourced rather than confirmed in Conquests.
+  Conquests-only government behavior remains inferred. The newer governments'
   matrix entries also show why the six-government community table cannot be
   copied directly into Conquests gameplay.
 - Reverse-engineered implementation, checked 2026-11-10: CivFanatics' “The
@@ -268,9 +268,10 @@ documentation, not as evidence for field behavior.
   reported table; its zero-culture rule says a cultureless captor is treated
   as disdainful, even at 0:0. `src/sim/resistance.rs` applies this formula
   during city capture and uses the BIQ `GOVT.ResistanceModifier` matrix as
-  percentage-point adjustments. The six base-government matrix entries match the article's
-  adjustments. Applying the same interpretation to the BIQ's Conquests-only
-  Fascism and Feudalism entries is an inference, not independently confirmed.
+  percentage-point adjustments. The six base-government matrix entries match
+  the article's adjustments. Applying the same interpretation to Conquests'
+  added Fascism and Feudalism entries is an inference, not independently
+  confirmed.
   The implementation selects the first CULT ratio threshold met while
   checking the bands from highest to lowest. The article gives ratio examples
   but does not specify selection for every intermediate ratio; use of the BIQ
@@ -280,16 +281,27 @@ documentation, not as evidence for field behavior.
   the sources do not establish whether the original game evaluates the totals
   before or after that transfer. The linked test archive was unavailable, and
   no controlled Conquests runtime observation was made.
-- Resistance continuation and quelling remain unresolved. The same
-  CivFanatics article says continued chances use CULT's continued values plus
-  government modifiers, and that ground-combat-unit count caps how many
-  citizens are quelled per turn, but it only covers the six base governments.
-  Conquests Civilopedia confirms occupation forces can quell resistance and
-  peace can end it; the existing peace resolution is implemented. We have not
-  established the Conquests modifier interaction, ground-unit eligibility,
-  or whether DIFF.MilitaryLaw=1 is the per-unit cap. Sources: [CivFanatics,
+- Continued resistance uses the CULT continued chance and the same government
+  modifier as initiation. CivFanatics says the continued base chance is 10
+  percentage points below the initial chance, and that the number quelled per
+  turn is capped by eligible ground-combat units times the difficulty
+  “citizens quelled by military” value. Its report says unit strength does not
+  matter and excludes air, sea, artillery, settlers, and workers. Conquests'
+  exported DIFF table has `MilitaryLaw=1` at all eight difficulties. The
+  runtime uses the continued CULT values, the GOVT pair matrix, and this
+  per-unit cap; the six base-government results match the article's tables.
+  Reusing the matrix for Fascism/Feudalism remains inferred. The method rolls
+  continuing resistance per citizen, then quenches eligible failures up to the
+  cap; this fits the article's example but its exact selection order is not
+  stated. When eligible failures exceed the cap, this implementation processes
+  the stored nationality order. The article also does not establish when in a
+  Conquests city turn these rolls occur or whether culture totals are measured
+  before or after other city updates. No controlled Conquests runtime
+  observation was available.
+- Conquests Civilopedia says occupation forces can quell resistance and peace
+  can end it; the peace-resolution path is implemented. Sources: [CivFanatics,
   “The Inner Workings of Resistance Revealed”](https://civfanatics.com/civ3/strategy/game-mechanics/the-inner-workings-of-resistance-revealed/);
-  installed Conquests BIQ CULT/GOVT/DIFF sections and Civilopedia.
+  installed Conquests BIQ `CULT`/`GOVT`/`DIFF` sections and Civilopedia.
 - The base manual says recaptured citizens may not resist if previously ruled
   by the current owner, while newly created citizens may. This needs a
   controlled Conquests scenario before treating it as an expansion rule.
@@ -531,17 +543,17 @@ documentation, not as evidence for field behavior.
   snapshots cannot establish culture retention, border thresholds, or
   resistance. The save layout check uses OpenCiv3's parser structures only to
   locate fields; no OpenCiv3 gameplay formula is treated as a Civ III rule.
-- 2026-11-10 resistance-initiation implementation check: the CULT/GOVT table
-  exporter regenerated the installed BIQ-hashed tables; resistance ratio and
-  government-pair tests (3/3), city lifecycle tests (14/14), and the capture
-  scenario passed. Full `cargo test --offline` reported 624 passed and 13
-  failures in existing tileset-asset, advisor/AI, starting-unit, and fog tests;
-  none were resistance tests. The desktop self-test (seed 42) reported 2/11
-  checks passed; movement, city labor/economy, airbase, and dependent
+- 2026-11-10 resistance implementation validation: the culture exporter emits
+  all three resistance tables from the installed BIQ. Six resistance tests and
+  the 14 city lifecycle tests pass, including a capture roll, continued-chance
+  checks, no-garrison behavior, and the one-unit quelling cap. Full
+  `cargo test --offline` reported 627 passed and 13 failures in existing
+  tileset-asset, advisor/AI, starting-unit, and fog tests; none target
+  resistance. The desktop self-test (seed 42) reported 2/11 checks passed;
+  movement, city labor/economy, airbase, and dependent
   government/civil-war/diplomacy checks failed. Report:
-  `/tmp/civcraft-playtest-capture-resistance-20261110/report.json`. These
-  failures are retained for follow-up; no original Conquests runtime was
-  available for controlled observation.
+  `/tmp/civcraft-playtest-resistance-resolution-20261110/report.json`. No
+  original Conquests runtime was available for controlled observation.
 
 ## Required controlled observations
 

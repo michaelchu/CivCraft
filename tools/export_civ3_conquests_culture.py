@@ -77,6 +77,11 @@ def main() -> None:
         type=Path,
         default=Path("data/rulesets/civ3_conquests/government_resistance.tsv"),
     )
+    parser.add_argument(
+        "--military-law-table",
+        type=Path,
+        default=Path("data/rulesets/civ3_conquests/resistance_military_law.tsv"),
+    )
     args = parser.parse_args()
 
     source = args.source_root.resolve()
@@ -381,8 +386,9 @@ def main() -> None:
             "Raw RACE index; keep separate from accumulated culture-point rules."
         ),
         "difficulty": (
-            "Raw DIFF settings are exported for checking potential difficulty effects. "
-            "No field is treated as a culture modifier without supporting evidence."
+            "Raw DIFF settings are exported. All eight MilitaryLaw values are 1; "
+            "CivFanatics identifies this setting as the per-unit resistance-quelling "
+            "cap, a reverse-engineered interpretation not confirmed in Conquests."
         ),
     }
 
@@ -414,7 +420,8 @@ def main() -> None:
     with args.resistance_band_table.open("w") as table:
         table.write(
             "source_section\tsource_record_index\tname\tculture_ratio_numerator\t"
-            "culture_ratio_denominator\tinitial_chance\tcontinued_chance\tbiq_sha256\n"
+            "culture_ratio_denominator\tinitial_chance\tcontinued_chance\t"
+            "biq_sha256\n"
         )
         for row in result["culture_ratio_bands"]:
             table.write(
@@ -435,6 +442,13 @@ def main() -> None:
                 f"{captor_index}\t{government_rows[captor_index]['name']}\t"
                 f"{defender_index}\t{government_rows[defender_index]['name']}\t"
                 f"{row['resistance_modifier']}\t{biq_hash}\n"
+            )
+    with args.military_law_table.open("w") as table:
+        table.write("source_section\tsource_record_index\tdifficulty\tmilitary_law\tbiq_sha256\n")
+        for row in result["difficulty"]:
+            table.write(
+                f"DIFF\t{row['source_record_index']}\t{row['name']}\t"
+                f"{row['military_law']}\t{biq_hash}\n"
             )
     print(f"Exported Conquests culture inputs to {args.output}")
 

@@ -62,6 +62,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn process_player_cities(&mut self, owner: usize) -> (i32, Vec<(u32, i32)>) {
+        self.resolve_resistance_for_owner(owner);
         self.reconcile_city_workers();
         let mut science_income = 0;
         let mut gold_paid = Vec::new();

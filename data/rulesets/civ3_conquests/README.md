@@ -233,7 +233,8 @@ python3 tools/export_civ3_conquests_culture.py --unpacked-biq /tmp/conquests.unp
 python3 tools/export_conquests_capture_culture_flags.py --blast /tmp/civ3-blast
 ```
 
-The culture exporter also writes `culture_resistance_bands.tsv` from `CULT`
-and `government_resistance.tsv` from the ordered `GOVT` pair matrix. These
-tables retain source indices and the installed BIQ hash; their use in initial
-resistance is documented separately as reverse-engineered or inferred.
+The culture exporter also writes `culture_resistance_bands.tsv` from `CULT`,
+`government_resistance.tsv` from the ordered `GOVT` pair matrix, and
+`resistance_military_law.tsv` from `DIFF`. These tables retain source indices
+and the installed BIQ hash; resistance use is documented separately as
+reverse-engineered or inferred.

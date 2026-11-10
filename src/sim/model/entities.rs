@@ -155,8 +155,9 @@ pub(crate) struct City {
     pub(crate) size: i32,
     pub(crate) specialists: [i32; 3],
     /// Resisting citizens by nationality; they cannot work, per the Conquests
-    /// Civilopedia. Capture probabilities and garrison resolution remain
-    /// unresolved. Sorted by nationality slot for stable saves.
+    /// Civilopedia. Capture and garrison rules follow documented and
+    /// reverse-engineered mechanics; see CIV3_CULTURE_RULES.md for limits.
+    /// Sorted by nationality slot for stable saves.
     #[serde(default)]
     pub(in crate::sim) resisting_citizens: Vec<(usize, i32)>,
     pub(crate) worked_tiles: Vec<(i32, i32)>,
