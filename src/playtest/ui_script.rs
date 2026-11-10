@@ -3,7 +3,6 @@
 use super::*;
 mod combat;
 mod economy;
-mod espionage;
 mod naval_ai;
 mod worker_terrain;
 
@@ -15,7 +14,6 @@ impl Playtest {
         buttons: &[(Rect, UiAction)],
     ) {
         self.advance_worker_terrain_ui(frame, game, buttons);
-        self.advance_espionage_ui(frame, game, buttons);
         self.advance_combat_ui(frame, game, buttons);
         self.advance_economy_ui(frame, game, buttons);
         self.advance_naval_ai_ui(frame, game, buttons);

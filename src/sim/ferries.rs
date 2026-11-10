@@ -85,7 +85,7 @@ impl Simulation {
         // These three types represent the supported big-land, small-land,
         // and fueled aircraft cargo classes (including carriers/helicopters).
         (kind.is_naval() || kind.is_aircraft())
-            && [UnitKind::Settlers, UnitKind::Warrior, UnitKind::Fighter]
+            && [UnitKind::Settler, UnitKind::Warrior, UnitKind::Fighter]
                 .into_iter()
                 .any(|cargo| kind.can_carry(cargo))
     }
@@ -298,8 +298,8 @@ mod tests {
         game.ai_ferries = Default::default();
         let first_boat = game.spawn_unit(1, UnitKind::Transport, 10, 24);
         let second_boat = game.spawn_unit(1, UnitKind::Transport, 18, 24);
-        let waiting = game.spawn_unit(1, UnitKind::Settlers, 18, 24);
-        let cargo = game.spawn_unit(1, UnitKind::Freight, 10, 24);
+        let waiting = game.spawn_unit(1, UnitKind::Settler, 18, 24);
+        let cargo = game.spawn_unit(1, UnitKind::Warrior, 10, 24);
         assert!(game.assign_ai_ferry(first_boat, waiting));
         game.units
             .iter_mut()
@@ -322,7 +322,7 @@ mod tests {
         game.units.clear();
         game.ai_ferries = Default::default();
         let boat = game.spawn_unit(1, UnitKind::Transport, 10, 24);
-        let passenger = game.spawn_unit(1, UnitKind::Settlers, 12, 24);
+        let passenger = game.spawn_unit(1, UnitKind::Settler, 12, 24);
         assert!(game.assign_ai_ferry(boat, passenger));
         game.remove_units_with_cargo(vec![boat]);
         assert_eq!(

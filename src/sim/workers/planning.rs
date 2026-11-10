@@ -6,7 +6,6 @@ pub(super) const WORKER_FACTOR: f32 = 1024.0;
 pub(super) const ACTIVITIES: &[WorkKind] = &[
     WorkKind::Cultivate,
     WorkKind::Plant,
-    WorkKind::Transform,
     WorkKind::Irrigation,
     WorkKind::Mine,
     WorkKind::OilWell,
@@ -14,6 +13,7 @@ pub(super) const ACTIVITIES: &[WorkKind] = &[
     WorkKind::Clean(Contamination::Pollution),
     WorkKind::Farmland,
     WorkKind::Clean(Contamination::Fallout),
+    WorkKind::Clean(Contamination::Craters),
     WorkKind::Road,
     WorkKind::Railroad,
 ];
@@ -149,10 +149,11 @@ impl Simulation {
                 match target {
                     Contamination::Pollution => tile.pollution = false,
                     Contamination::Fallout => tile.fallout = false,
+                    Contamination::Craters => tile.craters = false,
                 };
                 3
             }
-            WorkKind::Cultivate | WorkKind::Plant | WorkKind::Transform => {
+            WorkKind::Cultivate | WorkKind::Plant => {
                 let (terrain, time) = self.terrain_work(actor, activity)?;
                 tile.terrain = terrain;
                 if terrain.irrigation_time() == 0 {
@@ -377,7 +378,10 @@ impl Simulation {
                     let extra = match activity {
                         WorkKind::Road => self.worker_road_extra(position, false),
                         WorkKind::Railroad => self.worker_road_extra(position, true),
-                        WorkKind::Clean(target) => self.worker_climate_urgency(target) as f32,
+                        WorkKind::Clean(target) if target != Contamination::Craters => {
+                            self.worker_climate_urgency(target) as f32
+                        }
+                        WorkKind::Clean(_) => 0.0,
                         _ => 0.0,
                     };
                     let rate = self.activity_rate(actor);

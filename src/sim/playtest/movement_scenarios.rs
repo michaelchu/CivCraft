@@ -121,7 +121,7 @@ impl Simulation {
             assert!(self.board_specific_ship(fighter, carrier));
         }
         let transport = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
-        let marine = self.spawn_unit(HUMAN, UnitKind::Marines, sea.0, sea.1);
+        let marine = self.spawn_unit(HUMAN, UnitKind::Marine, sea.0, sea.1);
         assert!(self.board_specific_ship(marine, transport));
         let rescued = self.apply(Command::Disband(transport, None))
             && self
@@ -129,7 +129,7 @@ impl Simulation {
                 .iter()
                 .any(|unit| unit.id == marine && unit.transport == Some(helicopter));
         let second = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
-        let partisan = self.spawn_unit(HUMAN, UnitKind::Partisan, sea.0, sea.1);
+        let partisan = self.spawn_unit(HUMAN, UnitKind::Guerilla, sea.0, sea.1);
         assert!(self.board_specific_ship(partisan, second));
         // Free a seat on the helicopter, then lose both surface ships together.
         self.remove_units_with_cargo(vec![marine]);
@@ -142,11 +142,9 @@ impl Simulation {
                 .any(|unit| unit.id == helicopter && unit.transport.is_none())
     }
 
-    pub(crate) fn cargo_rescue_playtest(&mut self) -> (bool, bool, bool) {
+    pub(crate) fn cargo_rescue_playtest(&mut self) -> (bool, bool) {
         let sea = (10, 24);
-        let coast = offset_native_by_map(sea.0, sea.1, 1, 0);
         self.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
-        self.tile_mut(coast.0, coast.1).terrain = Terrain::Grassland;
         let ship = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
         let backup = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
         let passenger = self.spawn_unit(HUMAN, UnitKind::Warrior, sea.0, sea.1);
@@ -165,16 +163,7 @@ impl Simulation {
             && self.units.iter().all(|unit| unit.id != passenger)
             && self.cargo_count(hostile) == 0;
 
-        self.create_city(BARBARIANS, coast.0, coast.1);
-        let raider = self.spawn_unit(BARBARIANS, UnitKind::Transport, sea.0, sea.1);
-        let leader = self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, sea.0, sea.1);
-        let embarked = self.board_specific_ship(leader, raider);
-        self.remove_units_with_cargo(vec![raider]);
-        let evacuated = embarked
-            && self.units.iter().any(|unit| {
-                unit.id == leader && (unit.x, unit.y) == coast && unit.transport.is_none()
-            });
-        (rescued, drowned, evacuated)
+        (rescued, drowned)
     }
 
     pub(crate) fn disband_playtest(&mut self) -> (bool, bool, bool) {
@@ -219,39 +208,6 @@ impl Simulation {
         (recovered, outside, unloaded)
     }
 
-    pub(crate) fn ransom_playtest(&mut self) -> bool {
-        self.units.clear();
-        let start = (10, 24);
-        let target = offset_native_by_map(start.0, start.1, 1, 0);
-        for point in [start, target] {
-            let tile = self.tile_mut(point.0, point.1);
-            tile.terrain = Terrain::Grassland;
-            tile.hut = false;
-        }
-        let mut passed = true;
-        for (kind, protected, treasury, expected) in [
-            (UnitKind::Warrior, false, 300, 200),
-            (UnitKind::Warrior, false, 125, 125),
-            (UnitKind::Warrior, true, 300, 0),
-            (UnitKind::Frigate, false, 300, 0),
-        ] {
-            self.units.clear();
-            self.players[BARBARIANS].gold = treasury;
-            let before = self.players[HUMAN].gold;
-            let attacker = self.spawn_unit(HUMAN, kind, start.0, start.1);
-            for _ in 0..2 {
-                self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, target.0, target.1);
-            }
-            if protected {
-                self.spawn_unit(BARBARIANS, UnitKind::Worker, target.0, target.1);
-            }
-            passed &= self.try_move_unit(attacker, 1, 0) == MoveResult::Fought
-                && self.players[HUMAN].gold == before + expected
-                && self.players[BARBARIANS].gold == treasury - expected;
-        }
-        passed
-    }
-
     pub(crate) fn fleet_escort_playtest(&mut self) -> (bool, bool) {
         self.units.clear();
         for tile in &mut self.tiles {
@@ -262,7 +218,7 @@ impl Simulation {
         let guard = offset_native_by_map(sea.0, sea.1, -1, 0);
         let threat = offset_native_by_map(sea.0, sea.1, 1, 0);
         let ship = self.spawn_unit(1, UnitKind::Transport, sea.0, sea.1);
-        let passenger = self.spawn_unit(1, UnitKind::Marines, sea.0, sea.1);
+        let passenger = self.spawn_unit(1, UnitKind::Marine, sea.0, sea.1);
         self.units.last_mut().unwrap().transport = Some(ship);
         let escort = self.spawn_unit(1, UnitKind::AegisCruiser, guard.0, guard.1);
         self.request_ai_guard(ship);
@@ -299,17 +255,17 @@ impl Simulation {
         }
         self.create_city(1, home.0, home.1);
         self.create_city(HUMAN, target.0, target.1);
-        let guard = self.spawn_unit(1, UnitKind::Marines, home.0, home.1);
+        let guard = self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
         for _ in 0..4 {
-            self.spawn_unit(1, UnitKind::Marines, home.0, home.1);
+            self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
         }
         for _ in 0..3 {
             self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
             self.units.last_mut().unwrap().hp = 1;
         }
-        let first = self.spawn_unit(1, UnitKind::Trireme, home.0, home.1);
+        let first = self.spawn_unit(1, UnitKind::Galley, home.0, home.1);
         let second_start = if remote { point(-5) } else { home };
-        let second = self.spawn_unit(1, UnitKind::Trireme, second_start.0, second_start.1);
+        let second = self.spawn_unit(1, UnitKind::Galley, second_start.0, second_start.1);
         self.units.last_mut().unwrap().moves_left = 0;
         self.set_random_seed(1);
         self.run_ai_player(1);
@@ -319,7 +275,7 @@ impl Simulation {
                 && self
                     .units
                     .iter()
-                    .filter(|unit| unit.kind == UnitKind::Marines && (unit.x, unit.y) == home)
+                    .filter(|unit| unit.kind == UnitKind::Marine && (unit.x, unit.y) == home)
                     .count()
                     == 5);
         let mut embarked = self.cargo_count(first) == 2 && self.cargo_count(second) == 2;
@@ -373,8 +329,11 @@ impl Simulation {
         }
         self.create_city(1, home.0, home.1);
         self.create_city(HUMAN, target.0, target.1);
-        let guard = self.spawn_unit(1, UnitKind::Marines, home.0, home.1);
+        let guard = self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
         let attacker = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
+        // The transport policy needs a legal minimum assault force: one
+        // home guard plus two military attackers.
+        self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         let (x, y) = point(-1);
         let boat = self.spawn_unit(1, UnitKind::Galleon, x, y);
         let mut rejected = true;
@@ -385,7 +344,7 @@ impl Simulation {
             }
             rejected = !self.assault_transport_playtest_has_orders(1);
             for _ in 0..2 {
-                self.spawn_unit(1, UnitKind::Marines, home.0, home.1);
+                self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
             }
             self.set_random_seed(1);
         }
@@ -460,25 +419,24 @@ impl Simulation {
             road_mp(true) == (true, 2 * MOVE_FRAGMENTS) && road_mp(false) == (true, MOVE_FRAGMENTS);
 
         let mut game = fresh();
-        let later = game.spawn_unit(HUMAN, UnitKind::Engineer, 10, 24);
-        let first = game.spawn_unit(HUMAN, UnitKind::Engineer, 10, 24);
+        let later = game.spawn_unit(HUMAN, UnitKind::Worker, 10, 24);
+        let first = game.spawn_unit(HUMAN, UnitKind::Worker, 10, 24);
         game.begin_work(first, WorkKind::Road);
         game.begin_work(later, WorkKind::Road);
         let unit = game.units.iter_mut().find(|unit| unit.id == first).unwrap();
         unit.work_done = unit.work_left - 20;
         unit.work_left = 20;
-        game.set_random_seed(2); // First 51 fails promotion; the coworker must not roll.
+        game.set_random_seed(2);
         let before = game.random_snapshot();
-        game.rand_below(100);
-        let one_roll = game.random_snapshot();
-        game.restore_random(before);
         game.progress_player_unit_activities(HUMAN);
         let coworkers = game.tile(10, 24).road
-            && game.random_snapshot() == one_roll
+            && game.random_snapshot() == before
             && [first, later].into_iter().all(|id| {
-                game.units
-                    .iter()
-                    .any(|unit| unit.id == id && unit.work_kind.is_none() && unit.veteran == 0)
+                game.units.iter().any(|unit| {
+                    unit.id == id
+                        && unit.work_kind.is_none()
+                        && unit.veteran == crate::sim::civ3_unit_rules::default_experience_rank()
+                })
             });
 
         let mut game = fresh();
@@ -500,20 +458,31 @@ impl Simulation {
             });
 
         let mut game = fresh();
-        let engineer = game.spawn_unit(HUMAN, UnitKind::Engineer, 10, 24);
-        game.begin_work(engineer, WorkKind::Road);
+        let worker = game.spawn_unit(HUMAN, UnitKind::Worker, 10, 24);
+        game.begin_work(worker, WorkKind::Road);
         let initial_work = game.units.last().unwrap().work_left;
         game.units.last_mut().unwrap().moves_left = 0;
-        game.set_random_seed(20); // Native 1 succeeds at 3%, despite zero old MP.
+        game.set_random_seed(20);
+        let before = game.random_snapshot();
         game.progress_player_unit_activities(HUMAN);
-        let unit = game.unit_by_id(engineer).unwrap();
-        let zero_mp_promotes =
-            unit.veteran == 1 && unit.work_done == 0 && unit.work_left == initial_work;
+        let unit = game.unit_by_id(worker).unwrap();
+        let no_zero_mp_activity = unit.veteran
+            == crate::sim::civ3_unit_rules::default_experience_rank()
+            && unit.work_done == 0
+            && unit.work_left == initial_work
+            && game.random_snapshot() == before;
         game.units.last_mut().unwrap().moves_left = 1;
         let full_rate = game.units.last().unwrap().activity_rate();
         game.progress_player_unit_activities(HUMAN);
-        let partial_mp = zero_mp_promotes && game.units.last().unwrap().work_done == full_rate;
-        (road_order, coworkers, precompleted, partial_mp)
+        let no_work_promotion = game.units.last().unwrap().veteran
+            == crate::sim::civ3_unit_rules::default_experience_rank()
+            && game.units.last().unwrap().work_done == full_rate;
+        (
+            road_order,
+            coworkers,
+            precompleted,
+            no_zero_mp_activity && no_work_promotion,
+        )
     }
 
     pub(crate) fn unit_turn_lifecycle_playtest(&self) -> (bool, bool, bool, bool) {
@@ -549,12 +518,14 @@ impl Simulation {
         let old_mp = game.units.last().unwrap().moves_left;
         game.fortify_unit(guard);
         let retained = game.units.last().unwrap().moves_left == old_mp;
+        let guard_before_heal = game.unit_by_id(guard).unwrap().clone();
+        let field_hp = 1 + Self::hitpoint_gain(&guard_before_heal, false);
         game.restore_player_units(HUMAN);
-        let unfortified_hp = game.units.last().unwrap().hp == 2;
+        let unfortified_hp = game.units.last().unwrap().hp == field_hp;
         game.progress_player_unit_activities(HUMAN);
         let fortified = retained
             && unfortified_hp
-            && game.units.last().unwrap().hp == 2
+            && game.units.last().unwrap().hp == field_hp
             && game.units.last().unwrap().state == UnitState::Fortified;
         let exhausted = game.spawn_unit(HUMAN, UnitKind::Warrior, field.0, field.1);
         game.units.last_mut().unwrap().moves_left = 0;
@@ -604,7 +575,7 @@ impl Simulation {
         }
         let warrior = self.make_unit(0, HUMAN, UnitKind::Warrior, home.0, home.1);
         let chariot = self.make_unit(0, HUMAN, UnitKind::Chariot, home.0, home.1);
-        let boat = self.make_unit(0, HUMAN, UnitKind::Trireme, home.0, home.1);
+        let boat = self.make_unit(0, HUMAN, UnitKind::Galley, home.0, home.1);
         let river = self.movement_cost_for(&warrior, dest.0, dest.1) == Some(2)
             && self.movement_cost_for(&chariot, dest.0, dest.1) == Some(6)
             && self.movement_cost_for(&boat, dest.0, dest.1) == Some(6);
@@ -636,15 +607,14 @@ impl Simulation {
                 .find(|u| u.id == explorer)
                 .is_some_and(|u| u.transport.is_some() && u.moves_left == before - 2);
         self.units.clear();
-        let enemy = self.spawn_unit(1, UnitKind::BarbarianLeader, home.0, home.1);
+        let enemy = self.spawn_unit(1, UnitKind::Cavalry, home.0, home.1);
         let leader_zoc = self.under_foreign_control(HUMAN, home.0, home.1, false);
         self.units.iter_mut().find(|u| u.id == enemy).unwrap().kind = UnitKind::Carrier;
         let carrier_no_zoc = !self.under_foreign_control(HUMAN, home.0, home.1, false);
-        let actors = !UnitKind::Caravan.ignores_zoc()
-            && !UnitKind::Migrants.ignores_zoc()
+        let actors = !UnitKind::Worker.ignores_zoc()
             && !UnitKind::Chariot.ignores_zoc()
-            && !UnitKind::Trireme.ignores_zoc()
-            && UnitKind::Spy.ignores_zoc();
+            && !UnitKind::Galley.ignores_zoc()
+            && UnitKind::Explorer.ignores_zoc();
         (
             river && rail && hostile,
             wheel_blocked && wheel_road && boarding,
@@ -674,10 +644,10 @@ impl Simulation {
         let home = (10, 24);
         let goal = offset_native_by_map(home.0, home.1, 1, 0);
         for (kind, allowed) in [
+            (UnitKind::Worker, true),
+            (UnitKind::Settler, true),
             (UnitKind::Explorer, true),
-            (UnitKind::Spy, true),
-            (UnitKind::Caravan, true),
-            (UnitKind::Caravel, true),
+            (UnitKind::Caravel, false),
             (UnitKind::Warrior, false),
             (UnitKind::Carrier, false),
         ] {
@@ -690,8 +660,8 @@ impl Simulation {
                 };
             }
             self.tile_mut(goal.0, goal.1).owner = Some(1);
-            // Each case exercises both remembered-map planning and the real
-            // movement command; military zero-attack Carrier stays excluded.
+            // Peace permits defenseless civilians to pass, but does not grant
+            // military units right of passage. Check planning and execution.
             for tile in &mut self.tiles {
                 tile.visible = true;
                 tile.seen = true;
@@ -699,9 +669,8 @@ impl Simulation {
             let id = self.spawn_unit(HUMAN, kind, home.0, home.1);
             let unit = self.units.last().unwrap().clone();
             let planned = self.plan_route(&unit, goal.0, goal.1, true);
-            if planned.is_empty() == allowed
-                || (self.try_move_unit(id, 1, 0) == MoveResult::Moved) != allowed
-            {
+            let moved = self.try_move_unit(id, 1, 0) == MoveResult::Moved;
+            if planned.is_empty() == allowed || moved != allowed {
                 return false;
             }
         }
@@ -721,7 +690,7 @@ impl Simulation {
             .retain(|&tech| tech != Tech::NUCLEAR_POWER);
         self.tile_mut(10, 24).terrain = Terrain::Sea;
         self.tile_mut(12, 24).terrain = Terrain::Grassland;
-        let ship = self.spawn_unit(HUMAN, UnitKind::Destroyer, 10, 24);
+        let ship_id = self.spawn_unit(HUMAN, UnitKind::Destroyer, 10, 24);
         let horse = self.spawn_unit(HUMAN, UnitKind::Horseman, 12, 24);
         for unit in &mut self.units {
             unit.hp = 1;
@@ -729,19 +698,21 @@ impl Simulation {
             unit.moved = true;
         }
         self.update_activities_and_restore();
-        let restored = [(ship, 12), (horse, 6)].into_iter().all(|(id, rate)| {
+        let restored = [ship_id, horse].into_iter().all(|id| {
             self.units
                 .iter()
                 .find(|unit| unit.id == id)
-                .is_some_and(|unit| unit.moves_left == rate && self.unit_move_rate(unit) == rate)
+                .is_some_and(|unit| unit.moves_left == self.unit_move_rate(unit))
         });
-        self.units
+        let ship = self
+            .units
             .iter_mut()
-            .find(|unit| unit.id == ship)
-            .unwrap()
-            .hp = 15;
+            .find(|unit| unit.id == ship_id)
+            .unwrap();
+        ship.hp = ship.max_hit_points();
         self.players[HUMAN].known.push(Tech::NUCLEAR_POWER);
-        restored && self.unit_move_rate(self.unit_by_id(ship).unwrap()) == 24
+        let ship = self.unit_by_id(ship_id).unwrap();
+        restored && self.unit_move_rate(ship) == self.unit_move_allowance(HUMAN, ship.kind)
     }
 
     pub(crate) fn ai_source_goto_playtest(&mut self) -> bool {
@@ -787,9 +758,9 @@ impl Simulation {
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
         }
-        let id = self.spawn_unit(1, UnitKind::Legion, 10, 20);
+        let id = self.spawn_unit(1, UnitKind::Swordsman, 10, 20);
         let target = east((10, 20), 1);
-        let defender = self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, target.0, target.1);
+        let defender = self.spawn_unit(BARBARIANS, UnitKind::Warrior, target.0, target.1);
         self.unit_goto_tiles.insert(id, (20, 40));
         let result = self.ai_goto_unit(id, target, GotoTask::Attack);
         risky_detour

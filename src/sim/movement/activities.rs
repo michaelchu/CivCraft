@@ -12,6 +12,15 @@ impl Simulation {
             if self.has_tech(unit.owner, Tech::REPLACEABLE_PARTS) {
                 rate *= 2;
             }
+            if unit.kind == UnitKind::Worker && unit.nationality != unit.owner {
+                // Source WorkerStrength configures captive worker progress.
+                // The native worker baseline is 2; Conquests WorkerStrength
+                // is 1.0, so this gives foreign workers half the native rate.
+                // Apply it after the existing government/technology bonuses
+                // so those rates continue to scale both worker types.
+                let strength = unit.kind.conquests_rule().worker_strength;
+                rate = ((rate as f32 * strength / 2.0).round() as i32).max(1);
+            }
         }
         rate
     }
@@ -45,7 +54,7 @@ impl Simulation {
             ))
             || unit.work_left > 0
             || (unit.transport.is_some()
-                && !matches!(kind, WorkKind::Transform | WorkKind::OilPlatform))
+                && kind != WorkKind::OilPlatform)
         {
             return false;
         }
@@ -69,7 +78,7 @@ impl Simulation {
             {
                 tile.terrain.irrigation_time()
             }
-            WorkKind::Cultivate | WorkKind::Plant | WorkKind::Transform => {
+            WorkKind::Cultivate | WorkKind::Plant => {
                 self.terrain_work(&unit, kind).map_or(0, |(_, time)| time)
             }
             WorkKind::BuildBase(base) => self.base_work_time(&unit, base).unwrap_or(0),
@@ -188,11 +197,10 @@ impl Simulation {
                 self.active_barracks(city)
             }
         });
-        let fortress = self.tile(unit.x, unit.y).base == Some(Base::Fortress);
         let hp = if !unit.moved && repair {
-            unit.kind.stats().hp
+            unit.max_hit_points()
         } else {
-            unit.hp + Self::hitpoint_gain(unit, center.is_some(), fortress)
+            unit.hp + Self::hitpoint_gain(unit, center.is_some())
         };
         let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
         unit.hp = hp;
@@ -243,9 +251,6 @@ impl Simulation {
                 unit.work_done += rate;
             }
             let fortifies = unit.state == UnitState::Fortifying && unit.moves_left > 0;
-            if work.is_some() {
-                self.promote_worker(id);
-            }
             let rate = self.unit_move_rate(&self.units[index]);
             self.units[index].moves_left = rate;
             if let Some(key @ (x, y, kind)) = work {
@@ -278,7 +283,7 @@ impl Simulation {
         let owner = unit.owner;
         if matches!(
             kind,
-            WorkKind::Cultivate | WorkKind::Plant | WorkKind::Transform
+            WorkKind::Cultivate | WorkKind::Plant
         ) {
             let Some((target, _)) = self.terrain_work(&unit, kind) else {
                 return false;
@@ -338,6 +343,7 @@ impl Simulation {
             WorkKind::OilPlatform => tile.oil_platform = true,
             WorkKind::Clean(Contamination::Pollution) => tile.pollution = false,
             WorkKind::Clean(Contamination::Fallout) => tile.fallout = false,
+            WorkKind::Clean(Contamination::Craters) => tile.craters = false,
             WorkKind::Mine => {
                 tile.mine = true;
                 tile.irrigation = false;

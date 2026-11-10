@@ -76,8 +76,7 @@ impl Simulation {
         for city in self.cities_owned_by(owner) {
             let pop = city.size * (city.size + 1) * 5;
             population += pop;
-            let bonus = self.science_building_bonus(city)
-                - 50 * i32::from(self.players[owner].government == Government::Fundamentalism);
+            let bonus = self.science_building_bonus(city);
             literate += percent_of(pop, bonus.clamp(0, 100));
         }
         match population {

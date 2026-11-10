@@ -91,7 +91,6 @@ impl Simulation {
         self.refresh_diplomatic_contact_effects();
         self.turn += 1;
         self.advance_diplomacy();
-        self.prune_trade_routes();
         self.advance_calendar();
         // srv_main:begin_phase progresses activities with the previous
         // movement budget, then refills MP. Revolution completion is also
@@ -134,7 +133,7 @@ impl Simulation {
             || self
                 .units
                 .iter()
-                .any(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers);
+                .any(|u| u.owner == HUMAN && u.kind == UnitKind::Settler);
         if !human_survives {
             self.game_over = Some("Your civilization has passed into history.".to_owned());
             return;
@@ -144,7 +143,7 @@ impl Simulation {
                 .iter()
                 .any(|c| c.owner != HUMAN && c.owner != BARBARIANS)
                 || self.units.iter().any(|u| {
-                    u.owner != HUMAN && u.owner != BARBARIANS && u.kind == UnitKind::Settlers
+                    u.owner != HUMAN && u.owner != BARBARIANS && u.kind == UnitKind::Settler
                 });
         if !rival_survives {
             self.game_over = Some("The world is united beneath your banner.".to_owned());

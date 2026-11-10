@@ -8,6 +8,9 @@ pub(crate) struct CombatVisual {
     pub(crate) defender: Unit,
     pub(crate) hp: Vec<(i32, i32)>,
     pub(crate) city: Option<City>,
+    /// The Conquests PRTO Bombard Effects flag requests a target explosion
+    /// effect even when bombardment does not kill the selected unit.
+    pub(crate) bombard_effects: bool,
     pub(crate) territory: Vec<Option<usize>>,
 }
 
@@ -18,12 +21,16 @@ pub(crate) enum VisualEvent {
         from: (i32, i32),
         to: (i32, i32),
     },
+    /// Plays the unit INI's CAPTURE action, including when a missile launches.
+    Capture {
+        unit: Unit,
+    },
     Combat(Box<CombatVisual>),
 }
 impl VisualEvent {
     pub(crate) fn actors(&self) -> impl Iterator<Item = &Unit> {
         let (first, second) = match self {
-            Self::Move { unit, .. } => (unit, None),
+            Self::Move { unit, .. } | Self::Capture { unit } => (unit, None),
             Self::Combat(combat) => (&combat.attacker, Some(&combat.defender)),
         };
         std::iter::once(first).chain(second)
@@ -31,6 +38,9 @@ impl VisualEvent {
     pub(crate) fn duration(&self) -> f64 {
         match self {
             Self::Move { .. } => 0.030, // native smooth_move_unit_msec
+            // The original Settler, Worker, ICBM, and Tactical Nuke INIs use
+            // a 0.5 second CAPTURE action; for nuclear units this is launch.
+            Self::Capture { .. } => 0.5,
             Self::Combat(combat) => {
                 let first = combat.hp.first().copied().unwrap_or_default();
                 let last = combat.hp.last().copied().unwrap_or_default();
@@ -64,6 +74,9 @@ impl Simulation {
                 (observed.x, observed.y) = *to;
                 observed.transport = None;
                 unit.owner == HUMAN || self.unit_visible_to_human(&observed)
+            }
+            VisualEvent::Capture { unit } => {
+                unit.owner == HUMAN || self.unit_visible_to_human(unit)
             }
             VisualEvent::Combat(combat) => {
                 let attacker = &combat.attacker;
@@ -131,7 +144,14 @@ mod tests {
                 assert!(a == 0 || d == 0);
                 for (unit, final_hp) in [(attacker, a), (defender, d)] {
                     if let Some(survivor) = observed.units.iter().find(|u| u.id == unit.id) {
-                        assert_eq!(survivor.hp, final_hp);
+                        // Combat HP captures the round result before the
+                        // source promotion check. A promotion adds exactly
+                        // the new rank's HP to the surviving unit.
+                        let rank_hp = survivor.max_hit_points() - unit.max_hit_points();
+                        assert!(
+                            rank_hp == 0 || (rank_hp == 1 && survivor.veteran == unit.veteran + 1)
+                        );
+                        assert_eq!(survivor.hp, final_hp + rank_hp);
                     } else {
                         assert_eq!(final_hp, 0);
                     }

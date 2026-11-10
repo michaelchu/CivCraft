@@ -20,98 +20,21 @@ impl Game {
                     self.sim.players()[unit.owner].gold >= price,
                 ));
             }
-            for city in self
-                .sim
-                .cities()
-                .iter()
-                .filter(|city| self.sim.can_establish_embassy(unit, city))
-            {
+            if self.sim.can_assign_air_superiority(unit) {
                 entries.push((
-                    format!("Embassy: {}", city.name),
-                    UiAction::EstablishEmbassy(city.id),
+                    "Air Superiority [S]".to_owned(),
+                    UiAction::AirSuperiority,
                     true,
                 ));
             }
-            for city in self
-                .sim
-                .cities()
-                .iter()
-                .filter(|city| self.sim.can_investigate_city(unit, city))
-            {
-                entries.push((
-                    format!("Investigate {}", city.name),
-                    UiAction::InvestigateCity(city.id),
-                    true,
-                ));
-            }
-            if unit.kind == UnitKind::Spy {
-                for city in self.sim.cities().iter().filter(|city| {
-                    self.sim.can_steal_technology(unit, city)
-                        || self.sim.can_sabotage_city(unit, city)
-                }) {
-                    entries.push((
-                        format!("Targets: {}", city.name),
-                        UiAction::SpyTargets(Some((city.id, 0))),
-                        true,
-                    ));
-                }
-            }
-            if unit.kind.is_diplomatic() {
-                for city in self
-                    .sim
-                    .cities()
-                    .iter()
-                    .filter(|city| self.sim.can_steal_technology(unit, city))
-                {
-                    entries.push((
-                        format!("Steal tech: {}", city.name),
-                        UiAction::StealTechnology(city.id),
-                        true,
-                    ));
-                }
-                for city in self
-                    .sim
-                    .cities()
-                    .iter()
-                    .filter(|city| self.sim.can_sabotage_city(unit, city))
-                {
-                    entries.push((
-                        format!("Sabotage {}", city.name),
-                        UiAction::SabotageCity(city.id),
-                        true,
-                    ));
-                }
-                for city in self.sim.cities() {
-                    if let Some(price) = self.sim.incite_price(unit, city) {
-                        entries.push((
-                            format!("Incite {} {price}g", city.name),
-                            UiAction::InciteCity(city.id, price),
-                            self.sim.players()[unit.owner].gold >= price,
-                        ));
-                    }
-                }
-                for target in self.sim.units() {
-                    if !self.sim.unit_visible_to_human(target) {
-                        continue;
-                    }
-                    if self.sim.can_sabotage_unit(unit, target) {
-                        entries.push((
-                            format!("Sabotage {}", target.kind.name()),
-                            UiAction::SabotageUnit(target.id),
-                            true,
-                        ));
-                    }
-                    if let Some(price) = self.sim.bribe_price(unit, target) {
-                        entries.push((
-                            format!("Bribe {} {price}g", target.kind.name()),
-                            UiAction::BribeUnit(target.id, price),
-                            self.sim.players()[unit.owner].gold >= price,
-                        ));
-                    }
-                }
+            if self.sim.can_begin_rebase(unit) {
+                entries.push(("Re-base [Ctrl-R]".to_owned(), UiAction::BeginRebase, true));
             }
             if self.sim.can_begin_paradrop(unit) {
                 entries.insert(0, ("Paradrop".to_owned(), UiAction::BeginParadrop, true));
+            }
+            if self.sim.can_begin_bombard(unit) {
+                entries.insert(0, ("Bombard".to_owned(), UiAction::BeginBombard, true));
             }
             for city in self.sim.cities() {
                 if self.sim.can_airlift(unit, city) {
@@ -128,13 +51,6 @@ impl Game {
                         true,
                     ));
                 }
-                if self.sim.can_deliver_goods(unit, city) && self.sim.tile(city.x, city.y).visible {
-                    entries.push((
-                        format!("Trade: {}", city.name),
-                        UiAction::DeliverGoods(city.id),
-                        true,
-                    ));
-                }
                 if self.sim.can_help_wonder(unit, city) && self.sim.tile(city.x, city.y).visible {
                     entries.push((
                         format!("Help wonder: {}", city.name),
@@ -144,7 +60,11 @@ impl Game {
                 }
             }
             if unit.kind.is_nuclear_weapon() {
-                entries.push(("Detonate here".to_owned(), UiAction::Detonate, true));
+                entries.push((
+                    "Launch nuclear strike".to_owned(),
+                    UiAction::BeginNuclearStrike,
+                    self.sim.can_begin_nuclear_strike(unit),
+                ));
             }
             if let Some(label) = self.sim.transport_action(unit) {
                 entries.push((format!("{label} [L]"), UiAction::BoardOrDeboard, true));
@@ -207,7 +127,6 @@ impl Game {
             for (kind, label) in [
                 (WorkKind::Cultivate, "Cultivate [V]"),
                 (WorkKind::Plant, "Plant [P]"),
-                (WorkKind::Transform, "Transform [T]"),
             ] {
                 if self.sim.terrain_work(unit, kind).is_some() {
                     entries.push((
@@ -219,7 +138,11 @@ impl Game {
             }
             if unit.kind.can_clean() && unit.transport.is_none() {
                 let tile = self.sim.tile(unit.x, unit.y);
-                for target in [Contamination::Pollution, Contamination::Fallout] {
+                for target in [
+                    Contamination::Pollution,
+                    Contamination::Fallout,
+                    Contamination::Craters,
+                ] {
                     if tile.has_contamination(target) {
                         entries.insert(
                             0,
@@ -281,19 +204,15 @@ impl Game {
         } else if let Some(index) = self.selected_city_index() {
             let city = &self.sim.cities()[index];
             for kind in [
-                if self.sim.has_tech(city.owner, Tech::ENGINEERING) {
-                    UnitKind::Engineer
-                } else {
-                    UnitKind::Worker
-                },
+                UnitKind::Worker,
                 UnitKind::Warrior,
-                UnitKind::Phalanx,
+                UnitKind::Spearman,
                 UnitKind::Archer,
                 UnitKind::Horseman,
                 UnitKind::Catapult,
                 UnitKind::Chariot,
-                UnitKind::Legion,
-                UnitKind::Settlers,
+                UnitKind::Swordsman,
+                UnitKind::Settler,
             ] {
                 entries.push((
                     format!("{} {}", short_unit_name(kind), kind.stats().cost),
@@ -376,26 +295,19 @@ pub(super) fn unit_action_icon(action: UiAction) -> HudIcon {
         UiAction::Mine => HudIcon::Pickaxe,
         UiAction::TerrainWork(WorkKind::Cultivate) => HudIcon::Wheat,
         UiAction::TerrainWork(WorkKind::Plant) => HudIcon::Tree,
-        UiAction::TerrainWork(WorkKind::Transform) | UiAction::Disband(Some(_)) => HudIcon::Cycle,
+        UiAction::Disband(Some(_)) => HudIcon::Cycle,
         UiAction::TerrainWork(WorkKind::Clean(_)) => HudIcon::Broom,
         UiAction::TerrainWork(WorkKind::BuildBase(_)) | UiAction::Fortify => HudIcon::Shield,
-        UiAction::TerrainWork(WorkKind::Pillage(_))
-        | UiAction::Detonate
-        | UiAction::SabotageCity(_)
-        | UiAction::SabotageUnit(_) => HudIcon::Burst,
+        UiAction::TerrainWork(WorkKind::Pillage(_)) | UiAction::BeginNuclearStrike => HudIcon::Burst,
         UiAction::HomeCity => HudIcon::Home,
         UiAction::Automate => HudIcon::Gear,
         UiAction::Wait => HudIcon::Pause,
         UiAction::UpgradeUnit(..) => HudIcon::Upgrade,
-        UiAction::EstablishEmbassy(_) => HudIcon::Government,
-        UiAction::InvestigateCity(_) => HudIcon::Search,
-        UiAction::SpyTargets(_) => HudIcon::Target,
-        UiAction::StealTechnology(_) => HudIcon::Research,
-        UiAction::BribeUnit(..) | UiAction::InciteCity(..) => HudIcon::Tax,
         UiAction::BeginParadrop => HudIcon::Parachute,
+        UiAction::BeginBombard => HudIcon::Target,
         UiAction::Airlift(_) => HudIcon::Plane,
+        UiAction::BeginRebase => HudIcon::Plane,
         UiAction::BoardOrDeboard => HudIcon::Boat,
-        UiAction::DeliverGoods(_) => HudIcon::Crate,
         UiAction::HelpWonder(_) => HudIcon::Wonder,
         UiAction::Disband(None) => HudIcon::Cross,
         _ => HudIcon::More,

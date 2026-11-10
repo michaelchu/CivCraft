@@ -36,10 +36,10 @@ impl super::Simulation {
         for tile in &mut self.tiles {
             tile.railroad = false;
         }
-        let near_id = self.spawn_unit(1, UnitKind::Engineer, near.0, near.1);
+        let near_id = self.spawn_unit(1, UnitKind::Worker, near.0, near.1);
         // Native player lists prepend: create the far worker last so it
         // reserves first and the nearer worker must actually displace it.
-        let far_id = self.spawn_unit(1, UnitKind::Settlers, far.0, far.1);
+        let far_id = self.spawn_unit(1, UnitKind::Settler, far.0, far.1);
         let actor = self.unit_by_id(far_id).unwrap().clone();
         let remote = self
             .worker_plan(&actor, &WorkMap::default(), &[])

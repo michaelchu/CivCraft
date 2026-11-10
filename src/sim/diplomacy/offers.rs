@@ -185,7 +185,7 @@ impl Simulation {
     pub(in crate::sim) fn city_gold_worth(&self, city: &City) -> i32 {
         let seller = city.owner;
         let forecast = self.city_forecast(city);
-        let settler = UnitKind::Settlers.stats().cost;
+        let settler = UnitKind::Settler.stats().cost;
         let growth: i32 = (1..city.size).map(Self::growth_box).sum();
         let units: i32 = self
             .units

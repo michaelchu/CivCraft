@@ -35,13 +35,6 @@ impl Simulation {
                 continue;
             }
             self.add_ai_tech_want(owner, tech, self.ferry_tech_want(owner, tech) as f32);
-            if tech == Tech::ALPHABET {
-                self.add_ai_tech_want(
-                    owner,
-                    tech,
-                    self.counterintelligence_tech_want(owner) as f32,
-                );
-            }
         }
         // Apply every contribution to the existing phase accumulator; grouping
         // cities first would change f32 rounding after government feedback.

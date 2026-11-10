@@ -167,7 +167,7 @@ impl Simulation {
         self.create_city(1, 10, 24);
         self.cities[0].size = 4;
         self.reconcile_city_workers();
-        self.players[1].government = Government::Tribal;
+        self.players[1].government = Government::Despotism;
         self.players[1].known = self.research_path(1, Tech::MONARCHY);
         self.players[1].known.retain(|&tech| tech != Tech::MONARCHY);
         self.players[1].rates = [60, 40, 0];
@@ -289,8 +289,10 @@ impl Simulation {
             Building::SUPER_HIGHWAYS,
         ]);
         let commerce = self.split_city_trade(&city, 4, [0, 50, 50]) == [0, 6, 6];
-        self.players[1].government = Government::Federation;
-        let federation = self.split_city_trade(&city, 0, [100, 0, 0])[2] == 6;
+        self.players[1].government = Government::Feudalism;
+        // Feudalism is a Conquests government; it adds no trade by itself.
+        let feudalism_has_no_extra_trade =
+            self.split_city_trade(&city, 0, [100, 0, 0]) == [0, 0, 0];
         let mut remote = city.clone();
         remote
             .buildings
@@ -332,7 +334,7 @@ impl Simulation {
             && harbor
             && pyramids
             && commerce
-            && federation
+            && feudalism_has_no_extra_trade
             && waste
             && initial
             && first
@@ -432,34 +434,6 @@ impl Simulation {
 }
 
 impl Simulation {
-    pub(crate) fn military_unhappiness_rules_playtest(&self) -> bool {
-        let mut game = self.clone();
-        game.units.clear();
-        game.cities.clear();
-        game.players[HUMAN].known.clear();
-        game.players[HUMAN].government = Government::Democracy;
-        game.tile_mut(10, 24).terrain = Terrain::Grassland;
-        game.create_city(HUMAN, 10, 24);
-        let home = game.cities[0].id;
-        for _ in 0..5 {
-            let id = game.spawn_unit(HUMAN, UnitKind::Bomber, 10, 24);
-            let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
-            unit.home_city = Some(home);
-            unit.home_order = id;
-        }
-        let raw = game.city_military_unhappiness(&game.cities[0]) == 8
-            && game.offensive_military_unhappiness(&game.cities[0])
-            && game.city_feelings(&game.cities[0], 0).1 <= game.cities[0].size;
-        game.cities[0].buildings.push(Building::POLICE_STATION);
-        let police = game.city_military_unhappiness(&game.cities[0]) == 6;
-        game.cities[0].buildings.push(Building::WOMENS_SUFFRAGE);
-        let suffrage = game.city_military_unhappiness(&game.cities[0]) == 2;
-        for unit in &mut game.units {
-            unit.kind = UnitKind::Awacs;
-        }
-        raw && police && suffrage && !game.offensive_military_unhappiness(&game.cities[0])
-    }
-
     pub(crate) fn ai_city_manager_playtest(&self) -> bool {
         let mut scratch = self.clone();
         scratch.units.clear();
@@ -495,68 +469,4 @@ impl Simulation {
             && arranged.worked_tiles == expected
     }
 
-    pub(crate) fn fundamentalism_tithes_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.cities.clear();
-        self.players[1].known = vec![Tech::MYSTICISM];
-        self.players[1].government = Government::Fundamentalism;
-        self.players[1].rates = [100, 0, 0];
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.resource = None;
-        }
-        self.create_city(1, 12, 24);
-        self.create_city(1, 25, 24);
-        self.cities[1]
-            .buildings
-            .extend([Building::TEMPLE_OF_ARTEMIS, Building::HANGING_GARDENS]);
-        self.cities[0]
-            .buildings
-            .extend([Building::TEMPLE, Building::MARKETPLACE]);
-        let city = self.cities[0].clone();
-        let no_unhappy = self.city_feelings(&city, 0).1 == 0;
-        // Temple1+Mysticism1+Artemis2+HangingGardens1=5 rawgold;
-        // Marketplace raises this to7, regardless of citysize1 needs.
-        let tithe = self.city_trade(&city, 0)[1] == 7
-            && self.city_manager_raw_production(&city, [0; 6])[3] == 7;
-        self.players[1].government = Government::Monarchy;
-        let other_government = self.city_trade(&city, 0)[1] == 0;
-        no_unhappy && tithe && other_government
-    }
-
-    pub(crate) fn ai_field_unit_unrest_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.cities.clear();
-        self.players[1].government = Government::Republic;
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.resource = None;
-        }
-        self.create_city(1, 12, 24);
-        self.cities[0].size = 4;
-        let home = self.cities[0].id;
-        for _ in 0..2 {
-            let id = self.spawn_unit(1, UnitKind::Bomber, 12, 24);
-            self.units
-                .iter_mut()
-                .find(|unit| unit.id == id)
-                .unwrap()
-                .home_city = Some(home);
-        }
-        let city = self.cities[0].clone();
-        let in_city = self.city_feelings_before_military(&city, 0).1 == 0
-            && self.city_feelings(&city, 0).1 == 1;
-        let base = offset_native_by_map(12, 24, 1, 0);
-        self.tile_mut(base.0, base.1).base = Some(Base::Airbase);
-        self.tile_mut(base.0, base.1).owner = Some(1);
-        for unit in &mut self.units {
-            (unit.x, unit.y) = base;
-        }
-        let friendly_base = self.city_feelings(&city, 0).1 == 1;
-        for unit in &mut self.units {
-            unit.kind = UnitKind::Fighter;
-        }
-        let fighter = self.city_feelings(&city, 0).1 == 0;
-        in_city && friendly_base && fighter
-    }
 }

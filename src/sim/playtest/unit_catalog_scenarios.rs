@@ -1,75 +1,44 @@
 //! Automated gameplay scenarios covering unit catalog behavior.
 
-use super::super::unit_catalog::UnitFlag;
 use super::*;
 
 impl Simulation {
     pub(crate) fn native_unit_catalog_playtest(&self) -> (bool, bool, bool) {
-        let armor = UnitKind::Armor.stats();
-        let awacs = UnitKind::Awacs.stats();
-        let stats = (
-            armor.cost,
-            armor.attack,
-            armor.defense,
-            armor.hp,
-            armor.moves,
-        ) == (90, 10, 5, 30, 3)
-            && (
-                awacs.cost,
-                awacs.attack,
-                awacs.defense,
-                awacs.hp,
-                awacs.moves,
-                awacs.vision_sq,
-            ) == (140, 0, 1, 20, 16, 26)
-            && UnitKind::Awacs.fuel_capacity() == 3
-            && UnitKind::Fanatics.stats().pop_cost == 1
-            && UnitKind::Fanatics.base_upkeep() == (1, 0, 0)
-            && UnitKind::Pikemen
-                .required_tech()
-                .unwrap()
-                .data()
-                .unwrap()
-                .name
-                == "Feudalism"
-            && UnitKind::MechInf
-                .required_tech()
-                .unwrap()
-                .data()
-                .unwrap()
-                .name
-                == "Computers";
-        let flags = UnitKind::Riflemen.has_marine_attack()
-            && UnitKind::AlpineTroops.can_helicopter_field_load()
-            && !UnitKind::AlpineTroops.has_flag(UnitFlag::IgZOC)
-            && !UnitKind::Riflemen.can_helicopter_field_load()
-            && UnitKind::Fanatics.required_government() == Some(Government::Fundamentalism)
-            && UnitKind::Artillery.is_city_buster()
-            && UnitKind::Howitzer.is_city_buster()
-            && UnitKind::Leader.has_no_build()
-            && UnitKind::Leader.is_unbribable()
-            && UnitKind::Storm.has_flag(UnitFlag::RandomMovement)
-            && UnitKind::Storm.has_flag(UnitFlag::Flagless)
-            && !UnitKind::Awacs.is_civilian()
-            && !UnitKind::Storm.is_civilian()
-            && UnitKind::MechInf.is_big_land()
-            && !UnitKind::Armor.has_terrain_defense();
-        let position = |kind| {
-            UnitKind::ALL_NATIVE
+        let rules = crate::sim::civ3_unit_rules::all();
+        let roster = UnitKind::ALL_NATIVE;
+        let source_matches = roster.iter().zip(rules).all(|(kind, rule)| {
+            kind.conquests_id() == Some(rule.id) && kind.name() == rule.name && {
+                let stats = kind.stats();
+                (
+                    stats.cost,
+                    stats.pop_cost,
+                    stats.attack,
+                    stats.defense,
+                    stats.moves,
+                ) == (
+                    rule.cost,
+                    rule.population_cost,
+                    rule.attack,
+                    rule.defense,
+                    rule.moves,
+                )
+            }
+        });
+        let civ_rules_complete = roster.iter().all(|kind| {
+            kind.conquests_id()
+                .and_then(crate::sim::civ3_unit_rules::get)
+                .is_some_and(|rule| {
+                    rule.category == "wonder_created"
+                        || !rule.available_to.is_empty()
+                        || matches!(rule.id, "army" | "leader")
+                })
+        });
+        let order = roster.len() == 92
+            && rules.len() == 92
+            && roster
                 .iter()
-                .position(|&item| item == kind)
-                .unwrap()
-        };
-        let order = UnitKind::ALL_NATIVE.len() == 66
-            && UnitKind::SIMPLE_MILITARY.len() == 35
-            && UnitKind::Warrior as u32 == 7
-            && position(UnitKind::Warrior) == 4
-            && UnitKind::Paratroopers as u32 == 41
-            && UnitKind::Pikemen as u32 == 42
-            && UnitKind::Storm as u32 == 56
-            && position(UnitKind::Pikemen) < position(UnitKind::Musketeers)
-            && position(UnitKind::MechInf) < position(UnitKind::Horseman)
-            && position(UnitKind::AegisCruiser) < position(UnitKind::Battleship);
-        (stats, flags, order)
+                .map(|kind| kind.conquests_id())
+                .eq(rules.iter().map(|rule| Some(rule.id)));
+        (source_matches, civ_rules_complete, order)
     }
 }

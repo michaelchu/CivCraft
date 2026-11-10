@@ -120,13 +120,13 @@ impl Simulation {
         owner: usize,
         kind: UnitKind,
     ) -> Option<UnitKind> {
-        let mut next = kind.obsolete_by().first().copied();
+        let mut next = kind.obsolete_by();
         let mut best = None;
         while let Some(candidate) = next {
             if self.unit_available(owner, candidate) {
                 best = Some(candidate);
             }
-            next = candidate.obsolete_by().first().copied();
+            next = candidate.obsolete_by();
         }
         best
     }
@@ -426,7 +426,7 @@ mod tests {
         let settler = game
             .units
             .iter()
-            .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settlers)
+            .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settler)
             .unwrap()
             .clone();
         assert!(game.apply(Command::FoundCity(settler.id)));

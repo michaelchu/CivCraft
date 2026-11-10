@@ -12,7 +12,7 @@ fn baseline_clones_preserve_rng_and_normal_campaign_results() {
     let founder = initial
         .units
         .iter()
-        .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers)
+        .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settler)
         .unwrap()
         .id;
     assert!(a.apply(Command::FoundCity(founder)));

@@ -5,7 +5,7 @@ use super::*;
 impl Simulation {
     pub(super) fn upgrade_target(&self, unit: &Unit) -> Option<UnitKind> {
         let target = self.available_unit_successor(unit.owner, unit.kind)?;
-        if unit.kind == UnitKind::Trireme
+        if unit.kind == UnitKind::Galley
             && !self.tile(unit.x, unit.y).terrain.is_water()
             && !self.cities.iter().any(|city| {
                 (city.x, city.y) == (unit.x, unit.y) && self.naval_city_access(city, target)
@@ -90,11 +90,13 @@ impl Simulation {
     fn transform_upgraded_unit(&mut self, index: usize, target: UnitKind, price: i32) {
         let unit = &mut self.units[index];
         let original = unit.kind;
+        let old_max_hp = unit.max_hit_points();
         let from = original.stats();
         let to = target.stats();
         unit.kind = target;
         unit.veteran = unit.veteran.saturating_sub(1);
-        unit.hp = (unit.hp * to.hp / from.hp).max(1);
+        let new_max_hp = unit.max_hit_points();
+        unit.hp = (unit.hp * new_max_hp / old_max_hp).clamp(1, new_max_hp);
         unit.moves_left = unit.moves_left * to.moves / from.moves;
         if unit.owner == HUMAN {
             let message = format!(
@@ -117,25 +119,29 @@ mod tests {
         game.create_city(HUMAN, 10, 20);
         let id = game.upgrade_playtest_setup();
         let original = game.units.last().unwrap().clone();
-        let cost = UnitKind::Musketeers.stats().cost - UnitKind::Warrior.stats().cost / 2;
+        let cost = UnitKind::Legionary.stats().cost - UnitKind::Warrior.stats().cost / 2;
         let price = (2 * cost + cost * cost / 20) / 2;
+        let expected_hp = (original.hp
+            * UnitKind::Legionary.hit_points_at_rank(original.veteran - 1)
+            / original.max_hit_points())
+        .clamp(1, UnitKind::Legionary.hit_points_at_rank(original.veteran - 1));
         assert_eq!(
             game.paid_upgrade(&original),
-            Some((UnitKind::Musketeers, price))
+            Some((UnitKind::Legionary, price))
         );
-        assert!(!game.apply(Command::UpgradeUnit(id, UnitKind::Musketeers, price - 1)));
+        assert!(!game.apply(Command::UpgradeUnit(id, UnitKind::Legionary, price - 1)));
         let gold = game.players[HUMAN].gold;
-        assert!(game.apply(Command::UpgradeUnit(id, UnitKind::Musketeers, price)));
+        assert!(game.apply(Command::UpgradeUnit(id, UnitKind::Legionary, price)));
         let unit = game.units.last().unwrap();
         assert_eq!(unit.veteran, 1);
-        assert_eq!(unit.hp, UnitKind::Musketeers.stats().hp / 2);
+        assert_eq!(unit.hp, expected_hp);
         assert_eq!(game.players[HUMAN].gold, gold - price);
         let field = game.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
-        assert!(!game.apply(Command::UpgradeUnit(field, UnitKind::Musketeers, price)));
+        assert!(!game.apply(Command::UpgradeUnit(field, UnitKind::Legionary, price)));
     }
 
     #[test]
-    fn a_workshop_completed_in_city_activity_waits_until_next_restore_phase() {
+    fn a_workshop_does_not_upgrade_workers_without_a_conquests_successor() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();
@@ -164,17 +170,15 @@ mod tests {
                 .all(|unit| unit.kind == UnitKind::Worker)
         );
         game.restore_player_units(HUMAN);
-        assert_eq!(
-            game.units
-                .iter()
-                .filter(|unit| workers.contains(&unit.id) && unit.kind == UnitKind::Engineer)
-                .count(),
-            1
-        );
+        assert!(game
+            .units
+            .iter()
+            .filter(|unit| workers.contains(&unit.id))
+            .all(|unit| unit.kind == UnitKind::Worker));
     }
 
     #[test]
-    fn leonardo_upgrades_one_field_unit_for_free() {
+    fn leonardo_does_not_upgrade_workers_without_a_conquests_successor() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.create_city(HUMAN, 10, 20);
@@ -187,13 +191,7 @@ mod tests {
         }
         let gold = game.players[HUMAN].gold;
         game.apply_workshop_upgrades();
-        assert_eq!(
-            game.units
-                .iter()
-                .filter(|unit| unit.kind == UnitKind::Engineer)
-                .count(),
-            1
-        );
+        assert!(game.units.iter().all(|unit| unit.kind == UnitKind::Worker));
         assert_eq!(game.players[HUMAN].gold, gold);
     }
 }

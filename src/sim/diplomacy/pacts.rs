@@ -38,7 +38,7 @@ impl Simulation {
         }
         matches!(
             self.players[owner].government,
-            Government::Federation | Government::Democracy
+            Government::Feudalism | Government::Democracy
         ) || (self
             .cities
             .iter()
@@ -288,7 +288,6 @@ impl Simulation {
                 self.cancel_pact(ally, owner);
             }
         }
-        self.prune_trade_routes();
         self.add_event(format!(
             "{} ended the {} with {}.",
             self.players[owner].name,

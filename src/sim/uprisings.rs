@@ -81,12 +81,12 @@ impl Simulation {
         };
 
         let advanced: Vec<_> = if sea {
-            &[UnitKind::Musketeers, UnitKind::Marines][..]
+            &[UnitKind::Musketman, UnitKind::Marine][..]
         } else {
             &[
-                UnitKind::Musketeers,
-                UnitKind::Partisan,
-                UnitKind::Knights,
+                UnitKind::Musketman,
+                UnitKind::Guerilla,
+                UnitKind::Knight,
                 UnitKind::Cannon,
             ]
         }
@@ -101,7 +101,7 @@ impl Simulation {
         .collect();
         let roster = if advanced.is_empty() {
             if sea {
-                &[UnitKind::Legion][..]
+                &[UnitKind::Swordsman][..]
             } else {
                 &[UnitKind::Horseman][..]
             }
@@ -118,9 +118,6 @@ impl Simulation {
                 self.units.last_mut().unwrap().transport = carrier.map(|(id, _)| id);
             }
         }
-        self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, sx, sy);
-        self.units.last_mut().unwrap().transport = carrier.map(|(id, _)| id);
-        self.players[BARBARIANS].gold += 100;
         if victim == HUMAN && (!sea || seen) {
             self.add_event(if sea {
                 format!("Sea raiders spotted near {city_name}!")

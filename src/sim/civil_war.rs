@@ -6,12 +6,11 @@ impl Government {
     pub(super) fn civil_war_chance(self) -> i32 {
         match self {
             Government::Anarchy => 99,
-            Government::Tribal => 90,
             Government::Despotism => 80,
             Government::Monarchy => 70,
             Government::Communism => 50,
-            Government::Fundamentalism => 60,
-            Government::Federation => 20,
+            Government::Fascism => 60,
+            Government::Feudalism => 20,
             Government::Republic => 40,
             Government::Democracy => 30,
         }
@@ -78,7 +77,7 @@ impl Simulation {
             name: REBEL_NAMES[(rebel - PLAYER_COUNT - 1) % REBEL_NAMES.len()].to_owned(),
             gold,
             rates: [60, 40, 0],
-            government: Government::Tribal,
+            government: Government::Despotism,
             revolution_target: None,
             revolution_turn: None,
             known: original.known.clone(),

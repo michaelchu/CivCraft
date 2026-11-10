@@ -16,26 +16,10 @@ impl Playtest {
                 "A founder compared city placement against useful terrain work and preserved an existing city mission.".to_owned()));
         }
 
-        if frame == 664 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("fundamentalism_tithes", sim.fundamentalism_tithes_playtest(),
-                "Fundamentalism converted uncapped content effects into gold before commercial bonuses.".to_owned()));
-        }
-
         if frame == 667 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("city_output_rules", sim.city_output_rules_playtest(),
                 "City-center, Harbour, wonder, commercial, food-waste, and celebration output followed the reference.".to_owned()));
-        }
-
-        if frame == 670 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push((
-                "ai_barbarian_leader",
-                sim.ai_barbarian_leader_playtest(),
-                "Barbarian leaders sought refuge and fled threats through actual AI dispatch."
-                    .to_owned(),
-            ));
         }
 
         if frame == 673 && self.act_passed {
@@ -130,16 +114,6 @@ impl Playtest {
                 "NonMil civilians crossed peaceful territory; military units and zero-attack carriers remained restricted.".to_owned()));
         }
 
-        if frame == 700 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push((
-                "aircraft_fuel_threat_paths",
-                sim.ai_aircraft_fuel_path_playtest(),
-                "Leader escape planning respected aircraft return-fuel and refueling paths."
-                    .to_owned(),
-            ));
-        }
-
         if frame == 703 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push((
@@ -171,8 +145,8 @@ impl Playtest {
 
         if frame == 709 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("normal_path_actions", sim.ai_normal_path_actions_playtest(),
-                "Normal path planning distinguished civilian transit, military action endpoints and actual movement legality.".to_owned()));
+            self.results.push(("zero_attack_carrier_path", sim.ai_zero_attack_carrier_path_playtest(),
+                "A zero-attack carrier's planned endpoint matched legal movement execution.".to_owned()));
         }
 
         if frame == 712 && self.act_passed {
@@ -210,12 +184,6 @@ impl Playtest {
                 "AI GOTO used native risk costs, action endpoints, ferry overlap and task restrictions.".to_owned()));
         }
 
-        if frame == 721 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("field_unit_unrest", sim.ai_field_unit_unrest_playtest(),
-                "Bombers imposed FieldUnit unrest in their home city and a friendly airbase; fighters did not.".to_owned()));
-        }
-
         if frame == 724 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (arrival, owner, cities) = sim.native_list_order_playtest();
@@ -237,12 +205,6 @@ impl Playtest {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("native_city_activity_order", sim.native_city_activity_order_playtest(),
                 "City activity used the player list and reference random swap-removal order after nationality conversion.".to_owned()));
-        }
-
-        if frame == 730 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("native_fuel_missions", sim.ai_fuel_mission_playtest(),
-                "Aircraft followed native fuel paths, strict attack bounds, return trips and refueling waits.".to_owned()));
         }
 
         if frame == 733 && self.act_passed {
@@ -282,23 +244,6 @@ impl Playtest {
                 "Boarding appended cargo independently of unit creation; reboarding moved a unit to the end.".to_owned()));
         }
 
-        if frame == 745 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (near, far, nuclear) = sim.ai_source_hunter_launch_playtest();
-            for (name, passed) in [
-                ("native_hunter_near_launch", near),
-                ("native_hunter_far_cutoff", far),
-                ("native_hunter_nuclear_cargo", nuclear),
-            ] {
-                self.results.push((
-                    name,
-                    passed,
-                    "Hunter cargo used native boarding order and missile launch path limits."
-                        .to_owned(),
-                ));
-            }
-        }
-
         if frame == 748 && self.act_passed {
             let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (repair, fortify, exhausted, rescue) = sim.unit_turn_lifecycle_playtest();
@@ -314,8 +259,8 @@ impl Playtest {
 
         if frame == 751 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("native_actual_turn_repair_order", sim.native_turn_orchestration_playtest(),
-                "A Barracks completed during an actual turn repaired an injured unit only at the following end-phase.".to_owned()));
+            self.results.push(("native_city_healing", sim.city_healing_playtest(),
+                "Barracks restore a damaged home unit fully; an unbarracked city uses its regular city-center healing amount.".to_owned()));
         }
 
         if frame == 754 && self.act_passed {
@@ -333,28 +278,15 @@ impl Playtest {
 
         if frame == 757 && self.act_passed {
             let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (road, coworkers, precompleted, promotion) =
+            let (road, coworkers, precompleted, no_worker_promotion) =
                 sim.activity_completion_order_playtest();
             for (name, passed) in [
                 ("native_per_unit_road_completion", road),
                 ("native_cooperative_work_early_stop", coworkers),
                 ("native_precompleted_exhausted_work", precompleted),
-                ("native_worker_promotion_draw_order", promotion),
+                ("native_workers_do_not_gain_work_veterancy", no_worker_promotion),
             ] {
-                self.results.push((name, passed, "Work completion applied before later units refilled movement or progressed the same project; promotion followed native worker eligibility and random draws.".to_owned()));
-            }
-        }
-
-        if frame == 760 && self.act_passed {
-            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (requirements, combat, upkeep, flags) = sim.native_roster_actions_playtest();
-            for (name, passed) in [
-                ("native_roster_requirements_and_obsolescence", requirements),
-                ("native_roster_combat_classes", combat),
-                ("native_fanatic_upkeep_and_join_city", upkeep),
-                ("native_roster_action_flags", flags),
-            ] {
-                self.results.push((name, passed, "The extended unit roster used reference requirements, upgrade chains, combat classes, action flags and government upkeep exemptions.".to_owned()));
+                self.results.push((name, passed, "Work completion applied before later units refilled movement or progressed the same project; Conquests workers did not gain ranks from working.".to_owned()));
             }
         }
 
@@ -371,38 +303,25 @@ impl Playtest {
         }
 
         if frame == 766 && self.act_passed {
-            let (sprites, distinct, labels) = crate::client::native_unit_rendering_playtest();
+            let (mapped, distinct, labels) = crate::client::native_campaign_unit_art_playtest();
             for (name, passed) in [
-                ("native_complete_roster_sprites", sprites),
-                ("native_added_unit_sprite_distinction", distinct),
-                ("native_added_unit_labels", labels),
+                ("civ3_campaign_unit_art_roles", mapped),
+                ("civ3_campaign_unit_art_role_distinction", distinct),
+                ("civ3_campaign_unit_art_labels", labels),
             ] {
-                self.results.push((name, passed, "All 57 unit sprites were in atlas bounds with visible pixels; added units had distinct native atlas cells and labels.".to_owned()));
+                self.results.push((name, passed, "All 92 campaign units map to distinct source-art roles and have display labels.".to_owned()));
             }
-        }
-
-        if frame == 769 && self.act_passed {
-            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("native_all_unit_stats_source_snapshot", sim.native_roster_stats_oracle(),
-                "All eight numeric statistics for every one of 57 unit types matched an independently extracted reference ruleset snapshot.".to_owned()));
         }
 
         if frame == 772 && self.act_passed {
             let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (work, rejected) = sim.transport_worker_actions_playtest();
+            let worked = sim.transport_worker_actions_playtest();
             self.results.push((
-                "native_transport_oil_platform_and_cleanup",
-                work,
-                "A sea Transport performed the source-allowed oil platform and cleanup actions."
+                "native_transport_oil_platform",
+                worked,
+                "A source Worker aboard a Transport built an oil platform over the required ocean Oil resource."
                     .to_owned(),
             ));
-            self.results.push((
-                "native_transport_land_action_restrictions",
-                rejected,
-                "Sea workers rejected land-only work even at a port.".to_owned(),
-            ));
-            self.results.push(("native_transport_automatic_ocean_cleanup", sim.transport_auto_worker_playtest(),
-                "An automated Transport navigated to a worked polluted ocean tile and completed cleanup.".to_owned()));
         }
 
         if frame == 775 && self.act_passed {

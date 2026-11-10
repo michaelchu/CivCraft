@@ -19,6 +19,11 @@ impl Simulation {
         self.sign_pact(1, HUMAN, Pact::War);
         let home = (10, 24);
         let front = offset_native_by_map(home.0, home.1, 6, 0);
+        self.players[1]
+            .known
+            .extend([Tech::AMPHIBIOUS_WARFARE, Tech::REPLACEABLE_PARTS]);
+        self.tile_mut(home.0, home.1).terrain = Terrain::Forest;
+        self.tile_mut(home.0, home.1).resource = Some(Resource::Rubber);
         self.create_city(1, home.0, home.1);
         self.create_city(HUMAN, front.0, front.1);
         let city = self.cities.last().unwrap().id;
@@ -28,7 +33,7 @@ impl Simulation {
         // A Fighter exercises the actual supported combined-air mission.
         let bomber = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
         let departure = offset_native_by_map(home.0, home.1, 1, 0);
-        let infantry = self.spawn_unit(1, UnitKind::Marines, departure.0, departure.1);
+        let infantry = self.spawn_unit(1, UnitKind::Marine, departure.0, departure.1);
         self.spawn_unit(HUMAN, UnitKind::Warrior, front.0, front.1);
         self.units.last_mut().unwrap().hp = 2;
         self.set_random_seed(1);

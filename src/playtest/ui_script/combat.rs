@@ -39,7 +39,7 @@ impl Playtest {
         if frame == 258 && self.act_passed {
             let gold = game.sim.players()[HUMAN].gold;
             let upgrade = buttons.iter().find_map(|(_, action)| match action {
-                UiAction::UpgradeUnit(UnitKind::Musketeers, price) => Some((*action, *price)),
+                UiAction::UpgradeUnit(UnitKind::Musketman, price) => Some((*action, *price)),
                 _ => None,
             });
             let upgraded = upgrade.is_some_and(|(action, price)| {
@@ -47,34 +47,12 @@ impl Playtest {
                 game.sim.players()[HUMAN].gold == gold - price
                     && game.selected_unit.is_some_and(|id| {
                         game.sim.units().iter().any(|unit| {
-                            unit.id == id && unit.kind == UnitKind::Musketeers && unit.veteran == 1
+                            unit.id == id && unit.kind == UnitKind::Musketman && unit.veteran == 1
                         })
                     })
             });
             self.results.push(("unit_upgrade", upgraded,
                 format!("Paid the displayed upgrade price and converted a hardened Warrior into veteran Musketeers: {upgraded}.")));
-        }
-        if frame == 261 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
-            game.perform_action(UiAction::FoundCity);
-            let engineer = game.sim.terrain_work_playtest_setup();
-            game.perform_action(UiAction::SelectUnit(engineer));
-        }
-        if frame == 263 && self.act_passed {
-            let action = buttons.iter().find(|(_, action)| {
-                matches!(action, UiAction::TerrainWork(sim::WorkKind::Transform))
-            });
-            let promoted = action.is_some_and(|(_, action)| {
-                game.perform_action(*action);
-                game.sim.work_promotion_playtest_tick();
-                game.selected_unit.is_some_and(|id| {
-                    game.sim.units().iter().any(|unit| {
-                        unit.id == id && unit.veteran == 1 && unit.work_turns_left() == 8
-                    })
-                })
-            });
-            self.results.push(("engineer_promotion", promoted,
-                format!("Engineer promoted while transforming terrain and reduced the remaining estimate to eight turns: {promoted}.")));
         }
         if frame == 267 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));
@@ -279,9 +257,12 @@ impl Playtest {
                 *game = Game::new(crate::mapgen::generate(42));
                 let (missile, defender, city) = game.sim.nuclear_playtest_setup(intercepted);
                 game.perform_action(UiAction::SelectUnit(missile));
-                let launched = game.sim.apply(Command::Move(missile, 1, 0));
+                let target = game.sim.cities().iter().find(|target| target.id == city).unwrap();
+                let (target_x, target_y) = (target.x, target.y);
+                game.perform_action(UiAction::BeginNuclearStrike);
+                game.perform_action(UiAction::NuclearStrikeTo(target_x, target_y));
+                let launched = game.sim.units().iter().all(|unit| unit.id != missile);
                 outcomes[index] = launched
-                    && game.sim.units().iter().all(|unit| unit.id != missile)
                     && game.sim.units().iter().any(|unit| unit.id == defender) == intercepted
                     && game.sim.cities().iter().any(|target| {
                         target.id == city && target.size == if intercepted { 4 } else { 2 }

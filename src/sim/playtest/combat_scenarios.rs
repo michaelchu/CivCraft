@@ -12,16 +12,16 @@ impl Simulation {
         self.tile_mut(hx, hy).terrain = Terrain::Grassland;
         self.create_city(HUMAN, hx, hy);
         self.create_city(1, nx, ny);
-        let target = Production::Unit(UnitKind::Marines);
+        let target = Production::Unit(UnitKind::Marine);
         let locked = !self.can_produce(&self.cities[0], target);
         self.players[HUMAN].known.push(Tech::AMPHIBIOUS_WARFARE);
         let available = self.can_produce(&self.cities[0], target);
         let boat = self.spawn_unit(HUMAN, UnitKind::Galleon, x, y);
         let infantry = self.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
         self.units.last_mut().unwrap().transport = Some(boat);
-        let marines = self.spawn_unit(HUMAN, UnitKind::Marines, x, y);
+        let marines = self.spawn_unit(HUMAN, UnitKind::Marine, x, y);
         self.units.last_mut().unwrap().transport = Some(boat);
-        let guard = self.spawn_unit(1, UnitKind::Diplomat, nx, ny);
+        let guard = self.spawn_unit(1, UnitKind::Worker, nx, ny);
         self.refresh_visibility();
         (marines, infantry, guard, locked && available)
     }
@@ -59,7 +59,8 @@ impl Simulation {
         self.cities[target].food = Self::growth_box(5);
         self.spawn_unit(1, UnitKind::Warrior, nx, ny);
 
-        let attacker = self.spawn_unit(HUMAN, UnitKind::MechInf, x, y);
+        let attacker = self.spawn_unit(HUMAN, UnitKind::Chariot, x, y);
+        debug_assert!(UnitKind::Chariot.is_big_land());
         let attacker = self
             .units
             .iter()

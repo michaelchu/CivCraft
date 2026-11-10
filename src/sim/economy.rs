@@ -179,18 +179,9 @@ impl Simulation {
         for index in 0..3 {
             output[index] += citizens[index];
         }
-        // common/city.c:get_city_tithes_bonus/set_city_production:
-        // Happiness_To_Gold uses full Make_Content + Force_Content effect
-        // amounts, even when no citizen needs calming. Civ2Civ3 has no
-        // Force_Content rows at Normal difficulty.
-        if government == Government::Fundamentalism {
-            output[1] += self.building_content(city);
-        }
-
         output[0] += 4 * i32::from(city.has_building(Building::GREAT_LIBRARY))
             + 6 * i32::from(city.has_building(Building::ISAAC_NEWTONS_COLLEGE))
             + i32::from(self.has_active_wonder(city.owner, Building::DARWINS_VOYAGE));
-        output[2] += 2 * i32::from(government == Government::Federation);
         output[2] +=
             4 * i32::from(
                 city.has_building(Building::HANGING_GARDENS)
@@ -208,7 +199,7 @@ impl Simulation {
                 commercial_bonus
             };
             let adjustment = match (government, index) {
-                (Government::Anarchy, 2) | (Government::Fundamentalism, 0) => -50,
+                (Government::Anarchy, 2) => -50,
                 (Government::Despotism, 1)
                     if city.has_building(Building::PALACE)
                         || city.has_building(Building::ECCLESIASTICAL_PALACE) =>

@@ -213,7 +213,7 @@ impl Simulation {
         // row fails CERTAIN and all candidate type gold costs are zero.
         let mut best = None;
         let mut best_desire = 0.0_f32;
-        for &kind in SIMPLE_MILITARY {
+        for kind in UnitKind::simple_military() {
             if !Self::guard_defender_role(kind)
                 || kind.is_civilian()
                 || kind.is_naval() != sea
@@ -237,6 +237,7 @@ impl Simulation {
         let kind = best?;
         let mut virtual_unit = self.make_unit(0, city.owner, kind, city.x, city.y);
         virtual_unit.veteran = self.trained_rank(city, kind);
+        virtual_unit.hp = virtual_unit.max_hit_points();
         virtual_unit.home_city = Some(city.id);
         self.look_for_ai_charge(&virtual_unit)
             .and_then(|(_, want)| (want > 0.0).then_some((kind, f64::from(want))))
@@ -299,7 +300,12 @@ impl Simulation {
         let Production::Unit(kind) = choice.production else {
             return;
         };
-        if kind.is_civilian() || self.trained_rank(city, kind) > 0 {
+        // Civ III's default rank is Regular (rank 1). Training buildings
+        // should still replace routine unit advice when they would promote
+        // that unit to Veteran; only an existing rank above the default
+        // means the city already grants the training effect.
+        let default_rank = crate::sim::civ3_unit_rules::default_experience_rank();
+        if kind.is_civilian() || kind.no_veteran() || self.trained_rank(city, kind) > default_rank {
             return;
         }
         if let Some(building) = self.military_training_building(city, kind) {
@@ -325,13 +331,6 @@ impl Simulation {
         &self,
         city: &City,
     ) -> (Option<AiBuildChoice>, bool, bool) {
-        if let Some(production) = self.counterintelligence_production(city) {
-            let choice = Some(AiBuildChoice {
-                production,
-                want: 16000.0,
-            });
-            return (choice, true, false);
-        }
         let (mut military, martial) = self.native_city_defense_choice(city);
         // Source returns its life-saving defense advice before all routine
         // candidates and training when production/happiness/wonder gates fail.
@@ -342,8 +341,7 @@ impl Simulation {
         if self.consider_bodyguard_production(city, false, &mut military) {
             defensive = true;
         }
-        // Source order: land guard, agent, sea guard, aircraft, ordinary
-        // attackers, then hunter. Strict wants preserve earlier equal bids.
+        // Strict wants preserve source ordering among eligible unit choices.
         let consider_unit = |choice: &mut Option<AiBuildChoice>,
                              candidate: Option<(UnitKind, f64)>| {
             if let Some((kind, want)) = candidate
@@ -362,9 +360,6 @@ impl Simulation {
         let severe = military.is_some_and(|old| old.want - martial >= MILITARY_EMERGENCY_WANT)
             && self.city_grave_danger(city) > 0;
         if !severe {
-            if consider_unit(&mut military, self.offensive_agent_choice(city)) {
-                defensive = false;
-            }
             if self.consider_bodyguard_production(city, true, &mut military) {
                 defensive = true;
             }
@@ -429,12 +424,6 @@ impl Simulation {
             } else {
                 want
             };
-            consider(Production::Unit(kind), want);
-        }
-        if let Some((kind, want)) = self.merchant_production_choice(city) {
-            consider(Production::Unit(kind), want);
-        }
-        if let Some((kind, want)) = self.wonder_helper_production_choice(city) {
             consider(Production::Unit(kind), want);
         }
         for building in [

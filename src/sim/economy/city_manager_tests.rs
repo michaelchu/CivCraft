@@ -4,112 +4,79 @@ use super::*;
 use std::collections::HashSet;
 
 #[test]
-fn military_unhappiness_uses_source_government_allowances_and_fixed_police_relief() {
+fn military_police_limits_match_conquests_governments_and_require_attack_strength() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.military_unhappiness_rules_playtest());
     game.units.clear();
     game.cities.clear();
     game.players[HUMAN].known.clear();
     game.create_city(HUMAN, 10, 24);
-    let home = game.cities[0].id;
-    for _ in 0..5 {
-        let id = game.spawn_unit(HUMAN, UnitKind::Bomber, 10, 24);
-        let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
-        unit.home_city = Some(home);
-        unit.home_order = id;
-    }
-    for (government, expected) in [
-        (Government::Anarchy, 0),
-        (Government::Tribal, 0),
-        (Government::Despotism, 0),
-        (Government::Monarchy, 2),
-        (Government::Communism, 2),
-        (Government::Fundamentalism, 3),
-        (Government::Federation, 3),
+    game.cities[0].size = 8;
+    game.cities[0].specialists = [0; 3];
+    for government in [
+        (Government::Anarchy, 4),
+        (Government::Despotism, 2),
+        (Government::Monarchy, 1),
+        (Government::Communism, 0),
+        (Government::Fascism, 0),
+        (Government::Feudalism, 1),
         (Government::Republic, 4),
-        (Government::Democracy, 8),
+        (Government::Democracy, 4),
     ] {
-        game.players[HUMAN].government = government;
+        game.players[HUMAN].government = government.0;
+        game.units.clear();
+        for _ in 0..5 {
+            game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+        }
         assert_eq!(
-            game.city_military_unhappiness(&game.cities[0]),
-            expected,
-            "{government:?}"
+            game.city_feelings(&game.cities[0], 0).1,
+            government.1,
+            "{:?}",
+            government.0
         );
     }
-    game.cities[0].buildings.push(Building::POLICE_STATION);
+
+    game.players[HUMAN].government = Government::Despotism;
+    game.units.clear();
+    for _ in 0..5 {
+        game.spawn_unit(HUMAN, UnitKind::Settler, 10, 24);
+    }
     assert_eq!(
-        game.city_military_unhappiness(&game.cities[0]),
-        6,
-        "Democracy police free two city-wide points, not two per unit"
+        game.city_feelings(&game.cities[0], 0).1,
+        4,
+        "zero-attack Settlers do not count as military police"
     );
-    game.cities[0].buildings.push(Building::WOMENS_SUFFRAGE);
-    assert_eq!(game.city_military_unhappiness(&game.cities[0]), 2);
-    game.players[HUMAN].government = Government::Republic;
-    assert_eq!(game.city_military_unhappiness(&game.cities[0]), 2);
-    game.cities[0]
-        .buildings
-        .extend([Building::KING_RICHARDS_CRUSADE, Building::STATUE_OF_ZEUS]);
-    assert_eq!(game.city_military_unhappiness(&game.cities[0]), 0);
-    assert!(!game.offensive_military_unhappiness(&game.cities[0]));
 }
 
 #[test]
-fn raw_military_pressure_survives_feelings_saturation_and_respects_base_native_classes() {
+fn field_units_do_not_create_freeciv_unhappiness_or_military_police_from_airbases() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
     game.players[HUMAN].known.clear();
     game.players[HUMAN].government = Government::Republic;
     game.create_city(HUMAN, 10, 24);
-    let home = game.cities[0].id;
+    let baseline = game.city_feelings(&game.cities[0], 0);
     let site = offset_native_by_map(10, 24, 1, 0);
     game.tile_mut(site.0, site.1).owner = None;
     game.tile_mut(site.0, site.1).base = Some(Base::Fortress);
     for _ in 0..3 {
-        let id = game.spawn_unit(HUMAN, UnitKind::Fighter, site.0, site.1);
-        game.units
-            .iter_mut()
-            .find(|unit| unit.id == id)
-            .unwrap()
-            .home_city = Some(home);
+        game.spawn_unit(HUMAN, UnitKind::Fighter, site.0, site.1);
     }
     assert_eq!(
-        game.city_military_unhappiness(&game.cities[0]),
-        2,
-        "Fortress is not a native nonaggressive extra for Air class"
+        game.city_feelings(&game.cities[0], 0),
+        baseline,
+        "fielded units do not cause legacy unit unrest"
     );
-    assert!(game.offensive_military_unhappiness(&game.cities[0]));
     game.tile_mut(site.0, site.1).base = Some(Base::Airbase);
-    assert_eq!(game.city_military_unhappiness(&game.cities[0]), 0);
-    for unit in &mut game.units {
-        unit.kind = UnitKind::Bomber;
-    }
     assert_eq!(
-        game.city_military_unhappiness(&game.cities[0]),
-        2,
-        "FieldUnit still pays in friendly Airbase"
+        game.city_feelings(&game.cities[0], 0),
+        baseline,
+        "friendly Airbases do not change city happiness"
     );
 }
 
 #[test]
-fn field_units_pay_happy_upkeep_even_in_cities_and_friendly_bases() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.ai_field_unit_unrest_playtest());
-    let city = game.cities[0].clone();
-    for kind in [UnitKind::Bomber, UnitKind::StealthBomber, UnitKind::Nuclear] {
-        for unit in &mut game.units {
-            unit.kind = kind;
-            (unit.x, unit.y) = (city.x, city.y);
-        }
-        assert_eq!(game.city_feelings(&city, 0).1, 1, "{kind:?}");
-    }
-    let mut police = city.clone();
-    police.buildings.push(Building::POLICE_STATION);
-    assert_eq!(game.city_feelings(&police, 0).1, 0);
-}
-
-#[test]
-fn carrier_can_apply_martial_law_without_causing_overseas_military_unhappiness() {
+fn military_police_require_an_attacking_unit_and_only_work_in_its_city() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
@@ -125,29 +92,29 @@ fn carrier_can_apply_martial_law_without_causing_overseas_military_unhappiness()
     city.size = 6;
     city.specialists = [0; 3];
     assert_eq!(game.city_feelings_after_effects(&city, 0).1, 2);
-    let carrier = game.spawn_unit(1, UnitKind::Carrier, 12, 24);
-    assert!(!UnitKind::Carrier.is_civilian() && !UnitKind::Carrier.is_military());
+    let civilian = game.spawn_unit(1, UnitKind::Settler, 12, 24);
+    assert!(!UnitKind::Settler.is_military());
+    assert_eq!(game.city_feelings(&city, 0).1, 2);
+    let warrior = game.spawn_unit(1, UnitKind::Warrior, 12, 24);
     assert_eq!(game.city_feelings(&city, 0).1, 1);
-    let unit = game
-        .units
-        .iter_mut()
-        .find(|unit| unit.id == carrier)
-        .unwrap();
-    (unit.x, unit.y) = sea;
-    unit.home_city = Some(city.id);
+    for unit in game.units.iter_mut().filter(|unit| unit.id == civilian || unit.id == warrior) {
+        (unit.x, unit.y) = sea;
+    }
+    assert_eq!(game.city_feelings(&city, 0).1, 2);
     game.players[1].government = Government::Democracy;
     assert_eq!(
-        game.city_feelings(&city, 0),
-        game.city_feelings_before_military(&city, 0)
+        game.city_feelings(&city, 0).1,
+        2,
+        "Democracy has no military police"
     );
 }
 
 #[test]
-fn disorder_preserves_shields_for_support_and_only_removes_positive_surplus() {
+fn disorder_keeps_civ3_gold_support_out_of_food_and_shield_outputs() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
-    game.players[1].government = Government::Tribal;
+    game.players[1].government = Government::Despotism;
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Forest;
         tile.resource = None;
@@ -171,29 +138,19 @@ fn disorder_preserves_shields_for_support_and_only_removes_positive_surplus() {
             .home_city = Some(home);
     }
     let forecast = game.city_forecast(&city);
-    assert!(
-        forecast.disorder
-            && forecast.support.shields > 0
-            && forecast.shields > forecast.support.shields
-    );
-    // common/city.c:output_types + unhappy_city_check: SURPLUS, not
-    // ALL_PRODUCTION, so usage remains available to supported units.
+    assert!(forecast.disorder && forecast.support.gold > 0 && forecast.shields > 0);
+    assert_eq!(forecast.support.food, 0);
+    assert_eq!(forecast.support.shields, 0);
     assert_eq!(game.city_manager_surplus(&city, &forecast)[1], 0);
 }
 
 #[test]
-fn tithes_apply_owner_wonders_and_marketplace_without_unhappy_citizens() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.fundamentalism_tithes_playtest());
-}
-
-#[test]
-fn tithes_are_raw_gold_before_commercial_bonus_and_require_fundamentalism() {
+fn conquests_governments_do_not_apply_fundamentalism_tithes() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
     game.players[1].known = vec![Tech::MYSTICISM];
-    game.players[1].government = Government::Fundamentalism;
+    game.players[1].government = Government::Fascism;
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
         tile.resource = None;
@@ -204,9 +161,9 @@ fn tithes_are_raw_gold_before_commercial_bonus_and_require_fundamentalism() {
     city.worked_tiles.clear();
     assert_eq!(game.city_trade(&city, 0)[1], 0);
     city.buildings.push(Building::TEMPLE);
-    assert_eq!(game.city_trade(&city, 0)[1], 2);
+    assert_eq!(game.city_trade(&city, 0)[1], 0);
     city.buildings.push(Building::MARKETPLACE);
-    assert_eq!(game.city_trade(&city, 0)[1], 3);
+    assert_eq!(game.city_trade(&city, 0)[1], 0);
     game.players[1].government = Government::Democracy;
     assert_eq!(game.city_trade(&city, 0)[1], 0);
 }
@@ -248,7 +205,7 @@ fn city_manager_matches_small_city_lattice_oracle_across_rates_and_governments()
     }
     let occupied: HashSet<_> = all[6..].iter().copied().collect();
     for government in [
-        Government::Tribal,
+        Government::Despotism,
         Government::Republic,
         Government::Communism,
     ] {

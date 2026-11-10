@@ -92,19 +92,19 @@ impl super::Simulation {
         let mut best: Option<OffensiveTarget> = None;
         let mut fallback = 0.0_f32;
         let rating = Self::offensive_attack_rating(seed);
-        let unhap = self.offensive_military_unhappiness(city);
         let ferry = if !seed.kind.is_naval() {
             self.offensive_find_ferry(seed).or_else(|| {
                 UnitKind::ALL_NATIVE
                     .into_iter()
                     .rev()
                     .find(|kind| {
-                        kind.has_role(UnitRole::Ferryboat) && self.unit_available(seed.owner, *kind)
+                        kind.has_ai_strategy(UnitAiStrategy::NavalTransport)
+                            && self.unit_available(seed.owner, *kind)
                     })
                     .or_else(|| {
                         UnitKind::ALL_NATIVE
                             .into_iter()
-                            .find(|kind| kind.has_role(UnitRole::Ferryboat))
+                            .find(|kind| kind.has_ai_strategy(UnitAiStrategy::NavalTransport))
                     })
                     .filter(|_| {
                         self.map_wrap
@@ -189,7 +189,7 @@ impl super::Simulation {
                         victims + 1,
                     )
                 };
-                want -= (turns * if unhap { 53 } else { 17 }) as f32;
+                want -= (turns * 17) as f32;
                 let new_ferry = by_boat && ferry.as_ref().is_some_and(|f| f.id == 0);
                 let cost = Self::offensive_balanced_cost(seed.kind)
                     + if new_ferry {
@@ -243,7 +243,7 @@ impl super::Simulation {
                         seed.kind.stats().cost,
                         vulnerability,
                         1,
-                    ) - (turns * if unhap { 53 } else { 17 }) as f32
+                    ) - (turns * 17) as f32
                 };
                 want = self.offensive_amortize(
                     city,
@@ -289,6 +289,7 @@ impl super::Simulation {
                 && let Some(unit) = defender.as_mut()
             {
                 unit.veteran = 0;
+                unit.hp = unit.max_hit_points();
             }
             let vulnerability = if target.turns > 1 {
                 defender.as_ref().map_or(0, |d| {
@@ -309,7 +310,7 @@ impl super::Simulation {
                 .and_then(|id| self.unit_by_id(id))
             {
                 let mut current = current.clone();
-                current.hp = current.kind.stats().hp;
+                current.hp = current.max_hit_points();
                 current.state = UnitState::Idle;
                 let power =
                     self.offensive_defense_squared(&current, seed.kind, target.x, target.y, true);
@@ -325,7 +326,7 @@ impl super::Simulation {
                 .and_then(|id| self.unit_by_id(id))
                 .map(|unit| {
                     let mut unit = unit.clone();
-                    unit.hp = unit.kind.stats().hp;
+                    unit.hp = unit.max_hit_points();
                     unit.state = UnitState::Idle;
                     unit
                 });

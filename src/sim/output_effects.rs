@@ -269,7 +269,7 @@ mod city_output_tests {
     }
 
     #[test]
-    fn highways_stock_exchange_and_federation_luxury_apply_before_percent_bonus() {
+    fn highways_and_stock_exchange_apply_before_percent_bonus() {
         let mut game = fixture();
         let mut city = game.cities[0].clone();
         city.worked_tiles.clear();
@@ -282,8 +282,8 @@ mod city_output_tests {
         assert_eq!(game.split_city_trade(&city, 4, [0, 50, 50]), [0, 5, 5]);
         city.buildings.push(Building::SUPER_HIGHWAYS);
         assert_eq!(game.split_city_trade(&city, 4, [0, 50, 50]), [0, 6, 6]);
-        game.players[1].government = Government::Federation;
-        assert_eq!(game.split_city_trade(&city, 0, [100, 0, 0]), [0, 0, 6]);
+        game.players[1].government = Government::Feudalism;
+        assert_eq!(game.split_city_trade(&city, 0, [100, 0, 0]), [0, 0, 0]);
     }
 
     #[test]

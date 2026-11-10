@@ -56,19 +56,16 @@ impl Game {
                     UnitState::Fortifying => "Fortifying".to_owned(),
                     UnitState::Fortified => "Fortified (+50% defense)".to_owned(),
                     UnitState::Sentry => "Sentry".to_owned(),
+                    UnitState::AirSuperiority => "Air Superiority".to_owned(),
                 }
             };
-            let (sprite_row, sprite_col) = unit_sprite(unit.kind);
-            draw_texture_ex(
-                &assets.units,
-                x,
-                card.y + 8.0,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(36.0, 27.0)),
-                    source: Some(isolated_sprite_source(sprite_row, sprite_col, 64.0, 48.0)),
-                    ..Default::default()
-                },
+            assets.civ3.draw_unit_icon(
+                unit.kind,
+                unit.owner,
+                self.sim.research_era(unit.owner).index(),
+                vec2(x + 18.0, card.y + 21.5),
+                vec2(36.0, 27.0),
+                unit.moves_left > 0,
             );
 
             let width = card.w - 20.0;
@@ -120,7 +117,7 @@ impl Game {
             let cell_width = (width - gap) * 0.5;
             let moves = self.sim.unit_move_allowance(unit.owner, unit.kind);
             let metrics = [
-                ("Health", format!("{}/{}", unit.hp, stats.hp)),
+                ("Health", format!("{}/{}", unit.hp, unit.max_hit_points())),
                 ("Moves", format!("{}/{moves}", unit.moves_left)),
                 ("Attack", stats.attack.to_string()),
                 ("Defense", stats.defense.to_string()),

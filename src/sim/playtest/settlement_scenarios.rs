@@ -56,7 +56,7 @@ impl Simulation {
         let before = self.choose_ai_production(1, city);
         self.players[1].known.push(Tech::MAP_MAKING);
         let production = self.choose_ai_production(1, city);
-        let boat = Production::Unit(UnitKind::Trireme);
+        let boat = Production::Unit(UnitKind::Galley);
         let queued = before != boat && production == boat;
         if !queued {
             return (false, false, false);
@@ -64,8 +64,8 @@ impl Simulation {
         self.cities[0].production = production;
         self.cities[0].shields = production.cost();
         self.process_cities();
-        let settler = Production::Unit(UnitKind::Settlers);
-        let sequenced = self.units.iter().any(|unit| unit.kind == UnitKind::Trireme)
+        let settler = Production::Unit(UnitKind::Settler);
+        let sequenced = self.units.iter().any(|unit| unit.kind == UnitKind::Galley)
             && self.cities[0].production == settler;
         if !sequenced {
             return (true, false, false);
@@ -106,7 +106,7 @@ impl Simulation {
         }
         self.create_city(1, x, y);
         let start = if inland { (x, y) } else { shore };
-        let founder = self.spawn_unit(1, UnitKind::Settlers, start.0, start.1);
+        let founder = self.spawn_unit(1, UnitKind::Settler, start.0, start.1);
         self.units.last_mut().unwrap().home_city = Some(self.cities[0].id);
         let (sx, sy) = offset_native_by_map(x, y, -6, 0);
         let ferry = self.spawn_unit(1, UnitKind::Galleon, sx, sy);
@@ -164,8 +164,8 @@ impl Simulation {
         self.spawn_unit(1, UnitKind::Warrior, x, y);
         let (sx, sy) = offset_native_by_map(x, y, -1, 0);
         let ferry = self.spawn_unit(1, UnitKind::Galleon, sx, sy);
-        let production = self.choose_ai_production(1, home) == Production::Unit(UnitKind::Settlers);
-        let founder = self.spawn_unit(1, UnitKind::Settlers, x, y);
+        let production = self.choose_ai_production(1, home) == Production::Unit(UnitKind::Settler);
+        let founder = self.spawn_unit(1, UnitKind::Settler, x, y);
         self.units.last_mut().unwrap().home_city = Some(home);
         self.run_ai_player(1);
         let embarked = self.units.iter().any(|unit| {
@@ -216,8 +216,8 @@ impl Simulation {
         self.cities[0].size = 3;
         self.spawn_unit(1, UnitKind::Warrior, x, y);
         let wants_settlers =
-            self.choose_ai_production(1, self.cities[0].id) == Production::Unit(UnitKind::Settlers);
-        let id = self.spawn_unit(1, UnitKind::Settlers, x, y);
+            self.choose_ai_production(1, self.cities[0].id) == Production::Unit(UnitKind::Settler);
+        let id = self.spawn_unit(1, UnitKind::Settler, x, y);
         let founder = self.units.last().unwrap();
         let destination = self.best_city_site(founder).map(|(site, _, _)| site);
         let reachable = destination
@@ -243,18 +243,6 @@ impl Simulation {
                 .last()
                 .is_some_and(|city| Some((city.x, city.y)) == destination && city.owner == 1);
         (wants_settlers, reachable, fourth_city)
-    }
-
-    pub(crate) fn migrants_playtest_setup(&mut self) -> (u32, u32, u32) {
-        let (warrior, freight, city) = self.merchant_capture_playtest_setup();
-        let target = self
-            .units
-            .iter_mut()
-            .find(|unit| unit.id == freight)
-            .unwrap();
-        target.kind = UnitKind::Migrants;
-        target.hp = 20;
-        (warrior, freight, city)
     }
 
     pub(crate) fn ai_settlement_goal_government_playtest(&mut self) -> bool {
@@ -307,8 +295,8 @@ impl Simulation {
             tile.hut = false;
         }
         self.players[1].government = Government::Communism;
-        let first_id = self.spawn_unit(1, UnitKind::Settlers, 2, 8);
-        let second_id = self.spawn_unit(1, UnitKind::Settlers, 20, 24);
+        let first_id = self.spawn_unit(1, UnitKind::Settler, 2, 8);
+        let second_id = self.spawn_unit(1, UnitKind::Settler, 20, 24);
         let first = self
             .units
             .iter()
@@ -434,7 +422,7 @@ impl Simulation {
         self.create_city(1, 12, 24);
         self.tile_mut(12, 24).pollution = true;
         self.climate_current[0] = 1000;
-        let id = self.spawn_unit(1, UnitKind::Settlers, 12, 24);
+        let id = self.spawn_unit(1, UnitKind::Settler, 12, 24);
         let founder = self
             .units
             .iter()
@@ -495,7 +483,7 @@ impl Simulation {
             tile.hut = false;
         }
         let home = (12, 24);
-        let id = self.spawn_unit(1, UnitKind::Settlers, home.0, home.1);
+        let id = self.spawn_unit(1, UnitKind::Settler, home.0, home.1);
         let founder = self
             .units
             .iter()

@@ -115,7 +115,7 @@ impl super::Simulation {
             .disorder;
         let no_cm_advice = without_rearrange
             .ai_build_choice(&without_rearrange.cities[0])
-            .is_none_or(|choice| choice.production != Production::Unit(UnitKind::Phalanx));
+            .is_none_or(|choice| choice.production != Production::Unit(UnitKind::Spearman));
         self.run_ai_last_activities(1);
         let cm_before_advice = no_cm_disorder
             && no_cm_advice
@@ -123,7 +123,7 @@ impl super::Simulation {
             && self.players[1].rates == [60, 40, 0]
             && !self.city_forecast(&self.cities[0]).disorder
             && self.cities[0].specialists[2] > 0
-            && self.cities[0].production == Production::Unit(UnitKind::Phalanx);
+            && self.cities[0].production == Production::Unit(UnitKind::Spearman);
         (rates_before_advice, cm_before_advice)
     }
 }

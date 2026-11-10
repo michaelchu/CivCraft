@@ -7,61 +7,9 @@ impl Playtest {
         &mut self,
         frame: u32,
         game: &mut Game,
-        buttons: &[(Rect, UiAction)],
+        _buttons: &[(Rect, UiAction)],
     ) {
-        if matches!(frame, 406 | 411) && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
-            let spy = game.sim.spy_revolt_playtest_setup(frame == 411);
-            game.perform_action(UiAction::SelectUnit(spy));
-        }
-
-        if matches!(frame, 408 | 413) && self.act_passed {
-            let failed = frame == 413;
-            let spy = game.selected_unit;
-            let revolt = buttons.iter().find_map(|(_, action)| match action {
-                UiAction::InciteCity(city, price) => Some((*action, *city, *price)),
-                _ => None,
-            });
-            let passed = revolt.is_some_and(|(action, target, price)| {
-                let gold = game.sim.players()[HUMAN].gold;
-                game.perform_action(action);
-                let city = game
-                    .sim
-                    .cities()
-                    .iter()
-                    .find(|city| city.id == target)
-                    .unwrap();
-                let actor = game.sim.units().iter().find(|unit| Some(unit.id) == spy);
-                if failed {
-                    city.owner != HUMAN
-                        && city.size == 2
-                        && city.shields == 7
-                        && game.sim.players()[HUMAN].gold == gold
-                        && actor.is_none()
-                } else {
-                    city.owner == HUMAN
-                        && city.size == 1
-                        && game.sim.players()[HUMAN].gold == gold - price
-                        && actor.is_some_and(|spy| {
-                            (spy.x, spy.y) == (city.x, city.y) && spy.moves_left == 0
-                        })
-                }
-            });
-            let (name, detail) = if failed {
-                (
-                    "spy_revolt_failure",
-                    "Failed revolt removed the Spy and preserved the treasury and target city.",
-                )
-            } else {
-                (
-                    "spy_revolt_escape",
-                    "The Spy escaped to the city after it joined the player's empire.",
-                )
-            };
-            self.results.push((name, passed, detail.to_owned()));
-        }
-
-        if frame == 416 && self.act_passed {
+                        if frame == 416 && self.act_passed {
             let mut land = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let mut sea = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (land, sea) = (
@@ -69,7 +17,7 @@ impl Playtest {
                 sea.uprising_playtest(true, false),
             );
             self.results.push(("barbarian_uprisings", land && sea,
-                format!("Recurring uprising spawned land raiders: {land}. Sea uprising loaded a leader and raiders: {sea}. Both respected the turn-120 onset.")));
+                format!("Recurring uprising spawned land raiders: {land}. Sea uprising loaded raiders aboard a barbarian ship: {sea}. Both respected the turn-120 onset.")));
         }
 
         if frame == 419 && self.act_passed {
@@ -198,32 +146,11 @@ impl Playtest {
                 format!("Lone defender stayed: {held}. Spare Marine destroyed the adjacent Cannon while a guard stayed: {attack}. Warriors avoided an unfavorable fight: {refused}.")));
         }
 
-        if frame == 464 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (bombed, returned, skipped) = sim.ai_bomber_playtest();
-            self.results.push(("ai_airbase_fighter_sorties", bombed && returned && skipped,
-                format!("Fighter struck a reachable enemy: {bombed}. It returned and refueled: {returned}. It skipped another strike when no refueling site remained: {skipped}.")));
-        }
-
-        if frame == 467 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (launched, held, recovered) = sim.ai_carrier_sortie_playtest(false);
-            self.results.push(("ai_carrier_sorties", launched && held && recovered,
-                format!("Fighter launched and struck from an offshore carrier: {launched}. Carrier held its recovery position: {held}. Fighter returned and refueled: {recovered}.")));
-        }
-
         if frame == 470 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (intercepted, skipped, refueled) = sim.ai_fighter_playtest();
             self.results.push(("ai_fighter_interception", intercepted && skipped && refueled,
                 format!("Fighter intercepted a nearby bomber: {intercepted}. The fighter waited for full fuel before another sortie: {skipped}. Fighter returned and refueled: {refueled}.")));
-        }
-
-        if frame == 473 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (strike, held, recovered) = sim.ai_carrier_sortie_playtest(true);
-            self.results.push(("native_carrier_sortie_range", strike && held && recovered,
-                format!("Carrier held its station with a target beyond the boss's sortie range: {strike}. It remained at that station: {held}. Fighter remained aboard and refueled: {recovered}.")));
         }
 
         if frame == 476 && self.act_passed {

@@ -158,10 +158,8 @@ impl Simulation {
     }
 
     pub(crate) fn can_join_city(&self, unit: &Unit, city: &City) -> bool {
-        matches!(
-            unit.kind,
-            UnitKind::Migrants | UnitKind::Settlers | UnitKind::Fanatics
-        ) && unit.owner == city.owner
+        unit.kind == UnitKind::Settler
+            && unit.owner == city.owner
             && unit.moves_left > 0
             && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
             && city.size + unit.kind.stats().pop_cost <= Self::city_size_limit(city)
@@ -275,7 +273,6 @@ impl Simulation {
             unit.home_city = unit.home_city.map(|_| id);
             unit.automated = false;
             unit.clear_work();
-            self.agent_city_targets.remove(&unit.id);
         }
 
         let displaced: Vec<_> = self
@@ -299,7 +296,6 @@ impl Simulation {
         if !self.can_produce(&self.cities[index], self.cities[index].production) {
             self.cities[index].production = self.choose_ai_production(buyer, id);
         }
-        self.prune_trade_routes();
         self.rebuild_city_ownership_for_city_event(id);
         self.refresh_diplomatic_contact_at(buyer, center.0, center.1);
         self.refresh_visibility();
@@ -374,7 +370,6 @@ impl Simulation {
         }
         self.cities[city_index].transfer_citizens(unit.owner);
         self.list_order.city(&self.cities[city_index]);
-        self.prune_trade_routes();
         if self.cities[city_index].size > 1 {
             self.cities[city_index].size -= 1;
             self.remove_citizen_nationalities(city_index, 1);
@@ -385,7 +380,6 @@ impl Simulation {
         self.cities[city_index].shields = 0;
         self.cities[city_index].production_before_switch = None;
         self.cities[city_index].protected_shields = 0;
-        self.cities[city_index].caravan_shields = 0;
         self.cities[city_index].worklist.clear();
         self.cities[city_index].production = Production::Unit(UnitKind::Warrior);
         self.cities[city_index]
@@ -448,7 +442,7 @@ impl Simulation {
         let celebrating = self.base_city_celebrating(city);
         let tile_penalty = matches!(
             government,
-            Government::Tribal | Government::Despotism | Government::Anarchy
+            Government::Despotism | Government::Anarchy
         ) && granted != Some(Tech::STEAM_POWER)
             && !self.has_tech(city.owner, Tech::STEAM_POWER)
             && !self.has_active_wonder(city.owner, Building::PYRAMIDS)
@@ -458,7 +452,7 @@ impl Simulation {
             && matches!(
                 government,
                 Government::Monarchy
-                    | Government::Federation
+                    | Government::Feudalism
                     | Government::Republic
                     | Government::Democracy
             );
@@ -531,7 +525,6 @@ impl Simulation {
             shields += s;
             trade += t;
         }
-        trade += self.route_trade(city);
         // common/city.c:set_city_production applies output bonuses before
         // calculating waste; waste therefore includes industrial output.
         shields = percent_of(shields, self.shield_output_bonus(city));
@@ -554,24 +547,20 @@ impl Simulation {
         percent_of(base, FOODBOX_PERCENT).max(1)
     }
 
-    pub(super) fn hitpoint_gain(unit: &Unit, in_city_center: bool, fortress: bool) -> i32 {
+    pub(super) fn hitpoint_gain(unit: &Unit, in_city_center: bool) -> i32 {
         if unit.moved {
             return 0;
         }
-        let base = unit.kind.stats().hp;
+        let base = unit.max_hit_points();
         let minimum_percent = if in_city_center {
             CITY_MIN_HP_PERCENT
         } else {
             0
         };
         // hp_gain_coord first takes the greater of HP_Regen and Min_HP_Pct,
-        // then adds HP_Regen_2. Opening ground units have no HP_Regen
-        // effect, a universal 10 HP_Regen_2, and another 10 when fortified.
-        let hp_regen = if fortress && !unit.kind.is_naval() && !unit.kind.is_aircraft() {
-            percent_of(base, 25)
-        } else {
-            0
-        };
+        // then adds HP_Regen_2. Conquests fortresses affect defense and ZOC;
+        // they do not grant a separate healing bonus.
+        let hp_regen = 0;
         let minimum = percent_of(base, minimum_percent);
         let mut regeneration_2 = BASE_HP_REGEN_2;
         if unit.state == UnitState::Fortified {

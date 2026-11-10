@@ -39,7 +39,7 @@ impl Playtest {
                 .sim
                 .units()
                 .iter()
-                .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers)
+                .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settler)
                 .map(|u| u.id)
         {
             let cities_before = game.sim.cities().len();
@@ -318,7 +318,7 @@ impl Playtest {
             ));
         }
         if frame == 115 && self.act_passed {
-            game.sim.apply(Command::Government(sim::Government::Tribal));
+            game.sim.apply(Command::Government(sim::Government::Despotism));
             let cancellation = game.sim.apply(Command::CancelPact(1));
             game.perform_action(UiAction::ToggleDiplomacy);
             game.sim.civil_war_playtest_seed_capture();
@@ -344,7 +344,7 @@ impl Playtest {
             if self.act_passed {
                 game.sim.civil_war_playtest_resume_diplomacy();
                 game.sim.apply(Command::EndTurn);
-                self.act_passed = game.sim.players()[1].government == sim::Government::Tribal
+                self.act_passed = game.sim.players()[1].government == sim::Government::Despotism
                     && game.sim.cities().iter().any(|city| city.owner == rebel);
             }
             self.act_detail.push_str(&format!(" Revolution lifted the veto; pact cancellation {cancellation}, capital move {moved}, remaining rival cities {rival_cities}, rebel cities {cities}: {}.", self.act_passed));

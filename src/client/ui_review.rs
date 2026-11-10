@@ -14,8 +14,6 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "treaty",
     "research",
     "spaceship",
-    "spy",
-    "investigation",
     "worker-actions",
     "touching-borders",
     "campaign-city",
@@ -56,7 +54,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
 pub(crate) struct UiReviewSources {
     initial: Simulation,
     fixture: Simulation,
-    ids: (u32, u32, u32),
+    ids: (u32, u32),
 }
 impl UiReviewSources {
     pub(crate) fn new(initial: &Simulation) -> Self {
@@ -80,7 +78,7 @@ impl Game {
     }
 
     pub(crate) fn prepare_ui_review(&mut self, scene: usize, sources: &UiReviewSources) {
-        let baseline = if matches!(scene, 0 | 15..=17 | 20 | 33 | 34 | 42) {
+        let baseline = if matches!(scene, 0 | 13..=15 | 18 | 31 | 32 | 40) {
             &sources.initial
         } else {
             &sources.fixture
@@ -97,20 +95,20 @@ impl Game {
             );
             return;
         }
-        if scene == 42 {
+        if scene == 40 {
             self.intro_open = true;
             return;
         }
-        if scene == 45 {
+        if scene == 43 {
             self.sim.ui_review_civ3_city_sprites();
             self.zoom = 0.78;
             self.focus_camera_on(20, 24);
             return;
         }
-        if matches!(scene, 0 | 15..=17) {
+        if matches!(scene, 0 | 13..=15) {
             return;
         }
-        let (city, spy, rival) = sources.ids;
+        let (city, _rival) = sources.ids;
         self.selected_unit = None;
         match scene {
             1..=4 => {
@@ -121,18 +119,18 @@ impl Game {
             }
             5 => self.government_open = true,
             6 => self.diplomacy_open = true,
-            40 => {
+            38 => {
+                self.sim.ui_review_first_contact();
+            }
+            39 => {
                 self.sim.ui_review_first_contact();
             }
             41 => {
-                self.sim.ui_review_first_contact();
-            }
-            43 => {
                 self.sim.ui_review_compensation_negotiation(1);
                 self.diplomacy_open = true;
                 self.diplomacy_target = Some(1);
             }
-            44 => {
+            42 => {
                 self.sim.ui_review_resource_shadows();
                 self.zoom = 1.15;
             }
@@ -153,56 +151,50 @@ impl Game {
                 self.spaceship_open = true;
             }
             11 => {
-                self.sim.ui_review_spy_war();
-                self.selected_unit = Some(spy);
-                self.spy_targets = Some((rival, 0));
-            }
-            12 => self.investigation = self.sim.investigate_city(spy, rival),
-            13 => {
                 self.selected_unit = self
                     .sim
                     .units()
                     .iter()
-                    .find(|u| u.owner == HUMAN && u.kind == UnitKind::Engineer)
+                    .find(|u| u.owner == HUMAN && u.kind == UnitKind::Worker)
                     .map(|u| u.id);
             }
-            14 => {
+            12 => {
                 self.sim.ui_review_touching_borders();
                 self.zoom = 1.0;
             }
-            18 | 19 => {
-                self.sim.ui_review_rivers(scene == 19);
+            16 | 17 => {
+                self.sim.ui_review_rivers(scene == 17);
                 self.zoom = Self::ui_review_map_zoom();
             }
-            29 | 30 => {
-                self.sim.ui_review_terrain_layers(scene == 30);
+            27 | 28 => {
+                self.sim.ui_review_terrain_layers(scene == 28);
                 self.zoom = Self::ui_review_map_zoom();
             }
-            39 => {
+            37 => {
                 self.sim.ui_review_ice_transitions();
                 self.zoom = 1.0;
                 self.focus_camera_on(20, 24);
                 return;
             }
-            46 => {
+            44 => {
                 self.sim.ui_review_civ3_water_depths();
                 self.zoom = 1.35;
                 self.focus_camera_on(20, 24);
                 return;
             }
-            36..=38 => {
+            34..=36 => {
                 self.sim.ui_review_terrain_seams();
-                self.zoom = [0.625, 0.82, 1.35][scene - 36];
+                self.zoom = [0.625, 0.82, 1.35][scene - 34];
                 self.focus_camera_on(20, 24);
                 self.camera += vec2(0.137, 0.213);
                 return;
             }
-            33 | 34 => {
+            31 | 32 => {
                 self.sim.ui_review_reveal_all_tiles();
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(
                     self.sim.map_wrap.width() / 2,
-                    if scene == 33 {
+                    if scene == 31 {
                         0
                     } else {
                         self.sim.map_wrap.height() - 1
@@ -210,19 +202,19 @@ impl Game {
                 );
                 return;
             }
-            35 => {
+            33 => {
                 self.selected_unit = Some(self.sim.ui_review_wrap_seam());
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(12, 0);
                 return;
             }
-            31 => {
+            29 => {
                 let (_, focus) = self.sim.ui_review_observed_map();
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(focus.0, focus.1);
                 return;
             }
-            32 => {
+            30 => {
                 let (id, target) = self.sim.ui_review_route_setup();
                 self.selected_unit = Some(id);
                 self.goto_mode = true;
@@ -232,7 +224,7 @@ impl Game {
                 set_review_pointer(Some(point));
                 return;
             }
-            28 => {
+            26 => {
                 let unit = self.sim.ui_review_fog();
                 self.selected_unit = Some(unit);
                 self.zoom = if Self::viewport_rect().w < 760.0 {
@@ -241,32 +233,32 @@ impl Game {
                     0.7
                 };
             }
-            25..=27 => {
-                let (unit, _) = self.sim.ui_review_animation_setup(scene != 25);
+            23..=25 => {
+                let (unit, _) = self.sim.ui_review_animation_setup(scene != 23);
                 self.selected_unit = Some(unit);
-                self.playback.review_progress = Some(if scene == 27 { 0.9 } else { 0.5 });
+                self.playback.review_progress = Some(if scene == 25 { 0.9 } else { 0.5 });
                 self.zoom = 1.35;
             }
-            24 => {
+            22 => {
                 self.sim.ui_review_city_appearance();
                 self.zoom = Self::ui_review_map_zoom();
             }
-            23 => {
+            21 => {
                 self.sim.ui_review_unit_status();
                 self.zoom = Self::ui_review_map_zoom();
             }
-            21 | 22 => {
+            19 | 20 => {
                 self.zoom = 1.5;
-                if scene == 22 {
+                if scene == 20 {
                     self.selected_unit = self
                         .sim
                         .units()
                         .iter()
-                        .find(|u| u.owner == HUMAN && u.kind == UnitKind::Engineer)
+                        .find(|u| u.owner == HUMAN && u.kind == UnitKind::Worker)
                         .map(|u| u.id);
                 }
             }
-            20 => {
+            18 => {
                 let (x, y) = self
                     .sim
                     .ui_review_generated_river_focus()
@@ -322,14 +314,14 @@ impl Game {
         buttons: &[(Rect, UiAction)],
         sequence: &mut UiReviewSequence,
     ) -> Result<bool, &'static str> {
-        if scene == 13 && phase == 1 {
+        if scene == 11 && phase == 1 {
             let irrigate = buttons
                 .iter()
                 .find_map(|(rect, action)| matches!(action, UiAction::Irrigate).then_some(*rect));
             sequence.check("worker_action_available_for_hover", irrigate.is_some())?;
             set_review_pointer(Some(irrigate.unwrap().center()));
         }
-        if scene == 42 && phase == 6 {
+        if scene == 40 && phase == 6 {
             sequence.check("intro_captures_map_controls", buttons.len() == 1)?;
             sequence.click(self, buttons, "begin_campaign", |action| {
                 matches!(action, UiAction::DismissIntro)
@@ -337,7 +329,7 @@ impl Game {
             sequence.check("intro_dismissed", !self.intro_open)?;
             return Ok(true);
         }
-        if scene == 41 && phase == 1 {
+        if scene == 39 && phase == 1 {
             sequence.click(self, buttons, "leader_avatar_opens_diplomacy", |action| {
                 matches!(action, UiAction::OpenDiplomacyWith(1))
             })?;
@@ -347,7 +339,7 @@ impl Game {
             )?;
             return Ok(true);
         }
-        if scene == 43 {
+        if scene == 41 {
             if phase == 1 {
                 sequence.click(
                     self,
@@ -401,7 +393,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if scene == 39 {
+        if scene == 37 {
             if phase == 6 {
                 self.zoom = 0.82;
                 self.camera += vec2(0.137, 0.213);
@@ -409,24 +401,24 @@ impl Game {
             }
             return Ok(false);
         }
-        if (36..=38).contains(&scene) {
+        if (34..=36).contains(&scene) {
             if phase == 6 {
                 self.camera += vec2(0.37, 0.23);
                 return Ok(true);
             }
             return Ok(false);
         }
-        if matches!(scene, 33 | 34) {
+        if matches!(scene, 31 | 32) {
             let viewport = Self::viewport_rect();
             let camera = self.camera_overview_position();
             if phase == 1 {
-                let y = if scene == 33 {
+                let y = if scene == 31 {
                     0
                 } else {
                     self.sim.map_wrap.height() - 1
                 };
                 let point = self.world_screen_position(self.sim.map_wrap.width() / 2, y);
-                let expected = if scene == 33 {
+                let expected = if scene == 31 {
                     viewport.y + map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5 - 1.0
                 } else {
                     viewport.bottom() - map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
@@ -444,7 +436,7 @@ impl Game {
             }
             if phase == 6 {
                 // Same camera-coordinate change/normalization as real panning.
-                let delta = if scene == 33 {
+                let delta = if scene == 31 {
                     -4 * self.sim.map_wrap.height()
                 } else {
                     4 * self.sim.map_wrap.height()
@@ -459,13 +451,13 @@ impl Game {
                 let previous_zoom = self.zoom;
                 self.zoom = MIN_ZOOM;
                 self.normalize_camera();
-                let y = if scene == 33 {
+                let y = if scene == 31 {
                     0
                 } else {
                     self.sim.map_wrap.height() - 1
                 };
                 let point = self.world_screen_position(self.sim.map_wrap.width() / 2, y);
-                let expected = if scene == 33 {
+                let expected = if scene == 31 {
                     viewport.y + map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5 - 1.0
                 } else {
                     viewport.bottom() - map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
@@ -479,7 +471,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if scene == 35 {
+        if scene == 33 {
             if phase == 6 {
                 let id = self.selected_unit.unwrap();
                 let moved = self.move_selected(Command::Move(id, 0, -1), id);
@@ -496,7 +488,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if scene == 29 {
+        if scene == 27 {
             if phase == 1 {
                 sequence.check(
                     "terrain_gallery_runs_shared_renderer",
@@ -505,7 +497,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if scene == 30 {
+        if scene == 28 {
             if phase == 6 {
                 self.selected_city = self.sim.cities().first().map(|c| c.id);
                 self.city_tiles = true;
@@ -517,7 +509,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if scene == 31 {
+        if scene == 29 {
             if phase == 1 {
                 sequence.check(
                     "hidden_changes_keep_last_observed_art",
@@ -534,7 +526,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if scene == 32 {
+        if scene == 30 {
             if phase == 1 {
                 let preview = self.goto_preview();
                 sequence.check("goto_uses_observed_simulation_route", preview.is_some())?;
@@ -553,7 +545,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if scene == 28 {
+        if scene == 26 {
             let visibility = |game: &Game| {
                 (0..game.sim.map_wrap.width() * game.sim.map_wrap.height())
                     .map(|i| {
@@ -585,7 +577,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if (25..=27).contains(&scene) {
+        if (23..=25).contains(&scene) {
             if phase == 1 {
                 let id = self.selected_unit.unwrap();
                 sequence.check(
@@ -596,7 +588,7 @@ impl Game {
             if phase == 2 {
                 sequence.check(
                     "real_simulation_animation_event",
-                    self.playback.active().len() == if scene != 25 { 2 } else { 1 },
+                    self.playback.active().len() == if scene != 23 { 2 } else { 1 },
                 )?;
             }
             if phase == 6 {
@@ -606,7 +598,7 @@ impl Game {
             }
             return Ok(false);
         }
-        if matches!(scene, 21 | 22) && phase == 1 {
+        if matches!(scene, 19 | 20) && phase == 1 {
             let city = self.sim.cities_owned_by(HUMAN).next().unwrap();
             sequence.check(
                 "city_has_garrison",
@@ -617,7 +609,7 @@ impl Game {
             )?;
             sequence.check(
                 "expected_unit_focus",
-                if scene == 21 {
+                if scene == 19 {
                     self.selected_unit.is_none()
                 } else {
                     self.sim
@@ -627,7 +619,7 @@ impl Game {
                 },
             )?;
         }
-        if (15..=17).contains(&scene) {
+        if (13..=15).contains(&scene) {
             if phase == 1 {
                 sequence.click(self, buttons, "found_city_control", |action| {
                     matches!(action, UiAction::FoundCity)
@@ -637,18 +629,18 @@ impl Game {
                     self.selected_city_index().is_some(),
                 )?;
             }
-            if phase == 2 && scene == 16 {
+            if phase == 2 && scene == 14 {
                 sequence.click(self, buttons, "worked_tiles_control", |action| {
                     matches!(action, UiAction::CityTiles)
                 })?;
                 sequence.check("worked_tiles_open", self.city_tiles)?;
             }
-            if phase == 2 && scene == 17 {
+            if phase == 2 && scene == 15 {
                 sequence.click(self, buttons, "close_city_control", |action| {
                     matches!(action, UiAction::CloseCity)
                 })?;
             }
-            if phase == 3 && scene == 17 {
+            if phase == 3 && scene == 15 {
                 let rates = self.sim.players()[HUMAN].rates;
                 sequence.click(self, buttons, "tax_control", |action| {
                     matches!(action, UiAction::RaiseRate(1))
@@ -658,7 +650,7 @@ impl Game {
                     self.sim.players()[HUMAN].rates != rates,
                 )?;
             }
-            if phase == 6 && scene == 16 {
+            if phase == 6 && scene == 14 {
                 let target = buttons.iter().find_map(|(_, action)| {
                     if let UiAction::WorkCityTile(city, x, y) = action {
                         Some((*city, *x, *y))
@@ -679,7 +671,7 @@ impl Game {
                 )?;
                 return Ok(true);
             }
-            if phase == 8 && scene == 16 {
+            if phase == 8 && scene == 14 {
                 let (id, x, y, worked, before) = sequence.worker.take().unwrap();
                 sequence.click(self,buttons,"restore_tile_worker",|action|matches!(action,UiAction::WorkCityTile(cid,tx,ty) if (cid,tx,ty)==(id,x,y)))?;
                 let city = self.sim.city_by_id(id).unwrap();
@@ -690,7 +682,7 @@ impl Game {
                         && worked.iter().all(|p| city.worked_tiles.contains(p)),
                 )?;
             }
-            if phase == 6 && scene == 17 {
+            if phase == 6 && scene == 15 {
                 let turn = self.sim.turn();
                 sequence.click(self, buttons, "end_turn_control", |action| {
                     matches!(action, UiAction::EndTurn)
@@ -710,9 +702,7 @@ impl Game {
                 (2, UiAction::ProductionPage(page)) => *page > 1,
                 (6, UiAction::DiplomacyPage(page)) => *page > 0,
                 (7, UiAction::CityDeals(Some((_, page)))) => *page > 0,
-                (11, UiAction::SpyTargets(Some((_, page)))) => *page > 0,
-                (12, UiAction::InvestigationPage(page)) => *page > 0,
-                (13, UiAction::ActionPage(page)) => *page > 0,
+                (11, UiAction::ActionPage(page)) => *page > 0,
                 _ => false,
             })
             .map(|(rect, _)| *rect);
@@ -724,8 +714,6 @@ impl Game {
             self.production_page,
             self.diplomacy_page,
             self.city_deals,
-            self.spy_targets,
-            self.investigation_page,
             self.action_page,
         );
         let point = vec2(rect.x + rect.w * 0.5, rect.y + rect.h * 0.5);
@@ -737,8 +725,6 @@ impl Game {
             self.production_page,
             self.diplomacy_page,
             self.city_deals,
-            self.spy_targets,
-            self.investigation_page,
             self.action_page,
         );
         sequence.check("page_changed_through_ui", before != after)?;

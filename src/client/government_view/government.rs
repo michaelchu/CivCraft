@@ -60,12 +60,13 @@ impl Game {
             if enabled {
                 actions.push((button, UiAction::ChangeGovernment(government)));
             }
-            let (gold, free_shields, free_gold) = government.unit_support();
-            let support = if gold > 0 {
-                format!("Eligible units: {gold} gold, {free_gold} free gold")
-            } else {
-                format!("Unit support: {free_shields} free shields")
-            };
+            let support = government.unit_support().map_or_else(
+                || "Unit support: unresolved legacy government".to_owned(),
+                |policy| format!(
+                    "Free units: {}/{}/{} · {} gold per excess unit",
+                    policy.town, policy.city, policy.metropolis, policy.cost_per_unit
+                ),
+            );
             draw_text(&support, x + 3.0, y + 43.0, 13.0, LIGHTGRAY);
             if let Some(tech) = government.requirement()
                 && !player.known.contains(&tech)

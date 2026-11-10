@@ -55,9 +55,9 @@ fn worker_road_value_counts_civ3_neighbor_connections() {
 }
 
 #[test]
-fn a_sea_worker_uses_the_actual_sea_pathfinder_and_ocean_cleanup_requests() {
-    let game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.transport_auto_worker_playtest());
+fn only_the_imported_worker_has_worker_action_flags() {
+    assert!(UnitKind::Worker.stats().can_work);
+    assert!(!UnitKind::Transport.stats().can_work);
 }
 
 #[test]
@@ -123,28 +123,23 @@ fn worker_safety_uses_hostile_actions_native_terrain_and_civ3_radius() {
     let near = step(position);
     let actor = game.units.iter_mut().find(|u| u.id == enemy).unwrap();
     (actor.x, actor.y) = near;
-    actor.kind = UnitKind::Diplomat;
-    assert!(
-        !game.worker_safe_tile(1, 10, 20),
-        "zero-attack hostile diplomatic actions count"
-    );
-    game.units.iter_mut().find(|u| u.id == enemy).unwrap().kind = UnitKind::Cannon;
+    actor.kind = UnitKind::Tank;
     game.tile_mut(position.0, position.1).terrain = Terrain::Mountains;
     assert!(
-        game.worker_safe_tile(1, 10, 20),
-        "BigLand cannot threaten a non-native mountain"
+        !game.worker_safe_tile(1, 10, 20),
+        "nearby imported Tank can threaten the worksite"
     );
     game.tile_mut(10, 20).road = true;
     assert!(!game.worker_safe_tile(1, 10, 20));
-    let guard = game.spawn_unit(1, UnitKind::Transport, 10, 20);
+    let guard = game.spawn_unit(1, UnitKind::Settler, 10, 20);
     assert!(
         !game.worker_safe_tile(1, 10, 20),
-        "NonMil transport is not a guard"
+        "nonmilitary Settler is not a guard"
     );
     game.units.iter_mut().find(|u| u.id == guard).unwrap().kind = UnitKind::Carrier;
     assert!(
         game.worker_safe_tile(1, 10, 20),
-        "zero-attack military carrier is a guard"
+        "positive-attack Carrier is a guard"
     );
 }
 
@@ -246,7 +241,7 @@ fn explicit_city_request_starts_work_and_removes_only_fulfilled_request() {
     game.create_city(1, 10, 20);
     let city = game.cities.last().unwrap().id;
     game.tile_mut(10, 20).road = false;
-    let id = game.spawn_unit(1, UnitKind::Migrants, 10, 20);
+    let id = game.spawn_unit(1, UnitKind::Worker, 10, 20);
     let mut requests = vec![WorkerRequest {
         city,
         destination: (10, 20),
@@ -256,7 +251,7 @@ fn explicit_city_request_starts_work_and_removes_only_fulfilled_request() {
     let processed = game.run_worker_phase_with_requests(1, &mut requests);
     assert!(
         processed.contains(&id),
-        "Migrants carry the Workers ruleset flag"
+        "Workers carry the Workers ruleset flag"
     );
     assert!(requests.is_empty());
     let worker = game.unit_by_id(id).unwrap();

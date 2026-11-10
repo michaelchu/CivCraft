@@ -18,21 +18,14 @@ impl Simulation {
             self.advance_diplomacy();
             self.apply(Command::EndTurn);
             self.ai_purchase_reserve.insert(1, 120);
-            let agent = self.spawn_unit(1, UnitKind::Diplomat, 18, 32);
-            let target = self
-                .cities
-                .iter()
-                .find(|city| city.owner == HUMAN)
-                .unwrap()
-                .id;
-            self.agent_city_targets.insert(agent, target);
-            self.unit_goto_tiles.insert(agent, (12, 24));
-            let guard = self.spawn_unit(1, UnitKind::Phalanx, 18, 32);
+            let infantry = self.spawn_unit(1, UnitKind::Warrior, 18, 32);
+            let guard = self.spawn_unit(1, UnitKind::Spearman, 18, 32);
+            self.unit_goto_tiles.insert(guard, (12, 24));
             self.ai_guard_targets
-                .insert(guard, guards::GuardTarget::Unit(agent));
+                .insert(guard, guards::GuardTarget::Unit(infantry));
             self.ai_unit_guards
-                .insert(agent, guards::GuardState::Assigned(guard));
-            let city_guard = self.spawn_unit(1, UnitKind::Musketeers, 18, 32);
+                .insert(infantry, guards::GuardState::Assigned(guard));
+            let city_guard = self.spawn_unit(1, UnitKind::Musketman, 18, 32);
             let home = self.cities_owned_by(1).next().unwrap().id;
             self.ai_guard_targets
                 .insert(city_guard, guards::GuardTarget::City(home));
@@ -45,29 +38,20 @@ impl Simulation {
             );
             self.ai_space_warnings.insert((1, HUMAN), 7);
             self.ai_free_bulbs.insert(1, 3);
-            let infantry = self.spawn_unit(1, UnitKind::Warrior, 18, 32);
+            let target = self
+                .cities
+                .iter()
+                .find(|city| city.owner == HUMAN)
+                .unwrap()
+                .id;
             self.ai_ground_targets.insert(infantry, target);
-            let founder = self.spawn_unit(1, UnitKind::Settlers, 18, 32);
+            let founder = self.spawn_unit(1, UnitKind::Settler, 18, 32);
             self.ai_settlement_targets.insert(
                 founder,
                 settlement::SettlementReservation {
                     owner: 1,
                     destination: (22, 40),
                     worker: Some((22, 42)),
-                },
-            );
-            let merchant = self.spawn_unit(1, UnitKind::Freight, 18, 32);
-            self.units.last_mut().unwrap().home_city = self
-                .cities
-                .iter()
-                .find(|city| city.owner == 1)
-                .map(|city| city.id);
-            self.ai_merchant_missions.insert(
-                merchant,
-                trade::MerchantMission {
-                    owner: 1,
-                    city: target,
-                    wonder: false,
                 },
             );
             self.ai_diplomatic_memory.insert(
@@ -81,14 +65,13 @@ impl Simulation {
                 },
             );
             self.tile_mut(19, 33).terrain = Terrain::Sea;
-            let boat = self.spawn_unit(1, UnitKind::Transport, 19, 33);
-            self.assign_ai_ferry(boat, merchant);
+            self.spawn_unit(1, UnitKind::Transport, 19, 33);
             self.ai_government_cache.insert(
                 1,
                 government::GovernmentAdvisorCache {
                     evaluated_turn: self.turn,
                     next_evaluation: self.turn + 5,
-                    scores: [1.0; 9],
+                    scores: [1.0; 8],
                 },
             );
             self.diplomatic_contact_until
@@ -114,7 +97,6 @@ impl Simulation {
                             sim,
                             &sim.route_memory,
                             &sim.ai_purchase_reserve,
-                            &sim.agent_city_targets,
                             &sim.city_founders,
                             &sim.ai_map_memory,
                             (
@@ -123,10 +105,8 @@ impl Simulation {
                                     &sim.ai_space_warnings,
                                     &sim.ai_free_bulbs,
                                     &sim.ai_ground_targets,
-                                    &sim.ai_merchant_missions,
                                     &sim.ai_settlement_targets,
                                     &sim.ai_diplomatic_memory,
-                                    &sim.merchant_birth_turns,
                                 ),
                                 (
                                     &sim.ai_ferries,

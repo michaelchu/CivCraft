@@ -43,7 +43,7 @@ impl Simulation {
             for (index, &(x, y)) in sites.iter().enumerate() {
                 let terrain = self.tile(x, y).terrain;
                 let mut value = 10
-                    * UnitKind::Partisan.stats().defense
+                    * UnitKind::Guerilla.stats().defense
                     * (POWER_FACTOR + terrain.defense_bonus() / (100 / POWER_FACTOR));
                 if labels[self.map_wrap.index(x, y)] != labels[center] {
                     value /= 2;
@@ -55,7 +55,7 @@ impl Simulation {
             }
             let Some((index, _)) = best else { break };
             let (x, y) = sites.remove(index);
-            self.spawn_unit(defender, UnitKind::Partisan, x, y);
+            self.spawn_unit(defender, UnitKind::Guerilla, x, y);
             self.units.last_mut().unwrap().state = UnitState::Fortified;
             placed += 1;
         }
@@ -92,7 +92,7 @@ mod tests {
         game.inspire_partisans(index, 1);
         assert_eq!(game.units.len(), before);
         game.players[HUMAN].known.push(Tech::NATIONALISM);
-        assert!(!game.unit_available(1, UnitKind::Partisan));
+        assert!(!game.unit_available(1, UnitKind::Guerilla));
         game.inspire_partisans(index, 1);
         assert!(game.units.len() > before);
     }

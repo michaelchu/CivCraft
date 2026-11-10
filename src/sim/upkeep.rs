@@ -6,96 +6,43 @@ pub(crate) struct UnitUpkeep {
     pub(crate) food: i32,
     pub(crate) shields: i32,
     pub(crate) gold: i32,
-    pub(super) food_unit: Option<u32>,
 }
 
 impl Simulation {
     pub(crate) fn city_unit_upkeep(&self, city: &City) -> UnitUpkeep {
-        let mut food_units: Vec<_> = self
-            .units
-            .iter()
-            .filter(|unit| {
-                unit.home_city == Some(city.id)
-                    && unit.owner == city.owner
-                    && unit.kind.base_upkeep().0 > 0
-                    && !self.fanatic_upkeep_exempt(unit)
-            })
-            .collect();
-        food_units.sort_by_key(|unit| std::cmp::Reverse(unit.home_order));
-        let free_food = city.size.clamp(4, 20) as usize;
-        let shield_units = self
-            .units
-            .iter()
-            .filter(|unit| {
-                unit.home_city == Some(city.id)
-                    && unit.owner == city.owner
-                    && self.unit_shield_cost(unit) > 0
-            })
-            .count() as i32;
-        let (_, free_shields, _) = self.players[city.owner].government.unit_support();
-        let zeus = self.has_active_wonder(city.owner, Building::STATUE_OF_ZEUS);
         UnitUpkeep {
-            food: food_units.len().saturating_sub(free_food) as i32,
-            shields: (shield_units - free_shields - i32::from(zeus)).max(0),
-            gold: self
-                .city_gold_upkeep(city)
-                .iter()
-                .map(|(_, cost)| cost)
-                .sum(),
-            food_unit: food_units.get(free_food).map(|unit| unit.id),
-        }
-    }
-
-    fn fanatic_upkeep_exempt(&self, unit: &Unit) -> bool {
-        unit.kind == UnitKind::Fanatics
-            && self.players[unit.owner].government == Government::Fundamentalism
-    }
-
-    fn unit_shield_cost(&self, unit: &Unit) -> i32 {
-        if self.fanatic_upkeep_exempt(unit)
-            || !matches!(
-                self.players[unit.owner].government,
-                Government::Anarchy
-                    | Government::Tribal
-                    | Government::Communism
-                    | Government::Republic
-            )
-            || self.unit_gold_cost(unit) > 0
-        {
-            0
-        } else {
-            unit.kind.base_upkeep().1
-        }
-    }
-
-    fn unit_gold_cost(&self, unit: &Unit) -> i32 {
-        if self.fanatic_upkeep_exempt(unit) || !unit.kind.has_shield_to_gold() {
-            0
-        } else {
-            unit.kind.base_upkeep().1 * self.players[unit.owner].government.unit_support().0
+            food: 0,
+            shields: 0,
+            gold: self.city_gold_upkeep(city).iter().map(|(_, cost)| cost).sum(),
         }
     }
 
     pub(super) fn city_gold_upkeep(&self, city: &City) -> Vec<(u32, i32)> {
-        let (conversion, _, free_gold) = self.players[city.owner].government.unit_support();
-        if conversion == 0 {
+        let Some(policy) = self.players[city.owner].government.unit_support() else {
             return Vec::new();
-        }
-        let mut free = free_gold
-            + 2 * i32::from(self.has_active_wonder(city.owner, Building::KING_RICHARDS_CRUSADE));
+        };
+        let free_units = self
+            .cities
+            .iter()
+            .filter(|candidate| candidate.owner == city.owner)
+            .map(|candidate| match candidate.size {
+                1..=6 => policy.town,
+                7..=12 => policy.city,
+                _ => policy.metropolis,
+            })
+            .sum::<i32>();
         let mut units: Vec<_> = self
             .units
             .iter()
-            .filter(|unit| unit.owner == city.owner && unit.home_city == Some(city.id))
+            .filter(|unit| unit.owner == city.owner && unit.kind.requires_support())
             .collect();
-        units.sort_by_key(|unit| std::cmp::Reverse(unit.home_order));
+        units.sort_by_key(|unit| unit.id);
         units
             .into_iter()
-            .filter_map(|unit| {
-                let cost = self.unit_gold_cost(unit);
-                let covered = free.min(cost);
-                free -= covered;
-                (cost > covered).then_some((unit.id, cost - covered))
+            .enumerate()
+            .filter_map(|(index, unit)| {
+                (unit.home_city == Some(city.id) && index as i32 >= free_units)
+                    .then_some((unit.id, policy.cost_per_unit))
             })
             .collect()
     }
@@ -133,7 +80,7 @@ impl Simulation {
     }
 
     pub(crate) fn home_city_target(&self, unit: &Unit) -> Option<u32> {
-        if unit.kind.has_no_home() || (unit.home_city.is_none() && !unit.kind.is_diplomatic()) {
+        if unit.kind.has_no_home() || unit.home_city.is_none() {
             return None;
         }
         self.cities
@@ -187,70 +134,6 @@ impl Simulation {
         self.prune_unit_ai_state();
     }
 
-    pub(super) fn pay_shield_support(
-        &mut self,
-        city: &City,
-        gross: i32,
-        upkeep: i32,
-    ) -> (i32, i32) {
-        let deficit = (upkeep - gross).max(0);
-        let mut recovered = 0;
-        if deficit > 0 {
-            let mut supported: Vec<_> = self
-                .units
-                .iter()
-                .filter(|unit| {
-                    unit.owner == city.owner
-                        && unit.home_city == Some(city.id)
-                        && self.unit_shield_cost(unit) > 0
-                })
-                .cloned()
-                .collect();
-            supported.sort_by_key(|unit| std::cmp::Reverse(unit.home_order));
-            for unit in supported {
-                if self.city_unit_upkeep(city).shields <= gross {
-                    break;
-                }
-                if !self.units.iter().any(|existing| existing.id == unit.id) {
-                    continue;
-                }
-                // Automatic recovery targets the friendly city on the unit's tile.
-                if let Some(target) = self.cities.iter_mut().find(|target| {
-                    target.owner == unit.owner && (target.x, target.y) == (unit.x, unit.y)
-                }) {
-                    let cost = unit.kind.stats().cost;
-                    if target.id == city.id {
-                        recovered += cost - cost / 2;
-                    } else {
-                        target.shields += cost - cost / 2;
-                    }
-                }
-                self.remove_unsupported_unit(unit.id, city, "shields");
-            }
-        }
-        let remaining = if deficit > 0 {
-            self.city_unit_upkeep(city).shields
-        } else {
-            upkeep
-        };
-        ((gross - remaining).max(0), recovered)
-    }
-
-    pub(super) fn remove_unsupported_unit(&mut self, id: u32, city: &City, resource: &str) {
-        let Some(unit) = self.unit_by_id(id) else {
-            return;
-        };
-        if city.owner == HUMAN {
-            let message = format!(
-                "{} could not supply {} for {}. The unit was lost.",
-                city.name,
-                resource,
-                unit.kind.name()
-            );
-            self.add_event(message);
-        }
-        self.remove_units_with_cargo(vec![id]);
-    }
 }
 
 #[cfg(test)]
@@ -258,28 +141,45 @@ mod tests {
     use super::*;
 
     #[test]
-    fn famine_takes_a_unit_charged_food_before_a_citizen() {
+    fn despotism_support_is_treasury_paid_after_four_free_units_per_town() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 10);
         game.tile_mut(x, y).terrain = Terrain::Desert;
         game.create_city(HUMAN, x, y);
         let city_id = game.cities[0].id;
-        assert!(game.apply(Command::Specialist(city_id, 0, 1)));
-
+        game.units.clear();
         let mut units = Vec::new();
-        for _ in 0..5 {
-            let id = game.spawn_unit(HUMAN, UnitKind::Settlers, x + 2, y);
+        for kind in [
+            UnitKind::Settler,
+            UnitKind::Worker,
+            UnitKind::Warrior,
+            UnitKind::Scout,
+            UnitKind::Archer,
+        ] {
+            let id = game.spawn_unit(HUMAN, kind, x + 2, y);
             let unit = game.units.last_mut().unwrap();
             unit.home_city = Some(city_id);
-            unit.home_order = id;
             units.push(id);
         }
-        let support = game.city_unit_upkeep(&game.cities[0]);
-        assert_eq!((support.food, support.shields), (1, 0));
-        assert_eq!(support.food_unit, Some(units[0]));
-        game.process_cities();
-        assert_eq!(game.cities[0].size, 1);
-        assert!(!game.units.iter().any(|unit| unit.id == units[0]));
-        assert_eq!(game.city_unit_upkeep(&game.cities[0]).food, 0);
+        assert_eq!(game.city_gold_upkeep(&game.cities[0]), vec![(units[4], 1)]);
+        let upkeep = game.city_unit_upkeep(&game.cities[0]);
+        assert_eq!((upkeep.food, upkeep.shields, upkeep.gold), (0, 0, 1));
+    }
+
+    #[test]
+    fn republic_uses_city_size_allowance_and_charges_two_gold_including_workers() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (x, y) = (10, 10);
+        game.create_city(HUMAN, x, y);
+        game.players[HUMAN].government = Government::Republic;
+        let city_id = game.cities[0].id;
+        game.units.clear();
+        let mut units = Vec::new();
+        for kind in [UnitKind::Settler, UnitKind::Worker, UnitKind::Warrior] {
+            let id = game.spawn_unit(HUMAN, kind, x + 2, y);
+            game.units.last_mut().unwrap().home_city = Some(city_id);
+            units.push(id);
+        }
+        assert_eq!(game.city_gold_upkeep(&game.cities[0]), vec![(units[1], 2), (units[2], 2)]);
     }
 }

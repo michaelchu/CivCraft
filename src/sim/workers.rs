@@ -76,7 +76,7 @@ impl Simulation {
         !self.units.iter().any(|u| {
             self.at_war(owner, u.owner)
                 && (self.players[owner].ai || self.unit_visible_to(owner, u))
-                && (u.kind.stats().attack > 0 || u.kind.is_diplomatic())
+                && u.kind.stats().attack > 0
                 && self.map_wrap.civ3_distance(x, y, u.x, u.y) <= 2
                 && (self.worker_enemy_native(u.kind, x, y)
                     || (u.kind.is_naval()
@@ -303,7 +303,7 @@ impl Simulation {
                 && let Some(actor) = self
                     .units
                     .iter()
-                    .find(|u| u.id == id && u.kind == UnitKind::Settlers)
+                    .find(|u| u.id == id && u.kind == UnitKind::Settler)
                     .cloned()
             {
                 if self.ai_settlement_targets.contains_key(&id) {

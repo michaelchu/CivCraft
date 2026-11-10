@@ -25,7 +25,11 @@ impl Simulation {
     /// with that final land tile, permanently retaining it as goto_tile.
     fn clean_current_tile(&mut self, unit: &Unit) -> bool {
         unit.kind.can_clean()
-            && [Contamination::Fallout, Contamination::Pollution]
+            && [
+                Contamination::Fallout,
+                Contamination::Pollution,
+                Contamination::Craters,
+            ]
                 .into_iter()
                 .any(|target| {
                     self.tile(unit.x, unit.y).has_contamination(target)
@@ -104,12 +108,6 @@ impl Simulation {
         for boat in boats {
             self.refresh_ferry_boss(boat);
         }
-        self.agent_city_targets.retain(|id, city| {
-            self.units
-                .iter()
-                .any(|unit| unit.id == *id && unit.kind.is_diplomatic())
-                && self.cities.iter().any(|target| target.id == *city)
-        });
         let counterattacks = self.counterattack_from_ai_cities(owner);
         let reinforcements = self.reinforce_ai_cities(owner);
         let paratroopers: Vec<_> = self
@@ -117,7 +115,7 @@ impl Simulation {
             .iter()
             .filter(|unit| {
                 unit.owner == owner
-                    && unit.kind == UnitKind::Paratroopers
+                    && unit.kind == UnitKind::Paratrooper
                     && !counterattacks.contains(&unit.id)
                     && !reinforcements.contains(&unit.id)
             })
@@ -127,12 +125,11 @@ impl Simulation {
             .iter()
             .filter_map(|unit| self.run_ai_paratrooper(unit).then_some(unit.id))
             .collect();
-        let ferry_dispatch = self.load_ai_merchant_ferries(owner);
         self.prune_settlement_reservations(owner);
-        let settlement_ferries = self.dispatch_settlement_ferries(owner, &ferry_dispatch);
+        let settlement_ferries = self.dispatch_settlement_ferries(owner);
         let fleet = self.coordinate_assault_fleets(
             owner,
-            |id| ferry_dispatch.contains_key(&id) || settlement_ferries.contains_key(&id),
+            |id| settlement_ferries.contains_key(&id),
             |id| {
                 counterattacks.contains(&id) || reinforcements.contains(&id) || drops.contains(&id)
             },
@@ -140,8 +137,7 @@ impl Simulation {
         let assault = self.dispatch_assault_transports(
             owner,
             |id| {
-                ferry_dispatch.contains_key(&id)
-                    || settlement_ferries.contains_key(&id)
+                settlement_ferries.contains_key(&id)
                     || fleet.contains(&id)
             },
             |id| {
@@ -167,8 +163,28 @@ impl Simulation {
             let Some(unit) = self.unit_by_id(id).cloned() else {
                 continue;
             };
-            if unit.kind == UnitKind::BarbarianLeader {
-                self.run_barbarian_leader(id);
+            if unit.kind.is_nuclear_weapon() {
+                self.run_ai_nuclear_strike(id);
+                continue;
+            }
+            if unit.state == UnitState::AirSuperiority {
+                // Air Superiority is a stationary defense mission. Incoming
+                // enemy air missions trigger its interception hook.
+                continue;
+            }
+            if owner != HUMAN
+                && unit.kind.can_attack_aircraft()
+                && unit
+                    .kind
+                    .has_ai_strategy(super::unit_catalog::UnitAiStrategy::AirDefense)
+                && self.units.iter().any(|enemy| {
+                    self.at_war(owner, enemy.owner)
+                        && (enemy.kind.is_aircraft() || enemy.kind.is_missile())
+                        && self.map_wrap.civ3_distance(unit.x, unit.y, enemy.x, enemy.y)
+                            <= i32::from(unit.kind.fuel_capacity()) / 2
+                })
+                && self.assign_ai_air_superiority(id)
+            {
                 continue;
             }
             if self.ai_guard_targets.contains_key(&id) && self.run_ai_guard(id) {
@@ -193,7 +209,6 @@ impl Simulation {
                 || drops.contains(&id)
                 || counterattacks.contains(&id)
                 || reinforcements.contains(&id)
-                || ferry_dispatch.values().any(|&passenger| passenger == id)
                 || settlement_ferries.values().any(|plan| plan.founder == id)
             {
                 continue;
@@ -216,15 +231,18 @@ impl Simulation {
                     self.run_settlement_ferry(id, plan);
                     continue;
                 }
-                if !self.run_merchant_ferry(id, ferry_dispatch.get(&id).copied())
-                    && !self.clean_current_tile(&unit)
-                {
+                if !self.clean_current_tile(&unit) {
                     self.run_raider_transport(&unit);
                 }
                 continue;
             }
             if owner != BARBARIANS
-                && unit.kind.has_role(super::unit_catalog::UnitRole::Hunter)
+                && (unit
+                    .kind
+                    .has_ai_strategy(super::unit_catalog::UnitAiStrategy::CruiseMissile)
+                    || unit
+                        .kind
+                        .has_ai_strategy(super::unit_catalog::UnitAiStrategy::Icbm))
                 && self.run_existing_hunter(&unit, &mut claimed_targets)
             {
                 continue;
@@ -238,32 +256,10 @@ impl Simulation {
             }
             match unit.kind {
                 // Founders and workers share the late-phase workermap.
-                UnitKind::Settlers | UnitKind::Worker | UnitKind::Engineer | UnitKind::Migrants => {
-                }
-                UnitKind::Diplomat | UnitKind::Spy => {
-                    self.ai_bribe_nearby(&unit);
-                    let Some(agent) = self.unit_by_id(id).cloned() else {
-                        continue;
-                    };
-                    if agent.moves_left <= 0 {
-                        continue;
-                    }
-                    // Freeciv keeps a sole agent in an exposed city. Otherwise
-                    // it resumes/acquires an offensive mission before defending
-                    // another city (ai/default/daidiplomat.c:dai_manage_diplomat).
-                    if self.holds_counterintelligence(&agent) {
-                        self.agent_city_targets.remove(&id);
-                    } else if !self.ai_city_espionage(&agent)
-                        && !self.assign_counterintelligence(&agent)
-                    {
-                        self.wander_unit(id);
-                    }
-                }
+                UnitKind::Settler | UnitKind::Worker => {}
                 UnitKind::Explorer => {
                     self.run_auto_explorer(id);
                 }
-                UnitKind::BarbarianLeader => unreachable!("leader handled before cargo dispatch"),
-                UnitKind::Caravan | UnitKind::Freight => self.run_ai_merchant(&unit),
                 _ => {
                     let on_city = self
                         .cities

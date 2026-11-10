@@ -62,7 +62,7 @@ impl Simulation {
     }
 
     pub(crate) fn can_begin_paradrop(&self, unit: &Unit) -> bool {
-        unit.kind == UnitKind::Paratroopers
+        unit.kind == UnitKind::Paratrooper
             && unit.moves_left >= MOVE_FRAGMENTS
             && !unit.moved
             && unit.work_left == 0
@@ -90,7 +90,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn run_ai_paratrooper(&mut self, unit: &Unit) -> bool {
-        if !self.can_begin_paradrop(unit) || unit.hp * 2 < unit.kind.stats().hp {
+        if !self.can_begin_paradrop(unit) || unit.hp * 2 < unit.max_hit_points() {
             return false;
         }
         let owner = unit.owner;

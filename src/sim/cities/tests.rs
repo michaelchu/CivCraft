@@ -91,8 +91,8 @@ fn founding_consumes_the_unit_and_releases_its_guard_and_task_state() {
     game.units.clear();
     game.cities.clear();
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
-    let founder = game.spawn_unit(HUMAN, UnitKind::Settlers, 10, 24);
-    let guard = game.spawn_unit(HUMAN, UnitKind::Phalanx, 10, 24);
+    let founder = game.spawn_unit(HUMAN, UnitKind::Settler, 10, 24);
+    let guard = game.spawn_unit(HUMAN, UnitKind::Spearman, 10, 24);
     assert!(game.assign_ai_guard(guard, guards::GuardTarget::Unit(founder)));
     game.unit_goto_tiles.insert(founder, (10, 24));
     game.ai_worker_tasks.insert(founder);
@@ -102,31 +102,6 @@ fn founding_consumes_the_unit_and_releases_its_guard_and_task_state() {
     assert!(!game.ai_unit_guards.contains_key(&founder));
     assert!(!game.ai_guard_targets.contains_key(&guard));
     assert!(game.validate_ai_guards());
-}
-
-#[test]
-fn migrants_cost_population_and_obey_join_size_limits() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.create_city(HUMAN, 10, 20);
-    assert!(!game.unit_available(HUMAN, UnitKind::Migrants));
-    game.players[HUMAN].known.push(Tech::POTTERY);
-    assert!(game.unit_available(HUMAN, UnitKind::Migrants));
-    let city = &mut game.cities[0];
-    city.production = Production::Unit(UnitKind::Migrants);
-    city.shields = 10;
-    assert!(city.resolve_production(MapWrap::X).is_none());
-    city.size = 2;
-    assert_eq!(
-        city.resolve_production(MapWrap::X),
-        Some((Production::Unit(UnitKind::Migrants), 10))
-    );
-    assert_eq!(city.size, 1);
-    let id = city.id;
-    city.buildings.push(Building::SEWER_SYSTEM);
-    city.size = 8;
-    let migrants = game.spawn_unit(HUMAN, UnitKind::Migrants, 10, 20);
-    assert!(game.apply(Command::JoinCity(migrants, id)));
-    assert_eq!(game.cities[0].size, 9);
 }
 
 #[test]
@@ -179,7 +154,7 @@ fn production_uses_population_before_growth() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.create_city(HUMAN, 10, 20);
     let id = game.cities[0].id;
-    let target = Production::Unit(UnitKind::Settlers);
+    let target = Production::Unit(UnitKind::Settler);
     game.cities[0].size = 2;
     game.cities[0].food = Simulation::growth_box(2) + 20;
     game.cities[0].shields = target.cost();
@@ -190,14 +165,14 @@ fn production_uses_population_before_growth() {
         !game
             .units
             .iter()
-            .any(|unit| unit.kind == UnitKind::Settlers && unit.home_city == Some(id))
+            .any(|unit| unit.kind == UnitKind::Settler && unit.home_city == Some(id))
     );
 
     game.process_cities();
     assert!(
         game.units
             .iter()
-            .any(|unit| unit.kind == UnitKind::Settlers && unit.home_city == Some(id))
+            .any(|unit| unit.kind == UnitKind::Settler && unit.home_city == Some(id))
     );
 }
 

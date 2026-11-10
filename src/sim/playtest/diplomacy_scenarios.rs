@@ -8,7 +8,7 @@ impl Simulation {
         let (x, y) = (23, 36);
         let index = self.map_wrap.index(x, y);
         self.tile_mut(x, y).terrain = Terrain::Sea;
-        self.spawn_unit(1, UnitKind::Trireme, x, y);
+        self.spawn_unit(1, UnitKind::Galley, x, y);
         self.refresh_visibility();
         self.units.clear();
         self.tile_mut(x, y).terrain = Terrain::Grassland;
@@ -19,15 +19,6 @@ impl Simulation {
         self.tile(x, y).seen
             && !self.tile(x, y).visible
             && self.route_memory[index].is_some_and(|tile| tile.is_water())
-    }
-
-    pub(crate) fn embassy_playtest_setup(&mut self) -> u32 {
-        let (x, y) = (10, 20);
-        self.tile_mut(x, y).terrain = Terrain::Grassland;
-        self.create_city(1, x, y);
-        let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-        self.tile_mut(nx, ny).terrain = Terrain::Grassland;
-        self.spawn_unit(HUMAN, UnitKind::Diplomat, nx, ny)
     }
 
     pub(crate) fn diplomacy_playtest_tick(&mut self, turns: i32) {
@@ -131,7 +122,7 @@ impl Simulation {
                 self.cities.last_mut()?.size = 8;
             }
         }
-        self.players[rival].government = Government::Tribal;
+        self.players[rival].government = Government::Despotism;
         self.players[rival].rates = [60, 40, 0];
         self.players[HUMAN].government = Government::Democracy;
         self.refresh_visibility();

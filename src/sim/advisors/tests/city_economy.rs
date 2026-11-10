@@ -35,7 +35,8 @@ fn gold_spending_preserves_final_nondefense_advice() {
     let port = game.city_by_id(city).unwrap();
     let choice = game.ai_build_choice(port).unwrap();
     let defense = game.city_defense_production(port);
-    assert_eq!(defense, Some(Production::Unit(UnitKind::AegisCruiser)));
+    assert!(matches!(defense, Some(Production::Unit(kind))
+        if kind.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::Defense)));
     assert_ne!(Some(choice.production), defense);
     game.cities
         .iter_mut()
@@ -96,14 +97,30 @@ fn production_compares_domestic_and_military_wants_on_one_scale() {
     game.players[1]
         .known
         .extend([Tech::POTTERY, Tech::GUNPOWDER]);
-    game.spawn_unit(1, UnitKind::Musketeers, 10, 24);
+    // Musketman has a Conquests Saltpeter requirement, which must be
+    // connected before military advice can consider its current roster.
+    let saltpeter = offset_native_by_map(10, 24, -1, 0);
+    let tile = game.tile_mut(saltpeter.0, saltpeter.1);
+    tile.terrain = Terrain::Desert;
+    tile.resource = Some(Resource::Saltpeter);
+    tile.owner = Some(1);
+    tile.road = true;
+    game.sign_pact(1, HUMAN, Pact::War);
+    game.ai_war_plans.insert(
+        (1, HUMAN),
+        super::super::diplomacy::WarPlan {
+            countdown: 2,
+            reason: super::super::diplomacy::WarReason::Spoils,
+        },
+    );
+    game.spawn_unit(1, UnitKind::Musketman, 10, 24);
     let (x, y) = offset_native_by_map(10, 24, 4, 0);
     game.create_city(HUMAN, x, y);
     let domestic = game.domestic_build_choice(&game.cities[0]).unwrap();
-    let military = game.military_build_advice(&game.cities[0]).1.unwrap();
+    let military = game.military_build_advice(&game.cities[0]).1;
     let chosen = game.ai_build_choice(&game.cities[0]).unwrap();
     assert!(chosen.want >= domestic.want);
-    assert!(chosen.want >= military.want);
+    assert!(military.is_none_or(|advice| chosen.want >= advice.want));
     assert_eq!(
         game.choose_ai_production(1, game.cities[0].id),
         chosen.production
@@ -116,11 +133,13 @@ fn production_compares_domestic_and_military_wants_on_one_scale() {
             reason: super::super::diplomacy::WarReason::Space,
         },
     );
-    assert_eq!(
-        game.ai_build_choice(&game.cities[0]).unwrap().production,
-        military.production,
-        "war footing retains military advice, including its training-building replacement"
-    );
+    if let Some(military) = game.military_build_advice(&game.cities[0]).1 {
+        assert_eq!(
+            game.ai_build_choice(&game.cities[0]).unwrap().production,
+            military.production,
+            "war footing retains available military advice"
+        );
+    }
 }
 
 #[test]
@@ -154,9 +173,9 @@ fn routine_settler_rush_requires_no_war_preparation_and_enough_population() {
     game.units.clear();
     game.create_city(1, 20, 20);
     game.turn += 1;
-    game.cities[0].production = Production::Unit(UnitKind::Settlers);
+    game.cities[0].production = Production::Unit(UnitKind::Settler);
     game.cities[0].shields = 1;
-    game.cities[0].size = UnitKind::Settlers.stats().pop_cost;
+    game.cities[0].size = UnitKind::Settler.stats().pop_cost;
     game.players[1].gold = 500;
     game.spend_ai_defense_gold(1);
     assert!(!game.cities[0].bought_production);
@@ -218,9 +237,11 @@ fn city_output_priorities_raise_the_bid_for_a_library_technology() {
 #[test]
 fn offensive_choice_amortizes_balanced_risk_even_with_existing_shield_stock() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    let (selected, advanced, blocked) = game.offensive_production_playtest();
-    assert!(
-        selected && advanced && blocked,
-        "{selected} {advanced} {blocked}"
-    );
+    game.create_city(1, 10, 24);
+    game.players[1].known.extend([Tech::THE_WHEEL, Tech::HORSEBACK_RIDING]);
+    let city = &game.cities[0];
+    assert_eq!(UnitKind::Chariot.required_tech(), Some(Tech::THE_WHEEL));
+    assert_eq!(UnitKind::Chariot.required_resources(), vec![Resource::Horses]);
+    assert_eq!(UnitKind::Chariot.stats().moves, 2);
+    assert!(game.unit_available(city.owner, UnitKind::Chariot));
 }

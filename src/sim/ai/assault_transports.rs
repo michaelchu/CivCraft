@@ -73,7 +73,7 @@ impl Simulation {
             .iter()
             .find(|unit| unit.id == boat)
             .is_some_and(|unit| {
-                unit.hp < unit.kind.stats().hp
+                unit.hp < unit.max_hit_points()
                     && self
                         .cities
                         .iter()
@@ -125,7 +125,7 @@ impl Simulation {
                     boat.owner == owner
                         && matches!(
                             boat.kind,
-                            UnitKind::Trireme
+                            UnitKind::Galley
                                 | UnitKind::Caravel
                                 | UnitKind::Galleon
                                 | UnitKind::Transport
@@ -346,7 +346,7 @@ impl Simulation {
                 boat.owner == owner
                     && matches!(
                         boat.kind,
-                        UnitKind::Trireme
+                        UnitKind::Galley
                             | UnitKind::Caravel
                             | UnitKind::Galleon
                             | UnitKind::Transport
@@ -460,12 +460,6 @@ impl Simulation {
             }
         }
         assigned
-    }
-
-    pub(in crate::sim) fn run_ai_ferry_after_handoff(&mut self, boat: u32) {
-        if let Some(ship) = self.unit_by_id(boat).cloned() {
-            self.run_raider_transport(&ship);
-        }
     }
 
     pub(super) fn run_raider_transport(&mut self, boat: &Unit) {

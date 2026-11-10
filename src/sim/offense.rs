@@ -5,7 +5,7 @@ use super::advisors::AiBuildChoice;
 
 mod targeting;
 use super::normal_paths::NormalPaths;
-use super::unit_catalog::{UnitFlag, UnitRole};
+use super::unit_catalog::{UnitAiStrategy, UnitFlag};
 use super::*;
 
 #[derive(Clone)]
@@ -59,7 +59,7 @@ impl Simulation {
     fn offensive_seed(&self, city: &City, sea: bool) -> Option<UnitKind> {
         let mut best = None;
         let mut best_want = -1.0_f32;
-        for kind in UnitKind::SIMPLE_MILITARY {
+        for kind in UnitKind::simple_military() {
             if !self.can_produce(city, Production::Unit(kind))
                 || (sea && !kind.is_naval() && !kind.is_aircraft() && !kind.is_missile())
                 || (!sea && kind.is_naval())
@@ -105,7 +105,7 @@ impl Simulation {
         full_hp: bool,
     ) -> i32 {
         let hp = if full_hp {
-            defender.kind.stats().hp
+            defender.max_hit_points()
         } else {
             defender.hp
         };
@@ -158,7 +158,7 @@ impl Simulation {
     fn offensive_obsolete(&self, city: &City, kind: UnitKind) -> bool {
         // process_attacker_want asks about the IMMEDIATE successor's
         // direct requirements, deliberately ignoring its own obsolescence.
-        kind.obsolete_by().iter().any(|&successor| {
+        kind.obsolete_by().is_some_and(|successor| {
             self.unit_available(city.owner, successor)
                 && (successor.unit_class().build_anywhere()
                     || successor.is_aircraft()
@@ -177,7 +177,7 @@ impl Simulation {
     fn offensive_can_attack(&self, kind: UnitKind, x: i32, y: i32) -> bool {
         kind.stats().attack > 0
             && (self.pf_native_tile(kind, x, y)
-                || kind.is_naval() && !matches!(kind, UnitKind::Trireme | UnitKind::Submarine))
+                || kind.is_naval() && !matches!(kind, UnitKind::Galley | UnitKind::Submarine))
     }
 
     /// daiunit.c:find_beachhead; strict lower movement cost retains the
@@ -196,7 +196,7 @@ impl Simulation {
         for kind in UnitKind::ALL_NATIVE
             .into_iter()
             .rev()
-            .filter(|kind| kind.has_role(UnitRole::Ferryboat))
+            .filter(|kind| kind.has_ai_strategy(UnitAiStrategy::NavalTransport))
         {
             if self.can_produce(city, Production::Unit(kind)) {
                 build = Some(kind);
@@ -266,6 +266,7 @@ impl Simulation {
             } else {
                 1
             };
+            seed.hp = seed.max_hit_points();
             let Some(target) = self.offensive_target(city, &seed) else {
                 continue;
             };
@@ -288,7 +289,7 @@ impl Simulation {
                 production: Production::Unit(seed_kind),
                 want: f64::from(target.want),
             };
-            for kind in UnitKind::SIMPLE_MILITARY {
+            for kind in UnitKind::simple_military() {
                 if kind.stats().attack <= 0
                     || !Self::guard_can_follow(kind, seed_kind)
                     || !self.offensive_native_near(kind, target.x, target.y)
@@ -298,6 +299,7 @@ impl Simulation {
                 }
                 let mut candidate = self.make_unit(0, city.owner, kind, city.x, city.y);
                 candidate.veteran = self.trained_rank(city, kind);
+                candidate.hp = candidate.max_hit_points();
                 let Some(turns) = self.offensive_candidate_turns(&candidate, &target) else {
                     continue;
                 };
@@ -349,12 +351,7 @@ impl Simulation {
                     desire
                 };
                 desire -= (tech_cost * 17) as f32;
-                desire -= (turns
-                    * if self.offensive_military_unhappiness(city) {
-                        53
-                    } else {
-                        17
-                    }) as f32;
+                desire -= (turns * 17) as f32;
                 let cost = Self::offensive_balanced_cost(kind)
                     + if target.new_ferry {
                         target.ferry.as_ref().unwrap().kind.stats().cost

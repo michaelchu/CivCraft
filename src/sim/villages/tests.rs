@@ -4,12 +4,15 @@ use super::*;
 
 fn approach(roll: i32) -> (Simulation, u32, (i32, i32)) {
     let mut game = Simulation::new(crate::mapgen::generate(42));
+    // Explorer is not a starting unit; turn a guaranteed founder into an
+    // explicit scenario Explorer so these tests keep probing hut exploration.
     let explorer = game
         .units
         .iter()
-        .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Explorer)
+        .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settler)
         .unwrap();
     let id = explorer.id;
+    game.units.iter_mut().find(|unit| unit.id == id).unwrap().kind = UnitKind::Explorer;
     let (x, y) = (10, 20);
     let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
     (unit.x, unit.y) = (x, y);
@@ -78,7 +81,7 @@ fn villages_offer_nomads_or_leave_a_city_nearby_unharmed() {
         assert!(game.units.iter().any(|unit| unit.id == id));
         assert_eq!(game.units.len(), before + usize::from(roll == 11));
         if roll == 11 {
-            assert_eq!(game.units.last().unwrap().kind, UnitKind::Settlers);
+            assert_eq!(game.units.last().unwrap().kind, UnitKind::Settler);
         }
     }
 }
@@ -131,6 +134,14 @@ fn advanced_raiders_require_three_civilizations_with_the_technology() {
 fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
     let (mut game, id, (x, y)) = approach(10);
     game.turn = BARBARIAN_ONSET;
+    // The barbarian boat can carry infantry, not mounted units. Advance the
+    // major civilizations to Gunpowder so this scenario produces Musketmen.
+    for player in &mut game.players {
+        player.known.clear();
+    }
+    for player in &mut game.players[..3] {
+        player.known.push(Tech::GUNPOWDER);
+    }
     for (direction, (nx, ny)) in game.map_wrap.civ3_neighbors(x, y).enumerate() {
         game.tile_mut(nx, ny).terrain = if direction == 0 {
             Terrain::Plains
@@ -145,13 +156,25 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
         .find(|unit| unit.kind.transport_capacity() > 0)
         .unwrap()
         .clone();
+    assert!(UnitKind::Caravel.can_carry(UnitKind::Musketman));
     let cargo: Vec<_> = game
         .units
         .iter()
         .filter(|unit| unit.transport == Some(boat.id))
         .map(|unit| unit.id)
         .collect();
-    assert!(!cargo.is_empty() && cargo.len() <= boat.kind.transport_capacity());
+    assert!(
+        !cargo.is_empty() && cargo.len() <= boat.kind.transport_capacity(),
+        "boat=({:?}, {}, {}, {}); units={:?}",
+        boat.kind,
+        boat.owner,
+        boat.x,
+        boat.y,
+        game.units
+            .iter()
+            .map(|unit| (unit.kind, unit.owner, unit.x, unit.y, unit.transport))
+            .collect::<Vec<_>>()
+    );
     let stayed = game
         .units
         .iter()

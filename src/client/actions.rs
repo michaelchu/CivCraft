@@ -32,14 +32,9 @@ impl Game {
                     self.sim.apply(Command::UpgradeUnit(id, target, price));
                 }
             }
-            UiAction::DeliverGoods(city) | UiAction::HelpWonder(city) => {
+            UiAction::HelpWonder(city) => {
                 if let Some(id) = self.selected_unit {
-                    let command = if matches!(action, UiAction::DeliverGoods(_)) {
-                        Command::DeliverGoods(id, city)
-                    } else {
-                        Command::HelpWonder(id, city)
-                    };
-                    if self.sim.apply(command) {
+                    if self.sim.apply(Command::HelpWonder(id, city)) {
                         self.select_next_unit();
                     }
                 }
@@ -49,6 +44,8 @@ impl Game {
                     .selected_unit_index()
                     .is_some_and(|index| self.sim.can_begin_paradrop(&self.sim.units()[index]));
                 self.goto_mode = false;
+                self.bombard_mode = false;
+                self.nuclear_mode = false;
             }
             UiAction::ParadropTo(x, y) => {
                 if self.paradrop_mode
@@ -58,6 +55,31 @@ impl Game {
                 }
                 self.paradrop_mode = false;
             }
+            UiAction::BeginBombard => {
+                self.goto_mode = false;
+                self.paradrop_mode = false;
+                self.nuclear_mode = false;
+                self.bombard_mode = self
+                    .selected_unit_index()
+                    .is_some_and(|index| self.sim.can_begin_bombard(&self.sim.units()[index]));
+            }
+            UiAction::BombardTo(x, y) => {
+                if self.bombard_mode
+                    && let Some(id) = self.selected_unit
+                {
+                    self.move_selected(Command::Bombard(id, x, y), id);
+                }
+                self.bombard_mode = false;
+            }
+            UiAction::NuclearStrikeTo(x, y) => {
+                if self.nuclear_mode
+                    && let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::NuclearStrike(id, x, y))
+                {
+                    self.select_next_unit();
+                }
+                self.nuclear_mode = false;
+            }
             UiAction::Airlift(city) => {
                 if let Some(id) = self.selected_unit
                     && self.sim.apply(Command::Airlift(id, city))
@@ -66,6 +88,26 @@ impl Game {
                     self.focus_camera_on(unit.x, unit.y);
                 }
             }
+            UiAction::AirSuperiority => {
+                if let Some(id) = self.selected_unit {
+                    self.move_selected(Command::AirSuperiority(id), id);
+                }
+            }
+            UiAction::BeginRebase => {
+                self.goto_mode = false;
+                self.paradrop_mode = false;
+                self.bombard_mode = false;
+                self.nuclear_mode = false;
+                self.rebase_mode = self.selected_unit_index().is_some_and(|index| {
+                    self.sim.can_begin_rebase(&self.sim.units()[index])
+                });
+            }
+            UiAction::RebaseTo(x, y) => {
+                if self.rebase_mode && let Some(id) = self.selected_unit {
+                    self.move_selected(Command::Rebase(id, x, y), id);
+                }
+                self.rebase_mode = false;
+            }
             UiAction::JoinCity(city) => {
                 if let Some(id) = self.selected_unit
                     && self.sim.apply(Command::JoinCity(id, city))
@@ -73,12 +115,13 @@ impl Game {
                     self.select_next_unit();
                 }
             }
-            UiAction::Detonate => {
-                if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::Detonate(id))
-                {
-                    self.select_next_unit();
-                }
+            UiAction::BeginNuclearStrike => {
+                self.goto_mode = false;
+                self.paradrop_mode = false;
+                self.bombard_mode = false;
+                self.nuclear_mode = self
+                    .selected_unit_index()
+                    .is_some_and(|index| self.sim.can_begin_nuclear_strike(&self.sim.units()[index]));
             }
             UiAction::BoardOrDeboard => {
                 if let Some(id) = self.selected_unit {
@@ -275,60 +318,6 @@ impl Game {
                 self.treaty_feedback = Some((owner, message));
                 if accepted {
                     self.treaty_draft = Some((owner, offer));
-                }
-            }
-            UiAction::SpyTargets(targets) => self.spy_targets = targets,
-            UiAction::TargetedTheft(..)
-            | UiAction::TargetedSabotage(..)
-            | UiAction::StealTechnology(..)
-            | UiAction::SabotageUnit(..)
-            | UiAction::PoisonCity(..)
-            | UiAction::InciteCity(..)
-            | UiAction::SabotageCity(..) => {
-                if let Some(id) = self.selected_unit {
-                    let command = match action {
-                        UiAction::SabotageUnit(target) => Command::SabotageUnit(id, target),
-                        UiAction::InciteCity(city, price) => Command::InciteCity(id, city, price),
-                        UiAction::PoisonCity(city) => Command::PoisonCity(id, city),
-                        UiAction::SabotageCity(city) => Command::SabotageCity(id, city),
-                        UiAction::StealTechnology(city) => Command::StealTechnology(id, city),
-                        UiAction::TargetedTheft(city, tech) => {
-                            Command::TargetedTheft(id, city, tech)
-                        }
-                        UiAction::TargetedSabotage(city, target) => {
-                            Command::TargetedSabotage(id, city, target)
-                        }
-                        _ => unreachable!(),
-                    };
-                    if self.sim.apply(command) {
-                        self.spy_targets = None;
-                        if self.sim.units().iter().all(|unit| unit.id != id) {
-                            self.select_next_unit();
-                        }
-                    }
-                }
-            }
-            UiAction::BribeUnit(target, price) => {
-                if let Some(id) = self.selected_unit {
-                    self.sim.apply(Command::BribeUnit(id, target, price));
-                }
-            }
-            UiAction::InvestigateCity(city) => {
-                if let Some(id) = self.selected_unit
-                    && let Some(report) = self.sim.investigate_city(id, city)
-                {
-                    self.investigation = Some(report);
-                    self.investigation_page = 0;
-                }
-            }
-            UiAction::CloseInvestigation => self.investigation = None,
-            UiAction::InvestigationPage(page) => self.investigation_page = page,
-            UiAction::EstablishEmbassy(city) => {
-                if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::EstablishEmbassy(id, city))
-                    && self.sim.units().iter().all(|unit| unit.id != id)
-                {
-                    self.select_next_unit();
                 }
             }
             UiAction::CityDeals(selection) => self.city_deals = selection,

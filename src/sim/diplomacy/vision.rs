@@ -139,24 +139,4 @@ mod tests {
         assert!(game.map_snapshot_playtest());
     }
 
-    #[test]
-    fn stealth_units_require_close_detection_and_foreign_city_garrisons_stay_hidden() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        let (explorer, spy) = game.stealth_playtest_setup();
-        let target = game
-            .units
-            .iter()
-            .find(|unit| unit.id == spy)
-            .unwrap()
-            .clone();
-        assert!(game.tile(target.x, target.y).visible);
-        assert!(!game.unit_visible_to_human(&target));
-        assert!(!game.can_negotiate(1));
-        assert!(game.apply(Command::Move(explorer, 1, 0)));
-        assert!(game.unit_visible_to_human(&target));
-        assert!(game.can_negotiate(1));
-        game.create_city(1, target.x, target.y);
-        game.refresh_visibility();
-        assert!(!game.unit_visible_to_human(&target));
-    }
 }

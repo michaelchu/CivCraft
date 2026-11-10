@@ -93,6 +93,7 @@ impl Playback {
         let p = self.progress();
         match event {
             VisualEvent::Move { unit, .. } => vec![(unit.clone(), vec2(p, 0.0))],
+            VisualEvent::Capture { unit } => vec![(unit.clone(), vec2(0.0, 0.0))],
             VisualEvent::Combat(combat) => {
                 // Keep the last 100 ms for the reference five-frame explosion.
                 let battle_fraction = ((event.duration() - 0.100) / event.duration()) as f32;
@@ -101,7 +102,7 @@ impl Playback {
                 let mut a = combat.attacker.clone();
                 let mut d = combat.defender.clone();
                 (a.hp, d.hp) = combat.hp[index];
-                vec![(a, Vec2::ZERO), (d, Vec2::ZERO)]
+                vec![(a, vec2(0.0, index as f32)), (d, vec2(0.0, index as f32))]
             }
         }
     }
@@ -125,21 +126,49 @@ impl Game {
                 }
                 _ => project(unit.x, unit.y),
             };
+            use super::tileset::Civ3UnitAction as Action;
             let action = match event {
-                VisualEvent::Move { .. } => super::tileset::Civ3UnitAction::Run,
-                VisualEvent::Combat(combat) if unit.id == combat.attacker.id => {
-                    super::tileset::Civ3UnitAction::Attack
+                VisualEvent::Move { .. } => Action::Run,
+                VisualEvent::Capture { .. } => Action::Capture,
+                VisualEvent::Combat(combat) => {
+                    let (attacker_hp, defender_hp) = combat
+                        .hp
+                        .get(phase.y as usize)
+                        .copied()
+                        .unwrap_or_default();
+                    let is_attacker = unit.id == combat.attacker.id;
+                    let unit_hp = if is_attacker { attacker_hp } else { defender_hp };
+                    let opponent_hp = if is_attacker { defender_hp } else { attacker_hp };
+                    if progress >= 0.90 && unit_hp <= 0 {
+                        Action::Death
+                    } else if progress >= 0.90 && opponent_hp <= 0 {
+                        Action::Victory
+                    } else if is_attacker {
+                        match (phase.y as usize) % 3 {
+                            0 => Action::Attack,
+                            1 => Action::Attack2,
+                            _ => Action::Attack3,
+                        }
+                    } else {
+                        Action::Defend
+                    }
                 }
-                _ => super::tileset::Civ3UnitAction::Default,
             };
-            self.draw_unit(assets, &unit, center, 1, action, progress);
+            self.draw_unit(
+                assets,
+                &unit,
+                center,
+                1,
+                action,
+                progress,
+                Some(event.duration() as f32),
+            );
         }
         if let VisualEvent::Combat(combat) = event {
             let elapsed = self.playback.progress() as f64 * event.duration();
             let explosion_start = event.duration() - 0.100;
             if elapsed >= explosion_start {
                 let final_hp = combat.hp.last().unwrap();
-                // Bombardment may leave both alive; it has no death explosion.
                 let loser = if final_hp.0 == 0 {
                     Some(&combat.attacker)
                 } else if final_hp.1 == 0 {
@@ -147,6 +176,25 @@ impl Game {
                 } else {
                     None
                 };
+                if combat.bombard_effects && loser.is_none() {
+                    let center = project(combat.defender.x, combat.defender.y);
+                    let frame = (((elapsed - explosion_start) / 0.020) as i32).min(4);
+                    let radius = (7.0 + frame as f32 * 3.0) * self.zoom;
+                    draw_circle(
+                        center.x,
+                        center.y,
+                        radius,
+                        Color::new(1.0, 0.42, 0.08, 0.72),
+                    );
+                    draw_circle_lines(
+                        center.x,
+                        center.y,
+                        radius,
+                        (2.0 * self.zoom).max(1.0),
+                        Color::from_rgba(255, 222, 115, 240),
+                    );
+                }
+                // Bombardment may leave both alive; it has no death explosion.
                 if let Some(loser) = loser {
                     let center = project(loser.x, loser.y);
                     let frame = (((elapsed - explosion_start) / 0.020) as i32).min(4);

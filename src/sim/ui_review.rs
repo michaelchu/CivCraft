@@ -11,10 +11,7 @@ impl Simulation {
         self.make_diplomatic_contact(HUMAN, 1);
     }
 
-    pub(crate) fn ui_review_spy_war(&mut self) {
-        self.cancel_pact(HUMAN, 1);
-    }
-    pub(crate) fn ui_review_fixture(&mut self) -> (u32, u32, u32) {
+    pub(crate) fn ui_review_fixture(&mut self) -> (u32, u32) {
         self.units.clear();
         self.cities.clear();
         self.players[HUMAN].known = Tech::all().collect();
@@ -37,17 +34,16 @@ impl Simulation {
             Building::TEMPLE,
         ]);
         self.cities[0].worklist = vec![
-            Production::Unit(UnitKind::Engineer),
+            Production::Unit(UnitKind::Worker),
             Production::Building(Building::CITY_WALLS),
-            Production::Unit(UnitKind::Marines),
+            Production::Unit(UnitKind::Marine),
         ];
         for kind in [
-            UnitKind::Engineer,
+            UnitKind::Worker,
             UnitKind::Warrior,
-            UnitKind::Marines,
-            UnitKind::Riflemen,
-            UnitKind::AlpineTroops,
-            UnitKind::Partisan,
+            UnitKind::Marine,
+            UnitKind::Rifleman,
+            UnitKind::Guerilla,
         ] {
             self.spawn_unit(HUMAN, kind, 20, 24);
         }
@@ -73,16 +69,13 @@ impl Simulation {
             Building::TEMPLE,
             Building::CITY_WALLS,
         ]);
-        let p = offset_native_by_map(c.x, c.y, -1, 0);
-        self.tile_mut(p.0, p.1).terrain = Terrain::Grassland;
-        let spy = self.spawn_unit(HUMAN, UnitKind::Spy, p.0, p.1);
         self.reconcile_city_workers();
         self.refresh_visibility();
         for tile in &mut self.tiles {
             tile.known_by[HUMAN] = true;
         }
         self.ui_review_contacts();
-        (city, spy, rival)
+        (city, rival)
     }
 }
 
@@ -253,9 +246,9 @@ impl Simulation {
         .enumerate()
         {
             let kind = if work.is_some() {
-                UnitKind::Engineer
+                UnitKind::Worker
             } else {
-                UnitKind::Riflemen
+                UnitKind::Rifleman
             };
             let id = self.spawn_unit(
                 HUMAN,
@@ -264,16 +257,16 @@ impl Simulation {
                 21 + (i / 3) as i32 * 5,
             );
             let u = self.units.iter_mut().find(|u| u.id == id).unwrap();
-            u.hp = hp.min(kind.stats().hp);
             u.veteran = veteran;
+            u.hp = hp.min(u.max_hit_points());
             u.state = state;
             u.work_kind = work;
             u.work_left = i32::from(work.is_some()) * 3;
         }
         for (kind, x, automated) in [
-            (UnitKind::Engineer, 17, true),
+            (UnitKind::Worker, 17, true),
             (UnitKind::Warrior, 20, true),
-            (UnitKind::Riflemen, 23, false),
+            (UnitKind::Rifleman, 23, false),
         ] {
             let id = self.spawn_unit(HUMAN, kind, x, 31);
             let unit = self.units.iter_mut().find(|u| u.id == id).unwrap();
@@ -410,7 +403,7 @@ impl Simulation {
         let id = self.spawn_unit(
             HUMAN,
             if combat {
-                UnitKind::Riflemen
+                UnitKind::Rifleman
             } else {
                 UnitKind::Warrior
             },

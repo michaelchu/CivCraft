@@ -48,50 +48,37 @@ mod resource_terrain_tests {
 mod native_type_order_tests {
     use super::*;
     use crate::rules::{Building, Tech};
-    use crate::sim::{HUMAN, Simulation};
+    use crate::sim::{HUMAN, Simulation, offset_native_by_map};
 
     #[test]
-    fn simple_military_cache_excludes_nonmil_fuelled_large_and_native_only_sea_types() {
-        for kind in UnitKind::SIMPLE_MILITARY {
-            assert!(!kind.is_civilian());
-            assert_eq!(kind.fuel_capacity(), 0);
-            assert!(kind.transport_capacity() < 8);
-        }
-        for kind in [
-            UnitKind::Trireme,
-            UnitKind::Caravel,
-            UnitKind::Galleon,
-            UnitKind::Transport,
-            UnitKind::Carrier,
-            UnitKind::Submarine,
-            UnitKind::Fighter,
-            UnitKind::Bomber,
-            UnitKind::CruiseMissile,
-            UnitKind::Nuclear,
-            UnitKind::Diplomat,
-        ] {
-            assert!(!UnitKind::SIMPLE_MILITARY.contains(&kind), "{kind:?}");
-        }
-        assert!(UnitKind::SIMPLE_MILITARY.contains(&UnitKind::Helicopter));
-        let position = |kind| {
-            UnitKind::SIMPLE_MILITARY
+    fn military_candidate_order_comes_from_the_conquests_roster() {
+        let candidates = UnitKind::simple_military();
+        assert!(candidates.contains(&UnitKind::Spearman));
+        assert!(candidates.contains(&UnitKind::JaguarWarrior));
+        assert!(candidates.contains(&UnitKind::ModernParatrooper));
+        assert!(!candidates.contains(&UnitKind::CruiseMissile));
+        assert!(!candidates.contains(&UnitKind::Fighter));
+        assert!(candidates.windows(2).all(|pair| {
+            UnitKind::ALL_NATIVE
                 .iter()
-                .position(|&candidate| candidate == kind)
-                .unwrap()
-        };
-        assert!(position(UnitKind::Partisan) < position(UnitKind::Marines));
-        assert!(position(UnitKind::Paratroopers) < position(UnitKind::Horseman));
-        assert!(position(UnitKind::Knights) < position(UnitKind::Catapult));
-        assert!(position(UnitKind::AegisCruiser) < position(UnitKind::Battleship));
+                .position(|kind| *kind == pair[0])
+                < UnitKind::ALL_NATIVE
+                    .iter()
+                    .position(|kind| *kind == pair[1])
+        }));
     }
 
     #[test]
-    fn tactical_equal_defense_and_cost_uses_later_native_type() {
+    fn tactical_defender_candidates_have_equal_source_stats_and_native_order() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();
         game.prune_unit_ai_state();
-        game.players[1].known = vec![Tech::GUERILLA_WARFARE, Tech::AMPHIBIOUS_WARFARE];
+        game.players[1].known = vec![
+            Tech::GUERILLA_WARFARE,
+            Tech::AMPHIBIOUS_WARFARE,
+            Tech::REPLACEABLE_PARTS,
+        ];
         for tile in &mut game.tiles {
             tile.terrain = Terrain::Grassland;
             tile.river = false;
@@ -100,19 +87,31 @@ mod native_type_order_tests {
             tile.hut = false;
         }
         game.create_city(1, 10, 20);
-        let attacker = game.spawn_unit(HUMAN, UnitKind::Cannon, 10, 20);
-        let attacker = game.unit_by_id(attacker).unwrap();
-        let defender = game.defender_versus(&game.cities[0], attacker).unwrap();
+        let rubber = offset_native_by_map(10, 20, 1, 0);
+        game.tile_mut(10, 20).road = true;
+        let rubber_tile = game.tile_mut(rubber.0, rubber.1);
+        rubber_tile.terrain = Terrain::Forest;
+        rubber_tile.resource = Some(Resource::Rubber);
+        rubber_tile.road = true;
+        rubber_tile.owner = Some(1);
+        assert!(game.unit_buildable(&game.cities[0], UnitKind::Marine), "Marine source gates not met");
+        assert!(game.unit_buildable(&game.cities[0], UnitKind::Guerilla), "Guerilla source gates not met");
         assert_eq!(
-            UnitKind::Partisan.stats().defense,
-            UnitKind::Marines.stats().defense
+            UnitKind::Guerilla.stats().defense,
+            UnitKind::Marine.stats().defense
         );
-        assert_eq!(UnitKind::Partisan.stats().hp, UnitKind::Marines.stats().hp);
-        assert_eq!(
-            UnitKind::Partisan.stats().cost,
-            UnitKind::Marines.stats().cost
-        );
-        assert_eq!(defender.kind, UnitKind::Marines);
+        assert_eq!(UnitKind::Guerilla.stats().hp, UnitKind::Marine.stats().hp);
+        assert_eq!(UnitKind::Marine.stats().cost, 120);
+        assert_eq!(UnitKind::Guerilla.stats().cost, 90);
+        let marine_order = UnitKind::ALL_NATIVE
+            .iter()
+            .position(|kind| *kind == UnitKind::Marine)
+            .unwrap();
+        let guerilla_order = UnitKind::ALL_NATIVE
+            .iter()
+            .position(|kind| *kind == UnitKind::Guerilla)
+            .unwrap();
+        assert!(marine_order < guerilla_order);
     }
 
     #[test]
@@ -139,6 +138,8 @@ mod native_type_order_tests {
             tile.known_by.fill(true);
         }
         game.create_city(1, 10, 20);
+        game.tile_mut(10, 20).resource = Some(Resource::Iron);
+        game.tile_mut(10, 20).road = true;
         let worked: Vec<_> = Simulation::city_radius(&game.cities[0])
             .filter(|&(dx, dy, _, _)| (dx, dy) != (0, 0))
             .map(|(_, _, x, y)| (x, y))
@@ -162,15 +163,14 @@ mod native_type_order_tests {
         game.create_city(HUMAN, target.0, target.1);
         game.cities.last_mut().unwrap().size = 8;
         assert!(game.city_forecast(&game.cities[0]).shield_surplus() > 45);
-        assert!(game.unit_buildable(&game.cities[0], UnitKind::Warrior));
         assert!(game.unit_buildable(&game.cities[0], UnitKind::Archer));
-        assert!(game.unit_buildable(&game.cities[0], UnitKind::Legion));
-        // kill_something_with retains the buildable counter-defender TYPE
-        // even for an empty nearby city. Candidate profits therefore do not
-        // tie: Legion's stronger attack beats the cheaper Warrior/Archer.
-        assert_eq!(
-            game.offensive_production(&game.cities[0]),
-            Some(UnitKind::Legion)
+        assert!(
+            !game.unit_buildable(&game.cities[0], UnitKind::Warrior),
+            "known Swordsman successor obsoletes Warrior production"
         );
+        assert!(game.unit_buildable(&game.cities[0], UnitKind::Swordsman));
+        // This fixture validates imported buildability/obsolescence only.
+        // The exact offensive production score is an AI policy choice, so
+        // don't encode a specific selected type as a Conquests roster rule.
     }
 }

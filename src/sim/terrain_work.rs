@@ -18,14 +18,6 @@ impl Terrain {
             (Plant, Forest) => (Grassland, 15),
             (Plant, Grassland | GrasslandShield) => (Forest, 15),
             (Plant, Plains) => (Forest, 10),
-            (Transform, Coast | Sea | Ocean | Lake) => (Grassland, 36),
-            (Transform, Glacier) => (Lake, 24),
-            (Transform, Grassland | GrasslandShield | Plains) => (Lake, 36),
-            (Transform, Desert | Hills | Tundra) => (Plains, 24),
-            (Transform, Jungle) => (Forest, 24),
-            (Transform, Forest) => (Hills, 24),
-            (Transform, Mountains) => (Hills, 36),
-            (Transform, Marsh) => (Grassland, 24),
             _ => return None,
         })
     }
@@ -35,6 +27,7 @@ impl Simulation {
     pub(crate) fn oil_work(&self, unit: &Unit) -> Option<WorkKind> {
         let tile = self.tile(unit.x, unit.y);
         if tile.terrain == Terrain::Ocean
+            && tile.resource == Some(Resource::Oil)
             && !tile.oil_platform
             && self.has_tech(unit.owner, Tech::MINIATURIZATION)
             && (unit.kind.unit_class() == super::unit_catalog::UnitClass::Sea
@@ -45,6 +38,7 @@ impl Simulation {
         }
         if matches!(tile.terrain, Terrain::Desert | Terrain::Glacier)
             && tile.mine
+            && tile.resource == Some(Resource::Oil)
             && !tile.oil_well
             && unit.kind.is_worker()
             && unit.kind.unit_class() != super::unit_catalog::UnitClass::Sea
@@ -63,10 +57,7 @@ impl Simulation {
             || (matches!(kind, WorkKind::Cultivate | WorkKind::Plant)
                 && unit.kind.unit_class() == super::unit_catalog::UnitClass::Sea)
             || (kind == WorkKind::Plant && !self.has_tech(unit.owner, Tech::ENGINEERING))
-            || (kind == WorkKind::Transform
-                && (!unit.kind.has_flag(super::unit_catalog::UnitFlag::Transform)
-                    || !self.has_tech(unit.owner, Tech::NUCLEAR_POWER)))
-            || (unit.transport.is_some() && kind != WorkKind::Transform)
+            || unit.transport.is_some()
         {
             return None;
         }
@@ -133,7 +124,7 @@ impl Simulation {
             if unit.work_kind.is_some_and(|kind| {
                 matches!(
                     kind,
-                    WorkKind::Cultivate | WorkKind::Plant | WorkKind::Transform
+                    WorkKind::Cultivate | WorkKind::Plant
                 )
             }) {
                 unit.clear_work();
@@ -189,9 +180,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn transport_workers_build_deep_ocean_platforms_and_clean_but_cannot_do_sea_excluded_work() {
+    fn transported_workers_build_oil_platforms_but_not_land_improvements() {
         let game = Simulation::new(crate::mapgen::generate(42));
-        assert_eq!(game.transport_worker_actions_playtest(), (true, true));
+        assert!(game.transport_worker_actions_playtest());
     }
 
     #[test]
@@ -201,17 +192,18 @@ mod tests {
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
         game.tile_mut(x, y).terrain = Terrain::Grassland;
         game.tile_mut(sx, sy).terrain = Terrain::Ocean;
+        game.tile_mut(sx, sy).resource = Some(Resource::Oil);
         game.create_city(HUMAN, x, y);
         let ship = game.spawn_unit(HUMAN, UnitKind::Transport, sx, sy);
-        let engineer = game.spawn_unit(HUMAN, UnitKind::Engineer, sx, sy);
-        assert!(game.apply(Command::BoardOrDeboard(engineer)));
+        let worker = game.spawn_unit(HUMAN, UnitKind::Worker, sx, sy);
+        assert!(game.apply(Command::BoardOrDeboard(worker)));
         assert!(!game.apply(Command::Work(ship, WorkKind::OilPlatform)));
         game.players[HUMAN].known.push(Tech::MINIATURIZATION);
         game.cities[0].worked_tiles = vec![(sx, sy)];
         game.cities[0].buildings.push(Building::OFFSHORE_PLATFORM);
         let before = game.city_yields(&game.cities[0]).1;
-        assert!(game.apply(Command::Work(engineer, WorkKind::OilPlatform)));
-        for _ in 0..5 {
+        assert!(game.apply(Command::Work(worker, WorkKind::OilPlatform)));
+        for _ in 0..10 {
             game.update_activities_and_restore();
         }
         assert!(game.tile(sx, sy).oil_platform);
@@ -245,12 +237,13 @@ mod tests {
         let glacier = offset_native_by_map(x, y, 1, 0);
         game.tile_mut(glacier.0, glacier.1).terrain = Terrain::Glacier;
         game.tile_mut(glacier.0, glacier.1).mine = true;
+        game.tile_mut(glacier.0, glacier.1).resource = Some(Resource::Oil);
         let second_worker = game.spawn_unit(HUMAN, UnitKind::Worker, glacier.0, glacier.1);
         assert!(game.apply(Command::Work(second_worker, WorkKind::OilWell)));
     }
 
     #[test]
-    fn workers_cultivate_and_engineers_reclaim_ocean_with_fusion_power() {
+    fn workers_cultivate_terrain_but_have_no_transform_action() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         let (x, y) = (10, 20);
@@ -262,35 +255,5 @@ mod tests {
         }
         assert_eq!(game.tile(x, y).terrain, Terrain::Plains);
 
-        game.tile_mut(x, y).terrain = Terrain::Sea;
-        game.tile_mut(x, y).river = false;
-        game.tile_mut(x, y).river_edges = 0;
-        let nearby: Vec<_> = game.map_wrap.civ3_neighbors(x, y).collect();
-        for &(nx, ny) in &nearby {
-            game.tile_mut(nx, ny).terrain = Terrain::Sea;
-        }
-        game.units.clear();
-        let ship = game.spawn_unit(HUMAN, UnitKind::Caravel, x, y);
-        let engineer = game.spawn_unit(HUMAN, UnitKind::Engineer, x, y);
-        assert!(game.apply(Command::BoardOrDeboard(engineer)));
-        assert!(!game.apply(Command::Work(engineer, WorkKind::Transform)));
-        game.players[HUMAN].known.push(Tech::NUCLEAR_POWER);
-        assert!(!game.apply(Command::Work(engineer, WorkKind::Transform)));
-        // With eight Civ III neighbors, three land tiles meet the 30% rule.
-        for &(nx, ny) in nearby.iter().take(3) {
-            game.tile_mut(nx, ny).terrain = Terrain::Plains;
-        }
-        assert!(game.apply(Command::Work(engineer, WorkKind::Transform)));
-        for _ in 0..20 {
-            if game.tile(x, y).terrain != Terrain::Sea {
-                break;
-            }
-            game.update_activities_and_restore();
-        }
-        assert_eq!(game.tile(x, y).terrain, Terrain::Grassland);
-        let engineer = game.unit_by_id(engineer).unwrap();
-        assert_eq!((engineer.x, engineer.y, engineer.transport), (x, y, None));
-        let ship = game.unit_by_id(ship).unwrap();
-        assert!(game.tile(ship.x, ship.y).terrain.is_water());
     }
 }

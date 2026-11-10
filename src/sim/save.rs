@@ -30,7 +30,7 @@ where
     serde::Serialize::serialize(&ordered, serializer)
 }
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x12";
+const HEADER: &[u8] = b"CIVCRAFT\0\x13";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
@@ -40,10 +40,8 @@ type Strategy8 = (
     PairMemory<i32>,
     std::collections::BTreeMap<usize, i32>,
     UnitTargets,
-    std::collections::BTreeMap<u32, trade::MerchantMission>,
     std::collections::BTreeMap<u32, settlement::SettlementReservation>,
     PairMemory<diplomacy::DiplomaticMemory>,
-    std::collections::BTreeMap<u32, i32>,
 );
 type Strategy9 = (
     Strategy8,
@@ -68,7 +66,6 @@ type CampaignPayload<A> = (
     Simulation,
     Vec<Option<movement::RouteTile>>,
     std::collections::BTreeMap<usize, i32>,
-    UnitTargets,
     std::collections::BTreeMap<u32, usize>,
     AiMapMemory,
     A,
@@ -87,7 +84,6 @@ impl Simulation {
                     self,
                     &self.route_memory,
                     &self.ai_purchase_reserve,
-                    &self.agent_city_targets,
                     &self.city_founders,
                     &self.ai_map_memory,
                     (
@@ -96,10 +92,8 @@ impl Simulation {
                             &self.ai_space_warnings,
                             &self.ai_free_bulbs,
                             &self.ai_ground_targets,
-                            &self.ai_merchant_missions,
                             &self.ai_settlement_targets,
                             &self.ai_diplomatic_memory,
-                            &self.merchant_birth_turns,
                         ),
                         (
                             &self.ai_ferries,
@@ -160,7 +154,7 @@ impl Simulation {
         if payload.len() as u64 > MAX_PAYLOAD {
             return Err(invalid("CivCraft save exceeds the size limit"));
         }
-        let (loaded, memory, reserves, missions, founders, observations, ai_strategy) =
+        let (loaded, memory, reserves, founders, observations, ai_strategy) =
             decode_current(&payload).map_err(|error| invalid(error.to_string()))?;
         let mut game = loaded;
         let (
@@ -169,16 +163,13 @@ impl Simulation {
                 space_warnings,
                 free_bulbs,
                 ground_targets,
-                merchant_missions,
                 settlement_targets,
                 diplomatic_memory,
-                merchant_birth_turns,
             ),
             (ferries, government_cache, contact_until),
         ): Strategy9 = ai_strategy;
         let observations: AiMapMemory = observations;
         let founders: std::collections::BTreeMap<u32, usize> = founders;
-        let missions: std::collections::BTreeMap<u32, u32> = missions;
         let reserves: std::collections::BTreeMap<usize, i32> = reserves;
         let memory: Vec<Option<movement::RouteTile>> = memory;
         game.validate_campaign()?;
@@ -197,18 +188,12 @@ impl Simulation {
             return Err(invalid("Invalid AI purchase reserve"));
         }
         game.route_memory = memory;
-        if missions.iter().any(|(&unit, &city)| {
-            unit == 0 || unit >= game.next_unit_id || city == 0 || city >= game.next_city_id
-        }) {
-            return Err(invalid("Invalid AI city mission"));
-        }
         game.ai_purchase_reserve = reserves;
         if founders.iter().any(|(&city, &owner)| {
             city == 0 || city >= game.next_city_id || owner >= game.players.len()
         }) {
             return Err(invalid("Invalid city founder"));
         }
-        game.agent_city_targets = missions;
         game.city_founders = founders;
         if observations.iter().any(|(&(owner, index), tile)| {
             owner == HUMAN
@@ -259,21 +244,11 @@ impl Simulation {
             return Err(invalid("Invalid AI ground mission"));
         }
         game.ai_ground_targets = ground_targets;
-        if merchant_missions.iter().any(|(&unit, mission)| {
-            !game.units.iter().any(|actor| {
-                actor.id == unit
-                    && matches!(actor.kind, UnitKind::Caravan | UnitKind::Freight)
-                    && actor.owner == mission.owner
-            }) || !game.cities.iter().any(|city| city.id == mission.city)
-        }) {
-            return Err(invalid("Invalid AI merchant mission"));
-        }
-        game.ai_merchant_missions = merchant_missions;
         if settlement_targets.iter().any(|(&unit, reservation)| {
             let (x, y) = reservation.destination;
             !game.units.iter().any(|actor| {
                 actor.id == unit
-                    && actor.kind == UnitKind::Settlers
+                    && actor.kind == UnitKind::Settler
                     && actor.owner == reservation.owner
             }) || !(0..game.map_wrap.width()).contains(&x)
                 || !(0..game.map_wrap.height()).contains(&y)
@@ -303,15 +278,6 @@ impl Simulation {
             return Err(invalid("Invalid AI diplomatic timers"));
         }
         game.ai_diplomatic_memory = diplomatic_memory;
-        if merchant_birth_turns.iter().any(|(&id, &born)| {
-            born > game.turn
-                || !game.units.iter().any(|unit| {
-                    unit.id == id && matches!(unit.kind, UnitKind::Caravan | UnitKind::Freight)
-                })
-        }) {
-            return Err(invalid("Invalid merchant birth turn"));
-        }
-        game.merchant_birth_turns = merchant_birth_turns;
         if !ferries.valid(&game.units) {
             return Err(invalid("Invalid AI ferry registry"));
         }

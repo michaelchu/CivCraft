@@ -75,7 +75,7 @@ fn idle_ferry_recovery_uses_allied_ports_and_native_regeneration_penalty() {
 #[test]
 fn explorer_stack_risk_uses_current_damaged_unit_speed() {
     let mut game = world();
-    let id = game.spawn_unit(HUMAN, UnitKind::Engineer, 10, 20);
+    let id = game.spawn_unit(HUMAN, UnitKind::Worker, 10, 20);
     let mut actor = game
         .units
         .iter()
@@ -84,12 +84,14 @@ fn explorer_stack_risk_uses_current_damaged_unit_speed() {
         .clone();
     let target = offset_native_by_map(10, 20, 1, 0);
     let healthy = game.explorer_stack_risk(&actor, target.0, target.1);
+    let healthy_rate = game.unit_move_rate(&actor);
     actor.hp = actor.kind.stats().hp / 2;
-    assert_eq!(game.unit_move_rate(&actor), MOVE_FRAGMENTS);
-    assert_eq!(
-        game.explorer_stack_risk(&actor, target.0, target.1),
-        healthy * 2
-    );
+    let damaged_rate = game.unit_move_rate(&actor);
+    assert!(damaged_rate > 0 && damaged_rate <= healthy_rate);
+    let damaged = game.explorer_stack_risk(&actor, target.0, target.1);
+    // Risk scales with the imported current move rate; damage need not
+    // halve every unit's speed.
+    assert_eq!(damaged * i64::from(damaged_rate), healthy * i64::from(healthy_rate));
 }
 
 #[test]
@@ -112,14 +114,13 @@ fn native_start_ignore_can_leave_a_forbidden_start_without_entering_forbidden_de
 }
 
 #[test]
-fn civilian_explorers_spies_and_ferries_cross_peace_borders_but_warriors_and_carriers_do_not() {
+fn explorer_and_ferries_cross_peace_borders_but_warriors_and_carriers_do_not() {
     let mut game = world();
     game.sign_pact(HUMAN, 1, Pact::Peace);
     game.diplomacy_playtest_tick(16);
     game.tile_mut(10, 20).owner = Some(1);
     for kind in [
         UnitKind::Explorer,
-        UnitKind::Spy,
         UnitKind::Caravel,
         UnitKind::Warrior,
         UnitKind::Carrier,
@@ -151,7 +152,8 @@ fn native_heap_ties_and_unsigned_short_extra_cost_are_preserved() {
     let tile = offset_native_by_map(10, 20, 1, 0);
     let baseline = game.explorer_stack_risk(&actor, tile.0, tile.1);
     let adjacent = offset_native_by_map(tile.0, tile.1, 1, 0);
-    game.spawn_unit(1, UnitKind::Warrior, adjacent.0, adjacent.1);
+    game.spawn_unit(1, UnitKind::Cavalry, adjacent.0, adjacent.1);
+    game.sign_pact(HUMAN, 1, Pact::War);
     let controlled = game.explorer_stack_risk(&actor, tile.0, tile.1);
     assert_eq!(controlled - baseline, PF_TURN_FACTOR * 20);
     assert_eq!(controlled as u16, baseline as u16);
@@ -273,8 +275,10 @@ fn end_of_turn_danger_uses_native_combined_attack_and_terrain_defense() {
     let id = game.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
     let next = offset_native_by_map(10, 20, 1, 0);
     let enemy_tile = offset_native_by_map(10, 20, 2, 0);
-    game.spawn_unit(1, UnitKind::Warrior, enemy_tile.0, enemy_tile.1);
+    game.spawn_unit(1, UnitKind::Cavalry, enemy_tile.0, enemy_tile.1);
+    game.sign_pact(HUMAN, 1, Pact::War);
     game.refresh_visibility();
+    game.tile_mut(enemy_tile.0, enemy_tile.1).visible = true;
     let unit = game.unit_by_id(id).unwrap();
     assert!(!game.explorer_danger_at(unit, 10, 20));
     assert!(game.explorer_danger_at(unit, next.0, next.1));

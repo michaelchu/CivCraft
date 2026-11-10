@@ -3,7 +3,7 @@
 use super::*;
 
 impl Simulation {
-    pub(crate) fn native_turn_orchestration_playtest(&mut self) -> bool {
+    pub(crate) fn city_healing_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
         for tile in &mut self.tiles {
@@ -15,34 +15,30 @@ impl Simulation {
             tile.pollution = false;
             tile.fallout = false;
         }
-        self.players[HUMAN].known = vec![Tech::BRONZE_WORKING];
+        self.players[HUMAN].known = vec![Tech::BRONZE_WORKING, Tech::WARRIOR_CODE];
         self.create_city(HUMAN, 10, 24);
-        // Keep a rival alive so the first end-turn does not end the game.
-        self.create_city(1, 22, 40);
-        self.cities[0].production = Production::Building(Building::BARRACKS);
-        self.cities[0].shields = self.cities[0].production.cost();
+        self.cities[0].buildings.push(Building::BARRACKS);
         let soldier = self.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
         self.units.last_mut().unwrap().hp = 1;
-        self.end_turn();
-        let built_after_healing = self.cities[0].has_building(Building::BARRACKS)
-            && self
-                .units
-                .iter()
-                .find(|unit| unit.id == soldier)
-                .is_some_and(|unit| unit.hp == 5);
-        self.end_turn();
-        built_after_healing
-            && self
-                .units
-                .iter()
-                .find(|unit| unit.id == soldier)
-                .is_some_and(|unit| unit.hp == UnitKind::Warrior.stats().hp)
+        self.restore_player_units(HUMAN);
+        let barracks_healed = self
+            .unit_by_id(soldier)
+            .is_some_and(|unit| unit.hp == unit.max_hit_points());
+        self.cities[0]
+            .buildings
+            .retain(|&building| building != Building::BARRACKS);
+        let unit = self.units.iter_mut().find(|unit| unit.id == soldier).unwrap();
+        unit.hp = 1;
+        unit.moved = false;
+        let expected = unit.hp + Self::hitpoint_gain(unit, true);
+        self.restore_player_units(HUMAN);
+        barracks_healed && self.unit_by_id(soldier).is_some_and(|unit| unit.hp == expected)
     }
 
     pub(crate) fn tribal_upkeep_playtest_setup(&mut self) {
         // This scenario specifically exercises shield upkeep. New games use
         // the ruleset's Despotism default, which converts eligible upkeep.
-        self.players[HUMAN].government = Government::Tribal;
+        self.players[HUMAN].government = Government::Despotism;
         self.players[HUMAN].revolution_target = None;
         self.players[HUMAN].revolution_turn = None;
         let Some(city) = self.cities.iter().find(|city| city.owner == HUMAN) else {

@@ -1,10 +1,8 @@
-//! Native PF_FUEL distances and paths for air advisors and leader escape.
+//! Native PF_FUEL distances and paths for air advisors.
 //! Parameters are frozen, while node initialization is lazy against the live
-//! world, just as the enemy map retained by dai_manage_barbarian_leader.
+//! world.
 use super::exploration::ExplorerQueue;
 use super::*;
-
-mod playtest;
 
 const TURN_FACTOR: i32 = 65_536;
 

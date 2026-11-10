@@ -219,17 +219,23 @@ impl Simulation {
         self.create_city(HUMAN, target.0, target.1);
         self.cities[0].buildings.push(Building::BARRACKS_II);
         self.players[HUMAN].known = vec![Tech::GUNPOWDER];
+        // Musketman requires connected Saltpeter in the Conquests roster.
+        let center = self.tile_mut(target.0, target.1);
+        center.terrain = Terrain::Hills;
+        center.resource = Some(Resource::Saltpeter);
+        center.owner = Some(HUMAN);
+        center.road = true;
         self.players[HUMAN].gold = 0;
         let guard = self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
         self.units.last_mut().unwrap().hp = 1;
-        let id = self.spawn_unit(1, UnitKind::Marines, origin.0, origin.1);
+        let id = self.spawn_unit(1, UnitKind::Marine, origin.0, origin.1);
         let attacker = self.unit_by_id(id).unwrap().clone();
         let city = &self.cities[0];
         let near = self.anticipated_city_defender(city, &attacker, 1, false);
         let far = self.anticipated_city_defender(city, &attacker, 2, false);
         let immediate = near.is_some_and(|u| u.id == guard && u.hp == 1);
         let prepared = far.is_some_and(|u| {
-            u.kind == UnitKind::Musketeers && u.veteran > 0 && u.hp == u.kind.stats().hp
+            u.kind == UnitKind::Musketman && u.veteran > 0 && u.hp == u.kind.stats().hp
         });
         let avoided = self.ground_city_attack_choice(&attacker).is_none();
         self.players[HUMAN].known.clear();

@@ -82,7 +82,7 @@ impl Simulation {
         self.units
             .retain(|unit| unit.owner != 1 || unit.kind.stats().attack == 0);
         for city in self.cities.iter_mut().filter(|city| city.owner == 1) {
-            city.production = Production::Unit(UnitKind::Settlers);
+            city.production = Production::Unit(UnitKind::Settler);
         }
         self.make_diplomatic_contact(HUMAN, 1);
         self.diplomacy_playtest_alternate_contact();
@@ -226,71 +226,6 @@ impl Simulation {
         let agreed = self.apply(Command::Negotiate(1, Pact::Peace))
             && self.pact(HUMAN, 1) == Pact::Armistice;
         remembered && broken && held && agreed
-    }
-
-    pub(crate) fn embassy_contact_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.turn = 30;
-        for (owner, (x, y)) in [(HUMAN, (8, 24)), (1, (18, 24))] {
-            self.tile_mut(x, y).terrain = Terrain::Grassland;
-            self.create_city(owner, x, y);
-        }
-        self.diplomacy.remove(&(HUMAN, 1));
-        self.diplomatic_contact_until.remove(&(HUMAN, 1));
-        let adjacent = offset_native_by_map(18, 24, 1, 0);
-        self.tile_mut(adjacent.0, adjacent.1).terrain = Terrain::Grassland;
-        let visitor = self.spawn_unit(HUMAN, UnitKind::Diplomat, adjacent.0, adjacent.1);
-        let met =
-            self.can_negotiate(1) && self.diplomatic_contact_until[&(HUMAN, 1)] == self.turn + 21;
-        self.units.retain(|unit| unit.id != visitor);
-        self.diplomacy_playtest_tick(21);
-        self.decline_offer(1);
-        let expired = !self.can_negotiate(1) && !self.negotiate(1, Pact::Ceasefire);
-        self.spawn_unit(HUMAN, UnitKind::Diplomat, adjacent.0, adjacent.1);
-        let renewed = self.can_negotiate(1);
-        self.sign_pact(HUMAN, 1, Pact::Alliance);
-        self.players[HUMAN].known = vec![Tech::ALPHABET];
-        self.players[1].known = vec![Tech::ALPHABET];
-        let offer = self.source_allied_offer(1, HUMAN);
-        let clauses = offer.terms.iter().all(|terms| terms.embassy());
-        self.diplomacy.get_mut(&(HUMAN, 1)).unwrap().offer = Some(offer);
-        let accepted = self.apply(Command::AcceptOffer(1, offer));
-        self.diplomatic_contact_until.clear();
-        met && expired
-            && renewed
-            && clauses
-            && accepted
-            && self.has_real_embassy(HUMAN, 1)
-            && self.has_real_embassy(1, HUMAN)
-            && self.can_negotiate(1)
-    }
-
-    pub(crate) fn ai_incident_action_playtest(&mut self) -> bool {
-        self.units.clear();
-        let (actor, target) = self.bribe_playtest_setup();
-        self.make_diplomatic_contact(HUMAN, 1);
-        self.sign_pact(HUMAN, 1, Pact::Peace);
-        let relation = self.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
-        relation.pact = Pact::Peace;
-        relation.until = 0;
-        relation.trust[1] = 0;
-        let actor_unit = self.unit_by_id(actor).unwrap();
-        let target_unit = self.unit_by_id(target).unwrap();
-        let Some(price) = self.bribe_price(actor_unit, target_unit) else {
-            return false;
-        };
-        self.players[HUMAN].gold = price;
-        let stale = !self.apply(Command::BribeUnit(actor, target, price + 1))
-            && self.diplomacy[&(HUMAN, 1)].trust[1] == 0;
-        let bribed = self.apply(Command::BribeUnit(actor, target, price));
-        stale
-            && bribed
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.kind == UnitKind::Warrior && unit.owner == HUMAN)
-            && self.diplomacy[&(HUMAN, 1)].trust[1] == -1420
-            && self.diplomacy[&(HUMAN, 1)].cause_until[1] == self.turn + 2
     }
 
     pub(crate) fn ai_observer_incident_cadence_playtest(&mut self) -> bool {

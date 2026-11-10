@@ -539,8 +539,8 @@ fn profitable_war_target_loses_love_while_expansion_suppresses_war_desire() {
         game.diplomacy[&(HUMAN, 1)].trust[1],
         ((-f64::from(desire.min(50)) * 0.96) as i32) * 10
     );
-    game.spawn_unit(1, UnitKind::Settlers, 12, 24);
-    game.spawn_unit(1, UnitKind::Settlers, 14, 26);
+    game.spawn_unit(1, UnitKind::Settler, 12, 24);
+    game.spawn_unit(1, UnitKind::Settler, 14, 26);
     assert!(game.ai_war_desire(1, HUMAN) < desire);
 }
 
@@ -629,29 +629,6 @@ fn only_ai_givers_reject_unsafe_vision_and_alliance_cancellation_preserves_grant
     assert_eq!(game.diplomacy[&(HUMAN, 1)].vision, [true; 2]);
     game.advance_diplomatic_offers();
     assert_eq!(game.diplomacy[&(HUMAN, 1)].vision, [true, false]);
-}
-
-#[test]
-fn directional_embassy_consumes_explorer_and_reduces_research_cost() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.units.clear();
-    let (x, y) = (10, 20);
-    game.create_city(1, x, y);
-    let city = game.cities[0].id;
-    let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-    let explorer = game.spawn_unit(HUMAN, UnitKind::Explorer, nx, ny);
-    let diplomat = game.spawn_unit(HUMAN, UnitKind::Diplomat, nx, ny);
-    game.players[1].known.push(Tech::POTTERY);
-    assert_eq!(game.target_cost(HUMAN, Tech::POTTERY), Tech::POTTERY.cost());
-    assert!(game.apply(Command::EstablishEmbassy(explorer, city)));
-    assert!(game.has_embassy(HUMAN, 1));
-    assert!(!game.has_embassy(1, HUMAN));
-    assert!(!game.apply(Command::EstablishEmbassy(diplomat, city)));
-    assert!(game.units.iter().all(|unit| unit.id != explorer));
-    assert_eq!(
-        game.target_cost(HUMAN, Tech::POTTERY),
-        Tech::POTTERY.cost() / 2
-    );
 }
 
 #[test]
@@ -745,7 +722,7 @@ fn senate_enforces_treaties_unless_provoked_or_waived() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.create_city(HUMAN, 10, 10);
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
-    game.players[HUMAN].government = Government::Federation;
+    game.players[HUMAN].government = Government::Feudalism;
     assert!(!game.apply(Command::CancelPact(1)));
     game.record_provocation(HUMAN, 1);
     assert!(game.apply(Command::CancelPact(1)));
@@ -763,7 +740,7 @@ fn senate_enforces_treaties_unless_provoked_or_waived() {
     game.cities[0]
         .buildings
         .retain(|building| building.data().name != "Statue of Liberty");
-    game.players[HUMAN].government = Government::Tribal;
+    game.players[HUMAN].government = Government::Despotism;
     game.cities[0].buildings.push(find("United Nations"));
     game.completed_wonders.push(find("Manhattan Project"));
     let fission = Tech::all()

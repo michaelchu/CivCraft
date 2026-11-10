@@ -200,8 +200,7 @@ impl Simulation {
             100,
             100 + commercial + gold_adjustment,
             100 + commercial - 50 * i32::from(government == Government::Anarchy),
-            100 + self.science_building_bonus(city)
-                - 50 * i32::from(government == Government::Fundamentalism),
+            100 + self.science_building_bonus(city),
         ];
         let rates = if government == Government::Anarchy {
             [0, 0, 100]
@@ -355,7 +354,7 @@ impl Simulation {
             .wrapping_mul(self.shield_output_bonus(city))
             .wrapping_div(100)
             .max(0);
-        let trade = (raw[2] + center.2 + self.route_trade(city)).max(0);
+        let trade = (raw[2] + center.2).max(0);
         let (shield, trade) = self.government_output_waste(city, shield, trade, None);
         let copernicus = i32::from(
             city.has_building(Building::COPERNICUS_OBSERVATORY)

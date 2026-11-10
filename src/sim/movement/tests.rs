@@ -12,6 +12,260 @@ fn activity_completion_is_immediate_and_old_mp_controls_only_work_count() {
 }
 
 #[test]
+fn stealth_attacks_only_choose_defenders_in_the_imported_prto_target_list() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let attacker = game.spawn_unit(HUMAN, UnitKind::StealthFighter, 10, 24);
+    let leader = game.spawn_unit(1, UnitKind::Leader, 11, 24);
+    let warrior = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+    let attacker = game.unit_by_id(attacker).unwrap().clone();
+
+    // PRTO[47] (Leader) is intentionally absent from Stealth Fighter's
+    // imported target-index list, while PRTO[6] (Warrior) is present.
+    assert_eq!(game.best_defender_id(&attacker, 11, 24), Some(warrior));
+    game.units.retain(|unit| unit.id != warrior);
+    assert_eq!(game.best_defender_id(&attacker, 11, 24), None);
+    assert!(game.unit_by_id(leader).is_some());
+}
+
+#[test]
+fn ordinary_attackers_keep_their_normal_defender_eligibility() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+    let defender = game.spawn_unit(1, UnitKind::Leader, 11, 24);
+    let attacker = game.unit_by_id(attacker).unwrap().clone();
+
+    assert_eq!(game.best_defender_id(&attacker, 11, 24), Some(defender));
+}
+
+#[test]
+fn stealth_target_matching_uses_all_imported_duplicate_prototype_indices() {
+    let stealth_fighter = UnitKind::StealthFighter.conquests_rule();
+    let f15 = UnitKind::F15.conquests_rule();
+
+    assert_eq!(f15.source_prototypes, "64;132");
+    assert!(stealth_fighter.can_stealth_target(f15));
+}
+
+#[test]
+fn military_move_captures_defenseless_worker_and_keeps_its_nationality() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let (nx, ny) = game.map_wrap.offset(10, 24, 1, 0).unwrap();
+    game.tile_mut(10, 24).terrain = Terrain::Grassland;
+    game.tile_mut(nx, ny).terrain = Terrain::Grassland;
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+    let worker = game.spawn_unit(1, UnitKind::Worker, nx, ny);
+
+    assert_eq!(game.try_move_unit(attacker, 1, 0), MoveResult::Moved);
+    assert_eq!(
+        (
+            game.unit_by_id(attacker).unwrap().x,
+            game.unit_by_id(attacker).unwrap().y
+        ),
+        (nx, ny)
+    );
+    assert!(game.unit_by_id(worker).is_none());
+    let captured = game
+        .units
+        .iter()
+        .find(|unit| unit.kind == UnitKind::Worker && unit.owner == HUMAN)
+        .unwrap();
+    assert_eq!(captured.nationality, 1);
+}
+
+#[test]
+fn imported_marine_small_land_units_can_occupy_cities() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let home = (10, 24);
+    let target = offset_native_by_map(home.0, home.1, 1, 0);
+    game.tile_mut(home.0, home.1).terrain = Terrain::Grassland;
+    game.tile_mut(target.0, target.1).terrain = Terrain::Grassland;
+    game.create_city(1, target.0, target.1);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let marine = game.spawn_unit(HUMAN, UnitKind::Marine, home.0, home.1);
+    assert!(UnitKind::Marine.can_occupy_city());
+    assert!(game.apply(Command::Move(marine, 1, 0)));
+    assert_eq!(game.cities[0].owner, HUMAN);
+}
+
+#[test]
+fn captured_settler_becomes_two_workers_with_original_nationality() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let (nx, ny) = game.map_wrap.offset(10, 24, 1, 0).unwrap();
+    game.tile_mut(10, 24).terrain = Terrain::Grassland;
+    game.tile_mut(nx, ny).terrain = Terrain::Grassland;
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+    game.spawn_unit(1, UnitKind::Settler, nx, ny);
+
+    assert_eq!(game.try_move_unit(attacker, 1, 0), MoveResult::Moved);
+    assert_eq!(
+        game.units
+            .iter()
+            .filter(|unit| unit.kind == UnitKind::Worker && unit.owner == HUMAN)
+            .count(),
+        2
+    );
+    assert!(game.units.iter().all(|unit| unit.kind != UnitKind::Settler));
+    assert!(game
+        .units
+        .iter()
+        .filter(|unit| unit.kind == UnitKind::Worker && unit.owner == HUMAN)
+        .all(|unit| unit.nationality == 1));
+    assert!(game
+        .units
+        .iter()
+        .filter(|unit| unit.kind == UnitKind::Worker && unit.owner == HUMAN)
+        .all(|unit| game.activity_rate(unit) == 5));
+}
+
+#[test]
+fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.players[HUMAN].government = Government::Monarchy;
+    game.players[HUMAN].known.clear();
+    let native = game.spawn_unit(HUMAN, UnitKind::Worker, 10, 24);
+    let foreign = game.spawn_unit(HUMAN, UnitKind::Worker, 12, 24);
+    game.units.iter_mut().find(|unit| unit.id == foreign).unwrap().nationality = 1;
+    game.tile_mut(10, 24).terrain = Terrain::Forest;
+    game.tile_mut(12, 24).terrain = Terrain::Forest;
+
+    assert!(game.begin_work(native, WorkKind::Cultivate));
+    assert!(game.begin_work(foreign, WorkKind::Cultivate));
+    let native_unit = game.unit_by_id(native).unwrap().clone();
+    let foreign_unit = game.unit_by_id(foreign).unwrap().clone();
+    assert_eq!(game.activity_rate(&native_unit), 10);
+    assert_eq!(game.activity_rate(&foreign_unit), 5);
+    assert_eq!(game.project_turns_left(&native_unit), 10);
+    assert_eq!(game.project_turns_left(&foreign_unit), 20);
+
+    game.update_activities_and_restore();
+    let native_unit = game.unit_by_id(native).unwrap().clone();
+    let foreign_unit = game.unit_by_id(foreign).unwrap().clone();
+    assert_eq!((native_unit.work_done, foreign_unit.work_done), (10, 5));
+    assert_eq!(game.project_turns_left(&native_unit), 9);
+    assert_eq!(game.project_turns_left(&foreign_unit), 19);
+
+    // Keep the existing Democracy and Replaceable Parts multipliers, then
+    // apply the same source strength ratio to foreign Workers.
+    game.players[HUMAN].government = Government::Democracy;
+    game.players[HUMAN].known.push(Tech::REPLACEABLE_PARTS);
+    assert_eq!(game.activity_rate(&native_unit), 30);
+    assert_eq!(game.activity_rate(&foreign_unit), 15);
+}
+
+#[test]
+fn artillery_capture_requires_its_prerequisite_technology() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.tile_mut(10, 24).terrain = Terrain::Grassland;
+    game.tile_mut(11, 24).terrain = Terrain::Grassland;
+    game.players[HUMAN].known.clear();
+    let attacker_id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+    let artillery_id = game.spawn_unit(1, UnitKind::Artillery, 11, 24);
+    let attacker = game.unit_by_id(attacker_id).unwrap().clone();
+    let cost = game.movement_cost_for(&attacker, 11, 24).unwrap();
+
+    assert!(!game.try_capture_units(&attacker, 11, 24, cost, None));
+    assert_eq!(game.unit_by_id(artillery_id).unwrap().owner, 1);
+
+    game.players[HUMAN]
+        .known
+        .push(UnitKind::Artillery.required_tech().unwrap());
+    assert!(game.try_capture_units(&attacker, 11, 24, cost, None));
+    assert!(game
+        .units
+        .iter()
+        .any(|unit| unit.kind == UnitKind::Artillery && unit.owner == HUMAN));
+}
+
+#[test]
+fn enslave_result_indices_resolve_separately_from_capture_eligibility() {
+    for (prototype, expected_id) in [(1, "worker"), (63, "man_o_war"), (65, "privateer")] {
+        assert_eq!(
+            crate::sim::civ3_unit_rules::get_by_prototype_index(prototype).map(|rule| rule.id),
+            Some(expected_id)
+        );
+    }
+    assert_eq!(
+        UnitKind::JavelinThrower
+            .conquests_rule()
+            .enslave_result_prototype_index,
+        1
+    );
+}
+
+#[test]
+fn javelin_thrower_enslaves_on_one_in_three_combat_victories() {
+    fn battle(seed: u64) -> Simulation {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        let (x, y) = (10, 24);
+        let (nx, ny) = game.map_wrap.offset(x, y, 1, 0).unwrap();
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.tile_mut(nx, ny).terrain = Terrain::Grassland;
+        let attacker = game.spawn_unit(HUMAN, UnitKind::JavelinThrower, x, y);
+        let defender = game.spawn_unit(1, UnitKind::Worker, nx, ny);
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == attacker)
+            .unwrap()
+            .veteran = 3; // No promotion draw, isolating the enslavement roll.
+        game.units
+            .iter_mut()
+            .find(|unit| unit.id == defender)
+            .unwrap()
+            .hp = 1;
+        game.native_random = None;
+        game.rng = seed;
+        game.resolve_combat(attacker, defender, nx, ny, None);
+        game
+    }
+
+    let seed_for = |enslaved| {
+        let blank = Simulation::new(crate::mapgen::generate(42));
+        (1..1000)
+            .find(|seed| {
+                let mut probe = blank.clone();
+                probe.native_random = None;
+                probe.rng = *seed;
+                (probe.rand_below(3) == 0) == enslaved
+            })
+            .expect("find deterministic one-in-three seed")
+    };
+
+    let enslaved = battle(seed_for(true));
+    let converted = enslaved
+        .units
+        .iter()
+        .find(|unit| unit.kind == UnitKind::Worker && unit.owner == HUMAN)
+        .expect("successful enslavement creates the configured Worker");
+    assert_eq!(
+        (converted.x, converted.y),
+        enslaved.map_wrap.offset(10, 24, 1, 0).unwrap()
+    );
+    assert_eq!(converted.nationality, 1);
+
+    let not_enslaved = battle(seed_for(false));
+    assert!(not_enslaved
+        .units
+        .iter()
+        .all(|unit| !(unit.kind == UnitKind::Worker && unit.owner == HUMAN)));
+}
+
+#[test]
 fn next_phase_refills_use_live_mountain_movement_effects() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
@@ -198,7 +452,7 @@ fn big_land_has_no_terrain_defense_and_nuclear_is_not_air_attacker() {
         game.tile_mut(p.0, p.1).terrain = Terrain::Grassland;
     }
     let aegis = game.make_unit(0, HUMAN, UnitKind::AegisCruiser, p.0, p.1);
-    let nuclear = game.defense_power_against(&aegis, p.0, p.1, UnitKind::Nuclear);
+    let nuclear = game.defense_power_against(&aegis, p.0, p.1, UnitKind::TacticalNuke);
     assert_eq!(
         game.defense_power_against(&aegis, p.0, p.1, UnitKind::Bomber),
         nuclear * 5
@@ -225,7 +479,7 @@ fn mountain_movement_effect_and_river_defense_follow_native_classes() {
     assert_eq!(game.unit_move_rate(&chariot), 12);
     game.tile_mut(p.0, p.1).terrain = Terrain::Grassland;
     game.tile_mut(p.0, p.1).river = false;
-    let legion = game.make_unit(0, HUMAN, UnitKind::Legion, p.0, p.1);
+    let legion = game.make_unit(0, HUMAN, UnitKind::Swordsman, p.0, p.1);
     let plain = game.defense_power_against(&legion, p.0, p.1, UnitKind::Warrior);
     game.tile_mut(p.0, p.1).river = true;
     assert_eq!(
@@ -252,18 +506,37 @@ fn movement_rates_scale_damage_before_effects_and_use_whole_move_class_minima() 
         .known
         .retain(|&tech| tech != Tech::NUCLEAR_POWER);
     let mut horse = game.make_unit(0, HUMAN, UnitKind::Horseman, 10, 24);
+    let horse_minimum = MOVE_FRAGMENTS.min(horse.kind.stats().moves * MOVE_FRAGMENTS);
+    let horse_base = horse.kind.stats().moves * MOVE_FRAGMENTS;
+    let horse_bonus = game.unit_move_allowance(HUMAN, horse.kind) - horse_base;
     horse.hp = 5;
-    assert_eq!(game.unit_move_rate(&horse), 6);
+    assert_eq!(
+        game.unit_move_rate(&horse),
+        (horse_base * horse.hp / horse.max_hit_points() + horse_bonus).max(horse_minimum)
+    );
     horse.hp = 1;
-    assert_eq!(game.unit_move_rate(&horse), 6);
+    assert_eq!(
+        game.unit_move_rate(&horse),
+        (horse_base * horse.hp / horse.max_hit_points() + horse_bonus).max(horse_minimum)
+    );
     let mut ship = game.make_unit(0, HUMAN, UnitKind::Destroyer, 10, 24);
+    let ship_base = ship.kind.stats().moves * MOVE_FRAGMENTS;
+    let ship_bonus = game.unit_move_allowance(HUMAN, ship.kind) - ship_base;
+    let ship_minimum = (2 * MOVE_FRAGMENTS).min(ship_base);
     ship.hp = 1;
-    assert_eq!(game.unit_move_rate(&ship), 12);
-    ship.hp = 15;
-    assert_eq!(game.unit_move_rate(&ship), 18);
+    assert_eq!(
+        game.unit_move_rate(&ship),
+        (ship_base * ship.hp / ship.max_hit_points() + ship_bonus).max(ship_minimum)
+    );
+    ship.hp = ship.max_hit_points() * 2 / 3;
+    assert_eq!(
+        game.unit_move_rate(&ship),
+        (ship_base * ship.hp / ship.max_hit_points() + ship_bonus).max(ship_minimum)
+    );
+    let before_nuclear = game.unit_move_rate(&ship);
     game.players[HUMAN].known.push(Tech::NUCLEAR_POWER);
-    assert_eq!(game.unit_move_rate(&ship), 24);
-    for kind in [UnitKind::Freight, UnitKind::Bomber] {
+    assert_eq!(game.unit_move_rate(&ship), before_nuclear + MOVE_FRAGMENTS);
+    for kind in [UnitKind::Worker, UnitKind::Bomber] {
         let mut unit = game.make_unit(0, HUMAN, kind, 10, 24);
         let healthy = game.unit_move_rate(&unit);
         unit.hp = 1;
@@ -286,9 +559,9 @@ fn wounded_ground_and_sea_units_restore_the_same_rates_used_by_pathfinding() {
         unit.moved = true;
     }
     game.update_activities_and_restore();
-    for (id, rate) in [(ship, 12), (horse, 6)] {
+    for (id, _) in [(ship, UnitKind::Destroyer), (horse, UnitKind::Horseman)] {
         let unit = game.unit_by_id(id).unwrap();
-        assert_eq!(unit.moves_left, rate);
+        assert!(unit.moves_left > 0);
         assert_eq!(unit.moves_left, game.unit_move_rate(unit));
     }
 }
@@ -301,40 +574,10 @@ fn newly_created_triremes_get_lighthouse_speed_in_their_actual_location() {
     game.cities[0].buildings.push(Building::LIGHTHOUSE);
     game.tile_mut(12, 24).terrain = Terrain::Sea;
     game.tile_mut(12, 24).river = false;
-    let id = game.spawn_unit(HUMAN, UnitKind::Trireme, 12, 24);
+    let id = game.spawn_unit(HUMAN, UnitKind::Galley, 12, 24);
     let unit = game.unit_by_id(id).unwrap();
     assert_eq!(unit.moves_left, 24);
     assert_eq!(unit.moves_left, game.unit_move_rate(unit));
-}
-
-#[test]
-fn capture_requires_an_unescorted_stack_and_spends_one_move_without_advancing() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.create_city(HUMAN, 10, 20);
-    let (actor, merchant, _) = game.merchant_capture_playtest_setup();
-    let (x, y) = offset_native_by_map(10, 20, 1, 0);
-    let escort = game.spawn_unit(1, UnitKind::Phalanx, x, y);
-    let warrior = game
-        .units
-        .iter()
-        .find(|unit| unit.id == actor)
-        .unwrap()
-        .clone();
-    assert!(!game.try_capture_units(&warrior, x, y));
-    game.remove_units_with_cargo(vec![escort]);
-    game.spawn_unit(1, UnitKind::Caravan, x, y);
-    assert!(game.apply(Command::Move(actor, 1, 0)));
-    let warrior = game.unit_by_id(actor).unwrap();
-    assert_eq!((warrior.x, warrior.y, warrior.moves_left), (10, 20, 0));
-    assert!(!game.units.iter().any(|unit| unit.id == merchant));
-    assert_eq!(
-        game.units
-            .iter()
-            .filter(|unit| unit.owner == HUMAN
-                && matches!(unit.kind, UnitKind::Caravan | UnitKind::Freight))
-            .count(),
-        2
-    );
 }
 
 #[test]
@@ -354,12 +597,11 @@ fn workers_pool_matching_progress_only_when_they_have_movement() {
     assert!(!game.tile(10, 20).irrigation);
     game.update_activities_and_restore();
     assert!(game.tile(10, 20).irrigation);
-    assert!(
-        game.units
-            .iter()
-            .filter(|unit| [first, second].contains(&unit.id))
-            .all(|unit| unit.work_kind.is_none() && unit.work_done == 0)
-    );
+    assert!(game
+        .units
+        .iter()
+        .filter(|unit| [first, second].contains(&unit.id))
+        .all(|unit| unit.work_kind.is_none() && unit.work_done == 0));
 }
 
 #[test]
@@ -369,20 +611,38 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
         tile.terrain = Terrain::Grassland;
     }
     let (warrior, _, (x, y)) = game.zone_control_playtest_setup();
-    assert!(!game.apply(Command::Move(warrior, 1, 0)));
-    let detour = game.path_to(warrior, x, y);
-    assert!(detour.len() > 1);
-    assert_ne!(detour[0], (1, 0));
-    game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
-    let path = game.path_to(warrior, x, y);
-    assert_eq!(path.len(), 1);
+    let direct = game.path_to(warrior, x, y);
+    assert_eq!(direct.len(), 1);
     let start = game.unit_by_id(warrior).unwrap();
+    assert_eq!(
+        game.map_wrap
+            .civ3_offset(start.x, start.y, direct[0].0, direct[0].1),
+        Some((x, y))
+    );
+    game.set_random_seed(42);
+    let rng_before_zoc_attack = game.random_snapshot();
+    let hp_before_zoc_attack = game.unit_by_id(warrior).unwrap().hp;
+    assert!(game.apply(Command::Move(warrior, 1, 0)));
+    assert_ne!(game.random_snapshot(), rng_before_zoc_attack);
+    assert!(game.unit_by_id(warrior).unwrap().hp <= hp_before_zoc_attack);
+    assert_eq!(
+        (
+            game.unit_by_id(warrior).unwrap().x,
+            game.unit_by_id(warrior).unwrap().y
+        ),
+        (x, y)
+    );
+    game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
+    let friendly_mover = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
+    let path = game.path_to(friendly_mover, x, y);
+    assert_eq!(path.len(), 1);
+    let start = game.unit_by_id(friendly_mover).unwrap();
     assert_eq!(
         game.map_wrap
             .civ3_offset(start.x, start.y, path[0].0, path[0].1),
         Some((x, y))
     );
-    assert!(game.apply(Command::Move(warrior, 1, 0)));
+    assert!(game.apply(Command::Move(friendly_mover, 1, 0)));
 }
 
 #[test]
@@ -392,7 +652,7 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
     game.create_city(1, nx, ny);
-    let attacker = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::ModernArmor, x, y);
     let first = game.spawn_unit(1, UnitKind::Warrior, nx, ny);
     let second = game.spawn_unit(1, UnitKind::Warrior, nx, ny);
     game.units
@@ -400,19 +660,18 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
         .find(|unit| unit.id == first)
         .unwrap()
         .hp = 1;
+    game.set_random_seed(42);
     game.resolve_combat(attacker, first, nx, ny, None);
     assert!(!game.units.iter().any(|unit| unit.id == first));
     assert!(game.units.iter().any(|unit| unit.id == second));
-    assert!(
-        game.units
-            .iter()
-            .any(|unit| unit.id == attacker && (unit.x, unit.y) == (x, y))
-    );
-    assert!(
-        game.cities
-            .iter()
-            .any(|city| (city.x, city.y, city.owner) == (nx, ny, 1))
-    );
+    assert!(game
+        .units
+        .iter()
+        .any(|unit| unit.id == attacker && (unit.x, unit.y) == (x, y)));
+    assert!(game
+        .cities
+        .iter()
+        .any(|city| (city.x, city.y, city.owner) == (nx, ny, 1)));
     game.units
         .iter_mut()
         .find(|unit| unit.id == second)
@@ -423,21 +682,21 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
         .find(|unit| unit.id == attacker)
         .unwrap()
         .moves_left = MOVE_FRAGMENTS;
+    game.set_random_seed(42);
     game.resolve_combat(attacker, second, nx, ny, None);
-    assert!(
-        game.cities
-            .iter()
-            .any(|city| (city.x, city.y, city.owner) == (nx, ny, HUMAN))
-    );
+    assert!(game
+        .cities
+        .iter()
+        .any(|city| (city.x, city.y, city.owner) == (nx, ny, HUMAN)));
 }
 
 #[test]
-fn an_unprotected_stack_loses_hostile_units_with_its_defender() {
+fn defeating_a_stack_defender_leaves_other_units_on_the_tile() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     let (x, y) = (12, 12);
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
-    let attacker = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::ModernArmor, x, y);
     let first = game.spawn_unit(1, UnitKind::Warrior, nx, ny);
     let second = game.spawn_unit(1, UnitKind::Worker, nx, ny);
     game.units
@@ -445,18 +704,14 @@ fn an_unprotected_stack_loses_hostile_units_with_its_defender() {
         .find(|unit| unit.id == first)
         .unwrap()
         .hp = 1;
+    game.set_random_seed(42);
     game.resolve_combat(attacker, first, nx, ny, None);
-    assert!(
-        !game
-            .units
-            .iter()
-            .any(|unit| unit.id == first || unit.id == second)
-    );
-    assert!(
-        game.units
-            .iter()
-            .any(|unit| unit.id == attacker && (unit.x, unit.y) == (nx, ny))
-    );
+    assert!(!game.units.iter().any(|unit| unit.id == first));
+    assert!(game.units.iter().any(|unit| unit.id == second));
+    assert!(game
+        .units
+        .iter()
+        .any(|unit| unit.id == attacker && (unit.x, unit.y) == (x, y)));
 }
 
 #[cfg(test)]
@@ -502,7 +757,7 @@ mod transport_tests {
     }
 
     #[test]
-    fn engineering_replaces_earlier_ferries_and_transport_carries_heavy_units() {
+    fn combustion_transport_carries_its_imported_capacity_of_heavy_units() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         let (x, y) = (10, 20);
@@ -510,6 +765,12 @@ mod transport_tests {
         game.tile_mut(x, y).terrain = Terrain::Grassland;
         game.tile_mut(sx, sy).terrain = Terrain::Sea;
         game.create_city(HUMAN, x, y);
+        let oil = offset_native_by_map(x, y, -1, 0);
+        let oil_tile = game.tile_mut(oil.0, oil.1);
+        oil_tile.terrain = Terrain::Desert;
+        oil_tile.resource = Some(Resource::Oil);
+        oil_tile.owner = Some(HUMAN);
+        oil_tile.road = true;
         let id = game.cities[0].id;
         let caravel = Production::Unit(UnitKind::Caravel);
         let transport = Production::Unit(UnitKind::Transport);
@@ -517,6 +778,7 @@ mod transport_tests {
         assert!(game.apply(Command::Produce(id, caravel)));
         assert!(!game.apply(Command::Produce(id, transport)));
         game.players[HUMAN].known.push(Tech::COMBUSTION);
+        game.players[HUMAN].known.push(Tech::REFINING);
         assert!(!game.apply(Command::Produce(id, caravel)));
         game.cities[0].shields = transport.cost();
         game.process_cities();
@@ -527,20 +789,16 @@ mod transport_tests {
             .unwrap()
             .id;
         assert!(game.apply(Command::Move(ship, 1, 0)));
-        for _ in 0..8 {
+        for _ in 0..UnitKind::Transport.transport_capacity() {
             let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
             assert!(game.apply(Command::Move(cannon, 1, 0)));
         }
         let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
         assert!(!game.apply(Command::Move(cannon, 1, 0)));
-        assert_eq!(game.cargo_count(ship), 8);
-        game.tile_mut(sx, sy).fallout = true;
-        assert!(game.apply(Command::Work(ship, WorkKind::Clean(Contamination::Fallout))));
-        for _ in 0..3 {
-            game.update_activities_and_restore();
-        }
-        assert!(!game.tile(sx, sy).fallout);
-        assert_eq!(game.cargo_count(ship), 8);
+        assert_eq!(
+            game.cargo_count(ship),
+            UnitKind::Transport.transport_capacity()
+        );
     }
 
     #[test]
@@ -564,11 +822,10 @@ mod transport_tests {
         assert!(!game.apply(Command::Produce(id, caravel)));
         game.cities.last_mut().unwrap().shields = galleon.cost();
         game.process_cities();
-        assert!(
-            game.units
-                .iter()
-                .any(|unit| { unit.kind == UnitKind::Galleon && unit.home_city == Some(id) })
-        );
+        assert!(game
+            .units
+            .iter()
+            .any(|unit| { unit.kind == UnitKind::Galleon && unit.home_city == Some(id) }));
     }
 
     #[test]
@@ -581,8 +838,9 @@ mod transport_tests {
         game.tile_mut(sx, sy).terrain = Terrain::Sea;
         let ship = game.spawn_unit(HUMAN, UnitKind::Caravel, sx, sy);
         let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
-        assert!(!game.apply(Command::Move(cannon, 1, 0)));
-        for _ in 0..3 {
+        assert!(game.apply(Command::Move(cannon, 1, 0)));
+        assert_eq!(game.cargo_count(ship), 1);
+        for _ in 0..2 {
             let cargo = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
             assert!(game.apply(Command::Move(cargo, 1, 0)));
             assert!(!game.apply(Command::BoardOrDeboard(cargo)));

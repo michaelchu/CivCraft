@@ -15,8 +15,26 @@
 mod actions;
 mod assets;
 mod sprite_metadata;
-pub(crate) use assets::{Assets, native_unit_rendering_playtest, window_conf};
-use sprite_metadata::{isolated_sprite_source, player_color, unit_sprite};
+pub(crate) use assets::{Assets, window_conf};
+use sprite_metadata::{player_color, unit_art_role};
+
+pub(crate) fn native_campaign_unit_art_playtest() -> (bool, bool, bool) {
+    let roster = UnitKind::ALL_NATIVE;
+    let roles = roster.into_iter().map(unit_art_role).collect::<Vec<_>>();
+    let mapped = roster.iter().all(|kind| {
+        kind.conquests_id()
+            .is_some_and(|id| unit_art_role(*kind) == format!("unit-{}", id.replace('_', "-")))
+    });
+    let distinct = roles
+        .iter()
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+        == 92;
+    let labels = roster
+        .into_iter()
+        .all(|kind| !short_unit_name(kind).is_empty());
+    (mapped, distinct, labels)
+}
 mod city_bar;
 mod city_manager;
 mod city_map;
@@ -27,7 +45,6 @@ mod fog;
 mod government_view;
 mod hud;
 mod input;
-mod investigation_view;
 mod map_layers;
 mod map_overlays;
 mod map_view;
@@ -38,7 +55,6 @@ mod research_view;
 mod rivers;
 mod routes;
 mod spaceship_view;
-mod spy_view;
 mod tileset;
 pub(crate) use tileset::Tileset;
 mod territory;
@@ -104,13 +120,18 @@ pub(crate) enum UiAction {
     HomeCity,
     BoardOrDeboard,
     Disband(Option<u32>),
-    Detonate,
-    DeliverGoods(u32),
+    BeginNuclearStrike,
     HelpWonder(u32),
     JoinCity(u32),
     Airlift(u32),
+    AirSuperiority,
+    BeginRebase,
+    RebaseTo(i32, i32),
     BeginParadrop,
     ParadropTo(i32, i32),
+    BeginBombard,
+    BombardTo(i32, i32),
+    NuclearStrikeTo(i32, i32),
     UpgradeUnit(UnitKind, i32),
     ToggleGovernment,
     ToggleDiplomacy,
@@ -126,19 +147,6 @@ pub(crate) enum UiAction {
     BuyMap(usize, TreatyMap),
     CityDeals(Option<(usize, usize)>),
     BuyCity(u32, i32),
-    EstablishEmbassy(u32),
-    BribeUnit(u32, i32),
-    SabotageUnit(u32),
-    StealTechnology(u32),
-    SabotageCity(u32),
-    PoisonCity(u32),
-    InciteCity(u32, i32),
-    SpyTargets(Option<(u32, usize)>),
-    TargetedTheft(u32, Tech),
-    TargetedSabotage(u32, SabotageTarget),
-    InvestigateCity(u32),
-    CloseInvestigation,
-    InvestigationPage(usize),
     CancelPact(usize),
     DeclineOffer(usize),
     ReviewOffer(usize, TreatyOffer),
@@ -187,12 +195,12 @@ pub(crate) struct Game {
     zoom: f32,
     goto_mode: bool,
     paradrop_mode: bool,
+    bombard_mode: bool,
+    nuclear_mode: bool,
+    rebase_mode: bool,
     research_open: bool,
     government_open: bool,
     spaceship_open: bool,
-    investigation: Option<CityInvestigation>,
-    investigation_page: usize,
-    spy_targets: Option<(u32, usize)>,
     diplomacy_open: bool,
     diplomacy_target: Option<usize>,
     reviewed_offer: Option<(usize, TreatyOffer)>,
@@ -243,7 +251,7 @@ impl Game {
         sim.enable_visual_events();
         let focus = sim
             .units_owned_by(HUMAN)
-            .find(|unit| unit.kind == UnitKind::Settlers)
+            .find(|unit| unit.kind == UnitKind::Settler)
             .or_else(|| sim.units_owned_by(HUMAN).next());
         let selected_unit = focus.map(|unit| unit.id);
         let position = focus
@@ -271,12 +279,12 @@ impl Game {
             zoom: START_ZOOM,
             goto_mode: false,
             paradrop_mode: false,
+            bombard_mode: false,
+            nuclear_mode: false,
+            rebase_mode: false,
             research_open: false,
             government_open: false,
             spaceship_open: false,
-            investigation: None,
-            investigation_page: 0,
-            spy_targets: None,
             diplomacy_open: false,
             diplomacy_target: None,
             reviewed_offer: None,
@@ -406,9 +414,7 @@ impl Game {
         if self.intro_open {
             return self.draw_intro();
         }
-        if self.spy_targets.is_some()
-            || self.investigation.is_some()
-            || self.government_open
+        if self.government_open
             || self.diplomacy_open
         {
             draw_rectangle(
@@ -418,12 +424,6 @@ impl Game {
                 screen_height(),
                 Color::from_rgba(4, 9, 12, 178),
             );
-        }
-        if let Some((city, page)) = self.spy_targets {
-            return self.draw_spy_targets(city, page);
-        }
-        if let Some(report) = &self.investigation {
-            return self.draw_investigation(report);
         }
         if self.government_open {
             return self.draw_government();
@@ -435,10 +435,16 @@ impl Game {
             actions.clear();
             self.draw_city_manager(assets, &mut actions);
         }
-        if self.goto_mode || self.paradrop_mode {
+        if self.goto_mode || self.paradrop_mode || self.bombard_mode || self.nuclear_mode || self.rebase_mode {
             let viewport = Self::viewport_rect();
             let text = if self.paradrop_mode {
                 "PARADROP: choose a landing tile"
+            } else if self.bombard_mode {
+                "BOMBARD: choose an enemy tile"
+            } else if self.nuclear_mode {
+                "NUCLEAR STRIKE: choose a target"
+            } else if self.rebase_mode {
+                "RE-BASE: choose a city, airfield, or carrier"
             } else {
                 "GO-TO: choose a destination"
             };
@@ -631,74 +637,7 @@ fn centered_text(text: &str, y: f32, size: f32, color: Color) {
 }
 
 fn short_unit_name(kind: UnitKind) -> &'static str {
-    match kind {
-        UnitKind::Settlers => "Settler",
-        UnitKind::Migrants => "Migrants",
-        UnitKind::Worker => "Worker",
-        UnitKind::Engineer => "Engineer",
-        UnitKind::Diplomat => "Diplomat",
-        UnitKind::Spy => "Spy",
-        UnitKind::Explorer => "Explorer",
-        UnitKind::Warrior => "Warrior",
-        UnitKind::Phalanx => "Phalanx",
-        UnitKind::Archer => "Archer",
-        UnitKind::Legion => "Legion",
-        UnitKind::Horseman => "Horseman",
-        UnitKind::Chariot => "Chariot",
-        UnitKind::Catapult => "Catapult",
-        UnitKind::Musketeers => "Musketeers",
-        UnitKind::Marines => "Marines",
-        UnitKind::Paratroopers => "Paratroopers",
-        UnitKind::Knights => "Knights",
-        UnitKind::Partisan => "Partisan",
-        UnitKind::Cannon => "Cannon",
-        UnitKind::Bomber => "Bomber",
-        UnitKind::Fighter => "Fighter",
-        UnitKind::StealthFighter => "Stealth Fighter",
-        UnitKind::StealthBomber => "Stealth Bomber",
-        UnitKind::Helicopter => "Helicopter",
-        UnitKind::Trireme => "Trireme",
-        UnitKind::Caravel => "Caravel",
-        UnitKind::Galleon => "Galleon",
-        UnitKind::Transport => "Transport",
-        UnitKind::Carrier => "Carrier",
-        UnitKind::Frigate => "Frigate",
-        UnitKind::Ironclad => "Ironclad",
-        UnitKind::Destroyer => "Destroyer",
-        UnitKind::Cruiser => "Cruiser",
-        UnitKind::Battleship => "Battleship",
-        UnitKind::Submarine => "Submarine",
-        UnitKind::AegisCruiser => "AEGIS Cruiser",
-        UnitKind::CruiseMissile => "Cruise Missile",
-        UnitKind::Nuclear => "Nuclear",
-        UnitKind::Caravan => "Caravan",
-        UnitKind::Freight => "Freight",
-        UnitKind::BarbarianLeader => "Barbarian Leader",
-        UnitKind::Pikemen => "Pikemen",
-        UnitKind::Riflemen => "Riflemen",
-        UnitKind::AlpineTroops => "Alpine Troops",
-        UnitKind::Fanatics => "Fanatics",
-        UnitKind::MechInf => "Mech. Inf.",
-        UnitKind::Elephants => "Elephants",
-        UnitKind::Crusaders => "Crusaders",
-        UnitKind::Dragoons => "Dragoons",
-        UnitKind::Cavalry => "Cavalry",
-        UnitKind::Armor => "Armor",
-        UnitKind::Artillery => "Artillery",
-        UnitKind::Howitzer => "Howitzer",
-        UnitKind::Leader => "Leader",
-        UnitKind::Awacs => "AWACS",
-        UnitKind::Storm => "Storm",
-        UnitKind::Scout => "Scout",
-        UnitKind::Longbowman => "Longbowman",
-        UnitKind::Infantry => "Infantry",
-        UnitKind::ModernArmor => "Modern Armor",
-        UnitKind::Privateer => "Privateer",
-        UnitKind::JetFighter => "Jet Fighter",
-        UnitKind::NuclearSubmarine => "Nuclear Submarine",
-        UnitKind::Icbm => "ICBM",
-        UnitKind::TacticalNuke => "Tactical Nuke",
-    }
+    kind.name()
 }
 
 #[cfg(test)]
@@ -711,7 +650,7 @@ mod tests {
             .sim
             .units()
             .iter()
-            .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settlers)
+            .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settler)
             .map(|unit| unit.id)
             .expect("human settler");
         assert!(game.found_city(settler));

@@ -7,12 +7,11 @@ mod advisor;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Government {
     Anarchy,
-    Tribal,
     Despotism,
     Monarchy,
     Communism,
-    Fundamentalism,
-    Federation,
+    Fascism,
+    Feudalism,
     Republic,
     Democracy,
 }
@@ -21,17 +20,16 @@ pub(crate) enum Government {
 pub(super) struct GovernmentAdvisorCache {
     pub(super) evaluated_turn: i32,
     pub(super) next_evaluation: i32,
-    pub(super) scores: [f64; 9],
+    pub(super) scores: [f64; 8],
 }
 
 impl Government {
-    pub(crate) const TARGETS: [Self; 8] = [
-        Self::Tribal,
+    pub(crate) const TARGETS: [Self; 7] = [
         Self::Despotism,
         Self::Monarchy,
         Self::Communism,
-        Self::Fundamentalism,
-        Self::Federation,
+        Self::Fascism,
+        Self::Feudalism,
         Self::Republic,
         Self::Democracy,
     ];
@@ -39,12 +37,11 @@ impl Government {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Anarchy => "Anarchy",
-            Self::Tribal => "Tribal",
             Self::Despotism => "Despotism",
             Self::Monarchy => "Monarchy",
             Self::Communism => "Communism",
-            Self::Fundamentalism => "Fundamentalism",
-            Self::Federation => "Federation",
+            Self::Fascism => "Fascism",
+            Self::Feudalism => "Feudalism",
             Self::Republic => "Republic",
             Self::Democracy => "Democracy",
         }
@@ -52,11 +49,11 @@ impl Government {
 
     pub(crate) fn requirement(self) -> Option<Tech> {
         match self {
-            Self::Anarchy | Self::Tribal | Self::Despotism => None,
+            Self::Anarchy | Self::Despotism => None,
             Self::Monarchy => Some(Tech::MONARCHY),
             Self::Communism => Some(Tech::COMMUNISM),
-            Self::Fundamentalism => Some(Tech::THEOLOGY),
-            Self::Federation => Some(Tech::ECONOMICS),
+            Self::Fascism => Some(Tech::FASCISM),
+            Self::Feudalism => Some(Tech::FEUDALISM),
             Self::Republic => Some(Tech::THE_REPUBLIC),
             Self::Democracy => Some(Tech::DEMOCRACY),
         }
@@ -65,35 +62,37 @@ impl Government {
     pub(crate) fn max_rate(self) -> i32 {
         match self {
             Self::Anarchy => 100,
-            Self::Tribal | Self::Despotism => 60,
-            Self::Monarchy | Self::Fundamentalism => 70,
+            Self::Despotism | Self::Feudalism => 60,
+            Self::Monarchy | Self::Fascism => 70,
             Self::Communism | Self::Republic => 80,
-            Self::Federation | Self::Democracy => 90,
+            Self::Democracy => 90,
         }
     }
 
-    // Shield cost per eligible unit converted to gold, then city allowances.
-    pub(crate) fn unit_support(self) -> (i32, i32, i32) {
-        match self {
-            Self::Anarchy | Self::Tribal => (0, 2, 0),
-            Self::Despotism => (1, 0, 2),
-            Self::Monarchy => (1, 0, 3),
-            Self::Communism => (0, 3, 0),
-            Self::Fundamentalism | Self::Federation => (2, 0, 4),
-            Self::Republic => (0, 1, 0),
-            Self::Democracy => (2, 0, 2),
-        }
+    /// Conquests free unit slots for town/city/metropolis and cost per excess unit.
+    /// The rules are kept in the ruleset TSV so a rebalance does not touch logic.
+    pub(crate) fn unit_support(self) -> Option<UnitSupportRule> {
+        let key = match self {
+            Self::Anarchy => "anarchy",
+            Self::Despotism => "despotism",
+            Self::Monarchy => "monarchy",
+            Self::Communism => "communism",
+            Self::Fascism => "fascism",
+            Self::Feudalism => "feudalism",
+            Self::Republic => "republic",
+            Self::Democracy => "democracy",
+        };
+        unit_support_rules().iter().find(|rule| rule.government == key).copied()
     }
 
     pub(super) fn base_waste(self) -> (i32, i32) {
         match self {
             Self::Anarchy => (30, 0),
-            Self::Tribal => (0, 30),
             Self::Despotism => (10, 20),
             Self::Monarchy => (20, 10),
             Self::Communism => (0, 30),
-            Self::Fundamentalism => (15, 15),
-            Self::Federation => (30, 0),
+            Self::Fascism => (15, 15),
+            Self::Feudalism => (20, 10),
             Self::Republic => (5, 25),
             Self::Democracy => (25, 5),
         }
@@ -102,16 +101,46 @@ impl Government {
     pub(super) fn empire_size(self) -> i32 {
         match self {
             Self::Anarchy => 0,
-            Self::Tribal => 12,
             Self::Despotism => 10,
             Self::Monarchy => 14,
             Self::Communism => 28,
-            Self::Fundamentalism => 20,
-            Self::Federation => 24,
+            Self::Fascism => 20,
+            Self::Feudalism => 14,
             Self::Republic => 16,
             Self::Democracy => 32,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct UnitSupportRule {
+    government: &'static str,
+    pub(crate) town: i32,
+    pub(crate) city: i32,
+    pub(crate) metropolis: i32,
+    pub(crate) cost_per_unit: i32,
+}
+
+fn unit_support_rules() -> &'static [UnitSupportRule] {
+    use std::sync::OnceLock;
+    static RULES: OnceLock<Vec<UnitSupportRule>> = OnceLock::new();
+    RULES.get_or_init(|| {
+        include_str!("../../data/rulesets/civ3_conquests/government_unit_support.tsv")
+            .lines()
+            .skip(1)
+            .map(|line| {
+                let mut fields = line.split('\t');
+                let government = fields.next().expect("support row government");
+                let number = |value: Option<&str>| value.expect("support value").parse().expect("numeric support value");
+                let town = number(fields.next());
+                let city = number(fields.next());
+                let metropolis = number(fields.next());
+                let cost_per_unit = number(fields.next());
+                assert!(fields.next().is_none(), "unexpected support table columns");
+                UnitSupportRule { government, town, city, metropolis, cost_per_unit }
+            })
+            .collect()
+    })
 }
 
 impl Simulation {
@@ -163,14 +192,14 @@ impl Simulation {
         let distance = self.government_center_distance(city);
         let has_tech = |tech| granted == Some(tech) || self.has_tech(city.owner, tech);
         let shield_distance =
-            if matches!(government, Government::Communism | Government::Federation) {
+            if matches!(government, Government::Communism | Government::Feudalism) {
                 0
             } else {
                 1 + i32::from(!has_tech(Tech::ECONOMICS))
             };
         let trade_distance = match government {
             Government::Communism => 0,
-            Government::Federation => i32::from(!has_tech(Tech::THE_CORPORATION)),
+            Government::Feudalism => i32::from(!has_tech(Tech::THE_CORPORATION)),
             _ => 1 + i32::from(!has_tech(Tech::THE_CORPORATION)),
         };
         let relief = 50

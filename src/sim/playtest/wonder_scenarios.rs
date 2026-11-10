@@ -57,39 +57,14 @@ impl Simulation {
         )
     }
 
-    pub(crate) fn theatre_and_crusade_playtest(&mut self) -> (bool, bool, bool) {
+    pub(crate) fn theatre_output_playtest(&mut self) -> bool {
         let (x, y) = (self.cities[0].x, self.cities[0].y);
-        let home = self.cities[0].id;
         let width = self.map_wrap.width();
         let (tx, ty) = ((x + 8).rem_euclid(width), y);
         let (rx, ry) = ((x - 8).rem_euclid(width), y);
         self.create_city(HUMAN, tx, ty);
         self.create_city(1, rx, ry);
         self.players[HUMAN].government = Government::Democracy;
-        self.cities[0].size = 4;
-        let (ux, uy) = ((x + 4).rem_euclid(width), y);
-        self.tile_mut(ux, uy).owner = None;
-        for _ in 0..2 {
-            self.spawn_unit(HUMAN, UnitKind::Warrior, ux, uy);
-            self.units.last_mut().unwrap().home_city = Some(home);
-        }
-
-        let pressure = |game: &Self| game.city_military_unhappiness(&game.cities[0]);
-        let upkeep = |game: &Self| {
-            game.city_gold_upkeep(&game.cities[0])
-                .iter()
-                .map(|(_, cost)| cost)
-                .sum::<i32>()
-        };
-        let original_pressure = pressure(self);
-        let baseline = original_pressure == 2 && upkeep(self) == 2;
-        self.cities[1]
-            .buildings
-            .push(Building::KING_RICHARDS_CRUSADE);
-        let crusade = baseline && pressure(self) == original_pressure - 1 && upkeep(self) == 0;
-        self.players[HUMAN].known.push(Tech::COMMUNISM);
-        let obsolete = pressure(self) == original_pressure && upkeep(self) == 2;
-
         self.cities[1]
             .buildings
             .push(Building::SHAKESPEARES_THEATER);
@@ -101,11 +76,7 @@ impl Simulation {
         self.cities[1]
             .buildings
             .retain(|&b| b != Building::SHAKESPEARES_THEATER);
-        (
-            theatre && luxury(self, 0) == 0 && luxury(self, 2) == 3,
-            crusade,
-            obsolete,
-        )
+        theatre && luxury(self, 0) == 0 && luxury(self, 2) == 3
     }
 
     pub(crate) fn wonder_output_playtest(&mut self) -> (bool, bool, bool) {

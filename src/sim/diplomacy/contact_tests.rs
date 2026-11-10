@@ -3,12 +3,6 @@
 use super::*;
 
 #[test]
-fn physical_contact_and_treaty_embassy_work_through_commands() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.embassy_contact_playtest());
-}
-
-#[test]
 fn finite_contact_expires_and_only_physical_events_refresh_it() {
     let mut game = war_planning_game();
     let first = game.diplomacy[&(HUMAN, 1)].first_contact;
@@ -19,7 +13,7 @@ fn finite_contact_expires_and_only_physical_events_refresh_it() {
     assert_eq!(game.diplomacy[&(HUMAN, 1)].first_contact, first);
     let city = game.cities.iter().find(|city| city.owner == 1).unwrap();
     let (x, y) = (city.x, city.y);
-    game.spawn_unit(HUMAN, UnitKind::Diplomat, x, y);
+    game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
     game.refresh_diplomatic_contact_at(HUMAN, x, y);
     assert!(game.can_negotiate(1));
     assert_eq!(game.diplomatic_contact_until[&(HUMAN, 1)], game.turn + 20);
@@ -45,7 +39,7 @@ fn ordinary_combat_and_city_conquest_do_not_fabricate_incidents() {
         .unwrap()
         .hp = 1;
     game.spawn_unit(2, UnitKind::Warrior, neighbor.0, neighbor.1);
-    let actor = game.spawn_unit(HUMAN, UnitKind::Legion, origin.0, origin.1);
+    let actor = game.spawn_unit(HUMAN, UnitKind::Swordsman, origin.0, origin.1);
     let relation = game.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
     relation.pact = Pact::War;
     relation.trust[1] = 0;
@@ -75,7 +69,7 @@ fn a_lost_attack_does_not_refresh_contact_without_actual_movement() {
     let target = (city.x, city.y);
     let origin = offset_native_by_map(target.0, target.1, -1, 0);
     game.tile_mut(origin.0, origin.1).terrain = Terrain::Grassland;
-    game.spawn_unit(1, UnitKind::Phalanx, target.0, target.1);
+    game.spawn_unit(1, UnitKind::Spearman, target.0, target.1);
     let actor = game.spawn_unit(HUMAN, UnitKind::Warrior, origin.0, origin.1);
     game.units
         .iter_mut()
@@ -96,27 +90,6 @@ fn a_lost_attack_does_not_refresh_contact_without_actual_movement() {
 }
 
 #[test]
-fn capturing_a_merchant_renews_ownership_contact_without_an_incident() {
-    let mut game = war_planning_game();
-    let (actor, merchant, _) = game.merchant_capture_playtest_setup();
-    let relation = game.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
-    relation.pact = Pact::War;
-    relation.trust[1] = 0;
-    relation.cause_until[1] = 0;
-    game.diplomatic_contact_until.clear();
-    assert!(game.apply(Command::Move(actor, 1, 0)));
-    assert!(game.units.iter().all(|unit| unit.id != merchant));
-    assert!(
-        game.units
-            .iter()
-            .any(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Freight)
-    );
-    assert_eq!(game.diplomacy[&(HUMAN, 1)].trust[1], 0);
-    assert_eq!(game.diplomacy[&(HUMAN, 1)].cause_until[1], 0);
-    assert!(game.diplomatic_contact_until[&(HUMAN, 1)] > game.turn);
-}
-
-#[test]
 fn intercepted_nuclear_action_has_no_incident_but_a_successful_strike_does() {
     for intercepted in [true, false] {
         let mut game = Simulation::new(crate::mapgen::generate(42));
@@ -126,13 +99,7 @@ fn intercepted_nuclear_action_has_no_incident_but_a_successful_strike_does() {
         let relation = game.diplomacy.entry((HUMAN, 1)).or_default();
         relation.trust[1] = 0;
         relation.cause_until[1] = 0;
-        let weapon = game
-            .units
-            .iter()
-            .find(|unit| unit.id == missile)
-            .unwrap()
-            .clone();
-        game.nuclear_strike(&weapon, target.0, target.1);
+        assert!(game.apply(Command::NuclearStrike(missile, target.0, target.1)));
         let relation = &game.diplomacy[&(HUMAN, 1)];
         if intercepted {
             assert_eq!(relation.trust[1], 0);
@@ -221,12 +188,6 @@ fn first_contact_skips_the_first_decrement_and_common_allies_start_at_peace() {
 }
 
 #[test]
-fn a_successful_bribe_applies_its_incident_after_validation() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.ai_incident_action_playtest());
-}
-
-#[test]
 fn observer_incidents_and_offer_cadence_work_together() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     assert!(game.ai_observer_incident_cadence_playtest());
@@ -309,7 +270,7 @@ fn a_capital_attack_does_not_guarantee_free_peace_after_twelve_turns() {
     game.create_city(HUMAN, 8, 24);
     let id = game.civil_war_playtest().unwrap();
     assert!(game.negotiate(1, Pact::Ceasefire));
-    game.players[HUMAN].government = Government::Tribal;
+    game.players[HUMAN].government = Government::Despotism;
     assert!(game.cancel_pact(HUMAN, 1));
     assert!(game.apply(Command::Move(id, 1, 0)));
     game.end_turn();

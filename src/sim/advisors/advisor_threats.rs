@@ -60,7 +60,7 @@ impl Simulation {
         // assess_danger_unit initializes with paradrop range, then compares
         // ordinary travel and the current ferry. Paradrop capability is a
         // future action estimate, not a promise that a drop is legal now.
-        let mut turns = (unit.kind == UnitKind::Paratroopers)
+        let mut turns = (unit.kind == UnitKind::Paratrooper)
             .then(|| self.map_distance(unit.x, unit.y, city.x, city.y) / 10);
         if let Some(walking) = self.danger_route_turns(unit, city)
             && turns.is_none_or(|current| walking < current)

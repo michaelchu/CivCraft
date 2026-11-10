@@ -26,8 +26,8 @@ impl super::Simulation {
             self.tile_mut(x, y).terrain = Terrain::Grassland;
         }
         self.create_city(1, home.0, home.1);
-        let founder = self.spawn_unit(1, UnitKind::Settlers, home.0, home.1);
-        let small = self.spawn_unit(1, UnitKind::Trireme, home.0, home.1);
+        let founder = self.spawn_unit(1, UnitKind::Settler, home.0, home.1);
+        let small = self.spawn_unit(1, UnitKind::Galley, home.0, home.1);
         let cargo = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         self.units
             .iter_mut()
@@ -35,15 +35,15 @@ impl super::Simulation {
             .unwrap()
             .transport = Some(small);
         let far = offset_native_by_map(home.0, home.1, -2, 0);
-        let roomy = self.spawn_unit(1, UnitKind::Trireme, far.0, far.1);
+        let roomy = self.spawn_unit(1, UnitKind::Galley, far.0, far.1);
         let actor = self.unit_by_id(founder).unwrap().clone();
         self.reserve_settlement_site(&actor, island);
         let speculative = self
             .best_settlement_ferry(&actor, |_| false)
             .is_some_and(|(id, _)| id == small);
-        let guard = self.spawn_unit(1, UnitKind::Musketeers, home.0, home.1);
+        let guard = self.spawn_unit(1, UnitKind::Musketman, home.0, home.1);
         self.assign_ai_guard(guard, guards::GuardTarget::Unit(founder));
-        let actual = self.dispatch_settlement_ferries(1, &BTreeMap::new());
+        let actual = self.dispatch_settlement_ferries(1);
         let reselected = actual
             .get(&roomy)
             .is_some_and(|plan| plan.destination == island)
@@ -54,7 +54,7 @@ impl super::Simulation {
                 .is_some_and(|target| target.destination == island);
         self.remove_units_with_cargo(vec![roomy]);
         let blocked = self
-            .dispatch_settlement_ferries(1, &BTreeMap::new())
+            .dispatch_settlement_ferries(1)
             .is_empty()
             && self
                 .ai_settlement_targets
@@ -75,8 +75,8 @@ impl super::Simulation {
         let island = offset_native_by_map(later.0, later.1, 1, 0);
         self.tile_mut(island.0, island.1).terrain = Terrain::Grassland;
         let labels = self.continent_labels();
-        let founder = self.make_unit(0, 1, UnitKind::Settlers, early.0, early.1);
-        let ship = self.make_unit(0, 1, UnitKind::Trireme, early.0, early.1);
+        let founder = self.make_unit(0, 1, UnitKind::Settler, early.0, early.1);
+        let ship = self.make_unit(0, 1, UnitKind::Galley, early.0, early.1);
         let meetings = [
             Rendezvous {
                 tile: early,

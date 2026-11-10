@@ -9,6 +9,7 @@ pub(crate) enum UnitState {
     Fortifying,
     Fortified,
     Sentry,
+    AirSuperiority,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -19,7 +20,6 @@ pub(crate) enum WorkKind {
     Farmland,
     Cultivate,
     Plant,
-    Transform,
     Pillage(crate::sim::PillageTarget),
     BuildBase(crate::sim::Base),
     Clean(crate::sim::Contamination),
@@ -37,7 +37,6 @@ impl WorkKind {
             Self::Farmland => "farmland",
             Self::Cultivate => "cultivate",
             Self::Plant => "plant",
-            Self::Transform => "transform",
             Self::Pillage(_) => "pillage",
             Self::BuildBase(base) => base.name(),
             Self::Clean(target) => target.name(),
@@ -75,6 +74,11 @@ pub(crate) struct Unit {
 
 impl Unit {
     pub(in crate::sim) fn new(id: u32, owner: usize, kind: UnitKind, x: i32, y: i32) -> Self {
+        let veteran = if kind.conquests_id().is_some() {
+            crate::sim::civ3_unit_rules::default_experience_rank()
+        } else {
+            0
+        };
         Self {
             id,
             nationality: owner,
@@ -83,12 +87,12 @@ impl Unit {
             transport: None,
             home_city: None,
             home_order: 0,
-            veteran: 0,
+            veteran,
             fuel: kind.fuel_capacity(),
             facing: 2,
             x,
             y,
-            hp: kind.stats().hp,
+            hp: kind.hit_points_at_rank(veteran),
             moves_left: 0,
             state: UnitState::Idle,
             moved: false,
@@ -97,6 +101,10 @@ impl Unit {
             work_left: 0,
             work_done: 0,
         }
+    }
+
+    pub(crate) fn max_hit_points(&self) -> i32 {
+        self.kind.hit_points_at_rank(self.veteran)
     }
 }
 
@@ -159,9 +167,7 @@ pub(crate) struct City {
     pub(crate) bought_production: bool,
     pub(in crate::sim) sold_building: bool,
     pub(crate) worklist: Vec<Production>,
-    pub(in crate::sim) technology_thefts: u32,
     pub(in crate::sim) protected_shields: i32,
-    pub(in crate::sim) caravan_shields: i32,
     pub(in crate::sim) production_before_switch: Option<(Production, i32)>,
     pub(crate) buildings: Vec<Building>,
 }
@@ -196,9 +202,7 @@ impl City {
             bought_production: false,
             sold_building: false,
             worklist: Vec::new(),
-            technology_thefts: 0,
             protected_shields: 0,
-            caravan_shields: 0,
             production_before_switch: None,
             buildings: Vec::new(),
         }

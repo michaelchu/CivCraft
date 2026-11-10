@@ -42,14 +42,15 @@ fn source_goto_profiles_distinguish_ferry_hunter_worker_and_action_endpoints() {
     let normal = sim.source_goto_profile(&carrier, GotoTask::Escort);
     assert!(normal.0 == Style::Overlap && normal.1 == TilePolicy::NoFights && normal.2);
     let hunter = sim.source_goto_profile(&carrier, GotoTask::Hunter);
-    assert!(hunter.0 == Style::Default && hunter.1 == TilePolicy::NoIntermediateFights);
+    assert!(carrier.kind.stats().attack > 0);
+    assert!(hunter.0 == Style::Attack && hunter.1 == TilePolicy::NoIntermediateFights);
     let worker = unit(&mut sim, 1, UnitKind::Worker);
     assert!(sim.source_goto_profile(&worker, GotoTask::Attack).1 == TilePolicy::NoFights);
     let explorer = unit(&mut sim, 1, UnitKind::Explorer);
     let target = offset_native_by_map(10, 20, 1, 0);
     sim.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
     assert!(
-        sim.ai_goto_path(&explorer, target, GotoTask::Trade)
+        sim.ai_goto_path(&explorer, target, GotoTask::None)
             .is_some()
     );
     assert!(
@@ -150,7 +151,7 @@ fn potential_transport_capacity_is_a_planning_scope_but_execution_checks_real_sp
     let actor = unit(&mut sim, 1, UnitKind::Warrior);
     let sea = offset_native_by_map(10, 20, 1, 0);
     sim.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
-    let boat = sim.spawn_unit(1, UnitKind::Trireme, sea.0, sea.1);
+    let boat = sim.spawn_unit(1, UnitKind::Galley, sea.0, sea.1);
     for _ in 0..2 {
         let cargo = sim.spawn_unit(1, UnitKind::Warrior, sea.0, sea.1);
         assert!(sim.board_specific_ship(cargo, boat));
@@ -168,7 +169,7 @@ fn potential_transport_capacity_is_a_planning_scope_but_execution_checks_real_sp
 }
 
 #[test]
-fn distant_goto_preserves_reference_zoc_instead_of_intended_long_path_relaxation() {
+fn distant_goto_routes_through_zoc_for_free_attack_resolution_on_entry() {
     let mut sim = world();
     for tile in &mut sim.tiles {
         tile.terrain = Terrain::Sea;
@@ -196,7 +197,7 @@ fn distant_goto_preserves_reference_zoc_instead_of_intended_long_path_relaxation
         .movement_cost(&sim, goal.0, goal.1)
         .is_some()
     );
-    assert!(sim.ai_goto_path(&actor, goal, GotoTask::Attack).is_none());
+    assert!(sim.ai_goto_path(&actor, goal, GotoTask::Attack).is_some());
 }
 
 #[test]
@@ -215,13 +216,13 @@ fn source_risk_uses_extra_attributes_not_fort_defense_effects() {
 #[test]
 fn ai_goto_executes_final_combat_and_restores_nonferry_goal_but_sets_ferry_goal() {
     let mut sim = world();
-    let actor = unit(&mut sim, 1, UnitKind::Legion);
+    let actor = unit(&mut sim, 1, UnitKind::Swordsman);
     let target = offset_native_by_map(10, 20, 1, 0);
-    let leader = sim.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, target.0, target.1);
+    let defender = sim.spawn_unit(BARBARIANS, UnitKind::Warrior, target.0, target.1);
     sim.unit_goto_tiles.insert(actor.id, (20, 40));
     let result = sim.ai_goto_unit(actor.id, target, GotoTask::Attack);
     assert!(result.alive && result.moved);
-    assert!(sim.units.iter().all(|unit| unit.id != leader));
+    assert!(sim.units.iter().all(|unit| unit.id != defender));
     assert_eq!(sim.unit_goto_tiles.get(&actor.id), Some(&(20, 40)));
     sim.units.clear();
     sim.prune_unit_ai_state();

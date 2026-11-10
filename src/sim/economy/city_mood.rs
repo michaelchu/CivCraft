@@ -46,15 +46,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn city_feelings(&self, city: &City, luxury: i32) -> (i32, i32, i32) {
-        self.city_feelings_stages(city, luxury, true, true)
-    }
-
-    pub(in crate::sim) fn city_feelings_before_military(
-        &self,
-        city: &City,
-        luxury: i32,
-    ) -> (i32, i32, i32) {
-        self.city_feelings_stages(city, luxury, false, true)
+        self.city_feelings_stages(city, luxury, true)
     }
 
     pub(in crate::sim) fn city_feelings_after_effects(
@@ -62,14 +54,13 @@ impl Simulation {
         city: &City,
         luxury: i32,
     ) -> (i32, i32, i32) {
-        self.city_feelings_stages(city, luxury, false, false)
+        self.city_feelings_stages(city, luxury, false)
     }
 
     fn city_feelings_stages(
         &self,
         city: &City,
         luxury: i32,
-        military: bool,
         martial_enabled: bool,
     ) -> (i32, i32, i32) {
         let government = self.players[city.owner].government;
@@ -100,134 +91,37 @@ impl Simulation {
         upgrades -= happy_content;
         let happy_unhappy = unhappy.min(upgrades / 2);
         unhappy -= happy_unhappy;
-        let mut content = content - happy_content;
         upgrades -= happy_unhappy * 2;
         if upgrades >= 1 {
             let promoted = unhappy.min(1);
             unhappy -= promoted;
-            content += promoted;
         }
 
-        let martial = match government {
-            Government::Anarchy | Government::Despotism | Government::Monarchy => 1,
-            Government::Communism => 2,
-            _ => 0,
+        let martial_limit = match government {
+            Government::Despotism => 2,
+            Government::Monarchy | Government::Feudalism => 3,
+            Government::Communism | Government::Fascism => 4,
+            Government::Anarchy | Government::Republic | Government::Democracy => 0,
         };
         let garrison = self
             .units
             .iter()
             .filter(|unit| {
                 unit.owner == city.owner
-                    && !unit.kind.is_civilian()
+                    && unit.kind.is_military()
                     && (unit.x, unit.y) == (city.x, city.y)
             })
             .count()
-            .min(3) as i32;
-        let pacification = i32::from(government == Government::Tribal)
-            + if martial_enabled {
-                martial * garrison
-            } else {
-                0
-            }
+            .min(martial_limit) as i32;
+        let pacification = (if martial_enabled { garrison } else { 0 })
             + self.building_content(city);
         let calming_angry = pacification.min(angry);
         angry -= calming_angry;
         unhappy += calming_angry;
         let promoted = unhappy.min(pacification - calming_angry);
         unhappy -= promoted;
-        content += promoted;
 
-        let mut happy = happy_content + happy_unhappy;
-        if !military {
-            return (happy, unhappy, angry);
-        }
-        let pressure = self.city_military_unhappiness(city);
-        let from_content = content.min(pressure);
-        unhappy += from_content;
-        let pressure = pressure - from_content;
-        let from_happy = happy.min(pressure / 2);
-        unhappy += from_happy;
-        happy = (happy - from_happy - pressure % 2).max(0);
+        let happy = happy_content + happy_unhappy;
         (happy, unhappy, angry)
-    }
-
-    /// city_unit_unhappiness summed over the native supported-unit list.
-    pub(in crate::sim) fn city_military_unhappiness(&self, city: &City) -> i32 {
-        use super::unit_catalog::{UnitClass, UnitFlag};
-        let government = self.players[city.owner].government;
-        let suffrage = self.has_active_wonder(city.owner, Building::WOMENS_SUFFRAGE);
-        let factor = match government {
-            Government::Anarchy | Government::Tribal | Government::Despotism => 0,
-            Government::Democracy => 2 - i32::from(suffrage),
-            _ => 1,
-        };
-        if factor == 0 {
-            return 0;
-        }
-        // The provided ruleset has Make_Content_Mil allowances, and NO
-        // Make_Content_Mil_Per effects. Police relieve a fixed city total.
-        let mut free = match government {
-            Government::Republic => 1,
-            Government::Monarchy | Government::Communism => 3,
-            _ => 2,
-        };
-        free += i32::from(suffrage) - i32::from(suffrage && government == Government::Democracy);
-        free += i32::from(city.has_building(Building::POLICE_STATION))
-            * if government == Government::Democracy && !suffrage {
-                2
-            } else {
-                1
-            };
-        free += i32::from(self.has_active_wonder(city.owner, Building::KING_RICHARDS_CRUSADE));
-        free += i32::from(self.has_active_wonder(city.owner, Building::STATUE_OF_ZEUS));
-        let mut supported: Vec<_> = self
-            .units
-            .iter()
-            .filter(|unit| unit.home_city == Some(city.id) && unit.owner == city.owner)
-            .collect();
-        supported.sort_by_key(|unit| std::cmp::Reverse(unit.home_order));
-        let mut pressure = 0;
-        for unit in supported {
-            let happy_cost = unit.kind.base_upkeep().2 * factor;
-            if happy_cost <= 0 {
-                continue;
-            }
-            let class = unit.kind.unit_class();
-            let friendly_extra = match self.tile(unit.x, unit.y).base {
-                Some(Base::Fortress) => matches!(
-                    class,
-                    UnitClass::Land
-                        | UnitClass::SmallLand
-                        | UnitClass::BigLand
-                        | UnitClass::Merchant
-                ),
-                Some(Base::Airbase) => matches!(
-                    class,
-                    UnitClass::Air | UnitClass::Helicopter | UnitClass::Missile
-                ),
-                _ => false,
-            } && self.cities.iter().any(|nearby| {
-                self.allied(nearby.owner, unit.owner)
-                    && self.map_distance(unit.x, unit.y, nearby.x, nearby.y) <= 3
-            });
-            let aggressive = unit.kind.stats().attack > 0
-                && !self
-                    .cities
-                    .iter()
-                    .any(|other| (other.x, other.y) == (unit.x, unit.y))
-                && self.tile(unit.x, unit.y).owner != Some(unit.owner)
-                && !friendly_extra;
-            if !aggressive && !unit.kind.has_flag(UnitFlag::FieldUnit) {
-                continue;
-            }
-            let relieved = free.min(happy_cost);
-            free -= relieved;
-            pressure += happy_cost - relieved;
-        }
-        pressure
-    }
-
-    pub(in crate::sim) fn offensive_military_unhappiness(&self, city: &City) -> bool {
-        self.city_military_unhappiness(city) > 0
     }
 }

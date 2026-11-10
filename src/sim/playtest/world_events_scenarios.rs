@@ -94,41 +94,32 @@ impl Simulation {
         let gated = self.units.is_empty() && self.tile(x, y).hut;
         self.turn += 1;
         self.summon_barbarians();
-        let leader = self
-            .units
-            .iter()
-            .find(|unit| unit.kind == UnitKind::BarbarianLeader);
-        let Some(leader) = leader else {
-            return false;
-        };
+        let boat = self.units.iter().find(|unit| {
+            unit.owner == BARBARIANS && unit.kind.is_naval() && unit.kind.transport_capacity() > 0
+        });
         let composition = if sea {
-            leader.transport.is_some_and(|id| {
-                self.units.iter().any(|boat| {
-                    boat.id == id
-                        && boat.kind.is_naval()
-                        && (2..=boat.kind.transport_capacity()).contains(&self.cargo_count(id))
-                })
+            boat.is_some_and(|boat| {
+                (2..=boat.kind.transport_capacity()).contains(&self.cargo_count(boat.id))
             })
         } else {
-            leader.transport.is_none()
-                && (2..=4).contains(
-                    &self
-                        .units
-                        .iter()
-                        .filter(|unit| unit.kind == UnitKind::Horseman)
-                        .count(),
-                )
+            (2..=4).contains(
+                &self
+                    .units
+                    .iter()
+                    .filter(|unit| unit.kind == UnitKind::Horseman)
+                    .count(),
+            )
         };
         let expected = if advanced {
-            UnitKind::Marines
+            UnitKind::Marine
         } else {
-            UnitKind::Legion
+            UnitKind::Swordsman
         };
-        let sea_roster = !sea
-            || self
-                .units
+        let sea_roster = !sea || boat.is_some_and(|boat| {
+            self.units
                 .iter()
-                .any(|unit| unit.kind == expected && unit.transport == leader.transport);
+                .any(|unit| unit.kind == expected && unit.transport == Some(boat.id))
+        });
         gated && composition && sea_roster && !self.tile(x, y).hut
     }
 }

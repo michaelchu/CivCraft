@@ -376,22 +376,14 @@ impl Game {
                         Color::from_rgba(65, 68, 63, 255)
                     },
                 );
-                let (sprite_row, sprite_col) = unit_sprite(kind);
                 let stats = kind.stats();
-                draw_texture_ex(
-                    &assets.units,
-                    card.x + 6.0,
-                    card.y + 13.0,
-                    if enabled {
-                        WHITE
-                    } else {
-                        Color::new(0.38, 0.4, 0.4, 1.0)
-                    },
-                    DrawTextureParams {
-                        dest_size: Some(vec2(52.0, 39.0)),
-                        source: Some(isolated_sprite_source(sprite_row, sprite_col, 64.0, 48.0)),
-                        ..Default::default()
-                    },
+                assets.civ3.draw_unit_icon(
+                    kind,
+                    city.owner,
+                    self.sim.research_era(city.owner).index(),
+                    vec2(card.x + 32.0, card.y + 32.5),
+                    vec2(52.0, 39.0),
+                    enabled,
                 );
                 let name = short_unit_name(kind);
                 text_in(

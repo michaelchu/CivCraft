@@ -77,7 +77,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bases_require_their_prerequisites_and_fortresses_protect_and_heal() {
+    fn bases_require_their_prerequisites_and_fortresses_protect_without_extra_healing() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         let (x, y) = (10, 20);
@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(game.defense_power(&game.units[1], x, y), initial * 2);
         game.units[1].hp = 1;
         game.update_activities_and_restore();
-        assert_eq!(game.units[1].hp, 4);
+        assert_eq!(game.units[1].hp, 1);
         assert!(game.apply(Command::Work(
             warrior,
             WorkKind::Pillage(PillageTarget::Base(Base::Fortress))

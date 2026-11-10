@@ -33,18 +33,6 @@ impl Game {
             }
             return;
         }
-        if self.spy_targets.is_some() {
-            if is_key_pressed(KeyCode::Escape) {
-                self.spy_targets = None;
-            }
-            return;
-        }
-        if self.investigation.is_some() {
-            if is_key_pressed(KeyCode::Escape) {
-                self.investigation = None;
-            }
-            return;
-        }
         if self.government_open || self.diplomacy_open {
             if is_key_pressed(KeyCode::Escape) {
                 if self.reviewed_offer.take().is_some() || self.city_deals.take().is_some() {
@@ -74,6 +62,9 @@ impl Game {
             } else {
                 self.goto_mode = false;
                 self.paradrop_mode = false;
+                self.bombard_mode = false;
+                self.nuclear_mode = false;
+                self.rebase_mode = false;
             }
         }
         if is_key_pressed(KeyCode::Tab) {
@@ -87,9 +78,18 @@ impl Game {
             self.perform_action(UiAction::BoardOrDeboard);
         }
         if is_key_pressed(KeyCode::B) {
-            self.perform_action(UiAction::FoundCity);
+            let bombard = self
+                .selected_unit_index()
+                .is_some_and(|index| self.sim.can_begin_bombard(&self.sim.units()[index]));
+            self.perform_action(if bombard {
+                UiAction::BeginBombard
+            } else {
+                UiAction::FoundCity
+            });
         }
-        if is_key_pressed(KeyCode::R) {
+        if is_key_down(KeyCode::LeftControl) && is_key_pressed(KeyCode::R) {
+            self.perform_action(UiAction::BeginRebase);
+        } else if is_key_pressed(KeyCode::R) {
             self.perform_action(UiAction::Road);
         }
         if is_key_pressed(KeyCode::I) {
@@ -101,7 +101,6 @@ impl Game {
         for (key, kind) in [
             (KeyCode::V, WorkKind::Cultivate),
             (KeyCode::P, WorkKind::Plant),
-            (KeyCode::T, WorkKind::Transform),
         ] {
             if is_key_pressed(key) {
                 self.perform_action(UiAction::TerrainWork(kind));
@@ -118,6 +117,8 @@ impl Game {
         }
         if is_key_pressed(KeyCode::G) {
             self.paradrop_mode = false;
+            self.bombard_mode = false;
+            self.nuclear_mode = false;
             self.goto_mode = !self.goto_mode;
             self.sim.add_event(if self.goto_mode {
                 "Go-to active: choose a destination tile."
@@ -126,6 +127,16 @@ impl Game {
             });
         }
         if is_key_pressed(KeyCode::S)
+            && let Some(index) = self.selected_unit_index()
+        {
+            if self
+                .sim
+                .can_assign_air_superiority(&self.sim.units()[index])
+            {
+                self.perform_action(UiAction::AirSuperiority);
+            }
+        }
+        if is_key_pressed(KeyCode::Y)
             && let Some(index) = self.selected_unit_index()
         {
             let name = self.sim.units()[index].kind.name();
@@ -342,8 +353,6 @@ impl Game {
             || self.spaceship_open
             || self.government_open
             || self.diplomacy_open
-            || self.investigation.is_some()
-            || self.spy_targets.is_some()
             || self.selected_city.is_some()
         {
             let (x, y) = mouse_position();
@@ -416,6 +425,18 @@ impl Game {
         };
         if self.paradrop_mode {
             self.perform_action(UiAction::ParadropTo(x, y));
+            return;
+        }
+        if self.nuclear_mode {
+            self.perform_action(UiAction::NuclearStrikeTo(x, y));
+            return;
+        }
+        if self.bombard_mode {
+            self.perform_action(UiAction::BombardTo(x, y));
+            return;
+        }
+        if self.rebase_mode {
+            self.perform_action(UiAction::RebaseTo(x, y));
             return;
         }
         if self.goto_mode {

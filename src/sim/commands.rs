@@ -7,15 +7,13 @@
 //! command path as a human player. AI decisions commonly call the lower-level
 //! rule methods after choosing their actions.
 
-use super::{
-    HUMAN, MoveResult, Production, SabotageTarget, Simulation, UnitKind, UnitState, WorkKind,
-    WorklistEdit,
-};
+use super::{HUMAN, MoveResult, Production, Simulation, UnitKind, UnitState, WorkKind, WorklistEdit};
 use crate::rules::{Building, Tech};
 
 pub(crate) enum Command {
     Move(u32, i32, i32),
     MoveCiv3(u32, usize),
+    Bombard(u32, i32, i32),
     GoTo(u32, i32, i32),
     FoundCity(u32),
     Work(u32, WorkKind),
@@ -34,15 +32,6 @@ pub(crate) enum Command {
     ProposeTreaty(usize, super::TreatyOffer),
     BuyMap(usize, super::TreatyMap),
     BuyCity(u32, i32),
-    EstablishEmbassy(u32, u32),
-    BribeUnit(u32, u32, i32),
-    SabotageUnit(u32, u32),
-    StealTechnology(u32, u32),
-    SabotageCity(u32, u32),
-    PoisonCity(u32, u32),
-    InciteCity(u32, u32, i32),
-    TargetedTheft(u32, u32, Tech),
-    TargetedSabotage(u32, u32, SabotageTarget),
     CancelPact(usize),
     DeclineOffer(usize),
     AcceptOffer(usize, super::TreatyOffer),
@@ -51,11 +40,12 @@ pub(crate) enum Command {
     HomeCity(u32),
     BoardOrDeboard(u32),
     Disband(u32, Option<u32>),
-    Detonate(u32),
-    DeliverGoods(u32, u32),
+    NuclearStrike(u32, i32, i32),
     HelpWonder(u32, u32),
     JoinCity(u32, u32),
     Airlift(u32, u32),
+    AirSuperiority(u32),
+    Rebase(u32, i32, i32),
     Paradrop(u32, i32, i32),
     UpgradeUnit(u32, UnitKind, i32),
     LaunchSpaceship,
@@ -75,6 +65,7 @@ impl Simulation {
         let unit_id = match command {
             Move(id, ..)
             | MoveCiv3(id, _)
+            | Bombard(id, ..)
             | GoTo(id, ..)
             | FoundCity(id)
             | Work(id, ..)
@@ -83,24 +74,16 @@ impl Simulation {
             | Sentry(id)
             | Automate(id)
             | HomeCity(id)
-            | TargetedTheft(id, _, _)
-            | TargetedSabotage(id, _, _)
-            | SabotageCity(id, _)
-            | PoisonCity(id, _)
-            | InciteCity(id, _, _)
-            | StealTechnology(id, _)
-            | BribeUnit(id, _, _)
-            | SabotageUnit(id, _)
-            | EstablishEmbassy(id, _)
             | UpgradeUnit(id, _, _)
             | Disband(id, _)
             | BoardOrDeboard(id)
-            | Detonate(id)
-            | DeliverGoods(id, _)
+            | NuclearStrike(id, ..)
             | HelpWonder(id, _)
             | JoinCity(id, _)
             | Paradrop(id, ..)
             | Airlift(id, _) => Some(id),
+            AirSuperiority(id) => Some(id),
+            Rebase(id, ..) => Some(id),
             _ => None,
         };
         let unit_index = unit_id.and_then(|id| {
@@ -116,6 +99,7 @@ impl Simulation {
             MoveCiv3(id, direction) => {
                 self.try_move_unit_civ3(id, direction) != MoveResult::Blocked
             }
+            Bombard(id, x, y) => self.try_ranged_bombard(id, x, y) != MoveResult::Blocked,
             GoTo(id, x, y) => {
                 (0..self.map_wrap.width()).contains(&x)
                     && (0..self.map_wrap.height()).contains(&y)
@@ -126,12 +110,13 @@ impl Simulation {
             ToggleManualAssembly => self.toggle_manual_assembly(),
             PlaceShipPart(part) => self.place_ship_part(part),
             Disband(id, city) => self.disband_unit(id, city),
-            Detonate(id) => self.detonate_nuclear_unit(id),
-            DeliverGoods(id, city) => self.deliver_goods(id, city),
+            NuclearStrike(id, x, y) => self.launch_nuclear_strike(id, x, y),
             HelpWonder(id, city) => self.help_wonder(id, city),
             JoinCity(id, city) => self.join_city(id, city),
             Paradrop(id, x, y) => self.paradrop(id, x, y),
             Airlift(id, city) => self.airlift(id, city),
+            AirSuperiority(id) => self.assign_air_superiority(id),
+            Rebase(id, x, y) => self.rebase_aircraft(id, x, y),
             Work(id, kind) => self.begin_work(id, kind),
             Fortify(id) => self.fortify_unit(id),
             Wait(_) | Sentry(_) => {
@@ -188,15 +173,6 @@ impl Simulation {
                 self.add_event(format!("{name} now produces {}.", kind.name()));
                 true
             }
-            InciteCity(id, city, price) => self.incite_city(id, city, price),
-            PoisonCity(id, city) => self.poison_city(id, city),
-            SabotageCity(id, city) => self.sabotage_city(id, city, None),
-            StealTechnology(id, city) => self.steal_technology(id, city, None),
-            TargetedTheft(id, city, tech) => self.steal_technology(id, city, Some(tech)),
-            TargetedSabotage(id, city, target) => self.sabotage_city(id, city, Some(target)),
-            SabotageUnit(id, target) => self.sabotage_unit(id, target),
-            BribeUnit(id, target, price) => self.bribe_unit(id, target, price),
-            EstablishEmbassy(id, city) => self.establish_embassy(id, city),
             BuyCity(city, price) => self.buy_city(city, price),
             BuyMap(other, map) => self.buy_map(other, map),
             Negotiate(other, pact) => self.negotiate(other, pact),

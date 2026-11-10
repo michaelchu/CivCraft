@@ -342,6 +342,10 @@ pub(crate) struct Tile {
     pub(crate) farmland: bool,
     pub(crate) pollution: bool,
     pub(crate) fallout: bool,
+    /// Bombardment damage that reduces this tile's food, shield, and trade
+    /// output until a Worker clears it.
+    #[serde(default)]
+    pub(crate) craters: bool,
     pub(crate) base: Option<crate::sim::Base>,
     pub(crate) mine: bool,
     pub(crate) oil_well: bool,

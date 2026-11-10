@@ -20,11 +20,13 @@
 mod advisors;
 mod ai;
 mod ai_economy;
+mod air_mission_rules;
 mod aviation;
 mod bases;
 mod borders;
-mod bribery;
 mod buildings;
+mod civ3_unit_rules;
+mod civilization_start_rules;
 mod nuclear;
 pub(crate) use bases::Base;
 mod cities;
@@ -34,14 +36,10 @@ mod diplomacy;
 mod tech_trade;
 pub(crate) use diplomacy::{Pact, TreatyMap, TreatyOffer};
 mod economy;
-mod espionage;
 mod exploration;
-pub(crate) use espionage::SabotageTarget;
 mod government;
 mod guards;
-mod investigation;
 pub(crate) use government::Government;
-pub(crate) use investigation::CityInvestigation;
 mod achievements;
 mod citizens;
 mod climate;
@@ -73,7 +71,6 @@ mod settlement;
 mod settlement_ferries;
 mod spaceship;
 use score::NationScore;
-mod trade;
 mod turn;
 mod unit_lifecycle;
 use climate::ClimatePressure;
@@ -190,7 +187,6 @@ pub(crate) struct Simulation {
     climate_pressure: [ClimatePressure; 2],
     #[serde(skip)]
     climate_current: [i32; 2],
-    trade_routes: Vec<(u32, u32)>,
     #[serde(skip)]
     route_memory: Vec<Option<movement::RouteTile>>,
     #[serde(skip)]
@@ -199,8 +195,6 @@ pub(crate) struct Simulation {
     ai_map_memory: AiMapMemory,
     #[serde(skip)]
     ai_purchase_reserve: std::collections::BTreeMap<usize, i32>,
-    #[serde(skip)]
-    agent_city_targets: std::collections::BTreeMap<u32, u32>,
     #[serde(skip)]
     city_founders: std::collections::BTreeMap<u32, usize>,
     #[serde(skip)]
@@ -213,12 +207,6 @@ pub(crate) struct Simulation {
     ai_tech_wants: std::collections::BTreeMap<usize, Vec<f32>>,
     #[serde(skip)]
     ai_ground_targets: std::collections::BTreeMap<u32, u32>,
-    #[serde(skip)]
-    ai_merchant_missions: std::collections::BTreeMap<u32, trade::MerchantMission>,
-    #[serde(skip)]
-    merchant_mission_attempts: std::collections::HashSet<u32>,
-    #[serde(skip)]
-    merchant_birth_turns: std::collections::BTreeMap<u32, i32>,
     #[serde(skip)]
     ai_settlement_targets: std::collections::BTreeMap<u32, settlement::SettlementReservation>,
     #[serde(skip)]
@@ -405,16 +393,23 @@ impl Simulation {
         let mut units = Vec::new();
         let mut next_unit_id = 1;
         for (owner, start) in starts.iter().take(civilization_count).enumerate() {
-            for kind in [
-                UnitKind::Settlers,
-                UnitKind::Worker,
-                UnitKind::Explorer,
-                UnitKind::Diplomat,
-            ] {
-                let mut unit = Unit::new(next_unit_id, owner, kind, start.0, start.1);
-                unit.moves_left = kind.stats().moves * MOVE_FRAGMENTS;
-                units.push(unit);
-                next_unit_id += 1;
+            let profile =
+                civilization_start_rules::get(&players[owner].name).unwrap_or_else(|| {
+                    panic!("missing Civ III start profile for {}", players[owner].name)
+                });
+            for (name, count) in profile.units() {
+                let kind = UnitKind::from_civ3_name(name).unwrap_or_else(|| {
+                    panic!(
+                        "unsupported Civ III starting unit {name} for {}",
+                        players[owner].name
+                    )
+                });
+                for _ in 0..count {
+                    let mut unit = Unit::new(next_unit_id, owner, kind, start.0, start.1);
+                    unit.moves_left = kind.stats().moves * MOVE_FRAGMENTS;
+                    units.push(unit);
+                    next_unit_id += 1;
+                }
             }
         }
 
@@ -450,21 +445,16 @@ impl Simulation {
             game_over: None,
             climate_pressure: [ClimatePressure::new(map.map_wrap.tile_count()); 2],
             climate_current: [0; 2],
-            trade_routes: Vec::new(),
             route_memory: vec![None; map.map_wrap.tile_count()],
             observed_map: Default::default(),
             ai_map_memory: Default::default(),
             ai_purchase_reserve: Default::default(),
-            agent_city_targets: Default::default(),
             city_founders: Default::default(),
             ai_war_plans: Default::default(),
             ai_space_warnings: Default::default(),
             ai_free_bulbs: Default::default(),
             ai_tech_wants: Default::default(),
             ai_ground_targets: Default::default(),
-            ai_merchant_missions: Default::default(),
-            merchant_mission_attempts: Default::default(),
-            merchant_birth_turns: Default::default(),
             ai_settlement_targets: Default::default(),
             ai_diplomatic_memory: Default::default(),
             ai_diplomatic_intel: Default::default(),
@@ -496,7 +486,7 @@ impl Simulation {
     }
 
     #[cfg(test)]
-    fn idx(x: i32, y: i32) -> usize {
+    pub(super) fn idx(x: i32, y: i32) -> usize {
         let wx = x.rem_euclid(MAP_W);
         let wy = y.rem_euclid(MAP_H);
         (wy * MAP_W + wx) as usize
@@ -589,7 +579,15 @@ impl Simulation {
 
     /// Checks whether a player has unlocked a unit kind.
     pub(crate) fn unit_available(&self, owner: usize, kind: UnitKind) -> bool {
+        let civilization_available = if owner >= self.civilization_count {
+            true
+        } else {
+            kind.conquests_id()
+                .and_then(civ3_unit_rules::get)
+                .is_some_and(|rule| rule.available_to(&self.players[owner].name))
+        };
         !kind.has_no_build()
+            && civilization_available
             && kind
                 .required_government()
                 .is_none_or(|government| self.players[owner].government == government)

@@ -32,61 +32,7 @@ impl Playtest {
                 "An unaffordable upgrade raised the reserve and tax rate; both returned to normal after purchase.".to_owned()));
         }
 
-        if frame == 539 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("ai_diplomat_bribery", sim.ai_bribery_playtest(),
-                "The AI protected its reserve against a passive target and spent it to bribe an immediate threat.".to_owned()));
-        }
-
-        if frame == 541 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("ai_city_counterintelligence", sim.ai_counterintelligence_playtest(),
-                "A garrisoned city queued a Spy, then an arriving Diplomat stayed to protect it from a rival agent.".to_owned()));
-        }
-
-        if frame == 543 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push((
-                "ai_offensive_city_missions",
-                sim.ai_city_mission_playtest(),
-                "AI Diplomats approached a rival city, established an embassy, then stole Pottery."
-                    .to_owned(),
-            ));
-        }
-
-        if frame == 545 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push((
-                "ai_incite_revolt_budget",
-                sim.ai_incite_revolt_playtest(),
-                "An AI Diplomat declined an unaffordable revolt, then paid to acquire the city."
-                    .to_owned(),
-            ));
-        }
-
-        if frame == 547 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("ai_city_sabotage", sim.ai_city_sabotage_playtest(),
-                "An adjacent AI agent left production intact under armistice and destroyed it at war.".to_owned()));
-        }
-
-        if frame == 549 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("ai_offensive_agent_recruitment", sim.ai_offensive_recruitment_playtest(),
-                "A queued or active agent reserved its target, and the AI recruited another agent when a distinct target became available.".to_owned()));
-        }
-
-        if frame == 551 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push((
-                "ai_persistent_city_mission",
-                sim.ai_persistent_mission_playtest(),
-                "An agent kept its target across turns and redirected when that city disappeared."
-                    .to_owned(),
-            ));
-        }
-
-        if frame == 553 && self.act_passed {
+                                                                if frame == 553 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("diplomacy_map_exchange", sim.treaty_map_playtest(),
                 "Verified payment, sea-only coverage, allied world-map transfer, and no shared live vision.".to_owned()));
@@ -132,13 +78,7 @@ impl Playtest {
                 "A Marine reached the threatened city once the road opened and left a guard behind.".to_owned()));
         }
 
-        if frame == 567 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("ai_merchant_road_delivery", sim.ai_merchant_road_playtest(),
-                "The same Caravan reached the destination and delivered in one turn only when the road was open.".to_owned()));
-        }
-
-        if frame == 569 && self.act_passed {
+                if frame == 569 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_map_observation_transfer", sim.map_snapshot_playtest(),
                 "A sea map transferred the seller's observed ocean after the tile changed out of sight.".to_owned()));

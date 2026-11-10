@@ -89,7 +89,7 @@ impl Simulation {
         }
         let luxury = self.city_forecast(city).luxury;
         let (_, final_unhappy, _) = self.city_feelings(city, luxury);
-        let (_, before_military, _) = self.city_feelings_before_military(city, luxury);
+        let (_, before_military, _) = self.city_feelings(city, luxury);
         let max_converted = final_unhappy.min(before_military);
         let entertainers = city.specialists[2];
         let supported = self
@@ -186,7 +186,7 @@ impl Simulation {
             }
             if unit.kind.can_occupy_city()
                 || unit.kind.can_carry(UnitKind::Warrior)
-                || unit.kind.can_carry(UnitKind::Partisan)
+                || unit.kind.can_carry(UnitKind::Guerilla)
             {
                 invasions = true;
             }
@@ -310,7 +310,7 @@ impl Simulation {
             // Air, Helicopter, Missile veteran; Air/Helicopter healing; airlift.
             Building::AIRPORT => {
                 let missiles = own_units()
-                    .filter(|unit| matches!(unit.kind, UnitKind::CruiseMissile | UnitKind::Nuclear))
+                    .filter(|unit| matches!(unit.kind, UnitKind::CruiseMissile | UnitKind::TacticalNuke | UnitKind::ICBM))
                     .count() as i32;
                 19 + 2 * aircraft - missiles + 1 + land.min(13)
             }

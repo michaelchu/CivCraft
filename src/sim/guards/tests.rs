@@ -37,7 +37,7 @@ fn sane_rendezvous_retains_escort_when_omniscient_policy_cannot_pass_enemy() {
     }
     let finish = point(4);
     let charge = game.spawn_unit(1, UnitKind::Catapult, finish.0, finish.1);
-    let guard = game.spawn_unit(1, UnitKind::Musketeers, start.0, start.1);
+    let guard = game.spawn_unit(1, UnitKind::Musketman, start.0, start.1);
     let barrier = point(2);
     game.spawn_unit(HUMAN, UnitKind::Warrior, barrier.0, barrier.1);
     game.tile_mut(barrier.0, barrier.1).known_by[1] = false;
@@ -61,8 +61,8 @@ fn sane_rendezvous_retains_escort_when_omniscient_policy_cannot_pass_enemy() {
 #[test]
 fn guard_links_are_typed_reciprocal_and_dismissed_after_death_or_transfer() {
     let mut game = game();
-    let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
-    let guard = game.spawn_unit(1, UnitKind::Phalanx, 10, 20);
+    let charge = game.spawn_unit(1, UnitKind::Settler, 10, 20);
+    let guard = game.spawn_unit(1, UnitKind::Spearman, 10, 20);
     game.create_city(1, 10, 20);
     game.cities.last_mut().unwrap().id = charge; // local unit/city IDs overlap
     game.request_ai_guard(charge);
@@ -87,22 +87,22 @@ fn guard_links_are_typed_reciprocal_and_dismissed_after_death_or_transfer() {
 #[test]
 fn charge_selection_obeys_role_speed_native_classes_and_defense_delta() {
     let mut game = game();
-    let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
-    let guard = game.spawn_unit(1, UnitKind::Musketeers, 10, 20);
+    let charge = game.spawn_unit(1, UnitKind::Settler, 10, 20);
+    let guard = game.spawn_unit(1, UnitKind::Musketman, 10, 20);
     game.request_ai_guard(charge);
     let actor = game.units.last().unwrap().clone();
     assert_eq!(
         game.look_for_ai_charge(&actor),
-        Some((GuardTarget::Unit(charge), 91.0))
+        Some((GuardTarget::Unit(charge), 100.0))
     );
     assert!(game.run_ai_guard(guard));
     assert_eq!(game.ai_guard_state(charge), GuardState::Assigned(guard));
     assert!(!Simulation::guard_can_follow(
         UnitKind::Cannon,
-        UnitKind::Settlers
+        UnitKind::Settler
     ));
     assert!(
-        !Simulation::guard_can_follow(UnitKind::AegisCruiser, UnitKind::Trireme),
+        !Simulation::guard_can_follow(UnitKind::AegisCruiser, UnitKind::Galley),
         "Trireme's River-native extra is not native to Sea"
     );
     assert!(Simulation::guard_can_follow(
@@ -110,12 +110,12 @@ fn charge_selection_obeys_role_speed_native_classes_and_defense_delta() {
         UnitKind::Transport
     ));
     assert!(
-        !Simulation::guard_can_follow(UnitKind::StealthFighter, UnitKind::Settlers),
+        !Simulation::guard_can_follow(UnitKind::StealthFighter, UnitKind::Settler),
         "terrain coverage alone does not imply native-extra coverage"
     );
     game.clear_ai_charge(guard);
     game.request_ai_guard(charge);
-    game.units.iter_mut().find(|u| u.id == charge).unwrap().kind = UnitKind::Diplomat;
+    game.units.iter_mut().find(|u| u.id == charge).unwrap().kind = UnitKind::Explorer;
     assert!(
         game.look_for_ai_charge(&actor).is_none(),
         "a one-move guard cannot follow a two-move charge"
@@ -159,11 +159,11 @@ fn city_rescue_competes_by_danger_deficit_and_dismisses_when_defended() {
     let mut game = game();
     game.create_city(1, 10, 20);
     let city = game.cities.last().unwrap().id;
-    let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
-    let guard = game.spawn_unit(1, UnitKind::Musketeers, 10, 20);
+    let charge = game.spawn_unit(1, UnitKind::Settler, 10, 20);
+    let guard = game.spawn_unit(1, UnitKind::Musketman, 10, 20);
     let near = offset_native_by_map(10, 20, 1, 0);
     for _ in 0..2 {
-        game.spawn_unit(HUMAN, UnitKind::Marines, near.0, near.1);
+        game.spawn_unit(HUMAN, UnitKind::Marine, near.0, near.1);
     }
     game.request_ai_guard(charge);
     let actor = game.unit_by_id(guard).unwrap().clone();
@@ -176,7 +176,7 @@ fn city_rescue_competes_by_danger_deficit_and_dismisses_when_defended() {
         game.ai_guard_targets.get(&guard),
         Some(&GuardTarget::City(city))
     );
-    game.spawn_unit(1, UnitKind::Musketeers, 10, 20);
+    game.spawn_unit(1, UnitKind::Musketman, 10, 20);
     assert!(game.run_ai_guard(guard));
     assert_eq!(
         game.ai_guard_targets.get(&guard),
@@ -189,7 +189,7 @@ fn city_rescue_competes_by_danger_deficit_and_dismisses_when_defended() {
 fn injured_charge_speed_uses_native_current_unit_rate() {
     let mut game = game();
     let charge = game.spawn_unit(1, UnitKind::Horseman, 10, 20);
-    game.spawn_unit(1, UnitKind::Phalanx, 10, 20);
+    game.spawn_unit(1, UnitKind::Spearman, 10, 20);
     let actor = game.units.last().unwrap().clone();
     game.request_ai_guard(charge);
     assert!(game.look_for_ai_charge(&actor).is_none());
@@ -203,14 +203,14 @@ fn injured_charge_speed_uses_native_current_unit_rate() {
 #[test]
 fn destination_danger_requests_a_guard_and_safe_destination_releases_it() {
     let mut game = game();
-    let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
-    let enemy = game.spawn_unit(HUMAN, UnitKind::Legion, 11, 20);
+    let charge = game.spawn_unit(1, UnitKind::Settler, 10, 20);
+    let enemy = game.spawn_unit(HUMAN, UnitKind::Swordsman, 11, 20);
     assert!(game.ai_guard_for_destination(charge, 11, 20));
     assert_eq!(game.ai_guard_state(charge), GuardState::Wanted);
     game.units.retain(|u| u.id != enemy);
     assert!(!game.ai_guard_for_destination(charge, 11, 20));
     assert_eq!(game.ai_guard_state(charge), GuardState::None);
-    let guard = game.spawn_unit(1, UnitKind::Phalanx, 10, 20);
+    let guard = game.spawn_unit(1, UnitKind::Spearman, 10, 20);
     game.assign_ai_guard(guard, GuardTarget::Unit(charge));
     assert!(
         game.ai_guard_for_destination(charge, 11, 20),
@@ -228,13 +228,14 @@ fn guard_city_assessment_uses_integer_vulnerability_and_quadratic_defense() {
     let data = game.advisor_guard_city_assessment(&city);
     assert_eq!(
         (data.danger, data.urgency, data.grave, data.defense),
-        (4, 11, 1, 0)
+        (1, 11, 1, 0),
+        "the imported Conquests Warrior is attack 1 with regular strength"
     );
-    game.spawn_unit(1, UnitKind::Phalanx, 10, 20);
+    game.spawn_unit(1, UnitKind::Spearman, 10, 20);
     let data = game.advisor_guard_city_assessment(&city);
     assert_eq!(
-        data.defense, 100,
-        "native fortified rating10 squared; class-specific effects are uncertain in generic city query"
+        data.defense, 9,
+        "a regular Conquests Spearman has defense 2; native garrison rating is 3 before squaring"
     );
     game.units.retain(|u| u.owner == HUMAN);
     game.cities
@@ -249,8 +250,10 @@ fn guard_city_assessment_uses_integer_vulnerability_and_quadratic_defense() {
 #[test]
 fn movement_waits_for_guard_follows_it_and_attacks_before_waiting() {
     let mut game = game();
-    let charge = game.spawn_unit(1, UnitKind::Catapult, 10, 20);
-    let guard = game.spawn_unit(1, UnitKind::Musketeers, 10, 20);
+    // A Swordsman is a source-backed combat charge (3/2/1); Catapults have
+    // attack 0 in Conquests and cannot perform the attack this fixture asserts.
+    let charge = game.spawn_unit(1, UnitKind::Swordsman, 10, 20);
+    let guard = game.spawn_unit(1, UnitKind::Musketman, 10, 20);
     game.assign_ai_guard(guard, GuardTarget::Unit(charge));
     game.units
         .iter_mut()
@@ -290,9 +293,9 @@ fn movement_waits_for_guard_follows_it_and_attacks_before_waiting() {
 fn ferry_waits_for_guard_then_loads_it_with_the_boss() {
     let mut game = game();
     game.create_city(1, 10, 20);
-    let charge = game.spawn_unit(1, UnitKind::Settlers, 10, 20);
+    let charge = game.spawn_unit(1, UnitKind::Settler, 10, 20);
     let boat = game.spawn_unit(1, UnitKind::Caravel, 10, 20);
-    let guard = game.spawn_unit(1, UnitKind::Phalanx, 12, 20);
+    let guard = game.spawn_unit(1, UnitKind::Spearman, 12, 20);
     game.assign_ai_guard(guard, GuardTarget::Unit(charge));
     assert!(game.board_specific_ship(charge, boat));
     assert!(

@@ -14,8 +14,7 @@ impl Simulation {
         let (original, shields) = *city
             .production_before_switch
             .get_or_insert((city.production, city.shields));
-        let caravan = city.caravan_shields.min(shields);
-        let regular = shields - caravan;
+        let regular = shields;
         let protected = city.protected_shields.min(regular);
         let mut unpenalized = protected;
         let mut penalized = 0;
@@ -23,12 +22,6 @@ impl Simulation {
             unpenalized += regular - protected;
         } else {
             penalized += regular - protected;
-        }
-        if matches!(target, Production::Building(building) if building.data().genus == Genus::GreatWonder)
-        {
-            unpenalized += caravan;
-        } else {
-            penalized += caravan;
         }
         city.shields = unpenalized + penalized / 2;
         city.production = target;
@@ -44,23 +37,6 @@ impl Simulation {
                 return choice.production;
             }
         } else {
-            let defenders = self
-                .units
-                .iter()
-                .filter(|unit| {
-                    unit.owner == owner
-                        && unit.kind.is_military()
-                        && (unit.x, unit.y) == (city.x, city.y)
-                })
-                .count();
-            if defenders == 0
-                && let Some(kind) = UnitKind::ALL_NATIVE.into_iter().rev().find(|kind| {
-                    kind.has_role(super::unit_catalog::UnitRole::FirstBuild)
-                        && self.unit_buildable(city, *kind)
-                })
-            {
-                return Production::Unit(kind);
-            }
             for (wanted, building) in [
                 (city.size >= 4, Building::TEMPLE),
                 (city.size >= 4, Building::GRANARY),
@@ -73,13 +49,6 @@ impl Simulation {
                 if wanted && self.building_blocker(city, building).is_none() {
                     return Production::Building(building);
                 }
-            }
-        }
-        for kind in UnitKind::ALL_NATIVE.into_iter().rev() {
-            if kind.has_role(super::unit_catalog::UnitRole::FirstBuild)
-                && self.unit_buildable(city, kind)
-            {
-                return Production::Unit(kind);
             }
         }
         Production::Unit(UnitKind::Warrior)
@@ -119,9 +88,7 @@ impl Simulation {
             }
             let snapshot = self.cities[index].clone();
             let forecast = self.city_forecast(&snapshot);
-            let (shield_surplus, recovered) =
-                self.pay_shield_support(&snapshot, forecast.shields, forecast.support.shields);
-            let food_support = self.city_unit_upkeep(&snapshot);
+            let shield_surplus = forecast.shield_surplus();
             let initial_gold = self.city_gold_upkeep(&snapshot);
             let can_produce = match snapshot.production {
                 Production::Unit(kind) => self.unit_buildable(&snapshot, kind),
@@ -130,9 +97,8 @@ impl Simulation {
             let city = &mut self.cities[index];
             city.production_before_switch = None;
             city.protected_shields = 0;
-            city.caravan_shields = 0;
             let surplus = if forecast.disorder { 0 } else { shield_surplus };
-            city.shields += recovered + surplus;
+            city.shields += surplus;
             let finished = if can_produce {
                 city.resolve_production(self.map_wrap)
             } else {
@@ -154,6 +120,7 @@ impl Simulation {
                         unit.home_city = Some(city_id);
                         unit.home_order = id;
                         unit.veteran = rank;
+                        unit.hp = unit.max_hit_points();
                         if kind.stats().pop_cost > 0 {
                             self.rebuild_city_ownership_for_city_event(city_id);
                         }
@@ -204,23 +171,16 @@ impl Simulation {
                 production_forecast
             };
             let food_surplus = growth_forecast.as_ref().map_or_else(
-                || forecast.food_surplus(populated.size, food_support.food),
-                |updated| updated.food_surplus(populated.size, updated.support.food),
+                || forecast.food_surplus(populated.size, 0),
+                |updated| updated.food_surplus(populated.size, 0),
             );
-            let starving_unit = if populated.food + food_surplus < 0 {
-                growth_forecast
-                    .as_ref()
-                    .map_or(food_support.food_unit, |updated| updated.support.food_unit)
-            } else {
-                None
-            };
             let city = &mut self.cities[index];
             let growth = city.resolve_growth(
                 self.map_wrap,
                 food_surplus,
                 Self::city_size_limit(&populated),
                 Self::food_retained(&populated),
-                starving_unit.is_some(),
+                false,
             );
             if growth == Growth::Grew
                 && populated.has_building(Building::LONGEVITY)
@@ -232,9 +192,6 @@ impl Simulation {
             }
             if growth == Growth::Starved {
                 self.remove_citizen_nationalities(index, 1);
-            }
-            if let Some(unit) = starving_unit {
-                self.remove_unsupported_unit(unit, &populated, "food");
             }
             if growth == Growth::Destroyed {
                 self.release_city_support(city_id);
@@ -267,9 +224,8 @@ impl Simulation {
             }
             if snapshot.owner != BARBARIANS {
                 let city = &self.cities[index];
-                let income_refreshed =
-                    refreshed || growth != Growth::Unchanged || starving_unit.is_some();
-                let income = if plague || growth != Growth::Unchanged || starving_unit.is_some() {
+                let income_refreshed = refreshed || growth != Growth::Unchanged;
+                let income = if plague || growth != Growth::Unchanged {
                     self.city_forecast(city)
                 } else {
                     growth_forecast.unwrap_or(forecast)

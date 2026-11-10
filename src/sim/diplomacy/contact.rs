@@ -96,8 +96,7 @@ impl Simulation {
             return;
         }
         // plrhand.c:maybe_make_contact examines adjacent units/cities, not
-        // every visible tile or territorial ownership. Current unit roster
-        // has no Flagless type (native skips those units).
+        // every visible tile or territorial ownership.
         let contacts: std::collections::BTreeSet<_> = self
             .units
             .iter()
@@ -213,50 +212,4 @@ impl Simulation {
         }
     }
 
-    pub(crate) fn can_establish_embassy(&self, unit: &Unit, city: &City) -> bool {
-        (unit.kind.is_diplomatic() || unit.kind == UnitKind::Explorer)
-            && unit.moves_left > 0
-            && unit.transport.is_none()
-            && city.owner != unit.owner
-            && city.owner != BARBARIANS
-            && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
-            && !self.has_real_embassy(unit.owner, city.owner)
-    }
-
-    pub(in crate::sim) fn establish_embassy(&mut self, unit_id: u32, city_id: u32) -> bool {
-        let Some(unit) = self.unit_by_id(unit_id) else {
-            return false;
-        };
-        let Some(city) = self.city_by_id(city_id) else {
-            return false;
-        };
-        if !self.can_establish_embassy(unit, city) {
-            return false;
-        }
-        let (owner, other) = (unit.owner, city.owner);
-        let spy = unit.kind == UnitKind::Spy;
-        let message = format!("An embassy was established in {}.", city.name);
-        self.make_diplomatic_contact(owner, other);
-        let relation = self
-            .diplomacy
-            .entry(Self::relation_key(owner, other))
-            .or_default();
-        relation.embassy[usize::from(owner > other)] = true;
-        relation.first_contact.get_or_insert(self.turn);
-        if spy {
-            self.units
-                .iter_mut()
-                .find(|unit| unit.id == unit_id)
-                .unwrap()
-                .moves_left -= 1;
-        } else {
-            self.units.retain(|unit| unit.id != unit_id);
-            self.prune_unit_ai_state();
-        }
-        if owner == HUMAN {
-            self.add_event(message);
-        }
-        self.refresh_visibility();
-        true
-    }
 }

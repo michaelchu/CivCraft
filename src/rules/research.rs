@@ -153,6 +153,8 @@ impl Tech {
     pub(crate) const THE_REPUBLIC: Self = Self(79);
     pub(crate) const THEOLOGY: Self = Self(81);
     pub(crate) const TRADE: Self = Self(83);
+    pub(crate) const FEUDALISM: Self = Self(28);
+    pub(crate) const FASCISM: Self = Self(99);
 
     pub(crate) fn all() -> impl Iterator<Item = Self> {
         (0..ADVANCES.len()).map(Self)
@@ -200,6 +202,7 @@ impl Tech {
             | "Electronics"
             | "Espionage"
             | "Flight"
+            | "Fascism"
             | "Industrialization"
             | "Mass Production"
             | "Medicine"
@@ -275,6 +278,7 @@ impl Tech {
                 | "Electronics"
                 | "Engineering"
                 | "Espionage"
+                | "Fascism"
                 | "Feudalism"
                 | "Fission"
                 | "Flight"
@@ -368,6 +372,8 @@ impl Tech {
                 | "Monarchy"
                 | "The Republic"
                 | "Chivalry"
+                | "Fascism"
+                | "Feudalism"
                 | "Democracy"
                 | "Economics"
                 | "Free Artistry"
@@ -404,14 +410,14 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[Tech(29), Tech(63), Tech(51)],
         requirement_count: 57,
         first_discovery_bonus: false,
-        reference_unlocks: "Bomber, Carrier, AWACS",
+        reference_unlocks: "Helicopter, Paratrooper",
     },
     Advance {
         name: "Alphabet",
         prerequisites: &[],
         requirement_count: 1,
         first_discovery_bonus: false,
-        reference_unlocks: "Diplomat",
+        reference_unlocks: "",
     },
     Advance {
         name: "Amphibious Warfare",
@@ -460,7 +466,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[],
         requirement_count: 1,
         first_discovery_bonus: false,
-        reference_unlocks: "Phalanx, Colossus",
+        reference_unlocks: "Spearman, Colossus",
     },
     Advance {
         name: "Ceremonial Burial",
@@ -506,7 +512,7 @@ const ADVANCES: &[Advance] = &[
     },
     Advance {
         name: "Communism",
-        prerequisites: &[Tech(17)],
+        prerequisites: &[Tech(17), Tech(35)],
         requirement_count: 42,
         first_discovery_bonus: false,
         reference_unlocks: "Police Station, United Nations",
@@ -586,7 +592,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[Tech(17), Tech(35)],
         requirement_count: 44,
         first_discovery_bonus: false,
-        reference_unlocks: "Spy",
+        reference_unlocks: "Intelligence Agency",
     },
     Advance {
         name: "Explosives",
@@ -628,7 +634,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[Tech(15), Tech(77)],
         requirement_count: 48,
         first_discovery_bonus: false,
-        reference_unlocks: "Partisan, Fanatics",
+        reference_unlocks: "",
     },
     Advance {
         name: "Gunpowder",
@@ -663,7 +669,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[Tech(8)],
         requirement_count: 3,
         first_discovery_bonus: false,
-        reference_unlocks: "Legion",
+        reference_unlocks: "Swordsman",
     },
     Advance {
         name: "Labor Union",
@@ -684,7 +690,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[Tech(11), Tech(33)],
         requirement_count: 19,
         first_discovery_bonus: false,
-        reference_unlocks: "Dragoons",
+        reference_unlocks: "Cavalry",
     },
     Advance {
         name: "Literacy",
@@ -761,7 +767,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[Tech(46), Tech(23)],
         requirement_count: 53,
         first_discovery_bonus: false,
-        reference_unlocks: "Armor, Barracks III",
+        reference_unlocks: "Tank",
     },
     Advance {
         name: "Monarchy",
@@ -796,7 +802,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[],
         requirement_count: 53,
         first_discovery_bonus: false,
-        reference_unlocks: "Nuclear, Manhattan Project",
+        reference_unlocks: "Nuclear Submarine, Manhattan Project",
     },
     Advance {
         name: "Nuclear Power",
@@ -838,7 +844,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[],
         requirement_count: 1,
         first_discovery_bonus: false,
-        reference_unlocks: "Migrants, Granary, Hanging Gardens",
+        reference_unlocks: "Granary, Hanging Gardens",
     },
     Advance {
         name: "Radio",
@@ -880,7 +886,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[Tech(39), Tech(50)],
         requirement_count: 61,
         first_discovery_bonus: false,
-        reference_unlocks: "Howitzer",
+        reference_unlocks: "Radar Artillery",
     },
     Advance {
         name: "Rocketry",
@@ -943,14 +949,14 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[Tech(17), Tech(40)],
         requirement_count: 29,
         first_discovery_bonus: false,
-        reference_unlocks: "Alpine Troops, Cavalry",
+        reference_unlocks: "",
     },
     Advance {
         name: "The Corporation",
         prerequisites: &[Tech(35)],
         requirement_count: 40,
         first_discovery_bonus: false,
-        reference_unlocks: "Freight",
+        reference_unlocks: "",
     },
     Advance {
         name: "The Republic",
@@ -985,7 +991,7 @@ const ADVANCES: &[Advance] = &[
         prerequisites: &[Tech(19), Tech(62)],
         requirement_count: 4,
         first_discovery_bonus: false,
-        reference_unlocks: "Caravan, Marco Polo's Embassy",
+        reference_unlocks: "",
     },
     Advance {
         name: "Education",
@@ -1094,6 +1100,13 @@ const ADVANCES: &[Advance] = &[
         first_discovery_bonus: false,
         reference_unlocks: "Integrated Defense",
     },
+    Advance {
+        name: "Fascism",
+        prerequisites: &[Tech(17)],
+        requirement_count: 3,
+        first_discovery_bonus: false,
+        reference_unlocks: "Fascism government",
+    },
 ];
 
 #[cfg(test)]
@@ -1101,16 +1114,16 @@ mod sentinel_tests {
     use super::*;
     #[test]
     fn adding_unset_preserves_every_existing_persisted_advance_index() {
-        assert_eq!(Tech::all().count(), 99);
-        assert_eq!(Tech::FUTURE.0, 99);
-        assert_eq!(Tech::UNSET.0, 100);
+        assert_eq!(Tech::all().count(), 100);
+        assert_eq!(Tech::FUTURE.0, 100);
+        assert_eq!(Tech::UNSET.0, 101);
         assert_eq!(Tech::POTTERY.0, 62);
         assert_eq!(
             bincode::serialize(&Tech::FUTURE).unwrap(),
-            99_u64.to_le_bytes()
+            100_u64.to_le_bytes()
         );
         assert_eq!(
-            bincode::deserialize::<Tech>(&100_u64.to_le_bytes()).unwrap(),
+            bincode::deserialize::<Tech>(&101_u64.to_le_bytes()).unwrap(),
             Tech::UNSET
         );
         assert_eq!(Tech::UNSET.name(), "No goal");

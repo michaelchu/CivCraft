@@ -96,7 +96,7 @@ impl Simulation {
         let tile = self.tile(x, y);
         if kind.is_aircraft() {
             true
-        } else if kind == UnitKind::Trireme {
+        } else if kind == UnitKind::Galley {
             matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake) || tile.river
         } else {
             tile.terrain.is_water() == kind.is_naval()

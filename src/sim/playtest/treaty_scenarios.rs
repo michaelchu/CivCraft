@@ -16,7 +16,6 @@ impl Simulation {
         self.sign_pact(HUMAN, 1, Pact::Alliance);
         let id = self.cities[2].id;
         self.transfer_traded_city(2, 1);
-        self.spawn_unit(HUMAN, UnitKind::Diplomat, 12, 24);
         let discount = self.city_trade_price(&self.cities[2]);
         let founder = self.city_founders.remove(&id);
         let full = self.city_trade_price(&self.cities[2]);
@@ -51,7 +50,6 @@ impl Simulation {
         self.tile_mut(3, 3).terrain = Terrain::Grassland;
         self.create_city(HUMAN, 3, 3);
         self.sign_pact(HUMAN, 1, Pact::Alliance);
-        self.spawn_unit(HUMAN, UnitKind::Diplomat, capital.0, capital.1);
         self.tile_mut(town.0, town.1).known_by[HUMAN] = true;
         let id = self.cities[1].id;
         let capital_id = self.cities[0].id;
@@ -138,7 +136,7 @@ impl Simulation {
         self.create_city(1, 22, 10);
         let envoy = offset_native_by_map(22, 10, 1, 0);
         self.tile_mut(envoy.0, envoy.1).terrain = Terrain::Grassland;
-        self.spawn_unit(HUMAN, UnitKind::Diplomat, envoy.0, envoy.1);
+        self.make_diplomatic_contact(HUMAN, 1);
         let price = self.map_trade_price(1, HUMAN, TreatyMap::Sea, Pact::Ceasefire);
         self.players[HUMAN].gold = price - 1;
         let refused = !self.apply(Command::BuyMap(1, TreatyMap::Sea))

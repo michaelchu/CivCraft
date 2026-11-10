@@ -77,7 +77,8 @@ impl Simulation {
     pub(in crate::sim) fn hunter_production_choice(&self, _city: &City) -> Option<(UnitKind, f64)> {
         // difficulty.c's Normal profile has H_TARGETS. daihunter.c's
         // dai_hunter_choice returns before both missile and hunter advice when
-        // that handicap is set. Existing Hunter-role units are still managed.
+        // that handicap is set. Existing units with a source Cruise Missile
+        // or ICBM strategy are still managed by the tactical hunter pass.
         // Hard-profile guess_best/hunter production is not implemented.
         None
     }
@@ -125,15 +126,23 @@ impl Simulation {
         let near = offset_native_by_map(start.0, start.1, 2, 0);
         let far = offset_native_by_map(start.0, start.1, 5, 0);
         let hunter_id = sim.spawn_unit(1, UnitKind::Horseman, start.0, start.1);
-        let near_id = sim.spawn_unit(HUMAN, UnitKind::Diplomat, near.0, near.1);
-        let far_id = sim.spawn_unit(HUMAN, UnitKind::Leader, far.0, far.1);
+        sim.spawn_unit(HUMAN, UnitKind::Swordsman, near.0, near.1);
+        let near_id = sim.spawn_unit(HUMAN, UnitKind::Swordsman, near.0, near.1);
+        let far_id = sim.spawn_unit(HUMAN, UnitKind::Cavalry, far.0, far.1);
+        for _ in 0..4 {
+            sim.spawn_unit(HUMAN, UnitKind::Cavalry, far.0, far.1);
+        }
+        sim.previous_naval_positions.insert(
+            far_id,
+            offset_native_by_map(start.0, start.1, 10, 0),
+        );
         let hunter = sim
             .units
             .iter()
             .find(|u| u.id == hunter_id)
             .unwrap()
             .clone();
-        // A much richer GameLoss target must not replace an already worthwhile
+        // A much richer target must not replace an already worthwhile
         // earlier PF tile. Both enemy squares are unknown to this Normal AI.
         let first = sim.hunter_target(&hunter, &Default::default()).map(|v| v.0);
         let far_unit = sim.unit_by_id(far_id).unwrap();
@@ -160,11 +169,16 @@ impl Simulation {
         let target = stack.units.iter().find(|u| u.id == leader).unwrap();
         let stats = target.kind.stats();
         let (threat, cost) = stack.hunter_juiciness(target);
-        let gameloss = target.kind.has_flag(UnitFlag::GameLoss)
-            && cost == stats.cost + 1000
+        // The installed standard Conquests roster has no GameLoss-flagged
+        // prototype. A Leader is not a king and must not get the scenario-only
+        // GameLoss value. Retain ordinary hostile-unit valuation here.
+        let gameloss = UnitKind::ALL_NATIVE
+            .into_iter()
+            .all(|kind| !kind.has_flag(UnitFlag::GameLoss))
+            && !target.kind.has_flag(UnitFlag::GameLoss)
+            && cost == stats.cost
             && threat
                 == (stats.attack * stats.hp * stats.firepower
-                    + 5000
                     + 500 * i32::from(target.kind.has_hostile_action()))
                     * 9
                     + cost;

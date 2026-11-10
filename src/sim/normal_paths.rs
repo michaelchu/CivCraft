@@ -19,8 +19,6 @@ pub(super) enum GotoTask {
     // the native Hunter GOTO profile for task-aware callers.
     #[allow(dead_code)]
     Hunter,
-    Trade,
-    Wonder,
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) struct AiGotoResult {
@@ -182,7 +180,7 @@ impl NormalPaths {
         ship != UnitKind::Helicopter
             || matches!(
                 cargo,
-                UnitKind::Partisan | UnitKind::Marines | UnitKind::Paratroopers
+                UnitKind::Guerilla | UnitKind::Marine | UnitKind::Paratrooper
             )
     }
     fn native_base(sim: &Simulation, kind: UnitKind, x: i32, y: i32) -> bool {
@@ -528,7 +526,6 @@ impl Simulation {
         };
         let policy = if unit.kind.stats().can_work
             || unit.kind.stats().can_found
-            || unit.kind == UnitKind::BarbarianLeader
             || ferry
         {
             TilePolicy::NoFights
@@ -539,9 +536,7 @@ impl Simulation {
                 GotoTask::Attack
                 | GotoTask::Defend
                 | GotoTask::Escort
-                | GotoTask::Hunter
-                | GotoTask::Trade
-                | GotoTask::Wonder => TilePolicy::NoIntermediateFights,
+                | GotoTask::Hunter => TilePolicy::NoIntermediateFights,
                 GotoTask::None => TilePolicy::Default,
             }
         };

@@ -50,16 +50,20 @@ fn bundled_bases_do_not_get_unconfigured_stack_protection_in_offensive_advice() 
 }
 
 #[test]
-fn immediate_successor_direct_requirements_exclude_old_types_even_if_successor_is_obsolete() {
+fn offensive_obsolescence_uses_the_imported_immediate_upgrade_target() {
     let (mut game, city, _, _) = island_fixture();
     game.players[1].known.extend([
         Tech::IRON_WORKING,
         Tech::GUNPOWDER,
-        UnitKind::Riflemen.required_tech().unwrap(),
+        Tech::FEUDALISM,
+        UnitKind::Rifleman.required_tech().unwrap(),
     ]);
-    assert!(!game.unit_buildable(&city, UnitKind::Musketeers));
-    assert!(game.unit_available(1, UnitKind::Musketeers));
-    assert!(game.offensive_obsolete(&city, UnitKind::Legion));
+    assert!(!game.unit_buildable(&city, UnitKind::Musketman));
+    assert!(game.unit_available(1, UnitKind::Musketman));
+    assert_eq!(UnitKind::Swordsman.obsolete_by(), Some(UnitKind::GallicSwordsman));
+    assert!(!game.offensive_obsolete(&city, UnitKind::Swordsman));
+    assert_eq!(UnitKind::Pikeman.obsolete_by(), Some(UnitKind::Musketman));
+    assert!(game.offensive_obsolete(&city, UnitKind::Pikeman));
 }
 
 #[test]
@@ -77,20 +81,20 @@ fn nearby_empty_city_retains_unbuilt_rank_zero_defender_type_with_zero_unit_bene
     };
     let (defender, benefit) = game.offensive_victim(&seed, &target);
     let defender = defender.expect("native retains def_type despite arrival<=1");
-    assert_eq!(defender.kind, UnitKind::Phalanx);
+    assert_eq!(defender.kind, UnitKind::Spearman);
     assert_eq!(defender.veteran, 0);
     assert_eq!(benefit, 0.0);
     assert!(game.offensive_defense_squared(&defender, seed.kind, enemy.0, enemy.1, true) > 0);
-    let current = game.spawn_unit(HUMAN, UnitKind::Marines, enemy.0, enemy.1);
+    let current = game.spawn_unit(HUMAN, UnitKind::Marine, enemy.0, enemy.1);
     let marine = game.units.iter_mut().find(|u| u.id == current).unwrap();
     marine.hp = 1;
     marine.state = UnitState::Fortified;
     let (defender, benefit) = game.offensive_victim(&seed, &target);
     let defender = defender.unwrap();
-    assert_eq!(defender.kind, UnitKind::Marines);
-    assert_eq!(defender.hp, UnitKind::Marines.stats().hp);
+    assert_eq!(defender.kind, UnitKind::Marine);
+    assert_eq!(defender.hp, UnitKind::Marine.stats().hp);
     assert_eq!(defender.state, UnitState::Idle);
-    assert_eq!(benefit, UnitKind::Marines.stats().cost as f32);
+    assert_eq!(benefit, UnitKind::Marine.stats().cost as f32);
 }
 
 #[test]
@@ -107,7 +111,7 @@ fn fractional_ferry_override_survives_integer_conversion_below_the_discarded_pri
     let fraction = raw.want.fract();
     assert!(fraction > 0.0 && fraction < 1.0);
     game.players[1].known.push(Tech::MAP_MAKING);
-    assert!(game.can_produce(&city, Production::Unit(UnitKind::Trireme)));
+    assert!(game.can_produce(&city, Production::Unit(UnitKind::Galley)));
     let prior = AiBuildChoice {
         production: Production::Unit(UnitKind::Archer),
         want: raw.want.floor() + fraction / 2.0,
@@ -116,7 +120,7 @@ fn fractional_ferry_override_survives_integer_conversion_below_the_discarded_pri
     let (final_choice, _, replaced) = game.offensive_advice_with_prior(&city, Some(prior));
     let final_choice = final_choice.unwrap();
     assert!(replaced);
-    assert_eq!(final_choice.production, Production::Unit(UnitKind::Trireme));
+    assert_eq!(final_choice.production, Production::Unit(UnitKind::Galley));
     assert_eq!(final_choice.want, raw.want.floor());
     assert!(
         final_choice.want < prior.want,
@@ -141,7 +145,7 @@ fn virtual_ferry_stimulates_its_missing_technology_after_a_real_offensive_target
         .offensive_target(&city, &seed)
         .expect("virtual boat finds beachhead");
     assert!(target.new_ferry);
-    assert_eq!(target.ferry.as_ref().unwrap().kind, UnitKind::Trireme);
+    assert_eq!(target.ferry.as_ref().unwrap().kind, UnitKind::Galley);
     let (choice, research) = game.offensive_advice(&city);
     assert!(choice.is_some());
     assert!(
@@ -203,7 +207,7 @@ fn literal_c_kill_desire_and_amortization_vectors_preserve_float_assignments() {
     );
 }
 #[test]
-fn future_offensive_types_emit_direct_wants_while_normal_known_target_gate_is_shared() {
+fn offensive_target_feedback_respects_visibility_and_ends_after_learning_the_tech() {
     let game = Simulation::new(crate::mapgen::generate(42));
-    assert_eq!(game.offensive_research_playtest(), (true, true, true, true));
+    assert_eq!(game.offensive_research_playtest(), (true, true));
 }

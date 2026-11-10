@@ -9,7 +9,7 @@ mod advisor_threats;
 #[cfg(test)]
 use advisor_buildings::DefenseEffectContext;
 
-use super::unit_catalog::{UnitClass, UnitFlag, UnitRole};
+use super::unit_catalog::{UnitAiStrategy, UnitClass, UnitFlag};
 use super::*;
 
 mod playtest;
@@ -19,8 +19,6 @@ const FOOD_WEIGHT: i32 = 30;
 const SHIELD_WEIGHT: i32 = 17;
 const TRADE_WEIGHT: i32 = 18;
 const ADVISOR_POWER_DIVIDER: i32 = POWER_FACTOR * 3;
-
-const SIMPLE_MILITARY: &[UnitKind] = &UnitKind::SIMPLE_MILITARY;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct AiBuildChoice {
@@ -41,68 +39,6 @@ pub(super) struct GuardCityAssessment {
 }
 
 impl Simulation {
-    fn wonder_helper_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
-        let wonder_id = self.ai_wonder_city(city.owner)?;
-        if wonder_id == city.id {
-            return None;
-        }
-        let wonder_city = self
-            .cities
-            .iter()
-            .find(|candidate| candidate.id == wonder_id)?;
-        let Production::Building(wonder) = wonder_city.production else {
-            return None;
-        };
-        // Civ2Civ3 ACTION_HELP_WONDER explicitly targets GreatWonder;
-        // the generic advisor's is_wonder check alone is insufficient.
-        if wonder.data().genus != Genus::GreatWonder
-            || self.building_blocker(wonder_city, wonder).is_some()
-        {
-            return None;
-        }
-        let kind = [UnitKind::Freight, UnitKind::Caravan]
-            .into_iter()
-            .find(|&kind| self.unit_buildable(city, kind))?;
-        let helper = self.make_unit(0, city.owner, kind, wonder_city.x, wonder_city.y);
-        let allowance = self.unit_move_allowance(city.owner, kind);
-        let distance = self.route_cost_within(&helper, city.x, city.y, allowance * 7)?;
-        if distance <= 0 {
-            return None;
-        }
-        let labels = self.continent_labels();
-        let continent = labels[self.map_wrap.index(city.x, city.y)];
-        let existing = self
-            .units
-            .iter()
-            .filter(|unit| {
-                unit.owner == city.owner
-                    && matches!(unit.kind, UnitKind::Caravan | UnitKind::Freight)
-                    && labels[self.map_wrap.index(unit.x, unit.y)] == continent
-            })
-            .count();
-        let building = self
-            .cities
-            .iter()
-            .filter(|other| {
-                other.owner == city.owner
-                    && matches!(
-                        other.production,
-                        Production::Unit(UnitKind::Caravan | UnitKind::Freight)
-                    )
-                    && labels[self.map_wrap.index(other.x, other.y)] == continent
-            })
-            .count();
-        if wonder.data().cost - wonder_city.shields
-            <= kind.stats().cost * (existing + building) as i32
-        {
-            return None;
-        }
-        let mut scratch = self.clone();
-        let want = self.projected_wonder_want(&mut scratch, wonder_city, wonder)
-            / f64::from((distance / allowance.max(1)).max(1));
-        (want > 0.0).then_some((kind, want))
-    }
-
     fn wonder_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
         if self.ai_wonder_city(city.owner) != Some(city.id) {
             return None;
@@ -150,19 +86,9 @@ impl Simulation {
         }) {
             return Some(city.id);
         }
-        // The standard ruleset has wonder helpers, so at least six cities
-        // on this continent and four within four helper turns are required.
-        if owned.len() < 6 {
+        if owned.is_empty() {
             return None;
         }
-        let labels = self.continent_labels();
-        let helper_kind = if self.unit_available(owner, UnitKind::Freight) {
-            UnitKind::Freight
-        } else {
-            UnitKind::Caravan
-        };
-        let helper_available = self.unit_available(owner, helper_kind);
-        let range = self.unit_move_allowance(owner, helper_kind) * 4;
         let mut best = None;
         let mut best_value = 0;
         for &city in &owned {
@@ -172,25 +98,6 @@ impl Simulation {
             {
                 continue;
             }
-            let continent = labels[self.map_wrap.index(city.x, city.y)];
-            let count = owned
-                .iter()
-                .filter(|other| labels[self.map_wrap.index(other.x, other.y)] == continent)
-                .count() as i32;
-            if continent == 0 || count <= 5 {
-                continue;
-            }
-            let helper = self.make_unit(0, owner, helper_kind, city.x, city.y);
-            let downtown = owned
-                .iter()
-                .filter(|other| {
-                    self.route_cost_within(&helper, other.x, other.y, range)
-                        .is_some()
-                })
-                .count() as i32;
-            if downtown <= 3 {
-                continue;
-            }
             let mut value = self.city_forecast(city).shield_surplus();
             if self
                 .map_wrap
@@ -198,17 +105,6 @@ impl Simulation {
                 .any(|(x, y)| self.tile(x, y).terrain.is_water())
             {
                 value /= 2;
-            }
-            if helper_available {
-                value += downtown + count / 8;
-            }
-            let threatened = self.units.iter().any(|unit| {
-                self.ai_potentially_hostile(owner, unit.owner)
-                    && unit.kind.is_military()
-                    && labels[self.map_wrap.index(unit.x, unit.y)] == continent
-            });
-            if threatened {
-                value -= value / 4;
             }
             if value > best_value {
                 best = Some(city.id);

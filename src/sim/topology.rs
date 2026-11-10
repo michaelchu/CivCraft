@@ -638,7 +638,7 @@ mod campaign_geometry_tests {
                 let founder = sim
                     .units
                     .iter()
-                    .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settlers)
+                    .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settler)
                     .unwrap()
                     .id;
                 assert!(sim.apply(Command::FoundCity(founder)));

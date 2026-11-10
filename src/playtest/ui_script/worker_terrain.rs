@@ -141,29 +141,6 @@ impl Playtest {
             });
             self.results.push(("farmland", completed, format!("Started Farmland using the worker control and completed it over end turns: {completed}.")));
         }
-        if frame == 172 && self.act_passed {
-            let engineer = game.sim.terrain_work_playtest_setup();
-            game.perform_action(UiAction::SelectUnit(engineer));
-        }
-        if frame == 174 && self.act_passed {
-            if let Some((_, action)) = buttons.iter().find(|(_, action)| {
-                matches!(action, UiAction::TerrainWork(sim::WorkKind::Transform))
-            }) {
-                game.perform_action(*action);
-            }
-            let location = game
-                .selected_unit
-                .and_then(|id| game.sim.units().iter().find(|unit| unit.id == id))
-                .filter(|unit| {
-                    unit.work_kind == Some(sim::WorkKind::Transform) && unit.work_turns_left() == 12
-                })
-                .map(|unit| (unit.x, unit.y));
-            let completed = location.is_some_and(|(x, y)| {
-                (0..12).all(|_| game.sim.apply(Command::EndTurn))
-                    && game.sim.tile(x, y).terrain == sim::Terrain::Plains
-            });
-            self.results.push(("terrain_work", completed, format!("Used the Engineer's Transform control to turn Tundra into Plains within its 12-turn estimate: {completed}.")));
-        }
         if frame == 177 && self.act_passed {
             let (warrior, tile) = game.sim.pillage_playtest_setup();
             self.pillage_probe = Some(tile);
@@ -191,8 +168,8 @@ impl Playtest {
             *game = Game::new(crate::mapgen::generate(42));
             game.perform_action(UiAction::FoundCity);
             game.perform_action(UiAction::CloseCity);
-            let engineer = game.sim.base_playtest_setup();
-            game.perform_action(UiAction::SelectUnit(engineer));
+            let worker = game.sim.base_playtest_setup();
+            game.perform_action(UiAction::SelectUnit(worker));
         }
         if frame == 183 || frame == 186 {
             let target = if frame == 183 {
@@ -237,14 +214,14 @@ impl Playtest {
                 if frame == 184 { "airstrip" } else { "airbase" },
                 completed,
                 format!(
-                    "Built {} through the Engineer control: {completed}. Control available: {}. Started: {started}.",
+                    "Built {} through the Worker control: {completed}. Control available: {}. Started: {started}.",
                     target.name(), action.is_some()
                 ),
             ));
         }
         if frame == 190 && self.act_passed {
-            let engineer = game.sim.cleanup_playtest_setup();
-            game.perform_action(UiAction::SelectUnit(engineer));
+            let worker = game.sim.cleanup_playtest_setup();
+            game.perform_action(UiAction::SelectUnit(worker));
         }
         if frame == 192 && self.act_passed {
             let position = game
@@ -264,7 +241,7 @@ impl Playtest {
                     && game.sim.tile(x, y).pollution
             });
             self.results.push(("cleanup", completed,
-                format!("Cleaned Fallout through the Engineer control while leaving Pollution intact: {completed}.")));
+                format!("Cleaned Fallout through the Worker control while leaving Pollution intact: {completed}.")));
         }
         if frame == 195 && self.act_passed {
             let ship = game.sim.naval_cleanup_playtest_setup();

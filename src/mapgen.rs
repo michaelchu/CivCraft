@@ -585,6 +585,7 @@ impl Generator {
                     farmland: false,
                     pollution: false,
                     fallout: false,
+                    craters: false,
                     base: None,
                     mine: false,
                     oil_well: false,

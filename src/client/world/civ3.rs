@@ -1,6 +1,51 @@
 //! Dedicated Civ III world painter and ordered map passes.
 
 use super::*;
+use crate::sim::{Base, Unit, UnitState, WorkKind};
+
+fn unit_animation_action(unit: &Unit) -> super::super::tileset::Civ3UnitAction {
+    use super::super::tileset::Civ3UnitAction as Action;
+    let pause = get_time().rem_euclid(3.0) >= 2.0;
+    if let Some(work) = unit.work_kind {
+        return match work {
+            WorkKind::Road | WorkKind::Railroad => {
+                if pause { Action::PauseRoad } else { Action::Road }
+            }
+            WorkKind::Mine | WorkKind::OilWell | WorkKind::OilPlatform => {
+                if pause { Action::PauseMine } else { Action::Mine }
+            }
+            WorkKind::Irrigation | WorkKind::Farmland | WorkKind::Cultivate => {
+                if pause { Action::PauseIrrigate } else { Action::Irrigate }
+            }
+            WorkKind::Plant => {
+                if pause { Action::PauseForest } else { Action::Plant }
+            }
+            WorkKind::BuildBase(Base::Fortress) => Action::Fortress,
+            WorkKind::BuildBase(_) | WorkKind::Clean(_) => Action::Build,
+            // The source CAPTURE clips depict captured units (and are also
+            // used for ICBM launch in the original INI). Pillaging has no
+            // corresponding campaign INI state, so keep the unit on its
+            // ordinary idle loop instead of reusing an unrelated action.
+            WorkKind::Pillage(_) => Action::Fidget,
+        };
+    }
+    match unit.state {
+        UnitState::Fortifying => Action::Fortify,
+        UnitState::Fortified => Action::FortifyHold,
+        UnitState::Idle | UnitState::Sentry => Action::Fidget,
+        UnitState::AirSuperiority => Action::Fidget,
+    }
+}
+
+fn unit_animation_progress(action: super::super::tileset::Civ3UnitAction) -> (f32, Option<f32>) {
+    if action == super::super::tileset::Civ3UnitAction::Default {
+        (0.0, None)
+    } else {
+        const AMBIENT_CYCLE_SECONDS: f32 = 3.0;
+        let phase = (get_time() as f32 / AMBIENT_CYCLE_SECONDS).fract();
+        (phase, Some(AMBIENT_CYCLE_SECONDS))
+    }
+}
 
 /// Owns the Civ III world-pass orchestration for one frame.
 ///
@@ -178,7 +223,7 @@ impl<'a> Civ3WorldPainter<'a> {
                             && if pollution {
                                 neighbor.pollution
                             } else {
-                                neighbor.fallout
+                                neighbor.fallout || neighbor.craters
                             }
                     })
             });
@@ -196,7 +241,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 geometry.size(),
             );
         }
-        if tile.fallout {
+        if tile.fallout || tile.craters {
             assets.civ3.draw_contamination(
                 true,
                 contamination_index(false),
@@ -449,13 +494,16 @@ impl<'a> Civ3WorldPainter<'a> {
                     && Some(unit.id) != game.selected_unit
                     && !game.playback.is_active(unit.id)
                 {
+                    let action = unit_animation_action(unit);
+                    let (progress, duration) = unit_animation_progress(action);
                     game.draw_unit(
                         assets,
                         unit,
                         center,
                         count,
-                        super::super::tileset::Civ3UnitAction::Default,
-                        0.0,
+                        action,
+                        progress,
+                        duration,
                     );
                 }
             }
@@ -477,13 +525,16 @@ impl<'a> Civ3WorldPainter<'a> {
                 && Some(unit.id) == game.selected_unit
                 && !game.playback.is_active(unit.id)
             {
+                let action = unit_animation_action(unit);
+                let (progress, duration) = unit_animation_progress(action);
                 game.draw_unit(
                     assets,
                     unit,
                     center,
                     count,
-                    super::super::tileset::Civ3UnitAction::Default,
-                    0.0,
+                    action,
+                    progress,
+                    duration,
                 );
             }
         }

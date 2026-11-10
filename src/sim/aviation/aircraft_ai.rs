@@ -2,8 +2,6 @@
 
 use super::*;
 
-mod playtest;
-
 type AircraftAttackPath = (Vec<(i32, i32)>, (i32, i32), f64);
 type AircraftBaseRoute = (Vec<(i32, i32)>, (i32, i32));
 
@@ -97,6 +95,7 @@ impl Simulation {
             let mut plane = self.make_unit(0, city.owner, kind, city.x, city.y);
             plane.home_city = Some(city.id);
             plane.veteran = self.trained_rank(city, kind);
+            plane.hp = plane.max_hit_points();
             if let Some((_, _, value)) = self.aircraft_best_target(&plane)
                 && value > best_value
             {
@@ -144,13 +143,6 @@ impl Simulation {
                 (value > 0.0).then_some((u.x, u.y, value))
             })
             .max_by(|a, b| a.2.total_cmp(&b.2))
-    }
-
-    #[cfg(test)]
-    pub(in crate::sim) fn run_ai_nuclear_aircraft(&mut self, plane: &Unit) {
-        // dai_manage_unit dispatches all fueled non-escort actors through
-        // dai_manage_airunit. Hunter-controlled launches are separate.
-        self.run_ai_strike_aircraft(plane);
     }
 
     fn source_unit_can_strike(&self, attacker: &Unit, defender: &Unit) -> bool {
@@ -243,24 +235,36 @@ impl Simulation {
     }
 
     pub(super) fn aircraft_repair_gain(&self, plane: &Unit, x: i32, y: i32) -> i32 {
-        let percent = if let Some(city) = self.city_at(x, y) {
-            if city.has_building(Building::AIRPORT) {
-                100
-            } else {
-                33
-            }
-        } else if self.tile(x, y).base == Some(Base::Airbase) {
-            34
+        let carrier = plane.transport.is_some_and(|id| {
+            self.units.iter().any(|ship| {
+                ship.id == id
+                    && ship.kind == UnitKind::Carrier
+                    && (ship.x, ship.y) == (x, y)
+                    && self.allied(plane.owner, ship.owner)
+            })
+        }) || self.units.iter().any(|ship| {
+            ship.kind == UnitKind::Carrier
+                && (ship.x, ship.y) == (x, y)
+                && self.allied(plane.owner, ship.owner)
+                && self.cargo_units_ordered(ship.id).any(|cargo| cargo.id == plane.id)
+        });
+        let full_repair = carrier
+            || self.city_at(x, y).is_some_and(|city| city.has_building(Building::AIRPORT))
+            || self.tile(x, y).base == Some(Base::Airbase);
+        if full_repair {
+            plane.max_hit_points()
         } else if self.refuel_site(plane.owner, x, y) {
-            10
+            // The Civilopedia says damaged units heal one health bar per turn;
+            // faster one-turn recovery is explicitly granted to Airports,
+            // Airfields, and aircraft aboard Carriers.
+            (plane.max_hit_points() / 10).max(1)
         } else {
             0
-        };
-        percent_of(plane.kind.stats().hp, percent)
+        }
     }
 
     pub(super) fn aircraft_regen_turns(&self, plane: &Unit, x: i32, y: i32) -> i32 {
-        let lost = plane.kind.stats().hp - plane.hp;
+        let lost = plane.max_hit_points() - plane.hp;
         if lost <= 0 {
             return 0;
         }
@@ -302,7 +306,7 @@ impl Simulation {
                 continue;
             }
             let turns = self.aircraft_regen_turns(plane, x, y);
-            if plane.hp >= plane.kind.stats().hp || turns <= 0 {
+            if plane.hp >= plane.max_hit_points() || turns <= 0 {
                 best = Some((x, y));
                 break;
             }
@@ -320,7 +324,7 @@ impl Simulation {
         plane: &Unit,
         bases: &[(i32, i32)],
     ) -> Option<AircraftBaseRoute> {
-        let lost = plane.kind.stats().hp - plane.hp;
+        let lost = plane.max_hit_points() - plane.hp;
         let gain = self.aircraft_repair_gain(plane, plane.x, plane.y);
         let mut minimum_regen = i32::MAX;
         if lost > 0 && gain > 0 {

@@ -42,7 +42,7 @@ impl Game {
         let x = center.x - width * 0.5;
         let y = center.y - 29.0 * zoom;
         draw_rectangle(x, y, width, height, Color::from_rgba(20, 20, 20, 220));
-        let fraction = hp_fraction(unit.hp, unit.kind.stats().hp);
+        let fraction = hp_fraction(unit.hp, unit.max_hit_points());
         let color = if fraction > 0.6 {
             Color::from_rgba(84, 205, 102, 255)
         } else if fraction > 0.3 {

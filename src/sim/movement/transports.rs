@@ -10,7 +10,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn naval_city_access(&self, city: &City, kind: UnitKind) -> bool {
-        if kind != UnitKind::Trireme {
+        if kind != UnitKind::Galley {
             return self.is_port(city);
         }
         let native = |tile: &Tile| {
@@ -152,7 +152,7 @@ impl Simulation {
         true
     }
 
-    fn set_transport(&mut self, index: usize, carrier: Option<u32>) {
+    pub(in crate::sim) fn set_transport(&mut self, index: usize, carrier: Option<u32>) {
         self.record_transport_change(self.units[index].id, carrier);
         self.units[index].transport = carrier;
         self.units[index].state = UnitState::Idle;
@@ -192,9 +192,7 @@ impl Simulation {
                 .filter(|unit| unit.transport == Some(lost) && !losses.contains(&unit.id))
                 .map(|unit| (!self.can_leave_transport(unit), unit.clone()))
                 .collect();
-            cargo.sort_by_key(|(helpless, unit)| {
-                (!*helpless, unit.kind != UnitKind::BarbarianLeader)
-            });
+            cargo.sort_by_key(|(helpless, _)| !*helpless);
             for (helpless, passenger) in cargo {
                 if !self.rescue_transport_cargo(lost, &passenger, helpless, &losses) {
                     losses.push(passenger.id);
@@ -262,9 +260,6 @@ impl Simulation {
                     .map(|(_, id)| id);
             }
             if replacement.is_none() {
-                if passenger.kind != UnitKind::BarbarianLeader {
-                    return false;
-                }
                 let carrier_kind = self.unit_by_id(lost).unwrap().kind;
                 let Some(city) = self
                     .cities

@@ -6,6 +6,7 @@ use super::*;
 pub(crate) enum Contamination {
     Pollution,
     Fallout,
+    Craters,
 }
 
 impl Contamination {
@@ -13,12 +14,14 @@ impl Contamination {
         match self {
             Self::Pollution => "pollution",
             Self::Fallout => "fallout",
+            Self::Craters => "craters",
         }
     }
 }
 
 impl Tile {
     pub(crate) fn contamination_output(&self, value: i32) -> i32 {
+        let value = (value - i32::from(self.craters)).max(0);
         let penalty = match (self.pollution, self.fallout) {
             (true, true) => 75,
             (true, false) | (false, true) => 50,
@@ -31,6 +34,7 @@ impl Tile {
         match target {
             Contamination::Pollution => self.pollution,
             Contamination::Fallout => self.fallout,
+            Contamination::Craters => self.craters,
         }
     }
 }
@@ -95,6 +99,7 @@ impl Simulation {
         match target {
             Contamination::Pollution => tile.pollution = true,
             Contamination::Fallout => tile.fallout = true,
+            Contamination::Craters => tile.craters = true,
         }
         true
     }
@@ -133,5 +138,38 @@ mod tests {
         game.update_activities_and_restore();
         assert!(!game.tile(x, y).pollution);
         assert_eq!(game.tile(x, y).contamination_output(8), 4);
+    }
+
+    #[test]
+    fn craters_reduce_each_tile_yield_and_workers_can_clear_them() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (x, y) = (10, 20);
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.resource = None;
+        tile.river = false;
+        tile.road = false;
+        tile.railroad = false;
+        tile.irrigation = false;
+        tile.mine = false;
+        tile.craters = true;
+        let yields = tile.yields();
+        assert_eq!(yields, (2, 0, 0));
+        assert_eq!(
+            (
+                tile.contamination_output(yields.0),
+                tile.contamination_output(yields.1),
+                tile.contamination_output(yields.2),
+            ),
+            (1, 0, 0)
+        );
+
+        let worker = game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
+        assert!(game.begin_work(worker, WorkKind::Clean(Contamination::Craters)));
+        for _ in 0..3 {
+            game.update_activities_and_restore();
+        }
+        assert!(!game.tile(x, y).craters);
+        assert_eq!(game.tile(x, y).yields(), (2, 0, 0));
     }
 }

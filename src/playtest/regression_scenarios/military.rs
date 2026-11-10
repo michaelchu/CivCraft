@@ -129,16 +129,6 @@ impl Playtest {
                 format!("A Battleship intercepted a Frigate threatening the transport: {intercepted}. The transported Marines remained aboard: {protected}.")));
         }
 
-        if frame == 517 && self.act_passed {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push((
-                "barbarian_ransom",
-                sim.ransom_playtest(),
-                "Checked stacked leaders, the treasury cap, mixed stacks, and naval attackers."
-                    .to_owned(),
-            ));
-        }
-
         if frame == 519 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (recovered, outside, unloaded) = sim.disband_playtest();
@@ -148,9 +138,9 @@ impl Playtest {
 
         if frame == 521 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (rescued, drowned, evacuated) = sim.cargo_rescue_playtest();
-            self.results.push(("transport_cargo_rescue", rescued && drowned && evacuated,
-                format!("Cargo transferred to a friendly ship and woke from sentry: {rescued}. An enemy ship offered no rescue: {drowned}. A Barbarian Leader evacuated to port: {evacuated}.")));
+            let (rescued, drowned) = sim.cargo_rescue_playtest();
+            self.results.push(("transport_cargo_rescue", rescued && drowned,
+                format!("Cargo transferred to a friendly ship and woke from sentry: {rescued}. An enemy ship offered no rescue: {drowned}.")));
         }
 
         if frame == 523 && self.act_passed {

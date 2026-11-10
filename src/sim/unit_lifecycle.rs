@@ -7,9 +7,6 @@ impl Simulation {
         let ids: std::collections::BTreeSet<_> = self
             .ai_ground_targets
             .keys()
-            .chain(self.agent_city_targets.keys())
-            .chain(self.ai_merchant_missions.keys())
-            .chain(self.merchant_birth_turns.keys())
             .chain(self.ai_settlement_targets.keys())
             .chain(self.ai_ferries.boats.keys())
             .chain(self.ai_ferries.passengers.keys())
@@ -35,10 +32,6 @@ impl Simulation {
         self.forget_ai_guard_unit(id);
         self.ai_ferries.forget(id);
         self.ai_ground_targets.remove(&id);
-        self.agent_city_targets.remove(&id);
-        self.ai_merchant_missions.remove(&id);
-        self.merchant_birth_turns.remove(&id);
-        self.merchant_mission_attempts.remove(&id);
         self.ai_settlement_targets.remove(&id);
     }
 
@@ -62,9 +55,6 @@ impl Simulation {
                 },
             );
         }
-        if matches!(kind, UnitKind::Caravan | UnitKind::Freight) {
-            self.merchant_birth_turns.insert(id, self.turn);
-        }
         self.refresh_diplomatic_contact_at(owner, x, y);
         id
     }
@@ -82,8 +72,7 @@ impl Simulation {
         unit
     }
     pub(crate) fn can_disband(&self, unit: &Unit, city: Option<&City>) -> bool {
-        unit.kind != UnitKind::BarbarianLeader
-            && city.is_none_or(|city| {
+        city.is_none_or(|city| {
                 self.allied(unit.owner, city.owner)
                     && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
             })

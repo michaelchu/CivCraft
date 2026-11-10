@@ -79,7 +79,6 @@ impl Simulation {
                 let loss = city.shields;
                 city.shields = 0;
                 city.protected_shields = 0;
-                city.caravan_shields = 0;
                 city.production_before_switch = None;
                 format!("{loss} shields lost.")
             }

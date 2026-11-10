@@ -189,7 +189,7 @@ fn an_older_trade_map_does_not_replace_a_newer_observation() {
         tile.known_by.fill(false);
     }
     game.tile_mut(23, 36).terrain = Terrain::Sea;
-    game.spawn_unit(1, UnitKind::Trireme, 23, 36);
+    game.spawn_unit(1, UnitKind::Galley, 23, 36);
     game.refresh_visibility();
     game.units.clear();
     game.tile_mut(23, 36).terrain = Terrain::Grassland;

@@ -3,6 +3,47 @@
 use super::*;
 
 impl Simulation {
+    fn try_enslave_defeated_unit(&mut self, attacker: &Unit, defender: &Unit, x: i32, y: i32) {
+        let result_index = attacker
+            .kind
+            .conquests_rule()
+            .enslave_result_prototype_index;
+        if result_index < 0 {
+            return;
+        }
+        let Some(result_rule) = crate::sim::civ3_unit_rules::get_by_prototype_index(result_index)
+        else {
+            return;
+        };
+        let Some(result_kind) = UnitKind::from_conquests_id(result_rule.id) else {
+            return;
+        };
+        if self.rand_below(3) != 0 {
+            return;
+        }
+
+        let created_id = self.spawn_unit(attacker.owner, result_kind, x, y);
+        let created = {
+            let created = self
+                .units
+                .iter_mut()
+                .find(|unit| unit.id == created_id)
+                .expect("new enslaved unit exists");
+            // The new unit serves the victor while retaining the defeated
+            // unit's nationality, matching Civ III's captured-unit rule.
+            created.nationality = defender.nationality;
+            created.clone()
+        };
+        self.publish_visual_event(VisualEvent::Capture { unit: created });
+        if attacker.owner == HUMAN {
+            self.add_event(format!(
+                "Your {} enslaved the enemy, creating a new {}!",
+                attacker.kind.name(),
+                result_kind.name()
+            ));
+        }
+    }
+
     pub(crate) fn attack_power(unit: &Unit) -> i32 {
         let stats = unit.kind.stats();
         let mut power = percent_of(stats.attack * POWER_FACTOR, unit.veteran_power());
@@ -50,7 +91,7 @@ impl Simulation {
         let base = self.tile(x, y).base;
         let aerial_attack = attacker.is_aircraft();
         let naval_attack = attacker.is_naval();
-        if unit.kind == UnitKind::AegisCruiser && aerial_attack && attacker != UnitKind::Nuclear {
+        if unit.kind == UnitKind::AegisCruiser && aerial_attack && !attacker.is_nuclear_weapon() {
             power *= 5;
         }
         if unit.kind == UnitKind::Destroyer && attacker == UnitKind::Submarine {
@@ -84,11 +125,7 @@ impl Simulation {
             if naval_attack && has(Building::COASTAL_DEFENSE) {
                 defend_bonus += 100;
             }
-            if attacker.is_missile() {
-                if has(Building::SDI_DEFENSE) {
-                    defend_bonus += 100;
-                }
-            } else if aerial_attack && has(Building::SAM_BATTERY) {
+            if aerial_attack && has(Building::SAM_BATTERY) {
                 defend_bonus += 100;
             }
         }
@@ -158,9 +195,11 @@ impl Simulation {
     pub(in crate::sim) fn best_defender_id(&self, attacker: &Unit, x: i32, y: i32) -> Option<u32> {
         let mut best = None;
         let mut best_rank = None;
+        let attacker_rule = attacker.kind.conquests_rule();
         for defender in self.tile_units_ordered(x, y).filter(|unit| {
             self.at_war(unit.owner, attacker.owner)
                 && unit.transport.is_none()
+                && attacker_rule.can_stealth_target(unit.kind.conquests_rule())
                 && (!unit.kind.is_aircraft()
                     || attacker.kind.can_attack_aircraft()
                     || (!attacker.kind.is_aircraft() && self.refuel_site(unit.owner, x, y)))
@@ -183,22 +222,63 @@ impl Simulation {
     pub(in crate::sim) fn combat_stack_losses<'a>(
         &'a self,
         loser: &'a Unit,
-        winner: &'a Unit,
+        _winner: &'a Unit,
     ) -> impl Iterator<Item = &'a Unit> {
-        let protected = !self.stack_vulnerable(loser.x, loser.y);
-        self.units.iter().filter(move |unit| {
-            unit.id == loser.id
-                || (!protected
-                    && (unit.x, unit.y) == (loser.x, loser.y)
-                    && self.at_war(winner.owner, unit.owner)
-                    && if unit.kind.is_aircraft() {
-                        winner.kind.can_attack_aircraft()
-                            || (!winner.kind.is_aircraft()
-                                && self.refuel_site(unit.owner, unit.x, unit.y))
-                    } else {
-                        winner.kind.is_aircraft() || unit.kind.is_naval() == winner.kind.is_naval()
-                    })
-        })
+        // Civ III's manual describes the strongest unit on a square as the
+        // defender; defeating it does not eliminate the other units stacked
+        // there. Cargo removal is handled separately when the defeated unit
+        // itself is a transport.
+        self.units.iter().filter(move |unit| unit.id == loser.id)
+    }
+
+    pub(in crate::sim) fn resolve_zoc_attacks(&mut self, mover_id: u32, x: i32, y: i32) -> bool {
+        let Some(mover) = self.unit_by_id(mover_id).cloned() else {
+            return false;
+        };
+        if mover.kind.ignores_zoc() {
+            return true;
+        }
+        let attackers = self
+            .units
+            .iter()
+            .filter(|unit| {
+                !self.allied(unit.owner, mover.owner)
+                    && self.at_war(unit.owner, mover.owner)
+                    && unit.transport.is_none()
+                    && !self.tile(unit.x, unit.y).terrain.is_water()
+                    && unit.kind.has_zone_of_control()
+                    && !unit.kind.has_no_zoc()
+                    && self.map_wrap.civ3_distance(x, y, unit.x, unit.y) == 1
+            })
+            .map(|unit| unit.id)
+            .collect::<Vec<_>>();
+        for attacker_id in attackers {
+            let (Some(attacker), Some(defender)) = (
+                self.unit_by_id(attacker_id).cloned(),
+                self.unit_by_id(mover_id).cloned(),
+            ) else {
+                break;
+            };
+            let attack_power = Self::attack_power(&attacker);
+            let defense_power = self.defense_power_against(&defender, x, y, attacker.kind);
+            if attack_power > 0
+                && defense_power > 0
+                && self.rand_below(attack_power + defense_power) < attack_power
+            {
+                let (attack_firepower, _) = self.combat_firepower(&attacker, &defender);
+                if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == mover_id) {
+                    unit.hp -= attack_firepower;
+                    if unit.hp <= 0 {
+                        let before = self.units.len();
+                        self.remove_units_with_cargo(vec![mover_id]);
+                        self.nation_scores[attacker.owner].units_killed +=
+                            (before - self.units.len()) as i32;
+                        return false;
+                    }
+                }
+            }
+        }
+        self.unit_by_id(mover_id).is_some()
     }
 
     fn remove_combat_losses(&mut self, loser: &Unit, winner: &Unit) {
@@ -230,28 +310,6 @@ impl Simulation {
             attacker.facing = facing;
         }
         let defender = self.units[defender_index].clone();
-        // Collect Ransom uses the ordinary attack roll, but its eligibility
-        // and payout depend on the entire target stack before combat.
-        let ransom_stack = if defender.owner == BARBARIANS
-            && defender.kind == UnitKind::BarbarianLeader
-            && self.at_war(attacker.owner, defender.owner)
-            && attacker.moves_left > 0
-            && attacker.kind.is_military()
-            && !attacker.kind.is_naval()
-            && (!attacker.kind.is_aircraft() || attacker.kind == UnitKind::Helicopter)
-            && (!self.tile(attacker.x, attacker.y).terrain.is_water()
-                || (attacker.kind.has_marine_attack() || attacker.kind == UnitKind::Helicopter))
-        {
-            self.units
-                .iter()
-                .filter(|unit| (unit.x, unit.y) == (nx, ny))
-                .try_fold(0, |count, unit| {
-                    (unit.kind == UnitKind::BarbarianLeader).then_some(count + 1)
-                })
-                .unwrap_or(0)
-        } else {
-            0
-        };
         let (attack_firepower, defense_firepower) = self.combat_firepower(&attacker, &defender);
 
         let attack_power = Self::attack_power(&attacker);
@@ -287,6 +345,7 @@ impl Simulation {
                     defender: defender.clone(),
                     hp,
                     city: self.city_at(nx, ny).cloned(),
+                    bombard_effects: false,
                     territory: (0..self.map_wrap.width() * self.map_wrap.height())
                         .map(|i| {
                             self.displayed_tile_owner(
@@ -318,15 +377,12 @@ impl Simulation {
         }
 
         if attack_power > 0 && defense_power > 0 {
-            let attack_strength = attack_power * attacker.hp * attack_firepower;
-            let defense_strength = defense_power * defender.hp * defense_firepower;
-            let total = attack_strength + defense_strength;
             if def_hp == 0 {
                 if attacker.kind != UnitKind::CruiseMissile {
-                    self.promote_unit(attacker_id, 200 * defense_strength / total);
+                    self.promote_civ3_unit(attacker_id, defender.owner);
                 }
             } else if att_hp == 0 {
-                self.promote_unit(defender_id, 200 * attack_strength / total);
+                self.promote_civ3_unit(defender_id, attacker.owner);
             }
         }
 
@@ -335,20 +391,11 @@ impl Simulation {
         let attacker_owner = attacker.owner;
         let defender_owner = defender.owner;
         if def_hp <= 0 {
-            if ransom_stack > 0 {
-                let ransom = self.players[defender_owner]
-                    .gold
-                    .clamp(0, 100 * ransom_stack);
-                self.players[defender_owner].gold -= ransom;
-                self.players[attacker_owner].gold += ransom;
-                if attacker_owner == HUMAN {
-                    self.add_event(format!(
-                        "Collected {ransom} gold in Barbarian Leader ransom."
-                    ));
-                }
-            }
             self.remove_combat_losses(&defender, &attacker);
             self.apply_combat_population_loss(&attacker, nx, ny);
+            if att_hp > 0 {
+                self.try_enslave_defeated_unit(&attacker, &defender, nx, ny);
+            }
             if attacker.kind == UnitKind::CruiseMissile {
                 self.remove_units_with_cargo(vec![attacker_id]);
             }

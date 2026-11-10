@@ -214,25 +214,20 @@ fn healing_uses_city_minimum_and_fortified_regeneration() {
             unit.hp = 1;
             unit
         });
+    unit.veteran = 3;
     unit.hp = 1;
     unit.moved = false;
     unit.state = UnitState::Idle;
-    assert_eq!(Simulation::hitpoint_gain(&unit, false, false), 1);
-    assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 4);
+    assert_eq!(unit.max_hit_points(), 5);
+    // The imported Conquests rank table gives an Elite 5 HP. RULE's regen
+    // percentages are calculated on those raw HP integers, so the 10% field
+    // increment truncates to zero and the 33% city minimum truncates to one.
+    assert_eq!(Simulation::hitpoint_gain(&unit, false), 0);
+    assert_eq!(Simulation::hitpoint_gain(&unit, true), 1);
     unit.state = UnitState::Fortified;
-    assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 5);
+    assert_eq!(Simulation::hitpoint_gain(&unit, true), 1);
     unit.moved = true;
-    assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 0);
-
-    // The compiled hp_gain_coord performs integer max-HP / 10 before
-    // applying HP_Regen_2. Settlers have 20 maximum HP, so they gain 2
-    // in the field and 6 minimum-city HP plus 2 regeneration in a city.
-    unit.kind = UnitKind::Settlers;
-    unit.hp = 1;
-    unit.state = UnitState::Idle;
-    unit.moved = false;
-    assert_eq!(Simulation::hitpoint_gain(&unit, false, false), 2);
-    assert_eq!(Simulation::hitpoint_gain(&unit, true, false), 8);
+    assert_eq!(Simulation::hitpoint_gain(&unit, true), 0);
 }
 
 #[test]
@@ -306,7 +301,7 @@ fn famine_destroys_size_one_city() {
     let settler = game
         .units
         .iter()
-        .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settlers)
+        .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settler)
         .map(|unit| unit.id)
         .expect("human settler");
     assert!(game.found_city(settler));

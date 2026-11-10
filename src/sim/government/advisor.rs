@@ -15,7 +15,6 @@ impl super::Simulation {
         // effect query. The ruleset's Veteran_Build effects require unit
         // flags, and Output_Inc_Tile requires an output/tile context, so
         // neither supplies a player-only bonus. Civ2Civ3 has no Rapture_Grow.
-        let fanatics = i32::from(government == Government::Fundamentalism) * 3;
         let partisans = i32::from(
             owner != BARBARIANS
                 && matches!(government, Government::Communism | Government::Democracy)
@@ -25,14 +24,14 @@ impl super::Simulation {
         ) * 3;
         // Civ2Civ3 actions.ruleset has no Gov target requirement in any
         // enabler: action_immune_government returns false for every action.
-        fanatics + partisans
+        partisans
     }
 
     pub(super) fn government_advisor_add_city_value(&self, city: &City, total: &mut f32) {
         let government = self.players[city.owner].government;
         let forecast = self.city_forecast(city);
         let (_, unhappy, _) = self.city_feelings(city, forecast.luxury);
-        let (_, earlier_unhappy, _) = self.city_feelings_before_military(city, forecast.luxury);
+        let (_, earlier_unhappy, _) = self.city_feelings(city, forecast.luxury);
         let content =
             |amount: i32| amount.min(unhappy.min(earlier_unhappy) + city.specialists[2]) * 35;
         let supported = self
@@ -61,7 +60,7 @@ impl super::Simulation {
         {
             *total += military_content(-1) as f32;
         }
-        if government == Government::Tribal {
+        if government == Government::Despotism {
             *total += content(1) as f32;
             let land = self
                 .units
@@ -72,7 +71,7 @@ impl super::Simulation {
                 .count() as i32;
             *total += (2 + land) as f32;
         }
-        if matches!(government, Government::Communism | Government::Federation) {
+        if matches!(government, Government::Communism | Government::Feudalism) {
             *total += (3 + self
                 .units
                 .iter()
@@ -109,13 +108,12 @@ impl super::Simulation {
     pub(super) fn calculate_government_scores(
         &mut self,
         owner: usize,
-        mut scores: [f64; 9],
-    ) -> [f64; 9] {
+        mut scores: [f64; 8],
+    ) -> [f64; 8] {
         let original = self.players[owner].government;
         let rates = self.players[owner].rates;
         for government in Government::TARGETS {
             let better = match government {
-                Government::Tribal => Some(Government::Republic),
                 Government::Despotism => Some(Government::Monarchy),
                 _ => None,
             };
@@ -169,7 +167,7 @@ impl super::Simulation {
         let old = self
             .ai_government_cache
             .get(&owner)
-            .map_or([0.0; 9], |cache| cache.scores);
+            .map_or([0.0; 8], |cache| cache.scores);
         let scores = self.calculate_government_scores(owner, old);
         let cities = self
             .cities
@@ -189,7 +187,7 @@ impl super::Simulation {
     pub(super) fn government_goals(
         &self,
         owner: usize,
-        scores: &[f64; 9],
+        scores: &[f64; 8],
     ) -> (Government, Government, f64) {
         let current = self.players[owner].government;
         let (mut goal, mut available) = (current, current);
@@ -241,7 +239,7 @@ impl super::Simulation {
         Some((
             required,
             (value as i32).max(100)
-                + if self.players[owner].government == Government::Tribal {
+                + if self.players[owner].government == Government::Despotism {
                     25 * self.turn
                 } else {
                     0
@@ -278,7 +276,7 @@ impl super::Simulation {
         self.create_city(1, 5, 8);
         self.cities[0].size = 4;
         self.reconcile_city_workers();
-        self.players[1].government = Government::Tribal;
+        self.players[1].government = Government::Despotism;
         self.players[1].known = self.research_path(1, Tech::MONARCHY);
         self.players[1].known.retain(|&tech| tech != Tech::MONARCHY);
         self.players[1].rates = [60, 40, 0];
@@ -309,7 +307,7 @@ impl super::Simulation {
             && held
             && recomputed
             && before.next_evaluation == 5
-            && self.players[1].government == Government::Tribal
+            && self.players[1].government == Government::Despotism
             && self.players[1].rates == [60, 40, 0]
     }
 }

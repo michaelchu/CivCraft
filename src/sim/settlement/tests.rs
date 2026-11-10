@@ -23,7 +23,7 @@ fn founder_city_want_must_be_strictly_greater_than_actual_worker_want() {
         tile.terrain = Terrain::Grassland;
         tile.resource = Some(Resource::Wheat);
     }
-    let id = game.spawn_unit(1, UnitKind::Settlers, 12, 24);
+    let id = game.spawn_unit(1, UnitKind::Settler, 12, 24);
     let founder = game.units.last().unwrap().clone();
     let (_, _, want) = game.best_city_site(&founder).unwrap();
     assert!(want > 0.0);
@@ -54,7 +54,7 @@ fn exhausted_arriving_founder_keeps_its_mission_until_movement_refreshes() {
         tile.resource = Some(Resource::Wheat);
         tile.road = false;
     }
-    let id = game.spawn_unit(1, UnitKind::Settlers, 10, 24);
+    let id = game.spawn_unit(1, UnitKind::Settler, 10, 24);
     let founder = game
         .units
         .iter()
@@ -69,7 +69,7 @@ fn exhausted_arriving_founder_keeps_its_mission_until_movement_refreshes() {
     assert_eq!((arrived.x, arrived.y), destination);
     assert_eq!(arrived.moves_left, 0);
     assert!(game.ai_settlement_targets.contains_key(&id));
-    let allowance = game.unit_move_allowance(1, UnitKind::Settlers);
+    let allowance = game.unit_move_allowance(1, UnitKind::Settler);
     game.units
         .iter_mut()
         .find(|unit| unit.id == id)
@@ -95,7 +95,7 @@ fn reservation_lifecycle_keeps_blocked_mission_but_releases_illegal_target() {
         tile.terrain = Terrain::Plains;
         tile.resource = Some(Resource::Wheat);
     }
-    let id = game.spawn_unit(1, UnitKind::Settlers, 2, 8);
+    let id = game.spawn_unit(1, UnitKind::Settler, 2, 8);
     let founder = game
         .units
         .iter()
@@ -187,7 +187,7 @@ fn rough_edges_use_remaining_movement_when_amortizing_a_city_site() {
     let home = (10, 24);
     let target = offset_native_by_map(home.0, home.1, 2, 0);
     game.tile_mut(target.0, target.1).terrain = Terrain::Grassland;
-    let founder = game.make_unit(0, 1, UnitKind::Settlers, home.0, home.1);
+    let founder = game.make_unit(0, 1, UnitKind::Settler, home.0, home.1);
     let (site, path, score) = game.best_city_site(&founder).unwrap();
     assert_eq!(site, target);
     assert_eq!(path.len(), 2);

@@ -10,7 +10,7 @@ use std::{
 };
 
 const SETTLEMENT_FERRIES: [UnitKind; 4] = [
-    UnitKind::Trireme,
+    UnitKind::Galley,
     UnitKind::Caravel,
     UnitKind::Galleon,
     UnitKind::Transport,
@@ -22,7 +22,6 @@ struct Rendezvous {
     walk: Vec<(i32, i32)>,
 }
 
-type MerchantPickupRoute = ((i32, i32), Vec<(i32, i32)>, i32);
 
 pub(super) struct SettlementFerry {
     pub(super) founder: u32,
@@ -53,7 +52,7 @@ impl Simulation {
             .filter(|ship| {
                 ship.owner == owner
                     && ship.kind.is_naval()
-                    && ship.kind.can_carry(UnitKind::Settlers)
+                    && ship.kind.can_carry(UnitKind::Settler)
                     && self.cargo_count(ship.id) == 0
             })
             .collect();
@@ -76,14 +75,14 @@ impl Simulation {
     pub(super) fn settlement_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
         let waiting = self.units.iter().find(|unit| {
             unit.owner == city.owner
-                && unit.kind == UnitKind::Settlers
+                && unit.kind == UnitKind::Settler
                 && unit.transport.is_none()
                 && (unit.x, unit.y) == (city.x, city.y)
         });
-        if waiting.is_none() && city.size <= UnitKind::Settlers.stats().pop_cost {
+        if waiting.is_none() && city.size <= UnitKind::Settler.stats().pop_cost {
             return None;
         }
-        let virtual_founder = self.make_unit(0, city.owner, UnitKind::Settlers, city.x, city.y);
+        let virtual_founder = self.make_unit(0, city.owner, UnitKind::Settler, city.x, city.y);
         let founder = waiting.unwrap_or(&virtual_founder);
         let land = self
             .best_city_site(founder)
@@ -94,11 +93,11 @@ impl Simulation {
         if existing > 0.0 {
             return waiting
                 .is_none()
-                .then_some((UnitKind::Settlers, existing.max(land)));
+                .then_some((UnitKind::Settler, existing.max(land)));
         }
 
         if !self.is_port(city) {
-            return (waiting.is_none() && land > 0.0).then_some((UnitKind::Settlers, land));
+            return (waiting.is_none() && land > 0.0).then_some((UnitKind::Settler, land));
         }
         let forecast = self.city_forecast(city);
         let surplus = forecast.shields - forecast.support.shields;
@@ -137,7 +136,7 @@ impl Simulation {
                 return Some((kind, value));
             }
         }
-        (waiting.is_none() && land > 0.0).then_some((UnitKind::Settlers, land))
+        (waiting.is_none() && land > 0.0).then_some((UnitKind::Settler, land))
     }
 
     fn settler_rendezvous_points(&self, founder: &Unit, ship: &Unit) -> Vec<Rendezvous> {
@@ -237,35 +236,6 @@ impl Simulation {
             .collect()
     }
 
-    pub(super) fn merchant_pickup_route(
-        &self,
-        passenger: &Unit,
-        ship: &Unit,
-    ) -> Option<MerchantPickupRoute> {
-        if !self.allied(passenger.owner, ship.owner)
-            || !ship.kind.can_carry(passenger.kind)
-            || (passenger.transport.is_some() && passenger.transport != Some(ship.id))
-            || (passenger.transport.is_none()
-                && self.cargo_count(ship.id) >= ship.kind.transport_capacity())
-        {
-            return None;
-        }
-        if passenger.transport == Some(ship.id) {
-            return Some(((ship.x, ship.y), Vec::new(), 0));
-        }
-        self.settler_rendezvous_points(passenger, ship)
-            .into_iter()
-            .min_by_key(|meeting| {
-                (
-                    meeting.turns,
-                    meeting.walk.len(),
-                    self.map_distance(ship.x, ship.y, meeting.tile.0, meeting.tile.1),
-                    meeting.tile,
-                )
-            })
-            .map(|meeting| (meeting.tile, meeting.walk, meeting.turns))
-    }
-
     fn best_settlement_ferry(
         &self,
         founder: &Unit,
@@ -295,7 +265,7 @@ impl Simulation {
             ship.owner == founder.owner
                 && self.ferry_can_take_unit(ship, founder)
                 && ship.kind.is_naval()
-                && ship.kind.can_carry(UnitKind::Settlers)
+                && ship.kind.can_carry(UnitKind::Settler)
                 && !unavailable(ship.id)
                 && founder.transport.map_or_else(
                     || self.cargo_count(ship.id) + capacity <= ship.kind.transport_capacity(),
@@ -448,13 +418,12 @@ impl Simulation {
     pub(super) fn dispatch_settlement_ferries(
         &mut self,
         owner: usize,
-        merchant_ferries: &BTreeMap<u32, u32>,
     ) -> BTreeMap<u32, SettlementFerry> {
         let mut dispatch = BTreeMap::new();
         let founders: Vec<_> = self
             .units
             .iter()
-            .filter(|unit| unit.owner == owner && unit.kind == UnitKind::Settlers)
+            .filter(|unit| unit.owner == owner && unit.kind == UnitKind::Settler)
             .cloned()
             .collect();
         for founder in &founders {
@@ -467,9 +436,9 @@ impl Simulation {
             } else {
                 self.worker_improvement_want(founder)
             };
-            if let Some((ship, plan)) = self.best_settlement_ferry(founder, |id| {
-                merchant_ferries.contains_key(&id) || dispatch.contains_key(&id)
-            }) && (assigned || plan.value as f32 > improvement)
+            if let Some((ship, plan)) =
+                self.best_settlement_ferry(founder, |id| dispatch.contains_key(&id))
+                && (assigned || plan.value as f32 > improvement)
                 && (founder.transport.is_some()
                     || self
                         .best_city_site(founder)
@@ -486,7 +455,7 @@ impl Simulation {
                 let actual = if needs_guard && founder.transport.is_none() {
                     self.best_settlement_ferry_with_capacity(
                         founder,
-                        |id| merchant_ferries.contains_key(&id) || dispatch.contains_key(&id),
+                        |id| dispatch.contains_key(&id),
                         2,
                     )
                 } else {

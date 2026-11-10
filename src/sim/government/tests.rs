@@ -3,7 +3,7 @@
 use super::*;
 
 #[test]
-fn civ2civ3_default_government_and_initial_support_are_despotism() {
+fn default_government_is_despotism_with_civ3_treasury_support() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     // nations.ruleset31; nation.c:init_government_of_nation; includes
     // nonplayable Barbarian/Pirate nations without an explicit override.
@@ -28,17 +28,18 @@ fn civ2civ3_default_government_and_initial_support_are_despotism() {
     }
     let support = game.city_unit_upkeep(&game.cities[0]);
     assert_eq!(support.shields, 0);
-    assert_eq!(support.gold, 1); // Despotism converts shields to gold; two free.
+    assert_eq!(support.food, 0);
+    assert_eq!(support.gold, 0); // Three supported units fit within four free.
 }
 
 #[test]
-fn barbarians_remove_distance_waste_but_retain_government_base_and_building_relief() {
+fn barbarians_keep_the_current_government_output_waste_rules() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     assert!(game.barbarian_output_waste_playtest());
     let mut city = game.cities[0].clone();
     assert_eq!(
-        game.government_output_waste_under(&city, 100, 100, None, Government::Tribal),
-        (100, 70)
+        game.government_output_waste_under(&city, 100, 100, None, Government::Despotism),
+        (90, 80)
     );
     game.players[BARBARIANS]
         .known
@@ -55,11 +56,11 @@ fn barbarians_remove_distance_waste_but_retain_government_base_and_building_reli
 }
 
 #[test]
-fn fundamentalism_tithes_feed_actual_forecasts_and_candidate_valuation() {
+fn conquests_governments_have_no_fundamentalism_tithe_effect() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
-    game.players[1].government = Government::Fundamentalism;
+    game.players[1].government = Government::Fascism;
     game.players[1].known = vec![Tech::MYSTICISM];
     game.players[1].rates = [0, 100, 0];
     for tile in &mut game.tiles {
@@ -72,12 +73,7 @@ fn fundamentalism_tithes_feed_actual_forecasts_and_candidate_valuation() {
     temple.buildings.push(Building::TEMPLE);
     assert_eq!(
         game.city_forecast(&temple).gross_gold - game.city_forecast(&baseline).gross_gold,
-        2
-    );
-    // Even a content size1 city receives both Temple/Mysticism tithes.
-    assert_eq!(game.city_feelings(&temple, 0).1, 0);
-    assert!(
-        game.government_advisor_city_value(&temple) > game.government_advisor_city_value(&baseline)
+        0
     );
 }
 
@@ -115,15 +111,15 @@ fn government_cache_interval_uses_city_count_with_five_and_twenty_turn_bounds() 
 }
 
 #[test]
-fn government_player_bonus_uses_player_context_and_gates_partisan_techs() {
+fn fascism_has_no_inherited_fanatic_bonus_and_partisan_bonus_is_player_scoped() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.players[1].known.clear();
     assert_eq!(game.government_player_bonus(1, Government::Communism), 0);
-    assert_eq!(game.government_player_bonus(1, Government::Federation), 0);
+    assert_eq!(game.government_player_bonus(1, Government::Feudalism), 0);
     assert_eq!(game.government_player_bonus(1, Government::Democracy), 0);
     assert_eq!(
-        game.government_player_bonus(1, Government::Fundamentalism),
-        3
+        game.government_player_bonus(1, Government::Fascism),
+        0
     );
     game.players[1]
         .known
@@ -170,61 +166,40 @@ fn anarchy_waives_normal_technology_upkeep() {
 }
 
 #[test]
-fn government_upkeep_applies_output_effects_and_gold_allowances() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.create_city(HUMAN, 10, 10);
-    let city_id = game.cities[0].id;
-    for kind in [UnitKind::Warrior; 5]
-        .into_iter()
-        .chain([UnitKind::Caravel])
-    {
-        let id = game.spawn_unit(HUMAN, kind, 10, 10);
-        let unit = game.units.last_mut().unwrap();
-        unit.home_city = Some(city_id);
-        unit.home_order = id;
-    }
-    // Caravel lacks ShieldToGold, but does not bypass the government's
-    // shield Upkeep_Pct effect (zero in the gold-support governments).
-    for (government, shields, gold) in [
-        (Government::Anarchy, 4, 0),
-        (Government::Tribal, 4, 0),
-        (Government::Despotism, 0, 3),
-        (Government::Monarchy, 0, 2),
-        (Government::Communism, 3, 0),
-        (Government::Fundamentalism, 0, 6),
-        (Government::Federation, 0, 6),
-        (Government::Republic, 5, 0),
-        (Government::Democracy, 0, 8),
+fn conquests_governments_have_their_source_free_slots_and_gold_rates() {
+    for (government, slots, cost) in [
+        (Government::Anarchy, [0, 0, 0], 1),
+        (Government::Despotism, [4, 4, 4], 1),
+        (Government::Monarchy, [2, 4, 8], 1),
+        (Government::Communism, [6, 6, 6], 1),
+        (Government::Fascism, [4, 7, 10], 1),
+        (Government::Feudalism, [5, 2, 1], 3),
+        (Government::Republic, [1, 3, 4], 2),
+        (Government::Democracy, [0, 0, 0], 1),
     ] {
-        game.players[HUMAN].government = government;
-        let upkeep = game.city_unit_upkeep(&game.cities[0]);
+        let policy = government.unit_support().unwrap();
         assert_eq!(
-            (upkeep.food, upkeep.shields, upkeep.gold),
-            (2, shields, gold),
+            [policy.town, policy.city, policy.metropolis],
+            slots,
             "{government:?}"
         );
+        assert_eq!(policy.cost_per_unit, cost, "{government:?}");
     }
-    let paid = game.city_gold_upkeep(&game.cities[0]);
-    let first = paid[0].0;
-    game.players[HUMAN].gold = -8;
-    game.balance_unit_gold_upkeep(HUMAN, &paid);
-    assert_eq!(game.players[HUMAN].gold, 0);
-    assert!(!game.units.iter().any(|unit| unit.id == first));
-    assert!(game.units.iter().any(|unit| unit.kind == UnitKind::Caravel));
 }
 
 #[test]
 fn revolution_respects_unlocks_anarchy_and_rate_caps() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.players[HUMAN].government = Government::Tribal;
+    game.players[HUMAN].government = Government::Despotism;
     assert!(!game.apply(Command::Government(Government::Monarchy)));
-    assert!(game.apply(Command::Government(Government::Despotism)));
+    game.players[HUMAN].known.push(Tech::MONARCHY);
+    assert!(game.apply(Command::Government(Government::Monarchy)));
     let finish = game.players[HUMAN].revolution_turn.unwrap();
     assert!((1..=5).contains(&(finish - game.turn)));
     assert_eq!(game.players[HUMAN].government, Government::Anarchy);
     assert!(!game.apply(Command::RaiseRate(1)));
     game.turn = finish;
     game.finish_revolutions();
-    assert_eq!(game.players[HUMAN].government, Government::Despotism);
-    assert!(!game.apply(Command::Government(Government::Tribal)));
+    assert_eq!(game.players[HUMAN].government, Government::Monarchy);
+    assert!(!game.apply(Command::Government(Government::Monarchy)));
 }

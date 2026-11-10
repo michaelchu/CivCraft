@@ -9,13 +9,14 @@ impl Simulation {
         let mut best = None;
         let mut best_want = 0.0;
         let mut best_cost = i32::MAX;
-        for &kind in SIMPLE_MILITARY
-            .iter()
-            .filter(|&&kind| self.unit_buildable(city, kind))
+        for kind in UnitKind::simple_military()
+            .into_iter()
+            .filter(|&kind| self.unit_buildable(city, kind))
         {
             let mut defender = self.make_unit(0, city.owner, kind, city.x, city.y);
             defender.home_city = Some(city.id);
             defender.veteran = self.trained_rank(city, kind);
+            defender.hp = defender.max_hit_points();
             let defense = self.defense_power_against(&defender, city.x, city.y, attacker.kind);
             let (attack_fp, defense_fp) = self.combat_firepower(attacker, &defender);
             let denominator = Self::attack_power(attacker) * attack_fp;
@@ -47,7 +48,7 @@ impl Simulation {
             .and_then(|id| self.unit_by_id(id))
             .cloned();
         if production && let Some(unit) = defender.as_mut() {
-            unit.hp = unit.kind.stats().hp;
+            unit.hp = unit.max_hit_points();
         }
         if arrival <= 1 {
             return defender;
@@ -71,9 +72,9 @@ impl Simulation {
     }
 
     pub(super) fn production_defender_types() -> impl Iterator<Item = UnitKind> {
-        UnitKind::SIMPLE_MILITARY
+        UnitKind::simple_military()
             .into_iter()
-            .filter(|kind| kind.has_role(UnitRole::DefendGood) || kind.has_role(UnitRole::DefendOk))
+            .filter(|kind| kind.has_ai_strategy(UnitAiStrategy::Defense))
     }
 
     pub(super) fn base_defender_desire(kind: UnitKind, firepower: i32) -> f32 {
@@ -133,9 +134,9 @@ impl Simulation {
         danger: i32,
         assessment: GuardCityAssessment,
     ) -> Option<UnitKind> {
-        // Native simple_ai_types in ruleset order, intersected with the
-        // supported DefendGood/DefendOk roles. Fuelled fighters and Carrier
-        // (capacity8) are excluded even though their roles qualify.
+        // Native simple_ai_types in ruleset order, restricted to the unit's
+        // source PRTO Defense AI strategy. Fuelled fighters and Carrier
+        // (capacity8) are excluded from this land/sea defender list.
         let wallvalue = if assessment.danger > 0 { 90 } else { 5 };
         let walls = matches!(
             self.tile(city.x, city.y).base,

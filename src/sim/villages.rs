@@ -28,9 +28,9 @@ impl Simulation {
             }
             8..=9 => {
                 let kind = if self.has_tech(owner, Tech::CHIVALRY) {
-                    UnitKind::Knights
+                    UnitKind::Knight
                 } else if self.has_tech(owner, Tech::GUNPOWDER) {
-                    UnitKind::Musketeers
+                    UnitKind::Musketman
                 } else {
                     UnitKind::Archer
                 };
@@ -43,7 +43,7 @@ impl Simulation {
                 format!("The friendly city of {name} joined your civilization.")
             }
             11 => {
-                self.spawn_unit(owner, UnitKind::Settlers, x, y);
+                self.spawn_unit(owner, UnitKind::Settler, x, y);
                 "Friendly nomads joined your expedition as Settlers.".into()
             }
             12..=13 => {
@@ -126,9 +126,9 @@ impl Simulation {
             // Advanced roles replace the basic roster once at least three
             // civilizations can build them. Each raider is drawn separately.
             let advanced: Vec<_> = [
-                (UnitKind::Musketeers, Tech::GUNPOWDER),
-                (UnitKind::Partisan, Tech::NATIONALISM),
-                (UnitKind::Knights, Tech::CHIVALRY),
+                (UnitKind::Musketman, Tech::GUNPOWDER),
+                (UnitKind::Guerilla, Tech::NATIONALISM),
+                (UnitKind::Knight, Tech::CHIVALRY),
                 (UnitKind::Cannon, Tech::METALLURGY),
             ]
             .into_iter()

@@ -5,15 +5,12 @@ use super::*;
 impl UnitKind {
     // IgZOC and absence of UCF_ZOC are separate native exemptions.
     pub(super) fn ignores_zoc(self) -> bool {
-        (self.is_naval() && self != Self::Trireme)
+        (self.is_naval() && self != Self::Galley)
             || self.is_aircraft()
             || matches!(
                 self,
-                Self::Diplomat
-                    | Self::Spy
-                    | Self::Explorer
-                    | Self::Partisan
-                    | Self::BarbarianLeader
+                Self::Explorer
+                    | Self::Guerilla
                     | Self::Leader
             )
     }
@@ -23,8 +20,6 @@ impl UnitKind {
 pub(super) enum PfAction {
     None,
     Attack,
-    Diplomat,
-    Trade,
     Impossible,
 }
 
@@ -45,7 +40,11 @@ impl Simulation {
             .into_iter()
             .flatten()
             .any(|owner| self.at_war(unit.owner, owner));
-        let mut cost = dest.terrain.movement_cost() * MOVE_FRAGMENTS;
+        let mut cost = if kind.ignores_movement_cost_on(dest.terrain) {
+            MOVE_FRAGMENTS
+        } else {
+            dest.terrain.movement_cost() * MOVE_FRAGMENTS
+        };
         if !restricted {
             if source.railroad && dest.railroad {
                 cost = cost.min(1);
@@ -99,7 +98,7 @@ impl Simulation {
         // as Sea's flag. Carrier attack0 does NOT permit shore attacks,
         // even though the PF default flags can attack native sea targets.
         let shore = kind.is_naval()
-            && !matches!(kind, UnitKind::Trireme | UnitKind::Submarine)
+            && !matches!(kind, UnitKind::Galley | UnitKind::Submarine)
             && kind.stats().attack > 0;
         if !shore && !self.pf_native_tile(kind, x, y) {
             return false;
@@ -148,16 +147,9 @@ impl Simulation {
             .cities
             .iter()
             .any(|city| (city.x, city.y) == (x, y) && !self.allied(owner, city.owner));
-        let trade = matches!(kind, UnitKind::Caravan | UnitKind::Freight);
-        // aia_utype_is_considered_spy includes Establish Embassy, so the
-        // Explorer has these PF flags despite lacking unit-bribery actions.
-        let diplomat = kind.is_diplomatic() || kind == UnitKind::Explorer;
         if city {
-            if trade {
-                return PfAction::Trade;
-            }
-            if diplomat {
-                return PfAction::Diplomat;
+            if kind == UnitKind::Explorer {
+                return PfAction::None;
             }
         }
         let units = self
@@ -165,9 +157,6 @@ impl Simulation {
             .iter()
             .any(|unit| (unit.x, unit.y) == (x, y) && !self.allied(owner, unit.owner));
         if units {
-            if diplomat {
-                return PfAction::Diplomat;
-            }
             if !kind.is_civilian() {
                 return if self.pf_attack_possible(kind, owner, x, y, seen) {
                     PfAction::Attack
@@ -192,8 +181,7 @@ impl Simulation {
                 || actor.kind.has_marine_attack()
                 || (actor.kind.is_naval() && actor.kind.stats().attack > 0)
         } else {
-            // The supported diplomatic/merchant types can disembark and act
-            // from transport scope; native/city scope also permits actions.
+            // Units can act from transport scope; native/city scope also permits actions.
             self.pf_native_tile(actor.kind, actor.x, actor.y)
                 || self.cities.iter().any(|city| {
                     (city.x, city.y) == (actor.x, actor.y)
@@ -209,7 +197,7 @@ impl Simulation {
         // River is the only provided extra with that attribute.
         if self.tile(x, y).river
             && ((!kind.is_naval() && !kind.is_aircraft() && !kind.is_big_land())
-                || kind == UnitKind::Trireme)
+                || kind == UnitKind::Galley)
         {
             25
         } else {
@@ -229,7 +217,7 @@ impl Simulation {
             return false;
         }
         let shore =
-            enemy.kind.is_naval() && !matches!(enemy.kind, UnitKind::Submarine | UnitKind::Trireme);
+            enemy.kind.is_naval() && !matches!(enemy.kind, UnitKind::Submarine | UnitKind::Galley);
         if !shore && !self.pf_native_tile(enemy.kind, x, y) {
             return false;
         }
@@ -255,13 +243,10 @@ mod tests {
     #[test]
     fn literal_class_zoc_and_big_land_native_extras() {
         for kind in [
-            UnitKind::Caravan,
-            UnitKind::Freight,
-            UnitKind::Migrants,
             UnitKind::Chariot,
             UnitKind::Catapult,
             UnitKind::Cannon,
-            UnitKind::Trireme,
+            UnitKind::Galley,
         ] {
             assert!(!kind.ignores_zoc(), "{kind:?}");
         }
@@ -286,42 +271,36 @@ mod tests {
     }
 
     #[test]
-    fn pf_flags_use_nonmil_and_supported_diplomatic_trade_actions() {
+    fn pf_flags_use_civilian_and_military_campaign_actions() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.units.clear();
         sim.cities.clear();
         sim.tile_mut(10, 20).terrain = Terrain::Grassland;
         sim.spawn_unit(1, UnitKind::Warrior, 10, 20);
         for kind in [
-            UnitKind::Settlers,
-            UnitKind::BarbarianLeader,
-            UnitKind::Caravan,
+            UnitKind::Settler,
         ] {
             assert_eq!(
                 sim.pf_default_action(kind, HUMAN, (10, 20), true, true, true),
                 PfAction::None
             );
         }
-        for kind in [UnitKind::Explorer, UnitKind::Diplomat, UnitKind::Spy] {
-            assert_eq!(
-                sim.pf_default_action(kind, HUMAN, (10, 20), true, true, true),
-                PfAction::Diplomat
-            );
-        }
+        assert_eq!(
+            sim.pf_default_action(UnitKind::Explorer, HUMAN, (10, 20), true, true, true),
+            PfAction::None
+        );
         assert_eq!(
             sim.pf_default_action(UnitKind::Carrier, HUMAN, (10, 20), true, true, true),
-            PfAction::Impossible
+            PfAction::Attack
         );
         sim.tile_mut(10, 20).terrain = Terrain::Sea;
+        sim.units.clear();
+        sim.spawn_unit(1, UnitKind::Caravel, 10, 20);
         assert_eq!(
             sim.pf_default_action(UnitKind::Carrier, HUMAN, (10, 20), true, true, true),
             PfAction::Attack
         );
         sim.tile_mut(10, 20).terrain = Terrain::Grassland;
         sim.create_city(1, 10, 20);
-        assert_eq!(
-            sim.pf_default_action(UnitKind::Caravan, HUMAN, (10, 20), true, true, true),
-            PfAction::Trade
-        );
     }
 }

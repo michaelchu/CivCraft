@@ -58,6 +58,22 @@ impl Unit {
 }
 
 impl Simulation {
+    pub(super) fn transfer_unit(&mut self, victim: &Unit, owner: usize, home: Option<u32>) -> u32 {
+        self.refresh_diplomatic_contact_at(owner, victim.x, victim.y);
+        self.units.retain(|unit| unit.id != victim.id);
+        self.discard_unit_ai(victim.id);
+        self.spawn_unit(owner, victim.kind, victim.x, victim.y);
+        let gained = self.units.last_mut().unwrap();
+        gained.hp = victim.hp;
+        gained.nationality = victim.nationality;
+        gained.fuel = victim.fuel;
+        gained.veteran = victim.veteran;
+        gained.moves_left = victim.moves_left;
+        gained.home_city = home;
+        gained.home_order = gained.id;
+        gained.id
+    }
+
     fn naval_movement_bonus(&self, owner: usize) -> i32 {
         MOVE_FRAGMENTS
             * (i32::from(self.has_tech(owner, Tech::NUCLEAR_POWER))
@@ -67,13 +83,7 @@ impl Simulation {
 
     pub(crate) fn unit_move_allowance(&self, owner: usize, kind: UnitKind) -> i32 {
         let base = kind.stats().moves * MOVE_FRAGMENTS;
-        if kind == UnitKind::Nuclear {
-            8 * MOVE_FRAGMENTS
-                * (i32::from(self.has_tech(owner, Tech::ADVANCED_FLIGHT))
-                    + i32::from(self.has_tech(owner, Tech::ROCKETRY)))
-        } else if kind.is_nuclear_weapon() {
-            kind.stats().moves * MOVE_FRAGMENTS
-        } else if kind.is_naval() && kind != UnitKind::Trireme {
+        if kind.is_naval() && kind != UnitKind::Galley {
             base + self.naval_movement_bonus(owner)
         } else {
             base
@@ -82,11 +92,11 @@ impl Simulation {
 
     fn move_rate_with_bonus(unit: &Unit, bonus: i32) -> i32 {
         // movement.c:utype_move_rate. All bundled veteran move bonuses are
-        // zero. DamageSlows is a class flag, absent on Merchant and Air.
+        // zero. DamageSlows is a class flag, absent on the air class.
         let base = unit.kind.stats().moves * MOVE_FRAGMENTS;
         let damage_slows = unit.kind.unit_class().damage_slows();
         let movement = if damage_slows {
-            base * unit.hp / unit.kind.stats().hp
+            base * unit.hp / unit.max_hit_points()
         } else {
             base
         };
@@ -102,7 +112,7 @@ impl Simulation {
 
     pub(super) fn unit_move_rate(&self, unit: &Unit) -> i32 {
         let base = unit.kind.stats().moves * MOVE_FRAGMENTS;
-        let mut bonus = if unit.kind == UnitKind::Trireme {
+        let mut bonus = if unit.kind == UnitKind::Galley {
             let center = self
                 .cities
                 .iter()
@@ -182,7 +192,7 @@ impl Simulation {
         let source = self.observed_route_tile(unit.x, unit.y);
         if kind.is_naval() {
             let native = |tile: RouteTile| {
-                if kind == UnitKind::Trireme {
+                if kind == UnitKind::Galley {
                     matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake)
                         || tile.river
                 } else {
@@ -233,7 +243,11 @@ impl Simulation {
                     .owner
                     .is_some_and(|owner| self.at_war(unit.owner, owner))
         });
-        let mut cost = dest.terrain.movement_cost() * MOVE_FRAGMENTS;
+        let mut cost = if kind.ignores_movement_cost_on(dest.terrain) {
+            MOVE_FRAGMENTS
+        } else {
+            dest.terrain.movement_cost() * MOVE_FRAGMENTS
+        };
         if !restricted {
             if dest.railroad && source.is_some_and(|tile| tile.railroad) {
                 cost = cost.min(1);
@@ -253,7 +267,7 @@ impl Simulation {
         }
         let dest = self.tile(nx, ny);
         if unit.kind.is_naval() {
-            let trireme = unit.kind == UnitKind::Trireme;
+            let trireme = unit.kind == UnitKind::Galley;
             let native = if trireme {
                 matches!(dest.terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake) || dest.river
             } else {
@@ -297,46 +311,35 @@ impl Simulation {
                 || (!self.allied(owner, unit.owner)
                     && unit.transport.is_none()
                     && !unit.kind.has_no_zoc()
-                    && unit.kind.unit_class().has_zoc())
+                    && unit.kind.has_zone_of_control())
         })
     }
 
     pub(super) fn zone_blocks_step(&self, unit: &Unit, from: (i32, i32), to: (i32, i32)) -> bool {
-        self.zone_blocks_route(unit, from, to, false)
+        let _ = (unit, from, to);
+        false
     }
 
-    fn zone_blocks_route(
+    pub(super) fn zone_blocks_route(
         &self,
         unit: &Unit,
         from: (i32, i32),
         to: (i32, i32),
         observed: bool,
     ) -> bool {
-        if unit.kind.ignores_zoc()
-            || [from, to].into_iter().any(|(x, y)| {
-                let tile = if observed {
-                    self.observed_route_tile(x, y)
-                } else {
-                    Some(self.live_route_tile(x, y))
-                };
-                tile.is_none_or(|tile| tile.terrain.is_water() || tile.city_owner.is_some())
-            })
-            || self
-                .units
-                .iter()
-                .any(|other| (other.x, other.y) == to && self.allied(unit.owner, other.owner))
-        {
-            return false;
-        }
-        self.under_foreign_control(unit.owner, from.0, from.1, observed)
-            && self.under_foreign_control(unit.owner, to.0, to.1, observed)
+        let _ = (unit, from, to, observed);
+        false
     }
 
-    fn try_capture_units(&mut self, actor: &Unit, x: i32, y: i32) -> bool {
-        if !actor.kind.can_capture_units()
-            || self.tile(x, y).terrain.is_water()
-            || self.cities.iter().any(|city| (city.x, city.y) == (x, y))
-        {
+    fn try_capture_units(
+        &mut self,
+        actor: &Unit,
+        x: i32,
+        y: i32,
+        movement_cost: i32,
+        facing: Option<u8>,
+    ) -> bool {
+        if !self.can_capture_units_at(actor, x, y) {
             return false;
         }
         let targets: Vec<_> = self
@@ -345,42 +348,74 @@ impl Simulation {
             .filter(|unit| (unit.x, unit.y) == (x, y))
             .cloned()
             .collect();
-        if targets.is_empty()
-            || targets.iter().any(|unit| {
-                !self.at_war(actor.owner, unit.owner)
-                    || !unit.kind.is_capturable()
-                    || unit.transport.is_some()
-                    || self.cargo_count(unit.id) > 0
-            })
-        {
-            return false;
-        }
         let home = actor.home_city.filter(|&id| {
             self.cities
                 .iter()
                 .any(|city| city.id == id && city.owner == actor.owner)
         });
+        let mut captured_count = 0;
         for target in &targets {
-            self.transfer_unit(target, actor.owner, home);
+            if target.kind == UnitKind::Settler {
+                self.remove_units_with_cargo(vec![target.id]);
+                for _ in 0..2 {
+                    let captured_id = self.spawn_unit(actor.owner, UnitKind::Worker, x, y);
+                    let captured = {
+                        let captured = self
+                            .units
+                            .iter_mut()
+                            .find(|unit| unit.id == captured_id)
+                            .unwrap();
+                        captured.nationality = target.nationality;
+                        captured.home_city = home;
+                        captured.clone()
+                    };
+                    captured_count += 1;
+                    self.publish_visual_event(VisualEvent::Capture { unit: captured });
+                }
+            } else {
+                let captured_id = self.transfer_unit(target, actor.owner, home);
+                if let Some(captured) = self.unit_by_id(captured_id).cloned() {
+                    captured_count += 1;
+                    self.publish_visual_event(VisualEvent::Capture { unit: captured });
+                }
+            }
         }
-        let capturer = self
-            .units
-            .iter_mut()
-            .find(|unit| unit.id == actor.id)
-            .unwrap();
-        capturer.moves_left = (capturer.moves_left - MOVE_FRAGMENTS).max(0);
-        capturer.state = UnitState::Idle;
-        capturer.moved = true;
         if actor.owner == HUMAN || targets.iter().any(|unit| unit.owner == HUMAN) {
             self.add_event(format!(
                 "{} captured {} units.",
                 actor.kind.name(),
-                targets.len()
+                captured_count
             ));
         }
+        self.enter_tile(actor.id, x, y, movement_cost, facing);
         self.refresh_visibility();
         self.check_game_over();
         true
+    }
+
+    fn can_capture_units_at(&self, actor: &Unit, x: i32, y: i32) -> bool {
+        if !actor.kind.can_capture_units()
+            || self.tile(x, y).terrain.is_water()
+            || self.cities.iter().any(|city| (city.x, city.y) == (x, y))
+        {
+            return false;
+        }
+        let targets = self
+            .units
+            .iter()
+            .filter(|unit| (unit.x, unit.y) == (x, y))
+            .collect::<Vec<_>>();
+        !targets.is_empty()
+            && targets.iter().all(|unit| {
+                self.at_war(actor.owner, unit.owner)
+                    && unit.kind.is_capturable()
+                    && unit
+                        .kind
+                        .required_tech()
+                        .is_none_or(|tech| self.has_tech(actor.owner, tech))
+                    && unit.transport.is_none()
+                    && self.cargo_count(unit.id) == 0
+            })
     }
 
     pub(super) fn try_move_unit(&mut self, unit_id: u32, dx: i32, dy: i32) -> MoveResult {
@@ -421,6 +456,9 @@ impl Simulation {
             return MoveResult::Blocked;
         };
         let unit = self.units[index].clone();
+        if unit.kind.is_nuclear_weapon() {
+            return MoveResult::Blocked;
+        }
         if unit.moves_left <= 0 || unit.work_left > 0 || unit.state == UnitState::Sentry {
             return MoveResult::Blocked;
         }
@@ -432,13 +470,6 @@ impl Simulation {
         }
         if !self.can_leave_transport(&unit) {
             return MoveResult::Blocked;
-        }
-        if self.try_capture_units(&unit, nx, ny) {
-            return MoveResult::Fought;
-        }
-        if unit.kind.is_nuclear_weapon() && self.nuclear_target_is_hostile(&unit, nx, ny) {
-            self.nuclear_strike(&unit, nx, ny);
-            return MoveResult::Fought;
         }
         let cost = match self.movement_cost_for(&unit, nx, ny) {
             Some(cost) => cost,
@@ -462,6 +493,16 @@ impl Simulation {
             }
             None => return MoveResult::Blocked,
         };
+        if self.can_capture_units_at(&unit, nx, ny) {
+            if !self.resolve_zoc_attacks(unit_id, nx, ny) {
+                return MoveResult::Fought;
+            }
+            if !self.ai_guard_allows_step(&unit, (nx, ny)) {
+                return MoveResult::Blocked;
+            }
+            self.try_capture_units(&unit, nx, ny, cost, facing);
+            return MoveResult::Moved;
+        }
         if unit.kind.bombard_rate() > 0
             && !self.tile(nx, ny).terrain.is_water()
             && (self.units.iter().any(|other| {
@@ -508,11 +549,8 @@ impl Simulation {
             return MoveResult::Blocked;
         }
 
-        if self.zone_blocks_step(&unit, (unit.x, unit.y), (nx, ny)) {
-            if unit.owner == HUMAN {
-                self.add_event("A foreign zone of control blocks that move.");
-            }
-            return MoveResult::Blocked;
+        if !self.resolve_zoc_attacks(unit_id, nx, ny) {
+            return MoveResult::Fought;
         }
 
         if !self.ai_guard_allows_step(&unit, (nx, ny)) {

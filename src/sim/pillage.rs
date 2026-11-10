@@ -46,13 +46,13 @@ impl Simulation {
             || !matches!(
                 unit.kind,
                 UnitKind::Warrior
-                    | UnitKind::Phalanx
+                    | UnitKind::Spearman
                     | UnitKind::Archer
-                    | UnitKind::Legion
+                    | UnitKind::Swordsman
                     | UnitKind::Horseman
-                    | UnitKind::Musketeers
-                    | UnitKind::Knights
-                    | UnitKind::Partisan
+                    | UnitKind::Musketman
+                    | UnitKind::Knight
+                    | UnitKind::Guerilla
             )
         {
             return false;

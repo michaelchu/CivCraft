@@ -34,92 +34,7 @@ impl Playtest {
                 ),
             ));
         }
-        if frame == 306 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
-            game.perform_action(UiAction::FoundCity);
-            let scenario = game.sim.merchant_playtest_setup();
-            self.merchant = Some(scenario);
-            game.perform_action(UiAction::SelectUnit(scenario.0));
-        }
-        if frame == 307
-            && let Some((_, freight, _, destination)) = self.merchant
-        {
-            if let Some((_, action)) = buttons.iter().find(|(_, action)| {
-                matches!(action, UiAction::DeliverGoods(city) if *city == destination)
-            }) {
-                game.perform_action(*action);
-            }
-            game.perform_action(UiAction::SelectUnit(freight));
-        }
-        if frame == 308
-            && let Some((caravan, freight, home, destination)) = self.merchant
-        {
-            if let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::HelpWonder(city) if *city == home))
-            {
-                game.perform_action(*action);
-            }
-            let established = game.sim.merchant_playtest_route_exists(home, destination)
-                && game.sim.units().iter().all(|unit| unit.id != caravan);
-            let contributed = game
-                .sim
-                .cities()
-                .iter()
-                .any(|city| city.id == home && city.shields == 50)
-                && game.sim.units().iter().all(|unit| unit.id != freight);
-            self.results.push(("merchant", established && contributed,
-                format!("Caravan established a trade route: {established}. Freight added 50 shields to a wonder: {contributed}.")));
-        }
-        if frame == 310 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
-            game.perform_action(UiAction::FoundCity);
-            let (warrior, merchant, home) = game.sim.merchant_capture_playtest_setup();
-            game.perform_action(UiAction::SelectUnit(warrior));
-            let capture = game.sim.apply(Command::Move(warrior, 1, 0));
-            let transferred = game.sim.units().iter().all(|unit| unit.id != merchant)
-                && game.sim.units().iter().any(|unit| {
-                    unit.kind == UnitKind::Freight
-                        && unit.owner == HUMAN
-                        && unit.home_city == Some(home)
-                        && unit.hp == 7
-                });
-            self.results.push(("merchant_capture", capture && transferred,
-                format!("Warrior captured the unescorted Freight: {capture}. Freight kept its HP and gained the Warrior’s home city: {transferred}.")));
-        }
-        if frame == 312 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
-            game.perform_action(UiAction::FoundCity);
-            let (warrior, _, city) = game.sim.migrants_playtest_setup();
-            if game.sim.apply(Command::Move(warrior, 1, 0))
-                && let Some(unit) = game
-                    .sim
-                    .units()
-                    .iter()
-                    .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Migrants)
-            {
-                let id = unit.id;
-                self.migrants = Some((id, city));
-                game.perform_action(UiAction::SelectUnit(id));
-            }
-        }
-        if frame == 313 && self.act_passed {
-            let joined = self.migrants.is_some_and(|(migrants, city)| {
-                if let Some((_, action)) = buttons.iter().find(
-                    |(_, action)| matches!(action, UiAction::JoinCity(target) if *target == city),
-                ) {
-                    game.perform_action(*action);
-                }
-                game.sim.units().iter().all(|unit| unit.id != migrants)
-                    && game
-                        .sim
-                        .cities()
-                        .iter()
-                        .any(|target| target.id == city && target.size == 2)
-            });
-            self.results.push(("migrants", joined, format!("Captured Migrants joined the city through the action strip and added one citizen: {joined}.")));
-        }
-        if frame == 315 && self.act_passed {
+                                        if frame == 315 && self.act_passed {
             *game = Game::new(crate::mapgen::generate(42));
             game.perform_action(UiAction::FoundCity);
             let scenario = game.sim.airlift_playtest_setup();
@@ -285,7 +200,7 @@ impl Playtest {
                 .iter()
                 .filter(|unit| {
                     unit.owner == 1
-                        && unit.kind == UnitKind::Partisan
+                        && unit.kind == UnitKind::Guerilla
                         && unit.state == sim::UnitState::Fortified
                 })
                 .count();

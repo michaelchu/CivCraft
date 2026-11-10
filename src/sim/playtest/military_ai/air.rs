@@ -15,7 +15,7 @@ impl Simulation {
         let target = offset_native_by_map(home.0, home.1, 6, 0);
         self.create_city(1, home.0, home.1);
         self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
-        let paratrooper = self.spawn_unit(1, UnitKind::Paratroopers, home.0, home.1);
+        let paratrooper = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
         let unit = self.units.last().unwrap().clone();
         self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
         let declined = !self.run_ai_paratrooper(&unit);
@@ -48,7 +48,7 @@ impl Simulation {
         self.create_city(HUMAN, enemy.0, enemy.1);
         self.spawn_unit(HUMAN, UnitKind::Cannon, threat.0, threat.1);
         let guard = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
-        let para = self.spawn_unit(1, UnitKind::Paratroopers, home.0, home.1);
+        let para = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
         self.run_ai_player(1);
         let defended = self
             .units
@@ -63,7 +63,7 @@ impl Simulation {
                 .iter()
                 .any(|city| city.owner == HUMAN && (city.x, city.y) == enemy);
         let defender = self.spawn_unit(HUMAN, UnitKind::Warrior, enemy.0, enemy.1);
-        let raider = self.spawn_unit(1, UnitKind::Paratroopers, home.0, home.1);
+        let raider = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
         let raider_unit = self.units.last().unwrap().clone();
         let refused = !self.run_ai_paratrooper(&raider_unit);
         self.units.retain(|unit| unit.id != defender);
@@ -92,34 +92,48 @@ impl Simulation {
         }
         self.create_city(HUMAN, home.0, home.1);
         self.create_city(1, target.0, target.1);
-        let kind = Production::Unit(UnitKind::Paratroopers);
+        let kind = Production::Unit(UnitKind::Paratrooper);
         let locked = !self.can_produce(&self.cities[0], kind);
         self.players[HUMAN].known.push(Tech::COMBINED_ARMS);
         let unlocked = self.can_produce(&self.cities[0], kind);
-        let actor = self.spawn_unit(HUMAN, UnitKind::Paratroopers, home.0, home.1);
+        let actor = self.spawn_unit(HUMAN, UnitKind::Paratrooper, home.0, home.1);
         let out_of_range = !self.apply(Command::Paradrop(actor, outside.0, outside.1));
         (actor, target, locked && unlocked && out_of_range)
     }
 
     pub(crate) fn ai_fighter_playtest(&mut self) -> (bool, bool, bool) {
         self.units.clear();
+        self.cities.clear();
+        self.sign_pact(HUMAN, 1, Pact::War);
+        self.sign_pact(HUMAN, BARBARIANS, Pact::War);
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
             tile.base = None;
             tile.hut = false;
+            tile.known_by[1] = true;
         }
         let home = (10, 24);
-        let near = offset_native_by_map(home.0, home.1, 3, 0);
+        let near = offset_native_by_map(home.0, home.1, 2, 0);
         let far = offset_native_by_map(home.0, home.1, 8, 0);
         self.create_city(1, home.0, home.1);
         self.tile_mut(near.0, near.1).known_by[1] = true;
         self.tile_mut(far.0, far.1).known_by[1] = true;
         let fighter = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
+        self.units.last_mut().unwrap().moves_left = UnitKind::Fighter.stats().moves * MOVE_FRAGMENTS;
         let close = self.spawn_unit(HUMAN, UnitKind::Bomber, near.0, near.1);
         self.units.last_mut().unwrap().hp = 1;
-        self.set_random_seed(1);
+        self.units.last_mut().unwrap().moves_left = UnitKind::Bomber.stats().moves * MOVE_FRAGMENTS;
+        self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
+        self.refresh_visibility();
         self.run_ai_player(1);
-        let intercepted = self.units.iter().all(|unit| unit.id != close);
+        let assigned = self
+            .unit_by_id(fighter)
+            .is_some_and(|unit| unit.state == UnitState::AirSuperiority);
+        self.native_random = None;
+        self.rng = 2; // 22% interception roll, below the stock 50% chance.
+        let bomber = self.unit_by_id(close).unwrap().clone();
+        self.try_bombard(&bomber, home.0, home.1);
+        let intercepted = assigned && self.units.iter().all(|unit| unit.id != close);
         self.restore_aircraft();
         let refueled = self.units.iter().any(|unit| {
             unit.id == fighter
@@ -129,140 +143,18 @@ impl Simulation {
         self.update_activities_and_restore();
         if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == fighter) {
             unit.fuel = 1;
+            unit.state = UnitState::Idle;
         }
         let distant = self.spawn_unit(HUMAN, UnitKind::Bomber, far.0, far.1);
         self.units.last_mut().unwrap().hp = 1;
-        self.run_ai_player(1);
-        let skipped = self.units.iter().any(|unit| unit.id == distant)
+        let plane = self.unit_by_id(fighter).unwrap();
+        let target = self.unit_by_id(distant).unwrap();
+        let skipped = self.map_distance(home.0, home.1, target.x, target.y)
+            > plane.kind.operational_range()
             && self
-                .units
-                .iter()
-                .any(|unit| unit.id == fighter && (unit.x, unit.y) == home);
+                .route_cost_within(plane, target.x, target.y, plane.moves_left)
+                .is_none();
         (intercepted, skipped, refueled)
-    }
-
-    pub(crate) fn ai_carrier_sortie_playtest(&mut self, reposition: bool) -> (bool, bool, bool) {
-        self.units.clear();
-        self.cities.clear();
-        self.prune_unit_ai_state();
-        self.sign_pact(1, HUMAN, Pact::War);
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Sea;
-            tile.base = None;
-            tile.hut = false;
-            tile.owner = None;
-            tile.known_by[1] = true;
-        }
-        let deck = (10, 24);
-        let target = offset_native_by_map(deck.0, deck.1, if reposition { 11 } else { 2 }, 0);
-        self.tile_mut(target.0, target.1).terrain = Terrain::Grassland;
-        let carrier = self.spawn_unit(1, UnitKind::Carrier, deck.0, deck.1);
-        // Cargo load order appoints the Fighter as passenger-in-charge.
-        // The reserve Bomber does not receive an independent cargo dispatch.
-        let fighter = self.spawn_unit(1, UnitKind::Fighter, deck.0, deck.1);
-        assert!(self.board_specific_ship(fighter, carrier));
-        let bomber = self.spawn_unit(1, UnitKind::Bomber, deck.0, deck.1);
-        assert!(self.board_specific_ship(bomber, carrier));
-        let victim = self.spawn_unit(HUMAN, UnitKind::Cannon, target.0, target.1);
-        self.units.last_mut().unwrap().hp = if reposition { 2 } else { 1 };
-        self.set_random_seed(1);
-        self.run_ai_player(1);
-        let station = self
-            .units
-            .iter()
-            .find(|unit| unit.id == carrier)
-            .map(|unit| (unit.x, unit.y))
-            .unwrap();
-        let launched =
-            self.units
-                .iter()
-                .any(|unit| unit.id == fighter && unit.moved)
-                && self.units.iter().all(|unit| unit.id != victim)
-                && self.units.iter().any(|unit| {
-                    unit.id == bomber && unit.transport == Some(carrier) && !unit.moved
-                });
-        self.restore_aircraft();
-        self.update_activities_and_restore();
-        self.units
-            .iter_mut()
-            .find(|unit| unit.id == fighter)
-            .unwrap()
-            .fuel = 1;
-        self.run_ai_player(1);
-        self.restore_aircraft();
-        let steady = self
-            .units
-            .iter()
-            .any(|unit| unit.id == carrier && (unit.x, unit.y) == station);
-        let recovered = self.units.iter().any(|unit| {
-            unit.id == fighter
-                && unit.transport == Some(carrier)
-                && unit.fuel == UnitKind::Fighter.fuel_capacity()
-        });
-        let source_mission = if reposition {
-            // Native ferries do not reposition to extend an aircraft sortie.
-            station == deck && self.units.iter().any(|unit| unit.id == victim) && !launched
-        } else {
-            launched
-        };
-        (source_mission, steady, recovered)
-    }
-
-    pub(crate) fn ai_bomber_playtest(&mut self) -> (bool, bool, bool) {
-        // Retain the existing desktop hook name; this now tests the native
-        // Fighter sortie. OneAttack Bomber's strict PF cutoff is tested apart.
-        self.units.clear();
-        self.cities.clear();
-        self.prune_unit_ai_state();
-        self.sign_pact(1, HUMAN, Pact::War);
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.base = None;
-            tile.hut = false;
-            tile.owner = None;
-            tile.known_by[1] = true;
-        }
-        let home = (10, 24);
-        let target = offset_native_by_map(home.0, home.1, 2, 0);
-        self.create_city(1, home.0, home.1);
-        let fighter = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
-        let victim = self.spawn_unit(HUMAN, UnitKind::Cannon, target.0, target.1);
-        self.units.last_mut().unwrap().hp = 1;
-        self.set_random_seed(1);
-        self.run_ai_player(1);
-        let struck = self.units.iter().all(|unit| unit.id != victim)
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == fighter && unit.moved);
-        self.restore_aircraft();
-        self.update_activities_and_restore();
-        self.units
-            .iter_mut()
-            .find(|unit| unit.id == fighter)
-            .unwrap()
-            .fuel = 1;
-        self.run_ai_player(1);
-        self.restore_aircraft();
-        let returned = self.units.iter().any(|unit| {
-            unit.id == fighter
-                && (unit.x, unit.y) == home
-                && unit.fuel == UnitKind::Fighter.fuel_capacity()
-        });
-        self.cities.clear();
-        self.update_activities_and_restore();
-        let guarded = self.spawn_unit(HUMAN, UnitKind::Cannon, target.0, target.1);
-        self.units.last_mut().unwrap().hp = 1;
-        self.run_ai_player(1);
-        let skipped = self
-            .units
-            .iter()
-            .any(|unit| unit.id == guarded && unit.hp == 1)
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == fighter && (unit.x, unit.y) == home && !unit.moved);
-        (struck, returned, skipped)
     }
 
     pub(crate) fn ai_embarked_paradrop_danger_playtest(&mut self) -> bool {
@@ -285,7 +177,7 @@ impl Simulation {
         let sea = offset_native_by_map(home.0, home.1, -4, 0);
         let ferry = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
         let infantry = self.spawn_unit(HUMAN, UnitKind::Warrior, sea.0, sea.1);
-        let marine = self.spawn_unit(HUMAN, UnitKind::Marines, sea.0, sea.1);
+        let marine = self.spawn_unit(HUMAN, UnitKind::Marine, sea.0, sea.1);
         if !self.board_specific_ship(infantry, ferry) || !self.board_specific_ship(marine, ferry) {
             return false;
         }
@@ -305,7 +197,7 @@ impl Simulation {
         self.tile_mut(airbase.0, airbase.1).terrain = Terrain::Grassland;
         self.tile_mut(airbase.0, airbase.1).base = Some(Base::Airbase);
         self.tile_mut(airbase.0, airbase.1).owner = Some(HUMAN);
-        let para = self.spawn_unit(HUMAN, UnitKind::Paratroopers, airbase.0, airbase.1);
+        let para = self.spawn_unit(HUMAN, UnitKind::Paratrooper, airbase.0, airbase.1);
         self.tile_mut(airbase.0, airbase.1).known_by[1] = false;
         let airborne =
             arrival(self, para) == Some(0) && self.city_defense_production(&city).is_some();

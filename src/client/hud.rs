@@ -163,12 +163,10 @@ pub(super) enum HudIcon {
     Gear,
     Pause,
     Upgrade,
-    Search,
     Target,
     Parachute,
     Plane,
     Boat,
-    Crate,
     Wonder,
     Cross,
     More,
@@ -411,20 +409,6 @@ pub(super) fn draw_hud_icon(icon: HudIcon, center: Vec2, size: f32, color: Color
             &[(4., 17.), (12., 10.), (20., 17.)],
             &[(12., 11.), (12., 22.)],
         ],
-        HudIcon::Search => &[
-            &[
-                (4., 4.),
-                (10., 2.),
-                (16., 5.),
-                (18., 11.),
-                (15., 16.),
-                (9., 18.),
-                (3., 15.),
-                (2., 9.),
-                (4., 4.),
-            ],
-            &[(16., 16.), (22., 22.)],
-        ],
         HudIcon::Target => &[
             &[
                 (12., 4.),
@@ -477,21 +461,6 @@ pub(super) fn draw_hud_icon(icon: HudIcon, center: Vec2, size: f32, color: Color
         HudIcon::Boat => &[
             &[(2., 15.), (22., 15.), (18., 21.), (6., 21.), (2., 15.)],
             &[(12., 15.), (12., 3.), (19., 12.), (12., 12.)],
-        ],
-        HudIcon::Crate => &[
-            &[
-                (3., 7.),
-                (12., 3.),
-                (21., 7.),
-                (21., 17.),
-                (12., 21.),
-                (3., 17.),
-                (3., 7.),
-                (12., 11.),
-                (21., 7.),
-            ],
-            &[(12., 11.), (12., 21.)],
-            &[(7., 5.), (16., 9.)],
         ],
         HudIcon::Wonder => &[
             &[(2., 21.), (12., 3.), (22., 21.), (2., 21.)],

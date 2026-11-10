@@ -26,7 +26,6 @@ impl Playtest {
                         | UiAction::TerrainWork(
                             crate::sim::WorkKind::Cultivate
                                 | crate::sim::WorkKind::Plant
-                                | crate::sim::WorkKind::Transform
                         )
                 )
             });
@@ -71,22 +70,14 @@ impl Playtest {
             }
         }
 
-        if frame == 790 && self.act_passed {
-            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("native_raw_military_unhappiness", sim.military_unhappiness_rules_playtest(),
-                "Raw unit unhappiness used native government factors, free allowances, police and wonder effects independently of citizen saturation.".to_owned()));
-        }
-
         if frame == 793 && self.act_passed {
             let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (future, current, hidden, learned) = sim.offensive_research_playtest();
+            let (hidden, learned) = sim.offensive_research_playtest();
             for (name, passed) in [
-                ("native_offensive_future_unit_feedback", future),
-                ("native_offensive_buildable_current_choice", current),
                 ("native_offensive_known_target_policy", hidden),
                 ("native_offensive_learned_tech_feedback_ends", learned),
             ] {
-                self.results.push((name, passed, "Offensive production and future-unit research shared native target, travel, cost and amortization evaluation.".to_owned()));
+                self.results.push((name, passed, "Offensive target research feedback is limited to targets known by the player, and stops after its technology is learned.".to_owned()));
             }
         }
 

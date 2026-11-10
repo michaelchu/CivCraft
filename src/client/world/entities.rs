@@ -341,6 +341,7 @@ impl Game {
         stack_count: usize,
         action: super::super::tileset::Civ3UnitAction,
         animation_progress: f32,
+        playback_duration_seconds: Option<f32>,
     ) {
         let unit_w = 58.0 * self.zoom;
         let unit_h = 44.0 * self.zoom;
@@ -358,8 +359,10 @@ impl Game {
             unit.kind,
             unit.owner,
             unit.facing,
+            self.sim.research_era(unit.owner).index(),
             action,
             animation_progress,
+            playback_duration_seconds,
             center,
             self.zoom,
             unit.moves_left > 0,

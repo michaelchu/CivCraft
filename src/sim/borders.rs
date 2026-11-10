@@ -35,23 +35,12 @@ impl Simulation {
         self.refresh_ai_guards();
         self.city_rapture
             .retain(|id, _| self.cities.iter().any(|city| city.id == *id));
-        self.ai_merchant_missions.retain(|id, mission| {
-            self.cities.iter().any(|city| city.id == mission.city)
-                && self
-                    .units
-                    .iter()
-                    .any(|unit| unit.id == *id && unit.owner == mission.owner)
-        });
         self.ai_settlement_targets.retain(|id, reservation| {
             self.units
                 .iter()
                 .any(|unit| unit.id == *id && unit.owner == reservation.owner)
         });
-        self.merchant_birth_turns
-            .retain(|id, _| self.units.iter().any(|unit| unit.id == *id));
         self.ai_ground_targets
-            .retain(|_, id| self.cities.iter().any(|city| city.id == *id));
-        self.agent_city_targets
             .retain(|_, id| self.cities.iter().any(|city| city.id == *id));
         let (regions, sizes) = self.border_regions();
         let mut surrounders = vec![None; sizes.len()];

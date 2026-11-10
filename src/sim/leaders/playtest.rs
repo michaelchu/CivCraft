@@ -9,88 +9,37 @@ impl super::Simulation {
         })
     }
 
-    pub(crate) fn ai_normal_path_actions_playtest(&mut self) -> bool {
+    pub(crate) fn ai_zero_attack_carrier_path_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.prune_unit_ai_state();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.owner = None;
-            tile.hut = false;
-            tile.road = false;
-            tile.railroad = false;
-            tile.river = false;
-            tile.known_by.fill(true);
-        }
-        let leader = self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, 10, 20);
-        let blocker = self.civ3_east((10, 20), 1);
-        let refuge = self.civ3_east((10, 20), 2);
-        self.spawn_unit(HUMAN, UnitKind::Warrior, blocker.0, blocker.1);
-        self.spawn_unit(BARBARIANS, UnitKind::Worker, refuge.0, refuge.1);
-        let actor = self.unit_by_id(leader).unwrap();
-        let optimistic = self.leader_paths(actor, None).costs
-            [self.map_wrap.index(refuge.0, refuge.1)]
-            == 2 * MOVE_FRAGMENTS;
-        self.run_ai_player(BARBARIANS);
-        let stopped = self.units.iter().any(|unit| {
-            unit.id == leader
-                && (unit.x, unit.y) == (10, 20)
-                && unit.moves_left == 2 * MOVE_FRAGMENTS
-        });
-        self.units.clear();
         self.prune_unit_ai_state();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Sea;
+            tile.hut = false;
         }
         let carrier = self.spawn_unit(HUMAN, UnitKind::Carrier, 10, 20);
+        let blocker = self.civ3_east((10, 20), 1);
         self.spawn_unit(BARBARIANS, UnitKind::Caravel, blocker.0, blocker.1);
-        let actor = self.unit_by_id(carrier).unwrap();
-        let paths = self.leader_paths(actor, None);
-        let endpoint = paths.costs[self.map_wrap.index(blocker.0, blocker.1)] == MOVE_FRAGMENTS
-            && paths.costs[self.map_wrap.index(refuge.0, refuge.1)] == 3 * MOVE_FRAGMENTS;
-        self.leader_follow_path(carrier, vec![CIV3_DIRS[2]]);
-        let execution = self
-            .unit_by_id(carrier)
-            .is_some_and(|unit| (unit.x, unit.y) == (10, 20))
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == carrier && (unit.x, unit.y) == (10, 20));
-        optimistic && stopped && endpoint && execution
+        let unit = self.unit_by_id(carrier).unwrap().clone();
+        let endpoint = self
+            .ai_movement_cost_order(&unit)
+            .iter()
+            .any(|&(cost, x, y)| (x, y) == blocker && cost > 0);
+        let target = self.pf_default_action(
+            UnitKind::Carrier,
+            HUMAN,
+            blocker,
+            true,
+            true,
+            false,
+        );
+        endpoint
+            && UnitKind::Carrier.stats().attack > 0
+            && target == super::PfAction::Attack
+            && self.leader_paths(&unit, None).costs[self.map_wrap.index(blocker.0, blocker.1)]
+                < i32::MAX
     }
 
-    pub(crate) fn ai_barbarian_leader_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.cities.clear();
-        self.prune_unit_ai_state();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.road = false;
-            tile.railroad = false;
-            tile.river = false;
-            tile.owner = None;
-            tile.hut = false;
-            tile.known_by.fill(true);
-        }
-        let leader = self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, 10, 20);
-        let refuge = self.civ3_east((10, 20), 2);
-        self.spawn_unit(BARBARIANS, UnitKind::Worker, refuge.0, refuge.1);
-        self.run_ai_player(BARBARIANS);
-        let sheltered = self
-            .units
-            .iter()
-            .any(|unit| unit.id == leader && (unit.x, unit.y) == refuge);
-        self.units.clear();
-        self.prune_unit_ai_state();
-        let leader = self.spawn_unit(BARBARIANS, UnitKind::BarbarianLeader, 10, 20);
-        let enemy = offset_native_by_map(10, 20, -1, 0);
-        self.spawn_unit(HUMAN, UnitKind::Diplomat, enemy.0, enemy.1);
-        self.run_ai_player(BARBARIANS);
-        sheltered
-            && self.units.iter().any(|unit| {
-                unit.id == leader
-                    && unit.moves_left == 0
-                    && self.map_distance(unit.x, unit.y, enemy.0, enemy.1) > 1
-            })
-    }
+
+
 }

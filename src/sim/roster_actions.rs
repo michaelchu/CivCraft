@@ -1,82 +1,28 @@
-//! Integration checks for Civ2Civ3 unit requirements and action flags.
+//! Unit action and upkeep integration checks.
+#[cfg(test)]
 use super::*;
-
-impl Simulation {
-    pub(crate) fn native_roster_stats_oracle(&self) -> bool {
-        // Snapshot extracted independently from the supplied ruleset, rather
-        // than from UnitStats or the generated capability catalog.
-        let rows: Vec<_> = include_str!("../../tests/fixtures/civ2civ3_unit_stats.tsv")
-            .lines()
-            .skip(2)
-            .collect();
-        rows.len() == 57
-            && UnitKind::ALL_NATIVE
-                .into_iter()
-                .take(rows.len())
-                .zip(rows)
-                .all(|(kind, row)| {
-                    let expected: Vec<i32> = row
-                        .split('\t')
-                        .skip(1)
-                        .map(|value| value.parse().unwrap())
-                        .collect();
-                    let stats = kind.stats();
-                    expected
-                        == [
-                            stats.cost,
-                            stats.pop_cost,
-                            stats.attack,
-                            stats.defense,
-                            stats.hp,
-                            stats.firepower,
-                            stats.moves,
-                            stats.vision_sq,
-                        ]
-                })
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn all_57_unit_statistics_match_independent_reference_snapshot() {
-        let game = Simulation::new(crate::mapgen::generate(42));
-        assert!(game.native_roster_stats_oracle());
-    }
-
-    #[test]
-    fn reference_roster_requirements_actions_and_upkeep() {
-        let game = Simulation::new(crate::mapgen::generate(42));
-        assert_eq!(
-            game.native_roster_actions_playtest(),
-            (true, true, true, true)
-        );
-    }
-
-    #[test]
-    fn no_home_flag_blocks_rehoming_even_malformed_or_transferred_units() {
+    fn malformed_home_ids_rehome_at_a_friendly_city_when_source_flags_allow_it() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.cities.clear();
         game.create_city(HUMAN, 10, 20);
         let mut leader = game.make_unit(0, HUMAN, UnitKind::Leader, 10, 20);
         leader.home_city = Some(u32::MAX);
-        assert_eq!(game.home_city_target(&leader), None);
+        assert!(!UnitKind::Leader.has_no_home());
+        assert_eq!(game.home_city_target(&leader), Some(game.cities[0].id));
         let mut warrior = game.make_unit(1, HUMAN, UnitKind::Warrior, 10, 20);
         warrior.home_city = Some(u32::MAX);
         assert_eq!(game.home_city_target(&warrior), Some(game.cities[0].id));
     }
 
     #[test]
-    fn marine_flag_permits_real_amphibious_attacks_for_all_flagged_types() {
-        for kind in [
-            UnitKind::Legion,
-            UnitKind::Musketeers,
-            UnitKind::Riflemen,
-            UnitKind::Marines,
-            UnitKind::Pikemen,
-        ] {
+    fn campaign_marine_identity_allows_real_amphibious_attacks() {
+        for kind in [UnitKind::Marine] {
             let mut game = Simulation::new(crate::mapgen::generate(42));
             game.units.clear();
             game.cities.clear();
@@ -106,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    fn caravel_without_shield_to_gold_still_obeys_government_shield_effect() {
+    fn caravel_support_uses_the_imported_government_table_without_shield_upkeep() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();
@@ -117,9 +63,10 @@ mod tests {
             game.units.last_mut().unwrap().home_city = Some(city.id);
         }
         game.players[HUMAN].government = Government::Anarchy;
-        assert_eq!(game.city_unit_upkeep(&city).shields, 1);
+        let anarchy = game.city_unit_upkeep(&city);
+        assert_eq!((anarchy.shields, anarchy.gold), (0, 3));
         game.players[HUMAN].government = Government::Monarchy;
         let support = game.city_unit_upkeep(&city);
-        assert_eq!((support.shields, support.gold), (0, 0));
+        assert_eq!((support.shields, support.gold), (0, 1));
     }
 }

@@ -1,7 +1,7 @@
 //! Implements guards behavior within the sim subsystem.
 
 use super::normal_paths::GotoTask;
-use super::unit_catalog::{UnitClass, UnitRole};
+use super::unit_catalog::{UnitAiStrategy, UnitClass};
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -168,7 +168,7 @@ impl Simulation {
     }
 
     pub(super) fn guard_defender_role(kind: UnitKind) -> bool {
-        kind.has_role(UnitRole::DefendGood)
+        kind.has_ai_strategy(UnitAiStrategy::Defense)
     }
 
     fn guard_native_sets(kind: UnitKind) -> (u16, u16) {
@@ -179,7 +179,7 @@ impl Simulation {
         if kind.is_aircraft() || kind.is_missile() {
             return (LAND | WATER, 0b100);
         }
-        if kind == UnitKind::Trireme {
+        if kind == UnitKind::Galley {
             return (0b101, 0b10000);
         }
         if kind.is_naval() {
@@ -188,9 +188,6 @@ impl Simulation {
         if kind.unit_class() == UnitClass::BigLand {
             // Terrain enumeration indices: Jungle4, Mountains9, Swamp11.
             return (LAND & !(1 << 4 | 1 << 9 | 1 << 11), 0b0011);
-        }
-        if matches!(kind, UnitKind::Caravan | UnitKind::Freight) {
-            return (LAND, 0b10011);
         }
         (LAND, 0b11011)
     }
@@ -246,7 +243,10 @@ impl Simulation {
             actor.kind.stats().defense * POWER_FACTOR,
             actor.veteran_power(),
         ) * actor.hp;
-        if danger >= defense {
+        // A zero-attack destination is safe even for a zero-defense civilian
+        // (for example, a Settler). Equality is meaningful only after some
+        // hostile force contributes danger.
+        if danger > 0 && danger >= defense {
             self.request_ai_guard(id);
             true
         } else {
@@ -310,12 +310,6 @@ impl Simulation {
                     self.ai_settlement_targets
                         .get(&charge.id)
                         .map(|t| t.destination)
-                })
-                .or_else(|| {
-                    self.ai_merchant_missions
-                        .get(&charge.id)
-                        .and_then(|mission| self.city_by_id(mission.city))
-                        .map(|city| (city.x, city.y))
                 })
         })
     }
@@ -516,7 +510,7 @@ impl Simulation {
                     enemy.kind.stats().cost
                 };
                 if !vulnerable && self.units.iter().filter(|u| (u.x, u.y) == target).count() > 1 {
-                    benefit = benefit * actor.hp / actor.kind.stats().hp;
+                    benefit = benefit * actor.hp / actor.max_hit_points();
                 }
                 let (attack_fp, defense_fp) = self.combat_firepower(&actor, enemy);
                 let chance = combat_win_chance(
@@ -583,7 +577,7 @@ impl Simulation {
             }
         }
         if !self.ai_guard_targets.contains_key(&id)
-            && actor.hp * 4 >= actor.kind.stats().hp
+            && actor.hp * 4 >= actor.max_hit_points()
             && Self::guard_defender_role(actor.kind)
             && let Some((target, _)) = self.look_for_ai_charge(&actor)
         {
