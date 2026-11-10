@@ -437,11 +437,20 @@ documentation, not as evidence for field behavior.
   candidate model, not verified Conquests behavior. Sources: [CivFanatics FAQ,
   “Culture flipping”](https://civfanatics.com/civ3/faq/), [Dan Magaha (Firaxis),
   “Culture-Flipping Exposed”](https://forums.civfanatics.com/threads/culture-flipping-exposed.14337/),
-  and [CivFanatics forum formula discussion](https://forums.civfanatics.com/threads/how-do-you-prevent-disposing-defecting.72932/).
+  [CivFanatics forum formula discussion](https://forums.civfanatics.com/threads/how-do-you-prevent-disposing-defecting.72932/),
+  and [CivFanatics discussion of the distance modifier](https://forums.civfanatics.com/threads/d-2000-in-flip-formula.41933/).
   The first two are the strongest evidence here: the FAQ is a secondary
   synthesis; Magaha attributes the qualitative factors to a conversation with
   lead programmer Soren. Neither page establishes that Conquests retained every
-  base-game detail. The formula is not yet implemented.
+  base-game detail. The distance discussion attributes to Soren a modifier
+  formed by scaling the ratio of challenger-capital-to-city distance over
+  defender-capital-to-city distance by 2,000 and capping the result to
+  500–8,000. Thus, if `d` is that ratio, the formula's denominator is
+  `2000 * clamp(d, 0.25, 4)`, equivalent to the 500–8,000 range. The geometric
+  distance metric, missing-capital handling, and zero-distance cases are not
+  specified consistently enough to reproduce; the source reports these
+  details for Civ III generally, not specifically Conquests. The formula is
+  not yet implemented.
 - Conquests Civilopedia says civilization culture is the sum of city culture
   values (“the sum of the cultural values of all of your cities”) and that
   larger cultural advantage is favorable in resistance, diplomacy, and
