@@ -818,6 +818,14 @@ documentation, not as evidence for field behavior.
 
 ## Current validation (2026-11-10)
 
+- Current checkout rerun with `CIVCRAFT_SOURCE_DIR` pointing at the installed
+  source folder: `cargo test --offline culture` passed 33 tests, and
+  `cargo test --offline resist` passed 17 tests. Together these cover the
+  current culture accumulation/doubling, capture ledger, border thresholds and
+  synthetic claim comparisons, victory, resistance band inputs and progression,
+  resister labor/rush exclusion, peace resolution, and save/load paths. These
+  are CivCraft regression scenarios; they do not establish the unresolved
+  original-Conquests formulas or border geometry listed below.
 - `cargo test --offline sim::culture::tests`: 17 passed. The added custom-map
   case confirms that the explicit 20,000 single-city victory remains active on
   the 36×48 campaign topology, while a 102,000 empire total does not assume a
