@@ -77,7 +77,7 @@ fn treasury_and_bulb_insolvency_switch_priority_on_war_preparation() {
 }
 
 #[test]
-fn live_last_activities_apply_tax_before_building_advice_and_workers_before_defense() {
+fn live_last_activities_apply_tax_before_advice_and_rearrange_workers_first() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     assert_eq!(game.ai_tax_phase_playtest(), (true, true));
 }

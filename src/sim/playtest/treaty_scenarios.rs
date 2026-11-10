@@ -13,6 +13,7 @@ impl Simulation {
             self.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
             self.create_city(1, point.0, point.1);
         }
+        self.make_diplomatic_contact(HUMAN, 1);
         self.sign_pact(HUMAN, 1, Pact::Alliance);
         let id = self.cities[2].id;
         self.transfer_traded_city(2, 1);
@@ -49,6 +50,7 @@ impl Simulation {
         }
         self.tile_mut(3, 3).terrain = Terrain::Grassland;
         self.create_city(HUMAN, 3, 3);
+        self.make_diplomatic_contact(HUMAN, 1);
         self.sign_pact(HUMAN, 1, Pact::Alliance);
         self.tile_mut(town.0, town.1).known_by[HUMAN] = true;
         let id = self.cities[1].id;

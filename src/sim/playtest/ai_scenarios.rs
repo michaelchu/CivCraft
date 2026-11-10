@@ -36,13 +36,17 @@ impl Simulation {
         // A real balanced 40% tax floor makes the source +10% coffers refill
         // observable. With zero expenses, the 60% science cap already forces
         // 40% tax and hides that increase.
-        for _ in 0..5 {
+        // With four free support slots under Despotism, seven Warriors make
+        // the upkeep bill large enough to expose the purchase cash reserve.
+        for _ in 0..7 {
             let id = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
             let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
             unit.home_city = Some(city);
             unit.home_order = id;
         }
-        self.spawn_unit(1, UnitKind::Worker, home.0, home.1);
+        // A Catapult upgrades to Trebuchet with the available Engineering
+        // technology; Workers have no Conquests upgrade successor.
+        self.spawn_unit(1, UnitKind::Catapult, home.0, home.1);
         let Some((_, price)) = self.paid_upgrade(self.units.last().unwrap()) else {
             return false;
         };
