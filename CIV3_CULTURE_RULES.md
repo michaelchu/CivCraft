@@ -127,6 +127,14 @@ documentation, not as evidence for field behavior.
 - Base manual says cultural development determines the city’s sphere of
   influence; squares inside it are territory and provide visibility and
   connected resource benefits. Source: printed pages 111–115.
+- The supplied base-game manual also says a city’s cultural influence grows as
+  time passes and improvements are built (printed pp. 55–57), and describes
+  greater city culture as encompassing more area (p. 115). Its City Display
+  reference says the culture box shows the amount needed for the next expansion
+  (p. 182). These passages confirm the culture-to-border relationship, but do
+  not specify the exact claimed tiles, footprint geometry, cadence, or conflict
+  resolution. This is base-game manual evidence; the Conquests Civilopedia is
+  the edition-specific authority where details differ.
 - BIQ `RULE.BorderExpansionMultiplier` and `RULE.BorderFactor` are available in
   the export. Neither the Civilopedia nor the extracted values alone establishes
   the exact threshold sequence, expansion cadence, contested-claim tie breaks,
@@ -173,6 +181,12 @@ documentation, not as evidence for field behavior.
   nationality can persist after resistance and later assimilation. It also says
   a city with any resisters cannot rush production. Sources: printed pages
   104–105, 116–117, and 131–133.
+- Edition-specific wording differs on how resistance ends: the base manual says
+  troops are the only way to quell it (printed p. 116), while the Conquests
+  Civilopedia explicitly also allows ending the war. For this Conquests target,
+  the Civilopedia statement governs; the peace-resolution path is implemented.
+  The manual's recapture exception (previously ruled citizens do not resist,
+  p. 117) remains unconfirmed for Conquests and is not implemented.
 - The BIQ `CULT` section contains initial and continued resistance chances plus
   culture-ratio values; `GOVT` contains assimilation chances. Their turn-by-turn
   selection, rolls, and interaction with garrison strength, peace, government,
