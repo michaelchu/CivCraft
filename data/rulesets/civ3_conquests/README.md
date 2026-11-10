@@ -77,6 +77,17 @@ The source fields are kept as explicit columns:
 These are classification metadata; the Conquests BIQ remains the source of the
 installed rules values.
 
+### Unit animation pacing
+
+`unit_animation_pacing.toml` contains presentation timing overrides layered on
+top of each unit INI's animation files and source timing values. Work-cycle
+duration multipliers above `1.0` slow playback. Settings under `[units.<unit>]`
+override the shared defaults, while `[units.<unit>.actions.<action>]` can
+override one action for one unit. `[units.<unit>.fidget]` can set the selected
+unit's fidget play and rest durations independently. Unit keys use the
+lowercase Conquests unit ID from `units.tsv`; action keys use lowercase
+animation names such as `road`, `mine`, or `build`.
+
 ### Unique-unit availability notes
 
 Keep the raw BIQ availability mask separate from the unique-unit replacement

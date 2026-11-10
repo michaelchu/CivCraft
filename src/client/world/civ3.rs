@@ -9,16 +9,32 @@ fn unit_animation_action(unit: &Unit) -> super::super::tileset::Civ3UnitAction {
     if let Some(work) = unit.work_kind {
         return match work {
             WorkKind::Road | WorkKind::Railroad => {
-                if pause { Action::PauseRoad } else { Action::Road }
+                if pause {
+                    Action::PauseRoad
+                } else {
+                    Action::Road
+                }
             }
             WorkKind::Mine | WorkKind::OilWell | WorkKind::OilPlatform => {
-                if pause { Action::PauseMine } else { Action::Mine }
+                if pause {
+                    Action::PauseMine
+                } else {
+                    Action::Mine
+                }
             }
             WorkKind::Irrigation | WorkKind::Farmland | WorkKind::Cultivate => {
-                if pause { Action::PauseIrrigate } else { Action::Irrigate }
+                if pause {
+                    Action::PauseIrrigate
+                } else {
+                    Action::Irrigate
+                }
             }
             WorkKind::Plant => {
-                if pause { Action::PauseForest } else { Action::Plant }
+                if pause {
+                    Action::PauseForest
+                } else {
+                    Action::Plant
+                }
             }
             WorkKind::BuildBase(Base::Fortress) => Action::Fortress,
             WorkKind::BuildBase(_) | WorkKind::Clean(_) => Action::Build,
@@ -39,6 +55,7 @@ fn unit_animation_action(unit: &Unit) -> super::super::tileset::Civ3UnitAction {
 fn unit_animation_progress(
     action: super::super::tileset::Civ3UnitAction,
     selected: bool,
+    pacing: super::super::unit_animation_pacing::FidgetPacing,
 ) -> (super::super::tileset::Civ3UnitAction, f32, Option<f32>) {
     use super::super::tileset::Civ3UnitAction as Action;
 
@@ -48,16 +65,15 @@ fn unit_animation_progress(
         }
         // Play one slow gesture, then let the selected unit rest before the
         // next one begins.
-        const FIDGET_PERIOD_SECONDS: f32 = 8.0;
-        const FIDGET_DURATION_SECONDS: f32 = 1.5;
-        let phase = (get_time() as f32).rem_euclid(FIDGET_PERIOD_SECONDS);
-        if phase >= FIDGET_DURATION_SECONDS {
+        let period_seconds = pacing.play_seconds + pacing.rest_seconds;
+        let phase = (get_time() as f32).rem_euclid(period_seconds);
+        if phase >= pacing.play_seconds {
             return (Action::Default, 0.0, None);
         }
         return (
             Action::Fidget,
-            phase / FIDGET_DURATION_SECONDS,
-            Some(FIDGET_DURATION_SECONDS),
+            phase / pacing.play_seconds,
+            Some(pacing.play_seconds),
         );
     }
     if action == super::super::tileset::Civ3UnitAction::Default {
@@ -517,17 +533,12 @@ impl<'a> Civ3WorldPainter<'a> {
                     && !game.playback.is_active(unit.id)
                 {
                     let action = unit_animation_action(unit);
-                    let (action, progress, duration) =
-                        unit_animation_progress(action, false);
-                    game.draw_unit(
-                        assets,
-                        unit,
-                        center,
-                        count,
+                    let (action, progress, duration) = unit_animation_progress(
                         action,
-                        progress,
-                        duration,
+                        false,
+                        self.assets.civ3.fidget_pacing(unit.kind),
                     );
+                    game.draw_unit(assets, unit, center, count, action, progress, duration);
                 }
             }
         }
@@ -549,17 +560,12 @@ impl<'a> Civ3WorldPainter<'a> {
                 && !game.playback.is_active(unit.id)
             {
                 let action = unit_animation_action(unit);
-                let (action, progress, duration) =
-                    unit_animation_progress(action, true);
-                game.draw_unit(
-                    assets,
-                    unit,
-                    center,
-                    count,
+                let (action, progress, duration) = unit_animation_progress(
                     action,
-                    progress,
-                    duration,
+                    true,
+                    self.assets.civ3.fidget_pacing(unit.kind),
                 );
+                game.draw_unit(assets, unit, center, count, action, progress, duration);
             }
         }
         game.draw_playback(assets);

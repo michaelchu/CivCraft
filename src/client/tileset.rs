@@ -1102,6 +1102,7 @@ pub(super) struct Civ3 {
     optional_improvements: HashMap<&'static str, Texture2D>,
     unit_art: RefCell<HashMap<String, Civ3UnitArt>>,
     unit_animation_sources: HashMap<String, UnitAnimationSource>,
+    animation_pacing: super::unit_animation_pacing::UnitAnimationPacing,
     river_delta: Texture2D,
     river_mountain: Texture2D,
     resources: Option<ResourceArt>,
@@ -1164,6 +1165,59 @@ pub(super) enum Civ3UnitAction {
 }
 
 impl Civ3UnitAction {
+    fn pacing_key(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Blank => "blank",
+            Self::Walk => "walk",
+            Self::Run => "run",
+            Self::Attack => "attack",
+            Self::Attack2 => "attack2",
+            Self::Attack3 => "attack3",
+            Self::Defend => "defend",
+            Self::Death => "death",
+            Self::Dead => "dead",
+            Self::Victory => "victory",
+            Self::Fidget => "fidget",
+            Self::Fortify => "fortify",
+            Self::FortifyHold => "fortifyhold",
+            Self::TurnLeft => "turnleft",
+            Self::TurnRight => "turnright",
+            Self::StopAtLastFrame => "stop_at_last_frame",
+            Self::Build => "build",
+            Self::Road => "road",
+            Self::PauseRoad => "pauseroad",
+            Self::Mine => "mine",
+            Self::PauseMine => "pausemine",
+            Self::Irrigate => "irrigate",
+            Self::PauseIrrigate => "pauseirrigate",
+            Self::Forest => "forest",
+            Self::PauseForest => "pauseforest",
+            Self::Jungle => "jungle",
+            Self::Plant => "plant",
+            Self::Fortress => "fortress",
+            Self::Capture => "capture",
+        }
+    }
+
+    fn is_work_action(self) -> bool {
+        matches!(
+            self,
+            Self::Build
+                | Self::Road
+                | Self::PauseRoad
+                | Self::Mine
+                | Self::PauseMine
+                | Self::Irrigate
+                | Self::PauseIrrigate
+                | Self::Forest
+                | Self::PauseForest
+                | Self::Jungle
+                | Self::Plant
+                | Self::Fortress
+        )
+    }
+
     fn role_suffix(self) -> Option<&'static str> {
         match self {
             Self::Default => None,
@@ -1218,6 +1272,7 @@ fn civilization_city_style<'a>(
 
 impl Civ3 {
     pub(super) fn load(path: &Path) -> Result<Self, String> {
+        let animation_pacing = super::unit_animation_pacing::UnitAnimationPacing::load()?;
         let theme = Theme::read(path)?;
         let required = |key: &str, file: &str, size| {
             theme
@@ -1421,6 +1476,7 @@ impl Civ3 {
             optional_improvements,
             unit_art: RefCell::default(),
             unit_animation_sources: resolved_unit_paths,
+            animation_pacing,
             river_delta,
             river_mountain,
             resources,
@@ -1431,6 +1487,13 @@ impl Civ3 {
 
     pub(super) fn city_texture(&self, style: &str) -> &Texture2D {
         self.cities.get(style).unwrap_or(&self.cities["european"])
+    }
+
+    pub(super) fn fidget_pacing(
+        &self,
+        kind: UnitKind,
+    ) -> super::unit_animation_pacing::FidgetPacing {
+        self.animation_pacing.fidget(kind)
     }
 
     pub(super) fn city_texture_at(&self, style: u8, civilization_id: Option<&str>) -> &Texture2D {
@@ -1604,24 +1667,13 @@ impl Civ3 {
                 .unwrap_or(event_duration);
             let cycle_duration = if action == Civ3UnitAction::Fidget {
                 event_duration
-            } else if matches!(
-                action,
-                Civ3UnitAction::Build
-                    | Civ3UnitAction::Road
-                    | Civ3UnitAction::PauseRoad
-                    | Civ3UnitAction::Mine
-                    | Civ3UnitAction::PauseMine
-                    | Civ3UnitAction::Irrigate
-                    | Civ3UnitAction::PauseIrrigate
-                    | Civ3UnitAction::Forest
-                    | Civ3UnitAction::PauseForest
-                    | Civ3UnitAction::Jungle
-                    | Civ3UnitAction::Plant
-                    | Civ3UnitAction::Fortress
-            ) {
-                source_cycle_duration * 2.0
             } else {
                 source_cycle_duration
+                    * self.animation_pacing.cycle_duration_multiplier(
+                        kind,
+                        action.pacing_key(),
+                        action.is_work_action(),
+                    )
             };
             let elapsed_cycles = progress.clamp(0.0, 1.0) * event_duration / cycle_duration;
             let cycle_progress = if action == Civ3UnitAction::StopAtLastFrame {

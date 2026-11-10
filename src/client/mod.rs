@@ -60,6 +60,7 @@ pub(crate) use tileset::Tileset;
 mod territory;
 mod ui;
 mod ui_review;
+mod unit_animation_pacing;
 mod unit_actions;
 mod world;
 pub(crate) use render_backend::{RenderBackend, create as create_renderer};

@@ -1,0 +1,20 @@
+# Playback pacing overrides for the Conquests unit art.
+# Multipliers apply to the source animation cycle duration; values above 1.0
+# slow playback and values below 1.0 speed it up.
+
+[defaults]
+work_cycle_duration_multiplier = 1.0
+fidget_play_seconds = 1.5
+fidget_rest_seconds = 6.5
+
+[units.worker]
+work_cycle_duration_multiplier = 2.0
+
+# Optional per-unit, per-action overrides can be added like this:
+# [units.worker.actions.road]
+# cycle_duration_multiplier = 2.5
+#
+# Per-unit fidget cadence can be overridden like this:
+# [units.settler.fidget]
+# play_seconds = 1.5
+# rest_seconds = 8.0
