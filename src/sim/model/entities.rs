@@ -160,6 +160,12 @@ pub(crate) struct City {
     /// Sorted by nationality slot for stable saves.
     #[serde(default)]
     pub(in crate::sim) resisting_citizens: Vec<(usize, i32)>,
+    /// Elapsed city turns each foreign nationality has spent as a minority
+    /// and outside the minority. The BIQ/Civilopedia do not define how this
+    /// history is initialized on capture or split when a nationality cohort
+    /// changes size; see CIV3_CULTURE_RULES.md.
+    #[serde(default)]
+    pub(in crate::sim) foreign_nationality_tenure: Vec<(usize, u32, u32)>,
     pub(crate) worked_tiles: Vec<(i32, i32)>,
     pub(in crate::sim) was_happy: bool,
     pub(in crate::sim) last_plague: Option<i32>,
@@ -210,6 +216,7 @@ impl City {
             size: 1,
             specialists: [0; 3],
             resisting_citizens: Vec::new(),
+            foreign_nationality_tenure: Vec::new(),
             worked_tiles: Vec::new(),
             was_happy: false,
             last_plague: None,

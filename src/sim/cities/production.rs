@@ -74,6 +74,7 @@ impl Simulation {
         // list order before randomizing the city activity order.
         for &id in &city_ids {
             if let Some(index) = self.city_index_by_id(id) {
+                self.advance_foreign_nationality_tenure(index);
                 self.assimilate_citizen(index);
             }
         }

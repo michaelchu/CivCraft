@@ -58,6 +58,11 @@ impl City {
                 .sum::<i32>()
     }
 
+    pub(crate) fn prune_foreign_nationality_tenure(&mut self) {
+        self.foreign_nationality_tenure
+            .retain(|&(nation, _, _)| self.foreign_citizens.iter().any(|&(n, _)| n == nation));
+    }
+
     pub(super) fn add_citizen_nationality(&mut self, nationality: usize, count: i32) {
         if nationality == self.owner || count == 0 {
             return;
@@ -78,11 +83,50 @@ impl City {
         self.ensure_culture_civilization(new_owner);
         self.foreign_citizens
             .retain(|&(nation, _)| nation != new_owner);
+        self.foreign_nationality_tenure
+            .retain(|&(nation, _, _)| nation != new_owner);
         self.add_citizen_nationality(old_owner, domestic);
     }
 }
 
 impl Simulation {
+    /// Record whether each extant foreign nationality spent this city turn as
+    /// a minority. The Conquests Civilopedia says assimilation follows being
+    /// a minority "longer than not"; the exact historic starting point is not
+    /// specified, so new/legacy cohorts begin with zero recorded turns.
+    pub(super) fn advance_foreign_nationality_tenure(&mut self, index: usize) {
+        let city = &mut self.cities[index];
+        let owner_population = city.domestic_citizens();
+        city.foreign_nationality_tenure
+            .retain(|&(nation, _, _)| city.foreign_citizens.iter().any(|&(n, _)| n == nation));
+        for &(nationality, population) in &city.foreign_citizens {
+            let nationality_is_minority = owner_population > population;
+            match city
+                .foreign_nationality_tenure
+                .binary_search_by_key(&nationality, |&(nation, _, _)| nation)
+            {
+                Ok(position) => {
+                    let (_, minority_turns, majority_turns) =
+                        &mut city.foreign_nationality_tenure[position];
+                    if nationality_is_minority {
+                        *minority_turns = minority_turns.saturating_add(1);
+                    } else {
+                        *majority_turns = majority_turns.saturating_add(1);
+                    }
+                }
+                Err(position) => {
+                    let (minority_turns, majority_turns) = if nationality_is_minority {
+                        (1, 0)
+                    } else {
+                        (0, 1)
+                    };
+                    city.foreign_nationality_tenure
+                        .insert(position, (nationality, minority_turns, majority_turns));
+                }
+            }
+        }
+    }
+
     // City size has already changed. Any loss not covered by foreign
     // citizens comes out of the implicit domestic population.
     pub(super) fn remove_citizen_nationalities(&mut self, index: usize, mut loss: i32) -> usize {
@@ -109,6 +153,7 @@ impl Simulation {
         }
         foreign.sort_unstable_by_key(|&(nation, _)| nation);
         self.cities[index].foreign_citizens = foreign;
+        self.cities[index].prune_foreign_nationality_tenure();
         if loss > dominant.1 {
             self.cities[index].owner
         } else {
@@ -171,6 +216,7 @@ impl Simulation {
                 dominant.0 = remaining_majority;
             }
         }
+        self.cities[index].prune_foreign_nationality_tenure();
         dominant.0
     }
 
@@ -192,7 +238,22 @@ impl Simulation {
         }
 
         let chance = government_assimilation_chance(self.players[owner].government);
-        let candidates = self.cities[index].foreign_citizens.clone();
+        let candidates = self.cities[index]
+            .foreign_citizens
+            .iter()
+            .copied()
+            .filter(|(nationality, _)| {
+                self.cities[index]
+                    .foreign_nationality_tenure
+                    .binary_search_by_key(nationality, |&(nation, _, _)| nation)
+                    .ok()
+                    .is_some_and(|position| {
+                        let (_, minority_turns, majority_turns) =
+                            self.cities[index].foreign_nationality_tenure[position];
+                        minority_turns > majority_turns
+                    })
+            })
+            .collect::<Vec<_>>();
         let mut conversions = Vec::new();
         for (nationality, population) in candidates {
             let converted = (0..population)
@@ -212,6 +273,12 @@ impl Simulation {
                 city.foreign_citizens[position].1 -= converted;
                 if city.foreign_citizens[position].1 == 0 {
                     city.foreign_citizens.remove(position);
+                    if let Ok(tenure_position) = city
+                        .foreign_nationality_tenure
+                        .binary_search_by_key(&nationality, |&(nation, _, _)| nation)
+                    {
+                        city.foreign_nationality_tenure.remove(tenure_position);
+                    }
                 }
             }
             // Successful residents assimilate into the city's current owner
@@ -267,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn assimilation_uses_conquests_government_chance_and_requires_owner_majority() {
+    fn assimilation_uses_biq_chances_and_requires_owner_majority_and_tenure() {
         assert_eq!(government_assimilation_chance(Government::Anarchy), 1);
         assert_eq!(government_assimilation_chance(Government::Despotism), 1);
         assert_eq!(government_assimilation_chance(Government::Monarchy), 2);
@@ -283,6 +350,7 @@ mod tests {
         game.create_city(HUMAN, 10, 20);
         game.cities[0].size = 5;
         game.cities[0].foreign_citizens = vec![(1, 3), (2, 1)];
+        game.cities[0].foreign_nationality_tenure = vec![(1, 100, 0), (2, 100, 0)];
 
         // Choose a seed whose first per-citizen roll falls within the BIQ's
         // 4-percent Democracy chance.
@@ -300,6 +368,7 @@ mod tests {
         assert_eq!(game.cities[0].foreign_citizens, [(1, 3), (2, 1)]);
 
         game.cities[0].foreign_citizens = vec![(2, 1)];
+        game.cities[0].foreign_nationality_tenure = vec![(2, 100, 0)];
         game.set_random_seed(seed);
         game.assimilate_citizen(0);
         assert!(game.cities[0].foreign_citizens.is_empty());
@@ -314,6 +383,7 @@ mod tests {
             })
             .expect("find deterministic pair of assimilation successes");
         game.cities[0].foreign_citizens = vec![(1, 1), (2, 1)];
+        game.cities[0].foreign_nationality_tenure = vec![(1, 100, 0), (2, 100, 0)];
         game.set_random_seed(double_success_seed);
         game.assimilate_citizen(0);
         assert!(game.cities[0].foreign_citizens.is_empty());
@@ -322,8 +392,74 @@ mod tests {
         // prevents assimilation.
         game.cities[0].size = 4;
         game.cities[0].foreign_citizens = vec![(2, 2)];
+        game.cities[0].foreign_nationality_tenure = vec![(2, 100, 0)];
         game.set_random_seed(seed);
         game.assimilate_citizen(0);
         assert_eq!(game.cities[0].foreign_citizens, [(2, 2)]);
+    }
+
+    #[test]
+    fn assimilation_waits_until_foreign_nationality_spent_more_turns_as_minority() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        game.players[HUMAN].government = Government::Democracy;
+        game.create_city(HUMAN, 10, 20);
+        game.cities[0].size = 5;
+        game.cities[0].foreign_citizens = vec![(1, 1)];
+        game.cities[0].foreign_nationality_tenure = vec![(1, 1, 2)];
+
+        // At an equal history, even a successful random roll cannot assimilate.
+        game.advance_foreign_nationality_tenure(0);
+        assert_eq!(game.cities[0].foreign_nationality_tenure, [(1, 2, 2)]);
+        let success_seed = (0..100_000)
+            .find(|&seed| {
+                game.set_random_seed(seed);
+                game.rand_below(100) < 4
+            })
+            .unwrap();
+        game.set_random_seed(success_seed);
+        game.assimilate_citizen(0);
+        assert_eq!(game.cities[0].foreign_citizens, [(1, 1)]);
+
+        game.advance_foreign_nationality_tenure(0);
+        assert_eq!(game.cities[0].foreign_nationality_tenure, [(1, 3, 2)]);
+        game.assimilate_citizen(0);
+        assert!(game.cities[0].foreign_citizens.is_empty());
+    }
+
+    #[test]
+    fn city_turn_advances_persisted_nationality_tenure_once() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Mountains;
+            tile.resource = None;
+            tile.river = false;
+        }
+        let (x, y) = (10, 20);
+        let work_tiles =
+            [(1, 0), (0, 1), (-1, 0)].map(|(dx, dy)| offset_native_by_map(x, y, dx, dy));
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        for (wx, wy) in work_tiles {
+            game.tile_mut(wx, wy).terrain = Terrain::Grassland;
+        }
+        game.create_city(HUMAN, x, y);
+        game.cities[0].size = 4;
+        game.cities[0].worked_tiles = work_tiles.to_vec();
+        game.cities[0].specialists = [0; 3];
+        game.cities[0].food = Simulation::growth_box(4) / 2;
+        game.cities[0].foreign_citizens = vec![(1, 1)];
+        game.cities[0].foreign_nationality_tenure = vec![(1, 0, 20)];
+
+        game.process_player_cities(HUMAN);
+
+        assert_eq!(
+            game.cities[0].foreign_nationality_tenure,
+            [(1, 1, 20)],
+            "size={}, foreign={:?}",
+            game.cities[0].size,
+            game.cities[0].foreign_citizens
+        );
+        assert_eq!(game.cities[0].foreign_citizens, [(1, 1)]);
     }
 }

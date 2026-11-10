@@ -391,13 +391,20 @@ documentation, not as evidence for field behavior.
   stronger support for the tenure condition than the Civilopedia alone, but
   are not Conquests runtime evidence. The exact tenure counters, initialization
   for citizens present at capture, and reset behavior are not specified by the
-  Civilopedia or BIQ. The current implementation checks only whether the
-  owner's nationality is presently a strict majority, so it does not track the
-  documented duration condition. A faithful implementation needs persistent
-  citizen or cohort majority/minority tenure. The FAQ article describes
-  resisters as a state over foreign nationals, but neither it nor the
-  Civilopedia establishes whether assimilation can occur while a citizen is
-  resisting; leave that interaction unresolved rather than inferring it.
+  Civilopedia or BIQ. CivCraft now persists minority-turn and non-minority-turn
+  counts by foreign nationality and advances them once per city turn. It permits
+  the BIQ assimilation roll only after that nationality's population has been
+  smaller than the owner's for more recorded turns than it has been equal to or
+  larger than the owner's; the owner's nationality must also currently be a
+  strict city majority. This is an implementation interpretation of “longer
+  than not,” not a controlled Conquests observation. All citizens sharing a
+  nationality share one tenure pair; later arrivals inherit that history, and
+  capture-time history starts at zero because CivCraft does not know when each
+  citizen entered the city. Those aggregate-cohort details remain approximate
+  and need controlled verification. The FAQ article describes resisters as a
+  state over foreign nationals, but neither it nor the Civilopedia establishes
+  whether assimilation can occur while a citizen is resisting; leave that
+  interaction unresolved rather than inferring it.
   Sources: installed Conquests Civilopedia `GCON_Assimilation`; [“Beating the
   Culture Flip,” posts #9 and #13](https://apolyton.net/forum/miscellaneous/archives/civ3-general-archive/57183-beating-the-culture-flip).
 - The installed BIQ exports eight governments and an 8-by-8 raw
@@ -704,12 +711,12 @@ documentation, not as evidence for field behavior.
 - Foreign-national assimilation now uses the installed `GOVT` chance values
   (Anarchy 1%, Despotism 1%, Monarchy 2%, Communism 4%, Republic 2%, Democracy
   4%, Fascism 2%, Feudalism 3%). It waits for the current city's own nationality
-  to exceed half the population before converting foreign citizens. The
-  majority gate is supported by Conquests Civilopedia wording and a Firaxis
-  producer's base-game explanation; independent per-citizen rolls are a
-  secondary interpretation. Relative-culture and luxury modifiers, any
-  historical time-in-majority tracking, and exact turn ordering remain
-  unresolved for Conquests.
+  to exceed half the population and for a foreign nationality to have spent
+  more recorded city turns as a minority than outside the minority before
+  converting its citizens. Tenure is stored by nationality and survives saves.
+  Zero-initialization at capture/for legacy state and shared tenure among later
+  arrivals are implementation inferences; per-citizen tenure, resistance
+  interaction, and Conquests turn-order behavior remain unverified.
 - `src/sim/achievements.rs` now checks the new culture ledger for its
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.
