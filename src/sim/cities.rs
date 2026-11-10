@@ -367,6 +367,11 @@ impl Simulation {
             return;
         };
         let old_owner = self.cities[city_index].owner;
+        // Resistance uses culture totals at the capture event, before ownership
+        // of the city's ledger changes.
+        let culture_at_capture = (0..self.players.len())
+            .map(|civilization| self.civilization_culture(civilization))
+            .collect::<Vec<_>>();
         let city_name = self.cities[city_index].name.clone();
         let capital = self.cities[city_index]
             .buildings
@@ -382,10 +387,10 @@ impl Simulation {
             self.remove_citizen_nationalities(city_index, 1);
             self.cities[city_index].remove_citizen_assignments(1, self.map_wrap);
         }
+        self.initialize_capture_resistance(city_index, &culture_at_capture);
         self.cities[city_index].culture_suppressed_until_majority_assimilated =
             self.players[unit.owner].government == Government::Fascism
-                && self.cities[city_index].domestic_citizens() * 2
-                    <= self.cities[city_index].size;
+                && self.cities[city_index].domestic_citizens() * 2 <= self.cities[city_index].size;
         self.release_city_support(self.cities[city_index].id);
         self.cities[city_index].food = 0;
         self.cities[city_index].shields = 0;

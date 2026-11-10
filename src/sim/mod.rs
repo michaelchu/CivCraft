@@ -52,6 +52,7 @@ mod leaders;
 mod list_order;
 mod movement;
 mod presentation;
+mod resistance;
 pub(crate) use presentation::VisualEvent;
 mod normal_paths;
 mod observed_map;

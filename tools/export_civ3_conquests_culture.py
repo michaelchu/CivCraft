@@ -67,6 +67,16 @@ def main() -> None:
         type=Path,
         default=Path("data/rulesets/civ3_conquests/culture_victory.tsv"),
     )
+    parser.add_argument(
+        "--resistance-band-table",
+        type=Path,
+        default=Path("data/rulesets/civ3_conquests/culture_resistance_bands.tsv"),
+    )
+    parser.add_argument(
+        "--government-resistance-table",
+        type=Path,
+        default=Path("data/rulesets/civ3_conquests/government_resistance.tsv"),
+    )
     args = parser.parse_args()
 
     source = args.source_root.resolve()
@@ -303,7 +313,10 @@ def main() -> None:
                 "can_bribe_raw_hex": f"{can_bribe_raw & 0xffffffff:08x}",
                 "bribery_modifier": bribery_modifier,
                 "resistance_modifier": resistance_modifier,
-                "interpretation_status": "schema-derived; verify before gameplay use",
+                "interpretation_status": (
+                    "reverse-engineered percentage-point addend; base governments match "
+                    "CivFanatics; Conquests-only government application inferred"
+                ),
             })
         if cursor + length + 4 <= cursor:
             raise ValueError(f"Invalid GOVT record length at index {index}")
@@ -360,8 +373,9 @@ def main() -> None:
             "the detailed per-civilization accounting effect is not established."
         ),
         "government_interactions": (
-            "Raw GOVT pair fields follow the adjacent parser schema. Their use "
-            "for occupation resistance is not established."
+            "Raw GOVT pair fields follow the adjacent parser schema. Resistance "
+            "percentage-point use matches CivFanatics for six base governments; "
+            "Conquests-only Fascism/Feudalism application is inferred."
         ),
         "race_culture_group_index": (
             "Raw RACE index; keep separate from accumulated culture-point rules."
@@ -396,6 +410,31 @@ def main() -> None:
             table.write(
                 f"{name}\t{one_city_threshold}\t{threshold}\t"
                 f"Conquests/Text/Civilopedia.txt#GCON_Victory\t{biq_hash}\n"
+            )
+    with args.resistance_band_table.open("w") as table:
+        table.write(
+            "source_section\tsource_record_index\tname\tculture_ratio_numerator\t"
+            "culture_ratio_denominator\tinitial_chance\tcontinued_chance\tbiq_sha256\n"
+        )
+        for row in result["culture_ratio_bands"]:
+            table.write(
+                f"CULT\t{row['source_record_index']}\t{row['name']}\t"
+                f"{row['culture_ratio_numerator']}\t{row['culture_ratio_denominator']}\t"
+                f"{row['initial_resistance_chance']}\t{row['continued_resistance_chance']}\t"
+                f"{biq_hash}\n"
+            )
+    with args.government_resistance_table.open("w") as table:
+        table.write(
+            "captor_biq_index\tcaptor_name\tdefender_biq_index\t"
+            "defender_name\tmodifier\tbiq_sha256\n"
+        )
+        for row in resistance_rows:
+            captor_index = row["source_record_index"]
+            defender_index = row["other_government_index"]
+            table.write(
+                f"{captor_index}\t{government_rows[captor_index]['name']}\t"
+                f"{defender_index}\t{government_rows[defender_index]['name']}\t"
+                f"{row['resistance_modifier']}\t{biq_hash}\n"
             )
     print(f"Exported Conquests culture inputs to {args.output}")
 

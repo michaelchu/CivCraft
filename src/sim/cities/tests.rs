@@ -33,6 +33,35 @@ fn fascist_capture_suppresses_culture_until_owner_nation_is_a_majority() {
 }
 
 #[test]
+fn capture_initializes_deterministic_resistance_from_foreign_population() {
+    fn capture_with_seed(seed: u64) -> (Vec<(usize, i32)>, Vec<(usize, i32)>) {
+        let mut game = Simulation::new(crate::mapgen::generate(seed));
+        game.units.clear();
+        game.cities.clear();
+        game.create_city(1, 10, 24);
+        game.create_city(1, 20, 24);
+        game.cities[1].size = 6;
+        game.sign_pact(HUMAN, 1, Pact::War);
+        let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+        game.capture_city_if_needed(attacker, 20, 24);
+        (
+            game.cities[1].foreign_citizens.clone(),
+            game.cities[1].resisting_citizens.clone(),
+        )
+    }
+
+    let (foreign, resisting) = capture_with_seed(42);
+    assert_eq!(foreign, [(1, 5)]);
+    assert!(!resisting.is_empty());
+    assert_eq!(resisting, capture_with_seed(42).1);
+    assert!(
+        resisting
+            .iter()
+            .all(|&(nationality, count)| { nationality == 1 && count > 0 && count <= 5 })
+    );
+}
+
+#[test]
 fn six_civilizations_found_capitals_then_use_unique_names_after_capture_and_loss() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     for owner in 0..PLAYER_COUNT {
