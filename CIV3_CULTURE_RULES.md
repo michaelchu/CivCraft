@@ -147,11 +147,18 @@ documentation, not as evidence for field behavior.
   unlocked by Nationalism and describes its production/build restrictions, but
   does not say culture output is halved. The base-manual phrase “wartime
   footing” has not been established as equivalent to Conquests Mobilization.
-  CivCraft currently has no Mobilization state to consult. Therefore culture
-  halving during Mobilization is unresolved for this Conquests ruleset and is
-  not applied based on the base-manual wording alone. Evidence: installed
-  `../source/Conquests/Text/Civilopedia.txt`, `GCON_Mobilization`; base manual,
-  printed page 114.
+  Community reverse-engineering sources explicitly report halving culture
+  output during Mobilization: CivFanatics' “Fundamentals of Mobilization
+  Revealed” says each cultural improvement produces half its normal culture
+  during a wartime economy; its FAQ says all city culture per turn is halved
+  (including a Temple's 2-to-1 example); and a 2019 thread tagged `[C3C]`
+  reports cultural generation halved empire-wide. These secondary reports
+  agree, but do not establish original Conquests rounding/order or resolve the
+  Civilopedia's omission. CivCraft currently has no Mobilization state or
+  lifecycle, so this rule is community-supported but unapplied. Sources
+  checked 2026-11-10: [Fundamentals of Mobilization Revealed](https://civfanatics.com/civ3/strategy/game-mechanics/fundamentals-of-mobilization-revealed/);
+  [Civ3 FAQ](https://civfanatics.com/civ3/faq/);
+  [[C3C] Wasted shields](https://forums.civfanatics.com/threads/wasted-shields.644444/).
 - Conquests Civilopedia `GOVT_Fascism` explicitly says newly conquered cities
   do not generate culture until a popular majority has been assimilated. CivCraft
   now sets a serialized suppression flag when a Fascist capture leaves the
@@ -746,9 +753,11 @@ documentation, not as evidence for field behavior.
   turn ordering, garrison selection when several nationalities resist, and
   per-turn timing remain inferred or unresolved. Save/load of the counts is
   tested.
-- CivCraft has no civilization Mobilization state. Base-manual half-output
-  wording cannot currently be applied to Conquests without confirming that it
-  matches the installed edition's Mobilization behavior.
+- CivCraft has no civilization Mobilization state or its lifecycle. Community
+  reverse-engineering sources support halving culture output during
+  Mobilization, including a C3C-tagged report, but the installed Conquests
+  Civilopedia omits the effect. Halving remains unapplied until the state and
+  lifecycle can be modeled; rounding/order remains an observation target.
 
 ## Implementation progress
 
