@@ -415,7 +415,12 @@ documentation, not as evidence for field behavior.
   The culture totals are snapshotted immediately before ownership transfer;
   the sources do not establish whether the original game evaluates the totals
   before or after that transfer. The linked test archive was unavailable, and
-  no controlled Conquests runtime observation was made.
+  no controlled Conquests runtime observation was made. A deterministic
+  capture scenario now compares resistance with 0 versus 300 pre-capture
+  captor culture while holding the seed, city population, and defender culture
+  constant. It verifies that the implementation's BIQ-derived probability
+  bands produce no more resisters for the stronger-culture captor; this is an
+  implementation regression check, not independent evidence about the game.
 - Continued resistance uses the CULT continued chance and the same government
   modifier as initiation. CivFanatics says the continued base chance is 10
   percentage points below the initial chance, and that the number quelled per
@@ -800,6 +805,11 @@ documentation, not as evidence for field behavior.
   1 passed. The case checks pre/post civilization totals under the inferred
   `RetainCulture=0` interpretation; it does not verify the original Conquests
   runtime or resolve the historical-total source conflict.
+- From a clean archive of committed `HEAD` with the updated capture test
+  source, `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline capture_initializes_deterministic_resistance_from_foreign_population`:
+  1 passed. A same-seed comparison with different pre-capture empire culture
+  exercises the implemented CULT ratio bands without original-game runtime
+  confirmation.
 - `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
   passed; the capture path sets suppression, and culture resumes after owner
   nationality exceeds half of the population.

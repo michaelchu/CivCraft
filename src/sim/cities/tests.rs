@@ -102,13 +102,16 @@ fn captured_culture_buildings_wait_for_their_builder_and_restart_age_after_recap
 
 #[test]
 fn capture_initializes_deterministic_resistance_from_foreign_population() {
-    fn capture_with_seed(seed: u64) -> (Vec<(usize, i32)>, Vec<(usize, i32)>) {
+    fn capture_with_seed(seed: u64, captor_culture: i64) -> (Vec<(usize, i32)>, Vec<(usize, i32)>) {
         let mut game = Simulation::new(crate::mapgen::generate(seed));
         game.units.clear();
         game.cities.clear();
         game.create_city(1, 10, 24);
         game.create_city(1, 20, 24);
+        game.create_city(HUMAN, 30, 24);
         game.cities[1].size = 6;
+        game.cities[1].add_culture(1, 100);
+        game.cities[2].add_culture(HUMAN, captor_culture);
         game.sign_pact(HUMAN, 1, Pact::War);
         let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
         game.capture_city_if_needed(attacker, 20, 24);
@@ -118,10 +121,19 @@ fn capture_initializes_deterministic_resistance_from_foreign_population() {
         )
     }
 
-    let (foreign, resisting) = capture_with_seed(42);
+    let (foreign, resisting) = capture_with_seed(42, 0);
     assert_eq!(foreign, [(1, 5)]);
     assert!(!resisting.is_empty());
-    assert_eq!(resisting, capture_with_seed(42).1);
+    assert_eq!(resisting, capture_with_seed(42, 0).1);
+    let culturally_stronger_captor = capture_with_seed(42, 300).1;
+    assert!(
+        resisting.iter().map(|&(_, count)| count).sum::<i32>()
+            >= culturally_stronger_captor
+                .iter()
+                .map(|&(_, count)| count)
+                .sum::<i32>(),
+        "higher pre-capture captor culture should not increase resistance under the BIQ-derived bands"
+    );
     assert!(
         resisting
             .iter()
