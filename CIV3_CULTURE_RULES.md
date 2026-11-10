@@ -215,6 +215,15 @@ documentation, not as evidence for field behavior.
   progression through 10,000 but does not reconcile the next threshold with
   Conquests Civilopedia's 20,000 example. Source checked 2026-11-10:
   [CivFanatics Info Center, “How can your borders expand?”](https://civfanatics.com/civ3/infocenter/).
+- A CivFanatics FAQ answer lists the same four tenfold thresholds and says a
+  city does not reach 100,000 because it wins a cultural victory at 20,000.
+  This gives secondary support for 20,000 being the final normal-game
+  expansion before a city-culture victory ends play. The FAQ presents this as
+  general Civ III guidance rather than a Conquests-specific observation, so it
+  does not establish what happens beyond 20,000 when cultural victory is
+  disabled or in a custom BIQ. Source checked 2026-11-10: [CivFanatics,
+  “Civilization III: Frequently Asked Questions,” “When do my cultural borders
+  for a city expand?”](https://civfanatics.com/civ3/faq/).
 - More detailed reverse-engineering lead: CivWiki's “Regeln der Kulturgrenzen
   (Civ3)” summarizes the CivFanatics investigation “The Eight Laws of Border
   Dynamics” (forum thread 106882). It says a city that passes its nth border
@@ -236,7 +245,9 @@ documentation, not as evidence for field behavior.
 - Current implementation status: `borders.rs` now removes city population as the
   border-growth input. It uses the Civilopedia's explicit city-culture thresholds
   through 20,000 to grant claim ranks (starting at rank 1 for a new city), then
-  caps growth at the last threshold stated there. The ring-distance, rank-first
+  caps growth at the last threshold stated there. The FAQ gives secondary
+  support for that cap during ordinary victory-enabled play; behavior beyond
+  20,000 with victory disabled remains unresolved. The ring-distance, rank-first
   claim rule, and same-rank tie order are based on the CivWiki/CivFanatics
   reverse-engineering lead; applying them to the installed Conquests build is an
   inference pending controlled observation. Same-rank cross-civilization claims
