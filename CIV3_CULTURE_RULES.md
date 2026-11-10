@@ -424,10 +424,8 @@ documentation, not as evidence for field behavior.
   distance. CivFanatics' FAQ labels the tile count “working tiles under foreign
   control,” while Firaxis staff's earlier explanation says the count is the
   number of the 21 city-radius tiles inside the challenger's borders. Treat
-  `T`'s exact interpretation as unresolved until checked against Conquests.
-  The FAQ does not define `D` numerically. A 2003 CivFanatics forum post gives
-  `D` as relative distance to capitals and places the 2000 factor in the
-  denominator, but does not establish the path-distance metric or edge cases.
+  `T` as foreign-owned tiles in that radius; the exact count has not been
+  checked against Conquests.
   Firaxis staff member Dan Magaha reported in 2002 that the relative weights
   were: foreign citizens and foreign territory as base values; capital-distance
   ratio; civilization culture ratio; historical city culture (challenger ahead
@@ -444,13 +442,22 @@ documentation, not as evidence for field behavior.
   lead programmer Soren. Neither page establishes that Conquests retained every
   base-game detail. The distance discussion attributes to Soren a modifier
   formed by scaling the ratio of challenger-capital-to-city distance over
-  defender-capital-to-city distance by 2,000 and capping the result to
-  500–8,000. Thus, if `d` is that ratio, the formula's denominator is
-  `2000 * clamp(d, 0.25, 4)`, equivalent to the 500–8,000 range. The geometric
-  distance metric, missing-capital handling, and zero-distance cases are not
-  specified consistently enough to reproduce; the source reports these
-  details for Civ III generally, not specifically Conquests. The formula is
-  not yet implemented.
+  defender-capital-to-city distance by 2,000 and capping the ratio to
+  0.25–4. CivWiki specifies these distances as `max(x, y) + 0.5 * min(x, y)`,
+  where `x` and `y` are distances along the two diagonal map axes; it also says
+  the Forbidden Palace and Secret Police HQ count as capitals. Thus
+  `D = clamp(challenger_distance / defender_distance, 0.25, 4)`, and the
+  formula denominator is `2000 * D`. This differs from CivCraft's current
+  shortest-step map distance; wrapping and zero-distance handling remain
+  unverified for Conquests. The CivFanatics Conquests FAQ says WLTKD requires
+  size at least 6, no unhappy or resisting citizens, at least half the citizens
+  happy, and food production of at least 2 per citizen. These criteria provide
+  a reverse-engineered way to derive `H`, but the full formula and its
+  interactions remain unconfirmed in the installed Conquests game. Sources:
+  [CivWiki, “Flip probability”](https://civ-wiki.de/wiki/Flipwahrscheinlichkeit_(Civ3))
+  and [CivFanatics Conquests FAQ](https://forums.civfanatics.com/threads/frequently-asked-questions-civ3-play-the-world-conquests.170282/).
+  The formula remains unimplemented; city-flip transfer effects and turn
+  ordering are unresolved.
 - Conquests Civilopedia says civilization culture is the sum of city culture
   values (“the sum of the cultural values of all of your cities”) and that
   larger cultural advantage is favorable in resistance, diplomacy, and
