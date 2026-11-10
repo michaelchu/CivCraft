@@ -67,10 +67,12 @@ culture ledger under that default setting. This is an inference from the raw
 flag and release-note contrast, supported by the CivFanatics Info Center's
 reverse-engineered description that captured cities normally lose their
 existing culture points ([“Culture,” captured cities](https://civfanatics.com/civ3/infocenter/),
-checked 2026-11-10). It is not a controlled Conquests observation. The
-enabled MPTournament variant is not yet wired as a selectable runtime ruleset;
-whether its retained points stay attributed to prior civilizations or transfer
-to the captor remains unresolved.
+checked 2026-11-10). A Conquests editor-rules reference says enabling
+`RetainCulture` keeps the conquered city's culture instead of dropping it to
+zero ([Vi.ki, “Editor and Modding”](https://civ3.vi.ki/editor-and-modding),
+checked 2026-11-10). Neither source establishes how retained points are
+attributed in the civilization-wide total. The enabled MPTournament variant
+is not yet wired as a selectable runtime ruleset.
 
 The CivFanatics Info Center also reports that captors receive no culture from
 existing structures, and that an original owner who recaptures the city resumes
@@ -547,6 +549,16 @@ documentation, not as evidence for field behavior.
   only from cities currently owned by that civilization. The per-civilization
   city ledger is cleared on combat capture when the installed main BIQ's
   `GAME.RetainCulture=0`; enabled retention in scenario BIQs remains unresolved.
+  An older general Civ III FAQ instead says a civilization's accumulated total
+  never decreases on capture, though its culture per turn does
+  ([Planet Civilization, “General Civ3 FAQ”](https://planetcivilization.gamespy.com/View9733.html?game=5&id=8&view=Faq.Detail),
+  checked 2026-11-10). That FAQ also describes city culture generation and
+  recapture age bonuses, but its text does not identify a Conquests version.
+  The Conquests-specific editor flag and Info Center describe city points
+  dropping to zero in the default setting, so the older FAQ is not sufficient
+  to overturn the current Conquests interpretation. Whether this reflects an
+  edition change or distinct displayed-versus-accounted totals remains open;
+  do not infer a lifetime accumulator from it.
 - Conquests Civilopedia gives a 20,000-point single-city cultural victory and
   lists civilization totals of 60,000 / 80,000 / 100,000 / 130,000 / 160,000
   for Tiny through Huge maps. The installed BIQ `GAME` fields specify 20,000
@@ -564,9 +576,9 @@ documentation, not as evidence for field behavior.
   rival-half requirement.
 - The threshold values are explicit, but culture attribution for a captured
   city is not. The one-city check uses the current owner's ledger entry, an
-  inference from “one of your cities.” Whether a captured city's retained
-  value under `GAME.RetainCulture=1` is credited to the new owner or original
-  civilization remains unresolved pending observation.
+  inference from “one of your cities.” Under `GAME.RetainCulture=1`, whether
+  retained points belong to the new owner, remain attributed to their builders,
+  or affect the city and civilization totals differently remains unresolved.
 - The installed `DIFF` records contain difficulty parameters but no explicit
   culture modifier. Their `MilitaryLaw` value is `1` at all eight levels; it is
   not applied to culture or occupation resistance without supporting evidence.
