@@ -207,6 +207,20 @@ documentation, not as evidence for field behavior.
   culture-ratio values; `GOVT` contains assimilation chances. Their turn-by-turn
   selection, rolls, and interaction with garrison strength, peace, government,
   and luxuries have not yet been established.
+- Controlled-test lead, not accepted as Conquests behavior: CivFanatics' “The
+  Inner Workings of Resistance Revealed” says it is based on tests and credits
+  Firaxis developer Mike B. It reports per-citizen initial resistance chances
+  selected by civilization culture-ratio band and modified by the two
+  governments; continued resistance uses the CULT continued-chance values plus
+  government effects; and ground-unit count caps the number quelled per turn.
+  The article's government matrix covers only the six base-game governments,
+  omitting Conquests Feudalism and Fascism, and its linked test archive could
+  not be retrieved during this investigation. It is a useful experiment lead,
+  not Conquests confirmation. In particular, test whether exported
+  `DIFF.MilitaryLaw=1` is the per-unit quelling cap, how Conquests `GOVT`
+  pairwise resistance values modify CULT chances, and whether unit type or
+  combat strength affects quelling. Source checked 2026-11-10: [CivFanatics,
+  “The Inner Workings of Resistance Revealed”](https://civfanatics.com/civ3/strategy/game-mechanics/the-inner-workings-of-resistance-revealed/).
 - The base manual says recaptured citizens may not resist if previously ruled
   by the current owner, while newly created citizens may. This needs a
   controlled Conquests scenario before treating it as an expansion rule.
@@ -414,9 +428,10 @@ and observed result for:
    contested map edges. Community-reported territory footprints are hypotheses
    to compare against the game, not expected outcomes.
 4. Initial/continued resistance by citizen nationality and culture-ratio band;
-   changes when war ends, garrison strength changes, luxuries change, or the
-   government changes; worker assignment and food/output effects while
-   citizens resist.
+   changes when war ends, garrison size, unit type and strength change, luxuries
+   change, or either government changes. Test the DIFF per-unit quelling value
+   and GOVT pairwise resistance fields independently; check worker assignment
+   and food/output effects while citizens resist.
 5. Assimilation rates and cultural city defection, including government and
    nationality effects.
 6. Effective one-city and civilization-wide cultural-victory settings for
