@@ -1,0 +1,84 @@
+biq_section	source_record_index	biq_name	culture_per_turn	civcraft_catalog_index	mapping_status	biq_sha256
+BLDG	0	Palace	1	23	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	1	Barracks	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	2	Granary	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	3	Temple	2	40	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	4	Marketplace	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	5	Library	3	17	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	6	Courthouse	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	7	Walls	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	8	Aqueduct	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	9	Bank	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	10	Cathedral	3	8	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	11	University	4	41	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	12	Colosseum	2	73	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	13	Factory	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	14	Manufacturing Plant	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	15	Recycling Center	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	16	Coal Plant	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	17	Hydro Plant	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	18	Nuclear Plant	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	19	Hospital	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	20	Research Lab	2	29	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	21	Mass Transit System	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	22	SAM Missile Battery	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	23	Coastal Fortress	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	24	Solar Plant	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	25	Harbor	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	26	Offshore Platform	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	27	Airport	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	28	Police Station	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	29	Wealth	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	30	The Pyramids	4	65	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	31	The Hanging Gardens	4	51	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	32	The Colossus	3	44	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	33	The Great Lighthouse	2	57	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	34	The Great Library	6	49	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	35	The Oracle	4	76	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	36	The Great Wall	2	50	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	37	Sun Tzu's Art of War	2	69	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	38	Sistine Chapel	6	88	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	39	Magellan's Voyage	3	58	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	40	Copernicus' Observatory	4	45	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	41	Shakespeare's Theater	8	67	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	42	Leonardo's Workshop	2	56	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	43	JS Bach's Cathedral	6	54	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	44	Newton's University	6	53	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	45	Smith's Trading Company	3	43	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	46	Universal Suffrage	4	78	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	47	Hoover Dam	2	52	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	48	Theory of Evolution	3	77	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	49	The United Nations	4	70	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	50	The Manhattan Project	2	59	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	51	Cure for Cancer	3	46	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	52	Longevity	3	75	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	53	SETI program	3	79	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	54	Heroic Epic	4	81	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	55	Iron Works	2	82	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	56	Forbidden Palace	2	80	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	57	Military Academy	1	83	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	58	The Pentagon	1	84	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	59	Wall Street	2	85	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	60	Apollo Program	2	42	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	61	Strategic Missile Defense	1	31	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	62	Intelligence Agency	1	86	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	63	Battlefield Medicine	1	87	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	64	SS Thrusters	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	65	SS Engine	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	66	SS Docking Bay	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	67	SS Cockpit	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	68	SS Fuel Cells	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	69	SS Life Support System	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	70	SS Stasis Chamber	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	71	SS Storage/Supply	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	72	SS Planetary Party Lounge	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	73	SS Exterior Casing	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	74	The Internet	4	66	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	75	Civil Defense	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	76	Stock Exchange	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	77	Commercial Dock	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	78	The Temple of Artemis	4	64	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	79	The Statue of Zeus	4	63	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	80	The Mausoleum of Mausollos	2	62	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	81	Knights Templar	2	89	mapped	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
+BLDG	82	Secret Police HQ	0	-	zero-output; catalog mapping not needed	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c

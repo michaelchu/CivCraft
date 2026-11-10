@@ -25,6 +25,8 @@ pub(crate) struct Civilization {
     pub(crate) secondary_color_index: u8,
     pub(crate) legacy_names: Vec<String>,
     pub(crate) source_race_index: usize,
+    /// Raw Conquests RACE CultureGroup index; separate from culture points.
+    pub(crate) culture_group_index: i32,
 }
 
 fn field<'a>(fields: &'a [&str], index: usize, line: usize) -> &'a str {
@@ -45,7 +47,7 @@ fn parse_catalog() -> Vec<Civilization> {
     let header = lines.next().expect("civilization catalog has a header");
     assert_eq!(
         header.split('\t').count(),
-        14,
+        15,
         "civilization catalog schema changed"
     );
     let mut result = Vec::new();
@@ -54,7 +56,7 @@ fn parse_catalog() -> Vec<Civilization> {
         let fields = line.split('\t').collect::<Vec<_>>();
         assert_eq!(
             fields.len(),
-            14,
+            15,
             "invalid civilization catalog row {line_number}"
         );
         let parse_index = |index: usize| {
@@ -100,6 +102,11 @@ fn parse_catalog() -> Vec<Civilization> {
                 .map(str::to_owned)
                 .collect(),
             source_race_index,
+            culture_group_index: field(&fields, 14, line_number)
+                .parse::<i32>()
+                .unwrap_or_else(|error| {
+                    panic!("invalid culture group index on row {line_number}: {error}")
+                }),
             cities,
         });
     }
@@ -194,6 +201,7 @@ mod tests {
         assert_eq!(all().len(), 31);
         for (index, civilization) in all().iter().enumerate() {
             assert_eq!(civilization.source_race_index, index + 1);
+            assert!((0..=4).contains(&civilization.culture_group_index));
             assert!(!civilization.leader.is_empty());
             assert!(civilization.civ3_city_style < 5);
             assert!((civilization.primary_color_index as usize) < 32);
@@ -217,6 +225,7 @@ mod tests {
                 civilization.cities.len()
             );
         }
+        assert_eq!(by_id("rome").unwrap().culture_group_index, 2);
     }
 
     #[test]

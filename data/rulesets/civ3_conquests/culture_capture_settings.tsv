@@ -1,0 +1,30 @@
+biq_path	source_section	source_record_index	retain_culture_on_capture_raw	retain_culture_on_capture	biq_sha256
+Conquests/1 Mesopotamia.biq	GAME	0	0	false	fb65288ebb3a8927f86105e4b28c1aa97618239a932d1995a8de2535f56826a8
+Conquests/2 Rise of Rome.biq	GAME	0	1	true	efbe8c1a88b8b8b290f12422bceb325ec1fdb53772d57958eed88aaa107f59fe
+Conquests/3 Fall of Rome.biq	GAME	0	0	false	bc823f1cb7001ee786012af87d56f80b9096b5e451bfbf2fec708ca0e96a01af
+Conquests/4 Middle Ages.biq	GAME	0	0	false	51de3078030c6dfd11eda090e7e17b8469147553172985e4679a59e557fbd32d
+Conquests/5 Mesoamerica.biq	GAME	0	0	false	8519e37a7de6749e99f9ebf8d99d4bf47451a287c61ec07e15a844a53e27cda6
+Conquests/6 Age of Discovery.biq	GAME	0	0	false	7f83e684200dbbbcfc42be13120fc6e4093c323e6a37b9844c235e33da5b6318
+Conquests/7 Sengoku - Sword of the Shogun.biq	GAME	0	0	false	49c36c7f76c32433fd01e7cc62af4de339aca5f4f250657e7c345b5c0c0f1df0
+Conquests/8 Napoleonic Europe.biq	GAME	0	1	true	cccc3172c9888d589807a67abcc80c40d9366051be05178a540e51bd7991b8f0
+Conquests/9 WWII in the Pacific.biq	GAME	0	0	false	ad578f2a446ac86d88a7965386f2d0bdd79139f7ddced95b090efa600c869b89
+Conquests/Intro1 Ancient Treasures.biq	GAME	0	0	false	5c231adb5b52481b7cc7c732a9952d8c0b7950f54d6957309db12ad6c0995eb6
+Conquests/Intro2 The Three Sisters.biq	GAME	0	0	false	3fd5b0ae7630460db0e5121556d8e0f1012e1aff29a54e7d2d24841977374ec0
+Conquests/Intro3 New Alliances.biq	GAME	0	0	false	77f97bbc34ea7c3dfd0389ed293da35dbeef837e675de8aa6e82e248196edb9d
+Scenarios/1 MP Mesopotamia.biq	GAME	0	0	false	35a531d82febe9b5f48b1ebab488cd089a32ec9bebbfccc20603d4f402aeafe2
+Scenarios/2 MP Rise of Rome.biq	GAME	0	1	true	89c4efb2ba461e5c703e4d7ac239e35a5c195f0a61e2f0ccc927ac811026e496
+Scenarios/3 MP Fall of Rome.biq	GAME	0	0	false	1cd7b3e2050a40ef7c79fcbfaf929ce36d9035e4ff217415a0a861da0fd520a1
+Scenarios/4 MP Middle Ages.biq	GAME	0	0	false	7e8c0442022413c935dfc2a593ad899614f87aa02e3856fe89ce7d24bc994d79
+Scenarios/5 MP Mesoamerica.biq	GAME	0	0	false	443ff00634e960adad2f9f7f50ae9a8197db7df389123cb759298ae8d158e5d3
+Scenarios/6 MP Age of Discovery.biq	GAME	0	0	false	b612ad5e82eba188ae34f108f08630a495fe72200fc48015756bfd4b1d9bdda3
+Scenarios/7 MP Sengoku - Sword of the Shogun.biq	GAME	0	0	false	c10ef188b03c217b61cc0ddadf566a8d3a3eca6e16b4d3ca1cf8a7ebf5d28946
+Scenarios/8 MP Napoleonic Europe.biq	GAME	0	1	true	e6a8ebf002f31b48f0731d92668d8a3f68ffc16f832b6506ab551c5a673aa085
+Scenarios/9 MP WWII in the Pacific.biq	GAME	0	0	false	daedda569134614d95fafdca23ad839d4b0f2b8bae3e9632119be3eda86daf30
+Scenarios/Cheaper Upgrades.biq	GAME	0	0	false	2cce16354324e4d34bbf0c0742b8de1bb03f585454123c72dbe4a834c64f80b9
+Scenarios/MPFastCiv3Conquests.biq	GAME	0	0	false	a2a218c5773c70f41a301c44c41e29000d078f1e5569fd66df980a811d6e30c4
+Scenarios/MPTournament.biq	GAME	0	1	true	555921731b41667f81a6fc6709fdacce2c57706b123ebeb9648a59950d433185
+Scenarios/No Civ Traits.biq	GAME	0	0	false	a664937aa653d4d756c96316e3fdc81df22f28a04ea8621f30be6019b4aff538
+Scenarios/No Unique Units.biq	GAME	0	0	false	c776b28cdafc2aff05424d616e7c0563615e1ca31ef9ed89d7747465c0a91696
+Scenarios/Quick Civ.biq	GAME	0	0	false	e56f5086e97c5b1bfa36157294cbc440cc0fe610d0e28f0489a541e5264ffecc
+Scenarios/With Plague.biq	GAME	0	0	false	43c018fbcfcfc5b0c9b0d2206ffe519aaf7ef9795330217382bf38c5def4af73
+conquests.biq	GAME	0	0	false	1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c
