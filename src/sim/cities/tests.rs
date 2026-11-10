@@ -27,6 +27,8 @@ fn standard_conquests_capture_drops_city_culture_without_crediting_the_captor() 
     assert_eq!(city.culture_for_civilization(1), 0);
     assert_eq!(city.culture_for_civilization(HUMAN), 0);
     assert_eq!(city.culture_by_civilization, [(HUMAN, 0)]);
+    assert_eq!(city.historical_culture_for_civilization(1), 300);
+    assert_eq!(city.historical_culture_for_civilization(HUMAN), 75);
     assert_eq!(game.civilization_culture(1), 0);
     assert_eq!(game.civilization_culture(HUMAN), 500);
 }
@@ -56,6 +58,8 @@ fn retain_culture_capture_keeps_city_culture_and_its_border_reach() {
     assert_eq!(city.culture_for_civilization(1), 1_000);
     assert_eq!(city.culture_for_civilization(HUMAN), 0);
     assert_eq!(city.total_culture(), 1_000);
+    assert_eq!(city.historical_culture_for_civilization(1), 1_000);
+    assert_eq!(city.historical_culture_for_civilization(HUMAN), 0);
 
     let mut ring_tile = (10, 24);
     for _ in 0..4 {

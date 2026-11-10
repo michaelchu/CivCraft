@@ -30,7 +30,7 @@ where
     serde::Serialize::serialize(&ordered, serializer)
 }
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x15";
+const HEADER: &[u8] = b"CIVCRAFT\0\x16";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
@@ -413,6 +413,17 @@ impl Simulation {
                         .culture_by_civilization
                         .iter()
                         .any(|&(owner, culture)| owner >= players || culture < 0)
+                    || city
+                        .culture_memory_by_civilization
+                        .windows(2)
+                        .any(|pair| pair[0].0 >= pair[1].0)
+                    || city
+                        .culture_memory_by_civilization
+                        .iter()
+                        .any(|&(owner, culture)| owner >= players || culture < 0)
+                    || city.culture_by_civilization.iter().any(|&(owner, culture)| {
+                        city.historical_culture_for_civilization(owner) < culture
+                    })
                     || city
                         .culture_building_years
                         .windows(2)

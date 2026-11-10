@@ -205,8 +205,12 @@ fn candidate_city_flip_probability_to(
         foreign_citizens,
         resisting_citizens,
         foreign_radius_tiles,
-        challenger_city_culture: city.culture_for_civilization(challenger),
-        defender_city_culture: city.culture_for_civilization(defender),
+        // The Conquests guide says each civilization's earned culture is
+        // remembered by a city across capture. Current city culture may reset
+        // under GAME.RetainCulture=0, but that reset does not erase this local
+        // historical comparison used by the candidate defection formula.
+        challenger_city_culture: city.historical_culture_for_civilization(challenger),
+        defender_city_culture: city.historical_culture_for_civilization(defender),
         challenger_total_culture: game.civilization_culture(challenger),
         defender_total_culture: game.civilization_culture(defender),
         disorder: forecast.disorder,
@@ -681,6 +685,57 @@ mod tests {
                 - 0.007)
                 .abs()
                 < 1e-12
+        );
+    }
+
+    #[test]
+    fn captured_city_keeps_per_civilization_culture_memory_for_candidate_flip_pressure() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.cities.clear();
+        game.units.clear();
+        for tile in &mut game.tiles {
+            tile.owner = None;
+            tile.border_city = None;
+            tile.terrain = Terrain::Grassland;
+        }
+        game.create_city(1, 10, 24);
+        let target_id = {
+            game.create_city(1, 20, 24);
+            game.cities[1].id
+        };
+        game.create_city(HUMAN, 30, 24);
+        game.cities[0].add_culture(1, 100);
+        game.cities[1].add_culture(1, 500);
+        game.cities[2].add_culture(HUMAN, 100);
+        game.sign_pact(HUMAN, 1, Pact::War);
+        let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+
+        game.capture_city_if_needed(attacker, 20, 24);
+        let target_index = game.city_index_by_id(target_id).unwrap();
+        assert_eq!(
+            game.cities[target_index].culture_for_civilization(1),
+            0,
+            "the standard Conquests capture setting clears current city culture"
+        );
+        assert_eq!(
+            game.cities[target_index].historical_culture_for_civilization(1),
+            500,
+            "the city remembers the former civilization's earned culture"
+        );
+        game.cities[target_index].add_culture(HUMAN, 100);
+        game.units.clear();
+
+        let remembered =
+            candidate_city_flip_probability_to(&game, target_id, 1).unwrap();
+        let mut no_memory = game.clone();
+        no_memory.cities[target_index]
+            .culture_memory_by_civilization
+            .retain(|&(civilization, _)| civilization != 1);
+        let without_former_culture =
+            candidate_city_flip_probability_to(&no_memory, target_id, 1).unwrap();
+        assert!(
+            remembered > without_former_culture,
+            "historical local culture should supply the reverse-engineered local-culture advantage after capture"
         );
     }
 

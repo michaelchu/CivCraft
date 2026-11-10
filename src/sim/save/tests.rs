@@ -33,6 +33,8 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.turn, game.turn);
     assert_eq!(loaded.cities[0].culture_for_civilization(HUMAN), 375);
     assert_eq!(loaded.cities[0].culture_for_civilization(2), 125);
+    assert_eq!(loaded.cities[0].historical_culture_for_civilization(HUMAN), 375);
+    assert_eq!(loaded.cities[0].historical_culture_for_civilization(2), 125);
     assert_eq!(loaded.cities[0].resisting_citizens, [(2, 1)]);
     assert_eq!(loaded.cities[0].foreign_nationality_tenure, [(2, 7, 3)]);
     assert!(loaded.cities[0].culture_suppressed_until_majority_assimilated);
@@ -94,6 +96,10 @@ fn captured_city_culture_and_resistance_survive_save_load() {
     assert_eq!(
         loaded.cities[loaded_city].culture_by_civilization,
         [(HUMAN, 0)]
+    );
+    assert_eq!(
+        loaded.cities[loaded_city].culture_memory_by_civilization,
+        [(HUMAN, 0), (1, 300)]
     );
     assert_eq!(loaded.cities[loaded_city].foreign_citizens, [(1, 5)]);
     assert_eq!(
