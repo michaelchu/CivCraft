@@ -256,7 +256,7 @@ fn first_contact_notifies_the_human_once_and_diplomacy_exposes_war_status() {
     assert_eq!(game.events.len(), 1);
     assert!(game.events[0].contains("You have made contact with the"));
     assert!(game.events[0].contains(&game.players[2].name));
-    assert!(game.events[0].contains(game.players[2].leader_name()));
+    assert!(game.events[0].contains(&game.players[2].leader_name()));
 
     game.make_diplomatic_contact(2, HUMAN);
     assert_eq!(game.events.len(), 1);
