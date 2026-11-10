@@ -93,7 +93,9 @@ impl Playback {
         let p = self.progress();
         match event {
             VisualEvent::Move { unit, .. } => vec![(unit.clone(), vec2(p, 0.0))],
-            VisualEvent::Capture { unit } => vec![(unit.clone(), vec2(0.0, 0.0))],
+            VisualEvent::Capture { unit } | VisualEvent::FoundCity { unit } => {
+                vec![(unit.clone(), vec2(0.0, 0.0))]
+            }
             VisualEvent::Combat(combat) => {
                 // Keep the last 100 ms for the reference five-frame explosion.
                 let battle_fraction = ((event.duration() - 0.100) / event.duration()) as f32;
@@ -130,6 +132,7 @@ impl Game {
             let action = match event {
                 VisualEvent::Move { .. } => Action::Run,
                 VisualEvent::Capture { .. } => Action::Capture,
+                VisualEvent::FoundCity { .. } => Action::Build,
                 VisualEvent::Combat(combat) => {
                     let (attacker_hp, defender_hp) = combat
                         .hp

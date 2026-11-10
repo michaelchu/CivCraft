@@ -25,12 +25,18 @@ pub(crate) enum VisualEvent {
     Capture {
         unit: Unit,
     },
+    /// The Settler is consumed by founding, but its Build clip still plays.
+    FoundCity {
+        unit: Unit,
+    },
     Combat(Box<CombatVisual>),
 }
 impl VisualEvent {
     pub(crate) fn actors(&self) -> impl Iterator<Item = &Unit> {
         let (first, second) = match self {
-            Self::Move { unit, .. } | Self::Capture { unit } => (unit, None),
+            Self::Move { unit, .. } | Self::Capture { unit } | Self::FoundCity { unit } => {
+                (unit, None)
+            }
             Self::Combat(combat) => (&combat.attacker, Some(&combat.defender)),
         };
         std::iter::once(first).chain(second)
@@ -41,6 +47,9 @@ impl VisualEvent {
             // The original Settler, Worker, ICBM, and Tactical Nuke INIs use
             // a 0.5 second CAPTURE action; for nuclear units this is launch.
             Self::Capture { .. } => 0.5,
+            // The Settler Build clip's source timing is 0.5 seconds. The
+            // presentation pacing config stretches the complete clip to 1s.
+            Self::FoundCity { .. } => 1.0,
             Self::Combat(combat) => {
                 let first = combat.hp.first().copied().unwrap_or_default();
                 let last = combat.hp.last().copied().unwrap_or_default();
@@ -75,7 +84,7 @@ impl Simulation {
                 observed.transport = None;
                 unit.owner == HUMAN || self.unit_visible_to_human(&observed)
             }
-            VisualEvent::Capture { unit } => {
+            VisualEvent::Capture { unit } | VisualEvent::FoundCity { unit } => {
                 unit.owner == HUMAN || self.unit_visible_to_human(unit)
             }
             VisualEvent::Combat(combat) => {

@@ -187,6 +187,7 @@ pub(crate) struct Game {
     pub(crate) intro_open: bool,
     pub(crate) selected_unit: Option<u32>,
     selected_city: Option<u32>,
+    pending_city_view: Option<u32>,
     action_page: usize,
     production_page: usize,
     unit_production_page: usize,
@@ -271,6 +272,7 @@ impl Game {
             intro_open: false,
             selected_unit,
             selected_city: None,
+            pending_city_view: None,
             action_page: 0,
             production_page: 0,
             unit_production_page: 0,
@@ -317,7 +319,8 @@ impl Game {
             self.unit_production_page = 0;
             self.worklist_page = None;
             self.city_tiles = false;
-            self.selected_city = self.sim.cities().last().map(|city| city.id);
+            self.selected_city = None;
+            self.pending_city_view = self.sim.cities().last().map(|city| city.id);
             true
         } else {
             false
@@ -401,6 +404,11 @@ impl Game {
     pub(crate) fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         self.normalize_camera();
         self.playback.update(&mut self.sim, get_time());
+        if !self.playback.pending()
+            && let Some(city) = self.pending_city_view.take()
+        {
+            self.selected_city = Some(city);
+        }
         clear_background(Color::from_rgba(7, 20, 31, 255));
         self.hud_elements_drawn = 0;
         if self.research_open {

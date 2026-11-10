@@ -4,6 +4,9 @@ use super::*;
 
 impl Game {
     pub(crate) fn perform_action(&mut self, action: UiAction) {
+        if self.pending_city_view.is_some() {
+            return;
+        }
         if self.sim.game_over().is_some() && !matches!(action, UiAction::EndTurn) {
             return;
         }

@@ -626,21 +626,38 @@ impl Game {
                 })?;
                 sequence.check(
                     "city_founded_through_ui",
-                    self.selected_city_index().is_some(),
+                    self.sim.cities_owned_by(HUMAN).count() > 0
+                        && self.selected_city.is_none()
+                        && self.pending_city_view.is_some(),
                 )?;
             }
-            if phase == 2 && scene == 14 {
-                sequence.click(self, buttons, "worked_tiles_control", |action| {
-                    matches!(action, UiAction::CityTiles)
-                })?;
-                sequence.check("worked_tiles_open", self.city_tiles)?;
+            if phase == 2 {
+                sequence.check(
+                    "city_view_waits_for_build_animation",
+                    self.pending_city_view.is_some()
+                        && self.selected_city.is_none()
+                        && self.playback.pending(),
+                )?;
             }
-            if phase == 2 && scene == 15 {
+            if phase == 7 && scene == 14 && self.selected_city_index().is_some() {
+                sequence.check("city_view_opened_after_build", true)?;
+                if !self.city_tiles {
+                    sequence.click(self, buttons, "worked_tiles_control", |action| {
+                        matches!(action, UiAction::CityTiles)
+                    })?;
+                    sequence.check("worked_tiles_open", self.city_tiles)?;
+                    return Ok(true);
+                }
+            }
+            if phase == 7 && scene == 15 && self.selected_city_index().is_some() {
+                sequence.check("city_view_opened_after_build", true)?;
                 sequence.click(self, buttons, "close_city_control", |action| {
                     matches!(action, UiAction::CloseCity)
                 })?;
+                sequence.check("city_view_closed", self.selected_city.is_none())?;
+                return Ok(true);
             }
-            if phase == 3 && scene == 15 {
+            if phase == 8 && scene == 15 && self.selected_city.is_none() {
                 let rates = self.sim.players()[HUMAN].rates;
                 sequence.click(self, buttons, "tax_control", |action| {
                     matches!(action, UiAction::RaiseRate(1))
@@ -650,7 +667,7 @@ impl Game {
                     self.sim.players()[HUMAN].rates != rates,
                 )?;
             }
-            if phase == 6 && scene == 14 {
+            if phase == 8 && scene == 14 && sequence.worker.is_none() {
                 let target = buttons.iter().find_map(|(_, action)| {
                     if let UiAction::WorkCityTile(city, x, y) = action {
                         Some((*city, *x, *y))
@@ -671,7 +688,7 @@ impl Game {
                 )?;
                 return Ok(true);
             }
-            if phase == 8 && scene == 14 {
+            if phase == 9 && scene == 14 && sequence.worker.is_some() {
                 let (id, x, y, worked, before) = sequence.worker.take().unwrap();
                 sequence.click(self,buttons,"restore_tile_worker",|action|matches!(action,UiAction::WorkCityTile(cid,tx,ty) if (cid,tx,ty)==(id,x,y)))?;
                 let city = self.sim.city_by_id(id).unwrap();
@@ -682,7 +699,7 @@ impl Game {
                         && worked.iter().all(|p| city.worked_tiles.contains(p)),
                 )?;
             }
-            if phase == 6 && scene == 15 {
+            if phase == 9 && scene == 15 {
                 let turn = self.sim.turn();
                 sequence.click(self, buttons, "end_turn_control", |action| {
                     matches!(action, UiAction::EndTurn)

@@ -120,6 +120,7 @@ impl Simulation {
             }
             return false;
         }
+        self.publish_visual_event(VisualEvent::FoundCity { unit: unit.clone() });
         self.units.remove(index);
         self.discard_unit_ai(unit_id);
         self.ai_settlement_targets.remove(&unit_id);

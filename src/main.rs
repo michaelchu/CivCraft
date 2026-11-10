@@ -239,6 +239,11 @@ async fn main() {
     let mut sequence = client::UiReviewSequence::default();
     let mut changed_page = false;
     let mut playtest = self_test_path.clone().map(playtest::Playtest::new);
+    let review_duration = |scene: usize| if (13..=15).contains(&scene) { 120 } else { 10 };
+    let review_total_frames = review_scenes
+        .iter()
+        .map(|&scene| review_duration(scene))
+        .sum::<u32>();
 
     loop {
         if !automated {
@@ -250,11 +255,27 @@ async fn main() {
             playtest.advance(frame, &mut game, &buttons);
         }
 
-        let scene = ui_review
-            .as_ref()
-            .map(|_| review_scenes[(frame / 10) as usize]);
-        if let Some(scene) = scene {
-            if frame.is_multiple_of(10) {
+        let review_position = ui_review.as_ref().and_then(|_| {
+            let mut scene_start = 0;
+            for &scene in &review_scenes {
+                let duration = review_duration(scene);
+                if frame < scene_start + duration {
+                    let local_frame = frame - scene_start;
+                    let phase_index = ((local_frame * 10) / duration).min(9);
+                    let phase = if (local_frame * 10).is_multiple_of(duration) {
+                        phase_index
+                    } else {
+                        0
+                    };
+                    return Some((scene, local_frame, phase));
+                }
+                scene_start += duration;
+            }
+            None
+        });
+        let scene = review_position.map(|(scene, _, _)| scene);
+        if let Some((scene, local_frame, phase)) = review_position {
+            if local_frame == 0 {
                 changed_page = false;
                 sequence = client::UiReviewSequence::default();
                 let started = std::time::Instant::now();
@@ -266,7 +287,7 @@ async fn main() {
                 );
             } else {
                 let started = std::time::Instant::now();
-                let result = game.step_ui_review(scene, frame % 10, &buttons, &mut sequence);
+                let result = game.step_ui_review(scene, phase, &buttons, &mut sequence);
                 let profile = ui_profile.as_mut().unwrap();
                 profile.actions(scene, started.elapsed().as_secs_f64() * 1000.0);
                 for (label, ok) in sequence.checks.drain(..) {
@@ -274,7 +295,7 @@ async fn main() {
                 }
                 match result {
                     Ok(changed) => {
-                        if frame % 10 == 6 {
+                        if phase == 6 || (phase == 7 && matches!(scene, 14 | 15)) {
                             changed_page = changed;
                         }
                     }
@@ -316,9 +337,10 @@ async fn main() {
         }
         frame += 1;
         if let Some(dir) = &ui_review {
-            let scene = scene.unwrap();
-            let next = frame % 10 == 8;
-            if frame % 10 == 5 || (next && changed_page) {
+            let (scene, _, phase) = review_position.expect("review scene is active");
+            let next = phase == 8 && changed_page;
+            let main_capture_phase = if scene == 13 { 8 } else { 5 };
+            if phase == main_capture_phase || next {
                 let started = std::time::Instant::now();
                 let image = get_screen_data();
                 use std::hash::{Hash, Hasher};
@@ -351,7 +373,7 @@ async fn main() {
                     std::process::exit(1);
                 }
             }
-            if frame >= review_scenes.len() as u32 * 10 {
+            if frame >= review_total_frames {
                 if !ui_profile
                     .as_ref()
                     .unwrap()

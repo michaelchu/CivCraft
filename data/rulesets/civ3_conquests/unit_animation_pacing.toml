@@ -10,6 +10,9 @@ fidget_rest_seconds = 6.5
 [units.worker]
 work_cycle_duration_multiplier = 2.0
 
+[units.settler.actions.build]
+cycle_duration_multiplier = 2.0
+
 # Optional per-unit, per-action overrides can be added like this:
 # [units.worker.actions.road]
 # cycle_duration_multiplier = 2.5

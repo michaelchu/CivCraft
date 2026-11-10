@@ -55,6 +55,9 @@ impl Game {
             }
             return;
         }
+        if self.pending_city_view.is_some() {
+            return;
+        }
         let shift_down = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
         if is_key_pressed(KeyCode::Escape) {
             if self.selected_city.is_some() {
@@ -349,6 +352,9 @@ impl Game {
     }
 
     pub(crate) fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {
+        if self.pending_city_view.is_some() {
+            return;
+        }
         if self.intro_open
             || self.spaceship_open
             || self.government_open
