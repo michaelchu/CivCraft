@@ -713,6 +713,11 @@ documentation, not as evidence for field behavior.
 - `src/sim/achievements.rs` now checks the new culture ledger for its
   app-specific culture achievements. Their reward score remains separate from
   Conquests culture and cannot contribute to culture totals or victory.
+- The AI building advisor no longer uses legacy `history_per_turn` values as
+  a culture-building bonus. The installed BIQ supplies actual culture output,
+  but the official text and BIQ do not establish how the AI should value that
+  output; culture-specific AI build priorities remain unresolved instead of
+  reusing score-history weights.
 - `City` now has serialized `resisting_citizens` counts by nationality.
   Counted resisters are excluded from tile labor and the specialist
   count, matching the Civilopedia's explicit statement that they cannot work.
@@ -895,6 +900,8 @@ documentation, not as evidence for field behavior.
   `cargo test --offline sim::culture::tests` passes all 16 culture tests.
   The multiple-nationality case verifies that each foreign group contributes
   to the candidate `F` term, consistent with the Conquests FAQ formula.
+- `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline sim::advisors::tests` currently has 41 passing and 4 failing tests. The growth-priority scenario selects the Pyramids instead of the Aqueduct, one police-demand test unwraps no choice, and two embarked-paradrop threat scenarios fail.
+  The history-bonus removal does not address those broader advisor gaps; no culture-specific AI priority is claimed.
 - `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
   passed; the capture path sets suppression, and culture resumes after owner
   nationality exceeds half of the population.

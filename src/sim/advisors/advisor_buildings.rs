@@ -316,9 +316,6 @@ impl Simulation {
             }
             _ => 0,
         });
-        if building != Building::ECCLESIASTICAL_PALACE || !city.has_building(Building::PALACE) {
-            want += f64::from(building.history_per_turn() * 5);
-        }
         self.adjust_building_want(city, building, want)
     }
 
@@ -386,9 +383,6 @@ impl Simulation {
                 - self.advisor_city_output_exact(original, None);
         }
         want += self.building_happiness_want(city, building);
-        if building != Building::ECCLESIASTICAL_PALACE || !city.has_building(Building::PALACE) {
-            want += f64::from(building.history_per_turn() * 5);
-        }
         let owned_units = || self.units_owned_by(city.owner);
         let land = owned_units()
             .filter(|unit| !unit.kind.is_aircraft() && !unit.kind.is_naval())
