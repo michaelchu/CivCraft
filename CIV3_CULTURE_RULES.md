@@ -830,13 +830,14 @@ documentation, not as evidence for field behavior.
   case confirms that the explicit 20,000 single-city victory remains active on
   the 36×48 campaign topology, while a 102,000 empire total does not assume a
   threshold the Conquests Civilopedia does not provide for custom maps.
-- Re-unpacked the installed `../source/Conquests/conquests.biq` with
-  `/private/tmp/civ3-blast`, then regenerated all nine culture, victory,
-  resistance, and government exports to `/private/tmp/culture-repro-20261110`.
-  Each output byte-matches its checked-in counterpart. The separate
-  `export_conquests_capture_culture_flags.py` run covered 29 BIQs and its
-  `culture_capture_settings.tsv` also byte-matches. This confirms export
-  reproducibility against the installed BIQ files.
+- Current rerun: re-unpacked the installed
+  `../source/Conquests/conquests.biq` with `/private/tmp/civ3-blast`, then
+  regenerated all nine culture, victory, resistance, and government exports
+  under `/private/tmp/culture-export-check-pwkolt5e`. Each output byte-matches
+  its checked-in counterpart. The separate
+  `export_conquests_capture_culture_flags.py` run covered all 29 Conquests BIQs
+  and its `culture_capture_settings.tsv` also byte-matches. This confirms the
+  export pipeline is reproducible from the current installed source.
 - Earlier built desktop self-test, seed 42, report
   `/tmp/civcraft-playtest-culture-akblbb/report.json`: process exited 1 and
   2/11 checks passed (foundation and HUD). Movement, act/economy, city tiles,
