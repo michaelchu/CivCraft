@@ -99,6 +99,11 @@ CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release -- --tileset sno
 CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release -- --tileset snoopy-extended --seed 42
 ```
 
+Campaign music also loads from the install's `Sounds` folder. It follows the
+human civilization's culture group and research era; use the music button in
+the top bar to mute playback or adjust its volume. These controls reset when
+the game closes.
+
 The selection applies to terrain on the world map and city work map. Other art
 continues to use its existing paths while it is migrated separately. Unit art
 can be overridden per unit

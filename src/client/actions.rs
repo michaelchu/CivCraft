@@ -7,12 +7,26 @@ impl Game {
         if self.pending_city_view.is_some() {
             return;
         }
-        if self.sim.game_over().is_some() && !matches!(action, UiAction::EndTurn) {
+        if self.sim.game_over().is_some()
+            && !matches!(
+                action,
+                UiAction::EndTurn
+                    | UiAction::ToggleMusicPanel
+                    | UiAction::ToggleMusicMute
+                    | UiAction::AdjustMusicVolume(_)
+            )
+        {
             return;
         }
         match action {
             UiAction::BlockMapClick => {}
             UiAction::DismissIntro => self.intro_open = false,
+            UiAction::ToggleMusicPanel => self.music_open = !self.music_open,
+            UiAction::ToggleMusicMute => self.music_muted = !self.music_muted,
+            UiAction::AdjustMusicVolume(delta) => {
+                self.music_volume =
+                    (i16::from(self.music_volume) + i16::from(delta) * 10).clamp(0, 100) as u8;
+            }
             UiAction::RaiseRate(index) => {
                 self.sim.apply(Command::RaiseRate(index));
             }

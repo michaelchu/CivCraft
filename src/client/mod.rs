@@ -14,8 +14,10 @@
 
 mod actions;
 mod assets;
+mod audio;
 mod sprite_metadata;
 pub(crate) use assets::{Assets, window_conf};
+pub(crate) use audio::MusicPlayer;
 use sprite_metadata::{player_color, unit_art_role};
 
 pub(crate) fn native_campaign_unit_art_playtest() -> (bool, bool, bool) {
@@ -108,6 +110,9 @@ impl TileGeometry {
 pub(crate) enum UiAction {
     BlockMapClick,
     DismissIntro,
+    ToggleMusicPanel,
+    ToggleMusicMute,
+    AdjustMusicVolume(i8),
     ActionPage(usize),
     EndTurn,
     LaunchSpaceship,
@@ -185,6 +190,9 @@ pub(crate) struct Game {
     renderer: std::rc::Rc<dyn RenderBackend>,
     pub(crate) autosave_enabled: bool,
     pub(crate) intro_open: bool,
+    pub(crate) music_open: bool,
+    pub(crate) music_muted: bool,
+    pub(crate) music_volume: u8,
     pub(crate) selected_unit: Option<u32>,
     selected_city: Option<u32>,
     pending_city_view: Option<u32>,
@@ -270,6 +278,9 @@ impl Game {
             renderer,
             autosave_enabled: false,
             intro_open: false,
+            music_open: false,
+            music_muted: false,
+            music_volume: 50,
             selected_unit,
             selected_city: None,
             pending_city_view: None,
@@ -421,7 +432,8 @@ impl Game {
         renderer.draw_world(self, assets);
         let mut actions = self.draw_hud(assets);
         if self.intro_open {
-            return self.draw_intro();
+            actions.extend(self.draw_intro());
+            return actions;
         }
         if self.government_open
             || self.diplomacy_open

@@ -141,6 +141,7 @@ pub(super) fn draw_hud_card(card: Rect) {
 }
 
 pub(super) enum HudIcon {
+    Music,
     Government,
     Diplomacy,
     Research,
@@ -174,6 +175,11 @@ pub(super) enum HudIcon {
 pub(super) fn draw_hud_icon(icon: HudIcon, center: Vec2, size: f32, color: Color) {
     // Coordinates use a shared 24 by 24 canvas so the icons scale together.
     let paths: &[&[(f32, f32)]] = match icon {
+        HudIcon::Music => &[
+            &[(5., 9.), (5., 18.), (7., 20.), (9., 18.), (9., 10.)],
+            &[(9., 10.), (18., 7.), (18., 17.), (20., 19.), (22., 17.)],
+            &[(9., 10.), (18., 7.)],
+        ],
         HudIcon::Government => &[
             &[(2., 8.), (12., 2.), (22., 8.), (2., 8.)],
             &[(5., 11.), (5., 19.)],

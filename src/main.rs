@@ -16,7 +16,7 @@ mod rules;
 mod sim;
 mod visual_test;
 
-use client::{Assets, Game, Tileset, UiAction, window_conf};
+use client::{Assets, Game, MusicPlayer, Tileset, UiAction, window_conf};
 use macroquad::prelude::*;
 use std::{env, fs, path::Path};
 
@@ -217,6 +217,7 @@ async fn main() {
     );
     game.autosave_enabled = !automated;
     game.intro_open = !automated && !args.iter().any(|arg| arg == "--load");
+    let mut music = MusicPlayer::new(!automated);
     if ui_review.is_some() {
         client::set_review_pointer(Some(vec2(-1.0, -1.0)));
     }
@@ -257,6 +258,10 @@ async fn main() {
         if let Some(playtest) = &mut playtest {
             playtest.advance(frame, &mut game, &buttons);
         }
+
+        music
+            .update(&game.sim, game.music_muted, game.music_volume)
+            .await;
 
         let review_position = ui_review.as_ref().and_then(|_| {
             let mut scene_start = 0;

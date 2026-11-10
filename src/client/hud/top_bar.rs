@@ -16,7 +16,7 @@ impl Game {
 
         let player = &self.sim.players()[HUMAN];
         let status = self.sim.spaceship_status(HUMAN);
-        let button_count = 6 + usize::from(status.is_some());
+        let button_count = 7 + usize::from(status.is_some());
         let button_width = 38.0;
         let step = button_width + 4.0;
         let button_start = width - HUD_MARGIN - button_count as f32 * step + 4.0;
@@ -148,6 +148,67 @@ impl Game {
             if rect.contains(ui_pointer()) {
                 tooltip = Some((rect, label));
             }
+        }
+
+        let music_rect = Rect::new(
+            button_start + (button_count - 1) as f32 * step,
+            5.0,
+            button_width,
+            33.0,
+        );
+        draw_ui_button(music_rect, "", true, self.music_open);
+        let music_color = Color::from_rgba(241, 238, 218, 255);
+        let music_center = vec2(music_rect.x + music_rect.w * 0.5, music_rect.y + 16.5);
+        draw_hud_icon(HudIcon::Music, music_center, 21.0, music_color);
+        if self.music_muted {
+            draw_line(
+                music_center.x - 7.0,
+                music_center.y + 7.0,
+                music_center.x + 7.0,
+                music_center.y - 7.0,
+                2.0,
+                music_color,
+            );
+        }
+        actions.push((music_rect, UiAction::ToggleMusicPanel));
+        if music_rect.contains(ui_pointer()) {
+            tooltip = Some((music_rect, "Music controls".to_owned()));
+        }
+
+        if self.music_open {
+            let panel = Rect::new(width - HUD_MARGIN - 190.0, TOP_H + 4.0, 190.0, 73.0);
+            draw_hud_card(panel);
+            draw_text("Music", panel.x + 10.0, panel.y + 19.0, 14.0, GOLD);
+
+            let mute = Rect::new(panel.x + 9.0, panel.y + 31.0, 66.0, 30.0);
+            draw_ui_button(
+                mute,
+                if self.music_muted { "Muted" } else { "On" },
+                true,
+                false,
+            );
+            actions.push((mute, UiAction::ToggleMusicMute));
+
+            let down = Rect::new(panel.x + 83.0, panel.y + 31.0, 28.0, 30.0);
+            draw_ui_button(down, "−", self.music_volume > 0, false);
+            if self.music_volume > 0 {
+                actions.push((down, UiAction::AdjustMusicVolume(-1)));
+            }
+            let volume = format!("{}%", self.music_volume);
+            let volume_width = measure_text(&volume, None, 13, 1.0).width;
+            draw_text(
+                &volume,
+                panel.x + 117.0 - volume_width * 0.5,
+                panel.y + 50.0,
+                13.0,
+                WHITE,
+            );
+            let up = Rect::new(panel.x + 133.0, panel.y + 31.0, 28.0, 30.0);
+            draw_ui_button(up, "+", self.music_volume < 100, false);
+            if self.music_volume < 100 {
+                actions.push((up, UiAction::AdjustMusicVolume(1)));
+            }
+            actions.push((panel, UiAction::BlockMapClick));
         }
         if let Some((button, label)) = tooltip {
             let width = measure_text(&label, None, 15, 1.0).width + 16.0;
