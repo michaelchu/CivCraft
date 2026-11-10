@@ -150,16 +150,6 @@ fn candidate_city_flip_probability_to(
     if defender >= game.civilization_count || defender == challenger {
         return None;
     }
-    if city
-        .foreign_citizens
-        .iter()
-        .any(|&(nationality, count)| count > 0 && nationality != challenger)
-    {
-        // The community formula does not say how multiple foreign nationalities
-        // contribute to a particular rival's F term.
-        return None;
-    }
-
     let capital_distance = |civilization| {
         game.cities
             .iter()
@@ -176,11 +166,13 @@ fn candidate_city_flip_probability_to(
     let defender_capital_distance = capital_distance(defender)?;
     let forecast = game.city_forecast(city);
     let (happy, unhappy, angry) = game.city_feelings(city, forecast.luxury);
+    // The CivFanatics Conquests FAQ defines F as all foreign citizens, with
+    // resisters counted twice. Nationality is not restricted to the challenger.
     let resisting_citizens = city
         .resisting_citizens
         .iter()
-        .find_map(|&(nationality, count)| (nationality == challenger).then_some(count))
-        .unwrap_or(0);
+        .map(|&(_, count)| count)
+        .sum();
     let celebrating_wltkd = city_meets_wltkd_criteria(
         city.size,
         forecast.food_surplus(city.size, 0),
@@ -192,11 +184,7 @@ fn candidate_city_flip_probability_to(
         unhappy,
         angry,
     );
-    let foreign_citizens = city
-        .foreign_citizens
-        .iter()
-        .find_map(|&(nationality, count)| (nationality == challenger).then_some(count))
-        .unwrap_or(0);
+    let foreign_citizens = city.foreign_citizens.iter().map(|&(_, count)| count).sum();
     let foreign_radius_tiles = game
         .map_city_radius(city)
         .filter(|&(_, _, x, y)| game.tile(x, y).owner == Some(challenger))
@@ -739,13 +727,15 @@ mod tests {
     }
 
     #[test]
-    fn candidate_flip_probability_leaves_multiple_foreign_nationalities_unresolved() {
+    fn candidate_flip_probability_counts_all_foreign_nationalities() {
         let (mut game, city_id) = candidate_flip_fixture();
         game.cities[3].foreign_citizens.push((2, 1));
-        assert_eq!(
-            candidate_city_flip_probability_to(&game, city_id, HUMAN),
-            None
-        );
+        let with_multiple_nationalities =
+            candidate_city_flip_probability_to(&game, city_id, HUMAN).unwrap();
+        game.cities[3].foreign_citizens[1].1 -= 1;
+        let challenger_nationality_only =
+            candidate_city_flip_probability_to(&game, city_id, HUMAN).unwrap();
+        assert!(with_multiple_nationalities > challenger_nationality_only);
     }
 
     #[test]

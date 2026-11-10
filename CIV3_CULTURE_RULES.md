@@ -575,10 +575,13 @@ documentation, not as evidence for field behavior.
   culture, disorder, WLTKD, garrison, and capital distances from simulation
   state before applying the candidate arithmetic. A deterministic scenario
   covers those derived inputs, the garrison reduction, and doubled chance when
-  the challenger has greater local culture. This candidate calculation is
-  still not called during turn resolution. It returns unresolved (`None`) when
-  multiple foreign nationalities are present because the formula does not say
-  whether non-challenger foreigners contribute to `F`. Zero-total-culture or
+  the challenger has greater local culture. The Conquests FAQ defines `F` as
+  all foreign citizens, with resisting citizens counted twice, and CivWiki
+  gives the same general foreign-citizen term; the calculation therefore sums
+  every foreign nationality even when it differs from the challenger. A
+  deterministic regression test verifies that adding a second foreign
+  nationality increases the candidate probability. This candidate calculation
+  is still not called during turn resolution. Zero-total-culture or
   invalid capital-distance ratios also return unresolved (`None`) because
   available sources do not establish the engine behavior for those undefined
   inputs. The candidate formula has
@@ -873,6 +876,11 @@ documentation, not as evidence for field behavior.
   ledger consistency and the secondary-source death priority in CivCraft, not
   original Conquests runtime behavior.
 - `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline resist` passes all 17 matching tests, including resistance persistence, labor exclusion, and garrison quelling.
+- Current culture formula validation:
+  `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline candidate_flip_probability` passes 2 tests.
+  `cargo test --offline sim::culture::tests` passes all 16 culture tests.
+  The multiple-nationality case verifies that each foreign group contributes
+  to the candidate `F` term, consistent with the Conquests FAQ formula.
 - `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
   passed; the capture path sets suppression, and culture resumes after owner
   nationality exceeds half of the population.
