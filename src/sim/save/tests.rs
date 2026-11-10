@@ -53,6 +53,51 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
 }
 
 #[test]
+fn captured_city_culture_and_resistance_survive_save_load() {
+    let path = temporary_save("captured-culture-resistance");
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(1, 10, 24);
+    game.create_city(1, 20, 24);
+    game.create_city(HUMAN, 30, 24);
+    let captured_city_id = game.cities[1].id;
+    game.cities[1].size = 6;
+    game.cities[1].add_culture(1, 300);
+    game.cities[2].add_culture(HUMAN, 375);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+    game.capture_city_if_needed(attacker, 20, 24);
+
+    let captured_city = game.city_index_by_id(captured_city_id).unwrap();
+    assert_eq!(game.cities[captured_city].owner, HUMAN);
+    assert_eq!(
+        game.cities[captured_city].culture_by_civilization,
+        [(HUMAN, 0)]
+    );
+    assert_eq!(game.cities[captured_city].foreign_citizens, [(1, 5)]);
+    game.cities[captured_city].resisting_citizens = vec![(1, 2)];
+    game.reconcile_city_workers();
+    game.save_campaign(&path).unwrap();
+
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    let loaded_city = loaded.city_index_by_id(captured_city_id).unwrap();
+    assert_eq!(loaded.cities[loaded_city].owner, HUMAN);
+    assert_eq!(
+        loaded.cities[loaded_city].culture_by_civilization,
+        [(HUMAN, 0)]
+    );
+    assert_eq!(loaded.cities[loaded_city].foreign_citizens, [(1, 5)]);
+    assert_eq!(loaded.cities[loaded_city].resisting_citizens, [(1, 2)]);
+    assert_eq!(loaded.cities[2].culture_for_civilization(HUMAN), 375);
+    assert_eq!(
+        bincode::serialize(&loaded.cities).unwrap(),
+        bincode::serialize(&game.cities).unwrap()
+    );
+}
+
+#[test]
 fn old_save_headers_and_corrupt_current_payloads_are_rejected() {
     let path = temporary_save("save-invalid");
     fs::write(&path, b"CIVCRAFT\0\x11previous payload").unwrap();
