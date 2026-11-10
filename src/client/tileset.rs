@@ -1103,6 +1103,7 @@ pub(super) struct Civ3 {
     craters: Option<Texture2D>,
     optional_improvements: HashMap<&'static str, Texture2D>,
     unit_art: RefCell<HashMap<String, Civ3UnitArt>>,
+    unit_cursor: Civ3UnitCursor,
     unit_animation_sources: HashMap<String, UnitAnimationSource>,
     animation_pacing: super::unit_animation_pacing::UnitAnimationPacing,
     river_delta: Texture2D,
@@ -1110,6 +1111,19 @@ pub(super) struct Civ3 {
     resources: Option<ResourceArt>,
     cities: HashMap<&'static str, Texture2D>,
     civilization_city_styles: HashMap<String, String>,
+}
+
+struct Civ3UnitCursor {
+    texture: Texture2D,
+    width: f32,
+    height: f32,
+    original_width: f32,
+    original_height: f32,
+    offset_left: f32,
+    offset_top: f32,
+    frame_count: usize,
+    frame_columns: usize,
+    frame_duration_seconds: f32,
 }
 
 struct Civ3UnitArt {
@@ -1466,6 +1480,43 @@ impl Civ3 {
                     .or_insert(animation);
             }
         }
+        let cursor_path = locate_source_root()?.join("Art/Animations/Cursor/Cursor.flc");
+        let cursor_bytes = fs::read(&cursor_path)
+            .map_err(|error| format!("{}: {error}", cursor_path.display()))?;
+        let cursor_flic = super::flc::decode_flic(&cursor_bytes)
+            .map_err(|error| format!("{}: {error}", cursor_path.display()))?;
+        let (mut cursor_image, cursor_tint) = cursor_flic
+            .image_atlases()
+            .map_err(|error| format!("{}: {error}", cursor_path.display()))?;
+        // The cursor artwork is monochrome white. Civ III uses the unit shadow
+        // palette range (240..=255) for some arrow pixels, but those indices
+        // should fade the white cursor rather than draw black unit shadows.
+        for (base, tint) in cursor_image
+            .get_image_data_mut()
+            .iter_mut()
+            .zip(cursor_tint.get_image_data().iter())
+        {
+            let alpha = base[3].max(tint[3]);
+            base[0] = 255;
+            base[1] = 255;
+            base[2] = 255;
+            base[3] = alpha;
+        }
+        let cursor_texture = Texture2D::from_image(&cursor_image);
+        cursor_texture.set_filter(FilterMode::Nearest);
+        let cursor_frame_count = cursor_flic.animations[0].len();
+        let unit_cursor = Civ3UnitCursor {
+            texture: cursor_texture,
+            width: cursor_flic.width as f32,
+            height: cursor_flic.height as f32,
+            original_width: cursor_flic.original_width.max(cursor_flic.width) as f32,
+            original_height: cursor_flic.original_height.max(cursor_flic.height) as f32,
+            offset_left: cursor_flic.offset_left as f32,
+            offset_top: cursor_flic.offset_top as f32,
+            frame_count: cursor_frame_count,
+            frame_columns: cursor_frame_count.min(4096 / cursor_flic.width),
+            frame_duration_seconds: (cursor_flic.animation_speed as f32 / 1000.0).max(0.001),
+        };
         Ok(Self {
             art,
             atlas: RefCell::default(),
@@ -1478,6 +1529,7 @@ impl Civ3 {
             craters,
             optional_improvements,
             unit_art: RefCell::default(),
+            unit_cursor,
             unit_animation_sources: resolved_unit_paths,
             animation_pacing,
             river_delta,
@@ -1486,6 +1538,41 @@ impl Civ3 {
             cities,
             civilization_city_styles: theme.civilization_city_styles.clone(),
         })
+    }
+
+    pub(super) fn draw_unit_cursor(&self, center: Vec2, zoom: f32) {
+        let cursor = &self.unit_cursor;
+        let elapsed = get_time() as f32;
+        let frame =
+            ((elapsed / cursor.frame_duration_seconds).floor() as usize) % cursor.frame_count;
+        let source = Rect::new(
+            (frame % cursor.frame_columns) as f32 * cursor.width,
+            (frame / cursor.frame_columns) as f32 * cursor.height,
+            cursor.width,
+            cursor.height,
+        );
+        // Fit the visible FLC frame inside one tile. The FLC's 240px canvas
+        // includes margins, so use the frame size for scale and the recorded
+        // offsets only when positioning it on that canvas.
+        let scale = zoom * (TILE_W / cursor.width).min(TILE_H / cursor.height);
+        let size = vec2(cursor.width * scale, cursor.height * scale);
+        let position = center
+            - vec2(
+                cursor.original_width * scale,
+                cursor.original_height * scale,
+            ) * 0.5
+            + vec2(cursor.offset_left * scale, cursor.offset_top * scale);
+        draw_texture_ex(
+            &cursor.texture,
+            position.x,
+            position.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(size),
+                source: Some(source),
+                ..Default::default()
+            },
+        );
     }
 
     pub(super) fn city_texture(&self, style: &str) -> &Texture2D {

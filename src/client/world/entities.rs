@@ -355,13 +355,7 @@ impl Game {
         let unit_h = 44.0 * unit_zoom;
         let is_selected = self.selected_unit == Some(unit.id);
         if is_selected {
-            draw_diamond_lines(
-                center,
-                TILE_W * self.zoom * 0.94,
-                TILE_H * self.zoom * 0.9,
-                (2.5 * self.zoom).max(1.5),
-                Color::from_rgba(255, 226, 88, 230),
-            );
+            assets.civ3.draw_unit_cursor(center, self.zoom);
         }
         let native_unit_drawn = assets.civ3.draw_unit(
             unit.kind,

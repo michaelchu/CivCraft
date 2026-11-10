@@ -14,6 +14,8 @@ pub(super) struct Flic {
     #[allow(dead_code)]
     pub(super) animation_speed: u32,
     pub(super) palette: [[u8; 3]; 256],
+    /// Palette state at each decoded frame, including palette animations.
+    pub(super) frame_palettes: Vec<Vec<[[u8; 3]; 256]>>,
     /// Animation rows, each containing its frames as palette indices.
     pub(super) animations: Vec<Vec<Vec<u8>>>,
 }
@@ -206,12 +208,14 @@ pub(super) fn decode_flic(bytes: &[u8]) -> Result<Flic, String> {
     }
     let mut palette = [[0u8; 3]; 256];
     let mut animations = Vec::with_capacity(animation_count);
+    let mut frame_palettes = Vec::with_capacity(animation_count);
     let mut offset = read_u32(bytes, 80)? as usize;
     if offset < 128 || offset >= bytes.len() {
         return Err("invalid FLC first-frame offset".to_owned());
     }
     for _ in 0..animation_count {
         let mut frames: Vec<Vec<u8>> = Vec::with_capacity(frames_per_animation);
+        let mut palettes: Vec<[[u8; 3]; 256]> = Vec::with_capacity(frames_per_animation);
         for frame_index in 0..frames_per_animation {
             let frame_end = checked_end(offset, read_u32(bytes, offset)? as usize, bytes.len())?;
             if frame_end - offset < 16 {
@@ -301,6 +305,7 @@ pub(super) fn decode_flic(bytes: &[u8]) -> Result<Flic, String> {
                 return Err("FLC frame contains unaccounted bytes".to_owned());
             }
             frames.push(pixels);
+            palettes.push(palette);
             offset = frame_end;
         }
         let ring_size = read_u32(bytes, offset)? as usize;
@@ -309,6 +314,7 @@ pub(super) fn decode_flic(bytes: &[u8]) -> Result<Flic, String> {
         }
         offset = checked_end(offset, ring_size, bytes.len())?;
         animations.push(frames);
+        frame_palettes.push(palettes);
     }
     if declared_animations == 0 && file_frames == 0 {
         return Err("FLC contains no frames".to_owned());
@@ -322,13 +328,18 @@ pub(super) fn decode_flic(bytes: &[u8]) -> Result<Flic, String> {
         offset_top,
         animation_speed,
         palette,
+        frame_palettes,
         animations,
     })
 }
 
 impl Flic {
     /// Create normal-color and team-tint layers from one indexed animation frame.
-    pub(super) fn image_layers(&self, indices: &[u8]) -> Result<(Image, Image), String> {
+    fn image_layers_with_palette(
+        &self,
+        indices: &[u8],
+        palette: &[[u8; 3]; 256],
+    ) -> Result<(Image, Image), String> {
         if indices.len() != self.width * self.height {
             return Err("FLC frame pixel count does not match its dimensions".to_owned());
         }
@@ -343,7 +354,7 @@ impl Flic {
             macroquad::prelude::Color::from_rgba(0, 0, 0, 0),
         );
         for (index, &palette_index) in indices.iter().enumerate() {
-            let color = self.palette[usize::from(palette_index)];
+            let color = palette[usize::from(palette_index)];
             if palette_index < 16 || (palette_index < 64 && palette_index % 2 == 0) {
                 tint.get_image_data_mut()[index] = [255, 255, 255, 255];
             } else if (224..=239).contains(&palette_index) {
@@ -404,7 +415,12 @@ impl Flic {
         );
         for (direction, frames) in self.animations.iter().enumerate() {
             for (frame_index, frame) in frames.iter().enumerate() {
-                let (frame_base, frame_tint) = self.image_layers(frame)?;
+                let palette = self
+                    .frame_palettes
+                    .get(direction)
+                    .and_then(|palettes| palettes.get(frame_index))
+                    .unwrap_or(&self.palette);
+                let (frame_base, frame_tint) = self.image_layers_with_palette(frame, palette)?;
                 for y in 0..self.height {
                     let src_start = y * self.width;
                     let src_end = src_start + self.width;
@@ -508,14 +524,18 @@ mod tests {
         let mut palette = flic.clone();
         palette.palette[17] = [23, 45, 67];
         let frame = [0, 17, 224, 231];
-        let (base, tint) = palette.image_layers(&frame).unwrap();
+        let (base, tint) = palette
+            .image_layers_with_palette(&frame, &palette.palette)
+            .unwrap();
         assert_eq!(base.get_image_data()[0], [0, 0, 0, 0]);
         assert_eq!(tint.get_image_data()[0], [255, 255, 255, 255]);
         assert_eq!(base.get_image_data()[1], [23, 45, 67, 255]);
         assert_eq!(tint.get_image_data()[2], [0, 0, 0, 0]);
         assert_eq!(base.get_image_data()[2], [255, 255, 255, 0]);
         assert_eq!(base.get_image_data()[3], [255, 255, 255, 119]);
-        let (shadow, _) = palette.image_layers(&[240, 255, 17, 17]).unwrap();
+        let (shadow, _) = palette
+            .image_layers_with_palette(&[240, 255, 17, 17], &palette.palette)
+            .unwrap();
         assert_eq!(shadow.get_image_data()[0], [0, 0, 0, 240]);
         assert_eq!(shadow.get_image_data()[1], [0, 0, 0, 0]);
     }
