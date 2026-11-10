@@ -585,7 +585,9 @@ documentation, not as evidence for field behavior.
   also verifies that each threshold claims its next ring and not the following
   ring. The synthetic border scenario passes with population-independent reach,
   culture-based expansion, fog eligibility, and contested same-rank ownership
-  changing in both culture-total directions. These verify
+  changing in both culture-total directions. Another test verifies the
+  provisional lower-rank-first rule against a farther city with much greater
+  civilization culture. These verify
   CivCraft's selected source-based implementation branches, not the original
   Conquests border geometry or disputed post-20,000 rules.
 - `cargo test --offline obsolete_conquests_wonder_keeps_its_culture_output`
