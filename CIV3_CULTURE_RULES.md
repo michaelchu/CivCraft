@@ -344,8 +344,13 @@ documentation, not as evidence for field behavior.
   “citizens quelled by military” value. Its report says unit strength does not
   matter and excludes air, sea, artillery, settlers, and workers. Conquests'
   exported DIFF table has `MilitaryLaw=1` at all eight difficulties. The
-  runtime uses the continued CULT values, the GOVT pair matrix, and this
-  per-unit cap; the six base-government results match the article's tables.
+  runtime now determines garrison eligibility from each Conquests `PRTO`
+  unit-type, attack, defense, and bombard-strength value, rather than the
+  shared legacy unit metadata. It uses the continued CULT values, the GOVT pair
+  matrix, and this
+  per-unit cap; it excludes bombard-capable ground units, matching the article's
+  artillery exclusion using the Conquests `PRTO` bombard-strength field. The
+  six base-government results match the article's tables.
   Reusing the matrix for Fascism/Feudalism remains inferred. The method rolls
   continuing resistance per citizen, then quenches eligible failures up to the
   cap; this fits the article's example but its exact selection order is not
@@ -597,6 +602,9 @@ documentation, not as evidence for field behavior.
 - `cargo test --offline cities_with_resisters_cannot_rush_production`: passed.
 - `cargo test --offline peace_quells_only_the_signatory_nationality_in_their_cities`:
   passed; unrelated nationalities and third-party cities retain their counts.
+- `cargo test --offline artillery_does_not_quell_resistance`: a deterministic
+  case verifies that a Conquests artillery unit alone cannot reduce a city's
+  resistor count, matching the reverse-engineered exclusion rule.
 - Full `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline`:
   625 passed, 7 failed in unrelated AI advisor, civilization-start, and fogged
   city-style checks; no culture, capture, resistance, or save tests failed.

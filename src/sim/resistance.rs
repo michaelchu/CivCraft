@@ -236,12 +236,15 @@ impl Simulation {
                 .units
                 .iter()
                 .filter(|unit| {
+                    let rule = unit.kind.conquests_rule();
                     unit.owner == owner
                         && unit.transport.is_none()
                         && (unit.x, unit.y) == (city.x, city.y)
-                        && unit.kind.unit_class().is_ground()
-                        && unit.kind.is_military()
-                        && !unit.kind.is_civilian()
+                        && rule.unit_class().is_ground()
+                        && (rule.attack > 0 || rule.defense > 0)
+                        // CivFanatics' reverse-engineered rule excludes artillery;
+                        // Conquests PRTO bombard strength identifies that class.
+                        && rule.bombard_strength == 0
                 })
                 .count() as i32;
             let mut quelling_capacity =
@@ -375,6 +378,22 @@ mod tests {
         game.resolve_resistance_for_owner(HUMAN);
 
         assert_eq!(game.cities[0].resisting_citizens, [(1, 3)]);
+    }
+
+    #[test]
+    fn artillery_does_not_quell_resistance() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        game.create_city(HUMAN, 10, 24);
+        game.cities[0].size = 2;
+        game.cities[0].foreign_citizens = vec![(1, 1)];
+        game.cities[0].resisting_citizens = vec![(1, 1)];
+        game.spawn_unit(HUMAN, UnitKind::Artillery, 10, 24);
+
+        game.resolve_resistance_for_owner(HUMAN);
+
+        assert_eq!(game.cities[0].resisting_citizens, [(1, 1)]);
     }
 
     #[test]
