@@ -786,6 +786,20 @@ documentation, not as evidence for field behavior.
 
 ## Current validation (2026-11-10)
 
+- Re-unpacked the installed `../source/Conquests/conquests.biq` with
+  `/private/tmp/civ3-blast`, then regenerated all nine culture, victory,
+  resistance, and government exports to `/private/tmp/culture-repro-20261110`.
+  Each output byte-matches its checked-in counterpart. The separate
+  `export_conquests_capture_culture_flags.py` run covered 29 BIQs and its
+  `culture_capture_settings.tsv` also byte-matches. This confirms export
+  reproducibility against the installed BIQ files.
+- Latest built desktop self-test, seed 42, report
+  `/tmp/civcraft-playtest-culture-akblbb/report.json`: process exited 1 and
+  2/11 checks passed (foundation and HUD). Movement, act/economy, city tiles,
+  and worker-control checks failed; government, civil-war, and diplomacy were
+  skipped after a prerequisite failure. The report contains no culture-specific
+  assertion, so this run does not establish culture gameplay parity.
+
 - Re-ran with `CIVCRAFT_SOURCE_DIR=../source`: `cargo test --offline culture
   -- --nocapture` passed 13 culture-named checks; separate current save/load,
   peace-resistance-resolution, and Fascist-capture-suppression test invocations
