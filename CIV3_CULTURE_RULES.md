@@ -249,8 +249,20 @@ documentation, not as evidence for field behavior.
   culture as the factor when rival civilizations both have a legitimate claim,
   while this account's same-rank comparison uses local city culture. Its
   `10^n` sequence also conflicts with the Civilopedia's explicit 20,000
-  example after 10,000. Preserve these conflicts for controlled resolution.
-  Source checked 2026-11-10: [CivWiki, “Regeln der Kulturgrenzen (Civ3)”](https://civ-wiki.de/wiki/Regeln_der_Kulturgrenzen_%28Civ3%29), which attributes the rules to [CivFanatics, “The Eight Laws of Border Dynamics”](https://forums.civfanatics.com/showthread.php?t=106882); the forum page was not retrievable during this check.
+  example after 10,000. The original CivFanatics thread is now directly
+  retrievable. Its author describes static rank/culture/age/direction tie-breaks
+  and the two diagonal-fill rules, but participants dispute the equal-rank
+  culture rule: one says the city that expanded over a tile first keeps it.
+  The author later confirms a city-age effect, and another participant notes
+  diagonal-fill ownership can be superseded by a later true cultural expansion.
+  CivWiki explicitly says the model works in its experience for only the first
+  two rings and that rings three and four produce unexplained exceptions. These
+  caveats mean the published model is useful for scenario design but not a
+  resolved stock-Conquests algorithm. Preserve the conflicts for controlled
+  resolution. Sources checked 2026-11-10: [CivWiki, “Regeln der Kulturgrenzen
+  (Civ3)”](https://civ-wiki.de/wiki/Regeln_der_Kulturgrenzen_%28Civ3%29), which
+  summarizes [CivFanatics, “The Eight Laws of Border Dynamics”](https://forums.civfanatics.com/threads/the-eight-laws-of-border-dynamics.106882/),
+  posts #1–#5.
 - Current implementation status: `borders.rs` now removes city population as the
   border-growth input. It uses the Civilopedia's explicit city-culture thresholds
   through 20,000 to grant claim ranks (starting at rank 1 for a new city), then
