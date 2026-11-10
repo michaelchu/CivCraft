@@ -53,6 +53,19 @@ pub(super) fn retain_culture_on_capture() -> bool {
     })
 }
 
+/// Conquests Civilopedia's explicitly named city-culture border thresholds.
+/// Later thresholds conflict with the editor's reverse-engineered Border
+/// Factor sequence, so expansion is currently capped at the last explicit
+/// Civilopedia example until the installed game can resolve the discrepancy.
+const CITY_BORDER_CULTURE_THRESHOLDS: [i64; 5] = [10, 100, 1_000, 10_000, 20_000];
+
+pub(super) fn city_cultural_border_rank(culture: i64) -> i32 {
+    1 + CITY_BORDER_CULTURE_THRESHOLDS
+        .iter()
+        .filter(|&&threshold| culture >= threshold)
+        .count() as i32
+}
+
 fn building_culture_rules() -> &'static [BuildingCulture] {
     static RULES: OnceLock<Vec<BuildingCulture>> = OnceLock::new();
     RULES.get_or_init(|| {
@@ -313,6 +326,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn city_border_rank_advances_at_conquests_civilopedia_thresholds() {
+        let cases = [
+            (0, 1),
+            (9, 1),
+            (10, 2),
+            (99, 2),
+            (100, 3),
+            (999, 3),
+            (1_000, 4),
+            (9_999, 4),
+            (10_000, 5),
+            (19_999, 5),
+            (20_000, 6),
+            (100_000, 6),
+        ];
+        for (culture, expected_rank) in cases {
+            assert_eq!(city_cultural_border_rank(culture), expected_rank);
+        }
+    }
+
+    #[test]
     fn installed_conquests_building_culture_rates_are_loaded() {
         assert_eq!(building_culture_per_turn(Building::PALACE), Some(1));
         assert_eq!(building_culture_per_turn(Building::TEMPLE), Some(2));
@@ -482,6 +516,11 @@ mod tests {
 
         let mut at_half = game_with_rival_culture(30_000);
         at_half.check_cultural_victory();
-        assert!(at_half.game_over().unwrap().contains("civilization culture"));
+        assert!(
+            at_half
+                .game_over()
+                .unwrap()
+                .contains("civilization culture")
+        );
     }
 }

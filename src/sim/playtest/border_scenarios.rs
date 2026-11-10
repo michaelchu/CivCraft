@@ -72,6 +72,11 @@ impl Simulation {
         let (rx, ry) = point(2);
         self.create_city(HUMAN, x, y);
         self.create_city(1, rx, ry);
+        self.cities[0].size = 12;
+        self.cities[1].size = 12;
+        self.rebuild_city_ownership();
+        let (outer_x, outer_y) = point(4);
+        let population_does_not_expand = self.tile(outer_x, outer_y).owner.is_none();
         let owner = |game: &Self, step| {
             let (x, y) = point(step);
             game.tile(x, y).owner
@@ -80,30 +85,34 @@ impl Simulation {
         for tile in &mut self.tiles {
             tile.known_by[1] = false;
         }
-        self.cities[1].size = 12;
+        self.cities[1].add_culture(1, 10);
         self.rebuild_city_ownership();
         let fog_restricted = owner(self, 4).is_none();
         for tile in &mut self.tiles {
             tile.known_by[1] = true;
         }
         self.rebuild_city_ownership();
-        let fog_restricted = fog_restricted && owner(self, 4) == Some(1);
-        self.cities[0].size = 12;
+        let fog_restricted =
+            population_does_not_expand && fog_restricted && owner(self, 4) == Some(1);
         for tile in &mut self.tiles {
             tile.known_by[HUMAN] = true;
             tile.known_by[1] = true;
         }
-        self.cities[0].add_culture(HUMAN, 1000);
+        self.cities[0].add_culture(HUMAN, 1_000);
         self.rebuild_city_ownership();
-        let human_culture_wins = owner(self, 3) == Some(HUMAN);
-        self.cities[1].add_culture(1, 2000);
+        let human_culture_wins = owner(self, 1) == Some(HUMAN);
+        self.cities[1].add_culture(1, 2_000);
         self.rebuild_city_ownership();
-        let rival_culture_wins = owner(self, 3) == Some(1);
+        let rival_culture_wins = owner(self, 1) == Some(1);
         let strength = human_culture_wins && rival_culture_wins;
         let expanded = owner(self, 4) == Some(1);
-        self.cities[0].size = 1;
-        self.cities[1].size = 1;
+        self.cities[0].clear_culture_for_capture(HUMAN);
+        self.cities[1].clear_culture_for_capture(1);
         self.rebuild_city_ownership();
-        (tie, strength && fog_restricted, expanded && owner(self, 4).is_none())
+        (
+            tie,
+            strength && fog_restricted,
+            expanded && owner(self, 4).is_none(),
+        )
     }
 }

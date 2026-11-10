@@ -1,11 +1,10 @@
 //! Territory ownership and border interaction rules.
 
+use super::culture::city_cultural_border_rank;
 use super::*;
 
 #[cfg(test)]
 mod tests;
-
-const INITIAL_CITY_BORDER_RANK: i32 = 1;
 
 impl Simulation {
     pub(crate) fn displayed_tile_owner(&self, x: i32, y: i32) -> Option<usize> {
@@ -79,32 +78,25 @@ impl Simulation {
             .map(|civilization| self.civilization_culture(civilization))
             .collect();
         let claim_strength = |city: &City| {
-            // The Conquests Civilopedia identifies civilization culture as the
-            // deciding factor when rival civilizations both have a legitimate
-            // claim. Distance limits eligibility above; it does not outrank
-            // civilization culture when choosing between eligible claims.
+            // The Civilopedia identifies civilization culture as the deciding
+            // factor when rival civilizations have equally ranked claims.
             civilization_culture[city.owner]
         };
         let claimable = |city: &City, index: usize, rank: i32| {
             if rank == 0 {
                 return true;
             }
-            // The manual describes a new city's initial area as its center plus
-            // the nearest eight surrounding squares. City-size expansion below
-            // retains the existing gameplay approximation until culture borders
-            // are migrated from a size proxy to documented culture rules.
-            let max_rank = if city.size <= 1 {
-                INITIAL_CITY_BORDER_RANK
-            } else {
-                (5 + city.size.min(26)).isqrt()
-            };
+            // Conquests Civilopedia gives the city-culture thresholds; the
+            // CivWiki/CivFanatics border investigation supplies the candidate
+            // ring/rank interpretation. Later rings remain a documented lead.
+            let max_rank = city_cultural_border_rank(city.culture_for_civilization(city.owner));
             if rank == i32::MAX || rank > max_rank || !self.tiles[index].known_by[city.owner] {
                 return false;
             }
             let source = regions[self.map_wrap.index(city.x, city.y)];
             let target = regions[index];
             if source == target
-                || rank <= INITIAL_CITY_BORDER_RANK
+                || rank <= 1
                 || (sizes[target] <= 20 && !mixed[target] && surrounders[target] == Some(source))
             {
                 return true;
@@ -134,16 +126,20 @@ impl Simulation {
                     .unwrap();
                 let rank = city_distances[city_index][index];
                 if claimable(city, index, rank) {
-                    claims[index] = Some((city.id, city.owner, rank, claim_strength(city)));
+                    claims[index] = Some((
+                        city.id,
+                        city.owner,
+                        rank,
+                        claim_strength(city),
+                        city.culture_for_civilization(city.owner),
+                        city.founded_turn,
+                    ));
                 }
             }
         }
         for (city_index, city) in self.cities.iter().enumerate() {
-            let radius = if city.size <= 1 {
-                INITIAL_CITY_BORDER_RANK * 2 + 1
-            } else {
-                (5 + city.size.min(26)).isqrt() * 2 + 1
-            };
+            let max_rank = city_cultural_border_rank(city.culture_for_civilization(city.owner));
+            let radius = max_rank * 2 + 1;
             let (mx, my) = native_to_map(city.x, city.y);
             for dy in -radius..=radius {
                 for dx in -radius..=radius {
@@ -154,20 +150,37 @@ impl Simulation {
                     let index = self.map_wrap.index(x, y);
                     let rank = city_distances[city_index][index];
                     let strength = claim_strength(city);
-                    if claimable(city, index, rank)
-                        && (rank == 0
-                            || claims[index].is_none_or(|(_, _, old_rank, old_strength)| {
-                                old_rank != 0 && strength > old_strength
-                            }))
-                    {
-                        claims[index] = Some((city.id, city.owner, rank, strength));
+                    let city_culture = city.culture_for_civilization(city.owner);
+                    let replaces = claims[index].is_none_or(
+                        |(_, _, old_rank, old_strength, old_city_culture, old_founded_turn)| {
+                            rank == 0
+                                || (old_rank != 0
+                                    && (rank < old_rank
+                                        || (rank == old_rank
+                                            && (strength > old_strength
+                                                || (strength == old_strength
+                                                    && (city_culture > old_city_culture
+                                                        || (city_culture == old_city_culture
+                                                            && city.founded_turn
+                                                                < old_founded_turn)))))))
+                        },
+                    );
+                    if claimable(city, index, rank) && replaces {
+                        claims[index] = Some((
+                            city.id,
+                            city.owner,
+                            rank,
+                            strength,
+                            city_culture,
+                            city.founded_turn,
+                        ));
                     }
                 }
             }
         }
         for (tile, claim) in self.tiles.iter_mut().zip(claims) {
-            tile.border_city = claim.map(|(id, _, _, _)| id);
-            tile.owner = claim.map(|(_, owner, _, _)| owner);
+            tile.border_city = claim.map(|(id, _, _, _, _, _)| id);
+            tile.owner = claim.map(|(_, owner, _, _, _, _)| owner);
         }
         self.remember_visible_borders();
         if let Some(city_id) = city_event {

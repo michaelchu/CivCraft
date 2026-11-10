@@ -149,9 +149,10 @@ documentation, not as evidence for field behavior.
   resolution. This is base-game manual evidence; the Conquests Civilopedia is
   the edition-specific authority where details differ.
 - BIQ `RULE.BorderExpansionMultiplier` and `RULE.BorderFactor` are available in
-  the export. Neither the Civilopedia nor the extracted values alone establishes
-  the exact threshold sequence, expansion cadence, contested-claim tie breaks,
-  or border geometry. Those remain observation targets. The member name
+  the export. The Civilopedia establishes example thresholds and that they
+  trigger expansions; the extracted fields alone do not establish their engine
+  semantics, expansion cadence, contested-claim tie breaks, or border geometry.
+  Those remain observation targets. The member name
   `BorderExpansionMultiplier` is inherited from the OpenCiv3 BIQ layout parser;
   it is not verified Conquests editor terminology.
 - OpenCiv3 investigation lead only: its city code derives expansion level from
@@ -160,16 +161,16 @@ documentation, not as evidence for field behavior.
   Conquests BIQ border parameters are not used in those calculations. Neither
   that code nor its cited community source is authoritative evidence for this
   migration, so no part of that formula is adopted without Conquests
-  verification. A controlled threshold test should compare culture immediately
-  below and at 10, 100, 1,000, 10,000, and 20,000 while holding city size and
-  map context fixed; contested-claim tests should independently vary rank and
-  city culture.
+  verification. The current implementation uses the official text's listed
+  thresholds for claim-rank eligibility; controlled Conquests tests should
+  still compare immediately below, at, and above each threshold while varying
+  city size and map context, then independently vary claim rank and city culture.
 - OpenCiv3 save-format lead only: `../openciv3/QueryCiv3/SavSections/City.cs`
   identifies `NextCultureExpansionPower` and comments that 1, 2, and 3 map to
   thresholds 10, 100, and 1,000. This is consistent with some Civilopedia
   examples but does not account for the cited 20,000 threshold; it is not used
   to infer the remaining threshold sequence.
-- Additional community leads, not accepted as Conquests rules: the GameFAQs
+- Additional community leads, not confirmed as Conquests rules: the GameFAQs
   Conquests strategy guide describes five city-culture bands (0–9, 10–99,
   100–999, 1,000–9,999, and 10,000–99,999) and gives corresponding territory
   footprints of 9, 21, 37, 57, and 81 tiles. A CivFanatics editor-rules post
@@ -179,9 +180,9 @@ documentation, not as evidence for field behavior.
   expression's relationship to this BIQ's `BorderExpansionMultiplier` are not
   established. The guide's 10,000–99,999 band also does not explain the
   Civilopedia's explicit example of an expansion at 20,000. Use these reports
-  only to design an observation matrix: measure footprint and border claims
-  immediately below, at, and above each Civilopedia threshold, including
-  20,000, while recording both raw `RULE` values. Also observe the civilization
+  as provisional implementation and observation leads: measure footprint and
+  border claims immediately below, at, and above each Civilopedia threshold,
+  including 20,000, while recording both raw `RULE` values. Also observe the civilization
   culture-level label around candidate thresholds to determine whether the raw
   `BorderExpansionMultiplier=1000` value controls those levels. Sources checked
   2026-11-10: [Denouement, Civilization III:
@@ -224,6 +225,19 @@ documentation, not as evidence for field behavior.
   `10^n` sequence also conflicts with the Civilopedia's explicit 20,000
   example after 10,000. Preserve these conflicts for controlled resolution.
   Source checked 2026-11-10: [CivWiki, “Regeln der Kulturgrenzen (Civ3)”](https://civ-wiki.de/wiki/Regeln_der_Kulturgrenzen_%28Civ3%29), which attributes the rules to [CivFanatics, “The Eight Laws of Border Dynamics”](https://forums.civfanatics.com/showthread.php?t=106882); the forum page was not retrievable during this check.
+- Current implementation status: `borders.rs` now removes city population as the
+  border-growth input. It uses the Civilopedia's explicit city-culture thresholds
+  through 20,000 to grant claim ranks (starting at rank 1 for a new city), then
+  caps growth at the last threshold stated there. The ring-distance, rank-first
+  claim rule, and same-rank tie order are based on the CivWiki/CivFanatics
+  reverse-engineering lead; applying them to the installed Conquests build is an
+  inference pending controlled observation. Same-rank cross-civilization claims
+  compare total civilization culture as the Civilopedia states, then local city
+  culture and founding turn as the community account suggests. Its directional
+  final tie-break is not implemented. The `BorderFactor=10` prediction of a
+  100,000 threshold conflicts with the Civilopedia's 20,000 example; current
+  code does not extrapolate beyond 20,000. This cap and the deeper-ring geometry
+  remain known fidelity gaps, not verified Conquests behavior.
 - Technical geometry lead, not adopted as a gameplay rule: C3X's open-source
   Conquests executable mod has an ordered cultural-neighbor table and uses a
   city's engine `cultural_level` as a ring limit for its configurable work
@@ -247,18 +261,16 @@ documentation, not as evidence for field behavior.
   and founding-order ties), but is not used to define stock Conquests claims.
   Source checked 2026-11-10: [CivFanatics,
   “Border calculation”](https://forums.civfanatics.com/threads/border-calculation.75552/).
-- Implemented literal Civilopedia claim comparison: for a tile with competing
-  non-center claims, `borders.rs` prefers the civilization with the greater
-  accumulated culture, regardless of distance rank. This treats distance and
-  the existing size-based footprint only as claim eligibility, not as the
-  winner among legitimate claims. Installed `GCON_Culture` names civilization
-  culture as the factor when rival civilizations both have a legitimate claim.
-  Exact claim eligibility, equal-culture ties, city-level claim ordering, and
-  border geometry still need controlled Conquests observations; the size-based
-  expansion limit is not replaced by this change. The deterministic synthetic
-  `city_borders_playtest` now reverses the civilization culture totals while
-  holding city positions and sizes fixed and checks that an outer contested
-  tile changes owner; this validates the implementation branch, not original
+- Territory comparison implementation is a source-based synthesis rather than
+  confirmed original-game behavior: lower community-described claim rank wins;
+  among equal ranks, Civilization III Civilopedia `GCON_Culture` says greater
+  civilization culture favors the civilization, followed by local city culture
+  and founding turn per the CivFanatics reverse-engineering account. Exact
+  claim eligibility, same-turn directional ties, island/coast behavior, and
+  deeper-ring geometry still need controlled Conquests observations. The
+  deterministic synthetic `city_borders_playtest` checks culture thresholds,
+  fog eligibility, and both directions of a same-rank civilization-culture
+  comparison; it validates these implementation branches, not original
   Conquests behavior.
 - Parameter-name lead, not yet confirmed from the installed Conquests help:
   Civ III patch notes mirrored by GameFront say “Border Expansion Multiplier”
@@ -446,11 +458,13 @@ documentation, not as evidence for field behavior.
 - `src/sim/score.rs::record_history` still accumulates legacy building values
   into the score-only `history` value. It no longer drives the cultural
   achievements or the new culture ledger, but the old score calculation remains.
-- `src/sim/borders.rs` still retains city-size-based border growth and
-  claim-eligibility rules as approximations. Among eligible claims from rival
-  civilizations, the greater civilization culture now determines ownership,
-  following the installed Civilopedia. Equal-culture ties, geometry, and the
-  eligibility rules remain unresolved.
+- `src/sim/borders.rs` no longer uses city size for border reach; it uses the
+  Civilopedia's listed thresholds through 20,000. The subsequent threshold
+  sequence, ring geometry, final directional tie-break, island/coast behavior,
+  and whether community-described rank priority applies unchanged in Conquests
+  remain unverified. Current rank cap and claim ordering are provisional and
+  documented above; original Conquests observations are still required before
+  claiming parity.
 - `src/sim/cities.rs::capture_city_if_needed` initializes resistance from the
   captured nationality's civilization culture. The CULT/GOVT formulas are
   community reverse-engineered; exact behavior still needs controlled Conquests
@@ -553,6 +567,13 @@ documentation, not as evidence for field behavior.
   passed all 14 culture-named tests, including a deterministic boundary case:
   60,000 culture does not win against a living rival at 30,001, and does win
   against one at exactly 30,000. The 20,000 single-city win remains independent.
+- Added culture-threshold unit coverage for city border rank at every explicit
+  Civilopedia threshold and around each boundary. The updated synthetic border
+  scenario passes with population-independent reach, culture-based expansion,
+  fog eligibility, and contested same-rank ownership changing in both
+  culture-total directions. These verify
+  CivCraft's selected source-based implementation branches, not the original
+  Conquests border geometry or disputed post-20,000 rules.
 - Rebuilt release and ran the desktop `--self-test` with seed 42 and the
   installed source directory. The fresh report
   `/tmp/civcraft-playtest-culture-x232cJ/report.json` records 2/11 checks
