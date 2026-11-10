@@ -193,7 +193,7 @@ impl Simulation {
                 city.specialists[2] += 1;
             }
             if growth == Growth::Starved {
-                self.remove_citizen_nationalities(index, 1);
+                self.remove_resisters_first_nationalities(index, 1);
             }
             if growth == Growth::Destroyed {
                 self.release_city_support(city_id);

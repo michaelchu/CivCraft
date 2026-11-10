@@ -404,6 +404,7 @@ mod tests {
         game.create_city(HUMAN, 10, 24);
         game.create_city(1, 30, 24);
         game.cities[0].size = 11;
+        game.cities[0].food = 100;
         game.cities[0].foreign_citizens = vec![(1, 10)];
         game.cities[0].resisting_citizens = vec![(1, 10)];
         game.cities[0].add_culture(HUMAN, 300);

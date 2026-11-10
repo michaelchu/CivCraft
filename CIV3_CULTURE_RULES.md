@@ -463,6 +463,13 @@ documentation, not as evidence for field behavior.
   can end it; the peace-resolution path is implemented. Sources: [CivFanatics,
   “The Inner Workings of Resistance Revealed”](https://civfanatics.com/civ3/strategy/game-mechanics/the-inner-workings-of-resistance-revealed/);
   installed Conquests BIQ `CULT`/`GOVT`/`DIFF` sections and Civilopedia.
+- The same CivFanatics reverse-engineering article says resisters are first to
+  die from starvation and disease. CivCraft now removes from the city's
+  resisting population before other citizens on those loss paths, updating both
+  the nationality and resistance ledgers. If the loss exceeds the resistor
+  count, the remaining loss uses the existing nationality selection. This is
+  secondary evidence; neither the Conquests Civilopedia nor BIQ specifies the
+  death priority, and it remains unconfirmed in the original runtime.
 - The base manual says recaptured citizens may not resist if previously ruled
   by the current owner, while newly created citizens may. This needs a
   controlled Conquests scenario before treating it as an expansion rule.
@@ -860,6 +867,12 @@ documentation, not as evidence for field behavior.
   culture ledger after save/load. Resistance is set to a deterministic value
   after capture so this scenario validates persistence; capture's generated
   resistance is covered separately above.
+- Current worktree validation: the deterministic
+  `starvation_removes_resisting_foreign_citizens_first` and
+  `plague_removes_resisting_foreign_citizens_first` tests pass. They verify
+  ledger consistency and the secondary-source death priority in CivCraft, not
+  original Conquests runtime behavior.
+- `CIVCRAFT_SOURCE_DIR=/Users/michaelchu/Documents/projects/CivCraft/source cargo test --offline resist` passes all 17 matching tests, including resistance persistence, labor exclusion, and garrison quelling.
 - `cargo test --offline fascist_capture_suppresses_culture_until_owner_nation_is_a_majority`:
   passed; the capture path sets suppression, and culture resumes after owner
   nationality exceeds half of the population.

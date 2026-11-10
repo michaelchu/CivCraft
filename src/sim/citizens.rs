@@ -116,6 +116,64 @@ impl Simulation {
         }
     }
 
+    pub(super) fn remove_resisters_first_nationalities(
+        &mut self,
+        index: usize,
+        mut loss: i32,
+    ) -> usize {
+        let mut dominant = (self.cities[index].owner, 0);
+        while loss > 0 {
+            let resisting_total = self.cities[index]
+                .resisting_citizens
+                .iter()
+                .map(|&(_, count)| count)
+                .sum::<i32>();
+            if resisting_total == 0 {
+                break;
+            }
+
+            let mut selected = self.rand_below(resisting_total);
+            let position = self.cities[index]
+                .resisting_citizens
+                .iter()
+                .position(|&(_, count)| {
+                    if selected < count {
+                        true
+                    } else {
+                        selected -= count;
+                        false
+                    }
+                })
+                .expect("selected resister must have a nationality group");
+            let nationality = self.cities[index].resisting_citizens[position].0;
+            self.cities[index].resisting_citizens[position].1 -= 1;
+            if self.cities[index].resisting_citizens[position].1 == 0 {
+                self.cities[index].resisting_citizens.remove(position);
+            }
+            let foreign_position = self.cities[index]
+                .foreign_citizens
+                .binary_search_by_key(&nationality, |&(nation, _)| nation)
+                .expect("every resisting citizen must have a foreign nationality");
+            self.cities[index].foreign_citizens[foreign_position].1 -= 1;
+            if self.cities[index].foreign_citizens[foreign_position].1 == 0 {
+                self.cities[index].foreign_citizens.remove(foreign_position);
+            }
+
+            if dominant.1 == 0 {
+                dominant = (nationality, 1);
+            }
+            loss -= 1;
+        }
+
+        if loss > 0 {
+            let remaining_majority = self.remove_citizen_nationalities(index, loss);
+            if dominant.1 == 0 {
+                dominant.0 = remaining_majority;
+            }
+        }
+        dominant.0
+    }
+
     pub(super) fn assimilate_citizen(&mut self, index: usize) {
         let city = &self.cities[index];
         if city.foreign_citizens.is_empty() {
@@ -190,6 +248,22 @@ mod tests {
         assert_eq!(game.cities[0].culture_for_civilization(1), 125);
         assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 40);
         assert_eq!(game.cities[0].total_culture(), 165);
+    }
+
+    #[test]
+    fn starvation_removes_resisting_foreign_citizens_first() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        let city = &mut game.cities[0];
+        city.size = 4;
+        city.foreign_citizens = vec![(1, 1), (2, 2)];
+        city.resisting_citizens = vec![(2, 1)];
+        city.size -= 1;
+
+        game.remove_resisters_first_nationalities(0, 1);
+
+        assert_eq!(game.cities[0].foreign_citizens, [(1, 1), (2, 1)]);
+        assert!(game.cities[0].resisting_citizens.is_empty());
     }
 
     #[test]
