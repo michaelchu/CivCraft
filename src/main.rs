@@ -16,7 +16,7 @@ mod rules;
 mod sim;
 mod visual_test;
 
-use client::{Assets, Game, MusicPlayer, Tileset, UiAction, window_conf};
+use client::{Assets, Game, MusicPlayer, Tileset, UiAction, UnitSoundPlayer, window_conf};
 use macroquad::prelude::*;
 use std::{env, fs, path::Path};
 
@@ -218,6 +218,7 @@ async fn main() {
     game.autosave_enabled = !automated;
     game.intro_open = !automated && !args.iter().any(|arg| arg == "--load");
     let mut music = MusicPlayer::new(!automated);
+    let mut unit_sounds = UnitSoundPlayer::new(!automated);
     if ui_review.is_some() {
         client::set_review_pointer(Some(vec2(-1.0, -1.0)));
     }
@@ -320,6 +321,19 @@ async fn main() {
         }
         let draw_started = ui_profile.as_ref().map(|_| std::time::Instant::now());
         buttons = game.draw(&assets);
+        let sound_requests = game
+            .take_unit_sound_requests()
+            .into_iter()
+            .filter_map(|request| {
+                let era = game.sim.research_era(request.unit.owner).index();
+                assets
+                    .unit_sound_path(request.unit.kind, era, &request.action)
+                    .map(|path| (path, request.delay_seconds))
+            })
+            .collect::<Vec<_>>();
+        unit_sounds
+            .update(sound_requests, game.sfx_muted, game.sfx_volume)
+            .await;
         if let (Some(scene), Some(started)) = (scene, draw_started) {
             let profile = ui_profile.as_mut().unwrap();
             profile.draw(

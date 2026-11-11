@@ -122,11 +122,15 @@ impl Simulation {
                 kind.name()
             ));
         }
+        self.publish_visual_event(VisualEvent::WorkStarted {
+            unit: self.units[index].clone(),
+            kind,
+        });
         true
     }
 
     pub(in crate::sim) fn fortify_unit(&mut self, unit_id: u32) -> bool {
-        let (owner, name) = {
+        let (owner, name, unit) = {
             let Some(unit) = self.units.iter_mut().find(|u| u.id == unit_id) else {
                 return false;
             };
@@ -134,11 +138,12 @@ impl Simulation {
                 return false;
             }
             unit.state = UnitState::Fortifying;
-            (unit.owner, unit.kind.name())
+            (unit.owner, unit.kind.name(), unit.clone())
         };
         if owner == HUMAN {
             self.add_event(format!("{name} will be fortified next turn."));
         }
+        self.publish_visual_event(VisualEvent::Fortify { unit });
         true
     }
 

@@ -29,14 +29,26 @@ pub(crate) enum VisualEvent {
     FoundCity {
         unit: Unit,
     },
+    /// A successfully started worker action has a one-shot presentation sound.
+    WorkStarted {
+        unit: Unit,
+        kind: WorkKind,
+    },
+    /// A unit successfully entered its fortifying action.
+    Fortify {
+        unit: Unit,
+    },
     Combat(Box<CombatVisual>),
 }
+
 impl VisualEvent {
     pub(crate) fn actors(&self) -> impl Iterator<Item = &Unit> {
         let (first, second) = match self {
-            Self::Move { unit, .. } | Self::Capture { unit } | Self::FoundCity { unit } => {
-                (unit, None)
-            }
+            Self::Move { unit, .. }
+            | Self::Capture { unit }
+            | Self::FoundCity { unit }
+            | Self::WorkStarted { unit, .. }
+            | Self::Fortify { unit } => (unit, None),
             Self::Combat(combat) => (&combat.attacker, Some(&combat.defender)),
         };
         std::iter::once(first).chain(second)
@@ -44,6 +56,7 @@ impl VisualEvent {
     pub(crate) fn duration(&self) -> f64 {
         match self {
             Self::Move { .. } => 0.030, // native smooth_move_unit_msec
+            Self::WorkStarted { .. } | Self::Fortify { .. } => 0.0,
             // The original Settler, Worker, ICBM, and Tactical Nuke INIs use
             // a 0.5 second CAPTURE action; for nuclear units this is launch.
             Self::Capture { .. } => 0.5,
@@ -85,6 +98,9 @@ impl Simulation {
                 unit.owner == HUMAN || self.unit_visible_to_human(&observed)
             }
             VisualEvent::Capture { unit } | VisualEvent::FoundCity { unit } => {
+                unit.owner == HUMAN || self.unit_visible_to_human(unit)
+            }
+            VisualEvent::WorkStarted { unit, .. } | VisualEvent::Fortify { unit } => {
                 unit.owner == HUMAN || self.unit_visible_to_human(unit)
             }
             VisualEvent::Combat(combat) => {

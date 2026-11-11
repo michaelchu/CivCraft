@@ -6,6 +6,8 @@ use std::collections::{BTreeMap, VecDeque};
 pub(super) struct Playback {
     events: VecDeque<VisualEvent>,
     started: f64,
+    front_sound_started: bool,
+    sound_requests: VecDeque<super::unit_sound::UnitSoundRequest>,
     pub(super) review_progress: Option<f32>,
 }
 impl Playback {
@@ -17,22 +19,37 @@ impl Playback {
         self.events.extend(incoming);
         // Native clients cap simultaneous animation work too. Keep this
         // bounded even when an entire AI turn generates many visible steps.
+        let mut dropped_front = false;
         while self.events.len() > 256 {
             self.events.pop_front();
+            dropped_front = true;
+        }
+        if dropped_front {
+            self.front_sound_started = false;
         }
         if self.review_progress.is_some() {
             return;
         }
         while let Some(event) = self.events.front() {
+            if !self.front_sound_started {
+                self.sound_requests.extend(sound_requests(event));
+                self.front_sound_started = true;
+            }
             if now - self.started < event.duration() {
                 break;
             }
             self.started += event.duration();
             self.events.pop_front();
+            self.front_sound_started = false;
         }
+    }
+    pub(super) fn take_sound_requests(&mut self) -> VecDeque<super::unit_sound::UnitSoundRequest> {
+        std::mem::take(&mut self.sound_requests)
     }
     pub(super) fn finish(&mut self) {
         self.events.clear();
+        self.sound_requests.clear();
+        self.front_sound_started = false;
         self.review_progress = None;
     }
     fn progress(&self) -> f32 {
@@ -96,6 +113,7 @@ impl Playback {
             VisualEvent::Capture { unit } | VisualEvent::FoundCity { unit } => {
                 vec![(unit.clone(), vec2(0.0, 0.0))]
             }
+            VisualEvent::WorkStarted { .. } | VisualEvent::Fortify { .. } => Vec::new(),
             VisualEvent::Combat(combat) => {
                 // Keep the last 100 ms for the reference five-frame explosion.
                 let battle_fraction = ((event.duration() - 0.100) / event.duration()) as f32;
@@ -109,11 +127,65 @@ impl Playback {
         }
     }
 }
+
+fn sound_requests(event: &VisualEvent) -> Vec<super::unit_sound::UnitSoundRequest> {
+    let request =
+        |unit: &Unit, action: &str, delay_seconds: f64| super::unit_sound::UnitSoundRequest {
+            unit: unit.clone(),
+            action: action.to_owned(),
+            delay_seconds,
+        };
+    match event {
+        VisualEvent::Move { unit, .. } => vec![request(unit, "RUN", 0.0)],
+        VisualEvent::Capture { unit } => vec![request(unit, "CAPTURE", 0.0)],
+        VisualEvent::FoundCity { unit } => vec![request(unit, "BUILD", 0.0)],
+        VisualEvent::WorkStarted { unit, kind } => {
+            let action = match kind {
+                WorkKind::Road | WorkKind::Railroad => "ROAD",
+                WorkKind::Mine | WorkKind::OilWell | WorkKind::OilPlatform => "MINE",
+                WorkKind::Irrigation | WorkKind::Farmland | WorkKind::Cultivate => "IRRIGATE",
+                WorkKind::Plant => "PLANT",
+                WorkKind::BuildBase(Base::Fortress) => "FORTRESS",
+                WorkKind::BuildBase(_) | WorkKind::Clean(_) => "BUILD",
+                WorkKind::Pillage(_) => return Vec::new(),
+            };
+            vec![request(unit, action, 0.0)]
+        }
+        VisualEvent::Fortify { unit } => vec![request(unit, "FORTIFY", 0.0)],
+        VisualEvent::Combat(combat) => {
+            let steps = combat.hp.len().saturating_sub(1).max(1);
+            let mut requests = Vec::with_capacity(steps * 2 + 2);
+            for index in 0..steps {
+                let delay = event.duration() * index as f64 / steps as f64;
+                let attack = ["ATTACK1", "ATTACK2", "ATTACK3"][index % 3];
+                requests.push(request(&combat.attacker, attack, delay));
+                requests.push(request(&combat.defender, "DEFEND", delay));
+            }
+            if let Some((attacker_hp, defender_hp)) = combat.hp.last().copied() {
+                let end = event.duration() * 0.90;
+                if attacker_hp <= 0 {
+                    requests.push(request(&combat.attacker, "DEATH", end));
+                    requests.push(request(&combat.defender, "VICTORY", end));
+                } else if defender_hp <= 0 {
+                    requests.push(request(&combat.defender, "DEATH", end));
+                    requests.push(request(&combat.attacker, "VICTORY", end));
+                }
+            }
+            requests
+        }
+    }
+}
 impl Game {
     pub(super) fn draw_playback(&self, assets: &Assets) {
         let Some(event) = self.playback.events.front() else {
             return;
         };
+        if matches!(
+            event,
+            VisualEvent::WorkStarted { .. } | VisualEvent::Fortify { .. }
+        ) {
+            return;
+        }
         let project = |x, y| self.world_screen_position(x, y);
         let progress = self.playback.progress();
         for (unit, phase) in self.playback.active() {
@@ -134,14 +206,19 @@ impl Game {
                 VisualEvent::Capture { .. } => Action::Capture,
                 VisualEvent::FoundCity { .. } => Action::Build,
                 VisualEvent::Combat(combat) => {
-                    let (attacker_hp, defender_hp) = combat
-                        .hp
-                        .get(phase.y as usize)
-                        .copied()
-                        .unwrap_or_default();
+                    let (attacker_hp, defender_hp) =
+                        combat.hp.get(phase.y as usize).copied().unwrap_or_default();
                     let is_attacker = unit.id == combat.attacker.id;
-                    let unit_hp = if is_attacker { attacker_hp } else { defender_hp };
-                    let opponent_hp = if is_attacker { defender_hp } else { attacker_hp };
+                    let unit_hp = if is_attacker {
+                        attacker_hp
+                    } else {
+                        defender_hp
+                    };
+                    let opponent_hp = if is_attacker {
+                        defender_hp
+                    } else {
+                        attacker_hp
+                    };
                     if progress >= 0.90 && unit_hp <= 0 {
                         Action::Death
                     } else if progress >= 0.90 && opponent_hp <= 0 {
@@ -156,6 +233,7 @@ impl Game {
                         Action::Defend
                     }
                 }
+                VisualEvent::WorkStarted { .. } | VisualEvent::Fortify { .. } => Action::Default,
             };
             self.draw_unit(
                 assets,
@@ -250,5 +328,167 @@ mod tests {
         assert!(!playback.pending());
         assert!(playback.overrides().is_empty());
         assert!(playback.city_overrides().is_empty());
+    }
+
+    #[test]
+    fn movement_sound_request_is_emitted_once_when_the_event_starts() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (id, _) = sim.ui_review_animation_setup(false);
+        assert!(sim.apply(Command::Move(id, 1, 0)));
+        let mut playback = Playback::default();
+        playback.update(&mut sim, 10.0);
+        let requests = playback.take_sound_requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].unit.id, id);
+        assert_eq!(requests[0].action, "RUN");
+        playback.update(&mut sim, 10.01);
+        assert!(playback.take_sound_requests().is_empty());
+    }
+
+    #[test]
+    fn combat_sounds_follow_each_attack_and_terminal_result() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (attacker_id, _) = sim.ui_review_animation_setup(true);
+        let attacker = sim.unit_by_id(attacker_id).unwrap().clone();
+        let defender = sim
+            .units()
+            .iter()
+            .find(|unit| unit.owner != HUMAN)
+            .unwrap()
+            .clone();
+        let event = VisualEvent::Combat(Box::new(CombatVisual {
+            attacker,
+            defender,
+            hp: vec![(3, 3), (2, 1), (2, 0)],
+            city: None,
+            bombard_effects: false,
+            territory: Vec::new(),
+        }));
+        let requests = sound_requests(&event);
+        assert_eq!(
+            requests
+                .iter()
+                .map(|request| request.action.as_str())
+                .collect::<Vec<_>>(),
+            ["ATTACK1", "DEFEND", "ATTACK2", "DEFEND", "DEATH", "VICTORY"]
+        );
+        assert!(requests[2].delay_seconds > requests[0].delay_seconds);
+        assert!(requests[4].delay_seconds > requests[2].delay_seconds);
+    }
+
+    #[test]
+    fn worker_order_uses_its_ini_action_name() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (id, _) = sim.ui_review_animation_setup(false);
+        let unit = sim.unit_by_id(id).unwrap().clone();
+        let requests = sound_requests(&VisualEvent::WorkStarted {
+            unit,
+            kind: WorkKind::Mine,
+        });
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].action, "MINE");
+    }
+
+    #[test]
+    fn unit_events_use_the_matching_ini_sound_action() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (id, _) = sim.ui_review_animation_setup(false);
+        let unit = sim.unit_by_id(id).unwrap().clone();
+
+        for (event, expected_action) in [
+            (
+                VisualEvent::Move {
+                    unit: unit.clone(),
+                    from: (0, 0),
+                    to: (1, 0),
+                },
+                "RUN",
+            ),
+            (VisualEvent::Capture { unit: unit.clone() }, "CAPTURE"),
+            (VisualEvent::FoundCity { unit: unit.clone() }, "BUILD"),
+            (VisualEvent::Fortify { unit: unit.clone() }, "FORTIFY"),
+        ] {
+            let requests = sound_requests(&event);
+            assert_eq!(requests.len(), 1, "{expected_action} request count");
+            assert_eq!(requests[0].unit.id, unit.id);
+            assert_eq!(requests[0].action, expected_action);
+            assert_eq!(requests[0].delay_seconds, 0.0);
+        }
+    }
+
+    #[test]
+    fn worker_orders_map_to_their_ini_sound_actions() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (id, _) = sim.ui_review_animation_setup(false);
+        let unit = sim.unit_by_id(id).unwrap().clone();
+        let cases = [
+            (WorkKind::Road, Some("ROAD")),
+            (WorkKind::Railroad, Some("ROAD")),
+            (WorkKind::Mine, Some("MINE")),
+            (WorkKind::OilWell, Some("MINE")),
+            (WorkKind::OilPlatform, Some("MINE")),
+            (WorkKind::Irrigation, Some("IRRIGATE")),
+            (WorkKind::Farmland, Some("IRRIGATE")),
+            (WorkKind::Cultivate, Some("IRRIGATE")),
+            (WorkKind::Plant, Some("PLANT")),
+            (WorkKind::BuildBase(Base::Fortress), Some("FORTRESS")),
+            (WorkKind::BuildBase(Base::Fort), Some("BUILD")),
+            (WorkKind::BuildBase(Base::Airstrip), Some("BUILD")),
+            (WorkKind::BuildBase(Base::Airbase), Some("BUILD")),
+            (WorkKind::Clean(Contamination::Pollution), Some("BUILD")),
+            (WorkKind::Clean(Contamination::Fallout), Some("BUILD")),
+            (WorkKind::Clean(Contamination::Craters), Some("BUILD")),
+            (WorkKind::Pillage(PillageTarget::Road), None),
+        ];
+
+        for (kind, expected_action) in cases {
+            let requests = sound_requests(&VisualEvent::WorkStarted {
+                unit: unit.clone(),
+                kind,
+            });
+            match expected_action {
+                Some(action) => {
+                    assert_eq!(requests.len(), 1, "{kind:?} request count");
+                    assert_eq!(requests[0].unit.id, unit.id);
+                    assert_eq!(requests[0].action, action, "{kind:?}");
+                }
+                None => assert!(requests.is_empty(), "{kind:?} should stay silent"),
+            }
+        }
+    }
+
+    #[test]
+    fn combat_sound_uses_death_and_victory_for_either_loser() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (attacker_id, _) = sim.ui_review_animation_setup(true);
+        let attacker = sim.unit_by_id(attacker_id).unwrap().clone();
+        let defender = sim
+            .units()
+            .iter()
+            .find(|unit| unit.owner != HUMAN)
+            .unwrap()
+            .clone();
+
+        for (hp, loser_id, winner_id) in [
+            (vec![(3, 3), (0, 2)], attacker.id, defender.id),
+            (vec![(3, 3), (2, 0)], defender.id, attacker.id),
+        ] {
+            let event = VisualEvent::Combat(Box::new(CombatVisual {
+                attacker: attacker.clone(),
+                defender: defender.clone(),
+                hp,
+                city: None,
+                bombard_effects: false,
+                territory: Vec::new(),
+            }));
+            let requests = sound_requests(&event);
+            assert_eq!(requests.len(), 4);
+            assert_eq!(requests[2].action, "DEATH");
+            assert_eq!(requests[2].unit.id, loser_id);
+            assert_eq!(requests[3].action, "VICTORY");
+            assert_eq!(requests[3].unit.id, winner_id);
+            assert!(requests[2].delay_seconds > requests[1].delay_seconds);
+            assert!(requests[3].delay_seconds > requests[1].delay_seconds);
+        }
     }
 }

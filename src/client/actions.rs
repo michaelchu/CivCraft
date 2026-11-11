@@ -14,6 +14,8 @@ impl Game {
                     | UiAction::ToggleMusicPanel
                     | UiAction::ToggleMusicMute
                     | UiAction::AdjustMusicVolume(_)
+                    | UiAction::ToggleSfxMute
+                    | UiAction::AdjustSfxVolume(_)
             )
         {
             return;
@@ -26,6 +28,11 @@ impl Game {
             UiAction::AdjustMusicVolume(delta) => {
                 self.music_volume =
                     (i16::from(self.music_volume) + i16::from(delta) * 10).clamp(0, 100) as u8;
+            }
+            UiAction::ToggleSfxMute => self.sfx_muted = !self.sfx_muted,
+            UiAction::AdjustSfxVolume(delta) => {
+                self.sfx_volume =
+                    (i16::from(self.sfx_volume) + i16::from(delta) * 10).clamp(0, 100) as u8;
             }
             UiAction::RaiseRate(index) => {
                 self.sim.apply(Command::RaiseRate(index));

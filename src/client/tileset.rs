@@ -471,6 +471,11 @@ struct UnitAnimationSource {
     fast_speed: Option<u32>,
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct UnitSoundSource {
+    pub(super) path: PathBuf,
+}
+
 impl Theme {
     fn resolve_theme_file(&self, reference: &str) -> Result<PathBuf, String> {
         if Path::new(reference).is_absolute() && Path::new(reference).is_file() {
@@ -574,7 +579,7 @@ fn expand_unit_animation_ini(
     theme: &Theme,
     role: &str,
     relative_path: &str,
-) -> Result<Vec<UnitAnimationSource>, String> {
+) -> Result<(Vec<UnitAnimationSource>, HashMap<String, UnitSoundSource>), String> {
     let ini_path = theme.resolve_theme_file(relative_path)?;
     let contents = fs::read_to_string(&ini_path)
         .map_err(|error| format!("{}: {error}", ini_path.display()))?;
@@ -584,6 +589,7 @@ fn expand_unit_animation_ini(
     let mut normal_speed = None;
     let mut fast_speed = None;
     let mut animations = Vec::new();
+    let mut sounds = HashMap::new();
     for line in contents.lines() {
         let line = line.split(';').next().unwrap_or_default().trim();
         if line.is_empty() || line.starts_with('#') {
@@ -643,6 +649,16 @@ fn expand_unit_animation_ini(
                 }
                 *slot = Some(speed);
             }
+            "SOUND EFFECTS" if !value.is_empty() => {
+                if let Ok(path) = theme.resolve_unit_file(&ini_path, value) {
+                    sounds.insert(action, UnitSoundSource { path });
+                } else {
+                    eprintln!(
+                        "{}: sound file '{value}' was not found; skipping it",
+                        ini_path.display()
+                    );
+                }
+            }
             _ => {}
         }
     }
@@ -663,7 +679,7 @@ fn expand_unit_animation_ini(
             ini_path.display()
         ));
     }
-    Ok(animations)
+    Ok((animations, sounds))
 }
 
 fn unit_animation_suffix(action: &str) -> String {
@@ -1105,6 +1121,7 @@ pub(super) struct Civ3 {
     unit_art: RefCell<HashMap<String, Civ3UnitArt>>,
     unit_cursor: Civ3UnitCursor,
     unit_animation_sources: HashMap<String, UnitAnimationSource>,
+    unit_sound_sources: HashMap<String, HashMap<String, UnitSoundSource>>,
     animation_pacing: super::unit_animation_pacing::UnitAnimationPacing,
     river_delta: Texture2D,
     river_mountain: Texture2D,
@@ -1453,6 +1470,7 @@ impl Civ3 {
             .filter(|(role, _)| role.starts_with("unit-"))
             .collect::<Vec<_>>();
         let mut resolved_unit_paths = HashMap::<String, UnitAnimationSource>::new();
+        let mut unit_sound_sources = HashMap::<String, HashMap<String, UnitSoundSource>>::new();
         for (role, relative_path) in unit_paths.iter().copied().filter(|(_, path)| {
             !Path::new(path)
                 .extension()
@@ -1474,7 +1492,11 @@ impl Civ3 {
                 .extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("ini"))
         }) {
-            for animation in expand_unit_animation_ini(&theme, role, relative_path)? {
+            let (animations, sounds) = expand_unit_animation_ini(&theme, role, relative_path)?;
+            if !sounds.is_empty() {
+                unit_sound_sources.entry(role.clone()).or_insert(sounds);
+            }
+            for animation in animations {
                 resolved_unit_paths
                     .entry(animation.role.clone())
                     .or_insert(animation);
@@ -1531,6 +1553,7 @@ impl Civ3 {
             unit_art: RefCell::default(),
             unit_cursor,
             unit_animation_sources: resolved_unit_paths,
+            unit_sound_sources,
             animation_pacing,
             river_delta,
             river_mountain,
@@ -1618,6 +1641,25 @@ impl Civ3 {
         } else {
             role
         }
+    }
+
+    pub(super) fn unit_sound_source(
+        &self,
+        kind: UnitKind,
+        era: usize,
+        action: &str,
+    ) -> Option<&UnitSoundSource> {
+        let role = self.unit_animation_role(kind, era);
+        let base_role = super::sprite_metadata::unit_art_role(kind);
+        let action = action.to_ascii_uppercase();
+        self.unit_sound_sources
+            .get(&role)
+            .and_then(|sounds| sounds.get(&action))
+            .or_else(|| {
+                self.unit_sound_sources
+                    .get(&base_role)
+                    .and_then(|sounds| sounds.get(&action))
+            })
     }
 
     fn load_unit_animation(&self, role: &str) -> Result<(), String> {
@@ -2459,7 +2501,7 @@ mod tests {
         let ini = unit_directory.join("Berserk.INI");
         fs::write(
             &ini,
-            "[Speed]\nFast Speed=225\n[Animations]\nDEFAULT=Default.flc\nRUN=Run.flc\nATTACK1=AttackA.flc\nATTACK2=..\\..\\..\\..\\Art\\Units\\Longbowman\\AttackB.FLC\nDEATH=Death.flc\nFIDGET=Fidget.flc\nCAPTURE=Capture.flc\n[Timing]\nDEFAULT=0.5\nRUN=0.25\nATTACK1=0.4\nATTACK2=0.75\nDEATH=0.8\nFIDGET=1.25\nCAPTURE=0.5\n",
+            "[Speed]\nFast Speed=225\n[Animations]\nDEFAULT=Default.flc\nRUN=Run.flc\nATTACK1=AttackA.flc\nATTACK2=..\\..\\..\\..\\Art\\Units\\Longbowman\\AttackB.FLC\nDEATH=Death.flc\nFIDGET=Fidget.flc\nCAPTURE=Capture.flc\n[Timing]\nDEFAULT=0.5\nRUN=0.25\nATTACK1=0.4\nATTACK2=0.75\nDEATH=0.8\nFIDGET=1.25\nCAPTURE=0.5\n[Sound Effects]\nATTACK1=Attack.wav\nRUN=Run.amb\nBLANK=\n",
         )
         .unwrap();
         for filename in [
@@ -2472,10 +2514,12 @@ mod tests {
         ] {
             fs::write(unit_directory.join(filename), b"stub").unwrap();
         }
+        fs::write(unit_directory.join("Attack.wav"), b"wav").unwrap();
+        fs::write(unit_directory.join("Run.amb"), b"amb").unwrap();
         let shared_attack = shared_directory.join("AttackB.flc");
         fs::write(&shared_attack, b"stub").unwrap();
         let theme = Theme::read(&directory.join("civ3PTW/Art")).unwrap();
-        let animations =
+        let (animations, sounds) =
             expand_unit_animation_ini(&theme, "unit-berserk", "Units/Berserk/Berserk.INI").unwrap();
         let by_role = animations
             .iter()
@@ -2494,6 +2538,8 @@ mod tests {
                 .starts_with(&shared_directory)
         );
         assert!(by_role["unit-berserk-attack-2"].path.is_file());
+        assert!(sounds["ATTACK1"].path.ends_with("Attack.wav"));
+        assert!(sounds["RUN"].path.ends_with("Run.amb"));
         fs::remove_file(ini).unwrap();
         fs::remove_dir_all(directory).unwrap();
     }

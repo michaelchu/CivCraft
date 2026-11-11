@@ -30,6 +30,17 @@ pub(crate) struct Assets {
 }
 
 impl Assets {
+    pub(crate) fn unit_sound_path(
+        &self,
+        kind: crate::sim::UnitKind,
+        era: usize,
+        action: &str,
+    ) -> Option<std::path::PathBuf> {
+        self.civ3
+            .unit_sound_source(kind, era, action)
+            .map(|source| source.path.clone())
+    }
+
     fn legacy_portrait_slot(civilization_id: &str) -> Option<usize> {
         match civilization_id {
             "rome" => Some(0),

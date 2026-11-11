@@ -54,6 +54,8 @@ mod movement;
 mod presentation;
 mod resistance;
 pub(crate) use presentation::VisualEvent;
+#[cfg(test)]
+pub(crate) use presentation::CombatVisual;
 mod normal_paths;
 mod observed_map;
 mod pathfinding;

@@ -13,12 +13,14 @@
 //! through the normal frame path.
 
 mod actions;
+mod amb;
 mod assets;
 mod audio;
 mod sprite_metadata;
 pub(crate) use assets::{Assets, window_conf};
 pub(crate) use audio::MusicPlayer;
 use sprite_metadata::{player_color, unit_art_role};
+pub(crate) use unit_sound::UnitSoundPlayer;
 
 pub(crate) fn native_campaign_unit_art_playtest() -> (bool, bool, bool) {
     let roster = UnitKind::ALL_NATIVE;
@@ -62,8 +64,9 @@ pub(crate) use tileset::Tileset;
 mod territory;
 mod ui;
 mod ui_review;
-mod unit_animation_pacing;
 mod unit_actions;
+mod unit_animation_pacing;
+mod unit_sound;
 mod world;
 pub(crate) use render_backend::{RenderBackend, create as create_renderer};
 pub(crate) use ui::set_review_pointer;
@@ -113,6 +116,8 @@ pub(crate) enum UiAction {
     ToggleMusicPanel,
     ToggleMusicMute,
     AdjustMusicVolume(i8),
+    ToggleSfxMute,
+    AdjustSfxVolume(i8),
     ActionPage(usize),
     EndTurn,
     LaunchSpaceship,
@@ -193,6 +198,8 @@ pub(crate) struct Game {
     pub(crate) music_open: bool,
     pub(crate) music_muted: bool,
     pub(crate) music_volume: u8,
+    pub(crate) sfx_muted: bool,
+    pub(crate) sfx_volume: u8,
     pub(crate) selected_unit: Option<u32>,
     selected_city: Option<u32>,
     pending_city_view: Option<u32>,
@@ -230,6 +237,8 @@ pub(crate) struct Game {
     research_drag: Option<Vec2>,
     pub(crate) hud_elements_drawn: usize,
     playback: presentation::Playback,
+    unit_sound_requests: std::collections::VecDeque<unit_sound::UnitSoundRequest>,
+    fidget_sound_cycle: Option<(u32, i64)>,
     dragging: bool,
     drag_last: Vec2,
 }
@@ -281,6 +290,8 @@ impl Game {
             music_open: false,
             music_muted: false,
             music_volume: 50,
+            sfx_muted: false,
+            sfx_volume: 50,
             selected_unit,
             selected_city: None,
             pending_city_view: None,
@@ -318,6 +329,8 @@ impl Game {
             research_drag: None,
             hud_elements_drawn: 0,
             playback: Default::default(),
+            unit_sound_requests: Default::default(),
+            fidget_sound_cycle: None,
             dragging: false,
             drag_last: vec2(0.0, 0.0),
         }
@@ -415,6 +428,13 @@ impl Game {
     pub(crate) fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         self.normalize_camera();
         self.playback.update(&mut self.sim, get_time());
+        self.unit_sound_requests
+            .extend(self.playback.take_sound_requests());
+        if !self.research_open && !self.spaceship_open && !self.intro_open {
+            self.queue_fidget_sound(assets);
+        } else {
+            self.fidget_sound_cycle = None;
+        }
         if !self.playback.pending()
             && let Some(city) = self.pending_city_view.take()
         {
@@ -527,6 +547,49 @@ impl Game {
             }
         }
         actions
+    }
+
+    fn queue_fidget_sound(&mut self, assets: &Assets) {
+        let Some(id) = self.selected_unit else {
+            self.fidget_sound_cycle = None;
+            return;
+        };
+        let Some(unit) = self.sim.units().iter().find(|unit| unit.id == id).cloned() else {
+            self.fidget_sound_cycle = None;
+            return;
+        };
+        if self.playback.is_active(id)
+            || unit.work_kind.is_some()
+            || !matches!(
+                unit.state,
+                UnitState::Idle | UnitState::Sentry | UnitState::AirSuperiority
+            )
+        {
+            self.fidget_sound_cycle = None;
+            return;
+        }
+        let pacing = assets.civ3.fidget_pacing(unit.kind);
+        let period = pacing.play_seconds + pacing.rest_seconds;
+        if period <= 0.0 {
+            return;
+        }
+        let now = get_time() as f32;
+        let cycle = (now / period).floor() as i64;
+        let phase = now.rem_euclid(period);
+        let cycle_key = (unit.id, cycle);
+        if phase < pacing.play_seconds && self.fidget_sound_cycle != Some(cycle_key) {
+            self.unit_sound_requests
+                .push_back(unit_sound::UnitSoundRequest {
+                    unit,
+                    action: "FIDGET".to_owned(),
+                    delay_seconds: 0.0,
+                });
+            self.fidget_sound_cycle = Some(cycle_key);
+        }
+    }
+
+    pub(crate) fn take_unit_sound_requests(&mut self) -> Vec<unit_sound::UnitSoundRequest> {
+        self.unit_sound_requests.drain(..).collect()
     }
 }
 

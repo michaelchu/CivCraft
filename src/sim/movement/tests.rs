@@ -130,6 +130,7 @@ fn captured_settler_becomes_two_workers_with_original_nationality() {
 #[test]
 fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.enable_visual_events();
     game.units.clear();
     game.cities.clear();
     game.players[HUMAN].government = Government::Monarchy;
@@ -141,6 +142,10 @@ fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
     game.tile_mut(12, 24).terrain = Terrain::Forest;
 
     assert!(game.begin_work(native, WorkKind::Cultivate));
+    assert!(matches!(
+        game.take_visual_events().front(),
+        Some(VisualEvent::WorkStarted { unit, kind: WorkKind::Cultivate }) if unit.id == native
+    ));
     assert!(game.begin_work(foreign, WorkKind::Cultivate));
     let native_unit = game.unit_by_id(native).unwrap().clone();
     let foreign_unit = game.unit_by_id(foreign).unwrap().clone();

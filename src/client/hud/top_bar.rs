@@ -172,15 +172,15 @@ impl Game {
         }
         actions.push((music_rect, UiAction::ToggleMusicPanel));
         if music_rect.contains(ui_pointer()) {
-            tooltip = Some((music_rect, "Music controls".to_owned()));
+            tooltip = Some((music_rect, "Audio controls".to_owned()));
         }
 
         if self.music_open {
-            let panel = Rect::new(width - HUD_MARGIN - 190.0, TOP_H + 4.0, 190.0, 73.0);
+            let panel = Rect::new(width - HUD_MARGIN - 190.0, TOP_H + 4.0, 190.0, 132.0);
             draw_hud_card(panel);
             draw_text("Music", panel.x + 10.0, panel.y + 19.0, 14.0, GOLD);
 
-            let mute = Rect::new(panel.x + 9.0, panel.y + 31.0, 66.0, 30.0);
+            let mute = Rect::new(panel.x + 9.0, panel.y + 25.0, 66.0, 30.0);
             draw_ui_button(
                 mute,
                 if self.music_muted { "Muted" } else { "On" },
@@ -189,7 +189,7 @@ impl Game {
             );
             actions.push((mute, UiAction::ToggleMusicMute));
 
-            let down = Rect::new(panel.x + 83.0, panel.y + 31.0, 28.0, 30.0);
+            let down = Rect::new(panel.x + 83.0, panel.y + 25.0, 28.0, 30.0);
             draw_ui_button(down, "−", self.music_volume > 0, false);
             if self.music_volume > 0 {
                 actions.push((down, UiAction::AdjustMusicVolume(-1)));
@@ -199,14 +199,43 @@ impl Game {
             draw_text(
                 &volume,
                 panel.x + 117.0 - volume_width * 0.5,
-                panel.y + 50.0,
+                panel.y + 44.0,
                 13.0,
                 WHITE,
             );
-            let up = Rect::new(panel.x + 133.0, panel.y + 31.0, 28.0, 30.0);
+            let up = Rect::new(panel.x + 133.0, panel.y + 25.0, 28.0, 30.0);
             draw_ui_button(up, "+", self.music_volume < 100, false);
             if self.music_volume < 100 {
                 actions.push((up, UiAction::AdjustMusicVolume(1)));
+            }
+
+            draw_text("Sound effects", panel.x + 10.0, panel.y + 77.0, 14.0, GOLD);
+            let sfx_mute = Rect::new(panel.x + 9.0, panel.y + 84.0, 66.0, 30.0);
+            draw_ui_button(
+                sfx_mute,
+                if self.sfx_muted { "Muted" } else { "On" },
+                true,
+                false,
+            );
+            actions.push((sfx_mute, UiAction::ToggleSfxMute));
+            let sfx_down = Rect::new(panel.x + 83.0, panel.y + 84.0, 28.0, 30.0);
+            draw_ui_button(sfx_down, "−", self.sfx_volume > 0, false);
+            if self.sfx_volume > 0 {
+                actions.push((sfx_down, UiAction::AdjustSfxVolume(-1)));
+            }
+            let sfx_volume = format!("{}%", self.sfx_volume);
+            let sfx_width = measure_text(&sfx_volume, None, 13, 1.0).width;
+            draw_text(
+                &sfx_volume,
+                panel.x + 117.0 - sfx_width * 0.5,
+                panel.y + 103.0,
+                13.0,
+                WHITE,
+            );
+            let sfx_up = Rect::new(panel.x + 133.0, panel.y + 84.0, 28.0, 30.0);
+            draw_ui_button(sfx_up, "+", self.sfx_volume < 100, false);
+            if self.sfx_volume < 100 {
+                actions.push((sfx_up, UiAction::AdjustSfxVolume(1)));
             }
             actions.push((panel, UiAction::BlockMapClick));
         }
@@ -222,5 +251,4 @@ impl Game {
             draw_text(&label, rect.x + 8.0, rect.y + 17.0, 15.0, WHITE);
         }
     }
-
 }

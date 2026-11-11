@@ -315,9 +315,6 @@ impl UnitKind {
         Self::Flak,
         Self::MobileSAM,
     ];
-    #[cfg(test)]
-    pub(crate) const ALL: [Self; 92] = Self::ALL_NATIVE;
-
     pub(in crate::sim) fn conquests_rule(self) -> &'static crate::sim::civ3_unit_rules::UnitRule {
         crate::sim::civ3_unit_rules::get(
             self.conquests_id()

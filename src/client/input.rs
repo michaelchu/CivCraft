@@ -25,12 +25,20 @@ impl Game {
             match Simulation::load_campaign(std::path::Path::new(crate::QUICKSAVE_PATH)) {
                 Ok(simulation) => {
                     let autosave_enabled = self.autosave_enabled;
-                    let music_settings = (self.music_open, self.music_muted, self.music_volume);
+                    let audio_settings = (
+                        self.music_open,
+                        self.music_muted,
+                        self.music_volume,
+                        self.sfx_muted,
+                        self.sfx_volume,
+                    );
                     *self = Self::from_simulation(simulation);
                     self.autosave_enabled = autosave_enabled;
-                    self.music_open = music_settings.0;
-                    self.music_muted = music_settings.1;
-                    self.music_volume = music_settings.2;
+                    self.music_open = audio_settings.0;
+                    self.music_muted = audio_settings.1;
+                    self.music_volume = audio_settings.2;
+                    self.sfx_muted = audio_settings.3;
+                    self.sfx_volume = audio_settings.4;
                     self.sim.add_event("Campaign loaded.");
                 }
                 Err(error) => self.sim.add_event(format!("Load failed. {error}")),
