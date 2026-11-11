@@ -76,12 +76,20 @@ pub(crate) struct MusicPlayer {
     requested_cue: Option<MusicCue>,
     current_sound: Option<Sound>,
     incoming_sound: Option<Sound>,
-    pending_load: Option<Receiver<(MusicCue, Result<Vec<u8>, String>)>>,
+    pending_load: Option<Receiver<(MusicCue, Result<PreparedMusic, String>)>>,
+    full_after_intro: Option<Sound>,
+    intro_duration: Option<f32>,
+    intro_elapsed: f32,
     playing: bool,
     incoming_playing: bool,
     fade_kind: FadeKind,
     fade_elapsed: f32,
     enabled: bool,
+}
+
+struct PreparedMusic {
+    intro: Option<(Vec<u8>, f32)>,
+    full_track: Vec<u8>,
 }
 
 impl MusicPlayer {
@@ -96,6 +104,9 @@ impl MusicPlayer {
             current_sound: None,
             incoming_sound: None,
             pending_load: None,
+            full_after_intro: None,
+            intro_duration: None,
+            intro_elapsed: 0.0,
             playing: false,
             incoming_playing: false,
             fade_kind: FadeKind::None,
@@ -125,7 +136,7 @@ impl MusicPlayer {
         );
 
         if request_music_cue(&mut self.requested_cue, cue) {
-            let Some(path) = resolve_track(root, cue.era, cue.culture_group) else {
+            let Some(paths) = resolve_music_paths(root, cue) else {
                 self.stop_current();
                 eprintln!(
                     "No Civ III music track found for {} culture group {}",
@@ -136,10 +147,26 @@ impl MusicPlayer {
             };
             let (sender, receiver) = mpsc::channel();
             thread::spawn(move || {
-                let result = fs::read(&path)
-                    .map_err(|error| error.to_string())
-                    .and_then(|bytes| decode_mp3_to_wav(&bytes))
-                    .map_err(|error| format!("{}: {error}", path.display()));
+                let result = (|| {
+                    let intro = if paths.clips.is_empty() {
+                        None
+                    } else {
+                        let mut clip_bytes = Vec::with_capacity(paths.clips.len());
+                        for path in paths.clips {
+                            clip_bytes.push(
+                                fs::read(&path)
+                                    .map_err(|error| format!("{}: {error}", path.display()))?,
+                            );
+                        }
+                        let (wav, duration) = concatenate_wav_clips(&clip_bytes)?;
+                        Some((wav, duration))
+                    };
+                    let bytes = fs::read(&paths.full_track)
+                        .map_err(|error| format!("{}: {error}", paths.full_track.display()))?;
+                    let full_track = decode_mp3_to_wav(&bytes)
+                        .map_err(|error| format!("{}: {error}", paths.full_track.display()))?;
+                    Ok(PreparedMusic { intro, full_track })
+                })();
                 let _ = sender.send((cue, result));
             });
             self.pending_load = Some(receiver);
@@ -150,43 +177,72 @@ impl MusicPlayer {
                 Ok((loaded_cue, result)) => {
                     if self.requested_cue == Some(loaded_cue) {
                         match result {
-                            Ok(wav) => match load_sound_from_bytes(&wav).await {
-                                Ok(sound) => {
-                                    if self.incoming_playing {
-                                        if let Some(previous) = &self.incoming_sound {
-                                            stop_sound(previous);
+                            Ok(prepared) => {
+                                let intro = match prepared.intro {
+                                    Some((wav, duration)) => {
+                                        match load_sound_from_bytes(&wav).await {
+                                            Ok(sound) => Some((sound, duration)),
+                                            Err(error) => {
+                                                self.stop_current();
+                                                eprintln!(
+                                                    "Could not load Ancient intro clips: {error}"
+                                                );
+                                                None
+                                            }
                                         }
                                     }
-                                    if self.playing {
-                                        self.incoming_sound = Some(sound);
-                                        play_sound(
-                                            self.incoming_sound.as_ref().unwrap(),
-                                            PlaySoundParams {
-                                                looped: true,
-                                                volume: 0.0,
-                                            },
-                                        );
-                                        self.incoming_playing = true;
-                                        self.fade_kind = FadeKind::Cross;
-                                    } else {
-                                        self.current_sound = Some(sound);
-                                        play_sound(
-                                            self.current_sound.as_ref().unwrap(),
-                                            PlaySoundParams {
-                                                looped: true,
-                                                volume: 0.0,
-                                            },
-                                        );
-                                        self.playing = true;
-                                        self.fade_kind = FadeKind::In;
+                                    None => None,
+                                };
+                                match load_sound_from_bytes(&prepared.full_track).await {
+                                    Ok(full_sound) => {
+                                        if self.incoming_playing {
+                                            if let Some(previous) = &self.incoming_sound {
+                                                stop_sound(previous);
+                                            }
+                                        }
+                                        let (sound, looped) =
+                                            if let Some((intro_sound, duration)) = intro {
+                                                self.full_after_intro = Some(full_sound);
+                                                self.intro_duration = Some(duration);
+                                                self.intro_elapsed = 0.0;
+                                                (intro_sound, false)
+                                            } else {
+                                                self.full_after_intro = None;
+                                                self.intro_duration = None;
+                                                self.intro_elapsed = 0.0;
+                                                (full_sound, true)
+                                            };
+                                        if self.playing {
+                                            self.incoming_sound = Some(sound);
+                                            play_sound(
+                                                self.incoming_sound.as_ref().unwrap(),
+                                                PlaySoundParams {
+                                                    looped,
+                                                    volume: 0.0,
+                                                },
+                                            );
+                                            self.incoming_playing = true;
+                                            self.fade_kind = FadeKind::Cross;
+                                        } else {
+                                            self.current_sound = Some(sound);
+                                            play_sound(
+                                                self.current_sound.as_ref().unwrap(),
+                                                PlaySoundParams {
+                                                    looped,
+                                                    volume: 0.0,
+                                                },
+                                            );
+                                            self.playing = true;
+                                            self.fade_kind = FadeKind::In;
+                                        }
+                                        self.fade_elapsed = 0.0;
                                     }
-                                    self.fade_elapsed = 0.0;
+                                    Err(error) => {
+                                        self.stop_current();
+                                        eprintln!("Could not load music: {error}");
+                                    }
                                 }
-                                Err(error) => {
-                                    self.stop_current();
-                                    eprintln!("Could not load music: {error}");
-                                }
-                            },
+                            }
                             Err(error) => {
                                 self.stop_current();
                                 eprintln!("Could not decode music: {error}");
@@ -198,6 +254,29 @@ impl MusicPlayer {
                 Err(TryRecvError::Disconnected) => {
                     self.stop_current();
                     eprintln!("Music loading thread ended before returning a track");
+                }
+            }
+        }
+
+        if let Some(duration) = self.intro_duration {
+            self.intro_elapsed += get_frame_time().clamp(0.0, 0.1);
+            if self.intro_elapsed >= duration {
+                if let Some(full) = self.full_after_intro.take() {
+                    if let Some(intro) = &self.current_sound {
+                        stop_sound(intro);
+                    }
+                    self.current_sound = Some(full);
+                    play_sound(
+                        self.current_sound.as_ref().unwrap(),
+                        PlaySoundParams {
+                            looped: true,
+                            volume: 0.0,
+                        },
+                    );
+                    self.fade_kind = FadeKind::In;
+                    self.fade_elapsed = 0.0;
+                    self.intro_duration = None;
+                    self.intro_elapsed = 0.0;
                 }
             }
         }
@@ -241,6 +320,9 @@ impl MusicPlayer {
                     self.playing = self.current_sound.is_some();
                     self.incoming_playing = false;
                     self.fade_kind = FadeKind::None;
+                    self.full_after_intro = None;
+                    self.intro_duration = None;
+                    self.intro_elapsed = 0.0;
                 }
             }
         }
@@ -263,7 +345,75 @@ impl MusicPlayer {
         self.incoming_playing = false;
         self.fade_kind = FadeKind::None;
         self.fade_elapsed = 0.0;
+        self.full_after_intro = None;
+        self.intro_duration = None;
+        self.intro_elapsed = 0.0;
     }
+}
+
+struct MusicPaths {
+    clips: Vec<PathBuf>,
+    full_track: PathBuf,
+}
+
+fn resolve_music_paths(root: &Path, cue: MusicCue) -> Option<MusicPaths> {
+    let full_track = resolve_track(root, cue.era, cue.culture_group)?;
+    let clips = if cue.era == TechEra::Ancient {
+        if let Some(code) = group_code(cue.culture_group) {
+            (b'a'..=b'i')
+                .map(|letter| root.join(format!("build/ancient/Anc{code}{}.wav", letter as char)))
+                .filter(|path| path.is_file())
+                .collect()
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+    Some(MusicPaths { clips, full_track })
+}
+
+fn concatenate_wav_clips(clips: &[Vec<u8>]) -> Result<(Vec<u8>, f32), String> {
+    let first = clips
+        .first()
+        .ok_or_else(|| "no Ancient WAV clips found".to_owned())?;
+    if first.len() < 44 || &first[0..4] != b"RIFF" || &first[8..12] != b"WAVE" {
+        return Err("Ancient WAV clip has an unsupported header".to_owned());
+    }
+    let format = &first[12..40];
+    let byte_rate = u32::from_le_bytes(first[28..32].try_into().unwrap());
+    if byte_rate == 0 {
+        return Err("Ancient WAV clip has an invalid byte rate".to_owned());
+    }
+    let mut audio = Vec::new();
+    for clip in clips {
+        if clip.len() < 44
+            || &clip[0..4] != b"RIFF"
+            || &clip[8..12] != b"WAVE"
+            || &clip[12..40] != format
+            || &clip[36..40] != b"data"
+        {
+            return Err("Ancient WAV clips do not share a supported PCM format".to_owned());
+        }
+        let data_size = u32::from_le_bytes(clip[40..44].try_into().unwrap()) as usize;
+        let data_end = 44_usize
+            .checked_add(data_size)
+            .filter(|&end| end <= clip.len())
+            .ok_or_else(|| "Ancient WAV clip is truncated".to_owned())?;
+        audio.extend_from_slice(&clip[44..data_end]);
+    }
+    let data_size =
+        u32::try_from(audio.len()).map_err(|_| "Ancient intro is too large".to_owned())?;
+    let riff_size = data_size
+        .checked_add(36)
+        .ok_or_else(|| "Ancient intro is too large".to_owned())?;
+    let mut wav = Vec::with_capacity(44 + audio.len());
+    wav.extend_from_slice(&first[..44]);
+    wav[4..8].copy_from_slice(&riff_size.to_le_bytes());
+    wav[40..44].copy_from_slice(&data_size.to_le_bytes());
+    wav.extend_from_slice(&audio);
+    let duration = data_size as f32 / byte_rate as f32;
+    Ok((wav, duration))
 }
 
 fn decode_mp3_to_wav(bytes: &[u8]) -> Result<Vec<u8>, String> {
