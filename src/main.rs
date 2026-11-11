@@ -216,7 +216,6 @@ async fn main() {
         tileset.name()
     );
     game.autosave_enabled = !automated;
-    game.intro_open = !automated && !args.iter().any(|arg| arg == "--load");
     let mut music = MusicPlayer::new(!automated);
     let mut unit_sounds = UnitSoundPlayer::new(!automated);
     if ui_review.is_some() {
