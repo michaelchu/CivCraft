@@ -3,7 +3,7 @@
 use super::*;
 
 impl super::Generator {
-    pub(super) fn place_resources(&self, tiles: &mut [Tile], rng: &mut MapRng) {
+    pub(super) fn place_resources(&self, tiles: &mut [GeneratedTile], rng: &mut MapRng) {
         // Civ III's terrain chart permits Fish on Coast, and Fish plus Whales
         // on Sea and Ocean. Habitat is terrain data; placement stays generic.
         for tile in 0..tiles.len() {
@@ -23,7 +23,7 @@ impl super::Generator {
         }
     }
 
-    pub(super) fn place_huts(&self, tiles: &mut [Tile], rng: &mut MapRng) {
+    pub(super) fn place_huts(&self, tiles: &mut [GeneratedTile], rng: &mut MapRng) {
         let target: usize = 15 * self.wrap.tile_count() / 1000;
         let mut reserved = vec![false; self.wrap.tile_count()];
         for _ in 0..target {
@@ -43,7 +43,7 @@ impl super::Generator {
     pub(super) fn start_positions(
         &self,
         terrain: &[Terrain],
-        tiles: &[Tile],
+        tiles: &[GeneratedTile],
         temperature: &[i32],
         civilization_count: usize,
         rng: &mut MapRng,

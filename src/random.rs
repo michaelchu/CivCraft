@@ -165,7 +165,7 @@ mod tests {
     fn native_c_oracle_matches_values_and_entire_state_after_rejections() {
         let mut current_seed = None;
         let mut state = FreecivRng::default();
-        for line in include_str!("../../tests/fixtures/freeciv_random_vectors.tsv").lines() {
+        for line in include_str!("../tests/fixtures/freeciv_random_vectors.tsv").lines() {
             if line.starts_with('#') {
                 continue;
             }

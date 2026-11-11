@@ -43,12 +43,12 @@ fn map_cursor_conversion_continues_the_same_native_stream() {
         for _ in 0..137 {
             map.draw(2_147_483_649);
         }
-        let mut game = crate::sim::FreecivRng::from_map_state(map.values, map.next).unwrap();
+        let mut game = crate::random::FreecivRng::from_map_state(map.values, map.next).unwrap();
         for limit in [0, 1, 2, 3, 100, 2_147_483_649, u32::MAX].repeat(23) {
             assert_eq!(game.draw(limit), map.draw(limit));
         }
     }
-    assert!(crate::sim::FreecivRng::from_map_state([0; 56], 56).is_err());
+    assert!(crate::random::FreecivRng::from_map_state([0; 56], 56).is_err());
 }
 
 #[test]
@@ -198,7 +198,7 @@ fn civ3_world_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
 }
 
 #[cfg(test)]
-fn map_checksum(tiles: &[Tile]) -> u64 {
+fn map_checksum(tiles: &[GeneratedTile]) -> u64 {
     let mut checksum = 0xcbf29ce484222325_u64;
     for tile in tiles {
         let terrain = match tile.terrain {

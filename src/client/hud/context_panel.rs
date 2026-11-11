@@ -26,47 +26,15 @@ impl Game {
                 .map(|(unit, _)| unit)
                 .find(|shown| shown.id == unit.id);
             let unit = animated.as_ref().unwrap_or(unit);
-            let stats = unit.kind.stats();
-            let state = if unit.work_left > 0 {
-                format!(
-                    "Building {} - {} turns",
-                    unit.work_kind.map(|w| w.name()).unwrap_or("improvement"),
-                    self.sim.project_turns_left(unit)
-                )
-            } else if let Some(carrier) = unit.transport {
-                self.sim
-                    .units()
-                    .iter()
-                    .find(|ship| ship.id == carrier)
-                    .map_or_else(
-                        || "Aboard transport".to_owned(),
-                        |ship| format!("Aboard {}", ship.kind.name()),
-                    )
-            } else if unit.kind.transport_capacity() > 0 {
-                format!(
-                    "Cargo {}/{}",
-                    self.sim.cargo_count(unit.id),
-                    unit.kind.transport_capacity()
-                )
-            } else if unit.automated {
-                "Automated".to_owned()
-            } else {
-                match unit.state {
-                    UnitState::Idle => "Ready".to_owned(),
-                    UnitState::Fortifying => "Fortifying".to_owned(),
-                    UnitState::Fortified => "Fortified (+50% defense)".to_owned(),
-                    UnitState::Sentry => "Sentry".to_owned(),
-                    UnitState::AirSuperiority => "Air Superiority".to_owned(),
-                }
-            };
+            let view = self.sim.unit_context_view(unit);
             assets.civ3.draw_unit_icon(
-                unit.kind,
-                unit.owner,
-                self.sim.players()[unit.owner].civilization_id.as_deref(),
-                self.sim.research_era(unit.owner).index(),
+                view.kind,
+                view.owner,
+                view.civilization_id.as_deref(),
+                view.era_index,
                 vec2(x + 18.0, card.y + 21.5),
                 vec2(36.0, 27.0),
-                unit.moves_left > 0,
+                view.moves_left > 0,
             );
 
             let width = card.w - 20.0;
@@ -74,22 +42,13 @@ impl Game {
             let identity_x = x + 41.0;
             let muted = Color::from_rgba(181, 190, 174, 255);
             let status_color = Color::from_rgba(188, 219, 175, 255);
-            let state = if unit.kind.is_aircraft() {
-                format!("{state} · Fuel {}/{}", unit.fuel, unit.kind.fuel_capacity())
-            } else {
-                state
-            };
-            let state = if unit.veteran > 0 {
-                format!("{state} · {}", unit.rank_name())
-            } else {
-                state
-            };
+            let state = view.status;
             let state_width = measure_text(&state, None, 12, 1.0).width;
-            let name_width = measure_text(unit.kind.name(), None, 14, 1.0).width;
+            let name_width = measure_text(view.kind.name(), None, 14, 1.0).width;
             let inline_status = identity_x + name_width + state_width + 8.0 <= right;
             let title_y = card.y + 20.0;
             text_in(
-                unit.kind.name(),
+                view.kind.name(),
                 identity_x,
                 title_y,
                 14.0,
@@ -97,11 +56,7 @@ impl Game {
                 Color::from_rgba(244, 221, 147, 255),
             );
             text_in(
-                &format!(
-                    "{} · {}",
-                    self.sim.players()[unit.owner].name,
-                    self.sim.tile(unit.x, unit.y).terrain.name(),
-                ),
+                &format!("{} · {}", view.owner_name, view.terrain_name,),
                 identity_x,
                 title_y + 14.0,
                 12.0,
@@ -116,12 +71,12 @@ impl Game {
 
             let gap = 4.0;
             let cell_width = (width - gap) * 0.5;
-            let moves = self.sim.unit_move_allowance(unit.owner, unit.kind);
+            let moves = view.moves_allowance;
             let metrics = [
-                ("Health", format!("{}/{}", unit.hp, unit.max_hit_points())),
-                ("Moves", format!("{}/{moves}", unit.moves_left)),
-                ("Attack", stats.attack.to_string()),
-                ("Defense", stats.defense.to_string()),
+                ("Health", format!("{}/{}", view.hp, view.max_hp)),
+                ("Moves", format!("{}/{moves}", view.moves_left)),
+                ("Attack", view.attack.to_string()),
+                ("Defense", view.defense.to_string()),
             ];
             for (index, (label, value)) in metrics.iter().enumerate() {
                 let cell_x = x + (index % 2) as f32 * (cell_width + gap);
@@ -154,12 +109,9 @@ impl Game {
                     WHITE,
                 );
             }
-        } else if let Some(index) = self.selected_city_index() {
-            let city = &self.sim.cities()[index];
-            let forecast = self.sim.city_forecast(city);
-            let (food, shields, trade) = (forecast.food, forecast.shields, forecast.trade);
-            let foreign = city.size - city.domestic_citizens();
-            let cost = city.production.cost();
+        } else if let Some(city_id) = self.selected_city
+            && let Some(city) = self.sim.city_context_view(city_id)
+        {
             context_text(
                 &city.name,
                 x,
@@ -169,9 +121,10 @@ impl Game {
             );
             context_text(
                 &format!(
-                    "City size {} ({foreign} foreign)  Plague {:.1}%",
+                    "City size {} ({} foreign)  Plague {:.1}%",
                     city.size,
-                    f64::from(self.sim.city_illness(city, shields)) / 10.0
+                    city.foreign_citizens,
+                    f64::from(city.illness) / 10.0
                 ),
                 x,
                 y + 48.0,
@@ -179,32 +132,34 @@ impl Game {
                 Color::from_rgba(229, 226, 209, 255),
             );
             context_text(
-                &format!("Food {}  Shields {}  Trade {}", food, shields, trade),
+                &format!(
+                    "Food {}  Shields {}  Trade {}",
+                    city.food, city.shields, city.trade
+                ),
                 x,
                 y + 76.0,
                 17.0,
                 Color::from_rgba(177, 213, 159, 255),
             );
             context_text(
-                &format!(
-                    "Food store {}/{}",
-                    city.food,
-                    Simulation::growth_box(city.size)
-                ),
+                &format!("Food store {}/{}", city.food_store, city.growth_box),
                 x,
                 y + 102.0,
                 17.0,
                 Color::from_rgba(229, 226, 209, 255),
             );
             context_text(
-                &format!("Producing: {}", city.production.name()),
+                &format!("Producing: {}", city.production_name),
                 x,
                 y + 132.0,
                 18.0,
                 Color::from_rgba(145, 204, 224, 255),
             );
             context_text(
-                &format!("Production {}/{}", city.shields, cost),
+                &format!(
+                    "Production {}/{}",
+                    city.production_stock, city.production_cost
+                ),
                 x,
                 y + 156.0,
                 17.0,

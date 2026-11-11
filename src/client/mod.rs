@@ -194,6 +194,8 @@ pub(crate) enum UiAction {
 
 pub(crate) struct Game {
     pub(crate) sim: Simulation,
+    client_messages: Vec<String>,
+    last_sim_messages: Vec<String>,
     renderer: std::rc::Rc<dyn RenderBackend>,
     pub(crate) autosave_enabled: bool,
     pub(crate) intro_open: bool,
@@ -284,8 +286,11 @@ impl Game {
             })
             .unwrap_or((0, 0));
         let (x, y) = native_to_map(position.0, position.1);
+        let last_sim_messages = sim.events().to_vec();
         Self {
             sim,
+            client_messages: Vec::new(),
+            last_sim_messages,
             renderer,
             autosave_enabled: false,
             intro_open: false,
@@ -335,6 +340,13 @@ impl Game {
             fidget_sound_cycle: None,
             dragging: false,
             drag_last: vec2(0.0, 0.0),
+        }
+    }
+
+    pub(super) fn notify(&mut self, message: impl Into<String>) {
+        self.client_messages.push(message.into());
+        if self.client_messages.len() > 10 {
+            self.client_messages.remove(0);
         }
     }
 
@@ -461,9 +473,7 @@ impl Game {
             actions.extend(self.draw_intro());
             return actions;
         }
-        if self.government_open
-            || self.diplomacy_open
-        {
+        if self.government_open || self.diplomacy_open {
             draw_rectangle(
                 0.0,
                 0.0,
@@ -482,7 +492,12 @@ impl Game {
             actions.clear();
             self.draw_city_manager(assets, &mut actions);
         }
-        if self.goto_mode || self.paradrop_mode || self.bombard_mode || self.nuclear_mode || self.rebase_mode {
+        if self.goto_mode
+            || self.paradrop_mode
+            || self.bombard_mode
+            || self.nuclear_mode
+            || self.rebase_mode
+        {
             let viewport = Self::viewport_rect();
             let text = if self.paradrop_mode {
                 "PARADROP: choose a landing tile"
@@ -729,6 +744,22 @@ fn short_unit_name(kind: UnitKind) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn client_notices_are_transient_and_capped_without_mutating_campaign_events() {
+        let mut game = Game::new(crate::mapgen::generate(42));
+        let campaign_events = game.sim.events().to_vec();
+        for index in 0..11 {
+            game.notify(format!("notice {index}"));
+        }
+        assert_eq!(game.client_messages.len(), 10);
+        assert_eq!(
+            game.client_messages.first().map(String::as_str),
+            Some("notice 1")
+        );
+        assert_eq!(game.sim.events(), campaign_events);
+    }
+
     #[test]
     fn clicking_a_garrisoned_city_opens_city_management() {
         let mut game = Game::new(crate::mapgen::generate(42));

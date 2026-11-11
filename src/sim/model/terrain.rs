@@ -58,6 +58,24 @@ impl TerrainBase {
 }
 
 impl Terrain {
+    /// Fresh-tile yield before worker improvements, shared by generation's
+    /// start-site scoring and campaign tile calculations.
+    pub(crate) fn yields_with_resource(
+        self,
+        resource: Option<Resource>,
+        river: bool,
+    ) -> (i32, i32, i32) {
+        let (mut food, mut shields, mut trade) = self.base_yields();
+        if let Some(resource) = resource.filter(|r| self.resource_options().contains(r)) {
+            let (extra_food, extra_shields, extra_trade) = resource.bonus();
+            food += extra_food;
+            shields += extra_shields;
+            trade += extra_trade;
+        }
+        trade += i32::from(river);
+        (food, shields, trade)
+    }
+
     pub(crate) fn resource_options(self) -> &'static [Resource] {
         use Resource::*;
         match self {
@@ -376,14 +394,9 @@ impl Tile {
     }
 
     pub(crate) fn yields(&self) -> (i32, i32, i32) {
-        let (mut food, mut shields, mut trade) = self.terrain.base_yields();
-        if let Some(resource) = self.active_resource() {
-            let (extra_food, extra_shields, extra_trade) = resource.bonus();
-            food += extra_food;
-            shields += extra_shields;
-            trade += extra_trade;
-        }
-        trade += i32::from(self.river);
+        let (mut food, mut shields, mut trade) = self
+            .terrain
+            .yields_with_resource(self.active_resource(), self.river);
         if self.irrigation {
             food += self.irrigation_food();
         }

@@ -374,12 +374,34 @@ mod civ3_flic_direction_tests {
 /// Rebuild reciprocal Civ III river-edge bits from the transitional tile
 /// river markers. This keeps river artwork connected on the eight-direction
 /// map while the generator is migrated from its six-direction path model.
-pub(crate) fn rebuild_civ3_river_edges(wrap: MapWrap, tiles: &mut [Tile]) {
+pub(crate) trait RiverEdgeTile {
+    fn has_river(&self) -> bool;
+    fn is_water(&self) -> bool;
+    fn river_edges(&self) -> u8;
+    fn set_river_edges(&mut self, edges: u8);
+}
+
+impl RiverEdgeTile for Tile {
+    fn has_river(&self) -> bool {
+        self.river
+    }
+    fn is_water(&self) -> bool {
+        self.terrain.is_water()
+    }
+    fn river_edges(&self) -> u8 {
+        self.river_edges
+    }
+    fn set_river_edges(&mut self, edges: u8) {
+        self.river_edges = edges;
+    }
+}
+
+pub(crate) fn rebuild_civ3_river_edges<T: RiverEdgeTile>(wrap: MapWrap, tiles: &mut [T]) {
     for tile in tiles.iter_mut() {
-        tile.river_edges = 0;
+        tile.set_river_edges(0);
     }
     for index in 0..wrap.tile_count() {
-        if !tiles[index].river {
+        if !tiles[index].has_river() {
             continue;
         }
         let (x, y) = wrap.position(index);
@@ -388,9 +410,10 @@ pub(crate) fn rebuild_civ3_river_edges(wrap: MapWrap, tiles: &mut [Tile]) {
                 continue;
             };
             let neighbor = wrap.index(nx, ny);
-            if tiles[neighbor].river || tiles[neighbor].terrain.is_water() {
-                tiles[index].river_edges |= 1 << direction;
-                tiles[neighbor].river_edges |= 1 << ((direction + 4) % 8);
+            if tiles[neighbor].has_river() || tiles[neighbor].is_water() {
+                tiles[index].set_river_edges(tiles[index].river_edges() | (1 << direction));
+                tiles[neighbor]
+                    .set_river_edges(tiles[neighbor].river_edges() | (1 << ((direction + 4) % 8)));
             }
         }
     }
@@ -398,8 +421,8 @@ pub(crate) fn rebuild_civ3_river_edges(wrap: MapWrap, tiles: &mut [Tile]) {
 
 /// Remove nonreciprocal Civ III river bits after tiles are converted or
 /// removed at a map edge.
-pub(crate) fn prune_civ3_river_edges(wrap: MapWrap, tiles: &mut [Tile]) {
-    let original: Vec<_> = tiles.iter().map(|tile| tile.river_edges).collect();
+pub(crate) fn prune_civ3_river_edges<T: RiverEdgeTile>(wrap: MapWrap, tiles: &mut [T]) {
+    let original: Vec<_> = tiles.iter().map(RiverEdgeTile::river_edges).collect();
     for index in 0..wrap.tile_count() {
         let (x, y) = wrap.position(index);
         for direction in 0..CIV3_DIRS.len() {
@@ -411,7 +434,7 @@ pub(crate) fn prune_civ3_river_edges(wrap: MapWrap, tiles: &mut [Tile]) {
                 original[neighbor] & (1 << ((direction + 4) % 8)) != 0
             });
             if !reciprocal {
-                tiles[index].river_edges &= !(1 << direction);
+                tiles[index].set_river_edges(tiles[index].river_edges() & !(1 << direction));
             }
         }
     }

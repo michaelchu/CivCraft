@@ -13,7 +13,8 @@
 //! iteration and random-draw order, so seemingly harmless reordering can alter
 //! seeded output.
 
-use crate::sim::{PLAYER_COUNT, PLAYER_SLOTS, Terrain, TerrainBase, Tile, topology::*};
+use crate::random::FreecivRng;
+use crate::sim::{PLAYER_COUNT, Terrain, TerrainBase, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
 /// Named world sizes from OpenCiv3's Civ III ruleset data. Dimensions are
@@ -310,10 +311,46 @@ mod terrain;
 pub(crate) struct GeneratedMap {
     pub(crate) seed: u64,
     pub(crate) map_wrap: MapWrap,
-    pub(crate) game_random: crate::sim::FreecivRng,
-    pub(crate) tiles: Vec<Tile>,
+    pub(crate) game_random: FreecivRng,
+    pub(crate) tiles: Vec<GeneratedTile>,
     pub(crate) starts: Vec<(i32, i32)>,
     pub(crate) civilization_count: usize,
+}
+
+/// Compact map-generation output, independent of campaign ownership,
+/// visibility, and improvement state.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct GeneratedTile {
+    pub(crate) terrain: Terrain,
+    pub(crate) base_terrain: TerrainBase,
+    pub(crate) altitude: i32,
+    pub(crate) hut: bool,
+    pub(crate) river: bool,
+    pub(crate) river_edges: u8,
+    pub(crate) resource: Option<crate::sim::Resource>,
+}
+
+impl GeneratedTile {
+    /// Starting-site yield before campaign improvements, matching a fresh
+    /// campaign tile's yield calculation.
+    fn yields(&self) -> (i32, i32, i32) {
+        self.terrain.yields_with_resource(self.resource, self.river)
+    }
+}
+
+impl crate::sim::topology::RiverEdgeTile for GeneratedTile {
+    fn has_river(&self) -> bool {
+        self.river
+    }
+    fn is_water(&self) -> bool {
+        self.terrain.is_water()
+    }
+    fn river_edges(&self) -> u8 {
+        self.river_edges
+    }
+    fn set_river_edges(&mut self, edges: u8) {
+        self.river_edges = edges;
+    }
 }
 
 /// Produces a process-local seed for a newly generated world.
@@ -571,7 +608,7 @@ impl Generator {
                 .iter()
                 .copied()
                 .enumerate()
-                .map(|(index, terrain)| Tile {
+                .map(|(index, terrain)| GeneratedTile {
                     terrain,
                     base_terrain: base_terrain[index],
                     altitude: heights[index],
@@ -579,24 +616,6 @@ impl Generator {
                     river: false,
                     river_edges: 0,
                     resource: None,
-                    road: false,
-                    railroad: false,
-                    irrigation: false,
-                    farmland: false,
-                    pollution: false,
-                    fallout: false,
-                    craters: false,
-                    base: None,
-                    mine: false,
-                    oil_well: false,
-                    oil_platform: false,
-                    owner: None,
-                    border_city: None,
-                    last_seen_owner: None,
-                    seen: false,
-                    visible: false,
-                    stealth_visible: false,
-                    known_by: [false; PLAYER_SLOTS],
                 })
                 .collect();
             let river_heights: Vec<_> = (0..self.wrap.tile_count())
@@ -642,9 +661,8 @@ impl Generator {
                 self.civilization_count,
                 &mut start_rng,
             ) {
-                let game_random =
-                    crate::sim::FreecivRng::from_map_state(start_rng.values, start_rng.next)
-                        .expect("map RNG cursor is valid");
+                let game_random = FreecivRng::from_map_state(start_rng.values, start_rng.next)
+                    .expect("map RNG cursor is valid");
                 return GeneratedMap {
                     seed,
                     map_wrap: self.wrap,

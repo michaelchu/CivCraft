@@ -122,12 +122,14 @@ impl Game {
                 self.paradrop_mode = false;
                 self.bombard_mode = false;
                 self.nuclear_mode = false;
-                self.rebase_mode = self.selected_unit_index().is_some_and(|index| {
-                    self.sim.can_begin_rebase(&self.sim.units()[index])
-                });
+                self.rebase_mode = self
+                    .selected_unit_index()
+                    .is_some_and(|index| self.sim.can_begin_rebase(&self.sim.units()[index]));
             }
             UiAction::RebaseTo(x, y) => {
-                if self.rebase_mode && let Some(id) = self.selected_unit {
+                if self.rebase_mode
+                    && let Some(id) = self.selected_unit
+                {
                     self.move_selected(Command::Rebase(id, x, y), id);
                 }
                 self.rebase_mode = false;
@@ -143,9 +145,9 @@ impl Game {
                 self.goto_mode = false;
                 self.paradrop_mode = false;
                 self.bombard_mode = false;
-                self.nuclear_mode = self
-                    .selected_unit_index()
-                    .is_some_and(|index| self.sim.can_begin_nuclear_strike(&self.sim.units()[index]));
+                self.nuclear_mode = self.selected_unit_index().is_some_and(|index| {
+                    self.sim.can_begin_nuclear_strike(&self.sim.units()[index])
+                });
             }
             UiAction::BoardOrDeboard => {
                 if let Some(id) = self.selected_unit {
@@ -176,7 +178,7 @@ impl Game {
                         .sim
                         .save_campaign(std::path::Path::new(crate::AUTOSAVE_PATH))
                 {
-                    self.sim.add_event(format!("Autosave failed. {error}"));
+                    self.notify(format!("Autosave failed. {error}"));
                 }
                 self.select_next_unit();
             }

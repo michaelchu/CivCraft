@@ -21,13 +21,11 @@ mod infrastructure_tests {
             fog::Knowledge::Remembered,
             fog::Knowledge::Visible,
         ] {
-            let mut map = crate::mapgen::generate_with_wrap(42, MapWrap::X);
-            if knowledge == fog::Knowledge::Remembered {
-                for tile in &mut map.tiles {
-                    tile.seen = true;
-                }
-            }
+            let map = crate::mapgen::generate_with_wrap(42, MapWrap::X);
             let mut sim = Simulation::new(map);
+            if knowledge == fog::Knowledge::Remembered {
+                sim.ui_review_remember_all_tiles();
+            }
             if knowledge == fog::Knowledge::Visible {
                 sim.ui_review_reveal_all_tiles();
             }

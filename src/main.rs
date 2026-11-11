@@ -12,6 +12,7 @@
 mod client;
 mod mapgen;
 mod playtest;
+mod random;
 mod rules;
 mod sim;
 mod visual_test;

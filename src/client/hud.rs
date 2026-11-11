@@ -93,9 +93,19 @@ impl Game {
         vec![(button, UiAction::DismissIntro)]
     }
 
-    fn draw_messages(&self, actions: &mut Vec<(Rect, UiAction)>, available: f32) {
+    fn draw_messages(&mut self, actions: &mut Vec<(Rect, UiAction)>, available: f32) {
         let width = (screen_width() * 0.65).min(620.0).min(available);
-        let latest = self.sim.events().iter().rev().take(2);
+        let sim_messages = self.sim.events().to_vec();
+        if sim_messages != self.last_sim_messages {
+            self.client_messages.clear();
+            self.last_sim_messages = sim_messages;
+        }
+        let latest = self
+            .client_messages
+            .iter()
+            .rev()
+            .chain(self.sim.events().iter().rev())
+            .take(2);
         for (i, message) in latest.enumerate() {
             let color = if i == 0 {
                 Color::from_rgba(230, 228, 211, 255)

@@ -18,7 +18,7 @@ impl Game {
                 Ok(()) => "Campaign saved.".to_owned(),
                 Err(error) => format!("Save failed. {error}"),
             };
-            self.sim.add_event(message);
+            self.notify(message);
             return;
         }
         if is_key_pressed(KeyCode::F9) {
@@ -39,9 +39,9 @@ impl Game {
                     self.music_volume = audio_settings.2;
                     self.sfx_muted = audio_settings.3;
                     self.sfx_volume = audio_settings.4;
-                    self.sim.add_event("Campaign loaded.");
+                    self.notify("Campaign loaded.");
                 }
-                Err(error) => self.sim.add_event(format!("Load failed. {error}")),
+                Err(error) => self.notify(format!("Load failed. {error}")),
             }
             return;
         }
@@ -143,7 +143,7 @@ impl Game {
             self.bombard_mode = false;
             self.nuclear_mode = false;
             self.goto_mode = !self.goto_mode;
-            self.sim.add_event(if self.goto_mode {
+            self.notify(if self.goto_mode {
                 "Go-to active: choose a destination tile."
             } else {
                 "Go-to cancelled."
@@ -164,7 +164,7 @@ impl Game {
         {
             let name = self.sim.units()[index].kind.name();
             self.sim.apply(Command::Sentry(self.sim.units()[index].id));
-            self.sim.add_event(format!("{name} is now on sentry duty."));
+            self.notify(format!("{name} is now on sentry duty."));
             self.select_next_unit();
         }
         if is_key_pressed(KeyCode::Space) {

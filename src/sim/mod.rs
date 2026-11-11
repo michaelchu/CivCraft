@@ -31,6 +31,7 @@ mod nuclear;
 pub(crate) use bases::Base;
 mod cities;
 mod civil_war;
+mod client_views;
 mod commands;
 mod diplomacy;
 mod tech_trade;
@@ -53,9 +54,9 @@ mod list_order;
 mod movement;
 mod presentation;
 mod resistance;
-pub(crate) use presentation::VisualEvent;
 #[cfg(test)]
 pub(crate) use presentation::CombatVisual;
+pub(crate) use presentation::VisualEvent;
 mod normal_paths;
 mod observed_map;
 mod pathfinding;
@@ -66,9 +67,8 @@ mod pf_actions;
 mod pillage;
 mod pollution;
 mod route_preview;
+pub(crate) use crate::random::FreecivRng;
 pub(crate) use route_preview::{GotoPoint, GotoPreview};
-mod random;
-pub(crate) use random::FreecivRng;
 mod save;
 mod score;
 mod settlement;
@@ -86,8 +86,8 @@ mod playtest;
 mod research;
 #[cfg(test)]
 mod research_phase;
+mod scenarios;
 mod terrain_work;
-mod ui_review;
 pub(crate) use commands::Command;
 use model::research_cost;
 mod military_research;
@@ -349,11 +349,42 @@ impl Simulation {
         let crate::mapgen::GeneratedMap {
             seed,
             map_wrap,
-            tiles,
+            tiles: generated_tiles,
             starts,
             civilization_count,
             game_random,
         } = map;
+
+        let tiles = generated_tiles
+            .into_iter()
+            .map(|tile| Tile {
+                terrain: tile.terrain,
+                base_terrain: tile.base_terrain,
+                altitude: tile.altitude,
+                hut: tile.hut,
+                river: tile.river,
+                river_edges: tile.river_edges,
+                resource: tile.resource,
+                road: false,
+                railroad: false,
+                irrigation: false,
+                farmland: false,
+                pollution: false,
+                fallout: false,
+                craters: false,
+                base: None,
+                mine: false,
+                oil_well: false,
+                oil_platform: false,
+                owner: None,
+                border_city: None,
+                last_seen_owner: None,
+                seen: false,
+                visible: false,
+                stealth_visible: false,
+                known_by: [false; PLAYER_SLOTS],
+            })
+            .collect();
 
         let roster = crate::rules::civilizations::select_roster(seed, MAX_CIVILIZATIONS);
         let mut players = Vec::new();

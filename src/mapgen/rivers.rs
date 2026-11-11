@@ -33,7 +33,7 @@ impl super::Generator {
 
     pub(super) fn place_rivers(
         &self,
-        tiles: &mut [Tile],
+        tiles: &mut [GeneratedTile],
         heights: &[i32],
         temperature: &[i32],
         rng: &mut MapRng,
@@ -78,7 +78,7 @@ impl super::Generator {
         }
     }
 
-    fn connect_river_course(&self, tiles: &mut [Tile], course: &[usize], heights: &[i32]) {
+    fn connect_river_course(&self, tiles: &mut [GeneratedTile], course: &[usize], heights: &[i32]) {
         for pair in course.windows(2) {
             self.connect_river_step(tiles, pair[0], pair[1]);
         }
@@ -108,7 +108,7 @@ impl super::Generator {
     /// diagonal occupies its southwest edge. Recording the travel direction
     /// itself produces reciprocal data but leaves the rendered junctions
     /// visually disconnected.
-    fn connect_river_step(&self, tiles: &mut [Tile], from: usize, to: usize) {
+    fn connect_river_step(&self, tiles: &mut [GeneratedTile], from: usize, to: usize) {
         let (x, y) = self.wrap.position(from);
         let direction = (0..CIV3_DIRS.len()).find(|&direction| {
             self.wrap.civ3_neighbor(x, y, direction) == Some(self.wrap.position(to))
@@ -155,7 +155,7 @@ impl super::Generator {
         self.connect_river_edge(tiles, neighbor, self.wrap.index(stitch_x, stitch_y));
     }
 
-    fn connect_river_edge(&self, tiles: &mut [Tile], from: usize, to: usize) {
+    fn connect_river_edge(&self, tiles: &mut [GeneratedTile], from: usize, to: usize) {
         let (x, y) = self.wrap.position(from);
         let direction = (0..CIV3_DIRS.len()).find(|&direction| {
             self.wrap.civ3_neighbor(x, y, direction) == Some(self.wrap.position(to))
@@ -186,7 +186,7 @@ impl super::Generator {
 
     pub(super) fn trace_river(
         &self,
-        tiles: &[Tile],
+        tiles: &[GeneratedTile],
         heights: &[i32],
         spring: usize,
         rng: &mut MapRng,
