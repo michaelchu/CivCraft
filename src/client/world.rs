@@ -84,7 +84,6 @@ fn visible_world_tiles(
     viewport: Rect,
     camera: Vec2,
     zoom: f32,
-    renderer: &dyn RenderBackend,
 ) -> Vec<(i32, i32, Vec2)> {
     let origin = viewport.y + viewport.h * 0.5;
     let step = TILE_H * 0.5 * zoom;
@@ -98,7 +97,8 @@ fn visible_world_tiles(
     let mut tiles = Vec::with_capacity(((last - first + 1).max(0) * wrap.width()) as usize);
     for y in first..=last {
         for x in 0..wrap.width() {
-            let center = renderer.world_screen_position(wrap, viewport, camera, zoom, x, y);
+            let center =
+                super::civ3_projection::world_screen_position(wrap, viewport, camera, zoom, x, y);
             if center.x < viewport.x - TILE_W * zoom
                 || center.x > viewport.right() + TILE_W * zoom
                 || center.y < viewport.y - 80.0
@@ -152,13 +152,7 @@ mod visibility_tests {
                             || p.y > viewport.bottom() + 80.0)
                     });
                     assert_eq!(
-                        visible_world_tiles(
-                            MapWrap::X,
-                            viewport,
-                            camera,
-                            zoom,
-                            &render_backend::Civ3Renderer,
-                        ),
+                        visible_world_tiles(MapWrap::X, viewport, camera, zoom,),
                         reference
                     );
                 }

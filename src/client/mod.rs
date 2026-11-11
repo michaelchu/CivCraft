@@ -8,8 +8,8 @@
 //!
 //! Rendering is split by screen responsibility: `world` draws map contents,
 //! `hud` and the view modules draw controls and dialogs, and `assets` plus
-//! `tileset` provide Civ III artwork. `render_backend` owns the supported map
-//! projection and painter. UI review helpers exercise these same screens
+//! `tileset` provide Civ III artwork. Civ III projection helpers and the world
+//! painter own map rendering. UI review helpers exercise these same screens
 //! through the normal frame path.
 
 mod actions;
@@ -44,6 +44,7 @@ mod city_manager;
 mod city_map;
 #[allow(dead_code)] // Standalone projection helpers are retained for geometry regression fixtures.
 mod civ3_geometry;
+mod civ3_projection;
 mod flc;
 mod fog;
 mod government_view;
@@ -53,7 +54,6 @@ mod map_layers;
 mod map_overlays;
 mod map_view;
 mod presentation;
-mod render_backend;
 mod research_tree;
 mod research_view;
 mod rivers;
@@ -67,7 +67,6 @@ mod unit_actions;
 mod unit_animation_pacing;
 mod unit_sound;
 mod world;
-pub(crate) use render_backend::{RenderBackend, create as create_renderer};
 pub(crate) use ui::set_review_pointer;
 use ui::*;
 pub(crate) use ui_review::{UI_REVIEW_SCENES, UiReviewSequence, UiReviewSources};
@@ -204,7 +203,6 @@ pub(crate) struct Game {
     pub(crate) sim: Simulation,
     client_messages: Vec<String>,
     last_sim_messages: Vec<String>,
-    renderer: std::rc::Rc<dyn RenderBackend>,
     pub(crate) autosave_enabled: bool,
     pub(crate) intro_open: bool,
     pub(crate) music_open: bool,
@@ -256,21 +254,13 @@ pub(crate) struct Game {
 }
 
 impl Game {
-    /// Creates client state around a simulation using the default renderer.
+    /// Creates client state around a simulation.
     pub(crate) fn new(sim: Simulation) -> Self {
         Self::from_simulation(sim)
     }
 
-    /// Restores client state around a loaded simulation using the default renderer.
-    pub(crate) fn from_simulation(sim: Simulation) -> Self {
-        Self::from_simulation_with_renderer(sim, render_backend::default_renderer())
-    }
-
-    /// Restores client state around a loaded simulation and selected renderer.
-    pub(crate) fn from_simulation_with_renderer(
-        mut sim: Simulation,
-        renderer: std::rc::Rc<dyn RenderBackend>,
-    ) -> Self {
+    /// Restores client state around a loaded simulation.
+    pub(crate) fn from_simulation(mut sim: Simulation) -> Self {
         sim.enable_visual_events();
         let (selected_unit, position) = sim.initial_client_focus_view();
         let position = position.unwrap_or((0, 0));
@@ -280,7 +270,6 @@ impl Game {
             sim,
             client_messages: Vec::new(),
             last_sim_messages,
-            renderer,
             autosave_enabled: false,
             intro_open: false,
             music_open: false,
@@ -433,8 +422,7 @@ impl Game {
         if self.spaceship_open {
             return self.draw_spaceship();
         }
-        let renderer = std::rc::Rc::clone(&self.renderer);
-        renderer.draw_world(self, assets);
+        self.draw_civ3_world_map(assets);
         let mut actions = self.draw_hud(assets);
         if self.intro_open {
             actions.clear();

@@ -134,7 +134,6 @@ async fn main() {
         eprintln!("{error}");
         std::process::exit(2);
     });
-    let renderer = client::create_renderer("civ3").expect("Civ III renderer is available");
     let screenshot_path = argument_value("--screenshot");
     let self_test_path = argument_value("--self-test");
     let ui_review = argument_value("--ui-review");
@@ -181,30 +180,25 @@ async fn main() {
                 sim::Simulation::load_campaign(Path::new(path)).map_err(|error| error.to_string())
             });
         match result {
-            Ok(simulation) => {
-                Game::from_simulation_with_renderer(simulation, std::rc::Rc::clone(&renderer))
-            }
+            Ok(simulation) => Game::from_simulation(simulation),
             Err(error) => {
                 eprintln!("Could not load campaign. {error}");
                 std::process::exit(1);
             }
         }
     } else {
-        Game::from_simulation_with_renderer(
-            sim::Simulation::new(mapgen::generate_for_civ3_size(
-                seed,
-                map_size,
-                world_settings,
-            )),
-            std::rc::Rc::clone(&renderer),
-        )
+        Game::from_simulation(sim::Simulation::new(mapgen::generate_for_civ3_size(
+            seed,
+            map_size,
+            world_settings,
+        )))
     };
     let assets = Assets::new(&tileset).unwrap_or_else(|error| {
         eprintln!("Could not load {} tileset. {error}", tileset.name());
         std::process::exit(2);
     });
     println!(
-        "World seed: {} · map size: {} ({}×{}) · wrap: {} · renderer: {} · tileset: {}",
+        "World seed: {} · map size: {} ({}×{}) · wrap: {} · renderer: Civ III · tileset: {}",
         game.sim.world_seed,
         if args.iter().any(|arg| arg == "--load") {
             format!(
@@ -218,7 +212,6 @@ async fn main() {
         game.sim.map_wrap.width(),
         game.sim.map_wrap.height(),
         game.sim.map_wrap,
-        renderer.name(),
         tileset.name()
     );
     game.autosave_enabled = !automated;

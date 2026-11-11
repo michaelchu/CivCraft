@@ -380,7 +380,6 @@ impl<'a> Civ3WorldPainter<'a> {
             viewport,
             game.camera_overview_position(),
             game.zoom,
-            game.renderer.as_ref(),
         );
         let mut cities = std::collections::HashMap::new();
         let city_overrides = game.playback.city_overrides();
