@@ -3,35 +3,6 @@
 use super::*;
 
 impl Game {
-    pub(super) fn draw_resource_icon(
-        &self,
-        texture: &Texture2D,
-        center: Vec2,
-        tile_w: f32,
-        tile_h: f32,
-        row: i32,
-        col: i32,
-    ) {
-        let size = tile_w * 0.38;
-        let y = center.y - tile_h * 0.50;
-        draw_texture_ex(
-            texture,
-            center.x - size * 0.5,
-            y,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(vec2(size, size)),
-                source: Some(Rect::new(
-                    col as f32 * 237.0,
-                    row as f32 * 237.0,
-                    237.0,
-                    237.0,
-                )),
-                ..Default::default()
-            },
-        );
-    }
-
     fn draw_territory_border(
         &self,
         x: i32,

@@ -134,36 +134,3 @@ mod unit_art_role_tests {
         }
     }
 }
-
-impl Resource {
-    pub(super) fn icon_cell(self) -> (i32, i32) {
-        match self {
-            Self::Aluminum => (0, 0),
-            Self::Coal => (0, 1),
-            Self::Horses => (0, 2),
-            Self::Iron => (0, 3),
-            Self::Oil => (1, 0),
-            Self::Rubber => (1, 1),
-            Self::Saltpeter => (1, 2),
-            Self::Uranium => (1, 3),
-            Self::Dyes => (2, 0),
-            Self::Furs => (2, 1),
-            Self::Gems => (2, 2),
-            Self::Incense => (2, 3),
-            Self::Ivory => (3, 0),
-            Self::Silk => (3, 1),
-            Self::Spice => (3, 2),
-            Self::Wine => (3, 3),
-            Self::Cattle => (4, 0),
-            Self::Fish => (4, 1),
-            Self::Gold => (4, 2),
-            Self::Game => (4, 3),
-            Self::Oasis => (5, 0),
-            Self::Sugar => (5, 1),
-            Self::Tobacco => (5, 2),
-            Self::TropicalFruit => (5, 3),
-            Self::Whales => (6, 1),
-            Self::Wheat => (6, 2),
-        }
-    }
-}

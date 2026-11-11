@@ -470,7 +470,7 @@ impl Game {
             return self.draw_government();
         }
         if self.diplomacy_open {
-            return self.draw_diplomacy(assets);
+            return self.draw_diplomacy();
         }
         if self.selected_city_index().is_some() {
             actions.clear();

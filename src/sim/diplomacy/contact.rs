@@ -29,18 +29,6 @@ impl Simulation {
             })
     }
 
-    pub(crate) fn diplomatic_attitude(&self, owner: usize, other: usize) -> &'static str {
-        // UI bands summarize the reference AI's [-1000, 1000] love scale.
-        // They are display labels; the underlying diplomacy score is unchanged.
-        match self.diplomatic_love(owner, other) {
-            love if love <= -600 => "Furious",
-            love if love <= -200 => "Annoyed",
-            love if love < 200 => "Cautious",
-            love if love < 600 => "Polite",
-            _ => "Gracious",
-        }
-    }
-
     pub(in crate::sim) fn diplomatic_meeting_possible(&self, owner: usize, other: usize) -> bool {
         owner != other
             && owner < self.players.len()

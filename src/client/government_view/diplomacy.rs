@@ -3,9 +3,9 @@
 use super::*;
 
 impl Game {
-    pub(in crate::client) fn draw_diplomacy(&self, assets: &Assets) -> Vec<(Rect, UiAction)> {
+    pub(in crate::client) fn draw_diplomacy(&self) -> Vec<(Rect, UiAction)> {
         if let Some(owner) = self.diplomacy_target {
-            return self.draw_diplomacy_meeting(owner, assets);
+            return self.draw_diplomacy_meeting(owner);
         }
         if let Some((owner, offer)) = self.reviewed_offer {
             return self.draw_treaty_offer(owner, offer);
@@ -135,7 +135,7 @@ impl Game {
         actions
     }
 
-    fn draw_diplomacy_meeting(&self, owner: usize, assets: &Assets) -> Vec<(Rect, UiAction)> {
+    fn draw_diplomacy_meeting(&self, owner: usize) -> Vec<(Rect, UiAction)> {
         if owner >= self.sim.players().len() || owner == HUMAN {
             return vec![];
         }
@@ -164,7 +164,6 @@ impl Game {
                 pact: self.sim.next_pact(HUMAN, owner),
                 ..TreatyOffer::default()
             });
-        let attitude = self.sim.diplomatic_attitude(owner, HUMAN);
         let content_y = panel.y + 49.0;
         let side_width = (panel.w * 0.22).clamp(150.0, 196.0);
         let gap = 10.0;
@@ -396,52 +395,7 @@ impl Game {
         }
 
         let center = Rect::new(center_x, content_y, center_width, side_height);
-        let portrait = assets.leader_portrait(
-            self.sim.players()[owner].civilization_id.as_deref(),
-            attitude,
-        );
-        let max_portrait_w = (center_width * 0.5).clamp(116.0, 168.0);
-        let max_portrait_h = (side_height * 0.35).clamp(148.0, 182.0);
-        let portrait_aspect = portrait.map_or(0.75, |texture| texture.width() / texture.height());
-        let (portrait_w, portrait_h) = if max_portrait_w / max_portrait_h > portrait_aspect {
-            (max_portrait_h * portrait_aspect, max_portrait_h)
-        } else {
-            (max_portrait_w, max_portrait_w / portrait_aspect)
-        };
-        let portrait_rect = Rect::new(
-            center.x + (center.w - portrait_w) / 2.0,
-            center.y,
-            portrait_w,
-            portrait_h,
-        );
-        draw_rectangle(
-            portrait_rect.x - 2.0,
-            portrait_rect.y - 2.0,
-            portrait_rect.w + 4.0,
-            portrait_rect.h + 4.0,
-            Color::from_rgba(16, 17, 16, 255),
-        );
-        if let Some(portrait) = portrait {
-            draw_texture_ex(
-                portrait,
-                portrait_rect.x,
-                portrait_rect.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(vec2(portrait_rect.w, portrait_rect.h)),
-                    ..Default::default()
-                },
-            );
-        }
-        draw_rectangle_lines(
-            portrait_rect.x - 2.0,
-            portrait_rect.y - 2.0,
-            portrait_rect.w + 4.0,
-            portrait_rect.h + 4.0,
-            2.0,
-            Color::from_rgba(194, 160, 82, 255),
-        );
-        let leader_y = portrait_rect.bottom() + 19.0;
+        let leader_y = center.y + 24.0;
         let leader_name = format!(
             "{} · {}",
             self.sim.players()[owner].name,

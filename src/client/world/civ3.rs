@@ -218,19 +218,10 @@ impl<'a> Civ3WorldPainter<'a> {
         if let Some(resource) = tile
             .active_resource()
             .filter(|&resource| game.sim.resource_visible_to(HUMAN, resource))
-            && !assets
-                .civ3
-                .draw_resource(resource, geometry.center, geometry.size())
         {
-            let (row, col) = resource.icon_cell();
-            game.draw_resource_icon(
-                &assets.resource_icons,
-                geometry.center,
-                geometry.width,
-                geometry.height,
-                row,
-                col,
-            );
+            assets
+                .civ3
+                .draw_resource(resource, geometry.center, geometry.size());
         }
     }
 
