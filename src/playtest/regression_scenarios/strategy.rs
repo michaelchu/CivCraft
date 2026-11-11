@@ -6,8 +6,8 @@ impl Playtest {
     pub(super) fn advance_strategy_scenarios(&mut self, frame: u32) {
         if frame == 574 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("ai_production_priorities", sim.ai_production_priorities_playtest(),
-                "A growth-capped city prioritized its Aqueduct over expansion and used that priority for production and spending.".to_owned()));
+            self.results.push(("ai_growth_expansion", sim.ai_growth_expansion_playtest(),
+                "Aqueduct growth limits and expansion availability remained valid while the city advisor applied its production choice.".to_owned()));
         }
 
         if frame == 577 && self.act_passed {

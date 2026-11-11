@@ -100,7 +100,7 @@ mod ai_integration_tests {
         assert_eq!(government, (true, true, true, true));
         assert_eq!(ferry, (true, true, true));
         assert!(fresh().civilian_upgrade_roster_playtest());
-        assert!(fresh().ai_production_priorities_playtest());
+        assert!(fresh().ai_growth_expansion_playtest());
         let (source_defender, _safe_city_choice, urgent_response) =
             fresh().ai_city_defense_playtest();
         assert!(source_defender && urgent_response);

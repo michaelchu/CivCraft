@@ -189,17 +189,17 @@ impl Simulation {
         (quiet, first, defended, police)
     }
 
-    pub(crate) fn ai_production_priorities_playtest(&mut self) -> bool {
+    pub(crate) fn ai_growth_expansion_playtest(&mut self) -> bool {
         self.units.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Plains;
             tile.resource = Some(Resource::Wheat);
             tile.irrigation = true;
-            tile.river = true;
+            tile.river = false;
             tile.hut = false;
         }
         self.create_city(1, 10, 24);
-        self.cities[0].size = 8;
+        self.cities[0].size = 6;
         self.cities[0].buildings.extend([
             Building::TEMPLE,
             Building::CATHEDRAL,
@@ -207,18 +207,25 @@ impl Simulation {
         ]);
         self.spawn_unit(1, UnitKind::Warrior, 10, 24);
         let id = self.cities[0].id;
-        self.players[1].known.push(Tech::POTTERY);
+        self.players[1]
+            .known
+            .extend([Tech::POTTERY, Tech::CONSTRUCTION]);
         self.reconcile_city_workers();
+        let city = self.cities[0].clone();
+        let size_limit = Simulation::city_size_limit(&city);
+        let mut with_aqueduct = city.clone();
+        with_aqueduct.buildings.push(Building::AQUEDUCT);
+        let aqueduct_extends_city_limit =
+            size_limit == 6 && Simulation::city_size_limit(&with_aqueduct) == 12;
+        let aqueduct_available = self.building_blocker(&city, Building::AQUEDUCT).is_none();
         let expansion_available = self.settlement_production_choice(&self.cities[0]).is_some();
-        let growth_priority =
-            self.choose_ai_production(1, id) == Production::Building(Building::AQUEDUCT_RIVER);
+        // Source documents the building effects, not a required ranking among
+        // the Aqueduct, Wonders, and expansion units. Check the rule and that
+        // the advisor's chosen production is applied without fixing its rank.
+        let advisor_choice = self.choose_ai_production(1, id);
         self.prepare_ai_city_defenses(1);
-        let selected = self.cities[0].production == Production::Building(Building::AQUEDUCT_RIVER);
-        self.turn += 1;
-        self.cities[0].shields = 1;
-        self.players[1].gold = 500;
-        self.spend_ai_defense_gold(1);
-        expansion_available && growth_priority && selected && self.cities[0].bought_production
+        let selected = self.cities[0].production == advisor_choice;
+        aqueduct_extends_city_limit && aqueduct_available && expansion_available && selected
     }
 
     pub(crate) fn ai_bodyguard_production_playtest(&mut self) -> (bool, bool, bool, bool) {

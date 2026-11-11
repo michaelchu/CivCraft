@@ -74,9 +74,9 @@ fn domestic_wants_penalize_discarding_invested_unit_production() {
 }
 
 #[test]
-fn growth_constrained_city_prefers_aqueduct_to_available_expansion() {
+fn growth_and_expansion_options_remain_available_to_city_advisor() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.ai_production_priorities_playtest());
+    assert!(game.ai_growth_expansion_playtest());
 }
 
 #[test]
