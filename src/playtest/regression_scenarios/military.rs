@@ -16,7 +16,7 @@ impl Playtest {
             let actor = game.selected_unit;
             let target = game
                 .sim
-                .playtest_simulation()
+                .playtest_state()
                 .cities()
                 .iter()
                 .find(|city| city.owner == 1)
@@ -26,15 +26,15 @@ impl Playtest {
                 game.perform_action(UiAction::BeginParadrop);
                 game.perform_action(UiAction::ParadropTo(target.0, target.1));
             }
-            let landed = game.sim.playtest_simulation().units().iter().any(|unit| {
+            let landed = game.sim.playtest_state().units().iter().any(|unit| {
                 Some(unit.id) == actor
                     && (unit.x, unit.y) == target
                     && unit.moves_left == crate::sim::MOVE_FRAGMENTS
-                    && !game.sim.playtest_simulation().can_begin_paradrop(unit)
+                    && !game.sim.playtest_state().can_begin_paradrop(unit)
             });
             let captured = game
                 .sim
-                .playtest_simulation()
+                .playtest_state()
                 .cities()
                 .iter()
                 .any(|city| city.owner == HUMAN && (city.x, city.y) == target);
@@ -42,21 +42,21 @@ impl Playtest {
                 format!("HUD offered the action: {button}. Paratroopers landed with movement and could not drop again: {landed}. They captured the undefended enemy city: {captured}.")));
         }
 
-        if frame == 484 && self.act_passed {
+        if frame == 484 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (defended, refused, captured) = sim.ai_paradrop_playtest();
             self.results.push(("ai_paradrops", defended && refused && captured,
                 format!("AI reinforced an empty threatened city before attacking: {defended}. It refused the defended landing: {refused}. It captured the enemy city once the defender left: {captured}.")));
         }
 
-        if frame == 487 && self.act_passed {
+        if frame == 487 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (declined, struck) = sim.ai_paradrop_stack_playtest();
             self.results.push(("paradrop_follow_up", declined && struck,
                 format!("AI passed up a lone Warrior: {declined}. It landed beside three exposed Warriors and eliminated the stack in a follow-up attack: {struck}.")));
         }
 
-        if frame == 490 && self.act_passed {
+        if frame == 490 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (research, locked, chose, finished) = sim.ai_government_playtest();
             self.results.push((
@@ -69,21 +69,21 @@ impl Playtest {
                 format!("Locked government was excluded: {locked}. The AI chose unlocked Monarchy: {chose}. The AI kept and completed its revolution: {finished}.")));
         }
 
-        if frame == 493 && self.act_passed {
+        if frame == 493 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (improved, preserved) = sim.government_worker_preview_playtest();
             self.results.push(("government_worker_preview", improved && preserved,
                 format!("Candidate government score reflected a better workable tile: {improved}. Live worker and specialist assignments were preserved: {preserved}.")));
         }
 
-        if frame == 496 && self.act_passed {
+        if frame == 496 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (science, growth) = sim.domestic_building_playtest();
             self.results.push(("ai_domestic_buildings", science && growth,
                 format!("A trade-rich city favored a Library: {science}. The same city at its growth cap favored a river Aqueduct: {growth}.")));
         }
 
-        if frame == 499 && self.act_passed {
+        if frame == 499 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (mobile, advanced, blocked) = sim.offensive_production_playtest();
             self.results.push((
@@ -96,62 +96,62 @@ impl Playtest {
                 format!("AI chose a mobile Chariot for a reachable enemy city: {mobile}. The attack evaluation dropped the target after the land route was cut: {blocked}.")));
         }
 
-        if frame == 502 && self.act_passed {
+        if frame == 502 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (embarked, guarded, captured) = sim.overseas_assault_playtest(false);
             self.results.push(("ai_overseas_assault", embarked && guarded && captured,
                 format!("Transport picked up a spare attacker: {embarked}. The source city retained its garrison: {guarded}. The landed force captured the island city: {captured}.")));
         }
 
-        if frame == 505 && self.act_passed {
+        if frame == 505 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (embarked, guarded, captured) = sim.overseas_assault_playtest(true);
             self.results.push(("ai_defended_overseas_assault", embarked && guarded && captured,
                 format!("The AI rejected a lone attacker and embarked the stronger force: {embarked}. Source city retained a guard: {guarded}. The expedition captured the defended city: {captured}.")));
         }
 
-        if frame == 508 && self.act_passed {
+        if frame == 508 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (embarked, together, captured) = sim.coordinated_fleet_playtest(false);
             self.results.push(("coordinated_assault_fleet", embarked && together && captured,
                 format!("Two ships shared the assault force: {embarked}. They unloaded together: {together}. They captured the city while retaining the source guard: {captured}.")));
         }
 
-        if frame == 511 && self.act_passed {
+        if frame == 511 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (assembled, together, captured) = sim.coordinated_fleet_playtest(true);
             self.results.push(("remote_assault_assembly", assembled && together && captured,
                 format!("Troops waited for the remote ship and boarded both: {assembled}. Both ships unloaded together: {together}. The fleet captured the city and left a source guard: {captured}.")));
         }
 
-        if frame == 514 && self.act_passed {
+        if frame == 514 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (intercepted, protected) = sim.fleet_escort_playtest();
             self.results.push(("assault_fleet_escort", intercepted && protected,
                 format!("A Battleship intercepted a Frigate threatening the transport: {intercepted}. The transported Marines remained aboard: {protected}.")));
         }
 
-        if frame == 519 && self.act_passed {
+        if frame == 519 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (recovered, outside, unloaded) = sim.disband_playtest();
             self.results.push(("disband_and_recycle", recovered && outside && unloaded,
                 format!("Recycled shields survived production switches: {recovered}. Distant recovery was rejected and field disband succeeded: {outside}. Cargo survived in port: {unloaded}.")));
         }
 
-        if frame == 521 && self.act_passed {
+        if frame == 521 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (rescued, drowned) = sim.cargo_rescue_playtest();
             self.results.push(("transport_cargo_rescue", rescued && drowned,
                 format!("Cargo transferred to a friendly ship and woke from sentry: {rescued}. An enemy ship offered no rescue: {drowned}.")));
         }
 
-        if frame == 523 && self.act_passed {
+        if frame == 523 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("nested_transport_rescue", sim.nested_cargo_rescue_playtest(),
                 "Checked a helicopter aboard a full carrier and rejected a helicopter whose carrier was also lost.".to_owned()));
         }
 
-        if frame == 525 && self.act_passed {
+        if frame == 525 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push((
                 "movement_cost_routing",
@@ -160,13 +160,13 @@ impl Playtest {
             ));
         }
 
-        if frame == 527 && self.act_passed {
+        if frame == 527 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("fog_of_war_routing", sim.fog_route_playtest(),
                 "Hidden terrain and enemy positions did not change the route. A revealed enemy caused a detour.".to_owned()));
         }
 
-        if frame == 529 && self.act_passed {
+        if frame == 529 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push((
                 "remembered_map_routing",

@@ -237,7 +237,9 @@ async fn main() {
     });
     let mut sequence = client::UiReviewSequence::default();
     let mut changed_page = false;
-    let mut playtest = self_test_path.clone().map(playtest::Playtest::new);
+    let mut playtest = self_test_path
+        .clone()
+        .map(|path| playtest::Playtest::new(path, seed));
     let review_duration = |scene: usize| if (13..=15).contains(&scene) { 120 } else { 10 };
     let review_total_frames = review_scenes
         .iter()
@@ -419,7 +421,7 @@ async fn main() {
             }
         }
         if frame >= 805
-            && let Some(playtest) = &playtest
+            && let Some(playtest) = &mut playtest
         {
             if !playtest.finish(game.hud_elements_drawn) {
                 std::process::exit(1);

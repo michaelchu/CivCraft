@@ -92,6 +92,7 @@ pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
 mod playtest;
+pub(crate) use playtest::{PlaytestHarness, PlaytestState};
 mod research;
 #[cfg(test)]
 mod research_phase;

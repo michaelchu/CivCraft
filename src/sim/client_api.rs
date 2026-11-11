@@ -6,10 +6,10 @@
 use super::{
     CityContextView, CityDealView, CityManagerView, Command, DiplomacyMeetingView,
     DiplomacyRivalView, GameOverView, GotoPreview, GovernmentView, MinimapCityView,
-    MinimapTileView, MusicCueView, Pact, PresentationEventView, RenderTileView, RenderedCityView,
-    RenderedUnitView, ResearchProgressView, SelectableUnitView, Simulation, SpaceshipAssemblyView,
-    Tech, TechnologyResearchView, TopBarView, TreatyOffer, UnitActionView, UnitContextView,
-    UnitFidgetView,
+    MinimapTileView, MusicCueView, Pact, PlaytestHarness, PlaytestState, PresentationEventView,
+    RenderTileView, RenderedCityView, RenderedUnitView, ResearchProgressView, SelectableUnitView,
+    Simulation, SpaceshipAssemblyView, Tech, TechnologyResearchView, TopBarView, TreatyOffer,
+    UnitActionView, UnitContextView, UnitFidgetView,
 };
 use crate::world::topology::MapWrap;
 use std::collections::VecDeque;
@@ -36,14 +36,14 @@ impl ClientSimulation {
         self.simulation.save_campaign(path)
     }
 
-    /// Raw mutable access is reserved for deterministic playtest scenarios.
-    pub(crate) fn playtest_simulation_mut(&mut self) -> &mut Simulation {
-        &mut self.simulation
+    /// Mutable scenario and fixture access for the dedicated playtest harness.
+    pub(crate) fn playtest_harness(&mut self) -> PlaytestHarness<'_> {
+        PlaytestHarness::new(&mut self.simulation)
     }
 
-    /// Read access for deterministic playtest assertions.
-    pub(crate) fn playtest_simulation(&self) -> &Simulation {
-        &self.simulation
+    /// Read-only state inspection for deterministic playtest assertions.
+    pub(crate) fn playtest_state(&self) -> PlaytestState<'_> {
+        PlaytestState::new(&self.simulation)
     }
 
     pub(crate) fn research_unit_unlocks(tech: Tech) -> Vec<&'static str> {

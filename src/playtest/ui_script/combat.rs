@@ -12,11 +12,11 @@ impl Playtest {
         if frame == 252 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
-            let home = game.sim.playtest_simulation_mut().veteran_playtest_setup();
+            let home = game.sim.playtest_harness().veteran_playtest_setup();
             game.perform_action(UiAction::EndTurn);
             let trained = game
                 .sim
-                .playtest_simulation()
+                .playtest_state()
                 .units()
                 .iter()
                 .find(|unit| {
@@ -34,20 +34,20 @@ impl Playtest {
         if frame == 256 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
-            let warrior = game.sim.playtest_simulation_mut().upgrade_playtest_setup();
+            let warrior = game.sim.playtest_harness().upgrade_playtest_setup();
             game.perform_action(UiAction::SelectUnit(warrior));
         }
         if frame == 258 && self.act_passed {
-            let gold = game.sim.playtest_simulation().players()[HUMAN].gold;
+            let gold = game.sim.playtest_state().players()[HUMAN].gold;
             let upgrade = buttons.iter().find_map(|(_, action)| match action {
                 UiAction::UpgradeUnit(UnitKind::Musketman, price) => Some((*action, *price)),
                 _ => None,
             });
             let upgraded = upgrade.is_some_and(|(action, price)| {
                 game.perform_action(action);
-                game.sim.playtest_simulation().players()[HUMAN].gold == gold - price
+                game.sim.playtest_state().players()[HUMAN].gold == gold - price
                     && game.selected_unit.is_some_and(|id| {
-                        game.sim.playtest_simulation().units().iter().any(|unit| {
+                        game.sim.playtest_state().units().iter().any(|unit| {
                             unit.id == id && unit.kind == UnitKind::Musketman && unit.veteran == 1
                         })
                     })
@@ -60,7 +60,7 @@ impl Playtest {
             game.perform_action(UiAction::FoundCity);
             let team = game
                 .sim
-                .playtest_simulation_mut()
+                .playtest_harness()
                 .cooperative_work_playtest_setup();
             self.work_team = Some(team);
             game.perform_action(UiAction::SelectUnit(team.0));
@@ -87,18 +87,18 @@ impl Playtest {
             }
             let site = game
                 .sim
-                .playtest_simulation()
+                .playtest_state()
                 .units()
                 .iter()
                 .find(|unit| unit.id == first)
-                .filter(|unit| game.sim.playtest_simulation().project_turns_left(unit) == 3)
+                .filter(|unit| game.sim.playtest_state().project_turns_left(unit) == 3)
                 .map(|unit| (unit.x, unit.y));
             let completed = site.is_some_and(|(x, y)| {
-                (0..3).all(|_| game.sim.playtest_simulation_mut().apply(Command::EndTurn))
-                    && game.sim.playtest_simulation().tile(x, y).irrigation
+                (0..3).all(|_| game.sim.playtest_harness().apply(Command::EndTurn))
+                    && game.sim.playtest_state().tile(x, y).irrigation
                     && [first, second].into_iter().all(|id| {
                         game.sim
-                            .playtest_simulation()
+                            .playtest_state()
                             .units()
                             .iter()
                             .any(|unit| unit.id == id && unit.work_kind.is_none())
@@ -109,22 +109,22 @@ impl Playtest {
         }
         if frame == 275 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let (bomber, targets) = game.sim.playtest_simulation_mut().bombard_playtest_setup();
+            let (bomber, targets) = game.sim.playtest_harness().bombard_playtest_setup();
             game.perform_action(UiAction::SelectUnit(bomber));
             let bombarded = game
                 .sim
-                .playtest_simulation_mut()
+                .playtest_harness()
                 .apply(Command::Move(bomber, 1, 0))
                 && targets.into_iter().all(|id| {
                     game.sim
-                        .playtest_simulation()
+                        .playtest_state()
                         .units()
                         .iter()
                         .any(|unit| unit.id == id && unit.hp == 7)
                 })
                 && game
                     .sim
-                    .playtest_simulation()
+                    .playtest_state()
                     .units()
                     .iter()
                     .any(|unit| unit.id == bomber && unit.moves_left == 0 && unit.hp == 30);
@@ -133,19 +133,19 @@ impl Playtest {
         }
         if frame == 279 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let (fighter, bomber) = game.sim.playtest_simulation_mut().fighter_playtest_setup();
+            let (fighter, bomber) = game.sim.playtest_harness().fighter_playtest_setup();
             game.perform_action(UiAction::SelectUnit(fighter));
             let intercepted =
                 game.sim
-                    .playtest_simulation_mut()
+                    .playtest_harness()
                     .apply(Command::Move(fighter, 1, 0))
                     && game
                         .sim
-                        .playtest_simulation()
+                        .playtest_state()
                         .units()
                         .iter()
                         .all(|unit| unit.id != bomber)
-                    && game.sim.playtest_simulation().units().iter().any(|unit| {
+                    && game.sim.playtest_state().units().iter().any(|unit| {
                         unit.id == fighter && unit.moves_left == 9 * sim::MOVE_FRAGMENTS
                     });
             self.results.push(("fighter_interception", intercepted,
@@ -153,27 +153,27 @@ impl Playtest {
         }
         if frame == 283 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let (carrier, fighter) = game.sim.playtest_simulation_mut().carrier_playtest_setup();
+            let (carrier, fighter) = game.sim.playtest_harness().carrier_playtest_setup();
             game.perform_action(UiAction::SelectUnit(fighter));
             let landed = game
                 .sim
-                .playtest_simulation_mut()
+                .playtest_harness()
                 .apply(Command::Move(fighter, 1, 0))
-                && game.sim.playtest_simulation().cargo_count(carrier) == 1;
+                && game.sim.playtest_state().cargo_count(carrier) == 1;
             let sailed = game
                 .sim
-                .playtest_simulation_mut()
+                .playtest_harness()
                 .apply(Command::Move(carrier, 1, 0));
             game.perform_action(UiAction::EndTurn);
-            let fueled = game.sim.playtest_simulation().units().iter().any(|unit| {
+            let fueled = game.sim.playtest_state().units().iter().any(|unit| {
                 unit.id == fighter && unit.transport == Some(carrier) && unit.fuel == 2
             });
             game.perform_action(UiAction::SelectUnit(fighter));
             let launched = game
                 .sim
-                .playtest_simulation_mut()
+                .playtest_harness()
                 .apply(Command::Move(fighter, 1, 0))
-                && game.sim.playtest_simulation().cargo_count(carrier) == 0;
+                && game.sim.playtest_state().cargo_count(carrier) == 0;
             self.results.push(("carrier_operations", landed && sailed && fueled && launched,
                 format!("Fighter landed: {landed}. Carrier sailed: {sailed}. Fighter refueled: {fueled}. Fighter launched: {launched}.")));
         }
@@ -182,7 +182,7 @@ impl Playtest {
             game.perform_action(UiAction::FoundCity);
             let scenario = game
                 .sim
-                .playtest_simulation_mut()
+                .playtest_harness()
                 .stealth_aircraft_playtest_setup();
             self.stealth_aircraft = Some(scenario);
             game.perform_action(UiAction::SelectUnit(scenario.0));
@@ -197,18 +197,18 @@ impl Playtest {
             }
             let upgraded = game
                 .sim
-                .playtest_simulation()
+                .playtest_state()
                 .units()
                 .iter()
                 .any(|unit| unit.id == bomber && unit.kind == UnitKind::StealthBomber);
             let bombarded = upgraded
                 && game
                     .sim
-                    .playtest_simulation_mut()
+                    .playtest_harness()
                     .apply(Command::Move(bomber, 1, 0))
                 && game
                     .sim
-                    .playtest_simulation()
+                    .playtest_state()
                     .units()
                     .iter()
                     .any(|unit| unit.id == target && unit.hp == 6);
@@ -218,25 +218,22 @@ impl Playtest {
         if frame == 290 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
-            let (helicopter, passenger) = game
-                .sim
-                .playtest_simulation_mut()
-                .helicopter_playtest_setup();
+            let (helicopter, passenger) = game.sim.playtest_harness().helicopter_playtest_setup();
             game.perform_action(UiAction::SelectUnit(passenger));
             game.perform_action(UiAction::BoardOrDeboard);
-            let boarded = game.sim.playtest_simulation().cargo_count(helicopter) == 1;
+            let boarded = game.sim.playtest_state().cargo_count(helicopter) == 1;
             game.perform_action(UiAction::SelectUnit(helicopter));
             let flew = game
                 .sim
-                .playtest_simulation_mut()
+                .playtest_harness()
                 .apply(Command::Move(helicopter, 1, 0));
             game.perform_action(UiAction::SelectUnit(passenger));
             game.perform_action(UiAction::BoardOrDeboard);
-            let stayed_aboard = game.sim.playtest_simulation().cargo_count(helicopter) == 1;
+            let stayed_aboard = game.sim.playtest_state().cargo_count(helicopter) == 1;
             game.perform_action(UiAction::EndTurn);
             let took_damage = game
                 .sim
-                .playtest_simulation()
+                .playtest_state()
                 .units()
                 .iter()
                 .any(|unit| unit.id == helicopter && unit.hp == 27 && unit.fuel == 0);
@@ -249,17 +246,17 @@ impl Playtest {
                 *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
                 let (bomber, defender) = game
                     .sim
-                    .playtest_simulation_mut()
+                    .playtest_harness()
                     .sam_battery_playtest_setup(protected);
                 game.perform_action(UiAction::SelectUnit(bomber));
                 if game
                     .sim
-                    .playtest_simulation_mut()
+                    .playtest_harness()
                     .apply(Command::Move(bomber, 1, 0))
                 {
                     remaining_hp[index] = game
                         .sim
-                        .playtest_simulation()
+                        .playtest_state()
                         .units()
                         .iter()
                         .find(|unit| unit.id == defender)
@@ -272,21 +269,21 @@ impl Playtest {
         }
         if frame == 294 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let (helicopter, cruiser) = game.sim.playtest_simulation_mut().aegis_playtest_setup();
+            let (helicopter, cruiser) = game.sim.playtest_harness().aegis_playtest_setup();
             game.perform_action(UiAction::SelectUnit(helicopter));
             let attacked = game
                 .sim
-                .playtest_simulation_mut()
+                .playtest_harness()
                 .apply(Command::Move(helicopter, 1, 0));
             let repelled = game
                 .sim
-                .playtest_simulation()
+                .playtest_state()
                 .units()
                 .iter()
                 .all(|unit| unit.id != helicopter)
                 && game
                     .sim
-                    .playtest_simulation()
+                    .playtest_state()
                     .units()
                     .iter()
                     .any(|unit| unit.id == cruiser);
@@ -300,26 +297,24 @@ impl Playtest {
         }
         if frame == 296 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let (carrier, missile, target) = game
-                .sim
-                .playtest_simulation_mut()
-                .cruise_missile_playtest_setup();
+            let (carrier, missile, target) =
+                game.sim.playtest_harness().cruise_missile_playtest_setup();
             game.perform_action(UiAction::SelectUnit(missile));
             game.perform_action(UiAction::BoardOrDeboard);
-            let boarded = game.sim.playtest_simulation().cargo_count(carrier) == 1;
+            let boarded = game.sim.playtest_state().cargo_count(carrier) == 1;
             let launched = game
                 .sim
-                .playtest_simulation_mut()
+                .playtest_harness()
                 .apply(Command::Move(missile, 1, 0));
             let resolved = game
                 .sim
-                .playtest_simulation()
+                .playtest_state()
                 .units()
                 .iter()
                 .all(|unit| unit.id != missile && unit.id != target)
                 && game
                     .sim
-                    .playtest_simulation()
+                    .playtest_state()
                     .units()
                     .iter()
                     .any(|unit| unit.id == carrier);
@@ -332,12 +327,12 @@ impl Playtest {
                 *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
                 let (missile, defender, city) = game
                     .sim
-                    .playtest_simulation_mut()
+                    .playtest_harness()
                     .nuclear_playtest_setup(intercepted);
                 game.perform_action(UiAction::SelectUnit(missile));
                 let target = game
                     .sim
-                    .playtest_simulation()
+                    .playtest_state()
                     .cities()
                     .iter()
                     .find(|target| target.id == city)
@@ -347,26 +342,21 @@ impl Playtest {
                 game.perform_action(UiAction::NuclearStrikeTo(target_x, target_y));
                 let launched = game
                     .sim
-                    .playtest_simulation()
+                    .playtest_state()
                     .units()
                     .iter()
                     .all(|unit| unit.id != missile);
                 outcomes[index] = launched
                     && game
                         .sim
-                        .playtest_simulation()
+                        .playtest_state()
                         .units()
                         .iter()
                         .any(|unit| unit.id == defender)
                         == intercepted
-                    && game
-                        .sim
-                        .playtest_simulation()
-                        .cities()
-                        .iter()
-                        .any(|target| {
-                            target.id == city && target.size == if intercepted { 4 } else { 2 }
-                        });
+                    && game.sim.playtest_state().cities().iter().any(|target| {
+                        target.id == city && target.size == if intercepted { 4 } else { 2 }
+                    });
             }
             self.results.push(("nuclear_strike", outcomes == [true, true],
                 format!("Strike destroyed the garrison and halved the city's population: {}. Nearby SDI intercepted the other strike: {}.", outcomes[0], outcomes[1])));
@@ -376,9 +366,7 @@ impl Playtest {
             for (index, warming) in [true, false].into_iter().enumerate() {
                 *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
                 game.perform_action(UiAction::FoundCity);
-                game.sim
-                    .playtest_simulation_mut()
-                    .climate_playtest_setup(warming);
+                game.sim.playtest_harness().climate_playtest_setup(warming);
                 game.perform_action(UiAction::EndTurn);
                 let event = if warming {
                     "Global warming has occurred."
@@ -387,13 +375,13 @@ impl Playtest {
                 };
                 outcomes[index] = game
                     .sim
-                    .playtest_simulation()
+                    .playtest_state()
                     .events()
                     .iter()
                     .any(|text| text == event)
                     && (0..crate::sim::topology::MAP_H).any(|y| {
                         (0..crate::sim::topology::MAP_W).any(|x| {
-                            game.sim.playtest_simulation().tile(x, y).terrain
+                            game.sim.playtest_state().tile(x, y).terrain
                                 == crate::sim::Terrain::Desert
                         })
                     });

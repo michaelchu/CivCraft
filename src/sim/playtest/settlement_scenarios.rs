@@ -206,7 +206,9 @@ impl Simulation {
             let (tx, ty) = offset_native_by_map(x, y, step, 0);
             self.tile_mut(tx, ty).terrain = Terrain::Grassland;
         }
-        for (cx, cy) in [(x, y), (20, 38), (24, 48)] {
+        // The historical oracle map is only 48 tiles tall, so keep the
+        // third established city inside its bounded southern edge.
+        for (cx, cy) in [(x, y), (20, 38), (24, 44)] {
             self.tile_mut(cx, cy).terrain = Terrain::Grassland;
             self.create_city(1, cx, cy);
         }
