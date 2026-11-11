@@ -75,14 +75,20 @@ fn fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.ui_review_observed_map();
     assert!(game.ui_review_observed_map_valid(false));
+    let owner = game.city_at(20, 24).unwrap().owner;
+    let expected_style = game.players[owner]
+        .civilization_id
+        .as_deref()
+        .and_then(crate::rules::civilizations::by_id)
+        .map_or(2, |civilization| civilization.civ3_city_style);
     let remembered = game
         .render_cities()
         .into_iter()
         .find(|c| c.city.x == 20 && c.city.y == 24)
         .unwrap();
     assert_eq!(
-        remembered.civ3_style, 2,
-        "remembered Greek city retains its Civ III style"
+        remembered.civ3_style, expected_style,
+        "remembered city retains its owner's Civ III style"
     );
     assert!(remembered.city.buildings.contains(&Building::CITY_WALLS));
     assert_eq!(game.render_tile(19, 23).terrain, Terrain::Forest);
@@ -95,7 +101,7 @@ fn fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved() {
         .into_iter()
         .find(|c| c.city.x == 20 && c.city.y == 24)
         .unwrap();
-    assert_eq!(current.civ3_style, 2);
+    assert_eq!(current.civ3_style, expected_style);
     assert_eq!(
         observed_random,
         game.random_snapshot(),
