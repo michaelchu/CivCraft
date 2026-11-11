@@ -104,19 +104,26 @@ impl Simulation {
         }
         self.create_city(HUMAN, 10, 24);
         self.create_city(HUMAN, 22, 40);
+        let oldest = self.cities[0].id;
         let newest = self.cities[1].id;
+        assert_eq!(
+            self.player_cities_ordered(HUMAN)
+                .map(|city| city.id)
+                .collect::<Vec<_>>(),
+            [newest, oldest]
+        );
         for city in &mut self.cities {
             city.production = Production::Unit(UnitKind::Warrior);
             city.shields = city.production.cost();
         }
-        // Native seed 2 selects index zero after the conversion checks.
+        // Native seed 2 selects index one after the conversion checks.
         // The stream itself is independently checked against the C oracle.
         self.set_random_seed(2);
         self.process_cities();
         self.units
             .iter()
             .min_by_key(|unit| unit.id)
-            .is_some_and(|unit| unit.home_city == Some(newest))
+            .is_some_and(|unit| unit.home_city == Some(oldest))
             && self
                 .units
                 .iter()

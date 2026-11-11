@@ -121,7 +121,8 @@ impl super::Simulation {
             .is_none();
         let mut with_rearrange = without_rearrange.clone();
         with_rearrange.arrange_ai_emergency_workers(1);
-        let expected_choice = with_rearrange.ai_build_choice(&with_rearrange.cities[0]);
+        let expected_production =
+            with_rearrange.choose_ai_production(1, with_rearrange.cities[0].id);
         self.run_ai_last_activities(1);
         let cm_before_advice = no_cm_disorder
             && no_cm_advice
@@ -129,7 +130,7 @@ impl super::Simulation {
             && self.players[1].rates == [60, 40, 0]
             && !self.city_forecast(&self.cities[0]).disorder
             && self.cities[0].specialists.iter().sum::<i32>() > 0
-            && expected_choice.is_some_and(|choice| choice.production == self.cities[0].production);
+            && self.cities[0].production == expected_production;
         (rates_before_advice, cm_before_advice)
     }
 }

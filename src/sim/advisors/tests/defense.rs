@@ -173,6 +173,8 @@ fn quiet_empty_city_has_no_defense_bid_but_entertainer_can_request_police() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
+    game.players[1].government = Government::Despotism;
+    game.players[1].known = vec![Tech::BRONZE_WORKING];
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
         tile.owner = None;

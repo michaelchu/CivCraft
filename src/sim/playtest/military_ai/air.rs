@@ -160,6 +160,7 @@ impl Simulation {
     pub(crate) fn ai_embarked_paradrop_danger_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
+        self.players[1].known = vec![Tech::BRONZE_WORKING];
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Sea;
             tile.road = false;
