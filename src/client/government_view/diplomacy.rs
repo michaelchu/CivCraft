@@ -580,13 +580,11 @@ impl Game {
         if let Some(city_id) = terms.city() {
             let name = self
                 .sim
-                .cities()
-                .iter()
-                .find(|city| city.id == city_id)
-                .map_or("Unavailable city", |city| city.name.as_str());
+                .city_name_view(city_id)
+                .unwrap_or_else(|| "Unavailable city".to_owned());
             let mut changed = offer;
             changed.terms[side] = terms.set_city(None);
-            rows.push((name.to_owned(), changed));
+            rows.push((name, changed));
         }
         let mut actions = Vec::new();
         if rows.is_empty() {

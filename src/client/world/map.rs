@@ -19,7 +19,7 @@ impl Game {
         // Source rows are NW, NE, SW, SE; tile edges are traversed clockwise
         // from the top-right edge, matching Civ III's staggered neighbors.
         for (dx, dy, row) in [(0, -1, 1), (1, 0, 3), (0, 1, 2), (-1, 0, 0)] {
-            let neighbor = render_neighbor(self.sim.map_wrap, x, y, dx, dy);
+            let neighbor = render_neighbor(self.sim.map_wrap(), x, y, dx, dy);
             if let Some((nx, ny)) = neighbor
                 && self.playback.tile_owner(&self.sim, nx, ny) == Some(owner)
             {
@@ -36,7 +36,7 @@ impl Game {
     }
 
     pub(super) fn edge_water_rows(&self) -> impl Iterator<Item = i32> + use<> {
-        let height = self.sim.map_wrap.height();
+        let height = self.sim.map_wrap().height();
         let count = map_view::EDGE_WATER_ROWS;
         (-count..0).chain(height..height + count)
     }
@@ -44,7 +44,7 @@ impl Game {
     pub(super) fn world_fog_knowledge(&self, x: i32, y: i32) -> fog::Knowledge {
         // Decorative water inherits knowledge from the closest real polar row.
         // City work maps keep their ordinary off-map fog behavior.
-        let y = y.clamp(0, self.sim.map_wrap.height() - 1);
+        let y = y.clamp(0, self.sim.map_wrap().height() - 1);
         self.fog_knowledge(x, y)
     }
 
@@ -55,7 +55,7 @@ impl Game {
         tile_w: f32,
         tile_h: f32,
     ) {
-        let width = self.sim.map_wrap.width();
+        let width = self.sim.map_wrap().width();
         for y in self.edge_water_rows() {
             for x in 0..width {
                 let center = self.world_screen_position(x, y);
@@ -68,7 +68,7 @@ impl Game {
                 }
                 if !self
                     .sim
-                    .render_tile_view(x, y.clamp(0, self.sim.map_wrap.height() - 1))
+                    .render_tile_view(x, y.clamp(0, self.sim.map_wrap().height() - 1))
                     .seen
                 {
                     continue;

@@ -10,7 +10,7 @@ pub(super) enum Knowledge {
 
 impl Game {
     pub(super) fn fog_knowledge(&self, x: i32, y: i32) -> Knowledge {
-        let Some((x, y)) = self.sim.map_wrap.normalize(x, y) else {
+        let Some((x, y)) = self.sim.map_wrap().normalize(x, y) else {
             return Knowledge::Remembered;
         };
         let tile = self.sim.render_tile_view(x, y);
@@ -39,7 +39,7 @@ impl Game {
         // Civ III topology used by movement and visibility.
         let neighbor = |direction| {
             self.sim
-                .map_wrap
+                .map_wrap()
                 .civ3_neighbor(tile.0, tile.1, direction)
                 .map_or(Knowledge::Unknown, |coord| {
                     fog_status(coord, target_tile, &at)

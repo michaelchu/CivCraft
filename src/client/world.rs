@@ -2,6 +2,8 @@
 
 use super::civ3_geometry::{CELL_H as CIV3_CELL_H, CELL_W as CIV3_CELL_W, Civ3Geometry};
 use super::*;
+#[cfg(test)]
+use crate::sim::Simulation;
 mod civ3;
 mod entities;
 mod map;
@@ -33,7 +35,7 @@ mod infrastructure_tests {
             assert_eq!(game.edge_water_rows().collect::<Vec<_>>(), [-2, -1, 48, 49]);
             for padding in [-2, 49] {
                 assert_eq!(game.world_fog_knowledge(2, padding), knowledge);
-                assert!(game.sim.map_wrap.normalize(2, padding).is_none());
+                assert!(game.sim.map_wrap().normalize(2, padding).is_none());
             }
         }
     }

@@ -10,7 +10,10 @@ impl Playtest {
         buttons: &[(Rect, UiAction)],
     ) {
         if frame == 150 && self.act_passed {
-            let probe = game.sim.transport_playtest_setup();
+            let probe = game
+                .sim
+                .playtest_simulation_mut()
+                .transport_playtest_setup();
             game.perform_action(UiAction::SelectUnit(probe.1));
             self.transport_probe = Some(probe);
         }
@@ -23,18 +26,30 @@ impl Playtest {
             {
                 game.perform_action(*action);
             }
-            let boarded = game.sim.cargo_count(ship) == 1;
-            let sailed = game.sim.apply(Command::Move(ship, 1, 0));
-            let deboard_blocked = !game.sim.apply(Command::BoardOrDeboard(passenger));
-            let landed = game.sim.apply(Command::Move(passenger, 1, 0))
-                && game.sim.units().iter().any(|unit| {
+            let boarded = game.sim.playtest_simulation().cargo_count(ship) == 1;
+            let sailed = game
+                .sim
+                .playtest_simulation_mut()
+                .apply(Command::Move(ship, 1, 0));
+            let deboard_blocked = !game
+                .sim
+                .playtest_simulation_mut()
+                .apply(Command::BoardOrDeboard(passenger));
+            let landed = game
+                .sim
+                .playtest_simulation_mut()
+                .apply(Command::Move(passenger, 1, 0))
+                && game.sim.playtest_simulation().units().iter().any(|unit| {
                     unit.id == passenger && (unit.x, unit.y) == shore && unit.transport.is_none()
                 });
             self.results.push(("transport", boarded && sailed && deboard_blocked && landed,
                 format!("Boarded in port: {boarded}. Sailed with cargo: {sailed}. Blocked unloading at sea: {deboard_blocked}. Landed on shore: {landed}.")));
         }
         if frame == 155 && self.act_passed {
-            let (x, y) = game.sim.production_playtest_setup();
+            let (x, y) = game
+                .sim
+                .playtest_simulation_mut()
+                .production_playtest_setup();
             game.select_at(x, y);
         }
         if frame == 157 && self.act_passed {
@@ -54,22 +69,25 @@ impl Playtest {
         if frame == 159 && self.act_passed {
             let rushed = game
                 .sim
+                .playtest_simulation()
                 .cities()
                 .iter()
                 .find(|city| city.owner == HUMAN)
                 .is_some_and(|city| {
                     city.bought_production && city.shields == UnitKind::Warrior.stats().cost
                 })
-                && game.sim.players()[HUMAN].gold == 50;
+                && game.sim.playtest_simulation().players()[HUMAN].gold == 50;
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::SellBuilding(_, Building::GRANARY)))
             {
                 game.perform_action(*action);
             }
-            let sold = game.sim.players()[HUMAN].gold == 50 + Building::GRANARY.data().cost
+            let sold = game.sim.playtest_simulation().players()[HUMAN].gold
+                == 50 + Building::GRANARY.data().cost
                 && game
                     .sim
+                    .playtest_simulation()
                     .cities()
                     .iter()
                     .find(|city| city.owner == HUMAN)
@@ -106,10 +124,11 @@ impl Playtest {
             let visible = buttons.iter().any(|(_, action)| {
                 matches!(action, UiAction::EditWorklist(_, WorklistEdit::Remove(0)))
             });
-            let turn_ended = game.sim.apply(Command::EndTurn);
+            let turn_ended = game.sim.playtest_simulation_mut().apply(Command::EndTurn);
             let advanced = turn_ended
                 && game
                     .sim
+                    .playtest_simulation()
                     .cities()
                     .iter()
                     .find(|city| city.owner == HUMAN)
@@ -121,7 +140,7 @@ impl Playtest {
                 format!("Queued Worker in city UI: {visible}. Advanced to Worker after production: {advanced}.")));
         }
         if frame == 166 && self.act_passed {
-            let worker = game.sim.farmland_playtest_setup();
+            let worker = game.sim.playtest_simulation_mut().farmland_playtest_setup();
             game.perform_action(UiAction::SelectUnit(worker));
         }
         if frame == 168 && self.act_passed {
@@ -133,16 +152,23 @@ impl Playtest {
             }
             let work = game
                 .selected_unit
-                .and_then(|id| game.sim.units().iter().find(|unit| unit.id == id))
+                .and_then(|id| {
+                    game.sim
+                        .playtest_simulation()
+                        .units()
+                        .iter()
+                        .find(|unit| unit.id == id)
+                })
                 .filter(|unit| unit.work_kind == Some(sim::WorkKind::Farmland))
                 .map(|unit| (unit.x, unit.y, unit.work_turns_left()));
             let completed = work.is_some_and(|(x, y, turns)| {
-                (0..turns).all(|_| game.sim.apply(Command::EndTurn)) && game.sim.tile(x, y).farmland
+                (0..turns).all(|_| game.sim.playtest_simulation_mut().apply(Command::EndTurn))
+                    && game.sim.playtest_simulation().tile(x, y).farmland
             });
             self.results.push(("farmland", completed, format!("Started Farmland using the worker control and completed it over end turns: {completed}.")));
         }
         if frame == 177 && self.act_passed {
-            let (warrior, tile) = game.sim.pillage_playtest_setup();
+            let (warrior, tile) = game.sim.playtest_simulation_mut().pillage_playtest_setup();
             self.pillage_probe = Some(tile);
             game.perform_action(UiAction::SelectUnit(warrior));
         }
@@ -157,10 +183,10 @@ impl Playtest {
             });
             let completed = action.is_some_and(|(_, action)| {
                 game.perform_action(*action);
-                game.sim.tile(x, y).railroad
-                    && game.sim.apply(Command::EndTurn)
-                    && !game.sim.tile(x, y).railroad
-                    && game.sim.tile(x, y).road
+                game.sim.playtest_simulation().tile(x, y).railroad
+                    && game.sim.playtest_simulation_mut().apply(Command::EndTurn)
+                    && !game.sim.playtest_simulation().tile(x, y).railroad
+                    && game.sim.playtest_simulation().tile(x, y).road
             });
             self.results.push(("pillage", completed, format!("Pillaged the Railroad through the unit control and preserved its Road: {completed}.")));
         }
@@ -168,7 +194,7 @@ impl Playtest {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
             game.perform_action(UiAction::CloseCity);
-            let worker = game.sim.base_playtest_setup();
+            let worker = game.sim.playtest_simulation_mut().base_playtest_setup();
             game.perform_action(UiAction::SelectUnit(worker));
         }
         if frame == 183 || frame == 186 {
@@ -191,7 +217,13 @@ impl Playtest {
             };
             let position = game
                 .selected_unit
-                .and_then(|id| game.sim.units().iter().find(|unit| unit.id == id))
+                .and_then(|id| {
+                    game.sim
+                        .playtest_simulation()
+                        .units()
+                        .iter()
+                        .find(|unit| unit.id == id)
+                })
                 .map(|unit| (unit.x, unit.y));
             let action = buttons.iter().find(|(_, action)| {
                 matches!(
@@ -202,13 +234,13 @@ impl Playtest {
             let completed = position.zip(action).is_some_and(|((x, y), (_, action))| {
                 game.perform_action(*action);
                 started = game.selected_unit.is_some_and(|id| {
-                    game.sim.units().iter().any(|unit| {
+                    game.sim.playtest_simulation().units().iter().any(|unit| {
                         unit.id == id && unit.work_kind == Some(sim::WorkKind::BuildBase(target))
                     })
                 });
                 started
-                    && game.sim.apply(Command::EndTurn)
-                    && game.sim.tile(x, y).base == Some(target)
+                    && game.sim.playtest_simulation_mut().apply(Command::EndTurn)
+                    && game.sim.playtest_simulation().tile(x, y).base == Some(target)
             });
             self.results.push((
                 if frame == 184 { "airstrip" } else { "airbase" },
@@ -220,13 +252,19 @@ impl Playtest {
             ));
         }
         if frame == 190 && self.act_passed {
-            let worker = game.sim.cleanup_playtest_setup();
+            let worker = game.sim.playtest_simulation_mut().cleanup_playtest_setup();
             game.perform_action(UiAction::SelectUnit(worker));
         }
         if frame == 192 && self.act_passed {
             let position = game
                 .selected_unit
-                .and_then(|id| game.sim.units().iter().find(|unit| unit.id == id))
+                .and_then(|id| {
+                    game.sim
+                        .playtest_simulation()
+                        .units()
+                        .iter()
+                        .find(|unit| unit.id == id)
+                })
                 .map(|unit| (unit.x, unit.y));
             let action = buttons.iter().find(|(_, action)| {
                 matches!(
@@ -236,21 +274,30 @@ impl Playtest {
             });
             let completed = position.zip(action).is_some_and(|((x, y), (_, action))| {
                 game.perform_action(*action);
-                (0..2).all(|_| game.sim.apply(Command::EndTurn))
-                    && !game.sim.tile(x, y).fallout
-                    && game.sim.tile(x, y).pollution
+                (0..2).all(|_| game.sim.playtest_simulation_mut().apply(Command::EndTurn))
+                    && !game.sim.playtest_simulation().tile(x, y).fallout
+                    && game.sim.playtest_simulation().tile(x, y).pollution
             });
             self.results.push(("cleanup", completed,
                 format!("Cleaned Fallout through the Worker control while leaving Pollution intact: {completed}.")));
         }
         if frame == 195 && self.act_passed {
-            let ship = game.sim.naval_cleanup_playtest_setup();
+            let ship = game
+                .sim
+                .playtest_simulation_mut()
+                .naval_cleanup_playtest_setup();
             game.perform_action(UiAction::SelectUnit(ship));
         }
         if frame == 197 && self.act_passed {
             let position = game
                 .selected_unit
-                .and_then(|id| game.sim.units().iter().find(|unit| unit.id == id))
+                .and_then(|id| {
+                    game.sim
+                        .playtest_simulation()
+                        .units()
+                        .iter()
+                        .find(|unit| unit.id == id)
+                })
                 .map(|unit| (unit.x, unit.y));
             let action = buttons.iter().find(|(_, action)| {
                 matches!(
@@ -260,7 +307,8 @@ impl Playtest {
             });
             let completed = position.zip(action).is_some_and(|((x, y), (_, action))| {
                 game.perform_action(*action);
-                (0..3).all(|_| game.sim.apply(Command::EndTurn)) && !game.sim.tile(x, y).pollution
+                (0..3).all(|_| game.sim.playtest_simulation_mut().apply(Command::EndTurn))
+                    && !game.sim.playtest_simulation().tile(x, y).pollution
             });
             self.results.push((
                 "naval_cleanup",
@@ -271,7 +319,10 @@ impl Playtest {
             ));
         }
         if frame == 200 && self.act_passed {
-            let ship = game.sim.oil_platform_playtest_setup();
+            let ship = game
+                .sim
+                .playtest_simulation_mut()
+                .oil_platform_playtest_setup();
             game.perform_action(UiAction::SelectUnit(ship));
         }
         if frame == 202 && self.act_passed {
@@ -282,15 +333,21 @@ impl Playtest {
                 game.perform_action(*action);
                 let site = game
                     .selected_unit
-                    .and_then(|id| game.sim.units().iter().find(|unit| unit.id == id))
+                    .and_then(|id| {
+                        game.sim
+                            .playtest_simulation()
+                            .units()
+                            .iter()
+                            .find(|unit| unit.id == id)
+                    })
                     .filter(|unit| {
                         unit.work_kind == Some(sim::WorkKind::OilPlatform)
                             && unit.work_turns_left() == 2
                     })
                     .map(|unit| (unit.x, unit.y));
                 site.is_some_and(|(x, y)| {
-                    (0..2).all(|_| game.sim.apply(Command::EndTurn))
-                        && game.sim.tile(x, y).oil_platform
+                    (0..2).all(|_| game.sim.playtest_simulation_mut().apply(Command::EndTurn))
+                        && game.sim.playtest_simulation().tile(x, y).oil_platform
                 })
             });
             self.results.push(("oil_platform", completed,
@@ -298,13 +355,23 @@ impl Playtest {
         }
         if frame == 205 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let (warrior, diplomat, destination) = game.sim.zone_control_playtest_setup();
+            let (warrior, diplomat, destination) = game
+                .sim
+                .playtest_simulation_mut()
+                .zone_control_playtest_setup();
             game.perform_action(UiAction::SelectUnit(warrior));
-            let blocked = !game.sim.apply(Command::Move(warrior, 1, 0));
+            let blocked = !game
+                .sim
+                .playtest_simulation_mut()
+                .apply(Command::Move(warrior, 1, 0));
             game.perform_action(UiAction::SelectUnit(diplomat));
-            let bypassed = game.sim.apply(Command::Move(diplomat, 1, 0))
+            let bypassed = game
+                .sim
+                .playtest_simulation_mut()
+                .apply(Command::Move(diplomat, 1, 0))
                 && game
                     .sim
+                    .playtest_simulation()
                     .units()
                     .iter()
                     .any(|unit| unit.id == diplomat && (unit.x, unit.y) == destination);

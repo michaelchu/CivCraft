@@ -22,12 +22,25 @@ impl Playtest {
 
         if frame == 419 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let (marines, infantry, guard, unlocked) = game.sim.marines_playtest_setup();
-            let blocked = !game.sim.apply(Command::Move(infantry, 1, 0));
-            let fought = game.sim.apply(Command::Move(marines, 1, 0))
-                && game.sim.units().iter().all(|unit| unit.id != guard);
+            let (marines, infantry, guard, unlocked) =
+                game.sim.playtest_simulation_mut().marines_playtest_setup();
+            let blocked = !game
+                .sim
+                .playtest_simulation_mut()
+                .apply(Command::Move(infantry, 1, 0));
+            let fought = game
+                .sim
+                .playtest_simulation_mut()
+                .apply(Command::Move(marines, 1, 0))
+                && game
+                    .sim
+                    .playtest_simulation()
+                    .units()
+                    .iter()
+                    .all(|unit| unit.id != guard);
             let landed = game
                 .sim
+                .playtest_simulation()
                 .units()
                 .iter()
                 .find(|unit| unit.id == marines)
@@ -35,6 +48,7 @@ impl Playtest {
                     unit.transport.is_none()
                         && game
                             .sim
+                            .playtest_simulation()
                             .cities()
                             .iter()
                             .filter(|city| city.owner == HUMAN)
@@ -169,7 +183,7 @@ impl Playtest {
 
         if frame == 479 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let (actor, _, gates) = game.sim.paradrop_playtest_setup();
+            let (actor, _, gates) = game.sim.playtest_simulation_mut().paradrop_playtest_setup();
             self.results.push((
                 "paratrooper_requirements",
                 gates,

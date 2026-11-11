@@ -2033,7 +2033,7 @@ impl Civ3 {
     pub(super) fn draw_river(&self, game: &Game, x: i32, y: i32, center: Vec2, size: Vec2) {
         use super::rivers::Civ3RiverSheet;
 
-        let wrap = game.sim.map_wrap;
+        let wrap = game.sim.map_wrap();
         let at = |direction| {
             wrap.civ3_neighbor(x, y, direction)
                 .map(|(nx, ny)| game.sim.render_tile_view(nx, ny))
@@ -2207,7 +2207,7 @@ impl Civ3 {
     }
 
     pub(super) fn draw_base(&self, game: &Game, x: i32, y: i32, center: Vec2, size: Vec2) {
-        let wrap = game.sim.map_wrap;
+        let wrap = game.sim.map_wrap();
         let px = 2 * x + y.rem_euclid(2);
         let fallback = if (0..wrap.height()).contains(&y) {
             let tile = game.sim.render_tile_view(x, y);

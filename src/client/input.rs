@@ -22,7 +22,7 @@ impl Game {
             return;
         }
         if is_key_pressed(KeyCode::F9) {
-            match Simulation::load_campaign(std::path::Path::new(crate::QUICKSAVE_PATH)) {
+            match ClientSimulation::load_campaign(std::path::Path::new(crate::QUICKSAVE_PATH)) {
                 Ok(simulation) => {
                     let autosave_enabled = self.autosave_enabled;
                     let audio_settings = (
@@ -32,7 +32,7 @@ impl Game {
                         self.sfx_muted,
                         self.sfx_volume,
                     );
-                    *self = Self::from_simulation(simulation);
+                    *self = Self::from_client_simulation(simulation);
                     self.autosave_enabled = autosave_enabled;
                     self.music_open = audio_settings.0;
                     self.music_muted = audio_settings.1;
@@ -277,7 +277,7 @@ impl Game {
     }
 
     pub(super) fn minimap_rect(&self) -> Rect {
-        let aspect = (2 * self.sim.map_wrap.width()) as f32 / self.sim.map_wrap.height() as f32;
+        let aspect = (2 * self.sim.map_wrap().width()) as f32 / self.sim.map_wrap().height() as f32;
         let width = Self::corner_width().min(174.0 * aspect);
         let height = width / aspect;
         Rect::new(
@@ -289,7 +289,7 @@ impl Game {
     }
 
     pub(super) fn minimap_tile_origin(&self, rect: Rect, x: i32, y: i32) -> Vec2 {
-        let scale = rect.h / self.sim.map_wrap.height() as f32;
+        let scale = rect.h / self.sim.map_wrap().height() as f32;
         vec2(
             rect.x + (2 * x + y.rem_euclid(2)) as f32 * scale,
             rect.y + y as f32 * scale,
@@ -315,7 +315,7 @@ impl Game {
     pub(super) fn camera_overview_position(&self) -> Vec2 {
         vec2(
             (self.camera.x - self.camera.y + MAP_W as f32)
-                .rem_euclid(2.0 * self.sim.map_wrap.width() as f32),
+                .rem_euclid(2.0 * self.sim.map_wrap().width() as f32),
             self.camera.x + self.camera.y - MAP_W as f32,
         )
     }
@@ -323,7 +323,7 @@ impl Game {
     pub(super) fn normalize_camera(&mut self) {
         let position = self.camera_overview_position();
         let y = map_view::normalize_camera_y(
-            self.sim.map_wrap,
+            self.sim.map_wrap(),
             position.y,
             Self::viewport_rect().h,
             self.zoom,
@@ -338,13 +338,13 @@ impl Game {
             Self::viewport_rect(),
             self.camera,
             self.zoom,
-            self.sim.map_wrap,
+            self.sim.map_wrap(),
         )
     }
 
     pub(super) fn world_screen_position(&self, x: i32, y: i32) -> Vec2 {
         civ3_projection::world_screen_position(
-            self.sim.map_wrap,
+            self.sim.map_wrap(),
             Self::viewport_rect(),
             self.camera_overview_position(),
             self.zoom,
@@ -423,12 +423,12 @@ impl Game {
         }
         let minimap = self.minimap_rect();
         if minimap.contains(mouse) {
-            let scale = minimap.h / self.sim.map_wrap.height() as f32;
+            let scale = minimap.h / self.sim.map_wrap().height() as f32;
             let natural_x = ((mouse.x - minimap.x) / scale).floor() as i32;
             let native_y = (((mouse.y - minimap.y) / scale).floor() as i32)
-                .min(self.sim.map_wrap.height() - 1);
+                .min(self.sim.map_wrap().height() - 1);
             let native_x = (natural_x - native_y.rem_euclid(2)).div_euclid(2);
-            self.focus_camera_on(native_x.rem_euclid(self.sim.map_wrap.width()), native_y);
+            self.focus_camera_on(native_x.rem_euclid(self.sim.map_wrap().width()), native_y);
             return;
         }
         if !Self::viewport_rect().contains(mouse) {

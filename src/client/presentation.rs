@@ -11,8 +11,12 @@ pub(super) struct Playback {
     pub(super) review_progress: Option<f32>,
 }
 impl Playback {
-    pub(super) fn update(&mut self, sim: &mut Simulation, now: f64, active_unit: Option<u32>) {
-        let incoming = sim.take_presentation_event_views();
+    pub(super) fn update(
+        &mut self,
+        incoming: VecDeque<PresentationEventView>,
+        now: f64,
+        active_unit: Option<u32>,
+    ) {
         if self.events.is_empty() {
             self.started = now;
         }
@@ -65,7 +69,7 @@ impl Playback {
     pub(super) fn pending(&self) -> bool {
         !self.events.is_empty()
     }
-    pub(super) fn tile_owner(&self, sim: &Simulation, x: i32, y: i32) -> Option<usize> {
+    pub(super) fn tile_owner(&self, sim: &ClientSimulation, x: i32, y: i32) -> Option<usize> {
         if let Some(owners) = self.events.iter().find_map(|event| {
             if let PresentationEventView::Combat(combat) = event {
                 Some(&combat.territory)
@@ -73,7 +77,7 @@ impl Playback {
                 None
             }
         }) {
-            let index = sim.map_wrap.index(x, y);
+            let index = sim.map_wrap().index(x, y);
             owners[index]
         } else {
             sim.displayed_tile_owner_view(x, y)
@@ -206,7 +210,7 @@ impl Game {
                 PresentationEventView::Move { from, to, .. } => {
                     let from_center = project(from.0, from.1);
                     let to_center = project(to.0, to.1);
-                    let period = self.sim.map_wrap.width() as f32 * TILE_W * self.zoom;
+                    let period = self.sim.map_wrap().width() as f32 * TILE_W * self.zoom;
                     let dx = map_view::shortest_wrapped_delta(to_center.x - from_center.x, period);
                     let dy = to_center.y - from_center.y;
                     from_center + vec2(dx, dy) * phase.x
@@ -316,7 +320,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sim::{Contamination, PillageTarget};
+    use crate::sim::{Contamination, PillageTarget, Simulation};
 
     fn sound_requests_for(
         sim: &Simulation,
@@ -335,7 +339,7 @@ mod tests {
         let before = sim.unit_by_id(id).unwrap().clone();
         assert!(sim.apply(Command::Move(id, 1, 0)));
         let mut playback = Playback::default();
-        playback.update(&mut sim, 10.0, Some(id));
+        playback.update(sim.take_presentation_event_views(), 10.0, Some(id));
         assert!(playback.pending());
         assert_eq!(
             (playback.overrides()[&id].x, playback.overrides()[&id].y),
@@ -348,9 +352,9 @@ mod tests {
             },
             target
         );
-        playback.update(&mut sim, 10.015, Some(id));
+        playback.update(sim.take_presentation_event_views(), 10.015, Some(id));
         assert!(playback.is_active(id));
-        playback.update(&mut sim, 10.031, Some(id));
+        playback.update(sim.take_presentation_event_views(), 10.031, Some(id));
         assert!(!playback.pending());
         assert!(playback.overrides().is_empty());
         assert!(playback.city_overrides().is_empty());
@@ -362,12 +366,12 @@ mod tests {
         let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
         assert!(sim.apply(Command::Move(id, 1, 0)));
         let mut playback = Playback::default();
-        playback.update(&mut sim, 10.0, Some(id));
+        playback.update(sim.take_presentation_event_views(), 10.0, Some(id));
         let requests = playback.take_sound_requests();
         assert_eq!(requests.len(), 1);
         assert_eq!(requests[0].unit_id, id);
         assert_eq!(requests[0].action, "RUN");
-        playback.update(&mut sim, 10.01, Some(id));
+        playback.update(sim.take_presentation_event_views(), 10.01, Some(id));
         assert!(playback.take_sound_requests().is_empty());
     }
 

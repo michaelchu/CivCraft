@@ -56,9 +56,9 @@ impl Game {
                 }
                 let (mx, my) = native_to_map(city.x, city.y);
                 let (x, y) = map_to_native(mx + dx, my + dy);
-                let normalized = self.sim.map_wrap.normalize(x, y);
+                let normalized = self.sim.map_wrap().normalize(x, y);
                 let relevant = normalized.is_some() && radius.contains(&(dx, dy));
-                let (x, y) = normalized.unwrap_or((x.rem_euclid(self.sim.map_wrap.width()), y));
+                let (x, y) = normalized.unwrap_or((x.rem_euclid(self.sim.map_wrap().width()), y));
                 tiles.push((dx, dy, x, y, center, relevant));
             }
         }
@@ -109,7 +109,7 @@ impl Game {
                 |nx, ny| {
                     if self
                         .sim
-                        .map_wrap
+                        .map_wrap()
                         .civ3_distance(city_center.0, city_center.1, nx, ny)
                         > 2
                     {

@@ -346,7 +346,10 @@ impl Playtest {
 
         if frame == 778 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let id = game.sim.transport_hud_playtest_setup();
+            let id = game
+                .sim
+                .playtest_simulation_mut()
+                .transport_hud_playtest_setup();
             game.perform_action(UiAction::SelectUnit(id));
         }
     }

@@ -199,19 +199,15 @@ async fn main() {
     });
     println!(
         "World seed: {} · map size: {} ({}×{}) · wrap: {} · renderer: Civ III · tileset: {}",
-        game.sim.world_seed,
+        game.world_seed(),
         if args.iter().any(|arg| arg == "--load") {
-            format!(
-                "{}x{}",
-                game.sim.map_wrap.width(),
-                game.sim.map_wrap.height()
-            )
+            format!("{}x{}", game.map_wrap().width(), game.map_wrap().height())
         } else {
             map_size.to_string()
         },
-        game.sim.map_wrap.width(),
-        game.sim.map_wrap.height(),
-        game.sim.map_wrap,
+        game.map_wrap().width(),
+        game.map_wrap().height(),
+        game.map_wrap(),
         tileset.name()
     );
     game.autosave_enabled = !automated;
@@ -224,7 +220,7 @@ async fn main() {
     let mut frame = 0_u32;
     let mut ui_profile = ui_review
         .as_ref()
-        .map(|_| visual_test::UiReviewProfile::new(game.sim.world_seed));
+        .map(|_| visual_test::UiReviewProfile::new(game.world_seed()));
     let sources = ui_review.as_ref().map(|dir| {
         visual_test::UiReviewProfile::prepare_output(
             dir,
@@ -232,7 +228,7 @@ async fn main() {
         )
         .expect("Prepare visual review output");
         let started = std::time::Instant::now();
-        let sources = client::UiReviewSources::new(&game.sim);
+        let sources = game.ui_review_sources();
         ui_profile
             .as_mut()
             .unwrap()

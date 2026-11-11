@@ -1,10 +1,10 @@
 //! Presentation layer between the simulation and the Macroquad window.
 //!
 //! [`Game`] owns transient client state such as selection, camera position, and
-//! open panels. It reads the campaign from [`crate::sim::Simulation`], draws
-//! map and interface layers, and translates input into [`UiAction`] values.
-//! Actions are resolved through simulation commands so the client does not
-//! implement gameplay rules itself.
+//! open panels. It reads display projections and submits commands through
+//! [`crate::sim::ClientSimulation`], draws map and interface layers, and
+//! translates input into [`UiAction`] values. The simulation remains the
+//! authority for campaign state and gameplay rules.
 //!
 //! Rendering is split by screen responsibility: `world` draws map contents,
 //! `hud` and the view modules draw controls and dialogs, and `assets` plus
@@ -73,9 +73,9 @@ pub(crate) use ui_review::{UI_REVIEW_SCENES, UiReviewSequence, UiReviewSources};
 
 use crate::rules::{Building, Requirement, Tech};
 use crate::sim::{
-    Base, CityManagerView, Command, GotoPoint, GotoPreview, Government, HUMAN, MAX_CIVILIZATIONS,
-    Pact, PresentationEventView, Production, RenderedCityView, RenderedUnitView, Resource,
-    ShipPart, Simulation, Terrain, TreatyMap, TreatyOffer, UnitKind, UnitState, WORKLIST_LIMIT,
+    Base, CityManagerView, ClientSimulation, Command, GotoPoint, GotoPreview, Government, HUMAN,
+    MAX_CIVILIZATIONS, Pact, PresentationEventView, Production, RenderedCityView, RenderedUnitView,
+    Resource, ShipPart, Terrain, TreatyMap, TreatyOffer, UnitKind, UnitState, WORKLIST_LIMIT,
     WorkKind, WorklistEdit, year_label,
 };
 #[cfg(test)]
@@ -200,7 +200,7 @@ pub(crate) enum UiAction {
 }
 
 pub(crate) struct Game {
-    pub(crate) sim: Simulation,
+    pub(crate) sim: ClientSimulation,
     client_messages: Vec<String>,
     last_sim_messages: Vec<String>,
     pub(crate) autosave_enabled: bool,
@@ -255,13 +255,16 @@ pub(crate) struct Game {
 
 impl Game {
     /// Creates client state around a simulation.
-    pub(crate) fn new(sim: Simulation) -> Self {
+    pub(crate) fn new(sim: crate::sim::Simulation) -> Self {
         Self::from_simulation(sim)
     }
 
     /// Restores client state around a loaded simulation.
-    pub(crate) fn from_simulation(mut sim: Simulation) -> Self {
-        sim.enable_visual_events();
+    pub(crate) fn from_simulation(sim: crate::sim::Simulation) -> Self {
+        Self::from_client_simulation(ClientSimulation::new(sim))
+    }
+
+    pub(super) fn from_client_simulation(sim: ClientSimulation) -> Self {
         let (selected_unit, position) = sim.initial_client_focus_view();
         let position = position.unwrap_or((0, 0));
         let (x, y) = native_to_map(position.0, position.1);
@@ -319,6 +322,18 @@ impl Game {
             dragging: false,
             drag_last: vec2(0.0, 0.0),
         }
+    }
+
+    pub(crate) fn world_seed(&self) -> u64 {
+        self.sim.world_seed()
+    }
+
+    pub(crate) fn map_wrap(&self) -> MapWrap {
+        self.sim.map_wrap()
+    }
+
+    pub(crate) fn ui_review_sources(&self) -> UiReviewSources {
+        UiReviewSources::new(self.sim.review_simulation())
     }
 
     pub(super) fn notify(&mut self, message: impl Into<String>) {
@@ -401,7 +416,8 @@ impl Game {
     pub(crate) fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         self.normalize_camera();
         let sound_unit = self.pending_sound_unit.take().or(self.selected_unit);
-        self.playback.update(&mut self.sim, get_time(), sound_unit);
+        let events = self.sim.take_presentation_event_views();
+        self.playback.update(events, get_time(), sound_unit);
         self.unit_sound_requests
             .extend(self.playback.take_sound_requests());
         if !self.research_open && !self.spaceship_open && !self.intro_open {
@@ -705,7 +721,7 @@ mod tests {
     #[test]
     fn client_notices_are_transient_and_capped_without_mutating_campaign_events() {
         let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-        let campaign_events = game.sim.events().to_vec();
+        let campaign_events = game.sim.review_simulation().events().to_vec();
         for index in 0..11 {
             game.notify(format!("notice {index}"));
         }
@@ -714,7 +730,7 @@ mod tests {
             game.client_messages.first().map(String::as_str),
             Some("notice 1")
         );
-        assert_eq!(game.sim.events(), campaign_events);
+        assert_eq!(game.sim.review_simulation().events(), campaign_events);
     }
 
     #[test]
@@ -722,6 +738,7 @@ mod tests {
         let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
         let settler = game
             .sim
+            .review_simulation()
             .units()
             .iter()
             .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settler)
@@ -730,6 +747,7 @@ mod tests {
         assert!(game.found_city(settler));
         let city = game
             .sim
+            .review_simulation()
             .cities()
             .iter()
             .find(|city| city.owner == HUMAN)
@@ -737,6 +755,7 @@ mod tests {
             .expect("human city");
         let garrison = game
             .sim
+            .review_simulation()
             .units()
             .iter()
             .find(|unit| unit.owner == HUMAN && unit.x == city.x && unit.y == city.y)

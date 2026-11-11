@@ -31,10 +31,15 @@ mod nuclear;
 pub(crate) use bases::Base;
 mod cities;
 mod civil_war;
+mod client_api;
 mod client_views;
+pub(crate) use client_api::ClientSimulation;
 pub(crate) use client_views::{
-    CityManagerView, CombatPresentationView, PresentationEventView, RenderTileView,
-    RenderedCityView, RenderedUnitView,
+    CityContextView, CityDealView, CityManagerView, CombatPresentationView, DiplomacyMeetingView,
+    DiplomacyRivalView, GameOverView, GovernmentView, MinimapCityView, MinimapTileView,
+    MusicCueView, PresentationEventView, RenderTileView, RenderedCityView, RenderedUnitView,
+    ResearchProgressView, SelectableUnitView, SpaceshipAssemblyView, TechnologyResearchView,
+    TopBarView, UnitActionView, UnitContextView, UnitFidgetView,
 };
 mod commands;
 mod diplomacy;

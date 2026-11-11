@@ -16,6 +16,7 @@ impl Playtest {
             let actor = game.selected_unit;
             let target = game
                 .sim
+                .playtest_simulation()
                 .cities()
                 .iter()
                 .find(|city| city.owner == 1)
@@ -25,14 +26,15 @@ impl Playtest {
                 game.perform_action(UiAction::BeginParadrop);
                 game.perform_action(UiAction::ParadropTo(target.0, target.1));
             }
-            let landed = game.sim.units().iter().any(|unit| {
+            let landed = game.sim.playtest_simulation().units().iter().any(|unit| {
                 Some(unit.id) == actor
                     && (unit.x, unit.y) == target
                     && unit.moves_left == crate::sim::MOVE_FRAGMENTS
-                    && !game.sim.can_begin_paradrop(unit)
+                    && !game.sim.playtest_simulation().can_begin_paradrop(unit)
             });
             let captured = game
                 .sim
+                .playtest_simulation()
                 .cities()
                 .iter()
                 .any(|city| city.owner == HUMAN && (city.x, city.y) == target);

@@ -29,7 +29,7 @@ impl Game {
             )));
         }
         let project = |point: &GotoPoint| self.world_screen_position(point.x, point.y);
-        let period_x = self.sim.map_wrap.width() as f32 * TILE_W * self.zoom;
+        let period_x = self.sim.map_wrap().width() as f32 * TILE_W * self.zoom;
         for pair in preview.points.windows(2) {
             let from = project(&pair[0]);
             let raw_to = project(&pair[1]);

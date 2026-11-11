@@ -5,9 +5,9 @@ use super::*;
 impl Game {
     pub(super) fn draw_minimap(&self) {
         let rect = self.minimap_rect();
-        let scale = rect.h / self.sim.map_wrap.height() as f32;
-        for y in 0..self.sim.map_wrap.height() {
-            for x in 0..self.sim.map_wrap.width() {
+        let scale = rect.h / self.sim.map_wrap().height() as f32;
+        for y in 0..self.sim.map_wrap().height() {
+            for x in 0..self.sim.map_wrap().width() {
                 let tile = self.sim.minimap_tile_view(x, y);
                 let color = if !tile.seen {
                     Color::from_rgba(7, 13, 17, 255)
@@ -19,7 +19,7 @@ impl Game {
                 let origin = self.minimap_tile_origin(rect, x, y);
                 let width = (rect.right() - origin.x).min(2.0 * scale);
                 draw_rectangle(origin.x, origin.y, width, scale, color);
-                if y % 2 == 1 && x == self.sim.map_wrap.width() - 1 {
+                if y % 2 == 1 && x == self.sim.map_wrap().width() - 1 {
                     draw_rectangle(rect.x, origin.y, scale, scale, color);
                 }
             }

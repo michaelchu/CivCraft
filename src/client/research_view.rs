@@ -304,7 +304,7 @@ fn focused_research_tech(goal: Tech, current: Tech) -> Tech {
 }
 
 fn research_unlock_detail(tech: Tech) -> String {
-    let mut unlocks = Simulation::research_unit_unlocks(tech);
+    let mut unlocks = ClientSimulation::research_unit_unlocks(tech);
     unlocks.extend(Building::all().filter_map(|building| {
         let data = building.data();
         (!matches!(building, Building::BARRACKS_II | Building::BARRACKS_III)

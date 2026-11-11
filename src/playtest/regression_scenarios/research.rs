@@ -100,7 +100,9 @@ impl Playtest {
 
         if frame == 802 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.sim.unset_goal_hud_playtest_setup();
+            game.sim
+                .playtest_simulation_mut()
+                .unset_goal_hud_playtest_setup();
             game.perform_action(UiAction::OpenResearch);
         }
 
@@ -116,7 +118,8 @@ impl Playtest {
                 matches!(action,
                 UiAction::ResearchGoal(tech) if *tech == crate::rules::Tech::UNSET)
             });
-            let unset = game.sim.players()[HUMAN].research_goal == crate::rules::Tech::UNSET;
+            let unset = game.sim.playtest_simulation().players()[HUMAN].research_goal
+                == crate::rules::Tech::UNSET;
             self.results.push(("native_unset_goal_research_screen", unset && close.is_some() && current && !phantom,
                 format!("Actual research screen opened with an unset goal: {unset}; current-project node visible: {current}; phantom unset node: {phantom}.")));
             if let Some(action) = close {

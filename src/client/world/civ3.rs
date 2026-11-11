@@ -244,7 +244,7 @@ impl<'a> Civ3WorldPainter<'a> {
             let diagonal_directions = [7, 1, 3, 5]; // NW, NE, SE, SW
             let diagonals = diagonal_directions.map(|direction| {
                 game.sim
-                    .map_wrap
+                    .map_wrap()
                     .civ3_neighbor(x, y, direction)
                     .is_some_and(|(nx, ny)| {
                         let neighbor = game.sim.render_tile_view(nx, ny);
@@ -297,7 +297,7 @@ impl<'a> Civ3WorldPainter<'a> {
                     .civ3
                     .draw_optional_improvement("farmland", center, geometry.size());
             } else if tile.irrigation {
-                let wrap = game.sim.map_wrap;
+                let wrap = game.sim.map_wrap();
                 let diagonal_directions = [7, 1, 5, 3]; // NW, NE, SW, SE
                 let diagonals = diagonal_directions.map(|direction| {
                     wrap.civ3_neighbor(x, y, direction).is_some_and(|(nx, ny)| {
@@ -325,7 +325,7 @@ impl<'a> Civ3WorldPainter<'a> {
         }
         let neighbors: [Option<RenderTileView>; 8] = std::array::from_fn(|direction| {
             game.sim
-                .map_wrap
+                .map_wrap()
                 .civ3_neighbor(x, y, direction)
                 .map(|(nx, ny)| game.sim.render_tile_view(nx, ny))
         });
@@ -376,7 +376,7 @@ impl<'a> Civ3WorldPainter<'a> {
         // Native rows are already in painter order. Cull before collecting and
         // project each visible tile once for both terrain passes.
         let order = visible_world_tiles(
-            game.sim.map_wrap,
+            game.sim.map_wrap(),
             viewport,
             game.camera_overview_position(),
             game.zoom,
@@ -443,7 +443,7 @@ impl<'a> Civ3WorldPainter<'a> {
             // terrain remains hidden.
             let fog_fringe = game
                 .sim
-                .map_wrap
+                .map_wrap()
                 .civ3_neighbors(x, y)
                 .any(|(nx, ny)| game.sim.render_tile_view(nx, ny).seen);
             if !tile.seen && !fog_fringe {
@@ -492,15 +492,15 @@ impl<'a> Civ3WorldPainter<'a> {
             );
         }
         // Complete corner fog for the decorative rows and their southern edge.
-        let bottom = game.sim.map_wrap.height() + map_view::EDGE_WATER_ROWS;
+        let bottom = game.sim.map_wrap().height() + map_view::EDGE_WATER_ROWS;
         let bottom_corner = Some(bottom);
         for y in game.edge_water_rows().chain(bottom_corner) {
-            for x in 0..game.sim.map_wrap.width() {
+            for x in 0..game.sim.map_wrap().width() {
                 let center = game.world_screen_position(x, y);
                 if center.y > viewport.bottom() + tile_h || center.y < viewport.y - tile_h {
                     continue;
                 }
-                let clamped_y = y.clamp(0, game.sim.map_wrap.height() - 1);
+                let clamped_y = y.clamp(0, game.sim.map_wrap().height() - 1);
                 game.draw_fog_intersection(
                     assets,
                     center,
