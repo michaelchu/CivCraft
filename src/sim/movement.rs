@@ -110,7 +110,7 @@ impl Simulation {
         (movement + bonus).max(minimum.min(base))
     }
 
-    pub(super) fn unit_move_rate(&self, unit: &Unit) -> i32 {
+    pub(crate) fn unit_move_rate(&self, unit: &Unit) -> i32 {
         let base = unit.kind.stats().moves * MOVE_FRAGMENTS;
         let mut bonus = if unit.kind == UnitKind::Galley {
             let center = self

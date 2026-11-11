@@ -406,16 +406,7 @@ impl Game {
                 WHITE,
             );
         }
-        self.draw_unit_status(assets, unit, center);
-        draw_circle(
-            center.x - 21.0 * self.zoom,
-            center.y - 25.0 * self.zoom,
-            (5.0 * self.zoom).max(3.2),
-            player_color(
-                self.sim.players()[unit.owner].civilization_id.as_deref(),
-                unit.owner,
-            ),
-        );
+        self.draw_unit_health(assets, unit, center);
         if stack_count > 1 {
             draw_circle(
                 center.x + 31.0 * self.zoom,

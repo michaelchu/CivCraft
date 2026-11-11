@@ -240,6 +240,7 @@ impl Theme {
                                 | "airstrip"
                                 | "airbase"
                                 | "resources"
+                                | "movement-indicators"
                                 | "resource-shadows"
                                 | "city-asian"
                                 | "city-american"
@@ -1129,6 +1130,7 @@ pub(super) struct Civ3 {
     animation_pacing: super::unit_animation_pacing::UnitAnimationPacing,
     river_delta: Texture2D,
     river_mountain: Texture2D,
+    movement_indicators: Texture2D,
     resources: Option<ResourceArt>,
     cities: HashMap<&'static str, Texture2D>,
     territory: TerritoryArt,
@@ -1516,6 +1518,27 @@ impl Civ3 {
         };
         let river_delta = river_texture("river-delta", "deltaRivers")?;
         let river_mountain = river_texture("river-mountain", "mtnRivers")?;
+        let movement_image = theme
+            .image(
+                "movement-indicators",
+                "interface/MovementLED.PCX",
+                (36, 8),
+                false,
+            )?;
+        let movement_image = if let Some(image) = movement_image {
+            image
+        } else {
+            Theme::read(&locate_default_art()?)?
+                .image(
+                    "movement-indicators",
+                    "interface/MovementLED.PCX",
+                    (36, 8),
+                    true,
+                )?
+                .expect("required unit movement indicator texture")
+        };
+        let movement_indicators = Texture2D::from_image(&movement_image);
+        movement_indicators.set_filter(FilterMode::Nearest);
         let resources = theme.image("resources", "resources.png", (300, 300), false)?;
         let shadows = theme.image(
             "resource-shadows",
@@ -1645,6 +1668,7 @@ impl Civ3 {
             animation_pacing,
             river_delta,
             river_mountain,
+            movement_indicators,
             resources,
             cities,
             territory,
@@ -1680,6 +1704,36 @@ impl Civ3 {
             DrawTextureParams {
                 dest_size: Some(size),
                 source: Some(source),
+                ..Default::default()
+            },
+        );
+    }
+
+    pub(super) fn draw_unit_movement_indicator(
+        &self,
+        bar_origin: Vec2,
+        moves_left: i32,
+        full_movement: i32,
+        camera_zoom: f32,
+    ) {
+        let index = if moves_left <= 0 {
+            4
+        } else if moves_left >= full_movement {
+            0
+        } else {
+            2
+        };
+        let crop_size = vec2(6.0, 6.0);
+        let size = crop_size / camera_zoom;
+        let position = bar_origin - vec2(2.0, 6.0) / camera_zoom;
+        draw_texture_ex(
+            &self.movement_indicators,
+            position.x,
+            position.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(size),
+                source: Some(Rect::new(1.0 + 7.0 * index as f32, 1.0, 6.0, 6.0)),
                 ..Default::default()
             },
         );

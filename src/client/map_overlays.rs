@@ -1,9 +1,5 @@
-//! Native vector overlays for cities and units on the world map.
+//! Native vector overlays for cities on the world map.
 use super::*;
-
-pub(super) fn hp_fraction(hp: i32, maximum: i32) -> f32 {
-    (hp.max(0) as f32 / maximum.max(1) as f32).clamp(0.0, 1.0)
-}
 
 impl Game {
     pub(super) fn draw_city_overlay(&self, _assets: &Assets, center: Vec2, zoom: f32, col: i32) {
@@ -35,58 +31,66 @@ impl Game {
         );
     }
 
-    pub(super) fn draw_unit_status(&self, _assets: &Assets, unit: &Unit, center: Vec2) {
-        let zoom = self.zoom;
-        let width = 38.0 * zoom;
-        let height = (4.0 * zoom).max(2.0);
-        let x = center.x - width * 0.5;
-        let y = center.y - 29.0 * zoom;
-        draw_rectangle(x, y, width, height, Color::from_rgba(20, 20, 20, 220));
-        let fraction = hp_fraction(unit.hp, unit.max_hit_points());
-        let color = if fraction > 0.6 {
-            Color::from_rgba(84, 205, 102, 255)
-        } else if fraction > 0.3 {
-            Color::from_rgba(232, 190, 61, 255)
+    pub(super) fn draw_unit_health(&self, assets: &Assets, unit: &Unit, center: Vec2) {
+        let camera_zoom = self.zoom.clamp(0.5, 1.0);
+        let max_hp = unit.max_hit_points().max(1);
+        let current_hp = unit.hp.clamp(0, max_hp);
+        let has_health_bar = unit.kind.stats().attack > 0 || unit.kind.stats().defense > 0;
+        let segment_height = (if max_hp <= 6 {
+            4.0
+        } else if max_hp <= 12 {
+            2.0
         } else {
-            Color::from_rgba(218, 66, 58, 255)
+            1.0
+        }) / camera_zoom;
+        let width = 2.0 / camera_zoom;
+        let gap = 1.0 / camera_zoom;
+        let total_height = segment_height * max_hp as f32 + gap * (max_hp - 1) as f32;
+        let x = center.x - 26.0;
+        let y = if has_health_bar {
+            center.y - 8.0 - total_height
+        } else {
+            center.y - 26.0
         };
-        draw_rectangle(x, y, width * fraction, height, color);
-        if unit.veteran > 0 {
-            draw_text(
-                "★",
-                center.x - 4.0 * zoom,
-                center.y - 34.0 * zoom,
-                10.0 * zoom,
-                Color::from_rgba(255, 220, 112, 255),
+
+        if has_health_bar {
+            draw_rectangle(x, y, width, total_height, BLACK);
+
+            let fraction = current_hp as f32 / max_hp as f32;
+            let color = if fraction >= 0.67 {
+                Color::from_rgba(0, 255, 0, 255)
+            } else if fraction >= 0.34 && max_hp > 2 {
+                Color::from_rgba(255, 255, 0, 255)
+            } else {
+                Color::from_rgba(255, 0, 0, 255)
+            };
+
+            for segment in 0..current_hp {
+                let segment_y = y + total_height
+                    - segment_height
+                    - segment as f32 * (segment_height + gap);
+                draw_rectangle(x, segment_y, width, segment_height, color);
+            }
+
+            if unit.state == UnitState::Fortified {
+                draw_rectangle_lines(
+                    x - 0.5,
+                    y - 0.5,
+                    width + 1.0,
+                    total_height + 1.0,
+                    1.0,
+                    WHITE,
+                );
+            }
+        }
+
+        if unit.owner == HUMAN {
+            assets.civ3.draw_unit_movement_indicator(
+                vec2(x, y),
+                unit.moves_left,
+                self.sim.unit_move_rate(unit),
+                camera_zoom,
             );
         }
-        if unit.work_left > 0 || unit.automated || unit.state != UnitState::Idle {
-            draw_circle(
-                center.x + 21.0 * zoom,
-                center.y - 24.0 * zoom,
-                5.0 * zoom,
-                Color::from_rgba(28, 39, 43, 240),
-            );
-            draw_circle_lines(
-                center.x + 21.0 * zoom,
-                center.y - 24.0 * zoom,
-                5.0 * zoom,
-                zoom,
-                WHITE,
-            );
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn health_bar_fraction_is_clamped_and_handles_invalid_maximum() {
-        assert_eq!(hp_fraction(20, 20), 1.0);
-        assert_eq!(hp_fraction(5, 10), 0.5);
-        assert_eq!(hp_fraction(-1, 10), 0.0);
-        assert_eq!(hp_fraction(5, 0), 1.0);
     }
 }
