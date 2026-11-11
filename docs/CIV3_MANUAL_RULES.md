@@ -46,7 +46,7 @@ Limitations or conflicts:
 
 - Source ID: CIV3-MANUAL
 - Title / publisher: *Civilization III: The Official Manual*, Firaxis Games
-- URL or local file: [`civ3_manual.pdf`](civ3_manual.pdf), project root
+- URL or local file: [`civ3_manual.pdf`](civ3_manual.pdf), docs folder
 - Source type: Original game material
 - Edition / expansion / patch scope: Base Civilization III manual, 2001
 - Pages, table, figure, or section: p. 80, Hit Points and Damage; p. 83,
@@ -113,7 +113,7 @@ Limitations or conflicts:
 
 - Source ID: CIV3-CONQUESTS-CIVILOPEDIA
 - Title / publisher: *Conquests* installed Civilopedia text, Firaxis Games
-- URL or local file: [`../source/Conquests/Text/Civilopedia.txt`](../source/Conquests/Text/Civilopedia.txt), “Craters” entry
+- URL or local file: [`../../source/Conquests/Text/Civilopedia.txt`](../../source/Conquests/Text/Civilopedia.txt), “Craters” entry
 - Source type: Original game material
 - Edition / expansion / patch scope: Civilization III: Conquests
 - Pages, table, figure, or section: “Craters,” lines 311–320

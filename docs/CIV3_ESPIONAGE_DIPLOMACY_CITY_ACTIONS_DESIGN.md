@@ -2,7 +2,7 @@
 
 ## Purpose and scope
 
-Replace the legacy trainable Diplomat and Spy unit paths with a Civ III style diplomacy and espionage interface. Missions are initiated from a diplomacy/espionage screen or city context; no agent is trained, moved on the map, or represented by a combat `UnitKind`. This note records source-backed behavior and a proposed API boundary. It does not define unverified formulas.
+Replace the legacy trainable Diplomat and Spy unit paths with a Civ III style diplomacy and espionage interface. Missions are initiated from a diplomacy/espionage screen or city context; no agent is trained, moved on the map, or represented by a combat `UnitKind`. This consolidated note records source-backed behavior, edition differences, a proposed API boundary, and unresolved evidence gaps. It does not define unverified formulas.
 
 Conquests is the target ruleset. Where the base manual differs from the Conquests Civilopedia, use the Conquests description and flag the difference.
 
@@ -13,6 +13,7 @@ Conquests is the target ruleset. Where the base manual differs from the Conquest
 - Writing unlocks the Espionage screen and permits embassy establishment. The Conquests Civilopedia says the screen is available after Writing and describes building an embassy in a rival capital by double-clicking its capital icon. (Conquests `Text/Civilopedia.txt`, `GCON_Espionage` lines 826-27 and `GCON_Embassies` lines 1611-18.)
 - Embassies are per-player-pair diplomatic assets associated with the opponent's capital. Establishing an embassy costs gold; other diplomatic missions also cost gold. The source gives no numeric formula. (Conquests Civilopedia lines 1611-18.)
 - An embassy enables diplomatic interactions such as Right of Passage and Military Alliances; Nationalism adds Mutual Protection Pacts and Trade Embargoes. (Conquests Civilopedia lines 1611-16.)
+- The Espionage screen lists contacted civilizations for which the player is not at war and does not already have an embassy. The manual says an embassy can be established only once; war closes it and peace reopens it. These details are manual-backed and should be confirmed for Conquests before being treated as implementation rules.
 - The repository manual says embassies require contact and Writing, cannot be established while at war, close during war, and reopen after peace; an embassy can be established only once. It also describes investigating a city and stealing technology as diplomatic missions. (Civ III manual, ch. 13, “Embassies” and “Diplomatic Missions,” printed pp. 138-39.)
 - The manual describes investigating the initial capital with no failure or incident. It does not clearly establish whether that initial investigation is free, so do not encode a free action without verifying it against Conquests behavior.
 
@@ -21,7 +22,8 @@ Conquests is the target ruleset. Where the base manual differs from the Conquest
 - Conquests describes Espionage missions as requiring the Espionage technology and an Intelligence Agency. The Intelligence Agency Civilopedia entry says it allows espionage missions; Espionage tech says it permits building the Agency and conducting missions. (Conquests Civilopedia lines 821-23, 5762-65, 6535-39.)
 - The Espionage screen tracks each opponent, embassy and planted-spy status, mission choices, target city when relevant, treasury/technology assets, spy experience, and operational-cost/risk choices. (Conquests Civilopedia lines 826-42.)
 - A planted spy is a persistent diplomatic asset belonging to a player-opponent pair, not a map unit. The screen indicates whether one is planted. Missions that say “use a spy” or target the city where the spy resides depend on this asset. The exact location and movement semantics of a planted spy are not specified in these passages.
-- The manual says a spy can remain planted during war and can reveal rival unit locations. A failed or discovered mission can cause a diplomatic incident; success and discovery are distinct outcomes. (Manual, ch. 13, “Espionage,” printed pp. 145-49.)
+- The manual says a spy can remain planted during war and can reveal rival unit locations. A failed or discovered mission can cause a diplomatic incident; success and discovery are distinct outcomes. Discovery can provoke war, and diplomatic attitude may affect the response. (Manual, ch. 13, “Espionage,” printed pp. 145-49.)
+- Expose Enemy Spy is counterespionage. The manual says it requires a successfully planted Spy in the rival capital and success removes the rival operative, while Conquests text does not specify that exact location requirement.
 
 ### Conquests mission catalog
 
@@ -40,6 +42,8 @@ The Conquests Civilopedia lists these actions (lines 847-71, 902-28):
 | Sabotage Production | Destroys all shields in the target city's current production box. |
 
 The Conquests description says “most” missions unlock after Espionage and that spy missions unlock after Espionage, but does not give a complete per-mission technology matrix. Therefore, treat the table as a catalog, not a complete availability specification.
+
+Diplomatic and covert missions are presented through the diplomacy/espionage interface rather than through map units. The screen supports an opponent selector, mission class and type, an optional city selector, operational-cost/risk choices, and execute/cancel controls. Cancellation before execution should not spend gold or alter game state.
 
 ## Edition differences to honor
 
@@ -70,6 +74,8 @@ execute_mission(player, opponent, mission, target?, risk_setting?) -> MissionRes
 
 The UI should expose opponent selection, embassy/spy status, mission selection, a city selector when applicable, cost/risk controls, and execute/cancel actions, matching the Conquests screen flow (Conquests Civilopedia lines 826-42 and 881-99). Do not add recruit/train/move-agent controls.
 
+Eligibility should be derived from game state rather than stored as UI-only availability. Check contact, Writing, Espionage technology, Intelligence Agency, war/peace status, embassy and planted-spy assets, target ownership and eligibility, and treasury. Require an embassy or planted spy only where the Conquests rules establish that prerequisite; the mission list alone does not settle every gate. Reject or disable unaffordable actions, and show a quote before execution.
+
 ## Facts still unresolved
 
 Do not invent these values or gates during the first implementation pass:
@@ -88,6 +94,6 @@ Resolve these against the Conquests BIQ and executable behavior or a focused in-
 
 ## Evidence consulted
 
-- Repository manual: `app/civ3_manual.pdf`, Chapter 8 (printed p. 38) and Chapter 13 (printed pp. 138-49). Accessible copy used for page/text cross-check: [Civilization III Manual](https://usermanual.wiki/Document/Civilization3Manual.1841378190.pdf).
-- Conquests Civilopedia: `source/Conquests/Text/Civilopedia.txt`, entries `GCON_Espionage` / `DESC_GCON_Espionage` (lines 817-71), `GCON_Espionage_Missions` (lines 876-28), `GCON_Embassies` (lines 1607-20), `BLDG_Intelligence_Center` (around line 5762), and `TECH_Espionage` (around line 6535).
-- Base-game Civilopedia: `source/Text/Civilopedia.txt`, `GCON_Espionage` (lines 631-63) and `GCON_Embassies` (lines 1302-15), used only to identify edition differences.
+- Repository manual: [`civ3_manual.pdf`](civ3_manual.pdf), Chapter 8 (printed p. 38) and Chapter 13 (printed pp. 138-49). Accessible copy used for page/text cross-check: [Civilization III Manual](https://usermanual.wiki/Document/Civilization3Manual.1841378190.pdf).
+- Conquests Civilopedia: `../../source/Conquests/Text/Civilopedia.txt`, entries `GCON_Espionage` / `DESC_GCON_Espionage` (lines 817-71), `GCON_Espionage_Missions` (lines 876-28), `GCON_Embassies` (lines 1607-20), `BLDG_Intelligence_Center` (around line 5762), and `TECH_Espionage` (around line 6535).
+- Base-game Civilopedia: `../../source/Text/Civilopedia.txt`, `GCON_Espionage` (lines 631-63) and `GCON_Embassies` (lines 1302-15), used only to identify edition differences.

@@ -2,11 +2,11 @@
 
 ## Civilization III gameplay manual
 
-Use [`civ3_manual.pdf`](civ3_manual.pdf) at the project root as the primary
+Use [`docs/civ3_manual.pdf`](docs/civ3_manual.pdf) at the project root as the primary
 reference for Civilization III gameplay, terrain, resources, units, buildings,
 and other rules. Record manual-derived expectations in
-[`CIV3_MANUAL_RULES.md`](CIV3_MANUAL_RULES.md), and use
-[`GAMEPLAY_GAP_AUDIT.md`](GAMEPLAY_GAP_AUDIT.md) for future comparisons with
+[`docs/CIV3_MANUAL_RULES.md`](docs/CIV3_MANUAL_RULES.md), and use
+[`docs/GAMEPLAY_GAP_AUDIT.md`](docs/GAMEPLAY_GAP_AUDIT.md) for future comparisons with
 the implementation. The catalog has begun recording manual-sourced terrain
 rules; a gameplay gap audit has not been performed.
 
@@ -25,15 +25,15 @@ formula is not established by the manual or other primary evidence; do not
 silently fill gaps from legacy code or assumptions. Record the source title,
 author or publisher when available, URL, edition/expansion/patch scope,
 relevant page or section, date checked, and the specific claim it supports in
-`CIV3_MANUAL_RULES.md`. Label supplementary claims separately from
+`docs/CIV3_MANUAL_RULES.md`. Label supplementary claims separately from
 manual-derived claims, note when a formula is reverse-engineered or inferred,
 preserve conflicting evidence, and leave unresolved details explicit rather
 than guessing. Freeciv behavior, existing code, tests, and previous parity
 claims are not Civ III evidence.
 
-Use the catalog's [source-record format](CIV3_MANUAL_RULES.md#source-records),
-[technology-tree source leads](CIV3_MANUAL_RULES.md#technology-tree-source-leads),
-and [general gameplay-mechanics index](CIV3_MANUAL_RULES.md#general-gameplay-mechanics-index)
+Use the catalog's [source-record format](docs/CIV3_MANUAL_RULES.md#source-records),
+[technology-tree source leads](docs/CIV3_MANUAL_RULES.md#technology-tree-source-leads),
+and [general gameplay-mechanics index](docs/CIV3_MANUAL_RULES.md#general-gameplay-mechanics-index)
 as starting points, not blanket endorsements. The Vi.ki pages are secondary
 summaries that cite a mixture of manuals, Prima's guide, previews, and archived
 official material. Follow those citations and prefer the specific underlying
@@ -129,7 +129,7 @@ command. Remove a run directory only if it is empty after removing its report.
 Honor any user request to retain particular runs. Mention the retained report
 in the final response.
 
-For focused screenshot galleries and visual review, see `UI_REVIEW.md` and the
+For focused screenshot galleries and visual review, see `docs/UI_REVIEW.md` and the
 `--ui-review` instructions in `README.md`. Run that mode separately from
 `--self-test`.
 

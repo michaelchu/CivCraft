@@ -4,7 +4,7 @@
 
 This audit compares every source-backed field currently exported in
 `data/rulesets/civ3_conquests/units.tsv` with the installed
-`source/Conquests/conquests.biq` and the adjacent OpenCiv3 BIQ reader at
+`../../source/Conquests/conquests.biq` and the adjacent OpenCiv3 BIQ reader at
 `../openciv3/QueryCiv3/BiqSections/Prto.cs`. The installed BIQ SHA-256 is
 `1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c`.
 `/tmp/conquests.unpacked` is the current BIQ's decompressed data; the packed
@@ -89,7 +89,7 @@ python3 tools/export_civ3_conquests_units.py \
 cmp /tmp/units.audit.tsv data/rulesets/civ3_conquests/units.tsv
 cmp /tmp/civilization_starts.tsv data/rulesets/civ3_conquests/civilization_starts.tsv
 cmp /tmp/experience_levels.tsv data/rulesets/civ3_conquests/experience_levels.tsv
-sha256sum ../source/Conquests/conquests.biq
+sha256sum ../../source/Conquests/conquests.biq
 ```
 
 All three comparisons matched (exit status 0); the SHA-256 matched the source

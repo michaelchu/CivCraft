@@ -2,7 +2,7 @@
 
 ## Scope and evidence
 
-This audit compares the 92 active rows in [`data/rulesets/civ3_conquests/units.tsv`](data/rulesets/civ3_conquests/units.tsv) with the checked-in original art trees: `../source/Art/Units`, `../source/civ3PTW/Art/Units`, and `../source/Conquests/Art/Units`. Folder and file matching was case-insensitive to reflect the source game’s Windows paths. This is filesystem evidence, not a claim that CivCraft currently loads every source animation correctly.
+This audit compares the 92 active rows in [`data/rulesets/civ3_conquests/units.tsv`](../data/rulesets/civ3_conquests/units.tsv) with the checked-in original art trees: `../../source/Art/Units`, `../../source/civ3PTW/Art/Units`, and `../../source/Conquests/Art/Units`. Folder and file matching was case-insensitive to reflect the source game’s Windows paths. This is filesystem evidence, not a claim that CivCraft currently loads every source animation correctly.
 
 Roster counts in the TSV: **92 identities** (59 standard, 31 unique, 2 wonder-created). All 92 rows resolve to at least one source unit folder and an `.ini` animation manifest. The Leader and Army rows each use four era-specific folders, so their mappings cover 8 folders; the other 90 rows each name one folder. The catalog lists the two Paratrooper identities separately but both point to a folder named `Paratrooper`; preserve the distinction in rules and determine the intended era/root per identity.
 
@@ -122,20 +122,20 @@ The manifests declare animation states and per-state timing in `[Animations]` an
 
 The following folders exist in these top-level campaign art roots but are not directly named by the 92-row catalog. They are candidates for scenario, special-mode, or alternate-age handling; folder presence alone does not establish that a folder is an additional campaign unit. Base `Settler/Worker Industrial Ages/Modern Times` are era variants, not evidence for extra unit identities. `Palettes` is an art resource directory, not a unit.
 
-### base (`../source/Art/Units`)
+### base (`../../source/Art/Units`)
 
 `Palettes`, `Settler Industrial Ages`, `Settler Modern Times`, `Worker Industrial Ages`, `Worker Modern Times`.
 
-### ptw (`../source/civ3PTW/Art/Units`)
+### ptw (`../../source/civ3PTW/Art/Units`)
 
 `King`, `King American`, `King Arab`, `King Aztec`, `King Babylonian`, `King Carthaginian`, `King Celtic`, `King Chinese`, `King Egyptian`, `King English`, `King French`, `King German`, `King Greek`, `King Indian`, `King Iroquois`, `King Japanese`, `King Korean`, `King Mongol`, `King Ottoman`, `King Persian`, `King Roman`, `King Russian`, `King Spanish`, `King Viking`, `King Zulu`, `Princess`, `The King`, `Worker Modern Times`.
 
-### conquests (`../source/Conquests/Art/Units`)
+### conquests (`../../source/Conquests/Art/Units`)
 
 `Enslaved Worker`, `Holy Relic`, `Hussar`, `Inquisitor`, `King Austria`, `King Byzantines`, `King Hatti`, `King Incan`, `King Mayan`, `King Netherlands`, `King Portugal`, `King Sumeria`, `Ninja`, `SciLeader`, `Shogun`, `WWII Paratrooper`.
 
 ## Source files to inspect next
 
 - Per-unit animation definitions: each path in the table, especially duplicate expansion manifests and the four Leader/Army era variants.
-- Main campaign unit definitions: `../source/Conquests/Conquests/conquests.biq` and any expansion BIQ records referenced by the TSV’s `source_biq` column. Use the BIQ `Art`/unit data to resolve shared-folder aliases and distinguish campaign units from scenario-only support.
+- Main campaign unit definitions: `../../source/Conquests/Conquests/conquests.biq` and any expansion BIQ records referenced by the TSV’s `source_biq` column. Use the BIQ `Art`/unit data to resolve shared-folder aliases and distinguish campaign units from scenario-only support.
 - Runtime loader: verify INI section/key parsing, source timing interpretation, shared-file fallback order, and palette handling against actual assets.

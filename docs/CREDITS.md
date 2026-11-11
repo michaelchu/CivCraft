@@ -7,7 +7,7 @@ Play the World, and Conquests `Art/Units` folders.
 
 | Project file | Original source path | Use |
 | --- | --- | --- |
-| Runtime unit art | `source/Art/Units`, `source/civ3PTW/Art/Units`, `source/Conquests/Art/Units` | Campaign unit animations and portraits |
+| Runtime unit art | `../../source/Art/Units`, `../../source/civ3PTW/Art/Units`, `../../source/Conquests/Art/Units` | Campaign unit animations and portraits |
 
 No logo, splash screen, flag, nation emblem, music, or sound file is included. Selection, status markers, routes and combat effects use Civ III art or vector drawing.
 

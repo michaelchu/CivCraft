@@ -9,10 +9,10 @@ itself establish that a unit is available in the standard ruleset, its
 statistics, or its expansion status. In particular, Conquests contains
 scenario-only art.
 
-The standard roster was recovered from the installed `../source/Conquests/conquests.biq` PRTO section. It contains 141 prototype rows because some types are copied for civilization-specific availability. Deduplicating names gives 90 identities with playable-civilization availability. Add the two standard wonder-created units, Ancient Cavalry and Crusader, which have no ordinary availability mask but are produced by wonders. That yields 92 standard campaign identities. This includes regular units, unique units, wonder-created units, and Conquests additions. It excludes scenario-only prototypes and named leader/Princess entities. Base art is under `../source/Art/Units/`; Play the World art is under `../source/civ3PTW/Art/Units/`; Conquests additions are under `../source/Conquests/Art/Units/`. Scenario-pack art is nested under the expansion folders and should remain separately classified.
+The standard roster was recovered from the installed `../../source/Conquests/conquests.biq` PRTO section. It contains 141 prototype rows because some types are copied for civilization-specific availability. Deduplicating names gives 90 identities with playable-civilization availability. Add the two standard wonder-created units, Ancient Cavalry and Crusader, which have no ordinary availability mask but are produced by wonders. That yields 92 standard campaign identities. This includes regular units, unique units, wonder-created units, and Conquests additions. It excludes scenario-only prototypes and named leader/Princess entities. Base art is under `../../source/Art/Units/`; Play the World art is under `../../source/civ3PTW/Art/Units/`; Conquests additions are under `../../source/Conquests/Art/Units/`. Scenario-pack art is nested under the expansion folders and should remain separately classified.
 
-The installed `../source/Text/Civilopedia.txt` and
-`../source/Conquests/Text/Civilopedia.txt` provide the in-game unit entries.
+The installed `../../source/Text/Civilopedia.txt` and
+`../../source/Conquests/Text/Civilopedia.txt` provide the in-game unit entries.
 The Civ III manual at `civ3_manual.pdf` (Appendix A, printed pp. 201–205)
 provides the vanilla unit chart and gameplay data. It predates the Conquests
 expansion, so use it for base-unit mechanics and use the installed Conquests
@@ -48,7 +48,7 @@ Freeciv-derived AI and other mechanics remain to be audited and replaced.
 
 ## Base art inventory
 
-The base `source/Art/Units` directory has 76 directories other than `Palettes`.
+The base `../../source/Art/Units` directory has 76 directories other than `Palettes`.
 Some directories are alternate-era looks for the same role, or visual forms
 for special units, and therefore should not be counted as 76 distinct
 ruleset units.

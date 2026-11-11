@@ -3,7 +3,7 @@
 ## Target and source priority
 
 Target: the installed Conquests campaign rules in
-`../source/Conquests/conquests.biq`, with SHA-256
+`../../source/Conquests/conquests.biq`, with SHA-256
 `1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c`.
 
 Use sources in this order:
@@ -68,7 +68,7 @@ shipped release-note case:
 | `Scenarios/8 MP Napoleonic Europe.biq` | 1 | `e6a8ebf002f31b48f0731d92668d8a3f68ffc16f832b6506ab551c5a673aa085` |
 | `Scenarios/MPTournament.biq` | 1 | `555921731b41667f81a6fc6709fdacce2c57706b123ebeb9648a59950d433185` |
 
-The setting aligns with `../source/Conquests/readme.txt`, which specifically
+The setting aligns with `../../source/Conquests/readme.txt`, which specifically
 says MPTournament captured cities retain culture. The main Conquests BIQ has
 the setting disabled. CivCraft now clears a captured city's per-civilization
 culture ledger under that default setting. This is an inference from the raw
@@ -112,7 +112,7 @@ implementation inference: the original game's treatment of retained culture
 for border reach has not been observed, and retained empire-wide culture
 attribution remains unresolved.
 
-The installed editor help, `../source/Conquests/Civ3ConquestsEdit.chm`, has
+The installed editor help, `../../source/Conquests/Civ3ConquestsEdit.chm`, has
 indexed topics named `Culture_Ratio.htm`, `Resistance_Chance_Culture_.htm`,
 `Continued_Resistance_Culture_.htm`,
 `Assimilation_Chance_Government_Properties_.htm`,
@@ -131,7 +131,7 @@ documentation, not as evidence for field behavior.
 - Conquests Civilopedia: improvements and Wonders add culture each turn; city
   culture accumulates; cited expansion examples include 10, 100, 1,000,
   10,000, and 20,000; building/Wonder contribution doubles after 1,000 years.
-  Source: `../source/Conquests/Text/Civilopedia.txt`, `GCON_Culture`.
+  Source: `../../source/Conquests/Text/Civilopedia.txt`, `GCON_Culture`.
 - Base manual: lists culture-per-turn values for buildings and Wonders and says
   cultural improvements produce half their normal culture during wartime
   footing. Source: `civ3_manual.pdf`, printed pages 114–115. These values are
@@ -504,7 +504,7 @@ documentation, not as evidence for field behavior.
   (Amerindian, Greco-Roman, European, Far Eastern, Middle Eastern) from culture
   points. It says groups determine city/citizen appearance, same-group nations
   tend to start near each other, and they are more tolerant in diplomacy.
-  Source: `../source/Conquests/Text/Civilopedia.txt`, `GCON_Culture`,
+  Source: `../../source/Conquests/Text/Civilopedia.txt`, `GCON_Culture`,
   “Global Cultures.” The behavior is explicit qualitatively, but the BIQ's
   `RACE.CultureGroup` plus `GAME.CulturallyLinkedStart` do not specify the
   placement algorithm or numeric diplomacy adjustment. The main BIQ's
@@ -537,7 +537,7 @@ documentation, not as evidence for field behavior.
   raw scenario switches. The exporter therefore records the effective setting
   as ON, with the override interpretation labeled inferred pending controlled
   observation. The supplied base manual independently describes defection.
-  Sources: `../source/Conquests/Text/Civilopedia.txt`,
+  Sources: `../../source/Conquests/Text/Civilopedia.txt`,
   `GCON_Conversion` and `GCON_We_Love_The_King_Day`; [CivFanatics editor rules
   explanation](https://forums.civfanatics.com/threads/editor-rules-explained.210035/),
   [CivFanatics BIQ comparison](https://forums.civfanatics.com/threads/civ3-biq-compare.320673/page-3),
@@ -856,7 +856,7 @@ documentation, not as evidence for field behavior.
   the 36×48 campaign topology, while a 102,000 empire total does not assume a
   threshold the Conquests Civilopedia does not provide for custom maps.
 - Current rerun: re-unpacked the installed
-  `../source/Conquests/conquests.biq` with `/private/tmp/civ3-blast`, then
+  `../../source/Conquests/conquests.biq` with `/private/tmp/civ3-blast`, then
   regenerated all nine culture, victory, resistance, and government exports
   under `/private/tmp/culture-export-check-pwkolt5e`. Each output byte-matches
   its checked-in counterpart. The separate
@@ -1072,7 +1072,7 @@ documentation, not as evidence for field behavior.
   available for observation. Controlled scenarios are skipped for now; use the
   installed BIQ, Civilopedia, and manual as evidence, and leave formulas
   unresolved when those sources do not establish them.
-- All six installed files under `../source/Conquests/Saves/` decompress with
+- All six installed files under `../../source/Conquests/Saves/` decompress with
   the adjacent Blast utility, but the save `GAME` records report zero cities
   and the decompressed files contain no `CITY` records. These start-state
   snapshots cannot establish culture retention, border thresholds, or
