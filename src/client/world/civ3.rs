@@ -176,7 +176,10 @@ impl<'a> Civ3WorldPainter<'a> {
             }
             map_layers::MapLayer::Special1 => self.draw_special1(x, y, geometry),
             map_layers::MapLayer::Special2 => self.draw_special2(x, y, geometry),
-            map_layers::MapLayer::Grid => self.game.draw_grid_layer(x, y, geometry),
+            map_layers::MapLayer::Grid => {
+                self.game
+                    .draw_grid_layer(self.assets, x, y, geometry, self.game.zoom)
+            }
             map_layers::MapLayer::City => {}
         }
     }

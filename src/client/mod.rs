@@ -61,7 +61,6 @@ mod routes;
 mod spaceship_view;
 mod tileset;
 pub(crate) use tileset::Tileset;
-mod territory;
 mod ui;
 mod ui_review;
 mod unit_actions;
@@ -82,9 +81,12 @@ const TILE_W: f32 = 96.0;
 const TILE_H: f32 = 48.0;
 const TOP_H: f32 = 46.0;
 const HUD_MARGIN: f32 = 14.0;
-const START_ZOOM: f32 = 0.82;
-const MIN_ZOOM: f32 = 0.55;
-const MAX_ZOOM: f32 = 1.35;
+const WORLD_ART_SCALE: f32 = 0.75;
+const ZOOMED_OUT: f32 = 1.0;
+const ZOOMED_IN: f32 = 1.25;
+const START_ZOOM: f32 = ZOOMED_IN;
+#[cfg(test)]
+const MAX_ZOOM: f32 = 1.25;
 
 #[derive(Clone, Copy)]
 pub(crate) struct TileGeometry {
@@ -231,7 +233,6 @@ pub(crate) struct Game {
     research_age: usize,
     research_inspected: Option<Tech>,
     research_tree: &'static ResearchTree,
-    border_geometry: std::cell::RefCell<territory::BorderGeometryCache>,
     research_center: Vec2,
     research_zoom: f32,
     research_drag: Option<Vec2>,
@@ -324,7 +325,6 @@ impl Game {
             research_age: 0,
             research_inspected: None,
             research_tree: research_tree::shared_tree(),
-            border_geometry: Default::default(),
             research_center: Vec2::ZERO,
             research_zoom: 1.0,
             research_drag: None,
@@ -625,10 +625,6 @@ fn draw_diamond_lines(center: Vec2, width: f32, height: f32, thickness: f32, col
             color,
         );
     }
-}
-
-fn with_alpha(color: Color, alpha: f32) -> Color {
-    Color::new(color.r, color.g, color.b, alpha)
 }
 
 fn darken(color: Color, factor: f32) -> Color {

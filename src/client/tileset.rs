@@ -2,7 +2,7 @@
 use super::*;
 use crate::sim::TerrainBase;
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
@@ -16,6 +16,7 @@ const PAGE: usize = 12;
 const SIDES: [(i32, i32); 4] = [(0, -1), (1, 0), (0, 1), (-1, 0)];
 // OpenCiv3's PCX loader uses the same default palette transparency indices.
 const DEFAULT_PCX_TRANSPARENT_INDICES: [u8; 2] = [254, 255];
+const TERRITORY_PCX_TRANSPARENT_INDICES: [u8; 3] = [1, 254, 255];
 // 1.0 preserves the source alpha; higher values tighten the black fog fade.
 const FOG_ALPHA_GAMMA: f32 = 1.8;
 
@@ -245,6 +246,7 @@ impl Theme {
                                 | "city-european"
                                 | "city-middle_eastern"
                                 | "city-roman"
+                                | "territory"
                         )
                 };
                 let Some((key, value)) = entry else {
@@ -351,11 +353,13 @@ impl Theme {
     ) -> Result<Option<Image>, String> {
         let override_path = self.paths.get(key);
         let relative = override_path.map_or(default, String::as_str);
-        let transparent_indices = self
-            .transparent_indices
-            .get(key)
-            .map(Vec::as_slice)
-            .unwrap_or(&DEFAULT_PCX_TRANSPARENT_INDICES);
+        let transparent_indices = self.transparent_indices.get(key).map(Vec::as_slice).unwrap_or(
+            if key == "territory" {
+                &TERRITORY_PCX_TRANSPARENT_INDICES
+            } else {
+                &DEFAULT_PCX_TRANSPARENT_INDICES
+            },
+        );
         let mut roots = vec![self.root.as_path()];
         if override_path.is_none() {
             roots.extend(self.fallback_roots.iter().map(PathBuf::as_path));
@@ -1127,7 +1131,82 @@ pub(super) struct Civ3 {
     river_mountain: Texture2D,
     resources: Option<ResourceArt>,
     cities: HashMap<&'static str, Texture2D>,
+    territory: TerritoryArt,
     civilization_city_styles: HashMap<String, String>,
+}
+
+struct TerritoryArt {
+    source: Image,
+    textures: RefCell<HashMap<[u8; 3], Texture2D>>,
+    cache_hits: Cell<u64>,
+    cache_misses: Cell<u64>,
+}
+
+impl TerritoryArt {
+    fn new(source: Image) -> Self {
+        Self {
+            source,
+            textures: RefCell::default(),
+            cache_hits: Cell::new(0),
+            cache_misses: Cell::new(0),
+        }
+    }
+
+    fn draw(&self, center: Vec2, row: usize, hilly: bool, color: Color, zoom: f32) {
+        let main = [color.r, color.g, color.b]
+            .map(|channel| (channel.clamp(0.0, 1.0) * 255.0).round() as u8);
+        let mut textures = self.textures.borrow_mut();
+        if !textures.contains_key(&main) {
+            let mut image = self.source.clone();
+            let secondary = main.map(|channel| (f32::from(channel) * 0.8).round() as u8);
+            for pixel in image.get_image_data_mut() {
+                let replacement = if pixel[0..3] == [236, 255, 0] {
+                    Some(main)
+                } else if pixel[0..3] == [255, 0, 0] {
+                    Some(secondary)
+                } else {
+                    None
+                };
+                if let Some(rgb) = replacement {
+                    pixel[..3].copy_from_slice(&rgb);
+                }
+            }
+            let texture = Texture2D::from_image(&image);
+            texture.set_filter(FilterMode::Nearest);
+            textures.insert(main, texture);
+            self.cache_misses.set(self.cache_misses.get() + 1);
+        } else {
+            self.cache_hits.set(self.cache_hits.get() + 1);
+        }
+        let texture = textures.get(&main).unwrap();
+        let scale = WORLD_ART_SCALE * zoom;
+        let size = vec2(128.0, 72.0) * scale;
+        let position = center - size * 0.5 + vec2(0.0, size.y * 0.055);
+        draw_texture_ex(
+            texture,
+            position.x,
+            position.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(size),
+                source: Some(Rect::new(
+                    if hilly { 128.0 } else { 0.0 },
+                    row as f32 * 72.0,
+                    128.0,
+                    72.0,
+                )),
+                ..Default::default()
+            },
+        );
+    }
+
+    fn cache_stats(&self) -> (u64, u64, usize) {
+        (
+            self.cache_hits.get(),
+            self.cache_misses.get(),
+            self.textures.borrow().len(),
+        )
+    }
 }
 
 struct Civ3UnitCursor {
@@ -1326,6 +1405,15 @@ impl Civ3 {
             ocean: required("ocean", "wOOO", (1152, 576))?,
             polar,
         };
+        let territory_image =
+            theme.image("territory", "Terrain/Territory.pcx", (256, 288), false)?;
+        let territory_image = match territory_image {
+            Some(image) => image,
+            None => Theme::read(&locate_default_art()?)?
+                .image("territory", "Terrain/Territory.pcx", (256, 288), true)?
+                .expect("required territory border texture"),
+        };
+        let territory = TerritoryArt::new(territory_image);
         let optional = |key, file, size| -> Result<_, String> {
             Ok(theme
                 .image(key, &format!("Terrain/{file}.png"), size, false)?
@@ -1559,6 +1647,7 @@ impl Civ3 {
             river_mountain,
             resources,
             cities,
+            territory,
             civilization_city_styles: theme.civilization_city_styles.clone(),
         })
     }
@@ -1574,10 +1663,8 @@ impl Civ3 {
             cursor.width,
             cursor.height,
         );
-        // Fit the visible FLC frame inside one tile. The FLC's 240px canvas
-        // includes margins, so use the frame size for scale and the recorded
-        // offsets only when positioning it on that canvas.
-        let scale = zoom * (TILE_W / cursor.width).min(TILE_H / cursor.height);
+        // Match the shared world-art scale used by city and unit sprites.
+        let scale = WORLD_ART_SCALE * zoom;
         let size = vec2(cursor.width * scale, cursor.height * scale);
         let position = center
             - vec2(
@@ -1600,6 +1687,21 @@ impl Civ3 {
 
     pub(super) fn city_texture(&self, style: &str) -> &Texture2D {
         self.cities.get(style).unwrap_or(&self.cities["european"])
+    }
+
+    pub(super) fn draw_territory_border(
+        &self,
+        center: Vec2,
+        row: usize,
+        hilly: bool,
+        color: Color,
+        zoom: f32,
+    ) {
+        self.territory.draw(center, row, hilly, color, zoom);
+    }
+
+    pub(super) fn territory_cache_stats(&self) -> (u64, u64, usize) {
+        self.territory.cache_stats()
     }
 
     pub(super) fn fidget_pacing(
@@ -1718,15 +1820,26 @@ impl Civ3 {
         if self.load_unit_animation(&role).is_err() {
             return false;
         }
-        let (width, height) = {
+        let (frame_width, frame_height, original_width, original_height, offset_left, offset_top) = {
             let loaded = self.unit_art.borrow();
             let Some(art) = loaded.get(&role) else {
                 return false;
             };
-            (art.original_width.max(1.0), art.original_height.max(1.0))
+            (
+                art.width.max(1.0),
+                art.height.max(1.0),
+                art.original_width.max(1.0),
+                art.original_height.max(1.0),
+                art.offset_left,
+                art.offset_top,
+            )
         };
-        let scale = (bounds.x / width).min(bounds.y / height);
-        let zoom = scale * (64.0 / TILE_W);
+        let scale = (bounds.x / frame_width).min(bounds.y / frame_height);
+        let canvas_center = center
+            + vec2(
+                (original_width - frame_width) * 0.5 - offset_left,
+                (original_height - frame_height) * 0.5 - offset_top,
+            ) * scale;
         self.draw_unit(
             kind,
             owner,
@@ -1736,8 +1849,8 @@ impl Civ3 {
             Civ3UnitAction::Default,
             0.0,
             None,
-            center,
-            zoom,
+            canvas_center,
+            scale,
             has_moves,
         )
     }
@@ -1831,7 +1944,7 @@ impl Civ3 {
             art.width,
             art.height,
         );
-        let scale = zoom * (TILE_W / 64.0);
+        let scale = zoom;
         let size = vec2(art.width * scale, art.height * scale);
         let position = center - vec2(art.original_width * scale, art.original_height * scale) * 0.5
             + vec2(art.offset_left * scale, art.offset_top * scale);

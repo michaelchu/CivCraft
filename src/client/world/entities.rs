@@ -144,6 +144,7 @@ impl Game {
         center: Vec2,
         zoom: f32,
     ) {
+        let zoom = zoom * WORLD_ART_SCALE;
         // Civ III sheets are four eras by three population bands.
         let col = match observed.city.size {
             1..=6 => 0,
@@ -158,7 +159,8 @@ impl Game {
                 .as_deref(),
         );
         let source = Rect::new(col as f32 * 167.0, row as f32 * 95.0, 167.0, 95.0);
-        let (city_w, city_h) = (90.0 * zoom, 54.0 * zoom);
+        // Draw the source frame at native size, scaled only by world zoom.
+        let (city_w, city_h) = (167.0 * zoom, 95.0 * zoom);
         let position = centered_sprite_position(center, city_w, city_h);
         draw_texture_ex(
             texture,
@@ -349,8 +351,7 @@ impl Game {
         animation_progress: f32,
         playback_duration_seconds: Option<f32>,
     ) {
-        const UNIT_SPRITE_SCALE: f32 = 0.85;
-        let unit_zoom = self.zoom * UNIT_SPRITE_SCALE;
+        let unit_zoom = self.zoom * WORLD_ART_SCALE;
         let unit_w = 58.0 * unit_zoom;
         let unit_h = 44.0 * unit_zoom;
         let is_selected = self.selected_unit == Some(unit.id);

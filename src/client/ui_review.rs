@@ -69,6 +69,10 @@ impl UiReviewSources {
 }
 
 impl Game {
+    pub(crate) fn border_cache_stats(&self, assets: &Assets) -> (u64, u64, usize) {
+        assets.civ3.territory_cache_stats()
+    }
+
     fn ui_review_map_zoom() -> f32 {
         if Self::viewport_rect().w < 760.0 {
             0.625
@@ -88,7 +92,7 @@ impl Game {
         self.autosave_enabled = false;
         if scene == 0 {
             self.sim.ui_review_reveal_all_tiles();
-            self.zoom = MIN_ZOOM;
+            self.zoom = ZOOMED_OUT;
             self.focus_camera_on(
                 self.sim.map_wrap.width() / 2,
                 self.sim.map_wrap.height() / 2,
@@ -449,7 +453,7 @@ impl Game {
                     (after - camera.y).abs() < 0.02,
                 )?;
                 let previous_zoom = self.zoom;
-                self.zoom = MIN_ZOOM;
+                self.zoom = ZOOMED_OUT;
                 self.normalize_camera();
                 let y = if scene == 31 {
                     0
@@ -457,15 +461,10 @@ impl Game {
                     self.sim.map_wrap.height() - 1
                 };
                 let point = self.world_screen_position(self.sim.map_wrap.width() / 2, y);
-                let expected = if scene == 31 {
-                    viewport.y + map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5 - 1.0
-                } else {
-                    viewport.bottom() - map_view::EDGE_WATER_ROWS as f32 * TILE_H * self.zoom * 0.5
-                        + 1.0
-                };
                 sequence.check(
-                    "zoomed_out_edge_water_fills_viewport",
-                    (point.y - expected).abs() < 0.02,
+                    "zoomed_out_boundary_tile_stays_in_camera_range",
+                    point.y >= viewport.y - TILE_H * self.zoom
+                        && point.y <= viewport.bottom() + TILE_H * self.zoom,
                 )?;
                 return Ok((self.zoom - previous_zoom).abs() > 0.001);
             }
@@ -747,9 +746,6 @@ impl Game {
         sequence.check("page_changed_through_ui", before != after)?;
         Ok(true)
     }
-    pub(crate) fn border_cache_stats(&self) -> (u64, u64, usize) {
-        self.border_geometry.borrow().stats()
-    }
 }
 
 #[cfg(test)]
@@ -801,6 +797,6 @@ mod tests {
             (0..game.sim.map_wrap.width())
                 .all(|x| game.sim.tile(x, y).seen && game.sim.tile(x, y).visible)
         }));
-        assert_eq!(game.zoom, MIN_ZOOM);
+        assert_eq!(game.zoom, ZOOMED_OUT);
     }
 }

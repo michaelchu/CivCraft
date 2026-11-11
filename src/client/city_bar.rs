@@ -88,7 +88,7 @@ mod tests {
     use super::*;
     #[test]
     fn city_label_clears_the_selection_footprint_at_every_supported_zoom() {
-        for zoom in [MIN_ZOOM, START_ZOOM, 1.0, MAX_ZOOM, 1.5] {
+        for zoom in [ZOOMED_OUT, START_ZOOM, ZOOMED_IN, MAX_ZOOM, 2.0] {
             assert!(label_top(100.0, zoom) >= 100.0 + TILE_H * zoom * 0.5 + 3.0);
         }
     }

@@ -70,6 +70,14 @@ impl Game {
         if self.pending_city_view.is_some() {
             return;
         }
+        if is_key_pressed(KeyCode::Z) {
+            self.zoom = if (self.zoom - ZOOMED_OUT).abs() < 0.01 {
+                ZOOMED_IN
+            } else {
+                ZOOMED_OUT
+            };
+            self.normalize_camera();
+        }
         let shift_down = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
         if is_key_pressed(KeyCode::Escape) {
             if self.selected_city.is_some() {
@@ -316,10 +324,6 @@ impl Game {
     }
 
     pub(super) fn normalize_camera(&mut self) {
-        self.zoom = self.zoom.max(map_view::minimum_zoom(
-            self.sim.map_wrap,
-            Self::viewport_rect().h,
-        ));
         let position = self.camera_overview_position();
         let y = map_view::normalize_camera_y(
             self.sim.map_wrap,
@@ -385,11 +389,6 @@ impl Game {
             self.handle_research_mouse(buttons);
             return;
         }
-        let (_, wheel) = mouse_wheel();
-        if wheel.abs() > 0.01 {
-            self.zoom = (self.zoom + wheel * 0.08).clamp(MIN_ZOOM, MAX_ZOOM);
-        }
-
         let mouse = vec2(mouse_position().0, mouse_position().1);
         if is_mouse_button_pressed(MouseButton::Middle)
             || is_mouse_button_pressed(MouseButton::Right)

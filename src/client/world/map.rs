@@ -5,42 +5,30 @@ use super::*;
 impl Game {
     fn draw_territory_border(
         &self,
+        assets: &Assets,
         x: i32,
         y: i32,
         owner: usize,
         center: Vec2,
-        tile_w: f32,
-        tile_h: f32,
+        zoom: f32,
     ) {
-        let points = [
-            vec2(center.x, center.y - tile_h * 0.5),
-            vec2(center.x + tile_w * 0.5, center.y),
-            vec2(center.x, center.y + tile_h * 0.5),
-            vec2(center.x - tile_w * 0.5, center.y),
-        ];
-        let edge_neighbors = [(0, -1), (1, 0), (0, 1), (-1, 0)];
-        let opacity = 0.95; // The shared fog layer handles remembered borders.
-        let color = with_alpha(
-            player_color(self.sim.players()[owner].civilization_id.as_deref(), owner),
-            opacity,
-        );
-        let width = (3.5 * tile_w / TILE_W).clamp(2.75, 4.75);
-        let shadow = Color::new(0.025, 0.035, 0.04, opacity * 0.9);
-        let thread = Color::new(
-            color.r * 0.45 + 0.55,
-            color.g * 0.45 + 0.55,
-            color.b * 0.45 + 0.55,
-            opacity,
-        );
-
-        let mut geometry = self.border_geometry.borrow_mut();
-        for (edge, (dx, dy)) in edge_neighbors.into_iter().enumerate() {
-            if render_neighbor(self.sim.map_wrap, x, y, dx, dy)
-                .is_some_and(|(nx, ny)| self.playback.tile_owner(&self.sim, nx, ny) == Some(owner))
+        let hill_terrain = |terrain| matches!(terrain, Terrain::Hills | Terrain::Mountains);
+        let current_hilly = hill_terrain(self.sim.render_tile(x, y).terrain);
+        let color = player_color(self.sim.players()[owner].civilization_id.as_deref(), owner);
+        // Source rows are NW, NE, SW, SE; tile edges are traversed clockwise
+        // from the top-right edge, matching Civ III's staggered neighbors.
+        for (dx, dy, row) in [(0, -1, 1), (1, 0, 3), (0, 1, 2), (-1, 0, 0)] {
+            let neighbor = render_neighbor(self.sim.map_wrap, x, y, dx, dy);
+            if let Some((nx, ny)) = neighbor
+                && self.playback.tile_owner(&self.sim, nx, ny) == Some(owner)
             {
                 continue;
             }
-            geometry.draw(&points, edge, width, color, shadow, thread);
+            let hilly = current_hilly
+                && neighbor.is_some_and(|(nx, ny)| {
+                    hill_terrain(self.sim.render_tile(nx, ny).terrain)
+                });
+            assets.civ3.draw_territory_border(center, row, hilly, color, zoom);
         }
     }
 
@@ -107,15 +95,22 @@ impl Game {
         }
     }
 
-    pub(super) fn draw_grid_layer(&self, x: i32, y: i32, geometry: TileGeometry) {
+    pub(super) fn draw_grid_layer(
+        &self,
+        assets: &Assets,
+        x: i32,
+        y: i32,
+        geometry: TileGeometry,
+        zoom: f32,
+    ) {
         if let Some(owner) = self.playback.tile_owner(&self.sim, x, y) {
             self.draw_territory_border(
+                assets,
                 x,
                 y,
                 owner,
                 geometry.center,
-                geometry.width,
-                geometry.height,
+                zoom,
             );
         }
     }

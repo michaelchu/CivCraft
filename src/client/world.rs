@@ -76,10 +76,9 @@ pub(super) fn civ3_world_screen_position(
     let width_px = wrap.width() as f32 * 2.0 * CIV3_CELL_W;
     let dx = (tile_px - camera_px + width_px * 0.5).rem_euclid(width_px) - width_px * 0.5;
     let dy = tile_py - camera_py;
-    const ART_SCALE: f32 = 0.75;
     vec2(
-        viewport.x + viewport.w * 0.5 + dx * ART_SCALE * zoom,
-        viewport.y + viewport.h * 0.5 + dy * ART_SCALE * zoom,
+        viewport.x + viewport.w * 0.5 + dx * WORLD_ART_SCALE * zoom,
+        viewport.y + viewport.h * 0.5 + dy * WORLD_ART_SCALE * zoom,
     )
 }
 fn visible_world_tiles(
@@ -129,7 +128,7 @@ mod visibility_tests {
                 vec2(2.0 * MAP_W as f32 - 0.2, (MAP_H - 1) as f32),
                 vec2(23.4, 18.8),
             ] {
-                for zoom in [MIN_ZOOM, START_ZOOM, MAX_ZOOM] {
+                for zoom in [ZOOMED_OUT, START_ZOOM, MAX_ZOOM] {
                     let mut reference: Vec<_> = (0..MapWrap::X.height())
                         .flat_map(|y| (0..MapWrap::X.width()).map(move |x| (x, y)))
                         .map(|(x, y)| {

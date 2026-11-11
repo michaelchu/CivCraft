@@ -338,7 +338,7 @@ async fn main() {
             profile.draw(
                 scene,
                 started.elapsed().as_secs_f64() * 1000.0,
-                game.border_cache_stats(),
+                game.border_cache_stats(&assets),
             );
             let valid = buttons.iter().all(|(rect, _)| {
                 rect.x >= 0.0
