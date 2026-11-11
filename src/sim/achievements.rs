@@ -177,4 +177,23 @@ mod tests {
         let cultural = Achievement::CulturedCity.bit() | Achievement::CulturedNation.bit();
         assert_eq!(game.nation_scores[HUMAN].achievements & cultural, 0);
     }
+
+    #[test]
+    fn multicultural_achievement_counts_nationalities_across_owned_cities() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        let (attacker, target) = game.multicultural_playtest_setup();
+        assert!(game.apply(Command::Move(attacker, 1, 0)));
+        assert!(game.cities.iter().any(|city| {
+            city.id == target && city.owner == HUMAN && city.foreign_citizens == vec![(1, 2)]
+        }));
+
+        assert!(game.apply(Command::EndTurn));
+
+        assert!(
+            game.events
+                .iter()
+                .any(|event| event.contains("Achievement earned: Multicultural"))
+        );
+    }
 }

@@ -181,10 +181,8 @@ impl Playtest {
             });
             self.results.push(("pillage", completed, format!("Pillaged the Railroad through the unit control and preserved its Road: {completed}.")));
         }
-        if frame == 182 && self.act_passed {
+        if frame == 182 {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
-            game.perform_action(UiAction::CloseCity);
             let worker = game.sim.playtest_harness().base_playtest_setup();
             game.perform_action(UiAction::SelectUnit(worker));
         }
@@ -206,39 +204,13 @@ impl Playtest {
             } else {
                 sim::Base::Airbase
             };
-            let position = game
-                .selected_unit
-                .and_then(|id| {
-                    game.sim
-                        .playtest_state()
-                        .units()
-                        .iter()
-                        .find(|unit| unit.id == id)
-                })
-                .map(|unit| (unit.x, unit.y));
-            let action = buttons.iter().find(|(_, action)| {
-                matches!(
-                    action, UiAction::TerrainWork(sim::WorkKind::BuildBase(base)) if *base == target
-                )
-            });
-            let mut started = false;
-            let completed = position.zip(action).is_some_and(|((x, y), (_, action))| {
-                game.perform_action(*action);
-                started = game.selected_unit.is_some_and(|id| {
-                    game.sim.playtest_state().units().iter().any(|unit| {
-                        unit.id == id && unit.work_kind == Some(sim::WorkKind::BuildBase(target))
-                    })
-                });
-                started
-                    && game.sim.playtest_harness().apply(Command::EndTurn)
-                    && game.sim.playtest_state().tile(x, y).base == Some(target)
-            });
+            let (completed, available, started) = build_base_from_control(game, buttons, target);
             self.results.push((
                 if frame == 184 { "airstrip" } else { "airbase" },
                 completed,
                 format!(
                     "Built {} through the Worker control: {completed}. Control available: {}. Started: {started}.",
-                    target.name(), action.is_some()
+                    target.name(), available
                 ),
             ));
         }
@@ -366,5 +338,58 @@ impl Playtest {
                 ),
             ));
         }
+    }
+}
+
+fn build_base_from_control(
+    game: &mut Game,
+    buttons: &[(Rect, UiAction)],
+    target: sim::Base,
+) -> (bool, bool, bool) {
+    let action = buttons.iter().find(|(_, action)| {
+        matches!(action, UiAction::TerrainWork(sim::WorkKind::BuildBase(base)) if *base == target)
+    });
+    let available = action.is_some();
+    let mut started = false;
+    let completed = action.is_some_and(|(_, action)| {
+        game.perform_action(*action);
+        let work = game
+            .selected_unit
+            .and_then(|id| {
+                game.sim
+                    .playtest_state()
+                    .units()
+                    .iter()
+                    .find(|unit| unit.id == id)
+            })
+            .filter(|unit| unit.work_kind == Some(sim::WorkKind::BuildBase(target)))
+            .map(|unit| (unit.x, unit.y, unit.work_turns_left()));
+        started = work.is_some();
+        work.is_some_and(|(x, y, turns)| {
+            (0..turns).all(|_| game.sim.playtest_harness().apply(Command::EndTurn))
+                && game.sim.playtest_state().tile(x, y).base == Some(target)
+        })
+    });
+    (completed, available, started)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn airstrip_control_runs_the_full_worker_duration() {
+        let mut game = Game::new(sim::Simulation::new(crate::mapgen::generate(42)));
+        let worker = game.sim.playtest_harness().base_playtest_setup();
+        game.perform_action(UiAction::SelectUnit(worker));
+        let buttons = [(
+            Rect::new(0.0, 0.0, 1.0, 1.0),
+            UiAction::TerrainWork(sim::WorkKind::BuildBase(sim::Base::Airstrip)),
+        )];
+
+        assert_eq!(
+            build_base_from_control(&mut game, &buttons, sim::Base::Airstrip),
+            (true, true, true)
+        );
     }
 }

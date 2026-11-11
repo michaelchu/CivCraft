@@ -59,13 +59,25 @@ impl Simulation {
 
     pub(crate) fn uprising_playtest(&mut self, sea: bool, advanced: bool) -> bool {
         self.units.clear();
+        self.cities.clear();
         if advanced {
             for owner in 0..3 {
                 self.players[owner].known.push(Tech::AMPHIBIOUS_WARFARE);
             }
         }
-        self.create_city(HUMAN, 12, 24);
-        let (x, y) = offset_native_by_map(12, 24, 6, 0);
+
+        // The fixed seed was selected for the historical random stream. Pick
+        // its sampled tile from the active topology so this fixture survives
+        // map-dimension changes without changing the random draw sequence.
+        self.set_random_seed(42_907);
+        let random_before_probe = self.random_snapshot();
+        let index = self.rand_below(self.tiles.len() as i32) as usize;
+        self.restore_random(random_before_probe);
+        let (x, y) = self.map_wrap.position(index);
+        let (city_x, city_y) = (0..self.tiles.len())
+            .map(|index| self.map_wrap.position(index))
+            .min_by_key(|&(cx, cy)| (self.map_distance(x, y, cx, cy) - 6).abs())
+            .expect("the map contains a city site six tiles from the uprising");
         let tile = self.tile_mut(x, y);
         tile.terrain = if sea {
             Terrain::Sea
@@ -76,11 +88,12 @@ impl Simulation {
         tile.hut = true;
         let (lx, ly) = neighbors(x, y).next().unwrap();
         self.tile_mut(lx, ly).terrain = Terrain::Grassland;
-        let index = self.map_wrap.index(x, y);
-        // Native C-oracle seed: tile 975 of 2048, uprising gate 0/30,
-        // and a successful Despotism unrest roll. Check instead of a costly
-        // debug-build seed search (each seed heats the table 10000 times).
-        self.set_random_seed(42_907);
+        self.tile_mut(city_x, city_y).terrain = Terrain::Grassland;
+        self.create_city(HUMAN, city_x, city_y);
+
+        // The seed also yields an open uprising roll and a successful
+        // Despotism unrest roll. Check before the real call, then restore so
+        // the onset gate and spawn consume the same draws as an actual turn.
         let snapshot = self.random_snapshot();
         let targeted = self.rand_below(self.tiles.len() as i32) as usize == index
             && self.rand_below(30) == 0

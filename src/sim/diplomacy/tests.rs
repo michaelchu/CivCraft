@@ -230,6 +230,7 @@ fn friendly_ui_fixture_has_a_real_alternate_target_for_peace_then_alliance() {
     assert_eq!(game.pact(HUMAN, 1), Pact::Peace);
     assert_eq!(game.pact_offer(1), None);
     game.diplomacy_playtest_unit(1).unwrap();
+    game.diplomacy_playtest_alliance_offer_setup();
     game.diplomacy_playtest_tick(1);
     assert_eq!(game.pact_offer(1), Some(Pact::Alliance));
 }

@@ -10,7 +10,10 @@ impl Simulation {
             .position(|city| city.owner == HUMAN)
             .unwrap();
         let (x, y) = (self.cities[home].x, self.cities[home].y);
-        let (nx, ny) = offset_native_by_map(x, y, 5, 0);
+        let (nx, ny) = (0..self.tiles.len())
+            .map(|index| self.map_wrap.position(index))
+            .find(|&(nx, ny)| self.map_distance(x, y, nx, ny) >= 5 && self.can_found_at(nx, ny))
+            .expect("science wonder playtest needs a legal rival city site");
         self.create_city(1, nx, ny);
         let rival = self.cities.len() - 1;
         self.cities[home].buildings.push(Building::LIBRARY);
@@ -47,7 +50,9 @@ impl Simulation {
         self.players[1]
             .known
             .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
-        self.players[HUMAN].known.push(Tech::GUERILLA_WARFARE);
+        // Partisans are gated by Nationalism being known anywhere in the
+        // world, rather than by the Guerilla unit's production technology.
+        self.players[HUMAN].known.push(Tech::NATIONALISM);
         let city_info = self.city_by_id(city).unwrap();
         for (_, _, x, y) in Self::city_radius(city_info) {
             self.tile_mut(x, y).terrain = Terrain::Hills;
@@ -57,17 +62,27 @@ impl Simulation {
 
     pub(crate) fn multicultural_playtest_setup(&mut self) -> (u32, u32) {
         let home = self.cities_owned_by(HUMAN).next().unwrap();
-        let approach = offset_native_by_map(home.x, home.y, 4, 0);
-        let target = offset_native_by_map(home.x, home.y, 5, 0);
-        for (x, y) in [approach, target] {
+        let (home_x, home_y) = (home.x, home.y);
+        let (approach_x, approach_y, target_x, target_y) = (0..self.tiles.len())
+            .map(|index| self.map_wrap.position(index))
+            .filter(|&(x, y)| self.map_distance(home_x, home_y, x, y) == 4)
+            .find_map(|(approach_x, approach_y)| {
+                let (target_x, target_y) = offset_native_by_map(approach_x, approach_y, 1, 0);
+                ((0..self.map_wrap.height()).contains(&target_y)
+                    && self.map_distance(home_x, home_y, target_x, target_y) == 5
+                    && self.can_found_at(target_x, target_y))
+                .then_some((approach_x, approach_y, target_x, target_y))
+            })
+            .expect("multicultural playtest needs a valid adjacent approach and city site");
+        for (x, y) in [(approach_x, approach_y), (target_x, target_y)] {
             self.tile_mut(x, y).terrain = Terrain::Grassland;
             self.tile_mut(x, y).hut = false;
         }
-        self.create_city(1, target.0, target.1);
+        self.create_city(1, target_x, target_y);
         let city = self.cities.last_mut().unwrap();
         city.size = 3;
         let city_id = city.id;
-        let unit = self.spawn_unit(HUMAN, UnitKind::Warrior, approach.0, approach.1);
+        let unit = self.spawn_unit(HUMAN, UnitKind::Warrior, approach_x, approach_y);
         (unit, city_id)
     }
 

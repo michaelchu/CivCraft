@@ -48,7 +48,9 @@ impl Simulation {
             tile.hut = false;
             tile.base = None;
         }
-        let carrier = self.spawn_unit(HUMAN, UnitKind::Carrier, x, y);
+        // Conquests sea transports can carry missile-class cargo; carriers
+        // carry aircraft and helicopters instead.
+        let carrier = self.spawn_unit(HUMAN, UnitKind::Transport, x, y);
         let missile = self.spawn_unit(HUMAN, UnitKind::CruiseMissile, x, y);
         let target = self.spawn_unit(1, UnitKind::Transport, nx, ny);
         self.units.last_mut().unwrap().hp = 1;
@@ -186,14 +188,19 @@ impl Simulation {
     }
 
     pub(crate) fn airlift_playtest_setup(&mut self) -> (u32, u32, u32) {
-        let source = self
-            .cities
-            .iter_mut()
-            .find(|city| city.owner == HUMAN)
-            .unwrap();
-        source.buildings.push(Building::AIRPORT);
-        let (x, y) = (source.x, source.y);
-        let (nx, ny) = offset_native_by_map(x, y, 5, 0);
+        let (x, y) = {
+            let source = self
+                .cities
+                .iter_mut()
+                .find(|city| city.owner == HUMAN)
+                .unwrap();
+            source.buildings.push(Building::AIRPORT);
+            (source.x, source.y)
+        };
+        let (nx, ny) = (0..self.tiles.len())
+            .map(|index| self.map_wrap.position(index))
+            .find(|&(nx, ny)| self.map_distance(x, y, nx, ny) >= 5 && self.can_found_at(nx, ny))
+            .expect("airlift playtest needs a legal destination city site");
         self.tile_mut(nx, ny).terrain = Terrain::Grassland;
         self.create_city(HUMAN, nx, ny);
         let destination = self.cities.last().unwrap().id;

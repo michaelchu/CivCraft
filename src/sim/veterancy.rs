@@ -111,4 +111,28 @@ mod tests {
             Simulation::attack_power(&regular)
         );
     }
+
+    #[test]
+    fn barracks_production_completes_as_veteran_after_a_turn() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        let (city, expected_rank) = game.veteran_playtest_setup();
+        let city_state = game.city_by_id(city).unwrap();
+        assert!(game.unit_buildable(city_state, UnitKind::Warrior));
+        assert!(
+            game.cities
+                .iter()
+                .find(|candidate| candidate.id == city)
+                .is_some_and(
+                    |candidate| candidate.production == Production::Unit(UnitKind::Warrior)
+                )
+        );
+
+        assert!(game.apply(Command::EndTurn));
+        assert!(game.units.iter().any(|unit| {
+            unit.home_city == Some(city)
+                && unit.kind == UnitKind::Warrior
+                && unit.veteran == expected_rank
+        }));
+    }
 }

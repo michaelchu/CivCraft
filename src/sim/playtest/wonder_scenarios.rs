@@ -20,10 +20,10 @@ impl Simulation {
         ];
         self.cities[0].buildings.extend(wonders);
         self.players[1].known.extend([
-            Tech::ENGINEERING,
+            Tech::METALLURGY,
+            Tech::MAGNETISM,
             Tech::NUCLEAR_POWER,
             Tech::COMPUTERS,
-            Tech::MACHINE_TOOLS,
         ]);
         let active = naval_speed(self) == base_speed + 2 * MOVE_FRAGMENTS
             && science(self) == base_science + science_tiles
@@ -35,12 +35,13 @@ impl Simulation {
                     .into_iter()
                     .map(Building::history_per_turn)
                     .sum::<i32>();
-        self.players[HUMAN].known.push(Tech::ENGINEERING);
+        self.players[HUMAN].known.push(Tech::MAGNETISM);
         let lighthouse_ended = naval_speed(self) == base_speed + MOVE_FRAGMENTS;
         self.players[HUMAN].known.extend([
+            Tech::METALLURGY,
+            Tech::MAGNETISM,
             Tech::NUCLEAR_POWER,
             Tech::COMPUTERS,
-            Tech::MACHINE_TOOLS,
         ]);
         // Nuclear Power's own movement bonus replaces Magellan's bonus.
         let naval_ended = lighthouse_ended && naval_speed(self) == base_speed + MOVE_FRAGMENTS;
@@ -79,9 +80,13 @@ impl Simulation {
         theatre && luxury(self, 0) == 0 && luxury(self, 2) == 3
     }
 
-    pub(crate) fn wonder_output_playtest(&mut self) -> (bool, bool, bool) {
+    pub(crate) fn wonder_output_playtest(&mut self) -> (bool, bool, bool, bool) {
         let (x, y) = (self.cities[0].x, self.cities[0].y);
-        let (wx, wy) = offset_native_by_map(x, y, 1, 0);
+        let (wx, wy) = self
+            .map_wrap
+            .civ3_neighbors(x, y)
+            .find(|&(wx, wy)| self.cities.iter().all(|city| (city.x, city.y) != (wx, wy)))
+            .expect("wonder playtest needs a valid worked tile");
         for (tx, ty, river) in [(x, y, true), (wx, wy, false)] {
             let tile = self.tile_mut(tx, ty);
             tile.terrain = Terrain::Grassland;
@@ -101,12 +106,19 @@ impl Simulation {
         self.tile_mut(wx, wy).river = true;
         let trade_bonus =
             zero_tile_unchanged && self.city_yields(&self.cities[0]).2 == base_trade + 3;
-        self.players[HUMAN].known.push(Tech::AUTOMOBILE);
+        // The source record obsoletes the Colossus with Flight.
+        self.players[HUMAN].known.push(Tech::FLIGHT);
         let colossus_obsolete = self.city_yields(&self.cities[0]).2 == base_trade + 1;
 
-        let (sx, sy) = offset_native_by_map(x, y, 5, 0);
-        let (rx, ry) = offset_native_by_map(x, y, -5, 0);
+        let (sx, sy) = (0..self.tiles.len())
+            .map(|index| self.map_wrap.position(index))
+            .find(|&(sx, sy)| self.map_distance(x, y, sx, sy) >= 5 && self.can_found_at(sx, sy))
+            .expect("wonder playtest needs a legal human city site");
         self.create_city(HUMAN, sx, sy);
+        let (rx, ry) = (0..self.tiles.len())
+            .map(|index| self.map_wrap.position(index))
+            .find(|&(rx, ry)| self.map_distance(x, y, rx, ry) >= 5 && self.can_found_at(rx, ry))
+            .expect("wonder playtest needs a legal rival city site");
         self.create_city(1, rx, ry);
         self.players[HUMAN].government = Government::Monarchy;
         self.cities[0].buildings.extend([
@@ -118,12 +130,13 @@ impl Simulation {
         let luxury =
             |game: &Self, city: usize| game.split_city_trade(&game.cities[city], 0, [100, 0, 0])[2];
         let luxury_scoped = luxury(self, 0) == 12 && luxury(self, 1) == 4 && luxury(self, 2) == 0;
-        self.players[HUMAN].known.push(Tech::ELECTRICITY);
+        self.players[HUMAN].known.push(Tech::STEAM_POWER);
         let gardens_obsolete = luxury(self, 0) == 6 && luxury(self, 1) == 4;
         (
             trade_bonus,
             luxury_scoped,
-            colossus_obsolete && gardens_obsolete,
+            colossus_obsolete,
+            gardens_obsolete,
         )
     }
 
@@ -144,7 +157,7 @@ impl Simulation {
         let healed = self
             .units
             .iter()
-            .any(|unit_info| unit_info.id == unit && unit_info.hp == 10);
+            .any(|unit_info| unit_info.id == unit && unit_info.hp == unit_info.max_hit_points());
         self.players[HUMAN].known.push(Tech::GUNPOWDER);
         let retained = self.active_barracks(&self.cities[index])
             && self.trained_rank(&self.cities[index], UnitKind::Warrior) == 2;

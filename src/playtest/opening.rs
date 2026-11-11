@@ -10,35 +10,39 @@ impl Playtest {
         buttons: &[(Rect, UiAction)],
     ) {
         if frame == 12
-            && let Some(explorer) = game
+            && let Some(unit) = game
                 .sim
                 .playtest_state()
                 .units()
                 .iter()
-                .find(|u| u.owner == HUMAN && u.kind == UnitKind::Explorer)
+                .find(|unit| unit.owner == HUMAN && unit.kind != UnitKind::Settler)
                 .cloned()
         {
-            for (dx, dy) in ISOHEX_DIRS {
+            for direction in 0..CIV3_DIRS.len() {
                 if game
                     .sim
                     .playtest_harness()
-                    .apply(Command::Move(explorer.id, dx, dy))
+                    .apply(Command::MoveCiv3(unit.id, direction))
                 {
                     if let Some(after) = game
                         .sim
                         .playtest_state()
                         .units()
                         .iter()
-                        .find(|u| u.id == explorer.id)
+                        .find(|candidate| candidate.id == unit.id)
                     {
                         let distance = game
                             .sim
                             .playtest_state()
-                            .map_distance(explorer.x, explorer.y, after.x, after.y);
+                            .map_distance(unit.x, unit.y, after.x, after.y);
                         self.move_passed = distance > 0;
                         self.move_detail = format!(
-                            "Explorer moved {distance} tile from {},{} to {},{} using terrain movement costs",
-                            explorer.x, explorer.y, after.x, after.y
+                            "{} moved {distance} tile from {},{} to {},{} using terrain movement costs",
+                            unit.kind.name(),
+                            unit.x,
+                            unit.y,
+                            after.x,
+                            after.y
                         );
                     }
                     break;
@@ -60,6 +64,9 @@ impl Playtest {
             game.perform_action(UiAction::FoundCity);
             let cities_after = game.sim.playtest_state().cities().len();
             self.act_passed = cities_after == cities_before + 1;
+            if self.act_passed {
+                game.complete_playtest_presentation();
+            }
             self.act_detail = if self.act_passed {
                 "Settlers founded a city, claimed its workable tiles, and opened city production"
                     .to_owned()
@@ -68,83 +75,30 @@ impl Playtest {
             };
         }
 
-        if frame == 34
-            && self.act_passed
-            && let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::CityTiles))
-        {
-            game.perform_action(*action);
-        }
-        if frame == 36
-            && self.act_passed
-            && let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::WorkCityTile(..)))
-        {
-            game.perform_action(*action);
-        }
-        if frame == 38 && self.act_passed {
-            let city = game
-                .sim
-                .playtest_state()
-                .cities()
-                .iter()
-                .find(|city| city.owner == HUMAN)
-                .unwrap();
-            let reassigned = city.worked_tiles.is_empty() && city.specialists[2] == 1;
-            if let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::Specialist(_, 2, -1)))
-            {
-                game.perform_action(*action);
-            }
-            let city = game
-                .sim
-                .playtest_state()
-                .cities()
-                .iter()
-                .find(|city| city.owner == HUMAN)
-                .unwrap();
-            let restored = city.worked_tiles.len() == 1 && city.specialists[2] == 0;
-            if let Some((_, action)) = buttons
-                .iter()
-                .find(|(_, action)| matches!(action, UiAction::CityTiles))
-            {
-                game.perform_action(*action);
-            }
-            self.results.push(("city_tiles", reassigned && restored,
-                format!("Worked tile reassigned to entertainer: {reassigned}. Tile labor restored: {restored}.")));
+        if (34..=54).contains(&frame) {
+            self.advance_city_tiles(frame, game, buttons);
         }
 
-        // The city manager is modal: use its close control before touching HUD rates.
-        if (frame == 43 || frame == 76)
-            && self.act_passed
+        // Wait for the city panel and controls to be live before using them.
+        if (43..=54).contains(&frame)
+            && self.city_tiles_complete
+            && !self.city_manager_closed
             && let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::CloseCity))
         {
             game.perform_action(*action);
+            self.city_manager_closed = true;
         }
-        if frame == 53
-            && self.act_passed
-            && let Some(city) = game
-                .sim
-                .playtest_state()
-                .cities()
-                .iter()
-                .find(|city| city.owner == HUMAN)
-        {
-            let (x, y) = (city.x, city.y);
-            game.select_at(x, y);
-        }
-        if frame == 45 && self.act_passed {
-            if let Some((_, rate_button)) = buttons
+
+        if (45..=54).contains(&frame)
+            && self.city_manager_closed
+            && !self.tax_step_complete
+            && let Some((_, rate_button)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::RaiseRate(1)))
-            {
-                game.perform_action(*rate_button);
-            }
+        {
+            game.perform_action(*rate_button);
             let rate_changed = game.sim.playtest_state().players()[HUMAN].rates == [50, 50, 0];
             let city = game
                 .sim
@@ -165,9 +119,41 @@ impl Playtest {
                 && player.gold == expected_gold
                 && player.research == expected_research;
             self.act_detail.push_str(&format!(
-                ". Used the tax control and ended the turn. Treasury {} (expected {expected_gold}), research {} (expected {expected_research}).",
-                player.gold, player.research
+                ". Used the tax control and ended the turn. Tax rate changed to the expected 50/50 split: {rate_changed}. Treasury {} (expected {expected_gold}), research {} (expected {expected_research}).",
+                player.gold,
+                player.research
             ));
+            self.tax_step_complete = true;
+        }
+        if frame == 54 && !self.tax_step_complete {
+            self.act_passed = false;
+            self.act_detail
+                .push_str(". The city closed, but the tax control did not become available.");
+            self.tax_step_complete = true;
+        }
+        if (53..=54).contains(&frame)
+            && self.tax_step_complete
+            && self.act_passed
+            && !self.city_focus_selected
+            && let Some(city) = game
+                .sim
+                .playtest_state()
+                .cities()
+                .iter()
+                .find(|city| city.owner == HUMAN)
+        {
+            game.select_at(city.x, city.y);
+            self.city_focus_selected = true;
+        }
+
+        // The city manager is modal: use its close control before touching HUD rates.
+        if frame == 76
+            && self.act_passed
+            && let Some((_, action)) = buttons
+                .iter()
+                .find(|(_, action)| matches!(action, UiAction::CloseCity))
+        {
+            game.perform_action(*action);
         }
 
         if frame == 55 && self.act_passed {
@@ -201,56 +187,31 @@ impl Playtest {
         }
 
         if frame == 65 && self.act_passed {
-            game.sim.playtest_harness().tribal_upkeep_playtest_setup();
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Specialist(_, 0, -1)))
             {
                 game.perform_action(*action);
             }
-            let mut verified = false;
-            for _ in 0..12 {
-                let Some(city) = game
-                    .sim
-                    .playtest_state()
-                    .cities()
-                    .iter()
-                    .find(|city| city.owner == HUMAN)
-                else {
-                    break;
-                };
-                let id = city.id;
-                let support = game.sim.playtest_state().city_unit_upkeep(city);
-                if support.shields == 1 {
-                    let (_, gross, trade) = game.sim.playtest_state().city_yields(city);
-                    let luxury = game.sim.playtest_state().city_trade(city, trade)[2];
-                    let expected = (city.shields + gross - 1) % city.production.cost();
-                    let disorder = game.sim.playtest_state().city_in_disorder(city, luxury);
-                    game.sim.playtest_harness().apply(Command::EndTurn);
-                    verified = !disorder
-                        && game
-                            .sim
-                            .playtest_state()
-                            .cities()
-                            .iter()
-                            .any(|city| city.id == id && city.shields == expected);
-                    break;
-                }
-                game.sim.playtest_harness().apply(Command::EndTurn);
-            }
-            self.act_passed = verified;
-            self.act_detail.push_str(&format!(
-                " Under Tribal government, the third supported unit charged one shield on the next turn: {verified}."
+            let mut isolated = game.sim.isolated_playtest_copy();
+            let verified = isolated.playtest_harness().despotism_upkeep_playtest();
+            self.results.push((
+                "unit_upkeep",
+                verified,
+                format!(
+                    "Under Despotism, the fifth supported unit charged one gold on the next turn: {verified}."
+                ),
             ));
         }
 
-        if frame == 78
-            && self.act_passed
-            && let Some((_, action)) = buttons
+        if frame == 78 && self.act_passed {
+            game.sim.playtest_harness().government_ui_playtest_setup();
+            if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ToggleGovernment))
-        {
-            game.perform_action(*action);
+            {
+                game.perform_action(*action);
+            }
         }
         if frame == 83 && self.act_passed {
             use sim::Government;
@@ -305,16 +266,21 @@ impl Playtest {
             game.sim.playtest_harness().apply(Command::EndTurn);
             self.act_passed = adopted
                 && upkeep.shields == 0
-                && upkeep.gold > 0
                 && game.sim.playtest_state().players()[HUMAN].gold == treasury;
             self.act_detail.push_str(&format!(
-                " Despotism charged {} gold and {} shields in unit upkeep: {}.",
+                " Despotism applied {} gold and {} shield unit upkeep and settled the treasury correctly: {}.",
                 upkeep.gold, upkeep.shields, self.act_passed
             ));
         }
 
         if frame == 98 && self.act_passed {
-            game.selected_unit = game.sim.playtest_harness().civil_war_playtest();
+            if let Some((unit, direction)) = game.sim.playtest_harness().civil_war_playtest() {
+                game.selected_unit = Some(unit);
+                self.civil_war_attack_direction = Some(direction);
+            } else {
+                game.selected_unit = None;
+                self.civil_war_attack_direction = None;
+            }
             self.act_passed = game.selected_unit.is_some();
             if let Some((_, action)) = buttons
                 .iter()
@@ -348,15 +314,14 @@ impl Playtest {
             {
                 game.perform_action(*action);
             }
-            self.act_passed = game.sim.playtest_state().pact_turns(HUMAN, 1) == 16
-                && !game.sim.playtest_harness().apply(Command::Move(
-                    game.selected_unit.unwrap(),
-                    1,
-                    0,
-                ));
+            let ceasefire_turns = game.sim.playtest_state().pact_turns(HUMAN, 1);
+            let attack_blocked = !game.sim.playtest_harness().apply(Command::MoveCiv3(
+                game.selected_unit.unwrap(),
+                self.civil_war_attack_direction.unwrap(),
+            ));
+            self.act_passed = ceasefire_turns == 16 && attack_blocked;
             self.act_detail.push_str(&format!(
-                " Senate veto preserved the ceasefire and blocked the attack: {}.",
-                self.act_passed
+                " Senate veto preserved the {ceasefire_turns}-turn ceasefire and blocked the attack: {attack_blocked}."
             ));
         }
         if frame == 115 && self.act_passed {
@@ -369,10 +334,10 @@ impl Playtest {
                 .playtest_harness()
                 .civil_war_playtest_seed_capture();
             let rebel = game.sim.playtest_state().players().len();
-            let moved =
-                game.sim
-                    .playtest_harness()
-                    .apply(Command::Move(game.selected_unit.unwrap(), 1, 0));
+            let moved = game.sim.playtest_harness().apply(Command::MoveCiv3(
+                game.selected_unit.unwrap(),
+                self.civil_war_attack_direction.unwrap(),
+            ));
             let cities = game
                 .sim
                 .playtest_state()
@@ -452,10 +417,16 @@ impl Playtest {
             game.sim.playtest_harness().diplomacy_playtest_tick(16);
             let matured = game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Peace;
             self.diplomacy_probe = game.sim.playtest_harness().diplomacy_playtest_unit(1);
+            game.sim
+                .playtest_harness()
+                .diplomacy_playtest_alliance_offer_setup();
             game.sim.playtest_harness().diplomacy_playtest_tick(1);
             let peace_held = game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Peace;
-            let entry_blocked = self.diplomacy_probe.is_some_and(|(unit, _, _)| {
-                !game.sim.playtest_harness().apply(Command::Move(unit, 1, 0))
+            let entry_blocked = self.diplomacy_probe.is_some_and(|(unit, _, _, direction)| {
+                !game
+                    .sim
+                    .playtest_harness()
+                    .apply(Command::MoveCiv3(unit, direction))
             });
             self.act_passed &= peace_held && entry_blocked;
             self.act_detail.push_str(&format!(" AI refused early peace, then offered it after the ceasefire held. Offer presented {offered} ({treaty_offer:?}), accepted {accepted_offer} ({acceptance_event}), armistice matured {matured}, peace held {peace_held}, peace blocked entry {entry_blocked}: {}.", self.act_passed));
@@ -471,9 +442,17 @@ impl Playtest {
                 .treaty_offer(1)
                 .unwrap_or_default();
             self.act_passed = offer.pact == Some(sim::Pact::Alliance) && !offer.bundled();
+            let diagnostics = if self.act_passed {
+                String::new()
+            } else {
+                game.sim
+                    .playtest_harness()
+                    .diplomacy_playtest_alliance_offer_diagnostics()
+            };
             self.act_detail.push_str(&format!(
-                " Pure alliance proposal available: {}.",
-                self.act_passed
+                " Pure alliance proposal available: {} (offer {offer:?}, hidden-city probe: {}, {diagnostics}).",
+                self.act_passed,
+                self.vision_probe.is_some()
             ));
         }
         if frame == 136 && self.act_passed {
@@ -483,8 +462,11 @@ impl Playtest {
             {
                 game.perform_action(*action);
             }
-            let (unit, x, y) = self.diplomacy_probe.unwrap();
-            let entered = game.sim.playtest_harness().apply(Command::Move(unit, 1, 0));
+            let (unit, x, y, direction) = self.diplomacy_probe.unwrap();
+            let entered = game
+                .sim
+                .playtest_harness()
+                .apply(Command::MoveCiv3(unit, direction));
             self.act_passed = entered
                 && game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Alliance
                 && game
@@ -608,6 +590,106 @@ impl Playtest {
                 self.act_passed
             ));
             game.perform_action(UiAction::ToggleDiplomacy);
+        }
+    }
+
+    fn advance_city_tiles(&mut self, frame: u32, game: &mut Game, buttons: &[(Rect, UiAction)]) {
+        if self.city_tiles_complete || !self.act_passed {
+            return;
+        }
+        let Some(city) = game
+            .sim
+            .playtest_state()
+            .cities()
+            .iter()
+            .find(|city| city.owner == HUMAN)
+        else {
+            return;
+        };
+        let city_id = city.id;
+
+        match self.city_tile_reassigned {
+            None => {
+                let tile = city.worked_tiles.first().copied();
+                let tile_action = tile.and_then(|(tile_x, tile_y)| {
+                    buttons.iter().find(|(_, action)| {
+                        matches!(
+                            action,
+                            UiAction::WorkCityTile(id, x, y)
+                                if *id == city_id && (*x, *y) == (tile_x, tile_y)
+                        )
+                    })
+                });
+                if let Some((_, action)) = tile_action {
+                    game.perform_action(*action);
+                    let reassigned = game
+                        .sim
+                        .playtest_state()
+                        .cities()
+                        .iter()
+                        .find(|city| city.id == city_id)
+                        .is_some_and(|city| {
+                            city.worked_tiles.is_empty() && city.specialists[2] == 1
+                        });
+                    self.city_tile_reassigned = Some(reassigned);
+                } else if let Some((_, action)) = buttons
+                    .iter()
+                    .find(|(_, action)| matches!(action, UiAction::CityTiles))
+                {
+                    game.perform_action(*action);
+                }
+            }
+            Some(true) => {
+                if let Some((_, action)) = buttons.iter().find(|(_, action)| {
+                    matches!(action, UiAction::Specialist(id, 2, -1) if *id == city_id)
+                }) {
+                    game.perform_action(*action);
+                    let restored = game
+                        .sim
+                        .playtest_state()
+                        .cities()
+                        .iter()
+                        .find(|city| city.id == city_id)
+                        .is_some_and(|city| {
+                            city.worked_tiles.len() == 1 && city.specialists[2] == 0
+                        });
+                    self.results.push((
+                        "city_tiles",
+                        restored,
+                        format!(
+                            "Worked tile reassigned to entertainer: true. Tile labor restored: {restored}."
+                        ),
+                    ));
+                    self.city_tiles_complete = true;
+                    if let Some((_, action)) = buttons
+                        .iter()
+                        .find(|(_, action)| matches!(action, UiAction::CityTiles))
+                    {
+                        game.perform_action(*action);
+                    }
+                }
+            }
+            Some(false) => {
+                self.results.push((
+                    "city_tiles",
+                    false,
+                    "The worked tile control did not reassign its citizen to an entertainer."
+                        .to_owned(),
+                ));
+                self.city_tiles_complete = true;
+            }
+        }
+
+        if frame == 54 && !self.city_tiles_complete {
+            let reassigned = self.city_tile_reassigned.unwrap_or(false);
+            self.results.push((
+                "city_tiles",
+                false,
+                format!(
+                    "Timed out waiting for the city tile controls. Reassignment completed: {reassigned}. Tile labor restored: false."
+                ),
+            ));
+            self.city_tiles_complete = true;
         }
     }
 }

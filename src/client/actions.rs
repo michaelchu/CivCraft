@@ -3,6 +3,15 @@
 use super::*;
 
 impl Game {
+    /// Completes presentation-only transitions so deterministic playtests can
+    /// exercise the controls that become available after them.
+    pub(crate) fn complete_playtest_presentation(&mut self) {
+        self.playback.finish();
+        if let Some(city) = self.pending_city_view.take() {
+            self.selected_city = Some(city);
+        }
+    }
+
     pub(crate) fn perform_action(&mut self, action: UiAction) {
         if self.pending_city_view.is_some() {
             return;

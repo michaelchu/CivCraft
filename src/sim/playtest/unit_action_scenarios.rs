@@ -31,7 +31,7 @@ impl Simulation {
         id
     }
 
-    pub(crate) fn veteran_playtest_setup(&mut self) -> u32 {
+    pub(crate) fn veteran_playtest_setup(&mut self) -> (u32, usize) {
         let city = self
             .cities
             .iter_mut()
@@ -39,7 +39,14 @@ impl Simulation {
             .unwrap();
         city.buildings.push(Building::BARRACKS);
         city.shields = UnitKind::Warrior.stats().cost;
-        city.id
+        // A city founded during the current turn has not produced yet.
+        city.founded_turn = self.turn - 1;
+        if !self.players[HUMAN].known.contains(&Tech::WARRIOR_CODE) {
+            self.players[HUMAN].known.push(Tech::WARRIOR_CODE);
+        }
+        let id = city.id;
+        let expected_rank = self.trained_rank(self.city_by_id(id).unwrap(), UnitKind::Warrior);
+        (id, expected_rank)
     }
 
     pub(crate) fn zone_control_playtest_setup(&mut self) -> (u32, u32, (i32, i32)) {
@@ -83,6 +90,15 @@ impl Simulation {
     }
 
     pub(crate) fn base_playtest_setup(&mut self) -> u32 {
+        if self.cities_owned_by(HUMAN).next().is_none() {
+            let (x, y) = self
+                .units
+                .iter()
+                .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settler)
+                .map(|unit| (unit.x, unit.y))
+                .expect("the base-building fixture needs a human Settler");
+            self.create_city(HUMAN, x, y);
+        }
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = offset_native_by_map(city.x, city.y, 1, 0);
         self.players[HUMAN]

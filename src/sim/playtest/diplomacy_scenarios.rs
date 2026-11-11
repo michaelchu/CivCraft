@@ -69,28 +69,45 @@ impl Simulation {
             .map(|city| (city.x, city.y))
     }
 
-    pub(crate) fn diplomacy_playtest_unit(&mut self, rival: usize) -> Option<(u32, i32, i32)> {
+    pub(crate) fn diplomacy_playtest_unit(
+        &mut self,
+        rival: usize,
+    ) -> Option<(u32, i32, i32, usize)> {
         let city = self.cities_owned_by(rival).next()?;
         let (x, y) = (city.x, city.y);
-        let (start_x, start_y) = offset_native_by_map(x, y, -1, 0);
+        let (start_x, start_y, direction) =
+            (0..topology::CIV3_DIRS.len()).find_map(|neighbor| {
+                let (start_x, start_y) = self.map_wrap.civ3_neighbor(x, y, neighbor)?;
+                if self
+                    .units
+                    .iter()
+                    .any(|unit| (unit.x, unit.y) == (start_x, start_y))
+                {
+                    return None;
+                }
+                let direction = (0..topology::CIV3_DIRS.len()).find(|&direction| {
+                    self.map_wrap.civ3_neighbor(start_x, start_y, direction) == Some((x, y))
+                })?;
+                Some((start_x, start_y, direction))
+            })?;
         self.tile_mut(x, y).terrain = Terrain::Grassland;
         self.tile_mut(start_x, start_y).terrain = Terrain::Grassland;
         let id = self.spawn_unit(HUMAN, UnitKind::Warrior, start_x, start_y);
-        Some((id, x, y))
+        Some((id, x, y, direction))
     }
 
     /// Set up the late-game conditions used by the desktop self-test.
-    pub(crate) fn civil_war_playtest(&mut self) -> Option<u32> {
+    pub(crate) fn civil_war_playtest(&mut self) -> Option<(u32, usize)> {
         let city = self.cities_owned_by(HUMAN).next()?;
         let (x, y) = (city.x, city.y);
-        let (capital_x, capital_y) = offset_native_by_map(x, y, 1, 0);
-        if self
-            .cities
-            .iter()
-            .any(|city| (city.x, city.y) == (capital_x, capital_y))
-        {
-            return None;
-        }
+        let (direction, (capital_x, capital_y)) =
+            (0..topology::CIV3_DIRS.len()).find_map(|direction| {
+                let target = self.map_wrap.civ3_neighbor(x, y, direction)?;
+                self.cities
+                    .iter()
+                    .all(|city| (city.x, city.y) != target)
+                    .then_some((direction, target))
+            })?;
         self.units
             .retain(|unit| (unit.x, unit.y) != (capital_x, capital_y));
         self.tile_mut(capital_x, capital_y).terrain = Terrain::Grassland;
@@ -126,7 +143,7 @@ impl Simulation {
         self.players[rival].rates = [60, 40, 0];
         self.players[HUMAN].government = Government::Democracy;
         self.refresh_visibility();
-        Some(self.spawn_unit(HUMAN, UnitKind::Warrior, x, y))
+        Some((self.spawn_unit(HUMAN, UnitKind::Warrior, x, y), direction))
     }
 
     pub(crate) fn civil_war_playtest_seed_capture(&mut self) {

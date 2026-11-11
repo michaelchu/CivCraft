@@ -10,9 +10,8 @@ impl Playtest {
         buttons: &[(Rect, UiAction)],
     ) {
         if frame == 252 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
-            let home = game.sim.playtest_harness().veteran_playtest_setup();
+            super::reset_founded_city_scenario(game);
+            let (home, expected_rank) = game.sim.playtest_harness().veteran_playtest_setup();
             game.perform_action(UiAction::EndTurn);
             let trained = game
                 .sim
@@ -22,7 +21,7 @@ impl Playtest {
                 .find(|unit| {
                     unit.home_city == Some(home)
                         && unit.kind == UnitKind::Warrior
-                        && unit.veteran == 1
+                        && unit.veteran == expected_rank
                 })
                 .map(|unit| unit.id);
             if let Some(id) = trained {
@@ -32,15 +31,14 @@ impl Playtest {
                 format!("A city with Barracks completed a veteran Warrior through the end-turn control: {}.", trained.is_some())));
         }
         if frame == 256 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let warrior = game.sim.playtest_harness().upgrade_playtest_setup();
             game.perform_action(UiAction::SelectUnit(warrior));
         }
         if frame == 258 && self.act_passed {
             let gold = game.sim.playtest_state().players()[HUMAN].gold;
             let upgrade = buttons.iter().find_map(|(_, action)| match action {
-                UiAction::UpgradeUnit(UnitKind::Musketman, price) => Some((*action, *price)),
+                UiAction::UpgradeUnit(UnitKind::Legionary, price) => Some((*action, *price)),
                 _ => None,
             });
             let upgraded = upgrade.is_some_and(|(action, price)| {
@@ -48,16 +46,15 @@ impl Playtest {
                 game.sim.playtest_state().players()[HUMAN].gold == gold - price
                     && game.selected_unit.is_some_and(|id| {
                         game.sim.playtest_state().units().iter().any(|unit| {
-                            unit.id == id && unit.kind == UnitKind::Musketman && unit.veteran == 1
+                            unit.id == id && unit.kind == UnitKind::Legionary && unit.veteran == 1
                         })
                     })
             });
             self.results.push(("unit_upgrade", upgraded,
-                format!("Paid the displayed upgrade price and converted a hardened Warrior into veteran Musketeers: {upgraded}.")));
+                format!("Paid the displayed upgrade price and converted a hardened Warrior into a veteran Legionary: {upgraded}.")));
         }
         if frame == 267 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let team = game
                 .sim
                 .playtest_harness()
@@ -178,8 +175,7 @@ impl Playtest {
                 format!("Fighter landed: {landed}. Carrier sailed: {sailed}. Fighter refueled: {fueled}. Fighter launched: {launched}.")));
         }
         if frame == 287 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let scenario = game
                 .sim
                 .playtest_harness()
@@ -216,8 +212,7 @@ impl Playtest {
                 format!("Upgraded to a Stealth Bomber through the unit control: {upgraded}. Its four bombardment strikes landed: {bombarded}.")));
         }
         if frame == 290 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let (helicopter, passenger) = game.sim.playtest_harness().helicopter_playtest_setup();
             game.perform_action(UiAction::SelectUnit(passenger));
             game.perform_action(UiAction::BoardOrDeboard);
@@ -319,7 +314,7 @@ impl Playtest {
                     .iter()
                     .any(|unit| unit.id == carrier);
             self.results.push(("cruise_missile", boarded && launched && resolved,
-                format!("Missile boarded: {boarded}. Launched from carrier: {launched}. Target destroyed and missile expended: {resolved}.")));
+                format!("Missile boarded: {boarded}. Launched from transport: {launched}. Target destroyed and missile expended: {resolved}.")));
         }
         if frame == 298 && self.act_passed {
             let mut outcomes = [false; 2];
@@ -364,8 +359,7 @@ impl Playtest {
         if frame == 300 && self.act_passed {
             let mut outcomes = [false; 2];
             for (index, warming) in [true, false].into_iter().enumerate() {
-                *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-                game.perform_action(UiAction::FoundCity);
+                super::reset_founded_city_scenario(game);
                 game.sim.playtest_harness().climate_playtest_setup(warming);
                 game.perform_action(UiAction::EndTurn);
                 let event = if warming {

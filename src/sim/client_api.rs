@@ -41,6 +41,12 @@ impl ClientSimulation {
         PlaytestHarness::new(&mut self.simulation)
     }
 
+    /// Copy campaign state for a playtest scenario that advances turns or
+    /// changes fixtures without affecting the interactive review session.
+    pub(crate) fn isolated_playtest_copy(&self) -> Self {
+        Self::new(self.simulation.clone())
+    }
+
     /// Read-only state inspection for deterministic playtest assertions.
     pub(crate) fn playtest_state(&self) -> PlaytestState<'_> {
         PlaytestState::new(&self.simulation)

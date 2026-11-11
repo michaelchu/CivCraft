@@ -5,7 +5,7 @@ use crate::{
     client::{Game, UiAction},
     ensure_parent,
     rules::Building,
-    sim::{self, Command, HUMAN, Production, UnitKind, WorklistEdit, topology::ISOHEX_DIRS},
+    sim::{self, Command, HUMAN, Production, UnitKind, WorklistEdit, topology::CIV3_DIRS},
 };
 use macroquad::prelude::Rect;
 use std::fs;
@@ -23,7 +23,13 @@ pub(crate) struct Playtest {
     move_detail: String,
     act_passed: bool,
     act_detail: String,
-    diplomacy_probe: Option<(u32, i32, i32)>,
+    city_tile_reassigned: Option<bool>,
+    city_tiles_complete: bool,
+    city_manager_closed: bool,
+    tax_step_complete: bool,
+    city_focus_selected: bool,
+    diplomacy_probe: Option<(u32, i32, i32, usize)>,
+    civil_war_attack_direction: Option<usize>,
     vision_probe: Option<(i32, i32)>,
     stealth_aircraft: Option<(u32, u32)>,
     airlift: Option<(u32, u32, u32)>,
@@ -43,7 +49,13 @@ impl Playtest {
             move_detail: "No scripted move completed".to_owned(),
             act_passed: false,
             act_detail: "No scripted action completed".to_owned(),
+            city_tile_reassigned: None,
+            city_tiles_complete: false,
+            city_manager_closed: false,
+            tax_step_complete: false,
+            city_focus_selected: false,
             diplomacy_probe: None,
+            civil_war_attack_direction: None,
             vision_probe: None,
             transport_probe: None,
             pillage_probe: None,
@@ -121,5 +133,26 @@ mod report_tests {
                 .contains("\"passed\":false")
         );
         std::fs::remove_file(path).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod opening_scenario_tests {
+    use super::*;
+
+    #[test]
+    fn seed_42_moves_a_starting_unit_then_founds_a_city() {
+        let map = crate::mapgen::generate_for_civ3_size(
+            42,
+            crate::mapgen::Civ3MapSize::Standard,
+            crate::mapgen::Civ3WorldSettings::default(),
+        );
+        let mut game = Game::new(sim::Simulation::new(map));
+        let mut playtest = Playtest::new("unused-report.json".to_owned(), 42);
+
+        playtest.advance_opening(12, &mut game, &[]);
+        assert!(playtest.move_passed, "{}", playtest.move_detail);
+        playtest.advance_opening(30, &mut game, &[]);
+        assert!(playtest.act_passed, "{}", playtest.act_detail);
     }
 }

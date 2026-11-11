@@ -539,6 +539,8 @@ mod carrier_tests {
         assert!(!UnitKind::Carrier.can_carry(UnitKind::Warrior));
         assert!(!UnitKind::Carrier.can_carry(UnitKind::Cannon));
         assert!(!UnitKind::Carrier.can_carry(UnitKind::Worker));
+        assert!(!UnitKind::Carrier.can_carry(UnitKind::CruiseMissile));
+        assert!(UnitKind::Transport.can_carry(UnitKind::CruiseMissile));
         assert!(!UnitKind::Transport.can_carry(UnitKind::Fighter));
         assert_eq!(UnitKind::Carrier.transport_capacity(), 4);
         game.restore_aircraft();

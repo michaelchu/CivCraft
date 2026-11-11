@@ -163,6 +163,41 @@ mod ai_integration_tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert!(game.city_healing_playtest());
     }
+
+    #[test]
+    fn despotism_upkeep_playtest_charges_gold_in_isolated_state() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let settler = game
+            .units
+            .iter()
+            .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settler)
+            .unwrap()
+            .id;
+        assert!(game.apply(Command::FoundCity(settler)));
+
+        let source_turn = game.turn;
+        let source_units = game.units.len();
+        let mut isolated = game.clone();
+        assert!(isolated.despotism_upkeep_playtest());
+        assert_eq!(game.turn, source_turn);
+        assert_eq!(game.units.len(), source_units);
+    }
+
+    #[test]
+    fn government_ui_playtest_setup_supports_a_valid_unlocked_transition() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.government_ui_playtest_setup();
+
+        assert_eq!(game.players[HUMAN].government, Government::Republic);
+        assert!(!game.apply(Command::Government(Government::Monarchy)));
+        assert!(game.apply(Command::Government(Government::Despotism)));
+        assert_eq!(game.players[HUMAN].government, Government::Anarchy);
+        assert_eq!(
+            game.players[HUMAN].revolution_target,
+            Some(Government::Despotism)
+        );
+    }
+
     #[test]
     fn native_seeds_preserve_sam_plague_and_disaster_scenario_preconditions() {
         let fresh = || Simulation::new(crate::mapgen::generate(42));
@@ -217,9 +252,23 @@ mod ai_integration_tests {
         assert_eq!(game.ai_fortifications_playtest(), (true, true, true));
     }
     #[test]
+    fn base_building_fixture_creates_its_own_city() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let worker = game.base_playtest_setup();
+        assert!(game.cities_owned_by(HUMAN).next().is_some());
+        assert_eq!(game.unit_by_id(worker).unwrap().kind, UnitKind::Worker);
+    }
+    #[test]
     fn expansion_playtest_uses_valid_polar_rows_and_founds_the_fourth_city() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert_eq!(game.ai_expansion_playtest(), (true, true, true));
+    }
+    #[test]
+    fn uprising_playtest_targets_the_active_map_topology() {
+        for sea in [false, true] {
+            let mut game = Simulation::new(crate::mapgen::generate(42));
+            assert!(game.uprising_playtest(sea, false), "sea={sea}");
+        }
     }
     #[test]
     fn shakespeares_theater_trade_effect_is_local_and_enduring() {

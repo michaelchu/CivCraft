@@ -12,8 +12,7 @@ impl Playtest {
         if frame == 302 && self.act_passed {
             let mut outcomes = [false; 2];
             for (index, nuclear) in [false, true].into_iter().enumerate() {
-                *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-                game.perform_action(UiAction::FoundCity);
+                super::reset_founded_city_scenario(game);
                 outcomes[index] = game.sim.playtest_harness().run_disaster_playtest(nuclear);
             }
             self.results.push(("city_disasters", outcomes == [true, true],
@@ -22,8 +21,7 @@ impl Playtest {
         if frame == 304 && self.act_passed {
             let mut sizes = [0; 2];
             for (index, protected) in [false, true].into_iter().enumerate() {
-                *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-                game.perform_action(UiAction::FoundCity);
+                super::reset_founded_city_scenario(game);
                 sizes[index] = game.sim.playtest_harness().run_plague_playtest(protected);
             }
             self.results.push((
@@ -35,8 +33,7 @@ impl Playtest {
             ));
         }
         if frame == 315 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let scenario = game.sim.playtest_harness().airlift_playtest_setup();
             self.airlift = Some(scenario);
             game.perform_action(UiAction::SelectUnit(scenario.0));
@@ -67,9 +64,7 @@ impl Playtest {
                 format!("Warrior airlifted to a city without an Airport: {arrived}. Second departure from the same Airport was blocked: {limited}.")));
         }
         if frame == 318 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
-            game.perform_action(UiAction::CloseCity);
+            super::reset_founded_city_scenario(game);
             game.sim.playtest_harness().spaceship_playtest_setup();
         }
         if frame == 319
@@ -109,9 +104,7 @@ impl Playtest {
             ));
         }
         if frame == 321 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
-            game.perform_action(UiAction::CloseCity);
+            super::reset_founded_city_scenario(game);
             crate::sim::scenarios::ui_review::manual_spaceship_playtest_setup(
                 &mut game.sim.playtest_harness(),
             );
@@ -145,9 +138,7 @@ impl Playtest {
                 format!("Disconnected structural slot was unavailable: {blocked}. The assembly control installed the root slot: {installed}.")));
         }
         if frame == 325 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
-            game.perform_action(UiAction::CloseCity);
+            super::reset_founded_city_scenario(game);
             game.sim.playtest_harness().turn_limit_playtest_setup();
             game.perform_action(UiAction::EndTurn);
             let ranked = game
@@ -164,9 +155,7 @@ impl Playtest {
             self.results.push(("score_endgame", ranked, format!("The final turn ended the game and ranked the highest-scoring surviving civilization first: {ranked}.")));
         }
         if frame == 328 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
-            game.perform_action(UiAction::CloseCity);
+            super::reset_founded_city_scenario(game);
             let bonus = game.sim.playtest_harness().achievement_playtest_setup();
             let mapped = game
                 .sim
@@ -178,8 +167,7 @@ impl Playtest {
                 format!("Apollo revealed the map and earned the mapping achievement: {mapped}. Score bonus from newly earned achievements: {bonus} points.")));
         }
         if frame == 331 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let (unit, city) = game.sim.playtest_harness().multicultural_playtest_setup();
             game.perform_action(UiAction::SelectUnit(unit));
             let captured = game.sim.playtest_harness().apply(Command::Move(unit, 1, 0))
@@ -200,8 +188,7 @@ impl Playtest {
                 format!("Captured city retained its two surviving foreign citizens: {captured}. Multicultural was awarded: {awarded}.")));
         }
         if frame == 334 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let (unit, city) = game.sim.playtest_harness().partisan_playtest_setup();
             game.perform_action(UiAction::SelectUnit(unit));
             let captured = game.sim.playtest_harness().apply(Command::Move(unit, 1, 0))
@@ -226,22 +213,19 @@ impl Playtest {
                 format!("City captured: {captured}. Fortified Partisans spawned for the former owner: {resistance}.")));
         }
         if frame == 337 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let (before, after, history) = game.sim.playtest_harness().amphitheater_playtest();
             self.results.push(("amphitheater", before && !after && history == 2,
                 format!("Electricity let an Amphitheater end disorder in a size-eight city: {}. History per turn: {history}.", before && !after)));
         }
         if frame == 340 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let (advance, host, rival) = game.sim.playtest_harness().science_wonder_playtest();
             self.results.push(("science_wonders", advance && host == 28 && rival == 20,
                 format!("Great Library granted a free advance: {advance}. Host and rival science output with Libraries: {host} and {rival}.")));
         }
         if frame == 343 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let (hp, docked_moves, sea_moves, rank) =
                 game.sim.playtest_harness().naval_bonus_playtest();
             self.results.push(("naval_bonuses", (hp, docked_moves, sea_moves, rank) == (30, 42, 27, 1),

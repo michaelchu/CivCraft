@@ -22,8 +22,7 @@ impl Playtest {
                 format!("Trireme traveled along the river: {sailed}. Cargo stayed aboard: {boarded}. Deep ocean entry was blocked: {blocked}.")));
         }
         if frame == 349 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let (production, upgrade, shore_attack) =
                 game.sim.playtest_harness().surface_warship_playtest();
             self.results.push(("surface_warships", production && upgrade && shore_attack,
@@ -31,23 +30,15 @@ impl Playtest {
         }
         if frame == 352 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            let (submarine, missile, target, doubled) =
+            let (submarine, missile, _target, doubled) =
                 game.sim.playtest_harness().submarine_playtest_setup();
-            game.perform_action(UiAction::SelectUnit(missile));
-            game.perform_action(UiAction::BoardOrDeboard);
-            let loaded = game.sim.playtest_state().cargo_count(submarine) == 1;
-            let launched = game
+            let rejected = !game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(missile, 1, 0))
-                && game
-                    .sim
-                    .playtest_state()
-                    .units()
-                    .iter()
-                    .all(|unit| unit.id != target && unit.id != missile);
-            self.results.push(("submarine", loaded && launched && doubled,
-                format!("Cruise Missile boarded the Submarine: {loaded}. Its launch destroyed the target: {launched}. Destroyer defense doubled against a Submarine: {doubled}.")));
+                .apply(Command::BoardOrDeboard(missile))
+                && game.sim.playtest_state().cargo_count(submarine) == 0;
+            self.results.push(("submarine", rejected && doubled,
+                format!("Regular Submarine rejected Cruise Missile cargo: {rejected}. Destroyer defense doubled against a Submarine: {doubled}.")));
         }
         if frame == 355 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
@@ -84,29 +75,26 @@ impl Playtest {
             }
         }
         if frame == 376 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let (stacked, healed, retained) = game.sim.playtest_harness().barracks_playtest();
             self.results.push(("barracks", stacked && healed && retained,
                 format!("Barracks and Sun Tzu granted two ranks: {stacked}. Barracks fully healed a stationary unit: {healed}. Barracks training remained active after Gunpowder: {retained}.")));
         }
         if frame == 379 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
-            let (trade, luxury, obsolete) = game.sim.playtest_harness().wonder_output_playtest();
-            self.results.push(("wonder_output", trade && luxury && obsolete,
-                format!("Colossus increased only trade-producing tiles: {trade}. Luxury bonuses respected city and empire scope and Marketplace: {luxury}. Automobile and Electricity disabled the relevant bonuses: {obsolete}.")));
+            super::reset_founded_city_scenario(game);
+            let (trade, luxury, colossus_obsolete, gardens_obsolete) =
+                game.sim.playtest_harness().wonder_output_playtest();
+            self.results.push(("wonder_output", trade && luxury && colossus_obsolete && gardens_obsolete,
+                format!("Colossus increased only trade-producing tiles: {trade}. Luxury bonuses respected city and empire scope and Marketplace: {luxury}. Flight obsoleted Colossus: {colossus_obsolete}. Steam Power obsoleted Hanging Gardens: {gardens_obsolete}.")));
         }
         if frame == 382 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let theatre = game.sim.playtest_harness().theatre_output_playtest();
             self.results.push(("theatre_output", theatre,
                 format!("Shakespeare's Theater trade effects followed local, empire, and specialist scope: {theatre}.")));
         }
         if frame == 385 && self.act_passed {
-            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-            game.perform_action(UiAction::FoundCity);
+            super::reset_founded_city_scenario(game);
             let (active, ended, retained) = game.sim.playtest_harness().obsolete_wonders_playtest();
             self.results.push(("obsolete_wonders", active && ended && retained,
                 format!("Rival discoveries left wonders active: {active}. Owner discoveries ended movement, defense and science effects: {ended}. Buildings and accumulated history survived obsolescence: {retained}.")));
