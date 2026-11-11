@@ -873,6 +873,12 @@ struct Junction {
     straight_ice: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum GroundLayer {
+    Base,
+    PolarCap,
+}
+
 struct SheetCell<'a> {
     image: &'a Image,
     offset: usize,
@@ -983,26 +989,19 @@ impl GroundArt {
         best.0
     }
 
-    fn rasterize(&self, key: Junction) -> Image {
+    fn rasterize_base(&self, key: Junction) -> Image {
         let ground = key.ground;
         let variant = usize::from(key.variant);
         let pure_water = ground.iter().all(|&tile| is_water(tile));
         let pure_ice = ground == [Ice; 4];
         let ice_over_water = ground.iter().all(|&tile| is_water(tile) || tile == Ice);
         let depths = ground.map(water_depth);
-        let ice = SheetCell::new(&self.polar, 0, variant);
         let ocean = SheetCell::lookup(&self.water, depths);
         let mut patch = [None, None, None, None];
         let mut tundra_blend = false;
-        let main = if pure_ice {
-            SheetCell::new(&self.polar, 0, variant)
-        } else if key.straight_ice {
-            let row = ice_row(ground).expect("straight polar front has a sheet row");
-            SheetCell::new(
-                &self.polar,
-                row,
-                if row == 2 { 1 + variant % 7 } else { variant },
-            )
+        // Polar PCX cells are keyed overlays; keep ocean art beneath the cap.
+        let main = if pure_ice || key.straight_ice {
+            SheetCell::new(&self.ocean, variant, (variant * 5) % 9)
         } else if pure_water && depths == [1; 4] {
             SheetCell::new(&self.sea, variant, (variant * 5) % 9)
         } else if pure_water && depths == [2; 4] {
@@ -1066,8 +1065,7 @@ impl GroundArt {
                 .clamp(64 - half, 63 + half);
             let dx = (x as f32 + 0.5) / 64.0 - 1.0;
             let dy = (y as f32 + 0.5) / 32.0 - 1.0;
-            let polar_y = y.min(HEIGHT - 1 - y);
-            let mut color = main.pixel(x, if pure_ice { polar_y } else { y });
+            let mut color = main.pixel(x, y);
             let signed_tip = [-dy - dx.abs(), dx - dy.abs(), dy - dx.abs(), -dx - dy.abs()];
             for (i, distance) in signed_tip.into_iter().enumerate() {
                 if let Some(other) = &patch[i] {
@@ -1077,32 +1075,62 @@ impl GroundArt {
                     color = mix(color, ocean.pixel(x, y), smooth(0.5 + distance / 0.28));
                 }
             }
-            if blend_ice {
-                let u = ((dx + dy + 1.0) * 0.5).clamp(0.0, 1.0);
-                let v = ((dy - dx + 1.0) * 0.5).clamp(0.0, 1.0);
-                let weights = [(1.0 - u) * (1.0 - v), u * (1.0 - v), u * v, (1.0 - u) * v];
-                let coverage: f32 = weights
-                    .into_iter()
-                    .zip(ground)
-                    .filter(|(_, tile)| *tile == Ice)
-                    .map(|(weight, _)| weight)
-                    .sum();
-                // The noise repeats on the junction lattice, including at
-                // both wrap seams. Its vertical phase alternates by row.
-                let xx = x as f32 + 0.5;
-                let yy = y as f32 + 0.5 + f32::from(key.variant & 1) * 32.0;
-                let noise = 0.026
-                    * (xx * std::f32::consts::TAU / 32.0 + yy * std::f32::consts::TAU / 64.0).sin()
-                    + 0.019
-                        * (xx * std::f32::consts::TAU / 64.0 - yy * std::f32::consts::TAU / 32.0)
-                            .sin();
-                color = mix(
-                    color,
-                    ice.pixel(x, polar_y),
-                    smooth((coverage + noise - 0.44) / 0.12),
-                );
-            }
             *pixel = [color[0], color[1], color[2], 255];
+        }
+        image
+    }
+
+    fn rasterize_polar_cap(&self, key: Junction) -> Image {
+        let ground = key.ground;
+        let variant = usize::from(key.variant);
+        let pure_ice = ground == [Ice; 4];
+        let polar = if key.straight_ice {
+            let row = ice_row(ground).expect("straight polar front has a sheet row");
+            SheetCell::new(
+                &self.polar,
+                row,
+                if row == 2 { 1 + variant % 7 } else { variant },
+            )
+        } else {
+            SheetCell::new(&self.polar, 0, variant)
+        };
+        let mut image = Image::gen_image_color(CELL_W as u16, CELL_H as u16, BLANK);
+        for (index, pixel) in image.get_image_data_mut().iter_mut().enumerate() {
+            let y = (index / CELL_W).saturating_sub(1).clamp(1, HEIGHT - 2);
+            let half = (2 * y.min(HEIGHT - 1 - y)).saturating_sub(1).max(1);
+            let x = (index % CELL_W)
+                .saturating_sub(1)
+                .clamp(64 - half, 63 + half);
+            let dx = (x as f32 + 0.5) / 64.0 - 1.0;
+            let dy = (y as f32 + 0.5) / 32.0 - 1.0;
+            let polar_y = y.min(HEIGHT - 1 - y);
+            let u = ((dx + dy + 1.0) * 0.5).clamp(0.0, 1.0);
+            let v = ((dy - dx + 1.0) * 0.5).clamp(0.0, 1.0);
+            let weights = [(1.0 - u) * (1.0 - v), u * (1.0 - v), u * v, (1.0 - u) * v];
+            let coverage: f32 = weights
+                .into_iter()
+                .zip(ground)
+                .filter(|(_, tile)| *tile == Ice)
+                .map(|(weight, _)| weight)
+                .sum();
+            let xx = x as f32 + 0.5;
+            let yy = y as f32 + 0.5 + f32::from(key.variant & 1) * 32.0;
+            let noise = 0.026
+                * (xx * std::f32::consts::TAU / 32.0 + yy * std::f32::consts::TAU / 64.0).sin()
+                + 0.019
+                    * (xx * std::f32::consts::TAU / 64.0 - yy * std::f32::consts::TAU / 32.0).sin();
+            let coverage = if pure_ice || key.straight_ice {
+                1.0
+            } else {
+                smooth((coverage + noise - 0.44) / 0.12)
+            };
+            let source = polar.pixel(x, if pure_ice { polar_y } else { y });
+            *pixel = [
+                source[0],
+                source[1],
+                source[2],
+                (f32::from(source[3]) * coverage).round() as u8,
+            ];
         }
         image
     }
@@ -1110,7 +1138,7 @@ impl GroundArt {
 
 #[derive(Default)]
 struct Atlas {
-    cells: HashMap<Junction, usize>,
+    cells: HashMap<(GroundLayer, Junction), usize>,
     pages: Vec<Mesh>,
 }
 
@@ -2153,10 +2181,17 @@ impl Civ3 {
         true
     }
 
-    fn draw_corner(&self, key: Junction, side: usize, center: Vec2, size: Vec2) {
+    fn draw_corner(
+        &self,
+        layer: GroundLayer,
+        key: Junction,
+        side: usize,
+        center: Vec2,
+        size: Vec2,
+    ) {
         let mut atlas = self.atlas.borrow_mut();
         let next = atlas.cells.len();
-        let index = *atlas.cells.entry(key).or_insert(next);
+        let index = *atlas.cells.entry((layer, key)).or_insert(next);
         let page = index / (PAGE * PAGE);
         let cell = index % (PAGE * PAGE);
         let (left, top) = (cell % PAGE * CELL_W, cell / PAGE * CELL_H);
@@ -2173,8 +2208,12 @@ impl Civ3 {
         }
         let mesh = &mut atlas.pages[page];
         if index == next {
+            let image = match layer {
+                GroundLayer::Base => self.art.rasterize_base(key),
+                GroundLayer::PolarCap => self.art.rasterize_polar_cap(key),
+            };
             mesh.texture.as_ref().unwrap().update_part(
-                &self.art.rasterize(key),
+                &image,
                 left as i32,
                 top as i32,
                 CELL_W as i32,
@@ -2206,7 +2245,7 @@ impl Civ3 {
         draw_mesh(mesh);
     }
 
-    pub(super) fn draw_base(&self, game: &Game, x: i32, y: i32, center: Vec2, size: Vec2) {
+    fn junctions(game: &Game, x: i32, y: i32) -> [Junction; 4] {
         let wrap = game.sim.map_wrap();
         let px = 2 * x + y.rem_euclid(2);
         let fallback = if (0..wrap.height()).contains(&y) {
@@ -2215,6 +2254,7 @@ impl Civ3 {
         } else {
             Ice
         };
+        // Ice marks polar coverage here; rasterization keeps ocean underneath.
         let ground = |x: i32, y: i32| {
             wrap.normalize(x.div_euclid(2), y).map_or(Ice, |(nx, ny)| {
                 let tile = game.sim.render_tile_view(nx, ny);
@@ -2225,7 +2265,8 @@ impl Civ3 {
                 }
             })
         };
-        for (side, (dx, dy)) in SIDES.into_iter().enumerate() {
+        std::array::from_fn(|side| {
+            let (dx, dy) = SIDES[side];
             let (jx, jy) = (px + dx, y + dy);
             let tiles = SIDES.map(|(sx, sy)| ground(jx + sx, jy + sy));
             let straight_ice = ice_row(tiles).is_some()
@@ -2244,16 +2285,25 @@ impl Civ3 {
             } else {
                 0
             };
-            self.draw_corner(
-                Junction {
-                    ground: tiles,
-                    variant,
-                    straight_ice,
-                },
-                side,
-                center,
-                size,
-            );
+            Junction {
+                ground: tiles,
+                variant,
+                straight_ice,
+            }
+        })
+    }
+
+    pub(super) fn draw_base(&self, game: &Game, x: i32, y: i32, center: Vec2, size: Vec2) {
+        for (side, key) in Self::junctions(game, x, y).into_iter().enumerate() {
+            self.draw_corner(GroundLayer::Base, key, side, center, size);
+        }
+    }
+
+    pub(super) fn draw_polar_cap(&self, game: &Game, x: i32, y: i32, center: Vec2, size: Vec2) {
+        for (side, key) in Self::junctions(game, x, y).into_iter().enumerate() {
+            if key.ground.contains(&Ice) {
+                self.draw_corner(GroundLayer::PolarCap, key, side, center, size);
+            }
         }
     }
 
@@ -2461,6 +2511,43 @@ fn draw_sprite(texture: &Texture2D, center: Vec2, size: Vec2, source: Rect) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn polar_cap_rasterizes_separately_over_an_ocean_base() {
+        let ocean_color = [18, 74, 132, 255];
+        let mut polar = Image::gen_image_color(1024, 256, Color::from_rgba(255, 0, 255, 0));
+        polar.get_image_data_mut()[31 * 1024 + 64] = [245, 250, 255, 255];
+        let art = GroundArt {
+            land: Vec::new(),
+            water: Image::gen_image_color(1152, 576, WHITE),
+            sea: Image::gen_image_color(1152, 576, WHITE),
+            ocean: Image::gen_image_color(
+                1152,
+                576,
+                Color::from_rgba(ocean_color[0], ocean_color[1], ocean_color[2], 255),
+            ),
+            polar,
+        };
+
+        let key = Junction {
+            ground: [Ice; 4],
+            variant: 0,
+            straight_ice: false,
+        };
+        let base = art.rasterize_base(key);
+        let cap = art.rasterize_polar_cap(key);
+
+        assert_eq!(
+            base.get_image_data()[33 * CELL_W + 65][..3],
+            ocean_color[..3]
+        );
+        assert_eq!(cap.get_image_data()[33 * CELL_W + 65], [245, 250, 255, 255]);
+        assert_eq!(
+            base.get_image_data()[33 * CELL_W + 66][..3],
+            ocean_color[..3]
+        );
+        assert_eq!(cap.get_image_data()[33 * CELL_W + 66][3], 0);
+    }
 
     #[test]
     fn irrigation_mask_selects_the_expected_cell_in_the_four_by_four_sheet() {

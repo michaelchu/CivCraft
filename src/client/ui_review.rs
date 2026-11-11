@@ -74,6 +74,52 @@ impl Game {
         assets.civ3.territory_cache_stats()
     }
 
+    pub(crate) fn ui_review_polar_edge_has_no_black_gaps(
+        &self,
+        image: &Image,
+        north: bool,
+    ) -> bool {
+        let viewport = Self::viewport_rect();
+        let scale_x = image.width as f32 / screen_width().max(1.0);
+        let scale_y = image.height as f32 / screen_height().max(1.0);
+        let (left, right) = if north { (0.55, 0.90) } else { (0.35, 0.70) };
+        let band_height = (TILE_H * self.zoom * 2.0).min(viewport.h);
+        let (top, bottom) = if north {
+            (
+                viewport.y,
+                (viewport.y + band_height).min(viewport.bottom()),
+            )
+        } else {
+            (
+                (viewport.bottom() - band_height).max(viewport.y),
+                viewport.bottom(),
+            )
+        };
+        let x_start = (left * screen_width() * scale_x).floor().max(0.0) as usize;
+        let x_end = (right * screen_width() * scale_x)
+            .ceil()
+            .min(f32::from(image.width)) as usize;
+        let y_start = (top * scale_y).floor().max(0.0) as usize;
+        let y_end = (bottom * scale_y).ceil().min(f32::from(image.height)) as usize;
+        let channels = image.bytes.len() / (usize::from(image.width) * usize::from(image.height));
+        if channels < 3 || x_start >= x_end || y_start >= y_end {
+            return false;
+        }
+
+        let mut dark_pixels = 0usize;
+        let mut total_pixels = 0usize;
+        for y in y_start..y_end {
+            for x in x_start..x_end {
+                let framebuffer_y = usize::from(image.height) - 1 - y;
+                let offset = (framebuffer_y * usize::from(image.width) + x) * channels;
+                let pixel = &image.bytes[offset..offset + 3];
+                dark_pixels += usize::from(pixel.iter().all(|channel| *channel < 12));
+                total_pixels += 1;
+            }
+        }
+        dark_pixels * 1000 < total_pixels
+    }
+
     fn ui_review_map_zoom() -> f32 {
         if Self::viewport_rect().w < 760.0 {
             0.625

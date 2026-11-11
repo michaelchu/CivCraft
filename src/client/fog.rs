@@ -37,14 +37,8 @@ impl Game {
         // neighbor, the tile itself as south, and its northeast/northwest
         // neighbors as east/west. Resolve them through the same staggered
         // Civ III topology used by movement and visibility.
-        let neighbor = |direction| {
-            self.sim
-                .map_wrap()
-                .civ3_neighbor(tile.0, tile.1, direction)
-                .map_or(Knowledge::Unknown, |coord| {
-                    fog_status(coord, target_tile, &at)
-                })
-        };
+        let neighbor =
+            |direction| neighbor_knowledge(self.sim.map_wrap(), tile, direction, target_tile, &at);
         let north = neighbor(0); // NORTH
         let south = fog_status(tile, target_tile, &at);
         let east = neighbor(1); // NORTHEAST
@@ -74,6 +68,19 @@ impl Game {
     }
 }
 
+fn neighbor_knowledge(
+    wrap: crate::world::topology::MapWrap,
+    tile: (i32, i32),
+    direction: usize,
+    target_tile: Option<(i32, i32)>,
+    at: &impl Fn(i32, i32) -> Knowledge,
+) -> Knowledge {
+    wrap.civ3_neighbor(tile.0, tile.1, direction).map_or_else(
+        || fog_status(tile, target_tile, at),
+        |coord| fog_status(coord, target_tile, at),
+    )
+}
+
 fn fog_status(
     coord: (i32, i32),
     target_tile: Option<(i32, i32)>,
@@ -87,6 +94,33 @@ fn fog_status(
         Knowledge::Visible
     } else {
         knowledge
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::topology::MapWrap;
+
+    #[test]
+    fn off_map_polar_neighbors_inherit_the_boundary_tile_knowledge() {
+        let wrap = MapWrap::X;
+        for (y, directions) in [(0, [0, 1, 7]), (wrap.height() - 1, [3, 4, 5])] {
+            for expected in [
+                Knowledge::Unknown,
+                Knowledge::Remembered,
+                Knowledge::Visible,
+            ] {
+                let at = |_, _| expected;
+                for direction in directions {
+                    assert_eq!(
+                        neighbor_knowledge(wrap, (12, y), direction, None, &at),
+                        expected,
+                        "y={y} direction={direction}"
+                    );
+                }
+            }
+        }
     }
 }
 

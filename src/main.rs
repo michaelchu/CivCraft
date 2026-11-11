@@ -384,6 +384,23 @@ async fn main() {
                         .expect("UTF-8 gallery path"),
                 );
                 let profile = ui_profile.as_mut().unwrap();
+                if matches!(scene, 31 | 32) {
+                    let polar_edge_has_no_black_gaps =
+                        game.ui_review_polar_edge_has_no_black_gaps(&image, scene == 31);
+                    profile.check(
+                        scene,
+                        "polar_edge_has_no_black_gaps",
+                        polar_edge_has_no_black_gaps,
+                    );
+                    if !polar_edge_has_no_black_gaps {
+                        let _ = profile.finish(dir);
+                        eprintln!(
+                            "Polar edge contains black gaps: {}",
+                            client::UI_REVIEW_SCENES[scene]
+                        );
+                        std::process::exit(1);
+                    }
+                }
                 if !profile.capture(
                     scene,
                     file,
