@@ -4,10 +4,12 @@ use super::*;
 
 impl Game {
     pub(super) fn draw_city_manager(&self, assets: &Assets, actions: &mut Vec<(Rect, UiAction)>) {
-        let Some(index) = self.selected_city_index() else {
+        let Some(city_id) = self.selected_city else {
             return;
         };
-        let city = &self.sim.cities()[index];
+        let Some(city) = self.sim.city_manager_view(city_id) else {
+            return;
+        };
         let rect = Self::city_manager_rect();
         draw_rectangle(
             0.0,
@@ -50,17 +52,10 @@ impl Game {
         let close_rect = Rect::new(rect.right() - 50.0, rect.y + 14.0, 28.0, 28.0);
         draw_ui_button(close_rect, "X", true, false);
         actions.push((close_rect, UiAction::CloseCity));
-        let forecast = self.sim.city_forecast(city);
-        let support = &forecast.support;
-        let food_net = forecast.food_surplus(city.size, support.food);
-        let shields = forecast.shield_surplus();
-        let science = forecast.science;
-        let luxury = forecast.luxury;
-        let gold = forecast.gold_surplus(support.gold);
         text_in(
             &format!(
-                "Size {} · Food {food_net:+} · Shields {shields} · Science {science} · Gold {gold:+} · Luxury {luxury}",
-                city.size
+                "Size {} · Food {:+} · Shields {} · Science {} · Gold {:+} · Luxury {}",
+                city.size, city.food_net, city.shield_net, city.science, city.gold_net, city.luxury
             ),
             rect.x + 22.0,
             rect.y + 61.0,
@@ -68,12 +63,12 @@ impl Game {
             rect.w - 44.0,
             Color::from_rgba(188, 220, 166, 255),
         );
-        let growth_box = Simulation::growth_box(city.size);
-        let production_cost = city.production.cost();
+        let growth_box = city.growth_box;
+        let production_cost = city.production_cost;
         let half = (rect.w - 60.0) / 2.0;
-        let growth = if forecast.disorder {
+        let growth = if city.disorder {
             "Civil disorder".to_owned()
-        } else if city.size >= Simulation::city_size_limit(city) {
+        } else if city.growth_limited {
             "Growth limit reached".to_owned()
         } else {
             format!("Growth {}/{}", city.food, growth_box)
@@ -82,9 +77,7 @@ impl Game {
         text_in(
             &format!(
                 "{} {}/{}",
-                city.production.name(),
-                city.shields,
-                production_cost
+                city.production_name, city.shields, production_cost
             ),
             rect.x + 38.0 + half,
             rect.y + 87.0,
@@ -113,7 +106,7 @@ impl Game {
             let count = city.specialists[index];
             for (delta, offset, symbol, enabled) in [
                 (-1, 0.0, "-", count > 0),
-                (1, specialist_w - 36.0, "+", city.tile_workers() > 0),
+                (1, specialist_w - 36.0, "+", city.tile_workers > 0),
             ] {
                 let button = Rect::new(x + offset, rect.y + 118.0, 28.0, 26.0);
                 draw_ui_button(button, symbol, enabled, false);
@@ -139,7 +132,7 @@ impl Game {
             Color::from_rgba(105, 102, 86, 255),
         );
         if let Some(page) = self.worklist_page {
-            self.draw_worklist(city, rect, page, actions);
+            self.draw_worklist(&city, rect, page, actions);
             return;
         }
         let tiles_button = Rect::new(rect.x + rect.w - 277.0, rect.y + 169.0, 82.0, 25.0);
@@ -155,7 +148,7 @@ impl Game {
         );
         actions.push((tiles_button, UiAction::CityTiles));
         if self.city_tiles {
-            self.draw_city_tiles(assets, city, rect, actions);
+            self.draw_city_tiles(assets, &city, rect, actions);
             return;
         }
         draw_text(
@@ -166,10 +159,7 @@ impl Game {
             Color::from_rgba(226, 211, 162, 255),
         );
 
-        let choices: Vec<_> = UnitKind::ALL_NATIVE
-            .into_iter()
-            .filter(|&kind| self.sim.can_produce(city, Production::Unit(kind)))
-            .collect();
+        let choices: Vec<_> = city.units.iter().filter(|unit| unit.available).collect();
         let columns = grid_columns(rect.w - 44.0, 180.0);
         let gap = 8.0;
         let card_w = (rect.w - 44.0 - gap * (columns - 1) as f32) / columns as f32;
@@ -180,12 +170,9 @@ impl Game {
         let buildings: Vec<_> = if self.production_page == 0 {
             Vec::new()
         } else {
-            Building::all()
-                .filter_map(|building| {
-                    let blocker = self.sim.building_blocker(city, building);
-                    (blocker.is_none() || city.buildings.contains(&building))
-                        .then_some((building, blocker))
-                })
+            city.buildings
+                .iter()
+                .filter(|building| building.blocker.is_none() || building.built)
                 .collect()
         };
         let last_page = buildings.len().div_ceil(capacity).max(1);
@@ -255,23 +242,23 @@ impl Game {
                     LIGHTGRAY,
                 );
             }
-            for (index, (building, blocker)) in buildings
+            for (index, building_view) in buildings
                 .into_iter()
                 .skip((page - 1) * capacity)
                 .take(capacity)
                 .enumerate()
             {
+                let building = building_view.building;
                 let card = Rect::new(
                     rect.x + 22.0 + (index % columns) as f32 * (card_w + gap),
                     rect.y + 199.0 + (index / columns) as f32 * (card_h + gap),
                     card_w,
                     card_h,
                 );
-                let data = building.data();
                 let target = Production::Building(building);
-                let enabled = blocker.is_none() && self.sim.can_change_production(city, target);
-                let built = city.buildings.contains(&building);
-                let current = city.production == target;
+                let enabled = building_view.can_change;
+                let built = building_view.built;
+                let current = building_view.current;
                 let fill = if current {
                     Color::from_rgba(101, 80, 39, 255)
                 } else if enabled && card.contains(mouse) {
@@ -282,27 +269,22 @@ impl Game {
                 draw_rectangle(card.x, card.y, card.w, card.h, fill);
                 draw_rectangle_lines(card.x, card.y, card.w, card.h, 1.0, GRAY);
                 text_in(
-                    data.name,
+                    building_view.name,
                     card.x + 8.0,
                     card.y + 20.0,
                     15.0,
                     card.w - 16.0,
                     if enabled || built { WHITE } else { LIGHTGRAY },
                 );
-                let cost = if data.genus == Genus::Convert {
-                    "Converts shields to gold".to_owned()
-                } else {
-                    format!("{} shields  /  ref. upkeep {}", data.cost, data.upkeep)
-                };
                 text_in(
-                    &cost,
+                    &building_view.cost_label,
                     card.x + 8.0,
                     card.y + 38.0,
                     13.0,
                     card.w - 16.0,
                     LIGHTGRAY,
                 );
-                let state = blocker.unwrap_or_else(|| {
+                let state = building_view.blocker.clone().unwrap_or_else(|| {
                     if current {
                         "Current".into()
                     } else {
@@ -317,12 +299,12 @@ impl Game {
                     card.w - 92.0,
                     LIGHTGRAY,
                 );
-                if let Some(price) = Simulation::building_sale_price(city, building) {
+                if let Some(price) = building_view.sale_price {
                     let button = Rect::new(card.x + card.w - 69.0, card.y + 44.0, 62.0, 21.0);
                     draw_ui_button(button, &format!("Sell {price}g"), true, false);
                     actions.push((button, UiAction::SellBuilding(city.id, building)));
                 }
-                self.draw_queue_button(city, card, target, actions);
+                self.draw_queue_button(&city, card, target, building_view.can_queue, actions);
                 if enabled {
                     actions.push((card, UiAction::Produce(target)));
                 }
@@ -335,12 +317,13 @@ impl Game {
                 15.0,
                 LIGHTGRAY,
             );
-            for (choice_index, kind) in choices
+            for (choice_index, unit_view) in choices
                 .into_iter()
                 .skip(unit_page * capacity)
                 .take(capacity)
                 .enumerate()
             {
+                let kind = unit_view.kind;
                 let column = choice_index % columns;
                 let row = choice_index / columns;
                 let card = Rect::new(
@@ -349,8 +332,8 @@ impl Game {
                     card_w,
                     card_h,
                 );
-                let enabled = self.sim.can_change_production(city, Production::Unit(kind));
-                let current = city.production == Production::Unit(kind);
+                let enabled = unit_view.can_change;
+                let current = unit_view.current;
                 let hovered = enabled && card.contains(mouse);
                 let fill = if current {
                     Color::from_rgba(101, 80, 39, 255)
@@ -376,12 +359,12 @@ impl Game {
                         Color::from_rgba(65, 68, 63, 255)
                     },
                 );
-                let stats = kind.stats();
+                let cost = unit_view.cost;
                 assets.civ3.draw_unit_icon(
                     kind,
                     city.owner,
-                    self.sim.players()[city.owner].civilization_id.as_deref(),
-                    self.sim.research_era(city.owner).index(),
+                    city.civilization_id.as_deref(),
+                    city.era_index,
                     vec2(card.x + 32.0, card.y + 32.5),
                     vec2(52.0, 39.0),
                     enabled,
@@ -400,7 +383,7 @@ impl Game {
                     },
                 );
                 draw_text(
-                    format!("{} shields", stats.cost),
+                    format!("{} shields", cost),
                     card.x + 62.0,
                     card.y + 47.0,
                     13.0,
@@ -419,7 +402,13 @@ impl Game {
                         Color::from_rgba(247, 211, 112, 255),
                     );
                 }
-                self.draw_queue_button(city, card, Production::Unit(kind), actions);
+                self.draw_queue_button(
+                    &city,
+                    card,
+                    Production::Unit(kind),
+                    unit_view.can_queue,
+                    actions,
+                );
                 if enabled {
                     actions.push((card, UiAction::Produce(Production::Unit(kind))));
                 }
@@ -436,9 +425,8 @@ impl Game {
         );
         actions.push((worklist_button, UiAction::WorklistPage(Some(0))));
         let buy_button = Rect::new(rect.x + rect.w - 139.0, garrison_y - 20.0, 115.0, 24.0);
-        let cost = self.sim.rush_cost(city);
-        let affordable = cost.is_some_and(|price| price <= self.sim.players()[city.owner].gold);
-        let buy_label = cost.map_or_else(
+        let affordable = city.rush_cost.is_some_and(|price| price <= city.treasury);
+        let buy_label = city.rush_cost.map_or_else(
             || {
                 if city.bought_production {
                     "Rushed".to_owned()
@@ -455,19 +443,14 @@ impl Game {
         draw_text(
             format!(
                 "Upkeep: {} food / {} shields / {} gold",
-                support.food, support.shields, support.gold
+                city.support_food, city.support_shields, city.support_gold
             ),
             rect.x + 22.0,
             garrison_y + 22.0,
             14.0,
             Color::from_rgba(226, 211, 162, 255),
         );
-        let garrison: Vec<&Unit> = self
-            .sim
-            .units()
-            .iter()
-            .filter(|unit| unit.owner == HUMAN && unit.x == city.x && unit.y == city.y)
-            .collect();
+        let garrison = &city.garrison;
         if garrison.is_empty() {
             draw_text(
                 "No units stationed in this city.",
@@ -479,7 +462,7 @@ impl Game {
         } else {
             let button_gap = 7.0;
             let button_w = ((rect.w - 44.0 - button_gap * 3.0) / 4.0).min(170.0);
-            for (unit_index, unit) in garrison.into_iter().take(4).enumerate() {
+            for (unit_index, unit) in garrison.iter().take(4).enumerate() {
                 let unit_rect = Rect::new(
                     rect.x + 22.0 + unit_index as f32 * (button_w + button_gap),
                     garrison_y + 31.0,
@@ -500,7 +483,7 @@ impl Game {
     fn draw_city_tiles(
         &self,
         assets: &Assets,
-        city: &City,
+        city: &CityManagerView,
         panel: Rect,
         actions: &mut Vec<(Rect, UiAction)>,
     ) {
@@ -509,7 +492,7 @@ impl Game {
 
     fn draw_worklist(
         &self,
-        city: &City,
+        city: &CityManagerView,
         panel: Rect,
         requested_page: usize,
         actions: &mut Vec<(Rect, UiAction)>,
@@ -544,7 +527,7 @@ impl Game {
                 LIGHTGRAY,
             );
         }
-        for (index, &entry) in city
+        for (index, entry) in city
             .worklist
             .iter()
             .enumerate()
@@ -552,16 +535,16 @@ impl Game {
             .take(rows)
         {
             let y = panel.y + 201.0 + (index % rows) as f32 * 34.0;
-            let target = self.sim.worklist_replacement(city, entry);
-            let status = if !self.sim.can_produce(city, target) {
+            let target = entry.target;
+            let status = if !entry.available {
                 "  (unavailable)".to_owned()
-            } else if target != entry {
-                format!("  (upgrades to {})", target.name())
+            } else if target != entry.production {
+                format!("  (upgrades to {})", entry.target_name)
             } else {
                 String::new()
             };
             text_in(
-                &format!("{}. {}{status}", index + 1, entry.name()),
+                &format!("{}. {}{status}", index + 1, entry.name),
                 panel.x + 22.0,
                 y + 19.0,
                 16.0,
@@ -594,12 +577,13 @@ impl Game {
 
     fn draw_queue_button(
         &self,
-        city: &City,
+        city: &CityManagerView,
         card: Rect,
         target: Production,
+        can_queue: bool,
         actions: &mut Vec<(Rect, UiAction)>,
     ) {
-        if city.worklist.len() < WORKLIST_LIMIT && self.sim.can_produce(city, target) {
+        if can_queue {
             let button = Rect::new(card.x + card.w - 29.0, card.y + card.h - 23.0, 22.0, 18.0);
             draw_ui_button(button, "+", true, false);
             actions.push((

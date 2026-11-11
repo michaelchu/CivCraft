@@ -13,8 +13,9 @@ impl Game {
         zoom: f32,
     ) {
         let hill_terrain = |terrain| matches!(terrain, Terrain::Hills | Terrain::Mountains);
-        let current_hilly = hill_terrain(self.sim.render_tile(x, y).terrain);
-        let color = player_color(self.sim.players()[owner].civilization_id.as_deref(), owner);
+        let current_hilly = hill_terrain(self.sim.render_tile_view(x, y).terrain);
+        let civilization_id = self.sim.player_civilization_id_view(owner);
+        let color = player_color(civilization_id.as_deref(), owner);
         // Source rows are NW, NE, SW, SE; tile edges are traversed clockwise
         // from the top-right edge, matching Civ III's staggered neighbors.
         for (dx, dy, row) in [(0, -1, 1), (1, 0, 3), (0, 1, 2), (-1, 0, 0)] {
@@ -26,9 +27,11 @@ impl Game {
             }
             let hilly = current_hilly
                 && neighbor.is_some_and(|(nx, ny)| {
-                    hill_terrain(self.sim.render_tile(nx, ny).terrain)
+                    hill_terrain(self.sim.render_tile_view(nx, ny).terrain)
                 });
-            assets.civ3.draw_territory_border(center, row, hilly, color, zoom);
+            assets
+                .civ3
+                .draw_territory_border(center, row, hilly, color, zoom);
         }
     }
 
@@ -52,8 +55,9 @@ impl Game {
         tile_w: f32,
         tile_h: f32,
     ) {
+        let width = self.sim.map_wrap.width();
         for y in self.edge_water_rows() {
-            for x in 0..self.sim.map_wrap.width() {
+            for x in 0..width {
                 let center = self.world_screen_position(x, y);
                 if center.x < viewport.x - tile_w
                     || center.x > viewport.right() + tile_w
@@ -64,7 +68,7 @@ impl Game {
                 }
                 if !self
                     .sim
-                    .render_tile(x, y.clamp(0, self.sim.map_wrap.height() - 1))
+                    .render_tile_view(x, y.clamp(0, self.sim.map_wrap.height() - 1))
                     .seen
                 {
                     continue;
@@ -85,7 +89,7 @@ impl Game {
         w: f32,
         h: f32,
     ) {
-        let tile = self.sim.render_tile(x, y);
+        let tile = self.sim.render_tile_view(x, y);
         if tile.visible && matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
             assets.civ3.draw_terrain_building(
                 super::super::tileset::TerrainBuilding::Fortress,
@@ -104,14 +108,7 @@ impl Game {
         zoom: f32,
     ) {
         if let Some(owner) = self.playback.tile_owner(&self.sim, x, y) {
-            self.draw_territory_border(
-                assets,
-                x,
-                y,
-                owner,
-                geometry.center,
-                zoom,
-            );
+            self.draw_territory_border(assets, x, y, owner, geometry.center, zoom);
         }
     }
 }

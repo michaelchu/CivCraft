@@ -13,7 +13,7 @@ impl Game {
         let Some((x, y)) = self.sim.map_wrap.normalize(x, y) else {
             return Knowledge::Remembered;
         };
-        let tile = self.sim.tile(x, y);
+        let tile = self.sim.render_tile_view(x, y);
         if !tile.seen {
             Knowledge::Unknown
         } else if tile.visible {

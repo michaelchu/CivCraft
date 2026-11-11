@@ -17,7 +17,7 @@ impl Simulation {
             .is_some_and(|owner| self.at_war(unit.owner, owner))
             || self
                 .units
-            .iter()
+                .iter()
                 .any(|other| (other.x, other.y) == (x, y) && self.at_war(unit.owner, other.owner))
     }
 
@@ -60,9 +60,7 @@ impl Simulation {
                         && self.at_war(unit.owner, other.owner)
                         && other.transport.is_none()
                 })
-                .filter(|other| {
-                    self.can_launch_nuclear_strike_at(&unit, other.x, other.y)
-                })
+                .filter(|other| self.can_launch_nuclear_strike_at(&unit, other.x, other.y))
                 .max_by_key(|other| other.kind.stats().attack * 3 + other.kind.stats().defense * 2)
                 .map(|other| (other.x, other.y))
         });
@@ -86,12 +84,7 @@ impl Simulation {
     }
 
     pub(super) fn launch_nuclear_strike(&mut self, id: u32, x: i32, y: i32) -> bool {
-        let Some(unit) = self
-            .units
-            .iter()
-            .find(|unit| unit.id == id)
-            .cloned()
-        else {
+        let Some(unit) = self.units.iter().find(|unit| unit.id == id).cloned() else {
             return false;
         };
         if !self.can_launch_nuclear_strike_at(&unit, x, y) {
@@ -106,7 +99,10 @@ impl Simulation {
             unit: weapon.clone(),
         });
         self.remove_units_with_cargo(vec![weapon.id]);
-        let target_owner = self.city_at(x, y).map(|city| city.owner).or(self.tile(x, y).owner);
+        let target_owner = self
+            .city_at(x, y)
+            .map(|city| city.owner)
+            .or(self.tile(x, y).owner);
         if weapon.kind == UnitKind::ICBM
             && target_owner.is_some_and(|owner| {
                 owner != weapon.owner

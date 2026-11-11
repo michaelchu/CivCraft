@@ -246,10 +246,14 @@ impl Simulation {
             ship.kind == UnitKind::Carrier
                 && (ship.x, ship.y) == (x, y)
                 && self.allied(plane.owner, ship.owner)
-                && self.cargo_units_ordered(ship.id).any(|cargo| cargo.id == plane.id)
+                && self
+                    .cargo_units_ordered(ship.id)
+                    .any(|cargo| cargo.id == plane.id)
         });
         let full_repair = carrier
-            || self.city_at(x, y).is_some_and(|city| city.has_building(Building::AIRPORT))
+            || self
+                .city_at(x, y)
+                .is_some_and(|city| city.has_building(Building::AIRPORT))
             || self.tile(x, y).base == Some(Base::Airbase);
         if full_repair {
             plane.max_hit_points()

@@ -71,11 +71,7 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
     }
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
     game.create_city(HUMAN, 10, 24);
-    game.players[HUMAN].known = vec![
-        Tech::BRONZE_WORKING,
-        Tech::GUNPOWDER,
-        Tech::ROBOTICS,
-    ];
+    game.players[HUMAN].known = vec![Tech::BRONZE_WORKING, Tech::GUNPOWDER, Tech::ROBOTICS];
     for (step, terrain, resource) in [
         (-1, Terrain::Hills, Resource::Aluminum),
         (-2, Terrain::Mountains, Resource::Uranium),
@@ -99,9 +95,11 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
         game.defender_versus(city, &land).unwrap().kind,
         UnitKind::Musketman
     );
-    assert!(game
-        .production_city_defender(city, 100)
-        .is_some_and(|kind| kind.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::Defense)));
+    assert!(
+        game.production_city_defender(city, 100).is_some_and(
+            |kind| kind.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::Defense)
+        )
+    );
 }
 
 #[test]
@@ -154,7 +152,10 @@ fn threat_arrival_uses_source_pf_floor_and_retains_road_turn_zero() {
         .unwrap()
         .2;
     assert_eq!(turn, 3);
-    assert_eq!(UnitKind::Spearman.required_tech(), Some(Tech::BRONZE_WORKING));
+    assert_eq!(
+        UnitKind::Spearman.required_tech(),
+        Some(Tech::BRONZE_WORKING)
+    );
     assert_eq!(UnitKind::Spearman.stats().defense, 2);
 }
 
@@ -229,9 +230,7 @@ fn paradrop_estimate_uses_source_integer_range_and_full_movement_assumption() {
 fn danger_counter_choice_assumes_the_next_full_turn_without_mutating_the_enemy() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     assert!(game.ai_embarked_paradrop_danger_playtest());
-    game.players[1]
-        .known
-        .extend(Tech::all());
+    game.players[1].known.extend(Tech::all());
     let (sx, sy) = offset_native_by_map(game.cities[0].x, game.cities[0].y, -1, 0);
     let saltpeter = game.tile_mut(sx, sy);
     saltpeter.terrain = Terrain::Desert;

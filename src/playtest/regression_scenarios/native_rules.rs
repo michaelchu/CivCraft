@@ -145,8 +145,12 @@ impl Playtest {
 
         if frame == 709 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("zero_attack_carrier_path", sim.ai_zero_attack_carrier_path_playtest(),
-                "A zero-attack carrier's planned endpoint matched legal movement execution.".to_owned()));
+            self.results.push((
+                "zero_attack_carrier_path",
+                sim.ai_zero_attack_carrier_path_playtest(),
+                "A zero-attack carrier's planned endpoint matched legal movement execution."
+                    .to_owned(),
+            ));
         }
 
         if frame == 712 && self.act_passed {
@@ -284,7 +288,10 @@ impl Playtest {
                 ("native_per_unit_road_completion", road),
                 ("native_cooperative_work_early_stop", coworkers),
                 ("native_precompleted_exhausted_work", precompleted),
-                ("native_workers_do_not_gain_work_veterancy", no_worker_promotion),
+                (
+                    "native_workers_do_not_gain_work_veterancy",
+                    no_worker_promotion,
+                ),
             ] {
                 self.results.push((name, passed, "Work completion applied before later units refilled movement or progressed the same project; Conquests workers did not gain ranks from working.".to_owned()));
             }
@@ -338,7 +345,7 @@ impl Playtest {
         }
 
         if frame == 778 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let id = game.sim.transport_hud_playtest_setup();
             game.perform_action(UiAction::SelectUnit(id));
         }

@@ -82,7 +82,10 @@ impl Government {
             Self::Republic => "republic",
             Self::Democracy => "democracy",
         };
-        unit_support_rules().iter().find(|rule| rule.government == key).copied()
+        unit_support_rules()
+            .iter()
+            .find(|rule| rule.government == key)
+            .copied()
     }
 
     pub(super) fn base_waste(self) -> (i32, i32) {
@@ -131,13 +134,24 @@ fn unit_support_rules() -> &'static [UnitSupportRule] {
             .map(|line| {
                 let mut fields = line.split('\t');
                 let government = fields.next().expect("support row government");
-                let number = |value: Option<&str>| value.expect("support value").parse().expect("numeric support value");
+                let number = |value: Option<&str>| {
+                    value
+                        .expect("support value")
+                        .parse()
+                        .expect("numeric support value")
+                };
                 let town = number(fields.next());
                 let city = number(fields.next());
                 let metropolis = number(fields.next());
                 let cost_per_unit = number(fields.next());
                 assert!(fields.next().is_none(), "unexpected support table columns");
-                UnitSupportRule { government, town, city, metropolis, cost_per_unit }
+                UnitSupportRule {
+                    government,
+                    town,
+                    city,
+                    metropolis,
+                    cost_per_unit,
+                }
             })
             .collect()
     })
@@ -191,12 +205,12 @@ impl Simulation {
         let (shield_base, trade_base) = government.base_waste();
         let distance = self.government_center_distance(city);
         let has_tech = |tech| granted == Some(tech) || self.has_tech(city.owner, tech);
-        let shield_distance =
-            if matches!(government, Government::Communism | Government::Feudalism) {
-                0
-            } else {
-                1 + i32::from(!has_tech(Tech::ECONOMICS))
-            };
+        let shield_distance = if matches!(government, Government::Communism | Government::Feudalism)
+        {
+            0
+        } else {
+            1 + i32::from(!has_tech(Tech::ECONOMICS))
+        };
         let trade_distance = match government {
             Government::Communism => 0,
             Government::Feudalism => i32::from(!has_tech(Tech::THE_CORPORATION)),

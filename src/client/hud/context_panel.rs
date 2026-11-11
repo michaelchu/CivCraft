@@ -17,16 +17,20 @@ impl Game {
                 color,
             );
         };
-        if let Some(index) = self.selected_unit_index() {
-            let unit = &self.sim.units()[index];
+        if let Some(unit_id) = self.selected_unit {
             let animated = self
                 .playback
                 .active()
                 .into_iter()
                 .map(|(unit, _)| unit)
-                .find(|shown| shown.id == unit.id);
-            let unit = animated.as_ref().unwrap_or(unit);
-            let view = self.sim.unit_context_view(unit);
+                .find(|shown| shown.id == unit_id);
+            let view = animated.as_ref().map_or_else(
+                || self.sim.unit_context_view_by_id(unit_id),
+                |unit| self.sim.unit_context_view_for_rendered(unit),
+            );
+            let Some(view) = view else {
+                return;
+            };
             assets.civ3.draw_unit_icon(
                 view.kind,
                 view.owner,

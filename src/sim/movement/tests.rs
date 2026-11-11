@@ -115,16 +115,18 @@ fn captured_settler_becomes_two_workers_with_original_nationality() {
         2
     );
     assert!(game.units.iter().all(|unit| unit.kind != UnitKind::Settler));
-    assert!(game
-        .units
-        .iter()
-        .filter(|unit| unit.kind == UnitKind::Worker && unit.owner == HUMAN)
-        .all(|unit| unit.nationality == 1));
-    assert!(game
-        .units
-        .iter()
-        .filter(|unit| unit.kind == UnitKind::Worker && unit.owner == HUMAN)
-        .all(|unit| game.activity_rate(unit) == 5));
+    assert!(
+        game.units
+            .iter()
+            .filter(|unit| unit.kind == UnitKind::Worker && unit.owner == HUMAN)
+            .all(|unit| unit.nationality == 1)
+    );
+    assert!(
+        game.units
+            .iter()
+            .filter(|unit| unit.kind == UnitKind::Worker && unit.owner == HUMAN)
+            .all(|unit| game.activity_rate(unit) == 5)
+    );
 }
 
 #[test]
@@ -137,7 +139,11 @@ fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
     game.players[HUMAN].known.clear();
     let native = game.spawn_unit(HUMAN, UnitKind::Worker, 10, 24);
     let foreign = game.spawn_unit(HUMAN, UnitKind::Worker, 12, 24);
-    game.units.iter_mut().find(|unit| unit.id == foreign).unwrap().nationality = 1;
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == foreign)
+        .unwrap()
+        .nationality = 1;
     game.tile_mut(10, 24).terrain = Terrain::Forest;
     game.tile_mut(12, 24).terrain = Terrain::Forest;
 
@@ -189,10 +195,11 @@ fn artillery_capture_requires_its_prerequisite_technology() {
         .known
         .push(UnitKind::Artillery.required_tech().unwrap());
     assert!(game.try_capture_units(&attacker, 11, 24, cost, None));
-    assert!(game
-        .units
-        .iter()
-        .any(|unit| unit.kind == UnitKind::Artillery && unit.owner == HUMAN));
+    assert!(
+        game.units
+            .iter()
+            .any(|unit| unit.kind == UnitKind::Artillery && unit.owner == HUMAN)
+    );
 }
 
 #[test]
@@ -264,10 +271,12 @@ fn javelin_thrower_enslaves_on_one_in_three_combat_victories() {
     assert_eq!(converted.nationality, 1);
 
     let not_enslaved = battle(seed_for(false));
-    assert!(not_enslaved
-        .units
-        .iter()
-        .all(|unit| !(unit.kind == UnitKind::Worker && unit.owner == HUMAN)));
+    assert!(
+        not_enslaved
+            .units
+            .iter()
+            .all(|unit| !(unit.kind == UnitKind::Worker && unit.owner == HUMAN))
+    );
 }
 
 #[test]
@@ -602,11 +611,12 @@ fn workers_pool_matching_progress_only_when_they_have_movement() {
     assert!(!game.tile(10, 20).irrigation);
     game.update_activities_and_restore();
     assert!(game.tile(10, 20).irrigation);
-    assert!(game
-        .units
-        .iter()
-        .filter(|unit| [first, second].contains(&unit.id))
-        .all(|unit| unit.work_kind.is_none() && unit.work_done == 0));
+    assert!(
+        game.units
+            .iter()
+            .filter(|unit| [first, second].contains(&unit.id))
+            .all(|unit| unit.work_kind.is_none() && unit.work_done == 0)
+    );
 }
 
 #[test]
@@ -669,14 +679,16 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
     game.resolve_combat(attacker, first, nx, ny, None);
     assert!(!game.units.iter().any(|unit| unit.id == first));
     assert!(game.units.iter().any(|unit| unit.id == second));
-    assert!(game
-        .units
-        .iter()
-        .any(|unit| unit.id == attacker && (unit.x, unit.y) == (x, y)));
-    assert!(game
-        .cities
-        .iter()
-        .any(|city| (city.x, city.y, city.owner) == (nx, ny, 1)));
+    assert!(
+        game.units
+            .iter()
+            .any(|unit| unit.id == attacker && (unit.x, unit.y) == (x, y))
+    );
+    assert!(
+        game.cities
+            .iter()
+            .any(|city| (city.x, city.y, city.owner) == (nx, ny, 1))
+    );
     game.units
         .iter_mut()
         .find(|unit| unit.id == second)
@@ -689,10 +701,11 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
         .moves_left = MOVE_FRAGMENTS;
     game.set_random_seed(42);
     game.resolve_combat(attacker, second, nx, ny, None);
-    assert!(game
-        .cities
-        .iter()
-        .any(|city| (city.x, city.y, city.owner) == (nx, ny, HUMAN)));
+    assert!(
+        game.cities
+            .iter()
+            .any(|city| (city.x, city.y, city.owner) == (nx, ny, HUMAN))
+    );
 }
 
 #[test]
@@ -713,10 +726,11 @@ fn defeating_a_stack_defender_leaves_other_units_on_the_tile() {
     game.resolve_combat(attacker, first, nx, ny, None);
     assert!(!game.units.iter().any(|unit| unit.id == first));
     assert!(game.units.iter().any(|unit| unit.id == second));
-    assert!(game
-        .units
-        .iter()
-        .any(|unit| unit.id == attacker && (unit.x, unit.y) == (x, y)));
+    assert!(
+        game.units
+            .iter()
+            .any(|unit| unit.id == attacker && (unit.x, unit.y) == (x, y))
+    );
 }
 
 #[cfg(test)]
@@ -827,10 +841,11 @@ mod transport_tests {
         assert!(!game.apply(Command::Produce(id, caravel)));
         game.cities.last_mut().unwrap().shields = galleon.cost();
         game.process_cities();
-        assert!(game
-            .units
-            .iter()
-            .any(|unit| { unit.kind == UnitKind::Galleon && unit.home_city == Some(id) }));
+        assert!(
+            game.units
+                .iter()
+                .any(|unit| { unit.kind == UnitKind::Galleon && unit.home_city == Some(id) })
+        );
     }
 
     #[test]

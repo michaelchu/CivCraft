@@ -100,7 +100,6 @@ pub(crate) enum UnitKind {
     TOWInfantry,
     Flak,
     MobileSAM,
-
 }
 
 impl UnitKind {
@@ -423,10 +422,7 @@ impl UnitKind {
     }
 
     pub(in crate::sim) fn is_missile(self) -> bool {
-        matches!(
-            self,
-            Self::CruiseMissile | Self::ICBM | Self::TacticalNuke
-        )
+        matches!(self, Self::CruiseMissile | Self::ICBM | Self::TacticalNuke)
     }
 
     pub(crate) fn is_nuclear_weapon(self) -> bool {

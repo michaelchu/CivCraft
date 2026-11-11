@@ -175,9 +175,9 @@ impl Simulation {
             && started
             && boarded
             && game.tile(10, 24).oil_platform
-            && game.unit_by_id(worker).is_some_and(|unit| {
-                unit.work_kind.is_none() && unit.transport == Some(ship)
-            });
+            && game
+                .unit_by_id(worker)
+                .is_some_and(|unit| unit.work_kind.is_none() && unit.transport == Some(ship));
         built
     }
 

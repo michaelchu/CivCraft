@@ -95,16 +95,16 @@ impl Game {
 
     fn draw_messages(&mut self, actions: &mut Vec<(Rect, UiAction)>, available: f32) {
         let width = (screen_width() * 0.65).min(620.0).min(available);
-        let sim_messages = self.sim.events().to_vec();
+        let sim_messages = self.sim.campaign_messages_view();
         if sim_messages != self.last_sim_messages {
             self.client_messages.clear();
-            self.last_sim_messages = sim_messages;
+            self.last_sim_messages.clone_from(&sim_messages);
         }
         let latest = self
             .client_messages
             .iter()
             .rev()
-            .chain(self.sim.events().iter().rev())
+            .chain(sim_messages.iter().rev())
             .take(2);
         for (i, message) in latest.enumerate() {
             let color = if i == 0 {

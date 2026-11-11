@@ -30,11 +30,11 @@ impl Simulation {
                 Contamination::Pollution,
                 Contamination::Craters,
             ]
-                .into_iter()
-                .any(|target| {
-                    self.tile(unit.x, unit.y).has_contamination(target)
-                        && self.begin_work(unit.id, WorkKind::Clean(target))
-                })
+            .into_iter()
+            .any(|target| {
+                self.tile(unit.x, unit.y).has_contamination(target)
+                    && self.begin_work(unit.id, WorkKind::Clean(target))
+            })
     }
 
     fn assault_capture_chance(&self, city: &City, troops: &[&Unit]) -> f64 {
@@ -136,10 +136,7 @@ impl Simulation {
         );
         let assault = self.dispatch_assault_transports(
             owner,
-            |id| {
-                settlement_ferries.contains_key(&id)
-                    || fleet.contains(&id)
-            },
+            |id| settlement_ferries.contains_key(&id) || fleet.contains(&id),
             |id| {
                 counterattacks.contains(&id)
                     || reinforcements.contains(&id)
@@ -180,7 +177,9 @@ impl Simulation {
                 && self.units.iter().any(|enemy| {
                     self.at_war(owner, enemy.owner)
                         && (enemy.kind.is_aircraft() || enemy.kind.is_missile())
-                        && self.map_wrap.civ3_distance(unit.x, unit.y, enemy.x, enemy.y)
+                        && self
+                            .map_wrap
+                            .civ3_distance(unit.x, unit.y, enemy.x, enemy.y)
                             <= i32::from(unit.kind.fuel_capacity()) / 2
                 })
                 && self.assign_ai_air_superiority(id)

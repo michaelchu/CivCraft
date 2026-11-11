@@ -173,12 +173,12 @@ impl Simulation {
         let defender = self.unit_by_id(guard).unwrap();
         let ordinary = self.defense_power_with_building(defender, x, y, UnitKind::Battleship, None);
         let naval = self.defense_power_with_building(
-                defender,
-                x,
-                y,
-                UnitKind::Battleship,
-                Some(Building::CITY_WALLS),
-            ) == ordinary
+            defender,
+            x,
+            y,
+            UnitKind::Battleship,
+            Some(Building::CITY_WALLS),
+        ) == ordinary
             && self.defense_power_with_building(
                 defender,
                 x,
@@ -202,9 +202,11 @@ impl Simulation {
         }
         self.tile_mut(nx, ny).terrain = Terrain::Grassland;
         self.create_city(1, x, y);
-        self.players[1]
-            .known
-            .extend([Tech::BRONZE_WORKING, Tech::GUNPOWDER, Tech::AMPHIBIOUS_WARFARE]);
+        self.players[1].known.extend([
+            Tech::BRONZE_WORKING,
+            Tech::GUNPOWDER,
+            Tech::AMPHIBIOUS_WARFARE,
+        ]);
         let saltpeter = offset_native_by_map(x, y, -1, 0);
         let resource = self.tile_mut(saltpeter.0, saltpeter.1);
         resource.terrain = Terrain::Desert;

@@ -60,7 +60,10 @@ fn offensive_obsolescence_uses_the_imported_immediate_upgrade_target() {
     ]);
     assert!(!game.unit_buildable(&city, UnitKind::Musketman));
     assert!(game.unit_available(1, UnitKind::Musketman));
-    assert_eq!(UnitKind::Swordsman.obsolete_by(), Some(UnitKind::GallicSwordsman));
+    assert_eq!(
+        UnitKind::Swordsman.obsolete_by(),
+        Some(UnitKind::GallicSwordsman)
+    );
     assert!(!game.offensive_obsolete(&city, UnitKind::Swordsman));
     assert_eq!(UnitKind::Pikeman.obsolete_by(), Some(UnitKind::Musketman));
     assert!(game.offensive_obsolete(&city, UnitKind::Pikeman));

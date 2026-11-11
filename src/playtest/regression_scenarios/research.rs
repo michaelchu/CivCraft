@@ -24,8 +24,7 @@ impl Playtest {
                     action,
                     UiAction::Irrigate
                         | UiAction::TerrainWork(
-                            crate::sim::WorkKind::Cultivate
-                                | crate::sim::WorkKind::Plant
+                            crate::sim::WorkKind::Cultivate | crate::sim::WorkKind::Plant
                         )
                 )
             });
@@ -100,7 +99,7 @@ impl Playtest {
         }
 
         if frame == 802 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.sim.unset_goal_hud_playtest_setup();
             game.perform_action(UiAction::OpenResearch);
         }

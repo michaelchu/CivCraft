@@ -1,9 +1,9 @@
 //! Dedicated Civ III world painter and ordered map passes.
 
 use super::*;
-use crate::sim::{Base, Unit, UnitState, WorkKind};
+use crate::sim::{Base, RenderTileView, RenderedUnitView, UnitState, WorkKind};
 
-fn unit_animation_action(unit: &Unit) -> super::super::tileset::Civ3UnitAction {
+fn unit_animation_action(unit: &RenderedUnitView) -> super::super::tileset::Civ3UnitAction {
     use super::super::tileset::Civ3UnitAction as Action;
     let pause = get_time().rem_euclid(3.0) >= 2.0;
     if let Some(work) = unit.work_kind {
@@ -162,7 +162,7 @@ impl<'a> Civ3WorldPainter<'a> {
         match layer {
             map_layers::MapLayer::Blend => {}
             map_layers::MapLayer::Terrain => {
-                let tile = self.game.sim.render_tile(x, y);
+                let tile = self.game.sim.render_tile_view(x, y);
                 self.assets.civ3.draw_overlay(
                     tile.terrain,
                     (x, y),
@@ -188,7 +188,7 @@ impl<'a> Civ3WorldPainter<'a> {
         use super::super::tileset::TerrainBuilding;
         let game = self.game;
         let assets = self.assets;
-        let tile = game.sim.render_tile(x, y);
+        let tile = game.sim.render_tile_view(x, y);
         if matches!(tile.base, Some(Base::Fort | Base::Fortress)) {
             assets.civ3.draw_terrain_building(
                 TerrainBuilding::Fortress,
@@ -218,10 +218,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 geometry.size(),
             );
         }
-        if let Some(resource) = tile
-            .active_resource()
-            .filter(|&resource| game.sim.resource_visible_to(HUMAN, resource))
-        {
+        if let Some(resource) = tile.resource {
             assets
                 .civ3
                 .draw_resource(resource, geometry.center, geometry.size());
@@ -232,7 +229,7 @@ impl<'a> Civ3WorldPainter<'a> {
         use super::super::tileset::TerrainBuilding;
         let game = self.game;
         let assets = self.assets;
-        let tile = game.sim.render_tile(x, y);
+        let tile = game.sim.render_tile_view(x, y);
         if let Some(Base::Airstrip | Base::Airbase) = tile.base {
             let role = if tile.base == Some(Base::Airstrip) {
                 "airstrip"
@@ -250,7 +247,7 @@ impl<'a> Civ3WorldPainter<'a> {
                     .map_wrap
                     .civ3_neighbor(x, y, direction)
                     .is_some_and(|(nx, ny)| {
-                        let neighbor = game.sim.render_tile(nx, ny);
+                        let neighbor = game.sim.render_tile_view(nx, ny);
                         neighbor.seen
                             && if pollution {
                                 neighbor.pollution
@@ -293,7 +290,7 @@ impl<'a> Civ3WorldPainter<'a> {
     fn draw_water_layer(&self, x: i32, y: i32, geometry: TileGeometry, has_city: bool) {
         let game = self.game;
         let TileGeometry { center, .. } = geometry;
-        let tile = game.sim.render_tile(x, y);
+        let tile = game.sim.render_tile_view(x, y);
         if !has_city {
             if tile.farmland {
                 self.assets
@@ -304,7 +301,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 let diagonal_directions = [7, 1, 5, 3]; // NW, NE, SW, SE
                 let diagonals = diagonal_directions.map(|direction| {
                     wrap.civ3_neighbor(x, y, direction).is_some_and(|(nx, ny)| {
-                        let neighbor = game.sim.render_tile(nx, ny);
+                        let neighbor = game.sim.render_tile_view(nx, ny);
                         neighbor.seen && neighbor.irrigation
                     })
                 });
@@ -322,15 +319,15 @@ impl<'a> Civ3WorldPainter<'a> {
     fn draw_road_layer(&self, x: i32, y: i32, geometry: TileGeometry) -> bool {
         let game = self.game;
         let tileset = &self.assets.civ3;
-        let tile = game.sim.render_tile(x, y);
+        let tile = game.sim.render_tile_view(x, y);
         if !tile.road && !tile.railroad {
             return true;
         }
-        let neighbors: [Option<&crate::sim::Tile>; 8] = std::array::from_fn(|direction| {
+        let neighbors: [Option<RenderTileView>; 8] = std::array::from_fn(|direction| {
             game.sim
                 .map_wrap
                 .civ3_neighbor(x, y, direction)
-                .map(|(nx, ny)| game.sim.render_tile(nx, ny))
+                .map(|(nx, ny)| game.sim.render_tile_view(nx, ny))
         });
         let road_connections = std::array::from_fn(|direction| {
             neighbors[direction]
@@ -389,47 +386,49 @@ impl<'a> Civ3WorldPainter<'a> {
         let city_overrides = game.playback.city_overrides();
         let visible_tiles: std::collections::HashSet<_> =
             order.iter().map(|&(x, y, _)| (x, y)).collect();
-        let observed_cities = game.sim.render_cities_where(|city| {
-            visible_tiles.contains(&(city.x, city.y)) && !city_overrides.contains_key(&city.id)
-        });
+        let observed_cities: Vec<_> = game
+            .sim
+            .rendered_city_views()
+            .into_iter()
+            .filter(|city| {
+                visible_tiles.contains(&(city.x, city.y)) && !city_overrides.contains_key(&city.id)
+            })
+            .collect();
         let overridden_cities: Vec<_> = city_overrides
             .values()
             .filter(|city| visible_tiles.contains(&(city.x, city.y)))
-            .map(|city| game.sim.observed_city(city))
+            .cloned()
             .collect();
-        for observed in observed_cities
-            .iter()
-            .filter(|c| !city_overrides.contains_key(&c.city.id))
-            .chain(overridden_cities.iter())
-        {
-            cities
-                .entry((observed.city.x, observed.city.y))
-                .or_insert(observed);
+        for city in observed_cities.iter().chain(overridden_cities.iter()) {
+            cities.entry((city.x, city.y)).or_insert(city);
         }
-        let mut stacks: std::collections::HashMap<(i32, i32), (&Unit, usize)> =
-            std::collections::HashMap::new();
         let overrides = game.playback.overrides();
-        for unit in game
+        let overridden_units: Vec<_> = overrides.values().cloned().collect();
+        let units = game
             .sim
-            .units()
-            .iter()
-            .filter(|u| !overrides.contains_key(&u.id))
-            .chain(overrides.values())
-            .filter(|u| {
-                game.sim.unit_visible_to_human(u)
-                    && (u.transport.is_none() || Some(u.id) == game.selected_unit)
-            })
-        {
-            let entry = stacks.entry((unit.x, unit.y)).or_insert((unit, 0));
-            entry.1 += 1;
-            let priority = |u: &Unit| {
+            .rendered_unit_views()
+            .into_iter()
+            .filter(|unit| !overrides.contains_key(&unit.id))
+            .chain(overridden_units)
+            .filter(|unit| {
+                unit.visible && (unit.transport.is_none() || Some(unit.id) == game.selected_unit)
+            });
+        let mut stacks: std::collections::HashMap<(i32, i32), (RenderedUnitView, usize)> =
+            std::collections::HashMap::new();
+        for unit in units {
+            let priority = |u: &RenderedUnitView| {
                 (
                     u8::from(!game.playback.is_active(u.id)),
                     unit_draw_priority(u, game.selected_unit),
                 )
             };
-            if priority(unit) < priority(entry.0) {
-                entry.0 = unit;
+            if let Some(entry) = stacks.get_mut(&(unit.x, unit.y)) {
+                entry.1 += 1;
+                if priority(&unit) < priority(&entry.0) {
+                    entry.0 = unit;
+                }
+            } else {
+                stacks.insert((unit.x, unit.y), (unit, 1));
             }
         }
         game.draw_edge_water(assets, viewport, tile_w, tile_h);
@@ -437,7 +436,7 @@ impl<'a> Civ3WorldPainter<'a> {
         // layer so later diamond bases cannot cut horizontal bands through
         // forests, hills, and mountains.
         for &(x, y, center) in &order {
-            let tile = game.sim.render_tile(x, y);
+            let tile = game.sim.render_tile_view(x, y);
             // OpenCiv3's terrain pass contributes neighboring base sprites
             // before fog. CivCraft's base sprites don't have that same overlap,
             // so provide a one-tile underlay around the entire known boundary.
@@ -447,7 +446,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 .sim
                 .map_wrap
                 .civ3_neighbors(x, y)
-                .any(|(nx, ny)| game.sim.render_tile(nx, ny).seen);
+                .any(|(nx, ny)| game.sim.render_tile_view(nx, ny).seen);
             if !tile.seen && !fog_fringe {
                 continue;
             }
@@ -456,7 +455,7 @@ impl<'a> Civ3WorldPainter<'a> {
 
         for layer in map_layers::MAP_LAYERS {
             for &(x, y, center) in &order {
-                if !game.sim.render_tile(x, y).seen {
+                if !game.sim.render_tile_view(x, y).seen {
                     continue;
                 }
                 let city = cities.get(&(x, y)).copied();
@@ -515,11 +514,11 @@ impl<'a> Civ3WorldPainter<'a> {
             }
         }
         for &(x, y, center) in &order {
-            let tile = game.sim.render_tile(x, y);
+            let tile = game.sim.render_tile_view(x, y);
             if !tile.visible {
                 continue;
             }
-            if let Some(&(unit, count)) = stacks.get(&(x, y)) {
+            if let Some((unit, count)) = stacks.get(&(x, y)) {
                 // Idle city garrisons are hidden; focused units have a later
                 // foreground layer.
                 if !cities.contains_key(&(x, y))
@@ -532,7 +531,7 @@ impl<'a> Civ3WorldPainter<'a> {
                         false,
                         self.assets.civ3.fidget_pacing(unit.kind),
                     );
-                    game.draw_unit(assets, unit, center, count, action, progress, duration);
+                    game.draw_unit(assets, unit, center, *count, action, progress, duration);
                 }
             }
         }
@@ -540,16 +539,16 @@ impl<'a> Civ3WorldPainter<'a> {
             game.draw_visible_base_foreground(assets, x, y, center, tile_w, tile_h);
         }
         for &(x, y, center) in &order {
-            let tile = game.sim.render_tile(x, y);
+            let tile = game.sim.render_tile_view(x, y);
             if tile.seen
                 && let Some(city) = cities.get(&(x, y)).copied()
             {
-                game.draw_city_label(&city.city, center);
+                game.draw_city_label(city, center);
             }
         }
         for &(x, y, center) in &order {
-            if game.sim.render_tile(x, y).visible
-                && let Some(&(unit, count)) = stacks.get(&(x, y))
+            if game.sim.render_tile_view(x, y).visible
+                && let Some((unit, count)) = stacks.get(&(x, y))
                 && Some(unit.id) == game.selected_unit
                 && !game.playback.is_active(unit.id)
             {
@@ -559,7 +558,7 @@ impl<'a> Civ3WorldPainter<'a> {
                     true,
                     self.assets.civ3.fidget_pacing(unit.kind),
                 );
-                game.draw_unit(assets, unit, center, count, action, progress, duration);
+                game.draw_unit(assets, unit, center, *count, action, progress, duration);
             }
         }
         game.draw_playback(assets);

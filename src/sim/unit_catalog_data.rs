@@ -93,16 +93,10 @@ impl UnitClass {
         matches!(self, Self::Land | Self::SmallLand)
     }
     pub(super) fn has_barracks(self) -> bool {
-        matches!(
-            self,
-            Self::Land | Self::SmallLand | Self::BigLand
-        )
+        matches!(self, Self::Land | Self::SmallLand | Self::BigLand)
     }
     pub(super) fn is_ground(self) -> bool {
-        matches!(
-            self,
-            Self::Land | Self::SmallLand | Self::BigLand
-        )
+        matches!(self, Self::Land | Self::SmallLand | Self::BigLand)
     }
     pub(super) fn can_fortify(self) -> bool {
         matches!(self, Self::Land | Self::SmallLand | Self::BigLand)
@@ -123,10 +117,7 @@ impl UnitClass {
         )
     }
     pub(super) fn terrain_speed(self) -> bool {
-        matches!(
-            self,
-            Self::Land | Self::SmallLand | Self::BigLand
-        )
+        matches!(self, Self::Land | Self::SmallLand | Self::BigLand)
     }
     pub(super) fn is_unreachable(self) -> bool {
         matches!(self, Self::Missile | Self::Helicopter | Self::Air)

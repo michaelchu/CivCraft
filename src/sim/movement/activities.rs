@@ -53,8 +53,7 @@ impl Simulation {
                     | WorkKind::OilPlatform
             ))
             || unit.work_left > 0
-            || (unit.transport.is_some()
-                && kind != WorkKind::OilPlatform)
+            || (unit.transport.is_some() && kind != WorkKind::OilPlatform)
         {
             return false;
         }
@@ -286,10 +285,7 @@ impl Simulation {
             return false;
         };
         let owner = unit.owner;
-        if matches!(
-            kind,
-            WorkKind::Cultivate | WorkKind::Plant
-        ) {
+        if matches!(kind, WorkKind::Cultivate | WorkKind::Plant) {
             let Some((target, _)) = self.terrain_work(&unit, kind) else {
                 return false;
             };

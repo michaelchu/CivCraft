@@ -212,5 +212,4 @@ impl Simulation {
             && death_released
             && self.ai_ferries.valid(&self.units)
     }
-
 }

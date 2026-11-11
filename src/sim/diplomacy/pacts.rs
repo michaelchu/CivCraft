@@ -190,8 +190,8 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact) {
-        let ends_war = matches!(self.pact(a, b), Pact::War | Pact::Ceasefire)
-            && proposed == Pact::Peace;
+        let ends_war =
+            matches!(self.pact(a, b), Pact::War | Pact::Ceasefire) && proposed == Pact::Peace;
         let relation = self.diplomacy.entry(Self::relation_key(a, b)).or_default();
         relation.pact = if proposed == Pact::Peace {
             Pact::Armistice

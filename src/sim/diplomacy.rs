@@ -227,12 +227,12 @@ pub(super) enum DiplomaticIncident {
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub(super) struct Relation {
-    pact: Pact,
-    until: i32,
+    pub(super) pact: Pact,
+    pub(super) until: i32,
     first_contact: Option<i32>,
     cause_until: [i32; 2],
-    trust: [i32; 2],
-    offer: Option<TreatyOffer>,
+    pub(super) trust: [i32; 2],
+    pub(super) offer: Option<TreatyOffer>,
     vision: [bool; 2],
     embassy: [bool; 2],
     offer_after: i32,

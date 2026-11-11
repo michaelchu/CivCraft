@@ -35,7 +35,7 @@ fn resource_shadow_review_scene_contains_every_civ3_resource() {
 
     let mut sim = Simulation::new(crate::mapgen::generate(42));
     sim.players[HUMAN].known = Tech::all().collect();
-    sim.ui_review_resource_shadows();
+    ui_review_resource_shadows(&mut sim);
     let placed: Vec<_> = sim
         .tiles
         .iter()

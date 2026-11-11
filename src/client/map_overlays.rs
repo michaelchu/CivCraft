@@ -31,11 +31,11 @@ impl Game {
         );
     }
 
-    pub(super) fn draw_unit_health(&self, assets: &Assets, unit: &Unit, center: Vec2) {
+    pub(super) fn draw_unit_health(&self, assets: &Assets, unit: &RenderedUnitView, center: Vec2) {
         let camera_zoom = self.zoom.clamp(0.5, 1.0);
-        let max_hp = unit.max_hit_points().max(1);
+        let max_hp = unit.max_hp.max(1);
         let current_hp = unit.hp.clamp(0, max_hp);
-        let has_health_bar = unit.kind.stats().attack > 0 || unit.kind.stats().defense > 0;
+        let has_health_bar = unit.attack > 0 || unit.defense > 0;
         let segment_height = (if max_hp <= 6 {
             4.0
         } else if max_hp <= 12 {
@@ -66,9 +66,8 @@ impl Game {
             };
 
             for segment in 0..current_hp {
-                let segment_y = y + total_height
-                    - segment_height
-                    - segment as f32 * (segment_height + gap);
+                let segment_y =
+                    y + total_height - segment_height - segment as f32 * (segment_height + gap);
                 draw_rectangle(x, segment_y, width, segment_height, color);
             }
 
@@ -88,7 +87,7 @@ impl Game {
             assets.civ3.draw_unit_movement_indicator(
                 vec2(x, y),
                 unit.moves_left,
-                self.sim.unit_move_rate(unit),
+                unit.movement_rate,
                 camera_zoom,
             );
         }

@@ -22,7 +22,6 @@ struct Rendezvous {
     walk: Vec<(i32, i32)>,
 }
 
-
 pub(super) struct SettlementFerry {
     pub(super) founder: u32,
     pickup: (i32, i32),

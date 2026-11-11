@@ -59,7 +59,7 @@ pub(crate) struct UiReviewSources {
 impl UiReviewSources {
     pub(crate) fn new(initial: &Simulation) -> Self {
         let mut fixture = initial.clone();
-        let ids = fixture.ui_review_fixture();
+        let ids = crate::sim::scenarios::ui_review::ui_review_fixture(&mut fixture);
         Self {
             initial: initial.clone(),
             fixture,
@@ -91,7 +91,7 @@ impl Game {
         set_review_pointer(Some(vec2(-1.0, -1.0)));
         self.autosave_enabled = false;
         if scene == 0 {
-            self.sim.ui_review_reveal_all_tiles();
+            crate::sim::scenarios::ui_review::ui_review_reveal_all_tiles(&mut self.sim);
             self.zoom = ZOOMED_OUT;
             self.focus_camera_on(
                 self.sim.map_wrap.width() / 2,
@@ -104,7 +104,7 @@ impl Game {
             return;
         }
         if scene == 43 {
-            self.sim.ui_review_civ3_city_sprites();
+            crate::sim::scenarios::ui_review::ui_review_civ3_city_sprites(&mut self.sim);
             self.zoom = 0.78;
             self.focus_camera_on(20, 24);
             return;
@@ -124,18 +124,21 @@ impl Game {
             5 => self.government_open = true,
             6 => self.diplomacy_open = true,
             38 => {
-                self.sim.ui_review_first_contact();
+                crate::sim::scenarios::ui_review::ui_review_first_contact(&mut self.sim);
             }
             39 => {
-                self.sim.ui_review_first_contact();
+                crate::sim::scenarios::ui_review::ui_review_first_contact(&mut self.sim);
             }
             41 => {
-                self.sim.ui_review_compensation_negotiation(1);
+                crate::sim::scenarios::diplomacy::ui_review_compensation_negotiation(
+                    &mut self.sim,
+                    1,
+                );
                 self.diplomacy_open = true;
                 self.diplomacy_target = Some(1);
             }
             42 => {
-                self.sim.ui_review_resource_shadows();
+                crate::sim::scenarios::ui_review::ui_review_resource_shadows(&mut self.sim);
                 self.zoom = 1.15;
             }
             7 => {
@@ -144,14 +147,17 @@ impl Game {
             }
             8 => {
                 self.diplomacy_open = true;
-                self.reviewed_offer = Some((1, self.sim.ui_review_offer()));
+                self.reviewed_offer = Some((
+                    1,
+                    crate::sim::scenarios::diplomacy::ui_review_offer(&mut self.sim),
+                ));
             }
             9 => {
                 self.research_open = true;
                 self.center_research();
             }
             10 => {
-                self.sim.manual_spaceship_playtest_setup();
+                crate::sim::scenarios::ui_review::manual_spaceship_playtest_setup(&mut self.sim);
                 self.spaceship_open = true;
             }
             11 => {
@@ -163,38 +169,41 @@ impl Game {
                     .map(|u| u.id);
             }
             12 => {
-                self.sim.ui_review_touching_borders();
+                crate::sim::scenarios::ui_review::ui_review_touching_borders(&mut self.sim);
                 self.zoom = 1.0;
             }
             16 | 17 => {
-                self.sim.ui_review_rivers(scene == 17);
+                crate::sim::scenarios::ui_review::ui_review_rivers(&mut self.sim, scene == 17);
                 self.zoom = Self::ui_review_map_zoom();
             }
             27 | 28 => {
-                self.sim.ui_review_terrain_layers(scene == 28);
+                crate::sim::scenarios::ui_review::ui_review_terrain_layers(
+                    &mut self.sim,
+                    scene == 28,
+                );
                 self.zoom = Self::ui_review_map_zoom();
             }
             37 => {
-                self.sim.ui_review_ice_transitions();
+                crate::sim::scenarios::ui_review::ui_review_ice_transitions(&mut self.sim);
                 self.zoom = 1.0;
                 self.focus_camera_on(20, 24);
                 return;
             }
             44 => {
-                self.sim.ui_review_civ3_water_depths();
+                crate::sim::scenarios::ui_review::ui_review_civ3_water_depths(&mut self.sim);
                 self.zoom = 1.35;
                 self.focus_camera_on(20, 24);
                 return;
             }
             34..=36 => {
-                self.sim.ui_review_terrain_seams();
+                crate::sim::scenarios::ui_review::ui_review_terrain_seams(&mut self.sim);
                 self.zoom = [0.625, 0.82, 1.35][scene - 34];
                 self.focus_camera_on(20, 24);
                 self.camera += vec2(0.137, 0.213);
                 return;
             }
             31 | 32 => {
-                self.sim.ui_review_reveal_all_tiles();
+                crate::sim::scenarios::ui_review::ui_review_reveal_all_tiles(&mut self.sim);
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(
                     self.sim.map_wrap.width() / 2,
@@ -207,19 +216,23 @@ impl Game {
                 return;
             }
             33 => {
-                self.selected_unit = Some(self.sim.ui_review_wrap_seam());
+                self.selected_unit = Some(crate::sim::scenarios::ui_review::ui_review_wrap_seam(
+                    &mut self.sim,
+                ));
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(12, 0);
                 return;
             }
             29 => {
-                let (_, focus) = self.sim.ui_review_observed_map();
+                let (_, focus) =
+                    crate::sim::scenarios::ui_review::ui_review_observed_map(&mut self.sim);
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(focus.0, focus.1);
                 return;
             }
             30 => {
-                let (id, target) = self.sim.ui_review_route_setup();
+                let (id, target) =
+                    crate::sim::scenarios::ui_review::ui_review_route_setup(&mut self.sim);
                 self.selected_unit = Some(id);
                 self.goto_mode = true;
                 self.zoom = Self::ui_review_map_zoom();
@@ -229,7 +242,7 @@ impl Game {
                 return;
             }
             26 => {
-                let unit = self.sim.ui_review_fog();
+                let unit = crate::sim::scenarios::ui_review::ui_review_fog(&mut self.sim);
                 self.selected_unit = Some(unit);
                 self.zoom = if Self::viewport_rect().w < 760.0 {
                     0.55
@@ -238,17 +251,20 @@ impl Game {
                 };
             }
             23..=25 => {
-                let (unit, _) = self.sim.ui_review_animation_setup(scene != 23);
+                let (unit, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(
+                    &mut self.sim,
+                    scene != 23,
+                );
                 self.selected_unit = Some(unit);
                 self.playback.review_progress = Some(if scene == 25 { 0.9 } else { 0.5 });
                 self.zoom = 1.35;
             }
             22 => {
-                self.sim.ui_review_city_appearance();
+                crate::sim::scenarios::ui_review::ui_review_city_appearance(&mut self.sim);
                 self.zoom = Self::ui_review_map_zoom();
             }
             21 => {
-                self.sim.ui_review_unit_status();
+                crate::sim::scenarios::ui_review::ui_review_unit_status(&mut self.sim);
                 self.zoom = Self::ui_review_map_zoom();
             }
             19 | 20 => {
@@ -263,17 +279,17 @@ impl Game {
                 }
             }
             18 => {
-                let (x, y) = self
-                    .sim
-                    .ui_review_generated_river_focus()
-                    .expect("generated river example");
+                let (x, y) = crate::sim::scenarios::ui_review::ui_review_generated_river_focus(
+                    &mut self.sim,
+                )
+                .expect("generated river example");
                 self.focus_camera_on(x, y);
                 self.zoom = 1.15;
                 return;
             }
             _ => {}
         }
-        self.sim.ui_review_record_knowledge();
+        crate::sim::scenarios::ui_review::ui_review_record_knowledge(&mut self.sim);
         self.focus_camera_on(20, 24);
     }
 }
@@ -512,14 +528,16 @@ impl Game {
             if phase == 1 {
                 sequence.check(
                     "hidden_changes_keep_last_observed_art",
-                    self.sim.ui_review_observed_map_valid(false),
+                    crate::sim::scenarios::ui_review::ui_review_observed_map_valid(
+                        &self.sim, false,
+                    ),
                 )?;
             }
             if phase == 6 {
-                self.sim.ui_review_reobserve_map();
+                crate::sim::scenarios::ui_review::ui_review_reobserve_map(&mut self.sim);
                 sequence.check(
                     "returning_vision_updates_remembered_art",
-                    self.sim.ui_review_observed_map_valid(true),
+                    crate::sim::scenarios::ui_review::ui_review_observed_map_valid(&self.sim, true),
                 )?;
                 return Ok(true);
             }
@@ -788,7 +806,7 @@ mod tests {
     fn world_review_reveals_and_fits_the_generated_map() {
         let initial = Simulation::new(crate::mapgen::generate_with_wrap(
             42,
-            crate::sim::topology::MapWrap::X,
+            crate::world::topology::MapWrap::X,
         ));
         let sources = UiReviewSources::new(&initial);
         let mut game = Game::from_simulation(initial);

@@ -67,7 +67,7 @@ impl Game {
     pub(super) fn draw_city_tiles_map(
         &self,
         assets: &Assets,
-        city: &City,
+        city: &CityManagerView,
         panel: Rect,
         actions: &mut Vec<(Rect, UiAction)>,
     ) {
@@ -82,20 +82,15 @@ impl Game {
         self.draw_city_map(assets, city, &layout);
         let mouse = ui_pointer();
         let mut outlined_tiles = Vec::new();
-        for (dx, dy, x, y) in self.sim.map_city_radius(city) {
-            let tile = self.sim.tile(x, y);
+        for tile in &city.map_tiles {
             if !tile.seen {
                 continue;
             }
-            let is_city = (dx, dy) == (0, 0);
-            let worked = city.worked_tiles.contains(&(x, y));
-            let enabled = !is_city
-                && (worked
-                    || (city.specialists.iter().any(|&n| n > 0)
-                        && self.sim.can_assign_city_tile(city, x, y)));
-            let rect = layout.tile_rect(dx, dy);
-            let center = layout.center(dx, dy);
-            let hovered = enabled && tile_hit(rect, mouse);
+            let is_city = tile.is_city;
+            let worked = tile.worked;
+            let rect = layout.tile_rect(tile.dx, tile.dy);
+            let center = layout.center(tile.dx, tile.dy);
+            let hovered = tile.can_assign && tile_hit(rect, mouse);
             if !worked && !is_city {
                 draw_diamond(
                     center,
@@ -105,12 +100,12 @@ impl Game {
                 );
             }
             if worked || is_city || hovered {
-                outlined_tiles.push((dx, dy, hovered));
+                outlined_tiles.push((tile.dx, tile.dy, hovered));
             }
             let label = if is_city {
                 "City".to_owned()
             } else {
-                let (food, shields, trade) = tile.yields();
+                let (food, shields, trade) = tile.yields;
                 format!("{food}/{shields}/{trade}")
             };
             let size = if layout.tile_w < 95.0 { 12.0 } else { 14.0 };
@@ -140,8 +135,8 @@ impl Game {
                     LIGHTGRAY
                 },
             );
-            if enabled {
-                actions.push((rect, UiAction::WorkCityTile(city.id, x, y)));
+            if tile.can_assign {
+                actions.push((rect, UiAction::WorkCityTile(city.id, tile.x, tile.y)));
             }
         }
         // Draw after dimming all unworked tiles so shared edges keep one color

@@ -87,9 +87,18 @@ fn wonder_city_requires_a_helper_cluster_and_rejects_immediate_danger() {
     game.create_city(1, 10, 24);
     game.players[1].known = Tech::all().collect();
     let city = game.cities[0].clone();
-    assert_eq!(game.building_blocker(&city, Building::SPACE_MODULE).as_deref(), Some("Needs the Apollo Program"));
+    assert_eq!(
+        game.building_blocker(&city, Building::SPACE_MODULE)
+            .as_deref(),
+        Some("Needs the Apollo Program")
+    );
     game.apollo_completed = true;
-    game.cities[0].buildings.extend([Building::FACTORY, Building::LIBRARY, Building::UNIVERSITY, Building::RESEARCH_LAB]);
+    game.cities[0].buildings.extend([
+        Building::FACTORY,
+        Building::LIBRARY,
+        Building::UNIVERSITY,
+        Building::RESEARCH_LAB,
+    ]);
     let city = game.cities[0].clone();
     assert_eq!(game.building_blocker(&city, Building::SPACE_MODULE), None);
 }
@@ -104,9 +113,18 @@ fn productive_wonder_city_retains_project_and_suppresses_space_parts() {
     game.cities[0].production = Production::Building(Building::APOLLO_PROGRAM);
     let city = game.cities[0].clone();
     assert_eq!(Building::APOLLO_PROGRAM.data().genus, Genus::SmallWonder);
-    assert_eq!(game.building_blocker(&city, Building::SPACE_MODULE).as_deref(), Some("Needs the Apollo Program"));
+    assert_eq!(
+        game.building_blocker(&city, Building::SPACE_MODULE)
+            .as_deref(),
+        Some("Needs the Apollo Program")
+    );
     game.apollo_completed = true;
-    game.cities[0].buildings.extend([Building::FACTORY, Building::LIBRARY, Building::UNIVERSITY, Building::RESEARCH_LAB]);
+    game.cities[0].buildings.extend([
+        Building::FACTORY,
+        Building::LIBRARY,
+        Building::UNIVERSITY,
+        Building::RESEARCH_LAB,
+    ]);
     let city = game.cities[0].clone();
     assert_eq!(game.building_blocker(&city, Building::SPACE_MODULE), None);
 }
@@ -119,9 +137,18 @@ fn space_parts_need_a_competitive_empire_or_an_active_race() {
     game.create_city(1, 10, 24);
     game.players[1].known = Tech::all().collect();
     game.apollo_completed = true;
-    game.cities[0].buildings.extend([Building::FACTORY, Building::LIBRARY, Building::UNIVERSITY, Building::RESEARCH_LAB]);
+    game.cities[0].buildings.extend([
+        Building::FACTORY,
+        Building::LIBRARY,
+        Building::UNIVERSITY,
+        Building::RESEARCH_LAB,
+    ]);
     let city = game.cities[0].clone();
     assert_eq!(game.building_blocker(&city, Building::SPACE_MODULE), None);
     game.spaceships[1].built[2] = 12;
-    assert_eq!(game.building_blocker(&city, Building::SPACE_MODULE).as_deref(), Some("Spaceship part unavailable"));
+    assert_eq!(
+        game.building_blocker(&city, Building::SPACE_MODULE)
+            .as_deref(),
+        Some("Spaceship part unavailable")
+    );
 }

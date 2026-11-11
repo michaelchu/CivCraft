@@ -7,7 +7,7 @@ impl Game {
         if self.pending_city_view.is_some() {
             return;
         }
-        if self.sim.game_over().is_some()
+        if self.sim.game_over_view().is_some()
             && !matches!(
                 action,
                 UiAction::EndTurn
@@ -65,8 +65,9 @@ impl Game {
             }
             UiAction::BeginParadrop => {
                 self.paradrop_mode = self
-                    .selected_unit_index()
-                    .is_some_and(|index| self.sim.can_begin_paradrop(&self.sim.units()[index]));
+                    .selected_unit
+                    .and_then(|id| self.sim.unit_action_view(id))
+                    .is_some_and(|view| view.paradrop);
                 self.goto_mode = false;
                 self.bombard_mode = false;
                 self.nuclear_mode = false;
@@ -84,8 +85,9 @@ impl Game {
                 self.paradrop_mode = false;
                 self.nuclear_mode = false;
                 self.bombard_mode = self
-                    .selected_unit_index()
-                    .is_some_and(|index| self.sim.can_begin_bombard(&self.sim.units()[index]));
+                    .selected_unit
+                    .and_then(|id| self.sim.unit_action_view(id))
+                    .is_some_and(|view| view.bombard);
             }
             UiAction::BombardTo(x, y) => {
                 if self.bombard_mode
@@ -107,7 +109,7 @@ impl Game {
             UiAction::Airlift(city) => {
                 if let Some(id) = self.selected_unit
                     && self.sim.apply(Command::Airlift(id, city))
-                    && let Some(unit) = self.sim.unit_by_id(id)
+                    && let Some(unit) = self.sim.unit_action_view(id)
                 {
                     self.focus_camera_on(unit.x, unit.y);
                 }
@@ -123,8 +125,9 @@ impl Game {
                 self.bombard_mode = false;
                 self.nuclear_mode = false;
                 self.rebase_mode = self
-                    .selected_unit_index()
-                    .is_some_and(|index| self.sim.can_begin_rebase(&self.sim.units()[index]));
+                    .selected_unit
+                    .and_then(|id| self.sim.unit_action_view(id))
+                    .is_some_and(|view| view.rebase);
             }
             UiAction::RebaseTo(x, y) => {
                 if self.rebase_mode
@@ -145,9 +148,10 @@ impl Game {
                 self.goto_mode = false;
                 self.paradrop_mode = false;
                 self.bombard_mode = false;
-                self.nuclear_mode = self.selected_unit_index().is_some_and(|index| {
-                    self.sim.can_begin_nuclear_strike(&self.sim.units()[index])
-                });
+                self.nuclear_mode = self
+                    .selected_unit
+                    .and_then(|id| self.sim.unit_action_view(id))
+                    .is_some_and(|view| view.nuclear_strike);
             }
             UiAction::BoardOrDeboard => {
                 if let Some(id) = self.selected_unit {
@@ -188,9 +192,8 @@ impl Game {
             UiAction::SelectUnit(id) => {
                 if self
                     .sim
-                    .units()
-                    .iter()
-                    .any(|unit| unit.id == id && unit.owner == HUMAN)
+                    .unit_action_view(id)
+                    .is_some_and(|unit| unit.owner == HUMAN)
                 {
                     self.action_page = 0;
                     self.selected_unit = Some(id);
@@ -203,26 +206,17 @@ impl Game {
                 }
             }
             UiAction::Road => {
-                if let Some(index) = self.selected_unit_index() {
-                    let unit = &self.sim.units()[index];
-                    let id = unit.id;
-                    let kind = if self.sim.tile(unit.x, unit.y).road {
-                        WorkKind::Railroad
-                    } else {
-                        WorkKind::Road
-                    };
-                    self.sim.apply(Command::Work(id, kind));
+                if let Some(id) = self.selected_unit
+                    && let Some(view) = self.sim.unit_action_view(id)
+                {
+                    self.sim.apply(Command::Work(id, view.road_work));
                 }
             }
             UiAction::Irrigate => {
-                if let Some(index) = self.selected_unit_index() {
-                    let unit = &self.sim.units()[index];
-                    let kind = if self.sim.tile(unit.x, unit.y).irrigation {
-                        WorkKind::Farmland
-                    } else {
-                        WorkKind::Irrigation
-                    };
-                    self.sim.apply(Command::Work(unit.id, kind));
+                if let Some(id) = self.selected_unit
+                    && let Some(view) = self.sim.unit_action_view(id)
+                {
+                    self.sim.apply(Command::Work(id, view.irrigation_work));
                 }
             }
             UiAction::TerrainWork(kind) => {
@@ -231,10 +225,10 @@ impl Game {
                 }
             }
             UiAction::Mine => {
-                if let Some(index) = self.selected_unit_index() {
-                    let unit = &self.sim.units()[index];
-                    let kind = self.sim.oil_work(unit).unwrap_or(WorkKind::Mine);
-                    self.sim.apply(Command::Work(unit.id, kind));
+                if let Some(id) = self.selected_unit
+                    && let Some(view) = self.sim.unit_action_view(id)
+                {
+                    self.sim.apply(Command::Work(id, view.mine_work));
                 }
             }
             UiAction::Fortify => {
@@ -317,8 +311,8 @@ impl Game {
                 }
             }
             UiAction::AdjustTreatyGold(owner, delta) => {
-                if owner < self.sim.players().len() {
-                    let treasury = self.sim.players()[owner].gold.max(0);
+                if let Some(gold) = self.sim.treasury_view(owner) {
+                    let treasury = gold.max(0);
                     self.treaty_gold_amount[owner] = self.treaty_gold_amount[owner]
                         .saturating_add(delta)
                         .clamp(0, treasury);
@@ -327,9 +321,10 @@ impl Game {
             }
             UiAction::AddTreatyGold(target, side, mut offer) => {
                 let term_side = usize::from(side != HUMAN);
-                if side < self.sim.players().len() && term_side < offer.terms.len() {
-                    let amount =
-                        self.treaty_gold_amount[side].min(self.sim.players()[side].gold.max(0));
+                if let Some(gold) = self.sim.treasury_view(side)
+                    && term_side < offer.terms.len()
+                {
+                    let amount = self.treaty_gold_amount[side].min(gold.max(0));
                     offer.terms[term_side] = offer.terms[term_side].set_gold(amount);
                     self.treaty_draft = Some((target, offer));
                     self.treaty_feedback = None;
@@ -337,10 +332,12 @@ impl Game {
             }
             UiAction::ProposeTreaty(owner, offer) => {
                 let accepted = self.sim.apply(Command::ProposeTreaty(owner, offer));
-                let message =
-                    self.sim.events().last().cloned().unwrap_or_else(|| {
-                        "The treaty proposal could not be delivered.".to_owned()
-                    });
+                let message = self
+                    .sim
+                    .campaign_messages_view()
+                    .last()
+                    .cloned()
+                    .unwrap_or_else(|| "The treaty proposal could not be delivered.".to_owned());
                 self.treaty_feedback = Some((owner, message));
                 if accepted {
                     self.treaty_draft = Some((owner, offer));
@@ -372,7 +369,7 @@ impl Game {
                     (
                         other,
                         self.sim
-                            .events()
+                            .campaign_messages_view()
                             .last()
                             .cloned()
                             .unwrap_or_else(|| "Treaty terms agreed.".to_owned()),

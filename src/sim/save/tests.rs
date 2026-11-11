@@ -33,7 +33,10 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.turn, game.turn);
     assert_eq!(loaded.cities[0].culture_for_civilization(HUMAN), 375);
     assert_eq!(loaded.cities[0].culture_for_civilization(2), 125);
-    assert_eq!(loaded.cities[0].historical_culture_for_civilization(HUMAN), 375);
+    assert_eq!(
+        loaded.cities[0].historical_culture_for_civilization(HUMAN),
+        375
+    );
     assert_eq!(loaded.cities[0].historical_culture_for_civilization(2), 125);
     assert_eq!(loaded.cities[0].resisting_citizens, [(2, 1)]);
     assert_eq!(loaded.cities[0].foreign_nationality_tenure, [(2, 7, 3)]);

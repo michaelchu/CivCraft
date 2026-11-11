@@ -132,10 +132,8 @@ impl Simulation {
         for _ in 0..4 {
             sim.spawn_unit(HUMAN, UnitKind::Cavalry, far.0, far.1);
         }
-        sim.previous_naval_positions.insert(
-            far_id,
-            offset_native_by_map(start.0, start.1, 10, 0),
-        );
+        sim.previous_naval_positions
+            .insert(far_id, offset_native_by_map(start.0, start.1, 10, 0));
         let hunter = sim
             .units
             .iter()

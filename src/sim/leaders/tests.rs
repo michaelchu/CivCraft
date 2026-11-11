@@ -83,18 +83,6 @@ fn explorer_hostile_endpoint_uses_imported_terrain_movement_cost() {
     );
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
 #[test]
 fn refuge_sanity_gate_is_optimistic_about_unknown_non_native_terrain() {
     let mut game = world();

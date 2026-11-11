@@ -22,11 +22,7 @@ impl Simulation {
                 + i32::from(city.has_building(Building::SEWER_SYSTEM))
                 + i32::from(self.has_tech(city.owner, Tech::MEDICINE)))
             + 10 * i32::from(self.has_active_wonder(city.owner, Building::CURE_FOR_CANCER));
-        percent_of(
-            size_illness + pollution_illness,
-            100 - health,
-        )
-        .clamp(0, 999)
+        percent_of(size_illness + pollution_illness, 100 - health).clamp(0, 999)
     }
 
     pub(super) fn check_city_plague(&mut self, index: usize, shields: i32) -> bool {

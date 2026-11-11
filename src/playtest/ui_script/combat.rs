@@ -10,7 +10,7 @@ impl Playtest {
         buttons: &[(Rect, UiAction)],
     ) {
         if frame == 252 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
             let home = game.sim.veteran_playtest_setup();
             game.perform_action(UiAction::EndTurn);
@@ -31,7 +31,7 @@ impl Playtest {
                 format!("A city with Barracks completed a veteran Warrior through the end-turn control: {}.", trained.is_some())));
         }
         if frame == 256 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
             let warrior = game.sim.upgrade_playtest_setup();
             game.perform_action(UiAction::SelectUnit(warrior));
@@ -55,7 +55,7 @@ impl Playtest {
                 format!("Paid the displayed upgrade price and converted a hardened Warrior into veteran Musketeers: {upgraded}.")));
         }
         if frame == 267 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
             let team = game.sim.cooperative_work_playtest_setup();
             self.work_team = Some(team);
@@ -102,7 +102,7 @@ impl Playtest {
                 format!("Two Workers completed the same five-turn irrigation project in three turns: {completed}.")));
         }
         if frame == 275 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (bomber, targets) = game.sim.bombard_playtest_setup();
             game.perform_action(UiAction::SelectUnit(bomber));
             let bombarded = game.sim.apply(Command::Move(bomber, 1, 0))
@@ -121,7 +121,7 @@ impl Playtest {
                 format!("Bomber hit both ground targets without retaliation and spent its remaining movement: {bombarded}.")));
         }
         if frame == 279 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (fighter, bomber) = game.sim.fighter_playtest_setup();
             game.perform_action(UiAction::SelectUnit(fighter));
             let intercepted =
@@ -134,7 +134,7 @@ impl Playtest {
                 format!("Fighter attacked and destroyed an airborne Bomber while retaining its unused movement: {intercepted}.")));
         }
         if frame == 283 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (carrier, fighter) = game.sim.carrier_playtest_setup();
             game.perform_action(UiAction::SelectUnit(fighter));
             let landed =
@@ -151,7 +151,7 @@ impl Playtest {
                 format!("Fighter landed: {landed}. Carrier sailed: {sailed}. Fighter refueled: {fueled}. Fighter launched: {launched}.")));
         }
         if frame == 287 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
             let scenario = game.sim.stealth_aircraft_playtest_setup();
             self.stealth_aircraft = Some(scenario);
@@ -181,7 +181,7 @@ impl Playtest {
                 format!("Upgraded to a Stealth Bomber through the unit control: {upgraded}. Its four bombardment strikes landed: {bombarded}.")));
         }
         if frame == 290 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
             let (helicopter, passenger) = game.sim.helicopter_playtest_setup();
             game.perform_action(UiAction::SelectUnit(passenger));
@@ -204,7 +204,7 @@ impl Playtest {
         if frame == 292 && self.act_passed {
             let mut remaining_hp = [0; 2];
             for (index, protected) in [false, true].into_iter().enumerate() {
-                *game = Game::new(crate::mapgen::generate(42));
+                *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
                 let (bomber, defender) = game.sim.sam_battery_playtest_setup(protected);
                 game.perform_action(UiAction::SelectUnit(bomber));
                 if game.sim.apply(Command::Move(bomber, 1, 0)) {
@@ -221,7 +221,7 @@ impl Playtest {
                 format!("Musketeer HP after three bombardment rounds without and with a SAM Battery: {remaining_hp:?}.")));
         }
         if frame == 294 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (helicopter, cruiser) = game.sim.aegis_playtest_setup();
             game.perform_action(UiAction::SelectUnit(helicopter));
             let attacked = game.sim.apply(Command::Move(helicopter, 1, 0));
@@ -236,7 +236,7 @@ impl Playtest {
             ));
         }
         if frame == 296 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (carrier, missile, target) = game.sim.cruise_missile_playtest_setup();
             game.perform_action(UiAction::SelectUnit(missile));
             game.perform_action(UiAction::BoardOrDeboard);
@@ -254,10 +254,15 @@ impl Playtest {
         if frame == 298 && self.act_passed {
             let mut outcomes = [false; 2];
             for (index, intercepted) in [false, true].into_iter().enumerate() {
-                *game = Game::new(crate::mapgen::generate(42));
+                *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
                 let (missile, defender, city) = game.sim.nuclear_playtest_setup(intercepted);
                 game.perform_action(UiAction::SelectUnit(missile));
-                let target = game.sim.cities().iter().find(|target| target.id == city).unwrap();
+                let target = game
+                    .sim
+                    .cities()
+                    .iter()
+                    .find(|target| target.id == city)
+                    .unwrap();
                 let (target_x, target_y) = (target.x, target.y);
                 game.perform_action(UiAction::BeginNuclearStrike);
                 game.perform_action(UiAction::NuclearStrikeTo(target_x, target_y));
@@ -274,7 +279,7 @@ impl Playtest {
         if frame == 300 && self.act_passed {
             let mut outcomes = [false; 2];
             for (index, warming) in [true, false].into_iter().enumerate() {
-                *game = Game::new(crate::mapgen::generate(42));
+                *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
                 game.perform_action(UiAction::FoundCity);
                 game.sim.climate_playtest_setup(warming);
                 game.perform_action(UiAction::EndTurn);

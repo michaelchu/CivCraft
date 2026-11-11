@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 #[derive(Default)]
 pub(super) struct Playback {
-    events: VecDeque<VisualEvent>,
+    events: VecDeque<PresentationEventView>,
     started: f64,
     front_sound_started: bool,
     sound_requests: VecDeque<super::unit_sound::UnitSoundRequest>,
@@ -12,7 +12,7 @@ pub(super) struct Playback {
 }
 impl Playback {
     pub(super) fn update(&mut self, sim: &mut Simulation, now: f64, active_unit: Option<u32>) {
-        let incoming = sim.take_visual_events();
+        let incoming = sim.take_presentation_event_views();
         if self.events.is_empty() {
             self.started = now;
         }
@@ -67,7 +67,7 @@ impl Playback {
     }
     pub(super) fn tile_owner(&self, sim: &Simulation, x: i32, y: i32) -> Option<usize> {
         if let Some(owners) = self.events.iter().find_map(|event| {
-            if let VisualEvent::Combat(combat) = event {
+            if let PresentationEventView::Combat(combat) = event {
                 Some(&combat.territory)
             } else {
                 None
@@ -76,25 +76,25 @@ impl Playback {
             let index = sim.map_wrap.index(x, y);
             owners[index]
         } else {
-            sim.displayed_tile_owner(x, y)
+            sim.displayed_tile_owner_view(x, y)
         }
     }
-    pub(super) fn city_overrides(&self) -> BTreeMap<u32, City> {
+    pub(super) fn city_overrides(&self) -> BTreeMap<u32, RenderedCityView> {
         let mut cities = BTreeMap::new();
         for event in &self.events {
-            if let VisualEvent::Combat(combat) = event
+            if let PresentationEventView::Combat(combat) = event
                 && let Some(city) = &combat.city
             {
-                cities.entry(city.id).or_insert_with(|| city.clone());
+                cities.entry(city.id).or_insert_with(|| (*city).clone());
             }
         }
         cities
     }
-    pub(super) fn overrides(&self) -> BTreeMap<u32, Unit> {
+    pub(super) fn overrides(&self) -> BTreeMap<u32, RenderedUnitView> {
         let mut units = BTreeMap::new();
         for event in &self.events {
             for unit in event.actors() {
-                units.entry(unit.id).or_insert_with(|| unit.clone());
+                units.entry(unit.id).or_insert_with(|| (*unit).clone());
             }
         }
         units
@@ -102,20 +102,23 @@ impl Playback {
     pub(super) fn is_active(&self, id: u32) -> bool {
         self.events
             .front()
-            .is_some_and(|e| e.actors().any(|u| u.id == id))
+            .is_some_and(|event| event.actors().iter().any(|unit| unit.id == id))
     }
-    pub(super) fn active(&self) -> Vec<(Unit, Vec2)> {
+    pub(super) fn active(&self) -> Vec<(RenderedUnitView, Vec2)> {
         let Some(event) = self.events.front() else {
             return Vec::new();
         };
         let p = self.progress();
         match event {
-            VisualEvent::Move { unit, .. } => vec![(unit.clone(), vec2(p, 0.0))],
-            VisualEvent::Capture { unit } | VisualEvent::FoundCity { unit } => {
+            PresentationEventView::Move { unit, .. } => vec![(unit.clone(), vec2(p, 0.0))],
+            PresentationEventView::Capture { unit, .. }
+            | PresentationEventView::FoundCity { unit, .. } => {
                 vec![(unit.clone(), vec2(0.0, 0.0))]
             }
-            VisualEvent::WorkStarted { .. } | VisualEvent::Fortify { .. } => Vec::new(),
-            VisualEvent::Combat(combat) => {
+            PresentationEventView::WorkStarted { .. } | PresentationEventView::Fortify { .. } => {
+                Vec::new()
+            }
+            PresentationEventView::Combat(combat) => {
                 // Keep the last 100 ms for the reference five-frame explosion.
                 let battle_fraction = ((event.duration() - 0.100) / event.duration()) as f32;
                 let phase = (p / battle_fraction.max(0.01)).min(1.0);
@@ -130,20 +133,23 @@ impl Playback {
 }
 
 fn sound_requests(
-    event: &VisualEvent,
+    event: &PresentationEventView,
     active_unit: Option<u32>,
 ) -> Vec<super::unit_sound::UnitSoundRequest> {
-    let request =
-        |unit: &Unit, action: &str, delay_seconds: f64| super::unit_sound::UnitSoundRequest {
-            unit: unit.clone(),
+    let request = |unit: &RenderedUnitView, action: &str, delay_seconds: f64| {
+        super::unit_sound::UnitSoundRequest {
+            unit_id: unit.id,
+            kind: unit.kind,
+            era_index: unit.era_index,
             action: action.to_owned(),
             delay_seconds,
-        };
+        }
+    };
     match event {
-        VisualEvent::Move { unit, .. } => vec![request(unit, "RUN", 0.0)],
-        VisualEvent::Capture { unit } => vec![request(unit, "CAPTURE", 0.0)],
-        VisualEvent::FoundCity { unit } => vec![request(unit, "BUILD", 0.0)],
-        VisualEvent::WorkStarted { unit, kind } => {
+        PresentationEventView::Move { unit, .. } => vec![request(unit, "RUN", 0.0)],
+        PresentationEventView::Capture { unit, .. } => vec![request(unit, "CAPTURE", 0.0)],
+        PresentationEventView::FoundCity { unit, .. } => vec![request(unit, "BUILD", 0.0)],
+        PresentationEventView::WorkStarted { unit, kind, .. } => {
             let action = match kind {
                 WorkKind::Road | WorkKind::Railroad => "ROAD",
                 WorkKind::Mine | WorkKind::OilWell | WorkKind::OilPlatform => "MINE",
@@ -155,8 +161,8 @@ fn sound_requests(
             };
             vec![request(unit, action, 0.0)]
         }
-        VisualEvent::Fortify { unit } => vec![request(unit, "FORTIFY", 0.0)],
-        VisualEvent::Combat(combat) => {
+        PresentationEventView::Fortify { unit, .. } => vec![request(unit, "FORTIFY", 0.0)],
+        PresentationEventView::Combat(combat) => {
             let steps = combat.hp.len().saturating_sub(1).max(1);
             let mut requests = Vec::with_capacity(steps * 2 + 2);
             for index in 0..steps {
@@ -179,7 +185,7 @@ fn sound_requests(
         }
     }
     .into_iter()
-    .filter(|request| Some(request.unit.id) == active_unit)
+    .filter(|request| Some(request.unit_id) == active_unit)
     .collect()
 }
 impl Game {
@@ -189,7 +195,7 @@ impl Game {
         };
         if matches!(
             event,
-            VisualEvent::WorkStarted { .. } | VisualEvent::Fortify { .. }
+            PresentationEventView::WorkStarted { .. } | PresentationEventView::Fortify { .. }
         ) {
             return;
         }
@@ -197,7 +203,7 @@ impl Game {
         let progress = self.playback.progress();
         for (unit, phase) in self.playback.active() {
             let center = match event {
-                VisualEvent::Move { from, to, .. } => {
+                PresentationEventView::Move { from, to, .. } => {
                     let from_center = project(from.0, from.1);
                     let to_center = project(to.0, to.1);
                     let period = self.sim.map_wrap.width() as f32 * TILE_W * self.zoom;
@@ -209,10 +215,10 @@ impl Game {
             };
             use super::tileset::Civ3UnitAction as Action;
             let action = match event {
-                VisualEvent::Move { .. } => Action::Run,
-                VisualEvent::Capture { .. } => Action::Capture,
-                VisualEvent::FoundCity { .. } => Action::Build,
-                VisualEvent::Combat(combat) => {
+                PresentationEventView::Move { .. } => Action::Run,
+                PresentationEventView::Capture { .. } => Action::Capture,
+                PresentationEventView::FoundCity { .. } => Action::Build,
+                PresentationEventView::Combat(combat) => {
                     let (attacker_hp, defender_hp) =
                         combat.hp.get(phase.y as usize).copied().unwrap_or_default();
                     let is_attacker = unit.id == combat.attacker.id;
@@ -240,7 +246,8 @@ impl Game {
                         Action::Defend
                     }
                 }
-                VisualEvent::WorkStarted { .. } | VisualEvent::Fortify { .. } => Action::Default,
+                PresentationEventView::WorkStarted { .. }
+                | PresentationEventView::Fortify { .. } => Action::Default,
             };
             self.draw_unit(
                 assets,
@@ -252,7 +259,7 @@ impl Game {
                 Some(event.duration() as f32),
             );
         }
-        if let VisualEvent::Combat(combat) = event {
+        if let PresentationEventView::Combat(combat) = event {
             let elapsed = self.playback.progress() as f64 * event.duration();
             let explosion_start = event.duration() - 0.100;
             if elapsed >= explosion_start {
@@ -309,10 +316,22 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sim::{Contamination, PillageTarget};
+
+    fn sound_requests_for(
+        sim: &Simulation,
+        event: VisualEvent,
+        active_unit: Option<u32>,
+    ) -> Vec<super::super::unit_sound::UnitSoundRequest> {
+        let event = sim.presentation_event_view_for_test(event);
+        sound_requests(&event, active_unit)
+    }
+
     #[test]
     fn playback_is_clock_driven_and_drops_all_overrides_at_completion() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, target) = sim.ui_review_animation_setup(false);
+        let (id, target) =
+            crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
         let before = sim.unit_by_id(id).unwrap().clone();
         assert!(sim.apply(Command::Move(id, 1, 0)));
         let mut playback = Playback::default();
@@ -340,13 +359,13 @@ mod tests {
     #[test]
     fn movement_sound_request_is_emitted_once_when_the_event_starts() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, _) = sim.ui_review_animation_setup(false);
+        let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
         assert!(sim.apply(Command::Move(id, 1, 0)));
         let mut playback = Playback::default();
         playback.update(&mut sim, 10.0, Some(id));
         let requests = playback.take_sound_requests();
         assert_eq!(requests.len(), 1);
-        assert_eq!(requests[0].unit.id, id);
+        assert_eq!(requests[0].unit_id, id);
         assert_eq!(requests[0].action, "RUN");
         playback.update(&mut sim, 10.01, Some(id));
         assert!(playback.take_sound_requests().is_empty());
@@ -355,7 +374,8 @@ mod tests {
     #[test]
     fn combat_sounds_follow_each_attack_and_terminal_result() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (attacker_id, _) = sim.ui_review_animation_setup(true);
+        let (attacker_id, _) =
+            crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, true);
         let attacker = sim.unit_by_id(attacker_id).unwrap().clone();
         let defender = sim
             .units()
@@ -371,7 +391,7 @@ mod tests {
             bombard_effects: false,
             territory: Vec::new(),
         }));
-        let requests = sound_requests(&event, Some(attacker_id));
+        let requests = sound_requests_for(&sim, event, Some(attacker_id));
         assert_eq!(
             requests
                 .iter()
@@ -386,10 +406,11 @@ mod tests {
     #[test]
     fn worker_order_uses_its_ini_action_name() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, _) = sim.ui_review_animation_setup(false);
+        let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
         let unit = sim.unit_by_id(id).unwrap().clone();
-        let requests = sound_requests(
-            &VisualEvent::WorkStarted {
+        let requests = sound_requests_for(
+            &sim,
+            VisualEvent::WorkStarted {
                 unit: unit.clone(),
                 kind: WorkKind::Mine,
             },
@@ -402,7 +423,7 @@ mod tests {
     #[test]
     fn unit_events_use_the_matching_ini_sound_action() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, _) = sim.ui_review_animation_setup(false);
+        let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
         let unit = sim.unit_by_id(id).unwrap().clone();
 
         for (event, expected_action) in [
@@ -418,9 +439,9 @@ mod tests {
             (VisualEvent::FoundCity { unit: unit.clone() }, "BUILD"),
             (VisualEvent::Fortify { unit: unit.clone() }, "FORTIFY"),
         ] {
-            let requests = sound_requests(&event, Some(unit.id));
+            let requests = sound_requests_for(&sim, event, Some(unit.id));
             assert_eq!(requests.len(), 1, "{expected_action} request count");
-            assert_eq!(requests[0].unit.id, unit.id);
+            assert_eq!(requests[0].unit_id, unit.id);
             assert_eq!(requests[0].action, expected_action);
             assert_eq!(requests[0].delay_seconds, 0.0);
         }
@@ -429,7 +450,7 @@ mod tests {
     #[test]
     fn worker_orders_map_to_their_ini_sound_actions() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (id, _) = sim.ui_review_animation_setup(false);
+        let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
         let unit = sim.unit_by_id(id).unwrap().clone();
         let cases = [
             (WorkKind::Road, Some("ROAD")),
@@ -452,8 +473,9 @@ mod tests {
         ];
 
         for (kind, expected_action) in cases {
-            let requests = sound_requests(
-                &VisualEvent::WorkStarted {
+            let requests = sound_requests_for(
+                &sim,
+                VisualEvent::WorkStarted {
                     unit: unit.clone(),
                     kind,
                 },
@@ -462,7 +484,7 @@ mod tests {
             match expected_action {
                 Some(action) => {
                     assert_eq!(requests.len(), 1, "{kind:?} request count");
-                    assert_eq!(requests[0].unit.id, unit.id);
+                    assert_eq!(requests[0].unit_id, unit.id);
                     assert_eq!(requests[0].action, action, "{kind:?}");
                 }
                 None => assert!(requests.is_empty(), "{kind:?} should stay silent"),
@@ -473,7 +495,8 @@ mod tests {
     #[test]
     fn combat_sound_uses_death_and_victory_for_either_loser() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
-        let (attacker_id, _) = sim.ui_review_animation_setup(true);
+        let (attacker_id, _) =
+            crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, true);
         let attacker = sim.unit_by_id(attacker_id).unwrap().clone();
         let defender = sim
             .units()
@@ -494,14 +517,18 @@ mod tests {
                 bombard_effects: false,
                 territory: Vec::new(),
             }));
-            let requests = sound_requests(&event, Some(attacker.id));
+            let requests = sound_requests_for(&sim, event, Some(attacker.id));
             assert_eq!(requests.len(), 2);
             assert_eq!(requests[0].action, "ATTACK1");
             assert_eq!(
                 requests[1].action,
-                if winner_id == attacker.id { "VICTORY" } else { "DEATH" }
+                if winner_id == attacker.id {
+                    "VICTORY"
+                } else {
+                    "DEATH"
+                }
             );
-            assert_eq!(requests[1].unit.id, attacker.id);
+            assert_eq!(requests[1].unit_id, attacker.id);
             assert_ne!(loser_id, winner_id);
         }
     }

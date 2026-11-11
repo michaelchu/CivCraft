@@ -117,10 +117,7 @@ fn fascism_has_no_inherited_fanatic_bonus_and_partisan_bonus_is_player_scoped() 
     assert_eq!(game.government_player_bonus(1, Government::Communism), 0);
     assert_eq!(game.government_player_bonus(1, Government::Feudalism), 0);
     assert_eq!(game.government_player_bonus(1, Government::Democracy), 0);
-    assert_eq!(
-        game.government_player_bonus(1, Government::Fascism),
-        0
-    );
+    assert_eq!(game.government_player_bonus(1, Government::Fascism), 0);
     game.players[1]
         .known
         .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);

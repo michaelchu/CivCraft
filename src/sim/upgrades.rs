@@ -124,7 +124,10 @@ mod tests {
         let expected_hp = (original.hp
             * UnitKind::Legionary.hit_points_at_rank(original.veteran - 1)
             / original.max_hit_points())
-        .clamp(1, UnitKind::Legionary.hit_points_at_rank(original.veteran - 1));
+        .clamp(
+            1,
+            UnitKind::Legionary.hit_points_at_rank(original.veteran - 1),
+        );
         assert_eq!(
             game.paid_upgrade(&original),
             Some((UnitKind::Legionary, price))
@@ -170,11 +173,12 @@ mod tests {
                 .all(|unit| unit.kind == UnitKind::Worker)
         );
         game.restore_player_units(HUMAN);
-        assert!(game
-            .units
-            .iter()
-            .filter(|unit| workers.contains(&unit.id))
-            .all(|unit| unit.kind == UnitKind::Worker));
+        assert!(
+            game.units
+                .iter()
+                .filter(|unit| workers.contains(&unit.id))
+                .all(|unit| unit.kind == UnitKind::Worker)
+        );
     }
 
     #[test]

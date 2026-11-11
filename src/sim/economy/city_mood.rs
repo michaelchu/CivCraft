@@ -118,8 +118,8 @@ impl Simulation {
             })
             .count()
             .min(martial_limit) as i32;
-        let pacification = (if martial_enabled { garrison } else { 0 })
-            + self.building_content(city);
+        let pacification =
+            (if martial_enabled { garrison } else { 0 }) + self.building_content(city);
         let calming_angry = pacification.min(angry);
         angry -= calming_angry;
         unhappy += calming_angry;

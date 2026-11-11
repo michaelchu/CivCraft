@@ -7,7 +7,9 @@
 //! command path as a human player. AI decisions commonly call the lower-level
 //! rule methods after choosing their actions.
 
-use super::{HUMAN, MoveResult, Production, Simulation, UnitKind, UnitState, WorkKind, WorklistEdit};
+use super::{
+    HUMAN, MoveResult, Production, Simulation, UnitKind, UnitState, WorkKind, WorklistEdit,
+};
 use crate::rules::{Building, Tech};
 
 pub(crate) enum Command {

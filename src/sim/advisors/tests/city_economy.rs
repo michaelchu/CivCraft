@@ -238,10 +238,15 @@ fn city_output_priorities_raise_the_bid_for_a_library_technology() {
 fn offensive_choice_amortizes_balanced_risk_even_with_existing_shield_stock() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.create_city(1, 10, 24);
-    game.players[1].known.extend([Tech::THE_WHEEL, Tech::HORSEBACK_RIDING]);
+    game.players[1]
+        .known
+        .extend([Tech::THE_WHEEL, Tech::HORSEBACK_RIDING]);
     let city = &game.cities[0];
     assert_eq!(UnitKind::Chariot.required_tech(), Some(Tech::THE_WHEEL));
-    assert_eq!(UnitKind::Chariot.required_resources(), vec![Resource::Horses]);
+    assert_eq!(
+        UnitKind::Chariot.required_resources(),
+        vec![Resource::Horses]
+    );
     assert_eq!(UnitKind::Chariot.stats().moves, 2);
     assert!(game.unit_available(city.owner, UnitKind::Chariot));
 }

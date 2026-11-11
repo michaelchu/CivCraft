@@ -1,6 +1,6 @@
 //! Civ III sheet decoding. Both map views keep the same projection and painter passes.
 use super::*;
-use crate::sim::TerrainBase;
+use crate::{sim::RenderTileView, world::TerrainBase};
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -354,13 +354,15 @@ impl Theme {
     ) -> Result<Option<Image>, String> {
         let override_path = self.paths.get(key);
         let relative = override_path.map_or(default, String::as_str);
-        let transparent_indices = self.transparent_indices.get(key).map(Vec::as_slice).unwrap_or(
-            if key == "territory" {
+        let transparent_indices = self
+            .transparent_indices
+            .get(key)
+            .map(Vec::as_slice)
+            .unwrap_or(if key == "territory" {
                 &TERRITORY_PCX_TRANSPARENT_INDICES
             } else {
                 &DEFAULT_PCX_TRANSPARENT_INDICES
-            },
-        );
+            });
         let mut roots = vec![self.root.as_path()];
         if override_path.is_none() {
             roots.extend(self.fallback_roots.iter().map(PathBuf::as_path));
@@ -901,7 +903,7 @@ struct GroundArt {
     polar: Image,
 }
 
-fn render_ground(tile: &Tile) -> Ground {
+fn render_ground(tile: &RenderTileView) -> Ground {
     use Terrain::*;
     if TerrainBase::is_feature_terrain(tile.terrain) {
         return match tile.base_terrain {
@@ -1518,13 +1520,12 @@ impl Civ3 {
         };
         let river_delta = river_texture("river-delta", "deltaRivers")?;
         let river_mountain = river_texture("river-mountain", "mtnRivers")?;
-        let movement_image = theme
-            .image(
-                "movement-indicators",
-                "interface/MovementLED.PCX",
-                (36, 8),
-                false,
-            )?;
+        let movement_image = theme.image(
+            "movement-indicators",
+            "interface/MovementLED.PCX",
+            (36, 8),
+            false,
+        )?;
         let movement_image = if let Some(image) = movement_image {
             image
         } else {
@@ -2035,21 +2036,21 @@ impl Civ3 {
         let wrap = game.sim.map_wrap;
         let at = |direction| {
             wrap.civ3_neighbor(x, y, direction)
-                .map(|(nx, ny)| game.sim.render_tile(nx, ny))
+                .map(|(nx, ny)| game.sim.render_tile_view(nx, ny))
         };
         let Some(north) = at(1) else { return };
         let Some(east) = at(2) else { return };
         let Some(south) = at(3) else { return };
-        let west = game.sim.render_tile(x, y);
+        let west = game.sim.render_tile_view(x, y);
         if !west.seen {
             return;
         }
-        let edges = |tile: &Tile| if tile.seen { tile.river_edges } else { 0 };
+        let edges = |tile: &RenderTileView| if tile.seen { tile.river_edges } else { 0 };
         let Some(index) = super::rivers::civ3_junction_index(
-            edges(north),
-            edges(east),
-            edges(south),
-            edges(west),
+            edges(&north),
+            edges(&east),
+            edges(&south),
+            edges(&west),
         ) else {
             return;
         };
@@ -2209,15 +2210,16 @@ impl Civ3 {
         let wrap = game.sim.map_wrap;
         let px = 2 * x + y.rem_euclid(2);
         let fallback = if (0..wrap.height()).contains(&y) {
-            render_ground(game.sim.render_tile(x, y))
+            let tile = game.sim.render_tile_view(x, y);
+            render_ground(&tile)
         } else {
             Ice
         };
         let ground = |x: i32, y: i32| {
             wrap.normalize(x.div_euclid(2), y).map_or(Ice, |(nx, ny)| {
-                let tile = game.sim.render_tile(nx, ny);
+                let tile = game.sim.render_tile_view(nx, ny);
                 if tile.seen {
-                    render_ground(tile)
+                    render_ground(&tile)
                 } else {
                     fallback
                 }

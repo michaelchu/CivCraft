@@ -11,7 +11,9 @@ use std::{
 
 #[derive(Clone)]
 pub(crate) struct UnitSoundRequest {
-    pub(crate) unit: Unit,
+    pub(crate) unit_id: u32,
+    pub(crate) kind: UnitKind,
+    pub(crate) era_index: usize,
     pub(crate) action: String,
     pub(crate) delay_seconds: f64,
 }
@@ -160,13 +162,11 @@ fn resolve_amb_component(
         return Some(found);
     }
     let folder = parent.file_name()?;
-    let source = parent
-        .ancestors()
-        .find(|path| {
-            ["Art/Units", "civ3PTW/Art/Units", "Conquests/Art/Units"]
-                .iter()
-                .any(|relative| path.join(relative).is_dir())
-        })?;
+    let source = parent.ancestors().find(|path| {
+        ["Art/Units", "civ3PTW/Art/Units", "Conquests/Art/Units"]
+            .iter()
+            .any(|relative| path.join(relative).is_dir())
+    })?;
     for root in [
         source.join("Conquests/Art"),
         source.join("civ3PTW/Art"),

@@ -468,5 +468,4 @@ impl Simulation {
             && arranged.worked_tiles != city.worked_tiles
             && arranged.worked_tiles == expected
     }
-
 }

@@ -82,7 +82,6 @@ impl Simulation {
         };
         (default_rank + rank).min(kind.max_veteran_levels() - 1)
     }
-
 }
 
 #[cfg(test)]

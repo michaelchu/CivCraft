@@ -25,21 +25,11 @@ impl super::Simulation {
             .ai_movement_cost_order(&unit)
             .iter()
             .any(|&(cost, x, y)| (x, y) == blocker && cost > 0);
-        let target = self.pf_default_action(
-            UnitKind::Carrier,
-            HUMAN,
-            blocker,
-            true,
-            true,
-            false,
-        );
+        let target = self.pf_default_action(UnitKind::Carrier, HUMAN, blocker, true, true, false);
         endpoint
             && UnitKind::Carrier.stats().attack > 0
             && target == super::PfAction::Attack
             && self.leader_paths(&unit, None).costs[self.map_wrap.index(blocker.0, blocker.1)]
                 < i32::MAX
     }
-
-
-
 }

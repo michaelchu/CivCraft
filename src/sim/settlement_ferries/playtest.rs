@@ -53,9 +53,7 @@ impl super::Simulation {
                 .get(&founder)
                 .is_some_and(|target| target.destination == island);
         self.remove_units_with_cargo(vec![roomy]);
-        let blocked = self
-            .dispatch_settlement_ferries(1)
-            .is_empty()
+        let blocked = self.dispatch_settlement_ferries(1).is_empty()
             && self
                 .ai_settlement_targets
                 .get(&founder)

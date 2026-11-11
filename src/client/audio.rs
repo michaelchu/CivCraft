@@ -1,9 +1,8 @@
 //! Campaign music loaded from the user's Civilization III installation.
 
-use crate::{
-    rules::{TechEra, civilizations},
-    sim::{HUMAN, Simulation},
-};
+use crate::rules::TechEra;
+#[cfg(test)]
+use crate::sim::HUMAN;
 use macroquad::audio::{
     PlaySoundParams, Sound, load_sound_from_bytes, play_sound, set_sound_volume, stop_sound,
 };
@@ -46,6 +45,7 @@ struct MusicCue {
     culture_group: i32,
 }
 
+#[cfg(test)]
 fn human_music_cue(
     era_for_player: impl Fn(usize) -> TechEra,
     culture_group_for_player: impl Fn(usize) -> i32,
@@ -116,24 +116,20 @@ impl MusicPlayer {
     }
 
     /// Starts or changes music when the human player's era or culture changes.
-    pub(crate) async fn update(&mut self, sim: &Simulation, muted: bool, volume: u8) {
+    pub(crate) async fn update(
+        &mut self,
+        era: TechEra,
+        culture_group: i32,
+        muted: bool,
+        volume: u8,
+    ) {
         if !self.enabled {
             return;
         }
         let Some(root) = self.root.as_deref() else {
             return;
         };
-        let cue = human_music_cue(
-            |owner| sim.research_era(owner),
-            |owner| {
-                sim.players()[owner]
-                    .civilization_id
-                    .as_deref()
-                    .and_then(civilizations::by_id)
-                    .map(|civilization| civilization.culture_group_index)
-                    .unwrap_or(1)
-            },
-        );
+        let cue = MusicCue { era, culture_group };
 
         if request_music_cue(&mut self.requested_cue, cue) {
             let Some(paths) = resolve_music_paths(root, cue) else {

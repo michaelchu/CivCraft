@@ -12,7 +12,11 @@ fn approach(roll: i32) -> (Simulation, u32, (i32, i32)) {
         .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settler)
         .unwrap();
     let id = explorer.id;
-    game.units.iter_mut().find(|unit| unit.id == id).unwrap().kind = UnitKind::Explorer;
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == id)
+        .unwrap()
+        .kind = UnitKind::Explorer;
     let (x, y) = (10, 20);
     let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
     (unit.x, unit.y) = (x, y);

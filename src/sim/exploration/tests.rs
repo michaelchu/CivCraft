@@ -91,7 +91,10 @@ fn explorer_stack_risk_uses_current_damaged_unit_speed() {
     let damaged = game.explorer_stack_risk(&actor, target.0, target.1);
     // Risk scales with the imported current move rate; damage need not
     // halve every unit's speed.
-    assert_eq!(damaged * i64::from(damaged_rate), healthy * i64::from(healthy_rate));
+    assert_eq!(
+        damaged * i64::from(damaged_rate),
+        healthy * i64::from(healthy_rate)
+    );
 }
 
 #[test]

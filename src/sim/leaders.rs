@@ -25,9 +25,11 @@ impl Simulation {
         let Some(unit) = self.unit_by_id(unit_id).cloned() else {
             return false;
         };
-        let Some(city_index) = self.cities.iter().position(|city| {
-            city.id == city_id && self.can_help_wonder(&unit, city)
-        }) else {
+        let Some(city_index) = self
+            .cities
+            .iter()
+            .position(|city| city.id == city_id && self.can_help_wonder(&unit, city))
+        else {
             return false;
         };
         let city_name = self.cities[city_index].name.clone();
@@ -196,8 +198,6 @@ impl Simulation {
             })
             .collect()
     }
-
-
 }
 
 #[cfg(test)]

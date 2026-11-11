@@ -271,9 +271,11 @@ impl Simulation {
         }
         let mut rejected = true;
         // Derive the excluded set from imported prototype movement/fuel data.
-        for kind in UnitKind::ALL_NATIVE.iter().copied().filter(|kind| {
-            kind.fuel_capacity() > 0 || *kind == UnitKind::Helicopter
-        }) {
+        for kind in UnitKind::ALL_NATIVE
+            .iter()
+            .copied()
+            .filter(|kind| kind.fuel_capacity() > 0 || *kind == UnitKind::Helicopter)
+        {
             let id = self.spawn_unit(HUMAN, kind, 10, 20);
             rejected &= !self.apply(Command::Automate(id));
             self.units

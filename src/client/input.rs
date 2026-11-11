@@ -102,8 +102,9 @@ impl Game {
         }
         if is_key_pressed(KeyCode::B) {
             let bombard = self
-                .selected_unit_index()
-                .is_some_and(|index| self.sim.can_begin_bombard(&self.sim.units()[index]));
+                .selected_unit
+                .and_then(|id| self.sim.unit_action_view(id))
+                .is_some_and(|view| view.bombard);
             self.perform_action(if bombard {
                 UiAction::BeginBombard
             } else {
@@ -150,21 +151,19 @@ impl Game {
             });
         }
         if is_key_pressed(KeyCode::S)
-            && let Some(index) = self.selected_unit_index()
+            && self
+                .selected_unit
+                .and_then(|id| self.sim.unit_action_view(id))
+                .is_some_and(|view| view.air_superiority)
         {
-            if self
-                .sim
-                .can_assign_air_superiority(&self.sim.units()[index])
-            {
-                self.perform_action(UiAction::AirSuperiority);
-            }
+            self.perform_action(UiAction::AirSuperiority);
         }
         if is_key_pressed(KeyCode::Y)
-            && let Some(index) = self.selected_unit_index()
+            && let Some(id) = self.selected_unit
+            && let Some(view) = self.sim.unit_action_view(id)
         {
-            let name = self.sim.units()[index].kind.name();
-            self.sim.apply(Command::Sentry(self.sim.units()[index].id));
-            self.notify(format!("{name} is now on sentry duty."));
+            self.sim.apply(Command::Sentry(id));
+            self.notify(format!("{} is now on sentry duty.", view.unit_name));
             self.select_next_unit();
         }
         if is_key_pressed(KeyCode::Space) {
@@ -240,10 +239,8 @@ impl Game {
     fn select_next_if_exhausted(&mut self, id: u32) {
         let exhausted = self
             .sim
-            .units()
-            .iter()
-            .find(|u| u.id == id)
-            .is_none_or(|u| u.moves_left <= 0);
+            .unit_action_view(id)
+            .is_none_or(|unit| unit.moves_left <= 0);
         if exhausted {
             self.select_next_unit();
         }
@@ -469,29 +466,17 @@ impl Game {
     pub(crate) fn select_at(&mut self, x: i32, y: i32) {
         // Cities take click priority over their garrisons. Units stationed in
         // a city remain selectable from the city manager.
-        if let Some(city) = self
-            .sim
-            .cities()
-            .iter()
-            .find(|city| city.owner == HUMAN && city.x == x && city.y == y)
-        {
+        if let Some(city_id) = self.sim.human_city_at_view(x, y) {
             self.production_page = 0;
             self.unit_production_page = 0;
             self.worklist_page = None;
             self.city_tiles = false;
             self.action_page = 0;
-            self.selected_city = Some(city.id);
+            self.selected_city = Some(city_id);
             self.selected_unit = None;
             return;
         }
-        let mut stack = self
-            .sim
-            .units()
-            .iter()
-            .rev()
-            .filter(|unit| unit.owner == HUMAN && (unit.x, unit.y) == (x, y))
-            .collect::<Vec<_>>();
-        stack.sort_by_key(|unit| unit.transport.is_some());
+        let stack = self.sim.human_units_at_view(x, y);
         let current = stack
             .iter()
             .position(|unit| Some(unit.id) == self.selected_unit);

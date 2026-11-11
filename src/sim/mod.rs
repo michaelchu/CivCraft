@@ -32,6 +32,10 @@ pub(crate) use bases::Base;
 mod cities;
 mod civil_war;
 mod client_views;
+pub(crate) use client_views::{
+    CityManagerView, CombatPresentationView, PresentationEventView, RenderTileView,
+    RenderedCityView, RenderedUnitView,
+};
 mod commands;
 mod diplomacy;
 mod tech_trade;
@@ -86,7 +90,7 @@ mod playtest;
 mod research;
 #[cfg(test)]
 mod research_phase;
-mod scenarios;
+pub(crate) mod scenarios;
 mod terrain_work;
 pub(crate) use commands::Command;
 use model::research_cost;
@@ -110,12 +114,12 @@ use crate::rules::{Building, Tech};
 pub(crate) use model::*;
 use topology::*;
 
-pub(crate) const PLAYER_COUNT: usize = 6;
+pub(crate) const PLAYER_COUNT: usize = crate::world::DEFAULT_CIVILIZATION_COUNT;
 pub(crate) const MAX_CIVILIZATIONS: usize = 16;
 pub(crate) const HUMAN: usize = 0;
 pub(crate) const PLAYER_SLOTS: usize = 512;
 pub(crate) const BARBARIANS: usize = MAX_CIVILIZATIONS;
-const PERCENT_SCALE: i32 = 100;
+const PERCENT_SCALE: i32 = crate::world::PERCENT_SCALE;
 const CITY_MIN_DISTANCE: i32 = 3;
 pub(crate) const MOVE_FRAGMENTS: i32 = 6;
 const ACTIVITY_FACTOR: i32 = 10;
@@ -335,18 +339,14 @@ impl Simulation {
     pub(crate) fn turn(&self) -> i32 {
         self.turn
     }
-    /// Returns the current in-game year.
-    pub(crate) fn year(&self) -> i32 {
-        self.year
-    }
     /// Returns the game-over message, if the campaign has ended.
     pub(crate) fn game_over(&self) -> Option<&str> {
         self.game_over.as_deref()
     }
 
     /// Builds a new campaign from a generated map and initializes player state.
-    pub(crate) fn new(map: crate::mapgen::GeneratedMap) -> Self {
-        let crate::mapgen::GeneratedMap {
+    pub(crate) fn new(map: crate::world::GeneratedMap) -> Self {
+        let crate::world::GeneratedMap {
             seed,
             map_wrap,
             tiles: generated_tiles,

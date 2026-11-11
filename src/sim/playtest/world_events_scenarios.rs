@@ -115,11 +115,12 @@ impl Simulation {
         } else {
             UnitKind::Swordsman
         };
-        let sea_roster = !sea || boat.is_some_and(|boat| {
-            self.units
-                .iter()
-                .any(|unit| unit.kind == expected && unit.transport == Some(boat.id))
-        });
+        let sea_roster = !sea
+            || boat.is_some_and(|boat| {
+                self.units
+                    .iter()
+                    .any(|unit| unit.kind == expected && unit.transport == Some(boat.id))
+            });
         gated && composition && sea_roster && !self.tile(x, y).hut
     }
 }

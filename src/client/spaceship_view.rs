@@ -15,34 +15,31 @@ impl Game {
         draw_ui_button(close, "X", true, false);
         let mut actions = vec![(close, UiAction::ToggleSpaceship)];
 
-        let (unplaced, structure, components, modules, manual) = self.sim.ship_assembly();
-        let status = self.sim.spaceship_status(HUMAN).unwrap_or_default();
+        let view = self.sim.spaceship_assembly_view(HUMAN);
         let launch = Rect::new(x + 16.0, y + 49.0, width - 32.0, 28.0);
-        let ready = self.sim.can_launch_spaceship(HUMAN);
-        draw_ui_button(launch, &status, ready, ready);
-        if ready {
+        draw_ui_button(launch, &view.status, view.can_launch, view.can_launch);
+        if view.can_launch {
             actions.push((launch, UiAction::LaunchSpaceship));
         }
         let mode = Rect::new(x + 16.0, y + 85.0, width - 32.0, 27.0);
-        let can_toggle = !status.starts_with("Spaceship arrives");
         draw_ui_button(
             mode,
-            if manual {
+            if view.manual {
                 "Manual assembly • Enable automatic placement"
             } else {
                 "Automatic assembly • Enable manual placement"
             },
-            can_toggle,
+            view.can_toggle_manual,
             false,
         );
-        if can_toggle {
+        if view.can_toggle_manual {
             actions.push((mode, UiAction::ToggleManualAssembly));
         }
 
         draw_text(
             &format!(
                 "Unplaced: {} structural / {} component / {} module",
-                unplaced[0], unplaced[1], unplaced[2]
+                view.unplaced[0], view.unplaced[1], view.unplaced[2]
             ),
             x + 16.0,
             y + 137.0,
@@ -57,7 +54,7 @@ impl Game {
             LIGHTGRAY,
         );
         let cell = (width - 32.0) / 8.0;
-        for (index, &placed) in structure.iter().enumerate() {
+        for (index, &placed) in view.structure.iter().enumerate() {
             let rect = Rect::new(
                 x + 16.0 + (index % 8) as f32 * cell,
                 y + 170.0 + (index / 8) as f32 * 29.0,
@@ -65,14 +62,13 @@ impl Game {
                 25.0,
             );
             let part = ShipPart::Structural(index);
-            let enabled = self.sim.can_place_ship_part(part);
             let label = if index == 0 || placed {
                 format!("{}", index + 1)
             } else {
-                format!("{} < {}", index + 1, STRUCTURE_PARENT[index] + 1)
+                format!("{} < {}", index + 1, view.structural_parents[index] + 1)
             };
-            draw_ui_button(rect, &label, enabled, placed);
-            if enabled {
+            draw_ui_button(rect, &label, view.structural_enabled[index], placed);
+            if view.structural_enabled[index] {
                 actions.push((rect, UiAction::PlaceShipPart(part)));
             }
         }
@@ -88,9 +84,9 @@ impl Game {
         .enumerate()
         {
             let (part, count, limit) = if index < 2 {
-                (ShipPart::Component(index), components[index], 8)
+                (ShipPart::Component(index), view.components[index], 8)
             } else {
-                (ShipPart::Module(index - 2), modules[index - 2], 4)
+                (ShipPart::Module(index - 2), view.modules[index - 2], 4)
             };
             let rect = Rect::new(
                 x + 16.0 + (index % 3) as f32 * cell,
@@ -98,7 +94,11 @@ impl Game {
                 cell - 4.0,
                 28.0,
             );
-            let enabled = self.sim.can_place_ship_part(part);
+            let enabled = if index < 2 {
+                view.component_enabled[index]
+            } else {
+                view.module_enabled[index - 2]
+            };
             draw_ui_button(rect, &format!("{label} {count}/{limit}"), enabled, false);
             if enabled {
                 actions.push((rect, UiAction::PlaceShipPart(part)));

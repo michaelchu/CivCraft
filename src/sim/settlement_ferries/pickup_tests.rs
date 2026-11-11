@@ -60,8 +60,6 @@ fn ocean_game() -> Simulation {
     game
 }
 
-
-
 #[test]
 fn coastal_ports_and_embarkation_use_all_civ3_directions() {
     for direction in 0..CIV3_DIRS.len() {

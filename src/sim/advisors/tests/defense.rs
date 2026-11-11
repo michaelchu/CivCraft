@@ -59,9 +59,15 @@ fn static_defender_research_is_gated_by_real_production_need_and_keeps_police_va
     game.cities[0].specialists[2] = 1;
     let police = game.production_defender_tech_want(&game.cities[0], Tech::BRONZE_WORKING);
     assert!(police > 0.0);
-    assert_eq!(UnitKind::Spearman.required_tech(), Some(Tech::BRONZE_WORKING));
+    assert_eq!(
+        UnitKind::Spearman.required_tech(),
+        Some(Tech::BRONZE_WORKING)
+    );
     game.players[1].known.push(Tech::BRONZE_WORKING);
-    assert_eq!(UnitKind::Spearman.required_tech(), Some(Tech::BRONZE_WORKING));
+    assert_eq!(
+        UnitKind::Spearman.required_tech(),
+        Some(Tech::BRONZE_WORKING)
+    );
 }
 
 #[test]
@@ -243,7 +249,10 @@ fn big_land_city_defense_does_not_receive_terrain_defense() {
     game.create_city(1, 10, 24);
     for kind in [UnitKind::Chariot, UnitKind::Catapult, UnitKind::Cannon] {
         let unit = game.make_unit(0, 1, kind, 10, 24);
-        assert_eq!(kind.unit_class(), crate::sim::unit_catalog::UnitClass::BigLand);
+        assert_eq!(
+            kind.unit_class(),
+            crate::sim::unit_catalog::UnitClass::BigLand
+        );
         game.tile_mut(10, 24).terrain = Terrain::Grassland;
         let plain = game.defense_power_against(&unit, 10, 24, UnitKind::Warrior);
         game.tile_mut(10, 24).terrain = Terrain::Hills;
@@ -278,17 +287,19 @@ fn direct_attack_forecasts_use_attack_stats_and_sam_excludes_missiles() {
     game.players[HUMAN].known.push(Tech::ADVANCED_FLIGHT);
     game.spawn_unit(HUMAN, UnitKind::TacticalNuke, near.0, near.1);
     assert_eq!(UnitKind::TacticalNuke.stats().attack, 0);
-    assert!(UnitKind::TacticalNuke.has_ai_strategy(
-        crate::sim::unit_catalog::UnitAiStrategy::TacticalNuke
-    ));
+    assert!(
+        UnitKind::TacticalNuke
+            .has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::TacticalNuke)
+    );
     assert_eq!(game.advisor_guard_city_assessment(&city).danger, 0);
     game.cities[0].buildings.push(Building::SAM_BATTERY);
     assert!(UnitKind::Fighter.is_aircraft());
     assert!(UnitKind::TacticalNuke.is_missile());
-    assert!(UnitKind::Fighter.has_ai_strategy(
-        crate::sim::unit_catalog::UnitAiStrategy::AirDefense
-    ));
-    assert!(UnitKind::TacticalNuke.has_ai_strategy(
-        crate::sim::unit_catalog::UnitAiStrategy::TacticalNuke
-    ));
+    assert!(
+        UnitKind::Fighter.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::AirDefense)
+    );
+    assert!(
+        UnitKind::TacticalNuke
+            .has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::TacticalNuke)
+    );
 }

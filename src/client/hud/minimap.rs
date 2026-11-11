@@ -8,7 +8,7 @@ impl Game {
         let scale = rect.h / self.sim.map_wrap.height() as f32;
         for y in 0..self.sim.map_wrap.height() {
             for x in 0..self.sim.map_wrap.width() {
-                let tile = self.sim.render_tile(x, y);
+                let tile = self.sim.minimap_tile_view(x, y);
                 let color = if !tile.seen {
                     Color::from_rgba(7, 13, 17, 255)
                 } else if tile.visible {
@@ -25,18 +25,17 @@ impl Game {
             }
         }
         let city_overrides = self.playback.city_overrides();
-        let observed = self.sim.render_city_markers();
-        for city in observed
-            .into_iter()
-            .filter(|c| !city_overrides.contains_key(&c.id))
-            .chain(city_overrides.values())
-        {
+        let mut cities = self.sim.minimap_city_views();
+        cities.retain(|city| !city_overrides.contains_key(&city.id));
+        cities.extend(
+            city_overrides
+                .values()
+                .map(|city| self.sim.minimap_city_override_view(city)),
+        );
+        for city in cities {
             let origin = self.minimap_tile_origin(rect, city.x, city.y);
             let marker = Rect::new(origin.x, origin.y, 2.0 * scale, scale);
-            let color = player_color(
-                self.sim.players()[city.owner].civilization_id.as_deref(),
-                city.owner,
-            );
+            let color = player_color(city.civilization_id.as_deref(), city.owner);
             if let Some(part) = marker.intersect(rect) {
                 draw_rectangle(part.x, part.y, part.w, part.h, color);
             }

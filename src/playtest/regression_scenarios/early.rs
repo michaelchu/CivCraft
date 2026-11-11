@@ -9,7 +9,7 @@ impl Playtest {
         game: &mut Game,
         _buttons: &[(Rect, UiAction)],
     ) {
-                        if frame == 416 && self.act_passed {
+        if frame == 416 && self.act_passed {
             let mut land = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let mut sea = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (land, sea) = (
@@ -21,7 +21,7 @@ impl Playtest {
         }
 
         if frame == 419 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (marines, infantry, guard, unlocked) = game.sim.marines_playtest_setup();
             let blocked = !game.sim.apply(Command::Move(infantry, 1, 0));
             let fought = game.sim.apply(Command::Move(marines, 1, 0))
@@ -168,7 +168,7 @@ impl Playtest {
         }
 
         if frame == 479 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (actor, _, gates) = game.sim.paradrop_playtest_setup();
             self.results.push((
                 "paratrooper_requirements",

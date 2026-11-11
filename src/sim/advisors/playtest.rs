@@ -41,8 +41,7 @@ impl super::Simulation {
             self.create_city(1, x, y);
             self.cities.last_mut().unwrap().size = 10;
         }
-        let ranged = self.building_happiness_want(&self.cities[0], Building::HANGING_GARDENS)
-            > 0.0
+        let ranged = self.building_happiness_want(&self.cities[0], Building::HANGING_GARDENS) > 0.0
             && self.building_happiness_want(&self.cities[0], Building::MICHELANGELOS_CHAPEL) == 0.0;
         independent && wartime && removal && ranged
     }

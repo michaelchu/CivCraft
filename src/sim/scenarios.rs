@@ -3,5 +3,5 @@
 
 use super::*;
 
-#[path = "ui_review.rs"]
-mod ui_review;
+pub(crate) mod diplomacy;
+pub(crate) mod ui_review;

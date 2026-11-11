@@ -73,9 +73,9 @@ impl Simulation {
     }
     pub(crate) fn can_disband(&self, unit: &Unit, city: Option<&City>) -> bool {
         city.is_none_or(|city| {
-                self.allied(unit.owner, city.owner)
-                    && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
-            })
+            self.allied(unit.owner, city.owner)
+                && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
+        })
     }
 
     pub(in crate::sim) fn disband_unit(&mut self, id: u32, city_id: Option<u32>) -> bool {

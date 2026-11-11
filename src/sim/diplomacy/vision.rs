@@ -138,5 +138,4 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert!(game.map_snapshot_playtest());
     }
-
 }

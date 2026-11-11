@@ -310,7 +310,12 @@ impl Simulation {
             // Air, Helicopter, Missile veteran; Air/Helicopter healing; airlift.
             Building::AIRPORT => {
                 let missiles = own_units()
-                    .filter(|unit| matches!(unit.kind, UnitKind::CruiseMissile | UnitKind::TacticalNuke | UnitKind::ICBM))
+                    .filter(|unit| {
+                        matches!(
+                            unit.kind,
+                            UnitKind::CruiseMissile | UnitKind::TacticalNuke | UnitKind::ICBM
+                        )
+                    })
                     .count() as i32;
                 19 + 2 * aircraft - missiles + 1 + land.min(13)
             }

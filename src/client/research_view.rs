@@ -366,8 +366,10 @@ mod tests {
         let feudalism = Tech::all().find(|tech| tech.name() == "Feudalism").unwrap();
         let detail = research_unlock_detail(feudalism);
         assert!(detail.contains("Pikeman") && detail.contains("Sun Tzu"));
-        assert!(research_unlock_detail(Tech::ADVANCED_FLIGHT).contains("Helicopter")
-            && research_unlock_detail(Tech::ADVANCED_FLIGHT).contains("Paratrooper"));
+        assert!(
+            research_unlock_detail(Tech::ADVANCED_FLIGHT).contains("Helicopter")
+                && research_unlock_detail(Tech::ADVANCED_FLIGHT).contains("Paratrooper")
+        );
         let detail = research_unlock_detail(Tech::ROCKETRY);
         assert!(detail.contains("Cruise Missile") && detail.contains("City art: Modern"));
     }

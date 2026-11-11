@@ -121,12 +121,10 @@ impl Simulation {
             .iter_mut()
             .filter(|unit| (unit.x, unit.y) == (x, y))
         {
-            if unit.work_kind.is_some_and(|kind| {
-                matches!(
-                    kind,
-                    WorkKind::Cultivate | WorkKind::Plant
-                )
-            }) {
+            if unit
+                .work_kind
+                .is_some_and(|kind| matches!(kind, WorkKind::Cultivate | WorkKind::Plant))
+            {
                 unit.clear_work();
             }
         }
@@ -254,6 +252,5 @@ mod tests {
             game.update_activities_and_restore();
         }
         assert_eq!(game.tile(x, y).terrain, Terrain::Plains);
-
     }
 }

@@ -23,9 +23,10 @@ impl Simulation {
                 > super::super::air_mission_rules::air_mission_rules()
                     .rebase_operational_range_multiplier
                     * unit.kind.operational_range()
-            || self.units.iter().any(|other| {
-                (other.x, other.y) == (x, y) && !self.allied(unit.owner, other.owner)
-            })
+            || self
+                .units
+                .iter()
+                .any(|other| (other.x, other.y) == (x, y) && !self.allied(unit.owner, other.owner))
         {
             return false;
         }
@@ -50,12 +51,16 @@ impl Simulation {
         if !self.can_rebase_to(&unit, x, y) {
             return false;
         }
-        let carrier = self.units.iter().find(|carrier| {
-            (carrier.x, carrier.y) == (x, y)
-                && self.allied(unit.owner, carrier.owner)
-                && carrier.kind.can_carry(unit.kind)
-                && self.cargo_count(carrier.id) < carrier.kind.transport_capacity()
-        }).map(|carrier| carrier.id);
+        let carrier = self
+            .units
+            .iter()
+            .find(|carrier| {
+                (carrier.x, carrier.y) == (x, y)
+                    && self.allied(unit.owner, carrier.owner)
+                    && carrier.kind.can_carry(unit.kind)
+                    && self.cargo_count(carrier.id) < carrier.kind.transport_capacity()
+            })
+            .map(|carrier| carrier.id);
         let index = self.unit_index_by_id(id).unwrap();
         self.set_transport(index, carrier);
         let actor = &mut self.units[index];

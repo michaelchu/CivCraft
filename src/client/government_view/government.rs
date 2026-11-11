@@ -4,7 +4,9 @@ use super::*;
 
 impl Game {
     pub(in crate::client) fn draw_government(&self) -> Vec<(Rect, UiAction)> {
-        let player = &self.sim.players()[HUMAN];
+        let Some(view) = self.sim.government_view(HUMAN) else {
+            return vec![];
+        };
         let width = (screen_width() - 24.0).min(620.0);
         let panel = Rect::new(
             (screen_width() - width) / 2.0,
@@ -19,29 +21,20 @@ impl Game {
         let mut actions = vec![(close, UiAction::ToggleGovernment)];
 
         text_in(
-            &format!("{} · {}", player.name, player.leader_name()),
+            &view.leader_line,
             panel.x + 18.0,
             panel.y + 31.0,
             22.0,
             panel.w - 81.0,
             WHITE,
         );
-        let status = if let (Some(target), Some(turn)) =
-            (player.revolution_target, player.revolution_turn)
-        {
-            format!(
-                "Anarchy  |  {} in {} turns",
-                target.name(),
-                turn - self.sim.turn()
-            )
-        } else {
-            format!(
-                "{}  |  Rate limit {}%",
-                player.government.name(),
-                player.government.max_rate()
-            )
-        };
-        draw_text(&status, panel.x + 18.0, panel.y + 55.0, 17.0, GOLD);
+        draw_text(
+            &view.status_line,
+            panel.x + 18.0,
+            panel.y + 55.0,
+            17.0,
+            GOLD,
+        );
         draw_text(
             "Choose a government to start a revolution.",
             panel.x + 18.0,
@@ -50,33 +43,23 @@ impl Game {
             LIGHTGRAY,
         );
         let col = (panel.w - 46.0) / 2.0;
-        for (index, government) in Government::TARGETS.into_iter().enumerate() {
+        for (index, option) in view.options.iter().enumerate() {
             let x = panel.x + 18.0 + (index % 2) as f32 * (col + 10.0);
             let y = panel.y + 88.0 + (index / 2) as f32 * 67.0;
             let button = Rect::new(x, y, col, 28.0);
-            let enabled = self.sim.can_change_government(HUMAN, government);
-            let current = player.government == government;
-            draw_ui_button(button, government.name(), enabled, current);
-            if enabled {
-                actions.push((button, UiAction::ChangeGovernment(government)));
+            draw_ui_button(button, option.name, option.enabled, option.current);
+            if option.enabled {
+                actions.push((button, UiAction::ChangeGovernment(option.government)));
             }
-            let support = government.unit_support().map_or_else(
-                || "Unit support: unresolved legacy government".to_owned(),
-                |policy| format!(
-                    "Free units: {}/{}/{} · {} gold per excess unit",
-                    policy.town, policy.city, policy.metropolis, policy.cost_per_unit
-                ),
+            draw_text(
+                &option.support_description,
+                x + 3.0,
+                y + 43.0,
+                13.0,
+                LIGHTGRAY,
             );
-            draw_text(&support, x + 3.0, y + 43.0, 13.0, LIGHTGRAY);
-            if let Some(tech) = government.requirement()
-                && !player.known.contains(&tech)
-            {
-                let label = if enabled {
-                    "Statue of Liberty".to_owned()
-                } else {
-                    format!("Requires {}", tech.name())
-                };
-                draw_text(&label, x + 3.0, y + 57.0, 13.0, GOLD);
+            if let Some(label) = &option.requirement_description {
+                draw_text(label, x + 3.0, y + 57.0, 13.0, GOLD);
             }
         }
         actions

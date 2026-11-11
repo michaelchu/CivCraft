@@ -16,6 +16,7 @@ mod random;
 mod rules;
 mod sim;
 mod visual_test;
+mod world;
 
 use client::{Assets, Game, MusicPlayer, Tileset, UiAction, UnitSoundPlayer, window_conf};
 use macroquad::prelude::*;
@@ -189,8 +190,12 @@ async fn main() {
             }
         }
     } else {
-        Game::new_with_renderer(
-            mapgen::generate_for_civ3_size(seed, map_size, world_settings),
+        Game::from_simulation_with_renderer(
+            sim::Simulation::new(mapgen::generate_for_civ3_size(
+                seed,
+                map_size,
+                world_settings,
+            )),
             std::rc::Rc::clone(&renderer),
         )
     };
@@ -260,8 +265,17 @@ async fn main() {
             playtest.advance(frame, &mut game, &buttons);
         }
 
+        let music_cue = game
+            .sim
+            .music_cue_view(sim::HUMAN)
+            .expect("human player has a music cue");
         music
-            .update(&game.sim, game.music_muted, game.music_volume)
+            .update(
+                music_cue.era,
+                music_cue.culture_group,
+                game.music_muted,
+                game.music_volume,
+            )
             .await;
 
         let review_position = ui_review.as_ref().and_then(|_| {
@@ -325,9 +339,8 @@ async fn main() {
             .take_unit_sound_requests()
             .into_iter()
             .filter_map(|request| {
-                let era = game.sim.research_era(request.unit.owner).index();
                 assets
-                    .unit_sound_path(request.unit.kind, era, &request.action)
+                    .unit_sound_path(request.kind, request.era_index, &request.action)
                     .map(|path| (path, request.delay_seconds))
             })
             .collect::<Vec<_>>();

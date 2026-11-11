@@ -27,12 +27,19 @@ impl Simulation {
         self.cities[0]
             .buildings
             .retain(|&building| building != Building::BARRACKS);
-        let unit = self.units.iter_mut().find(|unit| unit.id == soldier).unwrap();
+        let unit = self
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == soldier)
+            .unwrap();
         unit.hp = 1;
         unit.moved = false;
         let expected = unit.hp + Self::hitpoint_gain(unit, true);
         self.restore_player_units(HUMAN);
-        barracks_healed && self.unit_by_id(soldier).is_some_and(|unit| unit.hp == expected)
+        barracks_healed
+            && self
+                .unit_by_id(soldier)
+                .is_some_and(|unit| unit.hp == expected)
     }
 
     pub(crate) fn tribal_upkeep_playtest_setup(&mut self) {

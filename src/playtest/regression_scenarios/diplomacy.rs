@@ -32,7 +32,7 @@ impl Playtest {
                 "An unaffordable upgrade raised the reserve and tax rate; both returned to normal after purchase.".to_owned()));
         }
 
-                                                                if frame == 553 && self.act_passed {
+        if frame == 553 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("diplomacy_map_exchange", sim.treaty_map_playtest(),
                 "Verified payment, sea-only coverage, allied world-map transfer, and no shared live vision.".to_owned()));
@@ -78,7 +78,7 @@ impl Playtest {
                 "A Marine reached the threatened city once the road opened and left a guard behind.".to_owned()));
         }
 
-                if frame == 569 && self.act_passed {
+        if frame == 569 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_map_observation_transfer", sim.map_snapshot_playtest(),
                 "A sea map transferred the seller's observed ocean after the tile changed out of sight.".to_owned()));

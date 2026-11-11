@@ -137,7 +137,11 @@ fn military_police_require_an_attacking_unit_and_only_work_in_its_city() {
     assert_eq!(game.city_feelings(&city, 0).1, 2);
     let warrior = game.spawn_unit(1, UnitKind::Warrior, 12, 24);
     assert_eq!(game.city_feelings(&city, 0).1, 1);
-    for unit in game.units.iter_mut().filter(|unit| unit.id == civilian || unit.id == warrior) {
+    for unit in game
+        .units
+        .iter_mut()
+        .filter(|unit| unit.id == civilian || unit.id == warrior)
+    {
         (unit.x, unit.y) = sea;
     }
     assert_eq!(game.city_feelings(&city, 0).1, 2);

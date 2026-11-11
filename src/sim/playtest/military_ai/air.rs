@@ -119,7 +119,8 @@ impl Simulation {
         self.tile_mut(near.0, near.1).known_by[1] = true;
         self.tile_mut(far.0, far.1).known_by[1] = true;
         let fighter = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
-        self.units.last_mut().unwrap().moves_left = UnitKind::Fighter.stats().moves * MOVE_FRAGMENTS;
+        self.units.last_mut().unwrap().moves_left =
+            UnitKind::Fighter.stats().moves * MOVE_FRAGMENTS;
         let close = self.spawn_unit(HUMAN, UnitKind::Bomber, near.0, near.1);
         self.units.last_mut().unwrap().hp = 1;
         self.units.last_mut().unwrap().moves_left = UnitKind::Bomber.stats().moves * MOVE_FRAGMENTS;

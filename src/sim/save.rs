@@ -394,11 +394,19 @@ impl Simulation {
                     || city.resisting_citizens.iter().any(|&(owner, count)| {
                         owner >= players || owner == city.owner || count <= 0
                     })
-                    || city.resisting_citizens.iter().map(|&(_, count)| count).sum::<i32>()
+                    || city
+                        .resisting_citizens
+                        .iter()
+                        .map(|&(_, count)| count)
+                        .sum::<i32>()
                         > city.size
                     || city.specialists.iter().any(|&count| count < 0)
                     || city.specialists.iter().sum::<i32>()
-                        + city.resisting_citizens.iter().map(|&(_, count)| count).sum::<i32>()
+                        + city
+                            .resisting_citizens
+                            .iter()
+                            .map(|&(_, count)| count)
+                            .sum::<i32>()
                         > city.size
                     || city.id >= self.next_city_id
                     || city
@@ -421,9 +429,12 @@ impl Simulation {
                         .culture_memory_by_civilization
                         .iter()
                         .any(|&(owner, culture)| owner >= players || culture < 0)
-                    || city.culture_by_civilization.iter().any(|&(owner, culture)| {
-                        city.historical_culture_for_civilization(owner) < culture
-                    })
+                    || city
+                        .culture_by_civilization
+                        .iter()
+                        .any(|&(owner, culture)| {
+                            city.historical_culture_for_civilization(owner) < culture
+                        })
                     || city
                         .culture_building_years
                         .windows(2)
@@ -438,7 +449,9 @@ impl Simulation {
                     || city
                         .culture_building_owners
                         .iter()
-                        .any(|&(building, owner)| building >= Building::all().count() || owner >= players)
+                        .any(|&(building, owner)| {
+                            building >= Building::all().count() || owner >= players
+                        })
                     || !production(city.production)
                     || city.worklist.iter().any(|&item| !production(item))
                     || city

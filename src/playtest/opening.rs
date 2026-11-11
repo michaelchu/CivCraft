@@ -318,7 +318,8 @@ impl Playtest {
             ));
         }
         if frame == 115 && self.act_passed {
-            game.sim.apply(Command::Government(sim::Government::Despotism));
+            game.sim
+                .apply(Command::Government(sim::Government::Despotism));
             let cancellation = game.sim.apply(Command::CancelPact(1));
             game.perform_action(UiAction::ToggleDiplomacy);
             game.sim.civil_war_playtest_seed_capture();

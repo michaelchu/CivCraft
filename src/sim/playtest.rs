@@ -55,7 +55,10 @@ mod ai_integration_tests {
             game.create_city(HUMAN, settler.x, settler.y);
             sizes.push(game.run_plague_playtest(protected));
         }
-        assert!(defense[1] > defense[0], "SAM Battery should increase defense against aircraft");
+        assert!(
+            defense[1] > defense[0],
+            "SAM Battery should increase defense against aircraft"
+        );
         assert_eq!(sizes, [8, 9]);
         for nuclear in [false, true] {
             let mut game = fresh();
@@ -109,7 +112,10 @@ mod ai_integration_tests {
         assert!(fresh().ai_aircraft_advisor_playtest());
         // Nuclear legality and imported Tactical Nuke gates have dedicated
         // mechanics tests; target/launch ranking is not a manual-defined rule.
-        assert_eq!(UnitKind::TacticalNuke.required_tech(), Some(Tech::SPACE_FLIGHT));
+        assert_eq!(
+            UnitKind::TacticalNuke.required_tech(),
+            Some(Tech::SPACE_FLIGHT)
+        );
         assert_eq!(
             UnitKind::TacticalNuke.required_resources(),
             vec![Resource::Aluminum, Resource::Uranium]

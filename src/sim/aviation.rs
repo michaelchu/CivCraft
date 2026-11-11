@@ -22,8 +22,7 @@ impl Simulation {
         let Some(unit) = self.unit_by_id(id).cloned() else {
             return false;
         };
-        if !self.can_assign_air_superiority(&unit)
-        {
+        if !self.can_assign_air_superiority(&unit) {
             return false;
         }
         let Some(actor) = self.units.iter_mut().find(|actor| actor.id == id) else {

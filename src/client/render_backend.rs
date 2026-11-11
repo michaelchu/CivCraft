@@ -4,7 +4,7 @@
 //! input through Civ III geometry.
 use super::civ3_geometry::Civ3Geometry;
 use super::{Assets, Game};
-use crate::sim::topology::{MAP_W, MapWrap};
+use crate::world::topology::{MAP_W, MapWrap};
 use macroquad::prelude::*;
 
 pub(crate) trait RenderBackend {
@@ -97,7 +97,7 @@ pub(crate) fn default_renderer() -> std::rc::Rc<dyn RenderBackend> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sim::topology::MAP_W;
+    use crate::world::topology::MAP_W;
 
     #[test]
     fn startup_selection_registers_the_existing_renderer() {

@@ -165,7 +165,7 @@ impl Playtest {
             self.results.push(("pillage", completed, format!("Pillaged the Railroad through the unit control and preserved its Road: {completed}.")));
         }
         if frame == 182 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             game.perform_action(UiAction::FoundCity);
             game.perform_action(UiAction::CloseCity);
             let worker = game.sim.base_playtest_setup();
@@ -297,7 +297,7 @@ impl Playtest {
                 format!("Transport built a deep-ocean Oil Platform in two turns through its unit control: {completed}.")));
         }
         if frame == 205 && self.act_passed {
-            *game = Game::new(crate::mapgen::generate(42));
+            *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (warrior, diplomat, destination) = game.sim.zone_control_playtest_setup();
             game.perform_action(UiAction::SelectUnit(warrior));
             let blocked = !game.sim.apply(Command::Move(warrior, 1, 0));

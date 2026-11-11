@@ -725,8 +725,7 @@ mod tests {
         game.cities[target_index].add_culture(HUMAN, 100);
         game.units.clear();
 
-        let remembered =
-            candidate_city_flip_probability_to(&game, target_id, 1).unwrap();
+        let remembered = candidate_city_flip_probability_to(&game, target_id, 1).unwrap();
         let mut no_memory = game.clone();
         no_memory.cities[target_index]
             .culture_memory_by_civilization
@@ -770,8 +769,14 @@ mod tests {
         assert_eq!(game.cities[target_index].owner, 1);
         assert_eq!(game.cities[target_index].culture_for_civilization(1), 0);
         assert_eq!(game.cities[target_index].culture_for_civilization(HUMAN), 0);
-        assert_eq!(game.cities[target_index].historical_culture_for_civilization(1), 500);
-        assert_eq!(game.cities[target_index].historical_culture_for_civilization(HUMAN), 125);
+        assert_eq!(
+            game.cities[target_index].historical_culture_for_civilization(1),
+            500
+        );
+        assert_eq!(
+            game.cities[target_index].historical_culture_for_civilization(HUMAN),
+            125
+        );
     }
 
     #[test]

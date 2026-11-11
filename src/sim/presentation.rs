@@ -42,17 +42,6 @@ pub(crate) enum VisualEvent {
 }
 
 impl VisualEvent {
-    pub(crate) fn actors(&self) -> impl Iterator<Item = &Unit> {
-        let (first, second) = match self {
-            Self::Move { unit, .. }
-            | Self::Capture { unit }
-            | Self::FoundCity { unit }
-            | Self::WorkStarted { unit, .. }
-            | Self::Fortify { unit } => (unit, None),
-            Self::Combat(combat) => (&combat.attacker, Some(&combat.defender)),
-        };
-        std::iter::once(first).chain(second)
-    }
     pub(crate) fn duration(&self) -> f64 {
         match self {
             Self::Move { .. } => 0.030, // native smooth_move_unit_msec
@@ -84,6 +73,65 @@ impl Simulation {
     pub(crate) fn take_visual_events(&mut self) -> VecDeque<VisualEvent> {
         std::mem::take(&mut self.visual_events.queue)
     }
+
+    pub(crate) fn take_presentation_event_views(&mut self) -> VecDeque<PresentationEventView> {
+        std::mem::take(&mut self.visual_events.queue)
+            .into_iter()
+            .map(|event| self.presentation_event_view(event))
+            .collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn presentation_event_view_for_test(
+        &self,
+        event: VisualEvent,
+    ) -> PresentationEventView {
+        self.presentation_event_view(event)
+    }
+
+    fn presentation_event_view(&self, event: VisualEvent) -> PresentationEventView {
+        let duration = event.duration();
+        match event {
+            VisualEvent::Move { unit, from, to } => PresentationEventView::Move {
+                unit: self.rendered_unit_override_view(&unit),
+                from,
+                to,
+                duration,
+            },
+            VisualEvent::Capture { unit } => PresentationEventView::Capture {
+                unit: self.rendered_unit_override_view(&unit),
+                duration,
+            },
+            VisualEvent::FoundCity { unit } => PresentationEventView::FoundCity {
+                unit: self.rendered_unit_override_view(&unit),
+                duration,
+            },
+            VisualEvent::WorkStarted { unit, kind } => PresentationEventView::WorkStarted {
+                unit: self.rendered_unit_override_view(&unit),
+                kind,
+                duration,
+            },
+            VisualEvent::Fortify { unit } => PresentationEventView::Fortify {
+                unit: self.rendered_unit_override_view(&unit),
+                duration,
+            },
+            VisualEvent::Combat(combat) => {
+                PresentationEventView::Combat(Box::new(CombatPresentationView {
+                    attacker: self.rendered_unit_override_view(&combat.attacker),
+                    defender: self.rendered_unit_override_view(&combat.defender),
+                    hp: combat.hp,
+                    city: combat
+                        .city
+                        .as_ref()
+                        .map(|city| self.rendered_city_override_view(city)),
+                    bombard_effects: combat.bombard_effects,
+                    territory: combat.territory,
+                    duration,
+                }))
+            }
+        }
+    }
+
     pub(super) fn publish_visual_event(&mut self, event: VisualEvent) {
         if !self.visual_events.enabled {
             return;
@@ -129,7 +177,8 @@ mod tests {
     fn observer_records_real_results_without_changing_rng_or_saved_campaign() {
         for combat in [false, true] {
             let mut observed = Simulation::new(crate::mapgen::generate(42));
-            let (id, _) = observed.ui_review_animation_setup(combat);
+            let (id, _) =
+                crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut observed, combat);
             let mut unobserved = observed.clone();
             unobserved.visual_events = VisualEvents::default();
             assert_eq!(

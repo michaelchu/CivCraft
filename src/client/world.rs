@@ -24,10 +24,10 @@ mod infrastructure_tests {
             let map = crate::mapgen::generate_with_wrap(42, MapWrap::X);
             let mut sim = Simulation::new(map);
             if knowledge == fog::Knowledge::Remembered {
-                sim.ui_review_remember_all_tiles();
+                crate::sim::scenarios::ui_review::ui_review_remember_all_tiles(&mut sim);
             }
             if knowledge == fog::Knowledge::Visible {
-                sim.ui_review_reveal_all_tiles();
+                crate::sim::scenarios::ui_review::ui_review_reveal_all_tiles(&mut sim);
             }
             let game = Game::from_simulation(sim);
             assert_eq!(game.edge_water_rows().collect::<Vec<_>>(), [-2, -1, 48, 49]);
@@ -169,16 +169,16 @@ mod visibility_tests {
 
 // control.c::find_visible_unit: focus first, then owned transporter, owned
 // unit, other transporter, other unit. Carried units are never representatives.
-fn unit_draw_priority(unit: &Unit, selected: Option<u32>) -> u8 {
+fn unit_draw_priority(unit: &RenderedUnitView, selected: Option<u32>) -> u8 {
     if Some(unit.id) == selected {
         0
     } else if unit.transport.is_some() {
         5
-    } else if unit.owner == HUMAN && unit.kind.transport_capacity() > 0 {
+    } else if unit.owner == HUMAN && unit.is_transporter {
         1
     } else if unit.owner == HUMAN {
         2
-    } else if unit.kind.transport_capacity() > 0 {
+    } else if unit.is_transporter {
         3
     } else {
         4
@@ -191,18 +191,21 @@ mod representative_tests {
     #[test]
     fn reference_stack_order_prefers_focus_then_owned_transports_then_owned_units() {
         let sim = Simulation::new(crate::mapgen::generate(42));
-        let mut own_unit = sim.units()[0].clone();
+        let mut own_unit = sim.rendered_unit_views().into_iter().next().unwrap();
         own_unit.owner = HUMAN;
         own_unit.kind = UnitKind::Warrior;
+        own_unit.is_transporter = false;
         let mut own_ship = own_unit.clone();
         own_ship.id += 1;
         own_ship.kind = UnitKind::Transport;
+        own_ship.is_transporter = true;
         let mut other_unit = own_unit.clone();
         other_unit.owner = 1;
         other_unit.id += 2;
         let mut other_ship = other_unit.clone();
         other_ship.id += 1;
         other_ship.kind = UnitKind::Transport;
+        other_ship.is_transporter = true;
         let mut cargo = own_unit.clone();
         cargo.id += 4;
         cargo.transport = Some(own_ship.id);

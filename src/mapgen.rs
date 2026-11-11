@@ -14,7 +14,8 @@
 //! seeded output.
 
 use crate::random::FreecivRng;
-use crate::sim::{PLAYER_COUNT, Terrain, TerrainBase, topology::*};
+pub(crate) use crate::world::{GeneratedMap, GeneratedTile};
+use crate::world::{Terrain, TerrainBase, topology::*};
 use std::{collections::hash_map::RandomState, hash::BuildHasher};
 
 /// Named world sizes from OpenCiv3's Civ III ruleset data. Dimensions are
@@ -308,28 +309,6 @@ mod placement;
 mod rivers;
 mod terrain;
 
-pub(crate) struct GeneratedMap {
-    pub(crate) seed: u64,
-    pub(crate) map_wrap: MapWrap,
-    pub(crate) game_random: FreecivRng,
-    pub(crate) tiles: Vec<GeneratedTile>,
-    pub(crate) starts: Vec<(i32, i32)>,
-    pub(crate) civilization_count: usize,
-}
-
-/// Compact map-generation output, independent of campaign ownership,
-/// visibility, and improvement state.
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct GeneratedTile {
-    pub(crate) terrain: Terrain,
-    pub(crate) base_terrain: TerrainBase,
-    pub(crate) altitude: i32,
-    pub(crate) hut: bool,
-    pub(crate) river: bool,
-    pub(crate) river_edges: u8,
-    pub(crate) resource: Option<crate::sim::Resource>,
-}
-
 impl GeneratedTile {
     /// Starting-site yield before campaign improvements, matching a fresh
     /// campaign tile's yield calculation.
@@ -338,7 +317,7 @@ impl GeneratedTile {
     }
 }
 
-impl crate::sim::topology::RiverEdgeTile for GeneratedTile {
+impl crate::world::topology::RiverEdgeTile for GeneratedTile {
     fn has_river(&self) -> bool {
         self.river
     }
@@ -756,7 +735,12 @@ pub(crate) fn generate_with_settings(
     wrap: MapWrap,
     settings: Civ3WorldSettings,
 ) -> GeneratedMap {
-    generate_with_civilization_count(seed, wrap, settings, PLAYER_COUNT)
+    generate_with_civilization_count(
+        seed,
+        wrap,
+        settings,
+        crate::world::DEFAULT_CIVILIZATION_COUNT,
+    )
 }
 
 pub(crate) fn generate_for_civ3_size(

@@ -13,8 +13,9 @@ mod terrain;
 mod unit_stats;
 mod units;
 
+pub(crate) use crate::world::{Resource, Terrain, TerrainBase};
 pub(crate) use entities::{City, Player, Production, Unit, UnitState, WorkKind};
-pub(crate) use terrain::{Resource, Terrain, TerrainBase, Tile};
+pub(crate) use terrain::Tile;
 pub(crate) use units::UnitKind;
 
 pub(super) fn research_cost(requirements: i32) -> i32 {
@@ -94,8 +95,14 @@ mod native_type_order_tests {
         rubber_tile.resource = Some(Resource::Rubber);
         rubber_tile.road = true;
         rubber_tile.owner = Some(1);
-        assert!(game.unit_buildable(&game.cities[0], UnitKind::Marine), "Marine source gates not met");
-        assert!(game.unit_buildable(&game.cities[0], UnitKind::Guerilla), "Guerilla source gates not met");
+        assert!(
+            game.unit_buildable(&game.cities[0], UnitKind::Marine),
+            "Marine source gates not met"
+        );
+        assert!(
+            game.unit_buildable(&game.cities[0], UnitKind::Guerilla),
+            "Guerilla source gates not met"
+        );
         assert_eq!(
             UnitKind::Guerilla.stats().defense,
             UnitKind::Marine.stats().defense

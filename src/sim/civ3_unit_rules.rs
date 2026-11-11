@@ -397,9 +397,9 @@ fn parse_ai_strategy_mask(profiles: &str, row: usize) -> u32 {
         let mut parts = profile.split(':');
         let _prototype_index = parts.next();
         let _other_strategy = parts.next();
-        let raw_flags = parts.next().unwrap_or_else(|| {
-            panic!("missing source AI flags on Civ III unit table row {row}")
-        });
+        let raw_flags = parts
+            .next()
+            .unwrap_or_else(|| panic!("missing source AI flags on Civ III unit table row {row}"));
         assert_eq!(raw_flags.len(), 16, "invalid source AI flags on row {row}");
         let bytes = raw_flags
             .as_bytes()
@@ -410,10 +410,7 @@ fn parse_ai_strategy_mask(profiles: &str, row: usize) -> u32 {
                     .unwrap_or_else(|error| panic!("invalid source AI flags on row {row}: {error}"))
             })
             .collect::<Vec<_>>();
-        strategies
-            | u32::from(bytes[4])
-            | (u32::from(bytes[5]) << 8)
-            | (u32::from(bytes[6]) << 16)
+        strategies | u32::from(bytes[4]) | (u32::from(bytes[5]) << 8) | (u32::from(bytes[6]) << 16)
     })
 }
 

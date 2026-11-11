@@ -14,7 +14,7 @@ impl Game {
     pub(in crate::client) fn draw_city_map(
         &self,
         assets: &Assets,
-        city: &City,
+        city: &CityManagerView,
         layout: &super::city_map::CityMapLayout,
     ) {
         let bounds = layout.bounds;
@@ -36,10 +36,10 @@ impl Game {
             bounds.h,
             map_view::MAP_UNKNOWN,
         );
-        let radius: std::collections::HashSet<_> = self
-            .sim
-            .map_city_radius(city)
-            .map(|(dx, dy, _, _)| (dx, dy))
+        let radius: std::collections::HashSet<_> = city
+            .map_tiles
+            .iter()
+            .map(|tile| (tile.dx, tile.dy))
             .collect();
         let span =
             ((bounds.w / layout.tile_w + bounds.h / layout.tile_h).ceil() as i32 + 3).min(24);
@@ -65,7 +65,7 @@ impl Game {
         tiles.sort_by(|a, b| a.4.y.total_cmp(&b.4.y));
         let painter = super::civ3::Civ3WorldPainter::new(self, assets);
         for &(_, _, x, y, center, relevant) in &tiles {
-            if !relevant || !self.sim.render_tile(x, y).seen {
+            if !relevant || !self.sim.render_tile_view(x, y).seen {
                 draw_diamond(center, layout.tile_w, layout.tile_h, BLACK);
             } else {
                 painter.draw_map_base(x, y, center, layout.tile_w, layout.tile_h);
@@ -73,13 +73,18 @@ impl Game {
         }
         for layer in map_layers::MAP_LAYERS {
             for &(_, _, x, y, center, relevant) in &tiles {
-                if !relevant || !self.sim.render_tile(x, y).seen {
+                if !relevant || !self.sim.render_tile_view(x, y).seen {
                     continue;
                 }
                 let is_city = (x, y) == (city.x, city.y);
                 if layer == map_layers::MapLayer::City {
                     if is_city {
-                        self.draw_city_at_scale(assets, city, center, layout.tile_w / TILE_W);
+                        self.draw_city_manager_at_scale(
+                            assets,
+                            city,
+                            center,
+                            layout.tile_w / TILE_W,
+                        );
                     }
                 } else {
                     painter.draw_map_layer(
@@ -132,32 +137,68 @@ impl Game {
         }
     }
 
-    fn draw_city_at_scale(&self, assets: &Assets, city: &City, center: Vec2, zoom: f32) {
-        let observed = self.sim.observed_city(city);
-        self.draw_observed_city(assets, &observed, center, zoom);
+    fn draw_city_manager_at_scale(
+        &self,
+        assets: &Assets,
+        city: &CityManagerView,
+        center: Vec2,
+        zoom: f32,
+    ) {
+        let city = &city.city_sprite;
+        self.draw_city_sprite(
+            assets,
+            city.size,
+            city.civ3_style,
+            city.civ3_era,
+            city.civilization_id.as_deref(),
+            city.occupied,
+            city.disorder,
+            center,
+            zoom,
+        );
     }
 
     pub(super) fn draw_observed_city(
         &self,
         assets: &Assets,
-        observed: &ObservedCity,
+        city: &RenderedCityView,
+        center: Vec2,
+        zoom: f32,
+    ) {
+        self.draw_city_sprite(
+            assets,
+            city.size,
+            city.civ3_style,
+            city.civ3_era,
+            city.civilization_id.as_deref(),
+            city.occupied,
+            city.disorder,
+            center,
+            zoom,
+        );
+    }
+
+    fn draw_city_sprite(
+        &self,
+        assets: &Assets,
+        size: i32,
+        style: u8,
+        era: u8,
+        civilization_id: Option<&str>,
+        occupied: bool,
+        disorder: bool,
         center: Vec2,
         zoom: f32,
     ) {
         let zoom = zoom * WORLD_ART_SCALE;
         // Civ III sheets are four eras by three population bands.
-        let col = match observed.city.size {
+        let col = match size {
             1..=6 => 0,
             7..=12 => 1,
             _ => 2,
         };
-        let row = i32::from(observed.civ3_era.min(3));
-        let texture = assets.civ3.city_texture_at(
-            observed.civ3_style,
-            self.sim.players()[observed.city.owner]
-                .civilization_id
-                .as_deref(),
-        );
+        let row = i32::from(era.min(3));
+        let texture = assets.civ3.city_texture_at(style, civilization_id);
         let source = Rect::new(col as f32 * 167.0, row as f32 * 95.0, 167.0, 95.0);
         // Draw the source frame at native size, scaled only by world zoom.
         let (city_w, city_h) = (167.0 * zoom, 95.0 * zoom);
@@ -173,26 +214,26 @@ impl Game {
                 ..Default::default()
             },
         );
-        if observed.occupied {
+        if occupied {
             self.draw_city_overlay(assets, center, zoom, 2);
         }
-        if observed.disorder {
+        if disorder {
             self.draw_city_overlay(assets, center, zoom, 5);
         }
     }
 
-    pub(super) fn draw_city_label(&self, city: &City, center: Vec2) {
+    pub(super) fn draw_city_label(&self, city: &RenderedCityView, center: Vec2) {
         let zoom = self.zoom;
-        let detail = self.city_bar_detail(city);
-        let top_text = detail.as_ref().map_or_else(
+        let top_text = city.growth_label.as_ref().map_or_else(
             || city.name.clone(),
-            |detail| format!("{} : {}", city.name, detail.growth),
+            |growth| format!("{} : {growth}", city.name),
         );
         let center_font = (11.0 * zoom).max(9.0);
         let top_metrics = measure_text(&top_text, None, center_font as u16, 1.0);
-        let bottom_metrics = detail
+        let bottom_metrics = city
+            .production_label
             .as_ref()
-            .map(|detail| measure_text(&detail.production, None, center_font as u16, 1.0));
+            .map(|production| measure_text(production, None, center_font as u16, 1.0));
         // The reference selection ring is tile-sized; its bottom must clear
         // the label too, regardless of which unit is currently focused.
         let top = super::city_bar::label_top(center.y, zoom);
@@ -204,7 +245,11 @@ impl Game {
             + horizontal_padding * 2.0)
             .max((94.0 * zoom).max(82.0));
         let row_height = (center_font + vertical_padding).max(12.0);
-        let row_count = if detail.is_some() { 2.0 } else { 1.0 };
+        let row_count = if city.production_label.is_some() {
+            2.0
+        } else {
+            1.0
+        };
         let height = row_height * row_count + vertical_padding;
         let size_text = city.size.to_string();
         let size_font = (19.0 * zoom).max(14.0);
@@ -214,7 +259,7 @@ impl Game {
         let side_width = size_metrics.width.max(star_radius * 2.0) + side_padding * 2.0;
         let width = center_width + side_width * 2.0;
         let left = center.x - width * 0.5;
-        let civ_id = self.sim.players()[city.owner].civilization_id.as_deref();
+        let civ_id = city.civilization_id.as_deref();
         let owner_color = player_color(civ_id, city.owner);
         let secondary_color =
             super::sprite_metadata::secondary_civilization_color(civ_id, city.owner);
@@ -260,7 +305,7 @@ impl Game {
             1.0,
             Color::from_rgba(15, 15, 13, 235),
         );
-        if detail.is_some() {
+        if city.production_label.is_some() {
             draw_line(
                 left + side_width,
                 top + row_height,
@@ -287,9 +332,11 @@ impl Game {
             center_font,
             Color::from_rgba(244, 235, 201, 255),
         );
-        if let (Some(detail), Some(metrics)) = (detail.as_ref(), bottom_metrics.as_ref()) {
+        if let (Some(production), Some(metrics)) =
+            (city.production_label.as_ref(), bottom_metrics.as_ref())
+        {
             draw_text(
-                &detail.production,
+                production,
                 text_left + (center_width - metrics.width) * 0.5,
                 centered_text_baseline(top + row_height, row_height, *metrics),
                 center_font,
@@ -297,9 +344,7 @@ impl Game {
             );
         }
 
-        if city.buildings.contains(&Building::PALACE)
-            || city.buildings.contains(&Building::ECCLESIASTICAL_PALACE)
-        {
+        if city.capital {
             let star_center = vec2(
                 left + side_width + center_width + side_width * 0.5,
                 top + height * 0.5,
@@ -344,7 +389,7 @@ impl Game {
     pub(in crate::client) fn draw_unit(
         &self,
         assets: &Assets,
-        unit: &Unit,
+        unit: &RenderedUnitView,
         center: Vec2,
         stack_count: usize,
         action: super::super::tileset::Civ3UnitAction,
@@ -361,9 +406,9 @@ impl Game {
         let native_unit_drawn = assets.civ3.draw_unit(
             unit.kind,
             unit.owner,
-            self.sim.players()[unit.owner].civilization_id.as_deref(),
+            unit.civilization_id.as_deref(),
             unit.facing,
-            self.sim.research_era(unit.owner).index(),
+            unit.era_index,
             action,
             animation_progress,
             playback_duration_seconds,
@@ -373,10 +418,7 @@ impl Game {
         );
         if !native_unit_drawn {
             let color = if unit.moves_left > 0 {
-                player_color(
-                    self.sim.players()[unit.owner].civilization_id.as_deref(),
-                    unit.owner,
-                )
+                player_color(unit.civilization_id.as_deref(), unit.owner)
             } else {
                 Color::from_rgba(115, 120, 125, 255)
             };

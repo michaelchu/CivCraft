@@ -20,8 +20,7 @@ pub(crate) struct UnitStats {
 impl UnitKind {
     pub(crate) fn hit_points_at_rank(self, rank: usize) -> i32 {
         let rule = self.conquests_rule();
-        crate::sim::civ3_unit_rules::experience_rank(rank).base_hit_points
-            + rule.hit_point_bonus
+        crate::sim::civ3_unit_rules::experience_rank(rank).base_hit_points + rule.hit_point_bonus
     }
 
     pub(crate) fn stats(self) -> UnitStats {
@@ -40,8 +39,7 @@ impl UnitKind {
             // Vision radius is an engine default, not a PRTO field.
             vision_sq: 2,
             ignores_terrain: rule.has_flag_1(0, 4),
-            can_work: metadata.flags
-                & (1u64 << crate::sim::unit_catalog::UnitFlag::Workers as u32)
+            can_work: metadata.flags & (1u64 << crate::sim::unit_catalog::UnitFlag::Workers as u32)
                 != 0,
             can_found: rule.has_flag_3(8, 1),
         }

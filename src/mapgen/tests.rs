@@ -1,7 +1,7 @@
 //! Regression tests for the behavior of the parent module.
 
 use super::*;
-use crate::sim::Resource;
+use crate::world::Resource;
 
 const TILE_COUNT: usize = (MAP_W * MAP_H) as usize;
 
@@ -67,7 +67,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
             !tiles[(Generator {
                 wrap: MapWrap::X,
                 settings: Civ3WorldSettings::default(),
-                civilization_count: PLAYER_COUNT,
+                civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             })
             .index(x, y)]
             .hut
@@ -98,7 +98,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                     (Generator {
                         wrap: MapWrap::X,
                         settings: Civ3WorldSettings::default(),
-                        civilization_count: PLAYER_COUNT,
+                        civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                     })
                     .within(index, 3)
                     .all(|next| next == index || !tiles[next].hut)
@@ -109,7 +109,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                     (Generator {
                         wrap: MapWrap::X,
                         settings: Civ3WorldSettings::default(),
-                        civilization_count: PLAYER_COUNT,
+                        civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                     })
                     .neighbors(index)
                     .all(|next| tiles[next].resource.is_none())
@@ -134,7 +134,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                 for next in (Generator {
                     wrap: MapWrap::X,
                     settings: Civ3WorldSettings::default(),
-                    civilization_count: PLAYER_COUNT,
+                    civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
                 })
                 .civ3_neighbors(current)
                 {
@@ -158,7 +158,7 @@ fn river_course_can_turn_toward_a_nearby_outlet() {
     let generator = Generator {
         wrap,
         settings: Civ3WorldSettings::default(),
-        civilization_count: PLAYER_COUNT,
+        civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let mut tiles = map.tiles;
     for tile in &mut tiles {
@@ -419,7 +419,7 @@ fn civ3_landform_choices_are_deterministic_and_change_landmass_scale() {
     let topology = Generator {
         wrap: MapWrap::X,
         settings: Civ3WorldSettings::default(),
-        civilization_count: PLAYER_COUNT,
+        civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
     };
     let land_components: Vec<_> = maps
         .iter()
@@ -519,7 +519,7 @@ mod wrap_generation_tests {
             let generator = Generator {
                 wrap,
                 settings: Civ3WorldSettings::default(),
-                civilization_count: PLAYER_COUNT,
+                civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             };
             let y = wrap.height() / 2;
             for x in [0, wrap.width() / 2, wrap.width() - 1] {
@@ -581,7 +581,7 @@ mod wrap_generation_tests {
             let g = Generator {
                 wrap: MapWrap::X,
                 settings: Civ3WorldSettings::default(),
-                civilization_count: PLAYER_COUNT,
+                civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             };
             assert_eq!(g.colatitude(0), 0);
             assert_eq!(g.colatitude(g.wrap.tile_count() - 1), 0);
@@ -603,7 +603,7 @@ mod wrap_generation_tests {
             let generator = Generator {
                 wrap,
                 settings: Civ3WorldSettings::default(),
-                civilization_count: PLAYER_COUNT,
+                civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
             };
             let land = generator.index(wrap.width() / 2, wrap.height() / 2);
             let mut terrain = vec![Terrain::Ocean; wrap.tile_count()];

@@ -144,8 +144,7 @@ impl Simulation {
         // future Spearman484/225, wallvalue90, danger211, Bronze30/4=7.
         // ((484/225)*9*211/27)*10/(.16*9) ~=1050.6584.
         let want = self.production_defender_tech_want(&self.cities[0], Tech::BRONZE_WORKING);
-        let technology = want > 0.0
-            && self.advisor_tech_wants(1)[Tech::BRONZE_WORKING.0] >= want;
+        let technology = want > 0.0 && self.advisor_tech_wants(1)[Tech::BRONZE_WORKING.0] >= want;
         (quiet, cities, rows, technology)
     }
 
@@ -326,14 +325,12 @@ impl Simulation {
             matches!(choice.production, Production::Unit(kind)
                 if kind.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::Defense))
                 && choice.want > 0.0
-        })
-            && after.is_some_and(|choice| {
-                choice.production == Production::Building(Building::BARRACKS)
-                    && before.is_some_and(|old| choice.want < old.want)
-            })
-            && self
-                .ai_build_choice(&city)
-                .is_some_and(|c| c.production == Production::Building(Building::BARRACKS));
+        }) && after.is_some_and(|choice| {
+            choice.production == Production::Building(Building::BARRACKS)
+                && before.is_some_and(|old| choice.want < old.want)
+        }) && self
+            .ai_build_choice(&city)
+            .is_some_and(|c| c.production == Production::Building(Building::BARRACKS));
         let mut investment = true;
         for stock in [0, 19, 20, 200] {
             for gold in [0, 10000] {

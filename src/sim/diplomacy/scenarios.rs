@@ -3,52 +3,6 @@
 use super::*;
 
 impl Simulation {
-    /// Controlled war-ending scenario for the diplomacy interaction gallery.
-    pub(crate) fn ui_review_compensation_negotiation(&mut self, other: usize) {
-        self.players[HUMAN].gold = 250;
-        let relation = self
-            .diplomacy
-            .get_mut(&Self::relation_key(HUMAN, other))
-            .expect("the diplomacy fixture establishes contact");
-        relation.pact = Pact::Ceasefire;
-        relation.until = self.turn + 4;
-        relation.trust[usize::from(other > HUMAN)] = 1000;
-    }
-
-    /// Worst-case concessions for the isolated, opt-in screenshot gallery.
-    pub(crate) fn ui_review_offer(&mut self) -> TreatyOffer {
-        let mut terms = Concessions {
-            gold: 12345,
-            technology: Some(Tech::AMPHIBIOUS_WARFARE),
-            access: 3,
-        };
-        terms = terms
-            .with_embassy()
-            .with_city(self.cities_owned_by(1).next().unwrap().id);
-        let offer = TreatyOffer {
-            pact: Some(Pact::Alliance),
-            terms: [terms; 2],
-        };
-        self.diplomacy
-            .get_mut(&Self::relation_key(HUMAN, 1))
-            .unwrap()
-            .offer = Some(offer);
-        offer
-    }
-
-    pub(crate) fn ui_review_contacts(&mut self) {
-        for other in 1..PLAYER_COUNT {
-            self.make_diplomatic_contact(HUMAN, other);
-            // Established peace lets the gallery exercise city purchase controls.
-            let relation = self
-                .diplomacy
-                .get_mut(&Self::relation_key(HUMAN, other))
-                .unwrap();
-            relation.pact = Pact::Peace;
-            relation.until = 0;
-        }
-    }
-
     pub(crate) fn ai_war_planning_playtest(&mut self) -> bool {
         self.units.clear();
         for (owner, (x, y)) in [(HUMAN, (8, 20)), (1, (12, 24))] {

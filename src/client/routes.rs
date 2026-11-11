@@ -11,7 +11,7 @@ impl Game {
             return None;
         }
         let (x, y) = self.screen_to_world(pointer)?;
-        self.sim.preview_goto(self.selected_unit?, x, y)
+        self.sim.goto_preview_view(self.selected_unit?, x, y)
     }
 
     pub(super) fn draw_goto_preview(&self, _assets: &Assets) {

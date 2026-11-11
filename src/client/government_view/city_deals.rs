@@ -17,13 +17,7 @@ impl Game {
         let back = Rect::new(panel.right() - 88.0, panel.y + 12.0, 72.0, 26.0);
         draw_ui_button(back, "Back", true, false);
         let mut actions = vec![(back, UiAction::CityDeals(None))];
-        let cities: Vec<_> = self
-            .sim
-            .cities()
-            .iter()
-            .filter(|city| city.owner == owner)
-            .filter_map(|city| self.sim.city_trade_price(city).map(|price| (city, price)))
-            .collect();
+        let cities = self.sim.city_deals_view(owner);
         if cities.is_empty() {
             draw_text(
                 "No cities are available for purchase.",
@@ -34,7 +28,7 @@ impl Game {
             );
         }
         let page = page.min(cities.len().saturating_sub(1) / 7);
-        for (row, &(city, price)) in cities.iter().skip(page * 7).take(7).enumerate() {
+        for (row, city) in cities.iter().skip(page * 7).take(7).enumerate() {
             let y = panel.y + 53.0 + row as f32 * 37.0;
             text_in(
                 &city.name,
@@ -45,10 +39,14 @@ impl Game {
                 WHITE,
             );
             let button = Rect::new(panel.right() - 145.0, y, 129.0, 28.0);
-            let affordable = self.sim.players()[HUMAN].gold >= price;
-            draw_ui_button(button, &format!("Buy {price}g"), affordable, false);
-            if affordable {
-                actions.push((button, UiAction::BuyCity(city.id, price)));
+            draw_ui_button(
+                button,
+                &format!("Buy {}g", city.price),
+                city.affordable,
+                false,
+            );
+            if city.affordable {
+                actions.push((button, UiAction::BuyCity(city.id, city.price)));
             }
         }
         actions.extend(pager(
@@ -76,7 +74,10 @@ impl Game {
         let draw_text = panel_text(panel);
         let x = panel.x + 18.0;
         draw_text(
-            &format!("Treaty offer from {}", self.sim.players()[owner].name),
+            &format!(
+                "Treaty offer from {}",
+                self.sim.player_name_view(owner).unwrap_or_default()
+            ),
             x,
             panel.y + 32.0,
             22.0,
@@ -112,13 +113,11 @@ impl Game {
                 lines.push(format!("{map:?} map"));
             }
             if let Some(id) = terms.city() {
-                let name = self
-                    .sim
-                    .cities()
-                    .iter()
-                    .find(|city| city.id == id)
-                    .map_or("Unavailable city", |city| city.name.as_str());
-                lines.push(name.to_owned());
+                lines.push(
+                    self.sim
+                        .city_name_view(id)
+                        .unwrap_or_else(|| "Unavailable city".to_owned()),
+                );
             }
             if lines.is_empty() {
                 lines.push("No concessions".to_owned());
@@ -128,7 +127,7 @@ impl Game {
                 text_in(&line, x, y, 17.0, column_w, LIGHTGRAY);
             }
         }
-        let valid = self.sim.treaty_offer(owner) == Some(offer);
+        let valid = self.sim.treaty_offer_current_view(owner, offer);
         let buttons = [
             ("Accept", UiAction::AcceptOffer(owner, offer), valid),
             ("Decline", UiAction::DeclineOffer(owner), valid),

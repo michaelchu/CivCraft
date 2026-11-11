@@ -95,16 +95,6 @@ impl Simulation {
         self.nation_scores[HUMAN].units_built = 1000;
     }
 
-    pub(crate) fn manual_spaceship_playtest_setup(&mut self) {
-        let city = self
-            .cities
-            .iter()
-            .find(|city| city.owner == HUMAN)
-            .unwrap()
-            .id;
-        self.finish_building(city, HUMAN, Building::APOLLO_PROGRAM, 600);
-    }
-
     pub(crate) fn manual_spaceship_playtest_build_structural(&mut self) {
         let city = self
             .cities

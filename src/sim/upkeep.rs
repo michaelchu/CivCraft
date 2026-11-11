@@ -13,7 +13,11 @@ impl Simulation {
         UnitUpkeep {
             food: 0,
             shields: 0,
-            gold: self.city_gold_upkeep(city).iter().map(|(_, cost)| cost).sum(),
+            gold: self
+                .city_gold_upkeep(city)
+                .iter()
+                .map(|(_, cost)| cost)
+                .sum(),
         }
     }
 
@@ -133,7 +137,6 @@ impl Simulation {
         });
         self.prune_unit_ai_state();
     }
-
 }
 
 #[cfg(test)]
@@ -180,6 +183,9 @@ mod tests {
             game.units.last_mut().unwrap().home_city = Some(city_id);
             units.push(id);
         }
-        assert_eq!(game.city_gold_upkeep(&game.cities[0]), vec![(units[1], 2), (units[2], 2)]);
+        assert_eq!(
+            game.city_gold_upkeep(&game.cities[0]),
+            vec![(units[1], 2), (units[2], 2)]
+        );
     }
 }

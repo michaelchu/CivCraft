@@ -14,26 +14,25 @@ impl Game {
             Color::from_rgba(171, 133, 55, 255),
         );
 
-        let player = &self.sim.players()[HUMAN];
-        let status = self.sim.spaceship_status(HUMAN);
+        let Some(view) = self.sim.top_bar_view(HUMAN) else {
+            return;
+        };
+        let status = view.spaceship_status;
         let button_count = 7 + usize::from(status.is_some());
         let button_width = 38.0;
         let step = button_width + 4.0;
         let button_start = width - HUD_MARGIN - button_count as f32 * step + 4.0;
-        let research = player.researching;
         let displays = [
             (
-                format!("Turn {} · {}", self.sim.turn(), year_label(self.sim.year())),
+                format!("Turn {} · {}", view.turn, year_label(view.year)),
                 WHITE,
             ),
-            (format!("Gold {}", player.gold), GOLD),
-            (player.government.name().to_owned(), LIGHTGRAY),
+            (format!("Gold {}", view.gold), GOLD),
+            (view.government_name.to_owned(), LIGHTGRAY),
             (
                 format!(
                     "{} {}/{}",
-                    research.name(),
-                    player.research,
-                    self.sim.target_cost(HUMAN, research)
+                    view.research_name, view.research_points, view.research_cost
                 ),
                 Color::from_rgba(151, 210, 231, 255),
             ),
@@ -54,12 +53,8 @@ impl Game {
             x += slot + 11.0;
         }
 
-        let in_anarchy = player.government == Government::Anarchy;
-        let rates = if in_anarchy {
-            [0, 0, 100]
-        } else {
-            player.rates
-        };
+        let in_anarchy = view.anarchy;
+        let rates = if in_anarchy { [0, 0, 100] } else { view.rates };
         let mut controls = vec![
             (
                 HudIcon::Government,
@@ -95,7 +90,7 @@ impl Game {
         .enumerate()
         {
             let rate = rates[index];
-            let enabled = !in_anarchy && rate < player.government.max_rate();
+            let enabled = !in_anarchy && rate < view.max_rate;
             controls.push((
                 icon,
                 UiAction::RaiseRate(index),
@@ -112,7 +107,7 @@ impl Game {
                 status,
                 None,
                 true,
-                self.sim.can_launch_spaceship(HUMAN),
+                view.can_launch_spaceship,
             ));
         }
 

@@ -345,7 +345,9 @@ impl City {
             .binary_search_by_key(&building.0, |&(id, _)| id)
         {
             Ok(index) => self.culture_building_years[index].1 = year,
-            Err(index) => self.culture_building_years.insert(index, (building.0, year)),
+            Err(index) => self
+                .culture_building_years
+                .insert(index, (building.0, year)),
         }
     }
 

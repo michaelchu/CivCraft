@@ -72,8 +72,16 @@ pub(crate) use ui::set_review_pointer;
 use ui::*;
 pub(crate) use ui_review::{UI_REVIEW_SCENES, UiReviewSequence, UiReviewSources};
 
-use crate::rules::{Building, Genus, Requirement, Tech};
-use crate::sim::{topology::*, *};
+use crate::rules::{Building, Requirement, Tech};
+use crate::sim::{
+    Base, CityManagerView, Command, GotoPoint, GotoPreview, Government, HUMAN, MAX_CIVILIZATIONS,
+    Pact, PresentationEventView, Production, RenderedCityView, RenderedUnitView, Resource,
+    ShipPart, Simulation, Terrain, TreatyMap, TreatyOffer, UnitKind, UnitState, WORKLIST_LIMIT,
+    WorkKind, WorklistEdit, year_label,
+};
+#[cfg(test)]
+use crate::sim::{CombatVisual, VisualEvent};
+use crate::world::topology::*;
 use macroquad::prelude::*;
 use research_tree::{NODE_SIZE, RESEARCH_AGES, ResearchTree};
 
@@ -248,17 +256,9 @@ pub(crate) struct Game {
 }
 
 impl Game {
-    /// Creates a new interactive game with the default renderer.
-    pub(crate) fn new(map: crate::mapgen::GeneratedMap) -> Self {
-        Self::new_with_renderer(map, render_backend::default_renderer())
-    }
-
-    /// Creates a new game using the selected rendering backend.
-    pub(crate) fn new_with_renderer(
-        map: crate::mapgen::GeneratedMap,
-        renderer: std::rc::Rc<dyn RenderBackend>,
-    ) -> Self {
-        Self::from_simulation_with_renderer(Simulation::new(map), renderer)
+    /// Creates client state around a simulation using the default renderer.
+    pub(crate) fn new(sim: Simulation) -> Self {
+        Self::from_simulation(sim)
     }
 
     /// Restores client state around a loaded simulation using the default renderer.
@@ -272,21 +272,10 @@ impl Game {
         renderer: std::rc::Rc<dyn RenderBackend>,
     ) -> Self {
         sim.enable_visual_events();
-        let focus = sim
-            .units_owned_by(HUMAN)
-            .find(|unit| unit.kind == UnitKind::Settler)
-            .or_else(|| sim.units_owned_by(HUMAN).next());
-        let selected_unit = focus.map(|unit| unit.id);
-        let position = focus
-            .map(|unit| (unit.x, unit.y))
-            .or_else(|| {
-                sim.cities_owned_by(HUMAN)
-                    .next()
-                    .map(|city| (city.x, city.y))
-            })
-            .unwrap_or((0, 0));
+        let (selected_unit, position) = sim.initial_client_focus_view();
+        let position = position.unwrap_or((0, 0));
         let (x, y) = native_to_map(position.0, position.1);
-        let last_sim_messages = sim.events().to_vec();
+        let last_sim_messages = sim.campaign_messages_view();
         Self {
             sim,
             client_messages: Vec::new(),
@@ -361,7 +350,7 @@ impl Game {
             self.worklist_page = None;
             self.city_tiles = false;
             self.selected_city = None;
-            self.pending_city_view = self.sim.cities().last().map(|city| city.id);
+            self.pending_city_view = self.sim.newest_city_id_view();
             true
         } else {
             false
@@ -369,22 +358,11 @@ impl Game {
     }
 
     fn move_selected(&mut self, command: Command, id: u32) -> bool {
-        let previous = self
-            .sim
-            .units()
-            .iter()
-            .find(|u| u.id == id)
-            .map(|u| (u.x, u.y));
+        let previous = self.sim.unit_position_view(id);
         if !self.sim.apply(command) {
             return false;
         }
-        if let Some((x, y)) = self
-            .sim
-            .units()
-            .iter()
-            .find(|u| u.id == id)
-            .map(|u| (u.x, u.y))
-        {
+        if let Some((x, y)) = self.sim.unit_position_view(id) {
             if Some((x, y)) != previous {
                 self.focus_camera_on(x, y);
             }
@@ -396,27 +374,21 @@ impl Game {
 
     fn selected_unit_index(&self) -> Option<usize> {
         let id = self.selected_unit?;
-        self.sim.unit_index_by_id(id)
+        self.sim.unit_action_view(id).map(|_| 0)
     }
 
     fn selected_city_index(&self) -> Option<usize> {
         let id = self.selected_city?;
-        self.sim.city_index_by_id(id)
+        self.sim.city_context_view(id).map(|_| 0)
     }
 
     fn select_next_unit(&mut self) {
         let current = self.selected_unit.unwrap_or(0);
         let mut candidates: Vec<u32> = self
             .sim
-            .units()
-            .iter()
-            .filter(|u| {
-                u.owner == HUMAN
-                    && u.moves_left > 0
-                    && u.work_left == 0
-                    && u.state != UnitState::Sentry
-            })
-            .map(|u| u.id)
+            .selectable_units_view()
+            .into_iter()
+            .map(|unit| unit.id)
             .collect();
         candidates.sort_unstable();
         let next = candidates
@@ -428,12 +400,7 @@ impl Game {
         self.selected_unit = next;
         self.selected_city = None;
         if let Some(id) = next
-            && let Some((x, y)) = self
-                .sim
-                .units()
-                .iter()
-                .find(|u| u.id == id)
-                .map(|unit| (unit.x, unit.y))
+            && let Some((x, y)) = self.sim.unit_position_view(id)
         {
             self.focus_camera_on(x, y);
         }
@@ -470,6 +437,7 @@ impl Game {
         renderer.draw_world(self, assets);
         let mut actions = self.draw_hud(assets);
         if self.intro_open {
+            actions.clear();
             actions.extend(self.draw_intro());
             return actions;
         }
@@ -534,13 +502,12 @@ impl Game {
                 Color::from_rgba(255, 237, 170, 255),
             );
         }
-        if let Some(message) = self.sim.game_over()
+        if let Some(game_over) = self.sim.game_over_view()
             && !self.playback.pending()
         {
             let w = 540.0_f32.min(screen_width() - 80.0);
-            let standings = self.sim.score_standings();
             let rows = ((screen_height() - 165.0) / 24.0).max(1.0) as usize;
-            let h = 129.0 + 24.0 * standings.len().min(rows) as f32;
+            let h = 129.0 + 24.0 * game_over.standings.len().min(rows) as f32;
             let x = (screen_width() - w) * 0.5;
             let y = (screen_height() - h) * 0.5;
             draw_rectangle(x - 5.0, y - 5.0, w + 10.0, h + 10.0, BLACK);
@@ -553,14 +520,14 @@ impl Game {
                 Color::from_rgba(250, 222, 124, 255),
             );
             centered_text(
-                message,
+                &game_over.message,
                 y + 88.0,
                 21.0,
                 Color::from_rgba(238, 234, 218, 255),
             );
-            for (index, (owner, score)) in standings.into_iter().take(rows).enumerate() {
+            for (index, standing) in game_over.standings.iter().take(rows).enumerate() {
                 centered_text(
-                    &format!("{}  ·  {score} points", self.sim.players()[owner].name),
+                    &format!("{}  ·  {} points", standing.name, standing.score),
                     y + 117.0 + index as f32 * 24.0,
                     17.0,
                     Color::from_rgba(176, 180, 169, 255),
@@ -575,12 +542,12 @@ impl Game {
             self.fidget_sound_cycle = None;
             return;
         };
-        let Some(unit) = self.sim.units().iter().find(|unit| unit.id == id).cloned() else {
+        let Some(unit) = self.sim.unit_fidget_view(id) else {
             self.fidget_sound_cycle = None;
             return;
         };
         if self.playback.is_active(id)
-            || unit.work_kind.is_some()
+            || unit.working
             || !matches!(
                 unit.state,
                 UnitState::Idle | UnitState::Sentry | UnitState::AirSuperiority
@@ -601,7 +568,9 @@ impl Game {
         if phase < pacing.play_seconds && self.fidget_sound_cycle != Some(cycle_key) {
             self.unit_sound_requests
                 .push_back(unit_sound::UnitSoundRequest {
-                    unit,
+                    unit_id: unit.id,
+                    kind: unit.kind,
+                    era_index: unit.era_index,
                     action: "FIDGET".to_owned(),
                     delay_seconds: 0.0,
                 });
@@ -747,7 +716,7 @@ mod tests {
 
     #[test]
     fn client_notices_are_transient_and_capped_without_mutating_campaign_events() {
-        let mut game = Game::new(crate::mapgen::generate(42));
+        let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
         let campaign_events = game.sim.events().to_vec();
         for index in 0..11 {
             game.notify(format!("notice {index}"));
@@ -762,7 +731,7 @@ mod tests {
 
     #[test]
     fn clicking_a_garrisoned_city_opens_city_management() {
-        let mut game = Game::new(crate::mapgen::generate(42));
+        let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
         let settler = game
             .sim
             .units()

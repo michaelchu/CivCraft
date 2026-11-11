@@ -5,10 +5,10 @@ use super::*;
 #[test]
 fn filtered_city_rendering_and_markers_preserve_live_and_remembered_state() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.ui_review_observed_map();
+    crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
     for reobserved in [false, true] {
         if reobserved {
-            game.ui_review_reobserve_map();
+            crate::sim::scenarios::ui_review::ui_review_reobserve_map(&mut game);
         }
         let all = game.render_cities();
         let filtered = game.render_cities_where(|c| (c.x, c.y) == (20, 24));
@@ -38,8 +38,8 @@ fn filtered_city_rendering_and_markers_preserve_live_and_remembered_state() {
 #[test]
 fn city_appearance_disorder_matches_full_forecast_after_policy_changes() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.ui_review_observed_map();
-    game.ui_review_reobserve_map();
+    crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
+    crate::sim::scenarios::ui_review::ui_review_reobserve_map(&mut game);
     let guard = game.spawn_unit(1, UnitKind::Warrior, 20, 24);
     let city_id = game.cities[0].id;
     game.units
@@ -73,8 +73,8 @@ fn city_appearance_disorder_matches_full_forecast_after_policy_changes() {
 #[test]
 fn fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.ui_review_observed_map();
-    assert!(game.ui_review_observed_map_valid(false));
+    crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
+    assert!(crate::sim::scenarios::ui_review::ui_review_observed_map_valid(&game, false));
     let owner = game.city_at(20, 24).unwrap().owner;
     let expected_style = game.players[owner]
         .civilization_id
@@ -94,8 +94,8 @@ fn fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved() {
     assert_eq!(game.render_tile(19, 23).terrain, Terrain::Forest);
     assert!(!game.render_tile(20, 24).visible);
     let observed_random = game.random_snapshot();
-    game.ui_review_reobserve_map();
-    assert!(game.ui_review_observed_map_valid(true));
+    crate::sim::scenarios::ui_review::ui_review_reobserve_map(&mut game);
+    assert!(crate::sim::scenarios::ui_review::ui_review_observed_map_valid(&game, true));
     let current = game
         .render_cities()
         .into_iter()
@@ -112,7 +112,7 @@ fn fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved() {
 #[test]
 fn destroyed_or_captured_cities_remain_at_last_observed_state() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.ui_review_observed_map();
+    crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
     let id = game.cities[0].id;
     game.cities[0].owner = 2;
     game.refresh_visibility();
@@ -128,7 +128,7 @@ fn destroyed_or_captured_cities_remain_at_last_observed_state() {
     game.cities.clear();
     game.refresh_visibility();
     assert!(game.render_cities().iter().any(|c| c.city.id == id));
-    game.ui_review_reobserve_map();
+    crate::sim::scenarios::ui_review::ui_review_reobserve_map(&mut game);
     assert!(!game.render_cities().iter().any(|c| c.city.id == id));
 }
 
@@ -143,8 +143,8 @@ fn sea_map_copies_the_sellers_visual_snapshot_not_live_world() {
 #[test]
 fn improvements_and_occupancy_are_frozen_outside_sight() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.ui_review_observed_map();
-    game.ui_review_reobserve_map();
+    crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
+    crate::sim::scenarios::ui_review::ui_review_reobserve_map(&mut game);
     let guard = game.spawn_unit(1, UnitKind::Warrior, 20, 24);
     game.refresh_visibility();
     if let Some(unit) = game.units.iter_mut().find(|u| u.owner == HUMAN) {
@@ -172,7 +172,7 @@ fn improvements_and_occupancy_are_frozen_outside_sight() {
             .unwrap()
             .occupied
     );
-    game.ui_review_reobserve_map();
+    crate::sim::scenarios::ui_review::ui_review_reobserve_map(&mut game);
     assert!(game.render_tile(20, 24).pollution);
     assert!(
         !game
@@ -267,12 +267,12 @@ fn newer_trade_maps_update_existing_visual_and_movement_knowledge_together() {
 #[test]
 fn observed_map_round_trips_and_rejects_corrupt_owners() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.ui_review_observed_map();
+    crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
     let path =
         std::env::temp_dir().join(format!("civcraft-observed-map-{}.save", std::process::id()));
     game.save_campaign(&path).unwrap();
     let mut loaded = Simulation::load_campaign(&path).unwrap();
-    assert!(loaded.ui_review_observed_map_valid(false));
+    assert!(crate::sim::scenarios::ui_review::ui_review_observed_map_valid(&loaded, false));
     assert_eq!(loaded.random_snapshot(), game.random_snapshot());
     loaded
         .observed_map

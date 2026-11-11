@@ -47,9 +47,6 @@ impl Assets {
         let source_fog = Texture2D::from_image(&source_fog_image);
         // Match OpenCiv3's nearest-filter sampling of the source fog atlas.
         source_fog.set_filter(FilterMode::Nearest);
-        Ok(Self {
-            civ3,
-            source_fog,
-        })
+        Ok(Self { civ3, source_fog })
     }
 }

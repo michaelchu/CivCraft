@@ -524,19 +524,15 @@ impl Simulation {
         } else {
             Style::Default
         };
-        let policy = if unit.kind.stats().can_work
-            || unit.kind.stats().can_found
-            || ferry
-        {
+        let policy = if unit.kind.stats().can_work || unit.kind.stats().can_found || ferry {
             TilePolicy::NoFights
         } else if unit.kind == UnitKind::Helicopter {
             TilePolicy::Default
         } else {
             match task {
-                GotoTask::Attack
-                | GotoTask::Defend
-                | GotoTask::Escort
-                | GotoTask::Hunter => TilePolicy::NoIntermediateFights,
+                GotoTask::Attack | GotoTask::Defend | GotoTask::Escort | GotoTask::Hunter => {
+                    TilePolicy::NoIntermediateFights
+                }
                 GotoTask::None => TilePolicy::Default,
             }
         };

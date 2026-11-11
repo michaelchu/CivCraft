@@ -34,13 +34,13 @@ impl Playtest {
                 "Standalone nuclear targeting preserved the reference's strict movement-cost cutoff, despite a valuable target.".to_owned()));
         }
 
-                if frame == 592 && self.act_passed {
+        if frame == 592 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_ground_invasion", sim.ai_ground_invasion_playtest(),
                 "A bomber struck a city supported by an explicit distant infantry mission before the infantry could arrive.".to_owned()));
         }
 
-                        if frame == 601 && self.act_passed {
+        if frame == 601 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_settlement_value", sim.ai_settlement_value_playtest(),
                 "Site values matched per-tile rounding, penalized city crowding, and rejected a polluted site that could not grow.".to_owned()));
@@ -64,7 +64,7 @@ impl Playtest {
                 "Distant attacks anticipated trained counter-units while preserving stronger veteran garrisons and live hit points.".to_owned()));
         }
 
-                                        if frame == 625 && self.act_passed {
+        if frame == 625 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_government_reevaluation", sim.ai_government_cache_playtest(),
                 "Government scores stayed cached until their reference deadline while newly researched governments became available immediately.".to_owned()));
@@ -76,7 +76,7 @@ impl Playtest {
                 "City danger included transported armies and paradrop reach without executing illegal moves.".to_owned()));
         }
 
-                if frame == 634 && self.act_passed {
+        if frame == 634 && self.act_passed {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_ferry_assignment_state", sim.ai_ferry_registry_playtest(),
                 "Empty assigned ferries stayed reserved, extra cargo did not steal command, and released or dead passengers freed their boats.".to_owned()));
@@ -94,7 +94,7 @@ impl Playtest {
                 "Factories and manufacturing plants increased real shield output; power sources amplified industry without stacking.".to_owned()));
         }
 
-                if frame == 646 && self.act_passed {
+        if frame == 646 && self.act_passed {
             let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_city_manager", sim.ai_city_manager_playtest(),
                 "City management chose feasible worker and specialist allocations through the reference constraint relaxation stages.".to_owned()));

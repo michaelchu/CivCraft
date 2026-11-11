@@ -28,8 +28,6 @@ fn civ3_east(sim: &Simulation, point: (i32, i32), tiles: usize) -> (i32, i32) {
     })
 }
 
-
-
 #[test]
 fn type_fuel_selects_the_map_even_when_instance_fuel_is_malformed() {
     let mut sim = world();

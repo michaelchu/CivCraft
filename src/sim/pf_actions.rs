@@ -7,12 +7,7 @@ impl UnitKind {
     pub(super) fn ignores_zoc(self) -> bool {
         (self.is_naval() && self != Self::Galley)
             || self.is_aircraft()
-            || matches!(
-                self,
-                Self::Explorer
-                    | Self::Guerilla
-                    | Self::Leader
-            )
+            || matches!(self, Self::Explorer | Self::Guerilla | Self::Leader)
     }
 }
 
@@ -277,9 +272,7 @@ mod tests {
         sim.cities.clear();
         sim.tile_mut(10, 20).terrain = Terrain::Grassland;
         sim.spawn_unit(1, UnitKind::Warrior, 10, 20);
-        for kind in [
-            UnitKind::Settler,
-        ] {
+        for kind in [UnitKind::Settler] {
             assert_eq!(
                 sim.pf_default_action(kind, HUMAN, (10, 20), true, true, true),
                 PfAction::None
