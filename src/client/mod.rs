@@ -238,6 +238,7 @@ pub(crate) struct Game {
     pub(crate) hud_elements_drawn: usize,
     playback: presentation::Playback,
     unit_sound_requests: std::collections::VecDeque<unit_sound::UnitSoundRequest>,
+    pending_sound_unit: Option<u32>,
     fidget_sound_cycle: Option<(u32, i64)>,
     dragging: bool,
     drag_last: Vec2,
@@ -330,6 +331,7 @@ impl Game {
             hud_elements_drawn: 0,
             playback: Default::default(),
             unit_sound_requests: Default::default(),
+            pending_sound_unit: None,
             fidget_sound_cycle: None,
             dragging: false,
             drag_last: vec2(0.0, 0.0),
@@ -338,6 +340,9 @@ impl Game {
 
     fn found_city(&mut self, id: u32) -> bool {
         if self.sim.apply(Command::FoundCity(id)) {
+            if self.selected_unit == Some(id) {
+                self.pending_sound_unit = Some(id);
+            }
             self.selected_unit = None;
             self.production_page = 0;
             self.unit_production_page = 0;
@@ -427,7 +432,8 @@ impl Game {
     /// Draws the current frame and returns the interactive control hit boxes.
     pub(crate) fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
         self.normalize_camera();
-        self.playback.update(&mut self.sim, get_time());
+        let sound_unit = self.pending_sound_unit.take().or(self.selected_unit);
+        self.playback.update(&mut self.sim, get_time(), sound_unit);
         self.unit_sound_requests
             .extend(self.playback.take_sound_requests());
         if !self.research_open && !self.spaceship_open && !self.intro_open {

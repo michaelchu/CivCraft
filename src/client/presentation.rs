@@ -11,7 +11,7 @@ pub(super) struct Playback {
     pub(super) review_progress: Option<f32>,
 }
 impl Playback {
-    pub(super) fn update(&mut self, sim: &mut Simulation, now: f64) {
+    pub(super) fn update(&mut self, sim: &mut Simulation, now: f64, active_unit: Option<u32>) {
         let incoming = sim.take_visual_events();
         if self.events.is_empty() {
             self.started = now;
@@ -32,7 +32,8 @@ impl Playback {
         }
         while let Some(event) = self.events.front() {
             if !self.front_sound_started {
-                self.sound_requests.extend(sound_requests(event));
+                self.sound_requests
+                    .extend(sound_requests(event, active_unit));
                 self.front_sound_started = true;
             }
             if now - self.started < event.duration() {
@@ -128,7 +129,10 @@ impl Playback {
     }
 }
 
-fn sound_requests(event: &VisualEvent) -> Vec<super::unit_sound::UnitSoundRequest> {
+fn sound_requests(
+    event: &VisualEvent,
+    active_unit: Option<u32>,
+) -> Vec<super::unit_sound::UnitSoundRequest> {
     let request =
         |unit: &Unit, action: &str, delay_seconds: f64| super::unit_sound::UnitSoundRequest {
             unit: unit.clone(),
@@ -174,6 +178,9 @@ fn sound_requests(event: &VisualEvent) -> Vec<super::unit_sound::UnitSoundReques
             requests
         }
     }
+    .into_iter()
+    .filter(|request| Some(request.unit.id) == active_unit)
+    .collect()
 }
 impl Game {
     pub(super) fn draw_playback(&self, assets: &Assets) {
@@ -309,7 +316,7 @@ mod tests {
         let before = sim.unit_by_id(id).unwrap().clone();
         assert!(sim.apply(Command::Move(id, 1, 0)));
         let mut playback = Playback::default();
-        playback.update(&mut sim, 10.0);
+        playback.update(&mut sim, 10.0, Some(id));
         assert!(playback.pending());
         assert_eq!(
             (playback.overrides()[&id].x, playback.overrides()[&id].y),
@@ -322,9 +329,9 @@ mod tests {
             },
             target
         );
-        playback.update(&mut sim, 10.015);
+        playback.update(&mut sim, 10.015, Some(id));
         assert!(playback.is_active(id));
-        playback.update(&mut sim, 10.031);
+        playback.update(&mut sim, 10.031, Some(id));
         assert!(!playback.pending());
         assert!(playback.overrides().is_empty());
         assert!(playback.city_overrides().is_empty());
@@ -336,12 +343,12 @@ mod tests {
         let (id, _) = sim.ui_review_animation_setup(false);
         assert!(sim.apply(Command::Move(id, 1, 0)));
         let mut playback = Playback::default();
-        playback.update(&mut sim, 10.0);
+        playback.update(&mut sim, 10.0, Some(id));
         let requests = playback.take_sound_requests();
         assert_eq!(requests.len(), 1);
         assert_eq!(requests[0].unit.id, id);
         assert_eq!(requests[0].action, "RUN");
-        playback.update(&mut sim, 10.01);
+        playback.update(&mut sim, 10.01, Some(id));
         assert!(playback.take_sound_requests().is_empty());
     }
 
@@ -364,16 +371,16 @@ mod tests {
             bombard_effects: false,
             territory: Vec::new(),
         }));
-        let requests = sound_requests(&event);
+        let requests = sound_requests(&event, Some(attacker_id));
         assert_eq!(
             requests
                 .iter()
                 .map(|request| request.action.as_str())
                 .collect::<Vec<_>>(),
-            ["ATTACK1", "DEFEND", "ATTACK2", "DEFEND", "DEATH", "VICTORY"]
+            ["ATTACK1", "ATTACK2", "VICTORY"]
         );
-        assert!(requests[2].delay_seconds > requests[0].delay_seconds);
-        assert!(requests[4].delay_seconds > requests[2].delay_seconds);
+        assert!(requests[1].delay_seconds > requests[0].delay_seconds);
+        assert!(requests[2].delay_seconds > requests[1].delay_seconds);
     }
 
     #[test]
@@ -381,10 +388,13 @@ mod tests {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let (id, _) = sim.ui_review_animation_setup(false);
         let unit = sim.unit_by_id(id).unwrap().clone();
-        let requests = sound_requests(&VisualEvent::WorkStarted {
-            unit,
-            kind: WorkKind::Mine,
-        });
+        let requests = sound_requests(
+            &VisualEvent::WorkStarted {
+                unit: unit.clone(),
+                kind: WorkKind::Mine,
+            },
+            Some(id),
+        );
         assert_eq!(requests.len(), 1);
         assert_eq!(requests[0].action, "MINE");
     }
@@ -408,7 +418,7 @@ mod tests {
             (VisualEvent::FoundCity { unit: unit.clone() }, "BUILD"),
             (VisualEvent::Fortify { unit: unit.clone() }, "FORTIFY"),
         ] {
-            let requests = sound_requests(&event);
+            let requests = sound_requests(&event, Some(unit.id));
             assert_eq!(requests.len(), 1, "{expected_action} request count");
             assert_eq!(requests[0].unit.id, unit.id);
             assert_eq!(requests[0].action, expected_action);
@@ -442,10 +452,13 @@ mod tests {
         ];
 
         for (kind, expected_action) in cases {
-            let requests = sound_requests(&VisualEvent::WorkStarted {
-                unit: unit.clone(),
-                kind,
-            });
+            let requests = sound_requests(
+                &VisualEvent::WorkStarted {
+                    unit: unit.clone(),
+                    kind,
+                },
+                Some(id),
+            );
             match expected_action {
                 Some(action) => {
                     assert_eq!(requests.len(), 1, "{kind:?} request count");
@@ -481,14 +494,15 @@ mod tests {
                 bombard_effects: false,
                 territory: Vec::new(),
             }));
-            let requests = sound_requests(&event);
-            assert_eq!(requests.len(), 4);
-            assert_eq!(requests[2].action, "DEATH");
-            assert_eq!(requests[2].unit.id, loser_id);
-            assert_eq!(requests[3].action, "VICTORY");
-            assert_eq!(requests[3].unit.id, winner_id);
-            assert!(requests[2].delay_seconds > requests[1].delay_seconds);
-            assert!(requests[3].delay_seconds > requests[1].delay_seconds);
+            let requests = sound_requests(&event, Some(attacker.id));
+            assert_eq!(requests.len(), 2);
+            assert_eq!(requests[0].action, "ATTACK1");
+            assert_eq!(
+                requests[1].action,
+                if winner_id == attacker.id { "VICTORY" } else { "DEATH" }
+            );
+            assert_eq!(requests[1].unit.id, attacker.id);
+            assert_ne!(loser_id, winner_id);
         }
     }
 }
