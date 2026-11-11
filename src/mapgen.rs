@@ -542,6 +542,52 @@ impl Generator {
         let latitude = (1000.0 - 2000.0 * f64::from(y) / f64::from(self.wrap.height() - 1)) as i32;
         1000 - latitude.abs()
     }
+
+    fn taper_polar_landmass(&self, heights: &mut [i32], seed: u64) {
+        let width = self.wrap.width();
+        let height = self.wrap.height();
+        let band_depth = (f64::from(height) * 0.10).clamp(5.0, 12.0);
+        // Sample a 3D noise field around a circle so the displacement is smooth
+        // across the horizontal wrap seam. Two scales make broad inlets and
+        // headlands without giving each longitude an independent offset.
+        let boundary_noise = noise::OpenSimplex3::new(seed ^ 0x706f_6c61_725f_6564);
+        let broad_radius = f64::from(width) / (std::f64::consts::TAU * 24.0);
+        let detail_radius = f64::from(width) / (std::f64::consts::TAU * 11.0);
+
+        for x in 0..width {
+            let longitude = std::f64::consts::TAU * f64::from(x) / f64::from(width);
+            let (cos_longitude, sin_longitude) = (longitude.cos(), longitude.sin());
+            let polar_depth = |hemisphere| {
+                let broad = boundary_noise.sample(
+                    broad_radius * cos_longitude,
+                    hemisphere,
+                    broad_radius * sin_longitude,
+                );
+                let detail = boundary_noise.sample(
+                    detail_radius * cos_longitude,
+                    hemisphere + 17.3,
+                    detail_radius * sin_longitude,
+                );
+                (band_depth + 0.65 * band_depth * broad + 0.30 * band_depth * detail)
+                    .clamp(band_depth * 0.45, band_depth * 1.8)
+            };
+            let north_depth = polar_depth(-11.7);
+            let south_depth = polar_depth(23.9);
+
+            for y in 0..height {
+                let (edge_distance, local_depth) = if y < height / 2 {
+                    (f64::from(y), north_depth)
+                } else {
+                    (f64::from(height - 1 - y), south_depth)
+                };
+                let t = ((local_depth - edge_distance) / local_depth).clamp(0.0, 1.0);
+                let smooth_taper = t * t * (3.0 - 2.0 * t);
+                let attenuation = 1.0 - 0.95 * smooth_taper;
+                let tile = self.wrap.index(x, y);
+                heights[tile] = (f64::from(heights[tile]) * attenuation).round() as i32;
+            }
+        }
+    }
 }
 
 fn random_tile(count: usize, rng: &mut MapRng, eligible: impl Fn(usize) -> bool) -> Option<usize> {
@@ -575,10 +621,13 @@ impl Generator {
         rank_field(&mut biome_field, 1000);
         let mut attempt = 0_u64;
         loop {
-            let water_heights = self.height_field(
-                seed.wrapping_add(0x1234_u64.wrapping_mul(attempt)),
-                self.settings.landform.noise_scale(),
-            );
+            let water_seed = seed.wrapping_add(0x1234_u64.wrapping_mul(attempt));
+            let mut water_heights =
+                self.height_field(water_seed, self.settings.landform.noise_scale());
+            // Suppress land gradually toward the bounded polar edges before
+            // applying the water percentile. This keeps the requested ocean
+            // coverage while avoiding a hard, straight post-generation shelf.
+            self.taper_polar_landmass(&mut water_heights, water_seed);
             let mut heights = water_heights.clone();
             rank_field(&mut heights, 1000);
             let (mut terrain, mut base_terrain, temperature) =

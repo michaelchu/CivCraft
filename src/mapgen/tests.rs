@@ -239,28 +239,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0xc99e25509c307d15,
-            [(0, 9), (1, 28), (9, 36), (13, 40), (15, 32), (20, 43)],
+            0x2adb4491d079515e,
+            [(0, 30), (1, 10), (3, 20), (8, 39), (16, 36), (20, 42)],
         ),
         (
             42,
-            0xcbe1d1150de36cb4,
-            [(8, 23), (16, 44), (17, 21), (19, 36), (22, 15), (29, 30)],
+            0x4050f82d22df1719,
+            [(11, 20), (14, 37), (20, 13), (22, 42), (25, 23), (33, 13)],
         ),
         (
             12345,
-            0x3878fb1c3a928403,
-            [(1, 21), (7, 42), (15, 14), (16, 27), (28, 37), (32, 18)],
+            0xe29ceb5cec5d0a7f,
+            [(1, 23), (7, 38), (9, 7), (19, 37), (29, 38), (33, 16)],
         ),
         (
             700001,
-            0x67c4a644e69da62c,
-            [(2, 42), (5, 22), (8, 39), (16, 10), (18, 26), (21, 39)],
+            0x3950c3f65302ac6e,
+            [(6, 26), (8, 40), (12, 21), (17, 27), (25, 37), (30, 18)],
         ),
         (
             2147483647,
-            0x9b86547b7c1c92d8,
-            [(18, 24), (18, 41), (20, 12), (26, 31), (28, 43), (32, 9)],
+            0xb3f5374c65145473,
+            [(15, 42), (20, 12), (20, 38), (21, 25), (25, 35), (29, 10)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {
@@ -318,6 +318,82 @@ fn civ3_ocean_coverage_choices_change_water_fraction_deterministically() {
             actual.abs_diff(coverage) <= 1,
             "requested {coverage}% ocean coverage but generated {actual}%"
         );
+    }
+}
+
+#[test]
+fn polar_land_taper_is_smooth_seeded_and_dies_out_inland() {
+    let wrap = MapWrap::X;
+    let generator = Generator {
+        wrap,
+        settings: Civ3WorldSettings::default(),
+        civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
+    };
+    let mut first = vec![255; wrap.tile_count()];
+    let mut repeated = first.clone();
+    let mut other_seed = first.clone();
+    generator.taper_polar_landmass(&mut first, 42);
+    generator.taper_polar_landmass(&mut repeated, 42);
+    generator.taper_polar_landmass(&mut other_seed, 1337);
+
+    assert_eq!(first, repeated);
+    assert_ne!(first, other_seed);
+    for x in 0..wrap.width() {
+        assert!(first[wrap.index(x, 0)] < 30);
+        assert_eq!(first[wrap.index(x, 20)], 255);
+    }
+    let inland_edge_row = (0..wrap.width())
+        .map(|x| first[wrap.index(x, 4)])
+        .collect::<std::collections::HashSet<_>>();
+    assert!(
+        inland_edge_row.len() > 1,
+        "polar taper should vary by longitude"
+    );
+    let row_four = (0..wrap.width())
+        .map(|x| first[wrap.index(x, 4)])
+        .collect::<Vec<_>>();
+    let largest_neighbor_change = (0..wrap.width())
+        .map(|x| row_four[x as usize].abs_diff(row_four[((x + 1) % wrap.width()) as usize]) as i32)
+        .max()
+        .unwrap();
+    assert!(
+        largest_neighbor_change <= 40,
+        "the seeded boundary should remain smooth at the wrap seam: {largest_neighbor_change}"
+    );
+}
+
+#[test]
+fn generated_polar_coastlines_vary_across_longitudes() {
+    for seed in [42, 1337, 700001] {
+        let map = generate_with_wrap(seed, MapWrap::X);
+        let wrap = map.map_wrap;
+        for distances in [
+            (0..wrap.width())
+                .map(|x| {
+                    (1..wrap.height() / 2)
+                        .find(|&y| !map.tiles[wrap.index(x, y) as usize].terrain.is_water())
+                        .unwrap_or(wrap.height() / 2)
+                })
+                .collect::<Vec<_>>(),
+            (0..wrap.width())
+                .map(|x| {
+                    (1..wrap.height() / 2)
+                        .find(|&distance| {
+                            !map.tiles[wrap.index(x, wrap.height() - 1 - distance) as usize]
+                                .terrain
+                                .is_water()
+                        })
+                        .unwrap_or(wrap.height() / 2)
+                })
+                .collect::<Vec<_>>(),
+        ] {
+            let shallowest = *distances.iter().min().unwrap();
+            let deepest = *distances.iter().max().unwrap();
+            assert!(
+                deepest - shallowest >= 4,
+                "seed {seed} should have a nonuniform polar coastline: {distances:?}"
+            );
+        }
     }
 }
 
@@ -555,7 +631,7 @@ mod wrap_generation_tests {
     }
 
     #[test]
-    fn civ3_cylinder_reserves_poles_for_polar_caps_and_has_valid_starts() {
+    fn civ3_cylinder_keeps_polar_edges_ocean_and_has_valid_starts() {
         for seed in [0, 1, 42, 1337, 12345, 700001, 2147483647] {
             let a = generate_with_wrap(seed, MapWrap::X);
             let b = generate_with_wrap(seed, MapWrap::X);
