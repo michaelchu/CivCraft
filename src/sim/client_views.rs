@@ -36,7 +36,53 @@ pub(crate) struct CityContextView {
     pub(crate) production_cost: i32,
 }
 
+/// Research progress and goal for a single player.
+pub(crate) struct ResearchProgressView {
+    pub(crate) goal: Tech,
+    pub(crate) researching: Tech,
+    pub(crate) points: i32,
+    pub(crate) target_cost: i32,
+}
+
+/// Simulation facts the research screen needs for one technology.
+pub(crate) struct TechnologyResearchView {
+    pub(crate) known: bool,
+    pub(crate) available: bool,
+    pub(crate) target_cost: i32,
+}
+
 impl Simulation {
+    pub(crate) fn research_progress_view(
+        &self,
+        owner: usize,
+    ) -> Option<ResearchProgressView> {
+        let player = self.players.get(owner)?;
+        Some(ResearchProgressView {
+            goal: player.research_goal,
+            researching: player.researching,
+            points: player.research,
+            target_cost: self.target_cost(owner, player.researching),
+        })
+    }
+
+    pub(crate) fn technology_research_view(
+        &self,
+        owner: usize,
+        tech: Tech,
+    ) -> Option<TechnologyResearchView> {
+        self.players.get(owner)?;
+        Some(TechnologyResearchView {
+            known: self.has_tech(owner, tech),
+            available: self.tech_available(owner, tech),
+            target_cost: self.target_cost(owner, tech),
+        })
+    }
+
+    pub(crate) fn research_technology_known(&self, owner: usize, tech: Tech) -> Option<bool> {
+        self.players.get(owner)?;
+        Some(self.has_tech(owner, tech))
+    }
+
     pub(crate) fn city_context_view(&self, city_id: u32) -> Option<CityContextView> {
         let city = self.city_by_id(city_id)?;
         let forecast = self.city_forecast(city);

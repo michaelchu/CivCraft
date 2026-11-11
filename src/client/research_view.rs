@@ -14,11 +14,17 @@ impl Game {
 
     pub(super) fn center_research(&mut self) {
         self.research_inspected = None;
-        self.focus_research(self.sim.players()[HUMAN].research_goal);
+        if let Some(progress) = self.sim.research_progress_view(HUMAN) {
+            self.focus_research(progress.goal);
+        }
     }
 
     pub(super) fn focus_research(&mut self, tech: Tech) {
-        let tech = focused_research_tech(tech, self.sim.players()[HUMAN].researching);
+        let current = self
+            .sim
+            .research_progress_view(HUMAN)
+            .map_or(tech, |progress| progress.researching);
+        let tech = focused_research_tech(tech, current);
         self.research_center = self.research_tree.center(tech);
         self.research_age = self.research_tree.age(tech);
         self.research_zoom = 1.0;
@@ -77,9 +83,11 @@ impl Game {
     }
 
     pub(super) fn draw_research(&self) -> Vec<(Rect, UiAction)> {
-        let player = &self.sim.players()[HUMAN];
-        let goal = player.research_goal;
-        let current = player.researching;
+        let Some(progress) = self.sim.research_progress_view(HUMAN) else {
+            return Vec::new();
+        };
+        let goal = progress.goal;
+        let current = progress.researching;
         let ancestors = self.research_tree.ancestors(goal);
         let viewport = Self::research_viewport();
         let in_age = |tech: Tech| self.research_tree.age(tech) == self.research_age;
@@ -105,7 +113,11 @@ impl Game {
                 }
                 let color = if !highlighted {
                     Color::from_rgba(61, 84, 99, 255)
-                } else if self.sim.has_tech(HUMAN, edge.from) {
+                } else if self
+                    .sim
+                    .research_technology_known(HUMAN, edge.from)
+                    .unwrap_or(false)
+                {
                     muted_gold
                 } else {
                     gold
@@ -134,8 +146,11 @@ impl Game {
             let Some(hitbox) = card.intersect(viewport) else {
                 continue;
             };
-            let known = self.sim.has_tech(HUMAN, tech);
-            let available = self.sim.tech_available(HUMAN, tech);
+            let Some(technology) = self.sim.technology_research_view(HUMAN, tech) else {
+                continue;
+            };
+            let known = technology.known;
+            let available = technology.available;
             let on_path = ancestors.contains(&tech);
             let hover = hitbox.contains(mouse);
             let status = if known {
@@ -180,7 +195,7 @@ impl Game {
                     WHITE,
                 );
                 draw_text(
-                    format!("{status} · {} bulbs", self.sim.target_cost(HUMAN, tech)),
+                    format!("{status} · {} bulbs", technology.target_cost),
                     card.x + 8.0 * zoom,
                     card.y + 43.0 * zoom,
                     15.0 * zoom,
@@ -213,8 +228,8 @@ impl Game {
             &format!(
                 "Researching {}  {}/{}   |   Goal: {}",
                 current.name(),
-                player.research,
-                self.sim.target_cost(HUMAN, current),
+                progress.points,
+                progress.target_cost,
                 goal.name()
             ),
             24.0,
