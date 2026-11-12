@@ -30,7 +30,7 @@ where
     serde::Serialize::serialize(&ordered, serializer)
 }
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x16";
+const HEADER: &[u8] = b"CIVCRAFT\0\x18";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
@@ -347,6 +347,10 @@ impl Simulation {
             Production::Unit(_) => true,
         };
         if !(PLAYER_COUNT + 1..=PLAYER_SLOTS).contains(&players)
+            || self
+                .retired_city_culture
+                .iter()
+                .any(|(&owner, &culture)| owner >= players || culture < 0)
             || self.tiles.len() != (self.map_wrap.width() * self.map_wrap.height()) as usize
             || self.nation_scores.len() != players
             || self.spaceships.len() != players

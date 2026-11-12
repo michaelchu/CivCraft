@@ -22,6 +22,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     game.cities[0].foreign_citizens = vec![(2, 1)];
     game.cities[0].foreign_nationality_tenure = vec![(2, 7, 3)];
     game.cities[0].culture_suppressed_until_majority_assimilated = true;
+    game.players[HUMAN].mobilized = true;
     game.set_random_seed(42);
     game.rand_below(1000);
     game.save_campaign(&path).unwrap();
@@ -31,6 +32,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.map_wrap, MapWrap::X);
     assert_eq!(loaded.random_snapshot(), game.random_snapshot());
     assert_eq!(loaded.turn, game.turn);
+    assert!(loaded.players[HUMAN].mobilized);
     assert_eq!(loaded.cities[0].culture_for_civilization(HUMAN), 375);
     assert_eq!(loaded.cities[0].culture_for_civilization(2), 125);
     assert_eq!(
@@ -111,10 +113,32 @@ fn captured_city_culture_and_resistance_survive_save_load() {
     );
     assert_eq!(loaded.cities[loaded_city].resisting_citizens, [(1, 2)]);
     assert_eq!(loaded.cities[2].culture_for_civilization(HUMAN), 375);
+    assert_eq!(loaded.civilization_culture(1), 300);
+    assert_eq!(loaded.civilization_culture(HUMAN), 375);
     assert_eq!(
         bincode::serialize(&loaded.cities).unwrap(),
         bincode::serialize(&game.cities).unwrap()
     );
+}
+
+#[test]
+fn civilization_culture_survives_city_destruction_and_save_load() {
+    let path = temporary_save("retired-city-culture");
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(HUMAN, 10, 24);
+    game.cities[0].add_culture(HUMAN, 300);
+    let removed = game.cities.remove(0);
+    game.archive_city_culture(&removed);
+    game.rebuild_city_ownership();
+    assert_eq!(game.civilization_culture(HUMAN), 300);
+    game.save_campaign(&path).unwrap();
+
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert!(loaded.cities.is_empty());
+    assert_eq!(loaded.civilization_culture(HUMAN), 300);
 }
 
 #[test]

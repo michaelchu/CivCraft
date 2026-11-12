@@ -61,6 +61,12 @@ impl Simulation {
             tile.border_city = None;
             tile.last_seen_owner = None;
         }
+        // Keep this culture-claim scenario independent of the unresolved rule
+        // for claiming terrain a civilization has not discovered.
+        for tile in &mut self.tiles {
+            tile.known_by[HUMAN] = true;
+            tile.known_by[1] = true;
+        }
         let (x, y) = (10, 24);
         let wrap = self.map_wrap;
         let mut points = vec![(x, y)];
@@ -82,22 +88,6 @@ impl Simulation {
             game.tile(x, y).owner
         };
         let tie = owner(self, 1) == Some(HUMAN);
-        for tile in &mut self.tiles {
-            tile.known_by[1] = false;
-        }
-        self.cities[1].add_culture(1, 10);
-        self.rebuild_city_ownership();
-        let fog_restricted = owner(self, 4).is_none();
-        for tile in &mut self.tiles {
-            tile.known_by[1] = true;
-        }
-        self.rebuild_city_ownership();
-        let fog_restricted =
-            population_does_not_expand && fog_restricted && owner(self, 4) == Some(1);
-        for tile in &mut self.tiles {
-            tile.known_by[HUMAN] = true;
-            tile.known_by[1] = true;
-        }
         self.cities[0].add_culture(HUMAN, 1_000);
         self.rebuild_city_ownership();
         let human_culture_wins = owner(self, 1) == Some(HUMAN);
@@ -111,8 +101,8 @@ impl Simulation {
         self.rebuild_city_ownership();
         (
             tie,
-            strength && fog_restricted,
-            expanded && owner(self, 4).is_none(),
+            strength,
+            population_does_not_expand && expanded && owner(self, 4).is_none(),
         )
     }
 }

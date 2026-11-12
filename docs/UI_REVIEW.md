@@ -265,9 +265,9 @@ edges. The former WrapXY topology is removed from the supported game paths.
 ### WrapX ocean boundaries
 
 WrapX keeps the polar edge rows ocean and clears gameplay extras from them.
-Beyond the playable boundary, the Civ III polar sheet renders impenetrable
-visual caps over the decorative rows. The `north-pole` / `south-pole` scenes
-show each cap; `-next` captures show minimum zoom.
+Two additional ocean rows extend the visual water beyond each playable edge;
+they are render-only and do not enter simulation or saves. The `north-pole` /
+`south-pole` scenes show the ocean edge; `-next` captures show minimum zoom.
 
 Gallery checks cover the extended camera anchors, actual boundary-row input,
 bounded panning and zoom-out coverage. See AGENTS.md for map-generation

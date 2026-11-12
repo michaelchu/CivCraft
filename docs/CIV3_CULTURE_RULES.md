@@ -35,9 +35,9 @@ section/index and source hash.
 
 | BIQ section | Extracted data | Current confidence |
 |---|---|---|
-| `BLDG` | All 83 building records, culture, production cost, maintenance, required building/advance, obsolete advance, Civilopedia key, and raw flags | Source bytes and record offsets validated; obsolete wonder culture persistence is supported by the base manual and tested for the Conquests Colossus; capture and wartime-footing cases remain unresolved |
+| `BLDG` | All 83 building records, culture, production cost, maintenance, required building/advance, obsolete advance, Civilopedia key, and raw flags | Source bytes and record offsets validated; obsolete wonder culture persistence is supported by the base manual and tested for the Conquests Colossus; mobilization halving is implemented from community evidence with rounding pending observation; capture details remain unresolved |
 | `CULT` | Six named culture-ratio records, ratio numbers, propaganda chance, initial and continued resistance chances | Raw values extracted; initial and continued chances use the cited reverse-engineered model. Ratio-interval interpretation, Conquests-specific behavior, and turn ordering remain unconfirmed by controlled observation |
-| `RULE` | Town/City/Metropolis size names and caps; six culture-level names; raw parser field `BorderExpansionMultiplier=1000`; `BorderFactor=10` | Values extracted; exact field semantics and mapping to border thresholds/geometry not established |
+| `RULE` | Town/City/Metropolis size names and caps; six culture-level names; raw parser field `BorderExpansionMultiplier=1000`; `BorderFactor=10` | Values extracted. Static disassembly of the installed Conquests executable shows a city-rank loop multiplying the next local-culture threshold by a runtime factor, with a maximum rank of six. Pairing that factor with `BorderFactor=10` yields 10, 100, 1,000, 10,000, and 100,000. This conflicts with the Civilopedia's explicit 20,000 example; mapping the executable global to the BIQ field is a strong but not yet runtime-confirmed inference |
 | `RACE` | 32 civilization records and raw culture-group index | Values extracted; group index semantics should remain separate from numeric culture totals |
 | `GAME` | Cultural-conversion and cultural-victory flags, one-city threshold `20,000`, all-cities threshold `100,000`, `RetainCulture` capture setting, domination terrain/population values | Values extracted; main BIQ has `DefaultGameRules=1`, raw cultural-conversion flag false, and effective default ON per the Complete manual; `RetainCulture=0`; release notes identify captured-city culture retention as an MPTournament change, whose BIQ has `RetainCulture=1` |
 | `GOVT` | Assimilation chance by government; government-pair interaction fields | Assimilation values are extracted; per-citizen percent chance per turn follows CivFanatics editor help. Conquests Civilopedia plus a Firaxis producer explanation support waiting until the city nationality is a strict majority, though that producer post is base-game scoped. Conquests verification is absent. Base-government `ResistanceModifier` interpretation matches CivFanatics' reverse-engineered table; added-government application remains inferred |
@@ -77,17 +77,26 @@ reverse-engineered description that captured cities normally lose their
 existing culture points ([“Culture,” captured cities](https://civfanatics.com/civ3/infocenter/),
 checked 2026-11-10). A Conquests editor-rules reference says enabling
 `RetainCulture` keeps the conquered city's culture instead of dropping it to
-zero ([Vi.ki, “Editor and Modding”](https://civ3.vi.ki/editor-and-modding),
-checked 2026-11-10). A Conquests strategy guide separately says that cities
+zero and carries it over to the capturing civilization ([CivFanatics, “Editor
+Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/),
+checked 2026-11-11; [Vi.ki, “Editor and Modding”](https://civ3.vi.ki/editor-and-modding),
+checked 2026-11-10). A later modding discussion says its author did not know
+whether retained points enter the captor's civilization total ([CivFanatics,
+“Using culture to influence AI improvement build”](https://forums.civfanatics.com/threads/using-culture-to-influence-ai-improvement-build.670397/),
+checked 2026-11-11). Transfer to the captor is a concrete community
+reverse-engineering claim, but it remains unverified in the original game. A
+Conquests strategy guide separately says that cities
 remember the amount of culture each civilization generated there, even after
 capture ([Denouement, “Cultural Borders”](https://gamefaqs.gamespot.com/pc/915016-civilization-iii-conquests/faqs/18251)).
-The CivFanatics Info Center likewise contains conflicting statements: its
-culture section says civilization totals never decrease on capture, that a
-losing civ loses cultural points when a city joins another, and that all
-existing city culture points are lost on capture. These may refer to distinct
-current-city, historical-per-civilization, and empire-total values; the sources
-do not reconcile them. The enabled MPTournament variant is not yet wired as a
-selectable runtime ruleset.
+The CivFanatics Info Center distinguishes military capture from a city joining
+another civilization: it says civilization total culture does not decrease on
+capture, but that the former owner loses cultural points when a city defects.
+It separately says the captured city's existing local points are lost. This
+supports keeping the former owner's empire total across military capture while
+resetting local city culture, as the current implementation does. It does not
+establish exactly which historical points are removed after a cultural
+defection; city flips are not wired into turn resolution. The enabled
+MPTournament variant is not yet wired as a selectable runtime ruleset.
 
 The CivFanatics Info Center also reports that captors receive no culture from
 existing structures, that an original owner who recaptures the city resumes
@@ -109,8 +118,12 @@ use the sum of the retained per-civilization city ledger. This follows the
 setting's description as retaining the city's culture and the Civilopedia's
 link between city culture and border influence. It is an
 implementation inference: the original game's treatment of retained culture
-for border reach has not been observed, and retained empire-wide culture
-attribution remains unresolved.
+for border reach has not been observed. The current implementation preserves
+the retained ledger's original civilization attribution and does not credit
+the captor, which does not follow the editor-rules reference's transfer claim.
+The conflicting community evidence and absence of an original-game observation
+leave `RetainCulture=1` attribution unresolved; this flag is not enabled by the
+installed standard Conquests BIQ.
 
 The installed editor help, `../../source/Conquests/Civ3ConquestsEdit.chm`, has
 indexed topics named `Culture_Ratio.htm`, `Resistance_Chance_Culture_.htm`,
@@ -125,6 +138,161 @@ extracted or read; treat this only as a lead to stronger parameter
 documentation, not as evidence for field behavior.
 
 ## Explicit gameplay statements
+
+### Freeciv implementation comparison (fallback inspiration only)
+
+The user authorized consulting Freeciv to help fill remaining gaps when its
+approach is appropriate. The local comparison checkout is
+`../../freeciv`, clean at commit `9ff184b6eb128ca636c7ad6269e27aa959600006`
+(2026-11-09). This is implementation context, not evidence of Civilization
+III behavior. Use its mechanics only as an explicitly labeled fallback when
+there is no better Civ III-specific evidence and the mechanic maps cleanly;
+keep the choice replaceable and preserve the Conquests evidence gap.
+
+- **Culture values differ.** Freeciv `common/culture.c` computes city culture
+  from city history plus performance/effects, and computes player culture from
+  player history plus the current culture of owned cities. It can optionally
+  add history interest per mille. City culture in CivCraft instead tracks
+  current and historical values by civilization and uses BIQ building output
+  with Conquests age doubling. Freeciv's accumulation and national-total
+  formulas are not appropriate substitutes.
+- **Border geometry differs.** Freeciv `common/borders.c` gets a radius from
+  ruleset settings and city size; source strength is also based on city size
+  and border effects. `server/maphand.c` evaluates claimable tiles within each
+  source radius, preserves a city's permanent inner region, compares
+  distance-weighted source strength, and leaves an equal-strength tile with
+  its incumbent claimant. It recalculates all sources at turn end. This is
+  useful implementation inspiration for deterministic recalculation,
+  claim-source bookkeeping, and stable ties. Its size-based radius and strength
+  are not suitable replacements for Conquests culture thresholds, and its
+  conflict resolution should not supersede Civ III-specific evidence.
+  CivCraft's current rebuild seeds claims from existing `border_city` ownership
+  before considering new claims, so exact ties preserve the incumbent claim;
+  culture rank and the documented culture comparisons still decide stronger
+  claims.
+- **Capture preserves a different culture model.** Freeciv's `transfer_city`
+  keeps the city's scalar `history` while changing its owner; `player_culture`
+  then counts the city culture for its current owner. Transfer also retains
+  ordinary improvements while resetting their built-turn age, and separately
+  converts a ruleset-configured share of foreign citizens. This offers a
+  structural pattern for keeping local culture attached to a city while
+  ownership and attribution change. It does not establish Conquests
+  `RetainCulture` accounting: CivCraft keeps current city culture and historical
+  by-civilization memory as separate ledgers, and Civ III community sources
+  disagree or remain unverified about captor attribution. Do not change that
+  behavior solely to match Freeciv.
+- **No direct flip/resistance model found.** The checked Freeciv server sources
+  contain random civil-war city transfers and diplomacy-triggered revolt, but
+  no comparable culture-driven city-flip probability or captured-city
+  resistance/quelling state. Those mechanics remain governed by the existing
+  Civ III-specific evidence and unresolved items; Freeciv supplies no suitable
+  fallback formula.
+
+The comparison was source-only; no Freeciv runtime behavior was tested. Source
+locations checked 2026-11-11: `../../freeciv/common/culture.c`;
+`../../freeciv/common/borders.c`; `../../freeciv/server/maphand.c`;
+`../../freeciv/server/citytools.c` (`transfer_city`);
+`../../freeciv/server/citizenshand.c` (`citizens_convert_conquest`);
+`../../freeciv/server/plrhand.c` (`civil_war`).
+
+### User-supplied reverse-engineering research reviewed 2026-11-11
+
+The supplied five-page *Civ III Conquests Mechanics Analysis* PDF is a
+secondary research summary, not an official source. Its linked CivFanatics
+materials provide useful leads for the unresolved mechanics below. The claims
+have been checked against the linked pages where accessible; the document's
+confidence labels and Conquests scope are not accepted automatically:
+
+- The attachment names sources but does not provide the exact URLs or
+  citations its own research prompt requested. Treat its quoted passages and
+  confidence labels as unverified summaries unless they can be matched to the
+  source pages below. In particular, its claims that expansion ties follow
+  player order, that captured/founded cities get a one-turn flip immunity,
+  that a flip destroys the garrison and cultural buildings are not established
+  by the cited materials reviewed here. The Conquests strategy guide does
+  support per-civilization culture memory within a city, but the attachment
+  does not establish exactly how that memory interacts with flips, capture,
+  or `RetainCulture`. Do not use the unsupported outcomes as implementation
+  rules without a direct source or controlled Conquests observation.
+- Its resistance section conflicts with the cited CivFanatics resistance
+  article: that article describes a probability for each citizen to continue
+  resisting, then a separate per-turn cap on how many resistors garrison units
+  can quell. It does not describe a probabilistic success roll per unit, nor a
+  war-status-dependent chance that rises after peace. For Conquests, the
+  Civilopedia says making peace can end resistance; the implementation's
+  peace-resolution path follows that edition-specific rule. The attachment's
+  ordering claim that resistance quelling precedes city-flip checks has not
+  been verified.
+- Its city-flip equation is a useful transcription of the FAQ candidate, but
+  the attached text overstates its provenance as a formula “confirmed directly”
+  by Soren Johnson. The Firaxis staff post by Dan Magaha confirms a set of
+  contributing factors after consulting Soren; it does not establish the full
+  constants, equation placement, edge cases, timing, or outcomes. The separate
+  Soren-attributed examples still conflict with the FAQ equation on where the
+  civilization-culture ratio applies, so the candidate remains isolated from
+  turn resolution.
+- Its capture-accounting claims combine several distinct quantities: current
+  city culture, historical culture attributed to each civilization in a city,
+  and empire-wide culture totals. The Conquests guide supports per-civilization
+  city memory across capture, but the sources do not establish how that memory
+  drives flip calculations or how `RetainCulture` attributes retained current
+  culture. Keep these ledgers distinct and preserve the unresolved attribution
+  notes below.
+
+- Border thresholds of 10, 100, 1,000, and 10,000 are consistent with the
+  CivFanatics FAQ and Info Center, and with the installed Civilopedia's listed
+  expansion examples. The PDF's exact 21-tile / radius-2 footprint description,
+  tie resolution by player order, and edge cutoffs are not established by those
+  culture-threshold passages. Keep geometry and contested-ownership resolution
+  open until a direct source or controlled observation supports them.
+- The Firaxis forum post by Dan Magaha says he asked lead programmer Soren
+  Johnson about culture flips. It confirms the factor set: foreign citizens
+  (resisters counted twice), foreign-border overlap in the city's 21-tile
+  radius, capital-distance comparison, empire culture ratio, city-specific
+  historical culture (which can double chance), disorder / WLTKD, and land
+  combat garrison subtraction. Community posts transcribe a probability
+  equation, but exact distance encoding, numeric rounding, trigger timing,
+  immunity turns, and flip consequences are not all established by that
+  developer factor summary. The PDF's claims on those details remain leads,
+  not confirmed Conquests rules.
+- CivFanatics' resistance article credits Firaxis developer Mike B. for the
+  base chance model and editor values; it documents 40–90% initial chances,
+  continued-resistance chances 10 points lower, a government comparison
+  adjustment, and difficulty-controlled per-ground-unit quelling caps. Its
+  chart predates Conquests governments, so the article alone does not validate
+  added-government behavior or the specific Conquests turn order claimed by
+  the PDF.
+- The PDF's `RetainCulture` summary is partly consistent with the installed
+  Conquests BIQ inventory and the shipped MPTournament release note. It does
+  not resolve whether retained local culture is reattributed to the captor in
+  every relevant ledger or how historical city culture, empire totals, and
+  border ranking interact. Those remain explicitly separated in the capture
+  accounting analysis above.
+
+Sources checked: [Dan Magaha / Firaxis, “Culture-Flipping Exposed”](https://forums.civfanatics.com/threads/culture-flipping-exposed.14337/);
+[CivFanatics, “The Inner Workings of Resistance Revealed”](https://civfanatics.com/civ3/strategy/game-mechanics/the-inner-workings-of-resistance-revealed/);
+[CivFanatics Civ III FAQ](https://civfanatics.com/civ3/faq/);
+[CivFanatics Info Center culture section](https://civfanatics.com/civ3/infocenter/);
+[CivFanatics Editor Rules Explained](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
+
+### Mobilization and culture output
+
+- The Conquests Civilopedia `GCON_Mobilization` unlock and end condition are
+  the implementation authority: Nationalism enables mobilization, and a peace
+  treaty is required before returning to normalcy. CivCraft stores this state
+  per player, exposes a Nationalism-gated government-panel action, serializes
+  it, and clears it for both treaty signatories when Peace is signed.
+- The culture halving behavior is community evidence rather than a
+  Civilopedia statement. The CivFanatics FAQ gives the Temple 2-to-1 example;
+  the Conquests-focused “Fundamentals of Mobilization Revealed” reports half
+  culture from cultural improvements while mobilized. CivCraft halves the
+  summed city culture output after building-age multipliers using integer
+  truncation. Odd totals and rounding order need Conquests observation.
+- This culture change does not implement Mobilization's production bonus or
+  production restrictions. Source: installed Conquests Civilopedia
+  `GCON_Mobilization`; community detail: [CivFanatics, “Fundamentals of
+  Mobilization Revealed”](https://civfanatics.com/civ3/strategy/game-mechanics/fundamentals-of-mobilization-revealed/),
+  [CivFanatics FAQ](https://civfanatics.com/civ3/faq/), checked 2026-11-11.
 
 ### Culture accumulation
 
@@ -153,13 +321,22 @@ documentation, not as evidence for field behavior.
   output during Mobilization: CivFanatics' “Fundamentals of Mobilization
   Revealed” says each cultural improvement produces half its normal culture
   during a wartime economy; its FAQ says all city culture per turn is halved
-  (including a Temple's 2-to-1 example); and a 2019 thread tagged `[C3C]`
-  reports cultural generation halved empire-wide. These secondary reports
-  agree, but do not establish original Conquests rounding/order or resolve the
-  Civilopedia's omission. CivCraft currently has no Mobilization state or
-  lifecycle, so this rule is community-supported but unapplied. Sources
-  checked 2026-11-10: [Fundamentals of Mobilization Revealed](https://civfanatics.com/civ3/strategy/game-mechanics/fundamentals-of-mobilization-revealed/);
+  (including a Temple's 2-to-1 example); a December 2003 forum post explicitly
+  discusses C3C and reports a 50% culture reduction; and a 2019 thread tagged
+  `[C3C]` reports cultural generation halved empire-wide. These secondary
+  reports agree, but do not establish original Conquests rounding/order or
+  resolve the Civilopedia's omission. CivCraft now has a serialized
+  Mobilization state, a Nationalism-gated government-panel action, and a
+  culture-output halving path. The implementation halves the city's summed
+  culture output with integer truncation; behavior for odd totals and rounding
+  order remain inferred pending controlled Conquests observation. The
+  Civilopedia also describes an extra shield for military-unit production and
+  restrictions on peacetime production, but those adjacent production rules
+  are not implemented by this culture-focused change, so this is not full
+  Mobilization parity. Sources
+  checked 2026-11-11: [Fundamentals of Mobilization Revealed](https://civfanatics.com/civ3/strategy/game-mechanics/fundamentals-of-mobilization-revealed/);
   [Civ3 FAQ](https://civfanatics.com/civ3/faq/);
+  [CivFanatics, “Mobilization,” post #14](https://forums.civfanatics.com/threads/mobilization.72742/);
   [[C3C] Wasted shields](https://forums.civfanatics.com/threads/wasted-shields.644444/).
 - Conquests Civilopedia `GOVT_Fascism` explicitly says newly conquered cities
   do not generate culture until a popular majority has been assimilated. CivCraft
@@ -174,10 +351,28 @@ documentation, not as evidence for field behavior.
   affect how quickly the assimilation majority is reached.
 - Base manual: civilization culture is the combined culture points accumulated
   by its cities. Source: printed page 131.
+- The Conquests Civilopedia `GCON_Culture` defines civilization culture as the
+  sum of the cultural values of all its cities and says that value affects
+  resistance, diplomacy, and rival claims to terrain. It does not specify
+  whether a captured city's prior culture remains in the former owner's
+  civilization total after `RetainCulture=0` resets the city's current value.
+  The implementation currently sums historical culture by generating
+  civilization across extant and retired cities; that interpretation follows
+  community capture-memory reports, but is not established by this Civilopedia
+  definition. Keep current city value, historical city memory, and empire
+  comparison total distinct until the capture accounting is verified.
 
 ### Borders and territory
 
 - Conquests Civilopedia ties city border expansion to city culture thresholds.
+- The installed `Conquests/Text/script.txt` event `#CULTUREBORDEROVER` reads
+  “Our borders have shrunk due to declining culture.” This confirms that
+  borders can contract when culture declines, but does not identify the events
+  that reduce a city's current culture, the exact contraction timing, or how
+  lost tiles are reassigned. CivCraft recomputes ownership from the current
+  city-culture ledger after a culture reset; the synthetic border scenario
+  checks that clearing current culture contracts the claim reach. This verifies
+  CivCraft's transition only, not the original game's timing or tile choices.
 - Base manual says cultural development determines the city’s sphere of
   influence; squares inside it are territory and provide visibility and
   connected resource benefits. Source: printed pages 111–115.
@@ -203,8 +398,13 @@ documentation, not as evidence for field behavior.
   that code nor its cited community source is authoritative evidence for this
   migration, so no part of that formula is adopted without Conquests
   verification. The current implementation uses the official text's listed
-  thresholds for claim-rank eligibility; controlled Conquests tests should
-  still compare immediately below, at, and above each threshold while varying
+  thresholds for claim-rank eligibility and computes world ownership without
+  consulting each civilization's map-visibility state. This avoids making
+  shared territory depend on which tiles a civilization has explored. The
+  installed sources do not explicitly document this visibility interaction,
+  so it remains an implementation inference pending controlled Conquests
+  comparison. Controlled Conquests tests should still compare immediately
+  below, at, and above each threshold while varying
   city size and map context, then independently vary claim rank and city culture.
 - OpenCiv3 save-format lead only: `../openciv3/QueryCiv3/SavSections/City.cs`
   identifies `NextCultureExpansionPower` and comments that 1, 2, and 3 map to
@@ -229,16 +429,19 @@ documentation, not as evidence for field behavior.
   2026-11-10: [Denouement, Civilization III:
   Conquests Strategy Guide, “Cultural Borders”](https://gamefaqs.gamespot.com/pc/915016-civilization-iii-conquests/faqs/18251);
   [CivFanatics, “Editor Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
-- New reverse-engineering lead, not yet adopted: the CivFanatics explanation
+- New reverse-engineering lead, now supported by static executable evidence:
+  the CivFanatics explanation
   of editor rules says `BorderFactor=X` makes successive city-border thresholds
   `X^n`; a scenario author reports testing `BorderFactor=7` and observing 7,
   49, 343, etc. With the installed BIQ's `RULE.BorderFactor=10`, this predicts
   10, 100, 1,000, 10,000, and 100,000. That agrees with the first four
   Civilopedia examples but conflicts with its explicit 20,000 example. Another
   CivFanatics scenario discussion also reports exponential thresholds, but is
-  not official documentation. The exponential sequence is a strong
-  Conquests-target lead, not a reconciled rule until the 20,000 discrepancy is
-  resolved. Sources checked 2026-11-10: [“Editor Rules - Explained,” Border
+  not official documentation. The installed Conquests executable independently
+  contains a matching multiply-by-factor rank loop, so CivCraft now uses
+  100,000 as the sixth-rank threshold. The Civilopedia conflict remains direct
+  and no controlled game observation has resolved it. Sources checked
+  2026-11-10: [“Editor Rules - Explained,” Border
   Factor](https://forums.civfanatics.com/threads/editor-rules-explained.210035/)
   and [“Civ1 clone in Civ3,” scenario discussion](https://forums.civfanatics.com/threads/civ1-clone-in-civ3.667077/).
 - The CivFanatics Info Center independently corroborates the first four
@@ -280,8 +483,18 @@ documentation, not as evidence for field behavior.
   civilization-culture comparison: the Civilopedia describes civilization
   culture as the factor when rival civilizations both have a legitimate claim,
   while this account's same-rank comparison uses local city culture. Its
-  `10^n` sequence also conflicts with the Civilopedia's explicit 20,000
-  example after 10,000. The original CivFanatics thread is now directly
+  `10^n` sequence conflicts with the Civilopedia's explicit 20,000 example
+  after 10,000. The installed Conquests executable now provides static support
+  for continuing the tenfold sequence, although the Civilopedia discrepancy
+  and lack of a controlled runtime check remain. The installed Conquests BIQ's `RULE.BorderFactor=10` is
+  consistent with the transcribed editor-help description that each expansion
+  is `X^n`, but that description does not establish how `n` maps to a city's
+  culture thresholds; the editor also stores six civilization culture levels
+  based on the separate `BorderExpansionMultiplier=1000`. The 100,000 threshold
+  is supported by the executable rank loop combined with the BIQ factor, rather
+  than by BIQ data alone; its conflict with the Civilopedia and lack of a
+  controlled runtime check remain unresolved. The
+  original CivFanatics thread is now directly
   retrievable. Its author describes static rank/culture/age/direction tie-breaks
   and the two diagonal-fill rules, but participants dispute the equal-rank
   culture rule: one says the city that expanded over a tile first keeps it.
@@ -295,21 +508,36 @@ documentation, not as evidence for field behavior.
   (Civ3)”](https://civ-wiki.de/wiki/Regeln_der_Kulturgrenzen_%28Civ3%29), which
   summarizes [CivFanatics, “The Eight Laws of Border Dynamics”](https://forums.civfanatics.com/threads/the-eight-laws-of-border-dynamics.106882/),
   posts #1–#5.
+- Static executable evidence: the installed
+  `../../source/Conquests/Civ3Conquests.exe` is a 32-bit Intel executable with
+  SHA-256 `55a6efca2b51cad94a91fc1f67192742fcd35ad669204df54142781d2700aa4c`.
+  At VA `0x4b7c10` (RVA `0xb7c10`), a city update reads current-owner local
+  culture from city offset `+0x140`, loads a runtime factor from `0x9e9b00`,
+  initializes rank to 1, then repeatedly compares culture against the
+  threshold and multiplies that threshold by the factor. The loop stops at
+  rank 6 and stores the result at city offset `+0x5c`. A caller at `0x4b9836`
+  invokes this update after city culture changes. The installed BIQ export gives
+  `RULE.BorderFactor=10`, which yields 10, 100, 1,000, 10,000, and 100,000.
+  Mapping global `0x9e9b00` to this BIQ field is an evidence-backed inference;
+  this is static disassembly, not a controlled observation of the running game.
+  The rank cap means this code path has no further border rank beyond 100,000.
 - Current implementation status: `borders.rs` now removes city population as the
-  border-growth input. It uses the Civilopedia's explicit city-culture thresholds
-  through 20,000 to grant claim ranks (starting at rank 1 for a new city), then
-  caps growth at the last threshold stated there. The FAQ gives secondary
-  support for that cap during ordinary victory-enabled play; behavior beyond
-  20,000 with victory disabled remains unresolved. The ring-distance, rank-first
+  border-growth input. It uses the statically recovered city-culture thresholds
+  through 100,000 to grant claim ranks (starting at rank 1 for a new city).
+  This conflicts with the Civilopedia's explicit example of expansion at
+  20,000. The FAQ says ordinary play ends at 20,000 due to cultural victory,
+  which explains why normal games may not exercise the discrepancy. The
+  ring-distance, rank-first
   claim rule, and same-rank tie order are based on the CivWiki/CivFanatics
   reverse-engineering lead; applying them to the installed Conquests build is an
   inference pending controlled observation. Same-rank cross-civilization claims
   compare total civilization culture as the Civilopedia states, then local city
   culture and founding turn as the community account suggests. Its directional
-  final tie-break is not implemented. The `BorderFactor=10` prediction of a
-  100,000 threshold conflicts with the Civilopedia's 20,000 example; current
-  code does not extrapolate beyond 20,000. This cap and the deeper-ring geometry
-  remain known fidelity gaps, not verified Conquests behavior.
+  final tie-break is not implemented. Although the executable supports the
+  100,000 rank threshold statically, exact tile footprints and deeper-ring
+  ownership rules remain known fidelity gaps. The Civilopedia conflict awaits
+  controlled runtime verification. Source checked
+  2026-11-11: [CivFanatics, “Editor Rules - Explained,” Culture](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
 - Technical geometry lead, not adopted as a gameplay rule: C3X's open-source
   Conquests executable mod has an ordered cultural-neighbor table and uses a
   city's engine `cultural_level` as a ring limit for its configurable work
@@ -340,10 +568,15 @@ documentation, not as evidence for field behavior.
   and founding turn per the CivFanatics reverse-engineering account. Exact
   claim eligibility, same-turn directional ties, island/coast behavior, and
   deeper-ring geometry still need controlled Conquests observations. The
-  deterministic synthetic `city_borders_playtest` checks culture thresholds,
-  fog eligibility, and both directions of a same-rank civilization-culture
-  comparison; it validates these implementation branches, not original
-  Conquests behavior.
+  deterministic synthetic `city_borders_playtest` checks equal-culture ties,
+  both directions of a same-rank civilization-culture comparison, and culture-
+  driven reach changes while both civilizations know the fixture map. A
+  separate regression test verifies CivCraft assigns ownership to an eligible
+  undiscovered tile without revealing it. This is an implementation inference:
+  it avoids making shared world ownership depend on civilization-specific map
+  knowledge, but the BIQ and Civilopedia do not explicitly document this
+  interaction. A controlled Conquests scenario should record ownership,
+  visibility, and terrain discovery separately.
 - Parameter-name lead, not yet confirmed from the installed Conquests help:
   Civ III patch notes mirrored by GameFront say “Border Expansion Multiplier”
   was renamed “Lvl. Multiplier,” while a CivFanatics editor reference describes
@@ -555,6 +788,19 @@ documentation, not as evidence for field behavior.
   number of the 21 city-radius tiles inside the challenger's borders. Treat
   `T` as foreign-owned tiles in that radius; the exact count has not been
   checked against Conquests.
+  Important equation conflict: this FAQ form places the national culture ratio
+  on the foreign population/territory pressure before subtracting garrison.
+  An Apolyton discussion reproduces Soren Johnson examples in which the local
+  pressure is calculated first and the defender's garrison is multiplied by
+  the defender-to-challenger culture ratio before subtraction. Its participants
+  explicitly note that their transcribed equation does not fit all of Soren's
+  examples and that the exact placement remains unknown. The code's
+  `city_flip_probability` currently implements the FAQ/CivWiki candidate only;
+  its unit vectors do not establish which equation Conquests uses. This
+  conflict, together with missing controlled Conquests observations, prevents
+  wiring the candidate into turn resolution. Source: [Apolyton, “Culture Flip
+  Formula,” including reproduced Soren examples and the formula discussion]
+  (https://codehappy.net/apolyton/threads/51715-1.htm).
   Firaxis staff member Dan Magaha reported in 2002 that the relative weights
   were: foreign citizens and foreign territory as base values; capital-distance
   ratio; civilization culture ratio; historical city culture (challenger ahead
@@ -599,13 +845,18 @@ documentation, not as evidence for field behavior.
   culture, disorder, WLTKD, garrison, and capital distances from simulation
   state before applying the candidate arithmetic. A deterministic scenario
   covers those derived inputs, the garrison reduction, and doubled chance when
-  the challenger has greater local culture. The Conquests FAQ defines `F` as
-  all foreign citizens, with resisting citizens counted twice, and CivWiki
-  gives the same general foreign-citizen term; the calculation therefore sums
-  every foreign nationality even when it differs from the challenger. A
-  deterministic regression test verifies that adding a second foreign
-  nationality increases the candidate probability. This candidate calculation
-  is still not called during turn resolution. Zero-total-culture or
+  the challenger has greater local culture. The formula FAQ defines `F` as
+  foreign citizens, with resisting citizens counted twice, but leaves its
+  nationality scope ambiguous. A contemporaneous Apolyton discussion of Soren
+  Johnson's explanation describes a separate probability for each foreign
+  civilization's citizens and territory. The candidate now scopes `F` to the
+  selected challenger; a regression test verifies that another nationality
+  does not affect that candidate, while the challenger's citizens and
+  resisters do. That discussion leaves garrison allocation across multiple
+  nationalities disputed, so it does not establish total city-resolution
+  behavior. Source: [Apolyton, “Culture Flip Formula,” posts #1, #28–29]
+  (https://codehappy.net/apolyton/threads/51715-1.htm). This candidate
+  calculation is still not called during turn resolution. Zero-total-culture or
   invalid capital-distance ratios also return unresolved (`None`) because
   available sources do not establish the engine behavior for those undefined
   inputs. The candidate formula has
@@ -621,28 +872,79 @@ documentation, not as evidence for field behavior.
   (https://forums.civfanatics.com/threads/culture-flipping-exposed.14337/),
   [CivFanatics, “Armies captured in culture flips?”]
   (https://forums.civfanatics.com/threads/armies-captured-in-culture-flips.90904/).
+- Review of the user-supplied five-page Gemini mechanics analysis (2026-11-11):
+  treat it as a lead list, not an authority. Its qualitative flip-factor
+  summary is corroborated by Firaxis staff member Dan Magaha's 2002 post, and
+  the C3C-tagged 2020 forum report says a newly captured town cannot flip on
+  the first interturn. The latter is a player report, not a controlled test or
+  developer statement, so first-interturn immunity remains a candidate rule.
+  The analysis prints two different versions of the flip equation: its opening
+  display multiplies by capital distance, while the later equation it
+  attributes to Soren divides by distance. The latter matches the published
+  CivFanatics FAQ formula; Magaha's Firaxis post confirms the factor list but
+  does not publish numeric weights. We therefore treat division by distance as
+  the community-reported formula, not as independently verified Firaxis
+  source code.
+  The analysis' border claim that ownership is first-come and never dynamically
+  changes is disputed by the cited 2004 border investigation, whose participants
+  describe recalculation and competing city claims but disagree about edge
+  cases. Its proposed 100,000 culture border threshold has separate static
+  support in the installed Conquests executable: the city update multiplies a
+  culture threshold by a runtime factor through rank 6. With the BIQ factor 10,
+  this gives 100,000 for rank 6. It still conflicts with the Civilopedia's
+  20,000 example, and the FAQ's explanation that normal play ends at 20,000
+  does not test the executable path beyond that value. No controlled Conquests
+  runtime observation is available. The analysis' claims about exact interturn order,
+  and unit/building disposition on a city flip remain unestablished. For
+  `RetainCulture`, the CivFanatics “Editor Rules - Explained” reference says
+  retained city culture is carried over to the capturing civilization, while a
+  later modding discussion says its author did not know whether retained points
+  enter the captor's total. This makes transfer a documented community-reported
+  rule, but not a controlled Conquests observation; CivCraft's attribution
+  behavior under this flag remains a candidate needing runtime verification.
+  For capture accounting, the CivFanatics Info Center
+  instead distinguishes lost city culture from building output: captured
+  structures produce no culture for the captor, while a recaptured former city
+  resumes its improvements' culture. This supports keeping builder identity
+  separate from current ownership, but is still secondary evidence. Checked
+  2026-11-11: [Dan Magaha (Firaxis), “Culture-Flipping Exposed”](https://forums.civfanatics.com/threads/culture-flipping-exposed.14337/),
+  [C3C-tagged first-interturn report](https://forums.civfanatics.com/threads/culture-flips.661194/),
+  [CivFanatics “Border calculation” investigation](https://forums.civfanatics.com/threads/border-calculation.75552/),
+  [CivFanatics FAQ, border thresholds and flip formula](https://civfanatics.com/civ3/faq/),
+  [CivFanatics, “Editor Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/),
+  [CivFanatics, “Using culture to influence AI improvement build”](https://forums.civfanatics.com/threads/using-culture-to-influence-ai-improvement-build.670397/),
+  and [CivFanatics Info Center, captured-city culture](https://civfanatics.com/civ3/infocenter/).
 - Conquests Civilopedia says civilization culture is the sum of city culture
   values (“the sum of the cultural values of all of your cities”) and that
   larger cultural advantage is favorable in resistance, diplomacy, and
-  competing territorial claims. CivCraft now sums the culture ledger entries
-  only from cities currently owned by that civilization. The per-civilization
-  city ledger is cleared on combat capture when the installed main BIQ's
-  `GAME.RetainCulture=0`. That models the city-value reset described by the
-  editor-rule reference. Historical per-civilization culture is now tracked
-  separately and survives capture. This distinction follows Denouement's
-  Conquests guide, which says the city remembers how much culture each
-  civilization earned there, and the CivFanatics Info Center's “City-Flipping
-  Exposed” account that this local memory affects defection chance. The same
-  Info Center says current city points are lost on capture and also says
-  civilization totals never decrease; it does not reconcile these values.
-  CivCraft therefore models the supported local-history distinction but still
-  sums civilization culture from currently owned cities, following the
-  Civilopedia's definition. Whether Conquests also keeps a separate lifetime
-  civilization total remains unresolved. The guide is secondary evidence, not
-  official text or a controlled observation. Sources checked 2026-11-10:
+  competing territorial claims. An archived Civilization III FAQ hosted by
+  Planet Civilization says culture produced by cities is added to a total
+  representing influence “since the beginning of history,” and explicitly says
+  that total does not decrease when a city is captured. Its introduction says
+  most of the FAQ was written by Firaxis employees for the Firaxis website;
+  however, its expansion/patch scope is not stated. CivFanatics' Info Center
+  makes the same no-decrease claim and separately says a city's current culture
+  is lost under default capture rules; the Conquests strategy guide says cities
+  remember the culture earned in them by each civilization. Together these
+  sources support separate city-current, city-historical, and civilization-
+  cumulative values, though the Civilopedia's wording does not explicitly
+  describe that distinction. CivCraft now computes national culture
+  from the historical per-civilization ledgers across extant cities, preserving
+  totals across capture without crediting the captor with its predecessor's
+  culture. When a city is destroyed, its historical ledger is archived and
+  continues contributing to the civilizations' totals. This matches the
+  explicit C3C forum report that razing a city stops future culture production
+  but does not remove the civilization's existing culture. It is community
+  evidence, not a controlled run against the installed executable. Sources
+  checked 2026-11-11:
   [Denouement, “Cultural Calamity”](https://gamefaqs.gamespot.com/pc/915016-civilization-iii-conquests/faqs/18251),
   captured-city passage; [CivFanatics Info Center](https://civfanatics.com/civ3/infocenter/),
-  “Effects of Culture,” lines 425 and 429–433 in the current web edition.
+  “Effects of Culture,” lines 425 and 429–433 in the current web edition; and
+  [CivFanatics, “Why won't my game end at 100,000 culture?”](https://forums.civfanatics.com/threads/why-wont-my-game-end-at-100-000-culture.95996/),
+  post #5, explicitly tagged C3C. Additional base-game source: [Civilization
+  III FAQ, “What happens to my culture if a city is captured?”](https://planetcivilization.gamespy.com/View9733.html?game=5&id=8&view=Faq.Detail),
+  archived at Planet Civilization; its introductory note says most answers
+  were written by Firaxis employees for the Firaxis website.
 - Conquests Civilopedia gives a 20,000-point single-city cultural victory and
   lists civilization totals of 60,000 / 80,000 / 100,000 / 130,000 / 160,000
   for Tiny through Huge maps. The installed BIQ `GAME` fields specify 20,000
@@ -659,11 +961,15 @@ documentation, not as evidence for field behavior.
   especially its explicit description of the 100,000-point empire victory and
   rival-half requirement.
 - The threshold values are explicit, but culture attribution for a captured
-  city is not. The one-city check uses the current owner's ledger entry, an
-  inference from “one of your cities.” Under `GAME.RetainCulture=1`, whether
-  retained points belong to the new owner, remain attributed to their builders,
-  or affect city culture, historical city memory, and civilization totals
-  differently remains unresolved.
+  city is not fully established. The one-city check uses the current owner's
+  ledger entry, an inference from “one of your cities.” Under
+  `GAME.RetainCulture=1`, the CivFanatics editor-rules reference says retained
+  culture transfers to the capturing civilization, while a later modding
+  discussion questions whether that transfer affects its empire total. CivCraft
+  currently preserves builder attribution in this optional path, so it does
+  not implement the reported transfer. Whether current city culture, historical
+  city memory, and civilization totals transfer together or separately remains
+  unresolved pending a controlled Conquests observation.
 - The installed `DIFF` records contain difficulty parameters but no explicit
   culture modifier. Their `MilitaryLaw` value is `1` at all eight levels; it is
   not applied to culture or occupation resistance without supporting evidence.
@@ -688,16 +994,44 @@ documentation, not as evidence for field behavior.
 
 ## Current CivCraft gap inventory
 
+### Remaining gameplay parity gaps at completion
+
+The culture system is playable in CivCraft and its accumulation, turn
+integration, border claims, capture/resistance paths, and cultural-victory
+checks have regression coverage. Two larger Conquests-parity gaps remain:
+
+1. **Exact border behavior is not established.** Static executable analysis
+   supports six culture ranks through 100,000, while the Civilopedia gives an
+   explicit 20,000 expansion example. The executable-to-BIQ parameter mapping
+   is inferred, and the tile footprint, island/coast behavior, and some
+   contested-claim ordering/tie rules have not been observed in Conquests.
+   CivCraft's culture-ranked claims are implemented and playable, but this is
+   not a claim of exact Conquests border parity. See the border evidence and
+   test limits below.
+2. **Culture-driven city flips are not integrated into turn resolution.**
+   CivCraft retains historical per-civilization city culture and tests an
+   isolated community-derived flip-pressure candidate, but Conquests timing,
+   simultaneous challenger handling, garrison effects, probability details,
+   immunity, and flip consequences remain unconfirmed. The candidate is not
+   used to transfer cities in gameplay. See the city-flip evidence below.
+
+These are evidence gaps, not failures of the implemented accumulation and
+border-claim scenarios. Other narrower assumptions, including optional
+`RetainCulture=1` attribution and resistance/assimilation formula details, are
+recorded in their relevant sections and remain subject to Conquests
+verification.
+
 - `src/sim/score.rs::record_history` still accumulates legacy building values
   into the score-only `history` value. It no longer drives the cultural
   achievements or the new culture ledger, but the old score calculation remains.
 - `src/sim/borders.rs` no longer uses city size for border reach; it uses the
-  Civilopedia's listed thresholds through 20,000. The subsequent threshold
-  sequence, ring geometry, final directional tie-break, island/coast behavior,
-  and whether community-described rank priority applies unchanged in Conquests
-  remain unverified. Current rank cap and claim ordering are provisional and
-  documented above; original Conquests observations are still required before
-  claiming parity.
+  thresholds derived from the installed executable's rank loop and the BIQ
+  factor, through rank 6 at 100,000 culture. The Civilopedia's explicit 20,000
+  expansion example conflicts with this static result and needs a controlled
+  Conquests observation. Ring geometry, the final directional tie-break,
+  island/coast behavior, and whether community-described rank priority applies
+  unchanged in Conquests also remain unverified. Claim ordering is provisional;
+  do not claim parity without original-game observations.
 - `src/sim/cities.rs::capture_city_if_needed` initializes resistance from the
   captured nationality's civilization culture. The CULT/GOVT formulas are
   community reverse-engineered; exact behavior still needs controlled Conquests
@@ -709,21 +1043,23 @@ documentation, not as evidence for field behavior.
   per-civilization historical city-memory ledger survives. The false-means-clear
   semantics are inferred from the setting and the installed MPTournament
   release-note contrast, not confirmed in a controlled original-game scenario.
-  A deterministic test now asserts the inferred default result at the empire
-  level: the captured city's 300 culture stops counting for its former owner,
-  its stored 75 points are not credited to the captor, and another 500-point
-  owned city remains counted. This follows the Civilopedia's definition of
-  civilization culture as the sum of owned city values, but does not settle
-  whether the original game also maintains a distinct lifetime civilization
-  total. Other scenario BIQs with the flag enabled are recorded in the export
-  but are not selectable as CivCraft runtime rulesets; enabled-retention
-  accounting remains unresolved.
+  `civilization_culture` now sums per-civilization historical city ledgers
+  across extant cities. This preserves the 300 points previously earned by the
+  former owner and does not transfer them to the captor. A deterministic test
+  also checks that 75 points the captor had earned in the city before losing it
+  remain in its own total. This follows the community report that national
+  culture does not decrease on capture; it still needs controlled Conquests
+  confirmation. Other scenario BIQs with `RetainCulture=1` are recorded in the
+  export but are not selectable runtime rulesets.
 - Under a test-injected `RetainCulture=1`, retained city points now sustain
   the city's cultural border reach after capture, using the summed local city
   ledger. This is inferred from the setting description and Civilopedia link
   between city culture and borders; no original Conquests runtime observation
-  confirms it. Civilization-wide attribution of those retained points remains
-  unresolved.
+  confirms it. Historical national totals remain attributed to the civilizations
+  that generated the points. This differs from the community editor-rules claim
+  that retained culture transfers to the captor. The flag is not enabled in the
+  installed standard Conquests BIQ, and this optional behavior awaits controlled
+  runtime verification.
 - Culture-producing structures now retain their builder-civilization identity.
   Their culture is credited only while that civilization owns the city; age is
   reset during capture so a builder that recaptures the city resumes output
@@ -770,11 +1106,13 @@ documentation, not as evidence for field behavior.
   turn ordering, garrison selection when several nationalities resist, and
   per-turn timing remain inferred or unresolved. Save/load of the counts is
   tested.
-- CivCraft has no civilization Mobilization state or its lifecycle. Community
-  reverse-engineering sources support halving culture output during
-  Mobilization, including a C3C-tagged report, but the installed Conquests
-  Civilopedia omits the effect. Halving remains unapplied until the state and
-  lifecycle can be modeled; rounding/order remains an observation target.
+- CivCraft stores a per-civilization Mobilization state, offers a
+  Nationalism-gated action, and ends it for treaty signatories when Peace is
+  signed. City culture output is halved while mobilized, based on community
+  reports rather than the installed Civilopedia. The floor/truncation behavior
+  for odd city totals and the order of halving versus per-building age bonuses
+  remain unverified. Mobilization's production bonuses and restrictions are not
+  part of the culture change.
 
 ## Implementation progress
 
@@ -825,44 +1163,67 @@ documentation, not as evidence for field behavior.
   scaling remain unsupported. The explicit 20,000 single-city victory is still
   checked on CivCraft's custom 36×48 campaign topology.
 
-## Current validation (2026-11-10)
+## Current validation (2026-11-11)
 
-- Current checkout rerun with `CIVCRAFT_SOURCE_DIR` pointing at the installed
-  source folder: `cargo test --offline culture` passed 33 tests, and
-  `cargo test --offline resist` passed 17 tests. Together these cover the
+- Latest threshold update: static disassembly of the installed
+  `Civ3Conquests.exe` at VA `0x4b7c10` shows the rank-update loop and its
+  six-rank cap. The current Conquests BIQ's `BorderFactor=10` maps that loop to
+  thresholds through 100,000. The focused border tests passed 4/4, the culture
+  tests passed 20/20, and the full offline suite passed 685/685. Formatting and
+  whitespace checks passed. This was static analysis and CivCraft regression
+  testing; the original game was not running for a controlled comparison.
+- Current checkout rerun on 2026-11-11 with `CIVCRAFT_SOURCE_DIR` pointing at
+  the installed source folder: `cargo test --offline culture` passed 39 tests,
+  and `cargo test --offline resist` passed 17 tests. Together these cover the
   current culture accumulation/doubling, capture ledger, border thresholds and
-  synthetic claim comparisons, victory, resistance band inputs and progression,
-  resister labor/rush exclusion, peace resolution, and save/load paths. These
-  are CivCraft regression scenarios; they do not establish the unresolved
+  synthetic claim comparisons, victory, isolated flip-formula candidates,
+  resistance band inputs and progression, resister labor/rush exclusion, peace
+  resolution, and save/load paths. The
+  culture run includes the archived national-culture total surviving city
+  destruction and save/load. The famine-destruction scenario separately
+  verifies that the live city-removal path archives the final turn's culture.
+  These are CivCraft regression scenarios; they do not establish the unresolved
   original-Conquests formulas or border geometry listed below.
-- Full checkout run with the same source path: `cargo test --offline` passed
-  656 of 665 tests; nine failures were reported in AI advisor, AI economy,
-  civilization-start, city-activity ordering, and observed-city-style tests.
-  None were culture/resistance-named. The city-activity ordering failure also
-  reproduces alone, but its fixture has no foreign citizens, so assimilation
-  performs no draws there. These failures do not exercise the culture rules;
-  they remain recorded as broader checkout validation failures, not fixed in
-  this bounded culture task. Failed tests: `quiet_empty_city_has_no_defense_bid_but_entertainer_can_request_police`,
-  `growth_constrained_city_prefers_aqueduct_to_available_expansion`,
-  `danger_counter_choice_assumes_the_next_full_turn_without_mutating_the_enemy`,
-  `transported_troops_and_paradrops_enter_city_danger_without_illegal_moves`,
-  `live_last_activities_apply_tax_before_advice_and_rearrange_workers_first`,
-  `new_campaign_starting_units_use_the_source_profiles`,
-  `city_activity_uses_native_list_then_random_selection_after_conversion`,
-  `fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved`,
-  and `integrated_advisor_scenarios`.
-- `cargo test --offline sim::culture::tests`: 17 passed. The added custom-map
+- Full checkout rerun on 2026-11-11 with the same source path:
+  `cargo test --offline` passed all 689 tests. The focused
+  `cargo test --offline famine_destroys_size_one_city` also passed after adding
+  the live city-removal culture assertion. This replaces the earlier 656-of-665 result;
+  those prior integration failures no longer reproduce in the current
+  checkout.
+- The challenger-specific city-flip candidate inputs were rechecked against
+  the Soren-attributed Apolyton discussion on 2026-11-11. With the installed
+  source path, `cargo test --offline sim::culture::tests` passed all 20 tests.
+  The new regression confirms another nationality's citizens do not add
+  pressure to this challenger's candidate, while the challenger's own foreign
+  citizens do. It does not resolve how simultaneous candidate probabilities
+  and garrison subtraction are handled in Conquests, and the candidate remains
+  disconnected from turn resolution.
+- `CIVCRAFT_SOURCE_DIR=... cargo test --offline sim::culture::tests`: 19 passed
+  in the current worktree. The added custom-map
   case confirms that the explicit 20,000 single-city victory remains active on
   the 36×48 campaign topology, while a 102,000 empire total does not assume a
   threshold the Conquests Civilopedia does not provide for custom maps.
+- Latest prescribed seed-42 desktop `--self-test` (2026-11-11), launched with
+  desktop access after a successful release build, exited 1 and passed 175/217
+  checks. The `culture_accumulation` assertion passed: a Temple accrued 2
+  points at 999 years and 4 at the configured 1,000-year boundary; a city at 9
+  culture reached 10 during a full turn and claimed its next border ring. This
+  is a CivCraft integration regression, not an original-Conquests observation
+  of the exact boundary turn. The other 42 failed checks span transport,
+  workers, combat, production, and AI; they have no culture-specific assertion.
+  Report: `/tmp/civcraft-playtest-qE0ssq/report.json`. After the border
+  visibility regression was added, a fresh run again passed 175/217 checks
+  with the same unrelated failures and the culture assertion passing. Per
+  `AGENTS.md`, this failed report is retained.
 - Current rerun: re-unpacked the installed
   `../../source/Conquests/conquests.biq` with `/private/tmp/civ3-blast`, then
   regenerated all nine culture, victory, resistance, and government exports
-  under `/private/tmp/culture-export-check-pwkolt5e`. Each output byte-matches
-  its checked-in counterpart. The separate
-  `export_conquests_capture_culture_flags.py` run covered all 29 Conquests BIQs
+  under a fresh temporary directory; each output byte-matches its checked-in
+  counterpart. The `export_conquests_capture_culture_flags.py` run covered all
+  29 Conquests BIQs
   and its `culture_capture_settings.tsv` also byte-matches. This confirms the
-  export pipeline is reproducible from the current installed source.
+  ten culture-related exports are reproducible from the current installed
+  source. The entire offline test suite also passed: 689 passed, 0 failed.
 - Earlier built desktop self-test, seed 42, report
   `/tmp/civcraft-playtest-culture-akblbb/report.json`: process exited 1 and
   2/11 checks passed (foundation and HUD). Movement, act/economy, city tiles,
@@ -906,12 +1267,23 @@ documentation, not as evidence for field behavior.
   Civilopedia threshold and around each boundary. A new end-to-end map scenario
   also verifies that each threshold claims its next ring and not the following
   ring. The synthetic border scenario passes with population-independent reach,
-  culture-based expansion, fog eligibility, and contested same-rank ownership
-  changing in both culture-total directions. Another test verifies the
+  culture-based expansion, and contested same-rank ownership changing in both
+  culture-total directions. The culture-claim scenario now keeps both
+  civilizations' map knowledge complete for the contested-claim comparisons;
+  a separate test verifies that an eligible but undiscovered tile receives
+  world ownership without becoming visible. Another test verifies the
   provisional lower-rank-first rule against a farther city with much greater
   civilization culture. These verify
   CivCraft's selected source-based implementation branches, not the original
   Conquests border geometry or disputed post-20,000 rules.
+- Border ownership no longer requires the claiming civilization to have
+  explored the tile. A regression test verifies that a culture-eligible tile
+  receives world ownership while remaining undiscovered to its owner. This
+  removes a player-knowledge dependency from shared territory state; the exact
+  Conquests visibility interaction remains unverified. The focused test and
+  full `CIVCRAFT_SOURCE_DIR=../source cargo test --offline --quiet` run pass;
+  the full run reports 686 passed, 0 failed. The release build succeeds and
+  `git diff --check` is clean.
 - `cargo test --offline obsolete_conquests_wonder_keeps_its_culture_output`
   passes: after Flight makes the Conquests Colossus obsolete, its 3 culture per
   turn still accrues, consistent with the base manual's printed p. 101 rule.
@@ -1097,7 +1469,8 @@ scenarios and record the starting save, BIQ hash, turn/year, settings, action,
 and observed result for:
 
 1. Per-building culture output, obsolete building behavior, and mobilization
-   half-output.
+   half-output, including an odd summed city output to establish rounding and
+   the order of the per-building age multiplier.
 2. Culture doubling at building age boundaries and capture behavior in paired
    scenarios differing only in `GAME.RetainCulture`: record each
    civilization's city/civilization culture and the city borders before capture,
@@ -1127,10 +1500,11 @@ state, keep the mechanic unresolved and document what evidence is missing.
 
 - Culture per turn and per-civilization city totals are separate from score
   history and are saved/restored.
-- Culture output uses extracted Conquests BLDG data and verified age,
-  obsolescence, and any edition-specific production-state rules established by
-  the sources or controlled observations; unresolved Mobilization behavior is
-  documented and is not guessed.
+- Culture output uses extracted Conquests BLDG data and verified age and
+  obsolescence rules. The community-supported Mobilization half-output path is
+  implemented and serialized; its odd-total rounding and order relative to
+  building-age doubling remain explicitly inferred pending controlled
+  Conquests observation.
 - Border expansion and contested ownership use verified culture rules and BIQ
   parameters; city size no longer acts as the expansion proxy.
 - Capture, resistance, non-working citizens, resistance resolution, and

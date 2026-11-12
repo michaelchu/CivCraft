@@ -141,6 +141,7 @@ mod aviation_scenarios;
 mod border_scenarios;
 mod city_economy_scenarios;
 mod combat_scenarios;
+mod culture_scenarios;
 mod diplomacy_scenarios;
 mod endgame_scenarios;
 mod list_order_scenarios;

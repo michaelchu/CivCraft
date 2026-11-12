@@ -401,6 +401,8 @@ pub(crate) struct Player {
     pub(crate) government: crate::sim::Government,
     pub(crate) revolution_target: Option<crate::sim::Government>,
     pub(crate) revolution_turn: Option<i32>,
+    #[serde(default)]
+    pub(crate) mobilized: bool,
     pub(crate) known: Vec<Tech>,
     pub(crate) researching: Tech,
     pub(crate) research_goal: Tech,

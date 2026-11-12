@@ -200,3 +200,22 @@ fn revolution_respects_unlocks_anarchy_and_rate_caps() {
     assert_eq!(game.players[HUMAN].government, Government::Monarchy);
     assert!(!game.apply(Command::Government(Government::Monarchy)));
 }
+
+#[test]
+fn mobilization_requires_nationalism_and_peace_treaty_returns_to_normalcy() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.players[HUMAN].known.clear();
+    assert!(!game.apply(crate::sim::Command::Mobilize));
+    assert!(!game.players[HUMAN].mobilized);
+
+    game.players[HUMAN].known.push(Tech::NATIONALISM);
+    assert!(game.apply(crate::sim::Command::Mobilize));
+    assert!(game.players[HUMAN].mobilized);
+    assert!(!game.apply(crate::sim::Command::Mobilize));
+
+    game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+    assert!(game.players[HUMAN].mobilized);
+
+    game.sign_pact(HUMAN, 1, Pact::Peace);
+    assert!(!game.players[HUMAN].mobilized);
+}

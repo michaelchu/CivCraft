@@ -94,7 +94,7 @@ impl Simulation {
             // The editor option describes retaining city culture; the precise
             // border-resolution behavior still lacks a controlled game check.
             let max_rank = city_cultural_border_rank(city.total_culture());
-            if rank == i32::MAX || rank > max_rank || !self.tiles[index].known_by[city.owner] {
+            if rank == i32::MAX || rank > max_rank {
                 return false;
             }
             let source = regions[self.map_wrap.index(city.x, city.y)];

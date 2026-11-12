@@ -151,12 +151,6 @@ impl<'a> Civ3WorldPainter<'a> {
             .draw_base(game, x, y, center, vec2(width, height));
     }
 
-    pub(super) fn draw_map_polar_cap(&self, x: i32, y: i32, center: Vec2, width: f32, height: f32) {
-        self.assets
-            .civ3
-            .draw_polar_cap(self.game, x, y, center, vec2(width, height));
-    }
-
     pub(super) fn draw_map_layer(
         &self,
         layer: map_layers::MapLayer,
@@ -505,8 +499,6 @@ impl<'a> Civ3WorldPainter<'a> {
             }
             self.draw_map_base(x, y, center, tile_w, tile_h);
         }
-        game.draw_polar_caps(assets, viewport, tile_w, tile_h);
-
         for layer in map_layers::MAP_LAYERS {
             for &(x, y, center) in &order {
                 if !game.sim.render_tile_view(x, y).seen {

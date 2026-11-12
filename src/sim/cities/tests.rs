@@ -16,7 +16,7 @@ fn standard_conquests_capture_drops_city_culture_without_crediting_the_captor() 
     game.cities[1].add_culture(HUMAN, 75);
     game.cities[2].add_culture(HUMAN, 500);
     assert_eq!(game.civilization_culture(1), 300);
-    assert_eq!(game.civilization_culture(HUMAN), 500);
+    assert_eq!(game.civilization_culture(HUMAN), 575);
     game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
 
@@ -29,8 +29,16 @@ fn standard_conquests_capture_drops_city_culture_without_crediting_the_captor() 
     assert_eq!(city.culture_by_civilization, [(HUMAN, 0)]);
     assert_eq!(city.historical_culture_for_civilization(1), 300);
     assert_eq!(city.historical_culture_for_civilization(HUMAN), 75);
-    assert_eq!(game.civilization_culture(1), 0);
-    assert_eq!(game.civilization_culture(HUMAN), 500);
+    assert_eq!(
+        game.civilization_culture(1),
+        300,
+        "capturing the city must not subtract culture the former owner already earned"
+    );
+    assert_eq!(
+        game.civilization_culture(HUMAN),
+        575,
+        "the captor keeps culture it had already earned in the city, but receives none of the former owner's 300 points"
+    );
 }
 
 #[test]

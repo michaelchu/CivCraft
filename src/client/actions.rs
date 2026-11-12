@@ -393,6 +393,9 @@ impl Game {
             UiAction::ChangeGovernment(target) => {
                 self.sim.apply(Command::Government(target));
             }
+            UiAction::Mobilize => {
+                self.sim.apply(Command::Mobilize);
+            }
             UiAction::OpenResearch => {
                 self.research_open = true;
                 self.research_drag = None;

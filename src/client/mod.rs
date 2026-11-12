@@ -173,6 +173,7 @@ pub(crate) enum UiAction {
     CloseOffer,
     AcceptOffer(usize, TreatyOffer),
     ChangeGovernment(Government),
+    Mobilize,
     CloseCity,
     SelectUnit(u32),
     FoundCity,

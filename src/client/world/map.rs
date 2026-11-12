@@ -80,36 +80,6 @@ impl Game {
         }
     }
 
-    pub(super) fn draw_polar_caps(
-        &self,
-        assets: &Assets,
-        viewport: Rect,
-        tile_w: f32,
-        tile_h: f32,
-    ) {
-        let width = self.sim.map_wrap().width();
-        let height = self.sim.map_wrap().height();
-        let count = map_view::EDGE_WATER_ROWS;
-        for y in (-count..1).chain(height - 1..height + count) {
-            for x in 0..width {
-                let center = self.world_screen_position(x, y);
-                if center.x < viewport.x - tile_w
-                    || center.x > viewport.right() + tile_w
-                    || center.y < viewport.y - tile_h
-                    || center.y > viewport.bottom() + tile_h
-                {
-                    continue;
-                }
-                if !self.sim.render_tile_view(x, y.clamp(0, height - 1)).seen {
-                    continue;
-                }
-                assets
-                    .civ3
-                    .draw_polar_cap(self, x, y, center, vec2(tile_w, tile_h));
-            }
-        }
-    }
-
     pub(super) fn draw_visible_base_foreground(
         &self,
         assets: &Assets,

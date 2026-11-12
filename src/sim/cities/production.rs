@@ -202,6 +202,7 @@ impl Simulation {
                     self.lose_spaceship(snapshot.owner);
                 }
                 let removed = self.cities.remove(index);
+                self.archive_city_culture(&removed);
                 self.city_founders.remove(&removed.id);
                 self.city_rapture.remove(&removed.id);
                 self.rebuild_city_ownership_for_city_event(removed.id);

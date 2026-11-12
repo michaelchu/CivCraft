@@ -158,6 +158,21 @@ fn unit_support_rules() -> &'static [UnitSupportRule] {
 }
 
 impl Simulation {
+    pub(crate) fn can_mobilize(&self, owner: usize) -> bool {
+        owner < self.civilization_count
+            && !self.players[owner].mobilized
+            && self.has_tech(owner, Tech::NATIONALISM)
+    }
+
+    pub(super) fn mobilize(&mut self, owner: usize) -> bool {
+        if !self.can_mobilize(owner) {
+            return false;
+        }
+        self.players[owner].mobilized = true;
+        self.add_event(format!("{} mobilizes for war.", self.players[owner].name));
+        true
+    }
+
     pub(super) fn government_center_distance(&self, city: &City) -> Option<i32> {
         if city.has_building(Building::PALACE)
             || city.has_building(Building::ECCLESIASTICAL_PALACE)

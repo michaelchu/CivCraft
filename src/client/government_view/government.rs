@@ -10,9 +10,9 @@ impl Game {
         let width = (screen_width() - 24.0).min(620.0);
         let panel = Rect::new(
             (screen_width() - width) / 2.0,
-            (screen_height() - 378.0) / 2.0,
+            (screen_height() - 430.0) / 2.0,
             width,
-            378.0,
+            430.0,
         );
         panel_frame(panel);
         let draw_text = panel_text(panel);
@@ -61,6 +61,16 @@ impl Game {
             if let Some(label) = &option.requirement_description {
                 draw_text(label, x + 3.0, y + 57.0, 13.0, GOLD);
             }
+        }
+        let mobilization = Rect::new(panel.x + 18.0, panel.y + 388.0, panel.w - 36.0, 28.0);
+        draw_ui_button(
+            mobilization,
+            view.mobilization_label,
+            view.can_mobilize,
+            false,
+        );
+        if view.can_mobilize {
+            actions.push((mobilization, UiAction::Mobilize));
         }
         actions
     }

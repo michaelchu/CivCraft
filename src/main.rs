@@ -187,11 +187,24 @@ async fn main() {
             }
         }
     } else {
-        Game::from_simulation(sim::Simulation::new(mapgen::generate_for_civ3_size(
-            seed,
-            map_size,
-            world_settings,
-        )))
+        let generated = match argument_value("--map-generator").as_deref() {
+            None | Some("opensimplex") => {
+                mapgen::generate_for_civ3_size(seed, map_size, world_settings)
+            }
+            Some("freeciv-fractal") => mapgen::generate_for_civ3_size_with(
+                &mapgen::FreecivFractalMapGenerator,
+                seed,
+                map_size,
+                world_settings,
+            ),
+            Some(value) => {
+                eprintln!(
+                    "Invalid --map-generator value '{value}'; expected opensimplex or freeciv-fractal"
+                );
+                std::process::exit(2);
+            }
+        };
+        Game::from_simulation(sim::Simulation::new(generated))
     };
     let assets = Assets::new(&tileset).unwrap_or_else(|error| {
         eprintln!("Could not load {} tileset. {error}", tileset.name());

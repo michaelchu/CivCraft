@@ -129,6 +129,14 @@ impl Simulation {
             leader_line: format!("{} · {}", player.name, player.leader_name()),
             status_line,
             options,
+            can_mobilize: self.can_mobilize(owner),
+            mobilization_label: if player.mobilized {
+                "Mobilized · peace treaty required"
+            } else if self.can_mobilize(owner) {
+                "Mobilize for war"
+            } else {
+                "Mobilization requires Nationalism"
+            },
         })
     }
 

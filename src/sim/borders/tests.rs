@@ -7,8 +7,8 @@ fn contested_border_claims_follow_civilization_culture() {
 }
 
 #[test]
-fn each_explicit_culture_threshold_claims_the_next_border_ring() {
-    for (culture, expected_rank) in [(10, 2), (100, 3), (1_000, 4), (10_000, 5), (20_000, 6)] {
+fn each_executable_culture_threshold_claims_the_next_border_ring() {
+    for (culture, expected_rank) in [(10, 2), (100, 3), (1_000, 4), (10_000, 5), (100_000, 6)] {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();
@@ -52,6 +52,43 @@ fn each_explicit_culture_threshold_claims_the_next_border_ring() {
         assert_eq!(game.tile(on_ring.0, on_ring.1).owner, Some(HUMAN));
         assert_eq!(game.tile(outside_ring.0, outside_ring.1).owner, None);
     }
+}
+
+#[test]
+fn culture_claims_do_not_depend_on_the_civilizations_map_knowledge() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.owner = None;
+        tile.border_city = None;
+        tile.known_by.fill(false);
+    }
+
+    let origin = (10, 24);
+    game.create_city(HUMAN, origin.0, origin.1);
+    game.cities[0].add_culture(HUMAN, 10);
+    for tile in &mut game.tiles {
+        tile.known_by.fill(false);
+    }
+    let mut claimed = origin;
+    for _ in 0..2 {
+        claimed = game
+            .map_wrap
+            .civ3_neighbor(claimed.0, claimed.1, 0)
+            .expect("test claim stays inside the map");
+    }
+    assert_eq!(
+        game.map_wrap
+            .civ3_distance(origin.0, origin.1, claimed.0, claimed.1),
+        2
+    );
+
+    game.rebuild_city_ownership();
+
+    assert_eq!(game.tile(claimed.0, claimed.1).owner, Some(HUMAN));
+    assert!(!game.tile(claimed.0, claimed.1).known_by[HUMAN]);
 }
 
 #[test]

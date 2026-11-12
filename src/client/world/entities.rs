@@ -71,11 +71,6 @@ impl Game {
                 painter.draw_map_base(x, y, center, layout.tile_w, layout.tile_h);
             }
         }
-        for &(_, _, x, y, center, relevant) in &tiles {
-            if relevant && self.sim.render_tile_view(x, y).seen {
-                painter.draw_map_polar_cap(x, y, center, layout.tile_w, layout.tile_h);
-            }
-        }
         for layer in map_layers::MAP_LAYERS {
             for &(_, _, x, y, center, relevant) in &tiles {
                 if !relevant || !self.sim.render_tile_view(x, y).seen {

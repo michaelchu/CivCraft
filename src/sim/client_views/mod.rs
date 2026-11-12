@@ -73,6 +73,8 @@ pub(crate) struct GovernmentView {
     pub(crate) leader_line: String,
     pub(crate) status_line: String,
     pub(crate) options: Vec<GovernmentOptionView>,
+    pub(crate) can_mobilize: bool,
+    pub(crate) mobilization_label: &'static str,
 }
 
 pub(crate) struct GovernmentOptionView {

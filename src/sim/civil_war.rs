@@ -81,6 +81,7 @@ impl Simulation {
             government: Government::Despotism,
             revolution_target: None,
             revolution_turn: None,
+            mobilized: false,
             known: original.known.clone(),
             researching: original.researching,
             research_goal: original.research_goal,

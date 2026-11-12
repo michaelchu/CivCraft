@@ -37,13 +37,15 @@ struct CityFlipFactors {
     defender_capital_distance: f64,
 }
 
-/// Return the candidate flip probability as a fraction, when its ratios exist.
+/// Return one community formula candidate as a fraction, when its ratios exist.
 ///
-/// CivFanatics' Conquests FAQ supplies the factors, while CivWiki's
-/// reverse-engineered account supplies the `2000 * D` denominator and the
-/// 0.25–4 clamp for the relative capital-distance modifier. A zero or missing
-/// total-culture value and invalid distance return `None`: available sources
-/// do not specify the engine's behavior for those undefined ratios.
+/// This uses the CivFanatics FAQ's placement of the national-culture ratio on
+/// population/territory pressure and CivWiki's `2000 * D` denominator and
+/// 0.25–4 distance-ratio clamp. Apolyton's reproductions of Soren Johnson's
+/// examples imply a different placement, on the garrison term. The calculation
+/// remains isolated and is not used in turn resolution. A zero or missing
+/// total-culture value and invalid distance return `None` because the sources
+/// do not establish the engine's behavior for those undefined ratios.
 #[allow(dead_code)] // Kept isolated until the remaining Conquests resolution rules are established.
 fn city_flip_probability(factors: CityFlipFactors) -> Option<f64> {
     if factors.challenger_total_culture <= 0
@@ -56,7 +58,8 @@ fn city_flip_probability(factors: CityFlipFactors) -> Option<f64> {
         return None;
     }
 
-    // FAQ F is all foreign nationals plus one additional count per resister.
+    // F is the challenger nationality's citizens plus one extra count per
+    // challenger-nationality resistor.
     let foreign_pressure = factors.foreign_citizens.max(0)
         + factors.resisting_citizens.max(0)
         + factors.foreign_radius_tiles.clamp(0, 21);
@@ -166,11 +169,14 @@ fn candidate_city_flip_probability_to(
     let defender_capital_distance = capital_distance(defender)?;
     let forecast = game.city_forecast(city);
     let (happy, unhappy, angry) = game.city_feelings(city, forecast.luxury);
-    // The CivFanatics Conquests FAQ defines F as all foreign citizens, with
-    // resisters counted twice. Nationality is not restricted to the challenger.
+    // The FAQ gives F as foreign citizens with resisters counted twice. A
+    // Soren-attributed follow-up describes separate probability checks for
+    // each foreign civilization, so keep this candidate's population scoped
+    // to its challenger.
     let resisting_citizens = city
         .resisting_citizens
         .iter()
+        .filter(|&&(nationality, _)| nationality == challenger)
         .map(|&(_, count)| count)
         .sum();
     let celebrating_wltkd = city_meets_wltkd_criteria(
@@ -184,7 +190,12 @@ fn candidate_city_flip_probability_to(
         unhappy,
         angry,
     );
-    let foreign_citizens = city.foreign_citizens.iter().map(|&(_, count)| count).sum();
+    let foreign_citizens = city
+        .foreign_citizens
+        .iter()
+        .filter(|&&(nationality, _)| nationality == challenger)
+        .map(|&(_, count)| count)
+        .sum();
     let foreign_radius_tiles = game
         .map_city_radius(city)
         .filter(|&(_, _, x, y)| game.tile(x, y).owner == Some(challenger))
@@ -258,11 +269,13 @@ pub(super) fn retain_culture_on_capture() -> bool {
     })
 }
 
-/// Conquests Civilopedia's explicitly named city-culture border thresholds.
-/// Later thresholds conflict with the editor's reverse-engineered Border
-/// Factor sequence, so expansion is currently capped at the last explicit
-/// Civilopedia example until the installed game can resolve the discrepancy.
-const CITY_BORDER_CULTURE_THRESHOLDS: [i64; 5] = [10, 100, 1_000, 10_000, 20_000];
+/// City-culture thresholds recovered from the installed Conquests executable.
+/// Its rank-update loop multiplies the next threshold by the BIQ BorderFactor,
+/// then caps the rank at six. The installed factor is 10, yielding the
+/// sequence below. This contradicts the Civilopedia's 20,000 example; retain
+/// both evidence items in the rules audit rather than treating that example
+/// as the engine threshold.
+const CITY_BORDER_CULTURE_THRESHOLDS: [i64; 5] = [10, 100, 1_000, 10_000, 100_000];
 
 pub(super) fn city_cultural_border_rank(culture: i64) -> i32 {
     1 + CITY_BORDER_CULTURE_THRESHOLDS
@@ -461,12 +474,30 @@ fn culture_victory_thresholds_for_map(map_wrap: MapWrap) -> Option<CultureVictor
 }
 
 impl Simulation {
+    pub(super) fn archive_city_culture(&mut self, city: &City) {
+        for &(civilization, culture) in &city.culture_memory_by_civilization {
+            let archived = self.retired_city_culture.entry(civilization).or_default();
+            *archived = archived.saturating_add(culture);
+        }
+    }
+
     pub(crate) fn civilization_culture(&self, civilization: usize) -> i64 {
-        self.cities
+        let city_culture = self
+            .cities
             .iter()
-            .filter(|city| city.owner == civilization)
-            .map(|city| city.culture_for_civilization(civilization))
-            .sum()
+            // National culture is cumulative. Capturing a city clears its
+            // current local culture under the standard Conquests rules, but
+            // does not subtract the culture the civilization already earned.
+            // Historical city ledgers preserve that contribution across
+            // ownership changes without crediting it to the captor.
+            .map(|city| city.historical_culture_for_civilization(civilization))
+            .fold(0_i64, i64::saturating_add);
+        city_culture.saturating_add(
+            self.retired_city_culture
+                .get(&civilization)
+                .copied()
+                .unwrap_or_default(),
+        )
     }
 
     pub(super) fn record_city_culture(&mut self, city_index: usize) {
@@ -499,6 +530,12 @@ impl Simulation {
                 1
             };
             culture_this_turn += i64::from(rate) * age_multiplier;
+        }
+        if self.players[owner].mobilized {
+            // The Conquests FAQ reports that a Temple's 2 culture per turn
+            // becomes 1 during Mobilization. Integer truncation for odd city
+            // totals is an implementation inference pending game observation.
+            culture_this_turn /= 2;
         }
         self.cities[city_index].add_culture(owner, culture_this_turn);
     }
@@ -823,23 +860,30 @@ mod tests {
         stronger_local_culture.cities[3].add_culture(HUMAN, 1);
         let doubled =
             candidate_city_flip_probability_to(&stronger_local_culture, city_id, HUMAN).unwrap();
-        assert!((doubled / base - 2.0).abs() < 1e-9);
+        assert!(
+            doubled > base,
+            "greater local culture doubles the local factor and also contributes to the challenger's cumulative national culture"
+        );
     }
 
     #[test]
-    fn candidate_flip_probability_counts_all_foreign_nationalities() {
+    fn candidate_flip_probability_counts_only_the_challengers_nationality() {
         let (mut game, city_id) = candidate_flip_fixture();
+        game.cities[3].size = 5; // Prevent WLTKD from confounding nationality pressure.
+        let baseline = candidate_city_flip_probability_to(&game, city_id, HUMAN).unwrap();
         game.cities[3].foreign_citizens.push((2, 1));
         let with_multiple_nationalities =
             candidate_city_flip_probability_to(&game, city_id, HUMAN).unwrap();
-        game.cities[3].foreign_citizens[1].1 -= 1;
-        let challenger_nationality_only =
+        assert_eq!(with_multiple_nationalities, baseline);
+
+        game.cities[3].foreign_citizens[0].1 += 1;
+        let with_challenger_national =
             candidate_city_flip_probability_to(&game, city_id, HUMAN).unwrap();
-        assert!(with_multiple_nationalities > challenger_nationality_only);
+        assert!(with_challenger_national > baseline);
     }
 
     #[test]
-    fn city_border_rank_advances_at_conquests_civilopedia_thresholds() {
+    fn city_border_rank_advances_at_installed_executable_thresholds() {
         let cases = [
             (0, 1),
             (9, 1),
@@ -851,7 +895,8 @@ mod tests {
             (9_999, 4),
             (10_000, 5),
             (19_999, 5),
-            (20_000, 6),
+            (20_000, 5),
+            (99_999, 5),
             (100_000, 6),
         ];
         for (culture, expected_rank) in cases {
@@ -914,7 +959,7 @@ mod tests {
         game.record_city_culture(0);
         assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 8);
         assert_eq!(game.cities[0].culture_for_civilization(1), 0);
-        assert_eq!(game.civilization_culture(HUMAN), 0);
+        assert_eq!(game.civilization_culture(HUMAN), 8);
         assert_eq!(game.civilization_culture(1), 0);
     }
 
@@ -924,6 +969,21 @@ mod tests {
         game.create_city(HUMAN, 10, 20);
         game.process_player_cities(HUMAN);
         assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 1);
+    }
+
+    #[test]
+    fn mobilization_halves_city_culture_output() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        game.cities[0].buildings = vec![Building::TEMPLE];
+        game.cities[0].record_culture_building_completion(Building::TEMPLE, HUMAN, game.year);
+
+        game.record_city_culture(0);
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 2);
+
+        game.players[HUMAN].mobilized = true;
+        game.record_city_culture(0);
+        assert_eq!(game.cities[0].culture_for_civilization(HUMAN), 3);
     }
 
     #[test]

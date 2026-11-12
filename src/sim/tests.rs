@@ -308,9 +308,15 @@ fn famine_destroys_size_one_city() {
         .map(|unit| unit.id)
         .expect("human settler");
     assert!(game.found_city(settler));
+    game.cities[0].add_culture(HUMAN, 300);
     game.cities[0].food = -100;
     game.process_cities();
     assert!(game.cities.iter().all(|city| city.owner != HUMAN));
+    assert_eq!(
+        game.civilization_culture(HUMAN),
+        301,
+        "city culture accrued for the final turn must remain in the civilization total after famine destroys the city"
+    );
 }
 
 #[test]

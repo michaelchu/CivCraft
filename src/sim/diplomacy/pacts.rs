@@ -237,6 +237,20 @@ impl Simulation {
         }
         self.ai_war_plans.remove(&(a, b));
         self.ai_war_plans.remove(&(b, a));
+        if proposed == Pact::Peace {
+            let mut returned_to_normalcy = Vec::new();
+            for owner in [a, b] {
+                if let Some(player) = self.players.get_mut(owner)
+                    && player.mobilized
+                {
+                    player.mobilized = false;
+                    returned_to_normalcy.push(player.name.clone());
+                }
+            }
+            for name in returned_to_normalcy {
+                self.add_event(format!("{name} returns to normalcy."));
+            }
+        }
         if a == HUMAN || b == HUMAN {
             let other = if a == HUMAN { b } else { a };
             let detail = if proposed == Pact::Peace {
