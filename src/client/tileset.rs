@@ -157,6 +157,18 @@ const OPTIONAL_IMPROVEMENTS: [(&str, &str); 5] = [
     ("airstrip", "airstrip"),
     ("airbase", "airbase"),
 ];
+const BONUS_GRASSLAND_ROW: usize = 3;
+const BONUS_GRASSLAND_VARIANTS: usize = 3;
+
+fn bonus_grassland_variant(x: i32, y: i32) -> usize {
+    let mut value = (u64::from(x as u32) << 32) | u64::from(y as u32);
+    value ^= value >> 30;
+    value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    value ^= value >> 27;
+    value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^= value >> 31;
+    (value % BONUS_GRASSLAND_VARIANTS as u64) as usize
+}
 
 #[derive(Clone, Copy)]
 pub(super) enum TerrainBuilding {
@@ -1163,6 +1175,7 @@ pub(super) struct Civ3 {
     art: GroundArt,
     atlas: RefCell<Atlas>,
     overlays: Vec<Option<Texture2D>>,
+    bonus_grassland: Texture2D,
     irrigation: Vec<Option<Texture2D>>,
     roads: Option<Texture2D>,
     railroads: Option<Texture2D>,
@@ -1479,6 +1492,9 @@ impl Civ3 {
             .iter()
             .map(|(key, file, w, h, _)| optional(key, file, (*w, *h)))
             .collect::<Result<_, _>>()?;
+        let bonus_grassland_image = required("bonus-grassland", "tnt", (384, 384))?;
+        let bonus_grassland = Texture2D::from_image(&bonus_grassland_image);
+        bonus_grassland.set_filter(FilterMode::Nearest);
         let irrigation = IRRIGATION
             .iter()
             .map(|(key, file)| optional(key, file, (512, 256)))
@@ -1700,6 +1716,7 @@ impl Civ3 {
             art,
             atlas: RefCell::default(),
             overlays,
+            bonus_grassland,
             irrigation,
             roads,
             railroads,
@@ -2334,35 +2351,20 @@ impl Civ3 {
         size: Vec2,
     ) -> bool {
         if terrain == Terrain::GrasslandShield {
-            // The supplied terrain sheets have no separate Grassland shield
-            // sheet; Civ III depicts this yield variant with a central rocky
-            // tuft. Recreate that small marker over the ordinary Grassland.
-            let base_y = center.y + size.y * 0.05;
-            let rock = Color::from_rgba(91, 83, 61, 255);
-            let light = Color::from_rgba(171, 155, 108, 255);
-            draw_ellipse(
-                center.x - size.x * 0.04,
-                base_y,
-                size.x * 0.055,
-                size.y * 0.035,
-                0.0,
-                rock,
-            );
-            draw_ellipse(
-                center.x + size.x * 0.035,
-                base_y - size.y * 0.01,
-                size.x * 0.045,
-                size.y * 0.03,
-                0.0,
-                light,
-            );
-            draw_ellipse(
-                center.x + size.x * 0.08,
-                base_y + size.y * 0.015,
-                size.x * 0.04,
-                size.y * 0.025,
-                0.0,
-                rock,
+            // OpenCiv3 uses the first cell of row 3 in Art/Terrain/tnt.pcx.
+            // The official sheet has three cells for this marker; vary among
+            // them by map position without consuming gameplay RNG.
+            let variant = bonus_grassland_variant(x, y);
+            draw_sprite(
+                &self.bonus_grassland,
+                center,
+                size,
+                Rect::new(
+                    variant as f32 * WIDTH as f32,
+                    BONUS_GRASSLAND_ROW as f32 * HEIGHT as f32,
+                    WIDTH as f32,
+                    HEIGHT as f32,
+                ),
             );
             return true;
         }
