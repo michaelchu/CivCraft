@@ -394,36 +394,45 @@ fn sewer_system_allows_growth_past_size_sixteen() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.cities.clear();
     game.create_city(HUMAN, 10, 20);
-    let city = &mut game.cities[0];
-    city.buildings
+    game.cities[0]
+        .buildings
         .extend([Building::AQUEDUCT, Building::SEWER_SYSTEM]);
 
-    let mut growth_sizes = vec![city.size];
+    let mut growth_sizes = vec![game.cities[0].size];
     for _ in 0..100 {
-        let limit = Simulation::city_size_limit(city);
-        let retained = Simulation::food_retained(city);
-        if city.resolve_growth(game.map_wrap, 10, limit, retained, false) == Growth::Grew {
-            growth_sizes.push(city.size);
+        let city = game.cities[0].clone();
+        let limit = game.city_size_limit(&city);
+        let growth_retained = game.growth_food_retained(&city);
+        let shrink_retained = game.shrink_food_retained(&city);
+        if game.cities[0].resolve_growth(
+            game.map_wrap,
+            10,
+            limit,
+            growth_retained,
+            shrink_retained,
+            false,
+        ) == Growth::Grew
+        {
+            growth_sizes.push(game.cities[0].size);
         }
-        if city.size == 17 {
+        if game.cities[0].size == 17 {
             break;
         }
     }
     assert_eq!(growth_sizes, (1..=17).collect::<Vec<_>>());
-    assert_eq!(city.size, 17);
+    assert_eq!(game.cities[0].size, 17);
 }
 
 #[test]
-fn civ3_city_growth_limits_follow_aqueduct_and_hospital_thresholds() {
+fn c2c3_city_growth_limits_come_from_size_effects() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.cities.clear();
     game.create_city(HUMAN, 10, 20);
-    let city = &mut game.cities[0];
-    assert_eq!(Simulation::city_size_limit(city), 6);
-    city.buildings.push(Building::AQUEDUCT);
-    assert_eq!(Simulation::city_size_limit(city), 12);
-    city.buildings.push(Building::HOSPITAL);
-    assert_eq!(Simulation::city_size_limit(city), i32::MAX);
+    assert_eq!(game.city_size_limit(&game.cities[0]), 8);
+    game.cities[0].buildings.push(Building::AQUEDUCT);
+    assert_eq!(game.city_size_limit(&game.cities[0]), 16);
+    game.cities[0].buildings.push(Building::SEWER_SYSTEM);
+    assert_eq!(game.city_size_limit(&game.cities[0]), i32::MAX);
 }
 
 #[test]

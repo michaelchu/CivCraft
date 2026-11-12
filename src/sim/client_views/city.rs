@@ -120,7 +120,7 @@ impl Simulation {
             luxury: forecast.luxury,
             disorder: forecast.disorder,
             growth_box: Self::growth_box(city.size),
-            growth_limited: city.size >= Self::city_size_limit(city),
+            growth_limited: city.size >= self.city_size_limit(city),
             support_food: support.food,
             support_shields: support.shields,
             support_gold: support.gold,

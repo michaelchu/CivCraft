@@ -211,11 +211,11 @@ impl Simulation {
             .extend([Tech::POTTERY, Tech::CONSTRUCTION]);
         self.reconcile_city_workers();
         let city = self.cities[0].clone();
-        let size_limit = Simulation::city_size_limit(&city);
+        let size_limit = self.city_size_limit(&city);
         let mut with_aqueduct = city.clone();
         with_aqueduct.buildings.push(Building::AQUEDUCT);
         let aqueduct_extends_city_limit =
-            size_limit == 6 && Simulation::city_size_limit(&with_aqueduct) == 12;
+            size_limit == 8 && self.city_size_limit(&with_aqueduct) == 16;
         let aqueduct_available = self.building_blocker(&city, Building::AQUEDUCT).is_none();
         let expansion_available = self.settlement_production_choice(&self.cities[0]).is_some();
         // Source documents the building effects, not a required ranking among

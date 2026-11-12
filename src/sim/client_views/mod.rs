@@ -551,10 +551,7 @@ mod tests {
         assert_eq!(view.science, forecast.science);
         assert_eq!(view.luxury, forecast.luxury);
         assert_eq!(view.growth_box, Simulation::growth_box(city.size));
-        assert_eq!(
-            view.growth_limited,
-            city.size >= Simulation::city_size_limit(city)
-        );
+        assert_eq!(view.growth_limited, city.size >= sim.city_size_limit(city));
         assert_eq!(view.map_tiles.len(), sim.map_city_radius(city).count());
         assert!(view.units.iter().any(|unit| unit.kind == UnitKind::Settler));
         assert!(sim.city_manager_view(u32::MAX).is_none());

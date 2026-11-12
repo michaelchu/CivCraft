@@ -88,19 +88,6 @@ impl Government {
             .copied()
     }
 
-    pub(super) fn base_waste(self) -> (i32, i32) {
-        match self {
-            Self::Anarchy => (30, 0),
-            Self::Despotism => (10, 20),
-            Self::Monarchy => (20, 10),
-            Self::Communism => (0, 30),
-            Self::Fascism => (15, 15),
-            Self::Feudalism => (20, 10),
-            Self::Republic => (5, 25),
-            Self::Democracy => (25, 5),
-        }
-    }
-
     pub(super) fn empire_size(self) -> i32 {
         match self {
             Self::Anarchy => 0,
@@ -217,47 +204,9 @@ impl Simulation {
         granted: Option<Tech>,
         government: Government,
     ) -> (i32, i32) {
-        let (shield_base, trade_base) = government.base_waste();
-        let distance = self.government_center_distance(city);
-        let has_tech = |tech| granted == Some(tech) || self.has_tech(city.owner, tech);
-        let shield_distance = if matches!(government, Government::Communism | Government::Feudalism)
-        {
-            0
-        } else {
-            1 + i32::from(!has_tech(Tech::ECONOMICS))
-        };
-        let trade_distance = match government {
-            Government::Communism => 0,
-            Government::Feudalism => i32::from(!has_tech(Tech::THE_CORPORATION)),
-            _ => 1 + i32::from(!has_tech(Tech::THE_CORPORATION)),
-        };
-        let relief = 50
-            * (i32::from(city.has_building(Building::COURTHOUSE))
-                + i32::from(
-                    city.has_building(Building::PALACE)
-                        || city.has_building(Building::ECCLESIASTICAL_PALACE),
-                ));
-        let net = |gross, base, per_tile| {
-            if distance.is_none() && per_tile > 0 {
-                return 0;
-            }
-            let waste = percent_of(gross, base + distance.unwrap_or(0) * per_tile);
-            gross - (waste - percent_of(waste, relief)).clamp(0, gross)
-        };
-        // effect_barb2 subtracts200 from distance-based waste, not from
-        // base corruption. city_waste ignores nonpositive distance effects.
-        let barbarian_relief = 2 * i32::from(city.owner == BARBARIANS);
         (
-            net(
-                shields,
-                shield_base,
-                (shield_distance - barbarian_relief).max(0),
-            ),
-            net(
-                trade,
-                trade_base,
-                (trade_distance - barbarian_relief).max(0),
-            ),
+            self.c2c3_city_output_after_bonus(city, shields, "Shield", government, granted),
+            self.c2c3_city_output_after_bonus(city, trade, "Trade", government, granted),
         )
     }
 

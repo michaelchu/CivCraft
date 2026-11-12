@@ -352,7 +352,7 @@ impl Simulation {
         }
         let worker = best.map(|(_, _, tile)| tile);
         let (best_value, best_output, _) = best.unwrap_or((0, (0, 0, 0), (x, y)));
-        if center.0 + best_output.0 <= CITIZEN_FOOD_COST || center.1 + best_output.1 == 0 {
+        if center.0 + best_output.0 <= Self::citizen_food_cost() || center.1 + best_output.1 == 0 {
             return None;
         }
         let gross_shields = center.1 + best_output.1;

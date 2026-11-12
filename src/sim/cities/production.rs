@@ -1,6 +1,7 @@
 //! City production selection, progress, and completion rules.
 
 use super::*;
+use crate::sim::economy::ruleset::{CityEconomySettings, GoldUpkeepStyle};
 
 impl Simulation {
     pub(in crate::sim) fn change_production(&mut self, city_id: u32, target: Production) -> bool {
@@ -177,22 +178,18 @@ impl Simulation {
                 || forecast.food_surplus(populated.size, 0),
                 |updated| updated.food_surplus(populated.size, 0),
             );
+            let size_limit = self.city_size_limit(&populated);
+            let growth_retained = self.growth_food_retained(&populated);
+            let shrink_retained = self.shrink_food_retained(&populated);
             let city = &mut self.cities[index];
             let growth = city.resolve_growth(
                 self.map_wrap,
                 food_surplus,
-                Self::city_size_limit(&populated),
-                Self::food_retained(&populated),
+                size_limit,
+                growth_retained,
+                shrink_retained,
                 false,
             );
-            if growth == Growth::Grew
-                && populated.has_building(Building::LONGEVITY)
-                && self.cities[index].size < Self::city_size_limit(&populated)
-            {
-                let city = &mut self.cities[index];
-                city.size += 1;
-                city.specialists[2] += 1;
-            }
             if growth == Growth::Starved {
                 self.remove_resisters_first_nationalities(index, 1);
             }
@@ -240,10 +237,15 @@ impl Simulation {
                 } else {
                     initial_gold
                 };
-                self.players[snapshot.owner].gold +=
-                    income.gold_surplus(unit_gold.iter().map(|(_, cost)| cost).sum());
+                let local_unit_upkeep = match CityEconomySettings::campaign().gold_upkeep_style {
+                    GoldUpkeepStyle::City => unit_gold.iter().map(|(_, cost)| cost).sum(),
+                    GoldUpkeepStyle::Mixed | GoldUpkeepStyle::Nation => 0,
+                };
+                self.players[snapshot.owner].gold += income.gold_surplus(local_unit_upkeep);
                 gold_paid.extend(unit_gold);
-                self.balance_building_upkeep(snapshot.owner, city_id);
+                if CityEconomySettings::campaign().gold_upkeep_style != GoldUpkeepStyle::Nation {
+                    self.balance_building_upkeep(snapshot.owner, city_id);
+                }
                 let city = self.cities[index].clone();
                 self.check_city_pollution(&city, income.shields);
             }
@@ -258,6 +260,13 @@ impl Simulation {
         income: (i32, Vec<(u32, i32)>),
     ) {
         if owner != BARBARIANS {
+            let style = CityEconomySettings::campaign().gold_upkeep_style;
+            if style == GoldUpkeepStyle::Nation {
+                self.balance_national_building_upkeep(owner);
+            }
+            if matches!(style, GoldUpkeepStyle::Mixed | GoldUpkeepStyle::Nation) {
+                self.players[owner].gold -= income.1.iter().map(|(_, cost)| cost).sum::<i32>();
+            }
             self.balance_unit_gold_upkeep(owner, &income.1);
             self.resolve_research_turn(owner, income.0);
         }
@@ -278,7 +287,8 @@ impl City {
         wrap: MapWrap,
         surplus: i32,
         size_limit: i32,
-        retained: i32,
+        growth_retained: i32,
+        shrink_retained: i32,
         starving_unit: bool,
     ) -> Growth {
         self.food += surplus;
@@ -293,14 +303,14 @@ impl City {
             self.specialists[2] += 1; // Native default specialist before growth CM.
             self.food = self
                 .food
-                .min(overflow + percent_of(Simulation::growth_box(self.size), retained));
+                .min(overflow + percent_of(Simulation::growth_box(self.size), growth_retained));
             return Growth::Grew;
         }
         if self.food >= 0 {
             return Growth::Unchanged;
         }
         if starving_unit {
-            self.food = percent_of(capacity, retained);
+            self.food = percent_of(capacity, shrink_retained);
             return Growth::Unchanged;
         }
         if self.size == 1 {
@@ -308,7 +318,7 @@ impl City {
         }
         self.size -= 1;
         self.remove_citizen_assignments(1, wrap);
-        self.food = percent_of(Simulation::growth_box(self.size), retained);
+        self.food = percent_of(Simulation::growth_box(self.size), shrink_retained);
         Growth::Starved
     }
 

@@ -3,54 +3,15 @@
 use super::*;
 
 impl Simulation {
+    #[cfg(test)]
     pub(super) fn shield_output_bonus(&self, city: &City) -> i32 {
-        // civ2civ3/effects.ruleset: each industrial building gives 25%,
-        // and the active power source adds another 25% for EACH of them.
-        // Power sources replace one another, rather than stacking. Hoover
-        // Dam's shield effect has City range (its pollution effects differ).
-        let industry = [Building::FACTORY, Building::MFG_PLANT]
-            .into_iter()
-            .filter(|&building| city.has_building(building))
-            .count() as i32;
-        let powered = [
-            Building::HOOVER_DAM,
-            Building::SOLAR_PLANT,
-            Building::HYDRO_PLANT,
-            Building::NUCLEAR_PLANT,
-            Building::POWER_PLANT,
-        ]
-        .into_iter()
-        .any(|building| city.has_building(building));
-        // At the supported Normal difficulty, neither Restricted's -25%
-        // Output_Bonus nor Cheating's +40% Output_Bonus_2 applies.
-        let iron_works = city.has_building(Building::IRON_WORKS)
-            && self.map_city_radius(city).any(|(_, _, x, y)| {
-                matches!(
-                    self.tile(x, y).active_resource(),
-                    Some(Resource::Coal | Resource::Iron)
-                )
-            });
-        100 + 25 * industry * (1 + i32::from(powered)) + 100 * i32::from(iron_works)
-    }
-
-    pub(super) fn commercial_output_bonus(&self, city: &City) -> i32 {
-        100 + 50
-            * [
-                Building::MARKETPLACE,
-                Building::BANK,
-                Building::STOCK_EXCHANGE,
-            ]
-            .into_iter()
-            .filter(|&building| city.has_building(building))
-            .count() as i32
-            + 50 * i32::from(
-                city.has_building(Building::SUPER_HIGHWAYS)
-                    && city.has_building(Building::STOCK_EXCHANGE),
-            )
+        self.city_output_bonus_percent(city, "Shield", self.players[city.owner].government, None)
     }
 
     pub(super) fn base_city_celebrating(&self, city: &City) -> bool {
-        city.size >= 3 && city.was_happy
+        city.size
+            >= crate::sim::economy::ruleset::CityEconomySettings::campaign().celebrate_size_limit
+            && city.was_happy
     }
 
     pub(super) fn government_food_output(
@@ -59,20 +20,7 @@ impl Simulation {
         gross: i32,
         government: Government,
     ) -> i32 {
-        if gross <= 0 || city.owner == BARBARIANS || government == Government::Anarchy {
-            return gross;
-        }
-        let distance = self.government_center_distance(city);
-        // city_waste's missing-government-center branch loses EVERYTHING;
-        // percentage relief does not apply to that branch.
-        let Some(distance) = distance else {
-            return 0;
-        };
-        let relief = 50
-            + 25 * i32::from(city.has_building(Building::GRANARY))
-            + 25 * i32::from(city.has_building(Building::COURTHOUSE));
-        let waste = percent_of(gross, distance);
-        gross - (waste - percent_of(waste, relief)).clamp(0, gross)
+        self.c2c3_city_output_after_bonus(city, gross, "Food", government, None)
     }
 }
 

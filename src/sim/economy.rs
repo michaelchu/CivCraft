@@ -14,6 +14,7 @@ use super::*;
 
 mod city_manager;
 mod city_mood;
+pub(in crate::sim) mod ruleset;
 #[cfg(test)]
 use city_manager::*;
 
@@ -34,7 +35,8 @@ pub(crate) struct CityForecast {
 
 impl CityForecast {
     pub(crate) fn food_surplus(&self, size: i32, support_food: i32) -> i32 {
-        let surplus = self.food - size * CITIZEN_FOOD_COST - support_food;
+        let surplus =
+            self.food - size * ruleset::CityEconomySettings::campaign().food_cost - support_food;
         if self.disorder {
             surplus.min(0)
         } else {
@@ -51,7 +53,18 @@ impl CityForecast {
     }
 
     pub(crate) fn gold_surplus(&self, unit_gold: i32) -> i32 {
-        self.gold - self.building_upkeep - unit_gold
+        let settings = ruleset::CityEconomySettings::campaign();
+        let building_upkeep = if settings.gold_upkeep_style == ruleset::GoldUpkeepStyle::Nation {
+            0
+        } else {
+            self.building_upkeep
+        };
+        let unit_upkeep = if settings.gold_upkeep_style == ruleset::GoldUpkeepStyle::City {
+            unit_gold
+        } else {
+            0
+        };
+        self.gold - building_upkeep - unit_upkeep
     }
 }
 
@@ -62,6 +75,10 @@ impl City {
 }
 
 impl Simulation {
+    pub(crate) fn citizen_food_cost() -> i32 {
+        ruleset::CityEconomySettings::campaign().food_cost
+    }
+
     pub(crate) fn city_forecast(&self, city: &City) -> CityForecast {
         self.city_forecast_with_tech(city, None)
     }
@@ -113,16 +130,8 @@ impl Simulation {
     }
 
     pub(super) fn science_building_bonus(&self, city: &City) -> i32 {
-        [
-            (Building::LIBRARY, Building::GREAT_LIBRARY),
-            (Building::UNIVERSITY, Building::ISAAC_NEWTONS_COLLEGE),
-            (Building::RESEARCH_LAB, Building::INTERNET),
-        ]
-        .into_iter()
-        .filter(|&(building, _)| city.has_building(building))
-        .map(|(_, wonder)| 50 + 50 * i32::from(self.completed_wonders.contains(&wonder)))
-        .sum::<i32>()
-            + 100 * i32::from(city.has_building(Building::SETI_PROGRAM))
+        self.city_output_bonus_percent(city, "Science", self.players[city.owner].government, None)
+            - 100
     }
 
     pub(super) fn distribute_trade(trade: i32, rates: [i32; 3]) -> [i32; 3] {
@@ -141,23 +150,25 @@ impl Simulation {
     }
 
     pub(super) fn split_city_trade(&self, city: &City, trade: i32, rates: [i32; 3]) -> [i32; 3] {
-        let mut citizens = [0; 3];
-        for (index, wonder) in [
-            Building::DARWINS_VOYAGE,
-            Building::A_SMITHS_TRADING_CO,
-            Building::SHAKESPEARES_THEATER,
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            citizens[index] =
-                city.specialists[index] * (2 + i32::from(self.completed_wonders.contains(&wonder)));
-        }
-        if city.has_building(Building::COPERNICUS_OBSERVATORY)
-            && !self.building_is_obsolete(city, Building::COPERNICUS_OBSERVATORY, None)
-        {
-            citizens[0] += 1 + city.worked_tiles.len().min(city.tile_workers() as usize) as i32;
-        }
+        let government = self.players[city.owner].government;
+        let specialist_output = |index, specialist, output_type| {
+            city.specialists[index]
+                * self.city_rule_effect(
+                    city,
+                    "Specialist_Output",
+                    None,
+                    Some(output_type),
+                    Some(specialist),
+                    false,
+                    government,
+                    None,
+                )
+        };
+        let citizens = [
+            specialist_output(0, "Scientist", "Science"),
+            specialist_output(1, "Taxman", "Gold"),
+            specialist_output(2, "Elvis", "Luxury"),
+        ];
         self.split_city_trade_from_citizens(city, trade, rates, citizens)
     }
 
@@ -169,63 +180,73 @@ impl Simulation {
         citizens: [i32; 3],
     ) -> [i32; 3] {
         let government = self.players[city.owner].government;
-        let rates = if government == Government::Anarchy {
-            [0, 0, 100]
-        } else {
-            rates
-        };
         let mut output = Self::distribute_trade(trade, rates);
-
         for index in 0..3 {
             output[index] += citizens[index];
         }
-        output[0] += 4 * i32::from(city.has_building(Building::GREAT_LIBRARY))
-            + 6 * i32::from(city.has_building(Building::ISAAC_NEWTONS_COLLEGE))
-            + i32::from(self.has_active_wonder(city.owner, Building::DARWINS_VOYAGE));
-        output[2] +=
-            4 * i32::from(
-                city.has_building(Building::HANGING_GARDENS)
-                    && !self.building_is_obsolete(city, Building::HANGING_GARDENS, None),
-            ) + 2 * i32::from(self.has_active_wonder(city.owner, Building::JS_BACHS_CATHEDRAL))
-                + 2 * i32::from(self.has_active_wonder(city.owner, Building::CURE_FOR_CANCER))
-                + i32::from(self.has_active_wonder(city.owner, Building::SHAKESPEARES_THEATER))
-                + 5 * i32::from(city.has_building(Building::SHAKESPEARES_THEATER));
 
-        let commercial_bonus = self.commercial_output_bonus(city) - 100;
-        for (index, amount) in output.iter_mut().enumerate() {
-            let bonus = if index == 0 {
-                self.science_building_bonus(city)
-            } else {
-                commercial_bonus
-            };
-            let adjustment = match (government, index) {
-                (Government::Anarchy, 2) => -50,
-                (Government::Despotism, 1)
-                    if city.has_building(Building::PALACE)
-                        || city.has_building(Building::ECCLESIASTICAL_PALACE) =>
-                {
-                    75
-                }
-                (Government::Monarchy, 1)
-                    if city.has_building(Building::PALACE)
-                        || city.has_building(Building::ECCLESIASTICAL_PALACE) =>
-                {
-                    50
-                }
-                _ => 0,
-            };
-            *amount = amount.wrapping_mul(100 + bonus + adjustment) / 100;
+        if self.city_rule_effect(
+            city,
+            "Happiness_To_Gold",
+            None,
+            None,
+            None,
+            false,
+            government,
+            None,
+        ) > 0
+        {
+            output[1] += self.city_rule_effect(
+                city,
+                "Make_Content",
+                None,
+                None,
+                None,
+                false,
+                government,
+                None,
+            ) + self.city_rule_effect(
+                city,
+                "Force_Content",
+                None,
+                None,
+                None,
+                false,
+                government,
+                None,
+            );
+        }
+
+        for (index, output_type) in ["Science", "Gold", "Luxury"].into_iter().enumerate() {
+            let bonus = self.city_output_bonus_percent(city, output_type, government, None);
+            output[index] = (i64::from(output[index]) * i64::from(bonus) / 100)
+                .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
         }
         output
     }
 
     pub(super) fn balance_building_upkeep(&mut self, owner: usize, city_id: u32) {
+        self.balance_building_upkeep_for_cities(owner, Some(city_id));
+    }
+
+    pub(super) fn balance_national_building_upkeep(&mut self, owner: usize) {
+        let total = self
+            .cities
+            .iter()
+            .filter(|city| city.owner == owner)
+            .map(|city| self.building_upkeep(city))
+            .sum::<i32>();
+        self.players[owner].gold -= total;
+        self.balance_building_upkeep_for_cities(owner, None);
+    }
+
+    fn balance_building_upkeep_for_cities(&mut self, owner: usize, city_id: Option<u32>) {
         while self.players[owner].gold < 0 {
             let candidates: Vec<_> = self
                 .cities
                 .iter()
                 .enumerate()
-                .filter(|(_, city)| city.id == city_id)
+                .filter(|(_, city)| city.owner == owner && city_id.is_none_or(|id| city.id == id))
                 .flat_map(|(index, city)| {
                     let free = self.free_building_upkeep(city);
                     city.buildings
@@ -257,48 +278,33 @@ impl Simulation {
     }
 
     fn free_building_upkeep(&self, city: &City) -> i32 {
-        match self.players[city.owner].government {
-            Government::Anarchy => 99,
-            Government::Communism => 1,
-            _ => i32::from(
-                city.has_building(Building::STOCK_EXCHANGE)
-                    && self.has_active_wonder(city.owner, Building::A_SMITHS_TRADING_CO),
-            ),
-        }
+        self.building_upkeep_free_limit(city)
     }
 
     pub(crate) fn building_upkeep(&self, city: &City) -> i32 {
+        let free = self.free_building_upkeep(city);
         city.buildings
             .iter()
-            .map(|building| (building.data().upkeep - self.free_building_upkeep(city)).max(0))
+            .map(|building| {
+                if building.data().upkeep <= free {
+                    0
+                } else {
+                    building.data().upkeep
+                }
+            })
             .sum()
     }
 
-    pub(crate) fn city_size_limit(city: &City) -> i32 {
-        let has_aqueduct = [
-            Building::AQUEDUCT,
-            Building::AQUEDUCT_RIVER,
-            Building::AQUEDUCT_LAKE,
-        ]
-        .iter()
-        .any(|name| city.has_building(*name));
-        if city.has_building(Building::HOSPITAL) || city.has_building(Building::SEWER_SYSTEM) {
-            i32::MAX
-        } else if has_aqueduct {
-            12
-        } else {
-            6
-        }
+    pub(crate) fn city_size_limit(&self, city: &City) -> i32 {
+        self.city_size_limit_from_ruleset(city)
     }
 
-    pub(super) fn food_retained(city: &City) -> i32 {
-        match city.size {
-            ..=3 => 50,
-            _ if !city.has_building(Building::GRANARY) => 0,
-            4 => 50,
-            5..=6 => 34,
-            _ => 25,
-        }
+    pub(super) fn growth_food_retained(&self, city: &City) -> i32 {
+        self.city_growth_retention(city, false)
+    }
+
+    pub(super) fn shrink_food_retained(&self, city: &City) -> i32 {
+        self.city_growth_retention(city, true)
     }
 }
 

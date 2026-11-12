@@ -1,5 +1,6 @@
 //! Automated city worker assignment and production management.
 
+use super::ruleset::{CityEconomySettings, GoldUpkeepStyle};
 use super::*;
 
 // common/aicore/cm.c:estimate_fitness and compare_tile_type_by_fitness.
@@ -93,7 +94,7 @@ impl Simulation {
                 forecast.shields - forecast.support.shields
             },
             forecast.trade,
-            forecast.gold - forecast.building_upkeep - forecast.support.gold,
+            forecast.gold_surplus(forecast.support.gold),
             forecast.luxury,
             forecast.science,
         ]
@@ -141,24 +142,26 @@ impl Simulation {
         } else {
             10
         };
-        let copernicus = i32::from(
-            city.has_building(Building::COPERNICUS_OBSERVATORY)
-                && !self.building_is_obsolete(city, Building::COPERNICUS_OBSERVATORY, None),
-        );
         let mut production: Vec<[i32; 6]> = groups
             .iter()
-            .map(|group| [group.1.0, group.1.1, group.1.2, 0, 0, copernicus])
+            .map(|group| [group.1.0, group.1.1, group.1.2, 0, 0, 0])
             .collect();
-        for (index, wonder) in [
-            Building::DARWINS_VOYAGE,
-            Building::A_SMITHS_TRADING_CO,
-            Building::SHAKESPEARES_THEATER,
-        ]
-        .into_iter()
-        .enumerate()
-        {
+        for (specialist, output_type, output_index) in [
+            ("Scientist", "Science", 5),
+            ("Taxman", "Gold", 3),
+            ("Elvis", "Luxury", 4),
+        ] {
             let mut output = [0; 6];
-            output[[5, 3, 4][index]] = 2 + i32::from(self.completed_wonders.contains(&wonder));
+            output[output_index] = self.city_rule_effect(
+                city,
+                "Specialist_Output",
+                None,
+                Some(output_type),
+                Some(specialist),
+                false,
+                self.players[city.owner].government,
+                None,
+            );
             production.push(output);
         }
         let depth: Vec<usize> = production
@@ -182,31 +185,15 @@ impl Simulation {
             })
             .collect();
         let government = self.players[city.owner].government;
-        let commercial = self.commercial_output_bonus(city) - 100;
-        let palace = city.has_building(Building::PALACE)
-            || city.has_building(Building::ECCLESIASTICAL_PALACE);
-        let gold_adjustment = if palace {
-            match government {
-                Government::Despotism => 75,
-                Government::Monarchy => 50,
-                _ => 0,
-            }
-        } else {
-            0
-        };
         let bonuses = [
-            100,
-            self.shield_output_bonus(city),
-            100,
-            100 + commercial + gold_adjustment,
-            100 + commercial - 50 * i32::from(government == Government::Anarchy),
-            100 + self.science_building_bonus(city),
+            self.city_output_bonus_percent(city, "Food", government, None),
+            self.city_output_bonus_percent(city, "Shield", government, None),
+            self.city_output_bonus_percent(city, "Trade", government, None),
+            self.city_output_bonus_percent(city, "Gold", government, None),
+            self.city_output_bonus_percent(city, "Luxury", government, None),
+            self.city_output_bonus_percent(city, "Science", government, None),
         ];
-        let rates = if government == Government::Anarchy {
-            [0, 0, 100]
-        } else {
-            self.players[city.owner].rates
-        };
+        let rates = self.players[city.owner].rates;
         let orders: [Vec<usize>; 2] = std::array::from_fn(|emergency| {
             let factors = if emergency == 0 {
                 [food_factor, 5, 0, 2, 0, 2]
@@ -350,28 +337,20 @@ impl Simulation {
         // cm.c:compute_max_stats_heuristic combines maxima for six different
         // completions into a synthetic citizen_base, then set_city_production.
         let center = self.city_tile_yields(city, city.x, city.y, true, None);
-        let shield = (raw[1] + center.1)
-            .wrapping_mul(self.shield_output_bonus(city))
-            .wrapping_div(100)
-            .max(0);
-        let trade = (raw[2] + center.2).max(0);
-        let (shield, trade) = self.government_output_waste(city, shield, trade, None);
-        let copernicus = i32::from(
-            city.has_building(Building::COPERNICUS_OBSERVATORY)
-                && !self.building_is_obsolete(city, Building::COPERNICUS_OBSERVATORY, None),
+        let (food, shield, trade) = self.c2c3_finalize_city_outputs(
+            city,
+            (raw[0] + center.0, raw[1] + center.1, raw[2] + center.2),
+            self.players[city.owner].government,
+            None,
         );
         let [science, gold, luxury] = self.split_city_trade_from_citizens(
             city,
             trade,
             self.players[city.owner].rates,
-            [raw[5] + copernicus, raw[3], raw[4]],
+            [raw[5], raw[3], raw[4]],
         );
         [
-            self.government_food_output(
-                city,
-                (raw[0] + center.0).max(0),
-                self.players[city.owner].government,
-            ),
+            food,
             shield,
             trade,
             gold.max(0),
@@ -400,11 +379,22 @@ impl Simulation {
             [food_factor, 5, 0, 2, 0, 2]
         };
         let initial = self.city_forecast(city);
+        let settings = CityEconomySettings::campaign();
+        let unit_gold = if settings.gold_upkeep_style == GoldUpkeepStyle::City {
+            initial.support.gold
+        } else {
+            0
+        };
+        let building_gold = if settings.gold_upkeep_style == GoldUpkeepStyle::Nation {
+            0
+        } else {
+            initial.building_upkeep
+        };
         let usage = [
-            city.size * CITIZEN_FOOD_COST + initial.support.food,
+            city.size * Self::citizen_food_cost() + initial.support.food,
             initial.support.shields,
             0,
-            initial.building_upkeep + initial.support.gold,
+            building_gold + unit_gold,
             0,
             0,
         ];
@@ -421,18 +411,10 @@ impl Simulation {
         let mut iterations = 0;
         #[cfg(test)]
         let disorder_prunes = std::cell::Cell::new(0);
-        let basis = self.players[city.owner].government.empire_size();
-        let cities = self
-            .cities
-            .iter()
-            .filter(|other| other.owner == city.owner)
-            .count() as i32;
-        let max_content = (4 - if basis > 0 {
-            (cities - 1).max(0) / basis
-        } else {
-            0
-        })
-        .max(0);
+        let max_content = self
+            .city_base_content(city, self.players[city.owner].government)
+            .max(0);
+        let happy_cost = CityEconomySettings::campaign().happy_cost.max(1);
         loop {
             if current.idle == 0 {
                 let candidate = self.city_manager_apply(city, lattice, &current);
@@ -440,7 +422,8 @@ impl Simulation {
                 let surplus = self.city_manager_surplus(&candidate, &forecast);
                 if forecast.disorder {
                     min_luxury = surplus[4]
-                        + 2 * (candidate.specialists.iter().sum::<i32>() - max_content).max(0)
+                        + happy_cost
+                            * (candidate.specialists.iter().sum::<i32>() - max_content).max(0)
                         + 1;
                 }
                 let sufficient = (emergency || !forecast.disorder)
@@ -497,7 +480,8 @@ impl Simulation {
                     factors[output] > 0 && production[output] > best.production[output]
                 });
                 let specialists = partial.counts[lattice.groups.len()..].iter().sum::<i32>();
-                let luxury = production[4] + 2 * (specialists + partial.idle - max_content).max(0);
+                let luxury =
+                    production[4] + happy_cost * (specialists + partial.idle - max_content).max(0);
                 #[cfg(test)]
                 if luxury < min_luxury {
                     disorder_prunes.set(disorder_prunes.get() + 1);

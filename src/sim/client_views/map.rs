@@ -130,7 +130,7 @@ impl Simulation {
             let forecast = self.city_forecast(city);
             let capacity = Self::growth_box(city.size);
             let surplus = forecast.food_surplus(city.size, forecast.support.food);
-            let can_grow = city.size < Self::city_size_limit(city);
+            let can_grow = city.size < self.city_size_limit(city);
             let growth = if city.food + surplus >= capacity && !can_grow {
                 "blocked".to_owned()
             } else if city.food + surplus >= capacity {

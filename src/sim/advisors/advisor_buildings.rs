@@ -290,7 +290,7 @@ impl Simulation {
             + f64::from(self.building_growth_value(
                 city,
                 &improved,
-                forecast.food - city.size * CITIZEN_FOOD_COST - forecast.support.food,
+                forecast.food - city.size * Self::citizen_food_cost() - forecast.support.food,
             ))
             + self.building_happiness_want(city, building)
             + self.building_health_want(city, building)

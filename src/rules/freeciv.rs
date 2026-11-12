@@ -88,6 +88,36 @@ impl RuleParameter {
             )),
         }
     }
+
+    pub(crate) fn integer_list_value(&self) -> Result<Option<Vec<i64>>, String> {
+        match &self.value {
+            Value::List(values) => values
+                .iter()
+                .map(|value| match value {
+                    Value::Integer(value) => Ok(*value),
+                    other => Err(format!(
+                        "{}.{} must be an integer list, found item {other:?}",
+                        self.section, self.key
+                    )),
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(Some),
+            other => Err(format!(
+                "{}.{} must be an integer list, found {other:?}",
+                self.section, self.key
+            )),
+        }
+    }
+
+    pub(crate) fn string_value(&self) -> Result<Option<&str>, String> {
+        match &self.value {
+            Value::String(value) => Ok(Some(value)),
+            other => Err(format!(
+                "{}.{} must be a string, found {other:?}",
+                self.section, self.key
+            )),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

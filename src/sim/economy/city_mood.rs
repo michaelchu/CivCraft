@@ -1,4 +1,4 @@
-//! Citizen happiness, disorder, and city mood calculations.
+//! City mood uses C2C3 effects and the common Freeciv citizen conversion order.
 
 use super::*;
 
@@ -7,41 +7,14 @@ impl Simulation {
         self.city_mood(city, luxury).0
     }
 
-    pub(in crate::sim) fn building_content(&self, city: &City) -> i32 {
-        let has = |building| city.has_building(building);
-        let owns = |wonder| self.has_active_wonder(city.owner, wonder);
-        let communist = self.players[city.owner].government == Government::Communism;
-        let mut content = 2 * i32::from(has(Building::POLICE_STATION))
-            + i32::from(has(Building::COURTHOUSE))
-            + i32::from(owns(Building::HANGING_GARDENS));
-        if has(Building::TEMPLE) {
-            content += (1
-                + i32::from(!communist && self.has_tech(city.owner, Tech::MYSTICISM))
-                + 2 * i32::from(owns(Building::TEMPLE_OF_ARTEMIS)))
-                * (1 + i32::from(owns(Building::ORACLE)));
-        }
-        if has(Building::CATHEDRAL) {
-            content += 3
-                + i32::from(!communist && self.has_tech(city.owner, Tech::THEOLOGY))
-                + 3 * i32::from(owns(Building::MICHELANGELOS_CHAPEL));
-        }
-        if has(Building::AMPHITHEATER) {
-            content += 3 + i32::from(self.has_tech(city.owner, Tech::ELECTRICITY));
-        }
-        if has(Building::COLOSSEUM) {
-            content += 2;
-        }
-        if owns(Building::MAUSOLEUM_OF_MAUSOLOS) {
-            content += i32::from(has(Building::CITY_WALLS)) + i32::from(has(Building::COURTHOUSE));
-        }
-        content
-    }
-
     pub(in crate::sim) fn city_mood(&self, city: &City, luxury: i32) -> (bool, bool) {
         let (happy, unhappy, angry) = self.city_feelings(city, luxury);
         (
             happy < unhappy + 2 * angry,
-            city.size >= 3 && unhappy == 0 && angry == 0 && happy >= (city.size + 1) / 2,
+            city.size >= ruleset::CityEconomySettings::campaign().celebrate_size_limit
+                && unhappy == 0
+                && angry == 0
+                && happy >= (city.size + 1) / 2,
         )
     }
 
@@ -64,69 +37,143 @@ impl Simulation {
         martial_enabled: bool,
     ) -> (i32, i32, i32) {
         let government = self.players[city.owner].government;
-        // Apply luxury before Make_Content.
-        let cities = self
+        let effect = |kind: &str| {
+            self.city_rule_effect(city, kind, None, None, None, false, government, None)
+        };
+        let base = self.city_base_content(city, government);
+
+        let specialists = city.specialists.iter().sum::<i32>().clamp(0, city.size);
+        let content = (base.min(city.size).max(0) - specialists).max(0);
+        let mut angry = (-base).clamp(0, city.size - specialists);
+        let mut unhappy = (city.size - specialists - content - angry).max(0);
+        let mut happy = 0;
+
+        // city.c:citizen_luxury_happy converts angry, content, unhappy->happy,
+        // then one remaining luxury can make an unhappy citizen content.
+        let happy_cost = ruleset::CityEconomySettings::campaign().happy_cost.max(1);
+        let mut remaining_luxury = luxury.max(0);
+        while remaining_luxury >= happy_cost && angry > 0 {
+            angry -= 1;
+            unhappy += 1;
+            remaining_luxury -= happy_cost;
+        }
+        let mut content = content;
+        while remaining_luxury >= happy_cost && content > 0 {
+            content -= 1;
+            happy += 1;
+            remaining_luxury -= happy_cost;
+        }
+        while remaining_luxury >= 2 * happy_cost && unhappy > 0 {
+            unhappy -= 1;
+            happy += 1;
+            remaining_luxury -= 2 * happy_cost;
+        }
+        if remaining_luxury >= happy_cost && unhappy > 0 {
+            unhappy -= 1;
+            content += 1;
+        }
+
+        // Make_Content effects first calm angry citizens, then contentify
+        // unhappy citizens, matching city.c:citizen_content_buildings.
+        let mut content_faces = effect("Make_Content").max(0);
+        while content_faces > 0 && angry > 0 {
+            angry -= 1;
+            unhappy += 1;
+            content_faces -= 1;
+        }
+        while content_faces > 0 && unhappy > 0 {
+            unhappy -= 1;
+            content += 1;
+            content_faces -= 1;
+        }
+
+        // C2C3 martial law applies to non-civilian units physically present
+        // in the city. Each unit's effect is evaluated through its own type.
+        if martial_enabled {
+            let max_law = effect("Martial_Law_Max").max(0);
+            let mut martial_values: Vec<_> = self
+                .units
+                .iter()
+                .filter(|unit| {
+                    unit.owner == city.owner
+                        && !unit.kind.is_civilian()
+                        && (unit.x, unit.y) == (city.x, city.y)
+                })
+                .map(|unit| {
+                    self.city_rule_effect_for_unit(city, unit, "Martial_Law_By_Unit", government)
+                })
+                .filter(|value| *value > 0)
+                .collect();
+            martial_values.sort_unstable_by(|left, right| right.cmp(left));
+            let mut martial = martial_values
+                .into_iter()
+                .take(max_law as usize)
+                .sum::<i32>()
+                .min(city.size);
+            while martial > 0 && angry > 0 {
+                angry -= 1;
+                unhappy += 1;
+                martial -= 1;
+            }
+            while martial > 0 && unhappy > 0 {
+                unhappy -= 1;
+                content += 1;
+                martial -= 1;
+            }
+        }
+
+        // Make_Happy precedes No_Unhappy and Force_Content in the final mood
+        // stage; these effects are data-driven and also cover wonders.
+        let mut happy_faces = effect("Make_Happy").max(0);
+        while happy_faces > 0 && content > 0 {
+            content -= 1;
+            happy += 1;
+            happy_faces -= 1;
+        }
+        while happy_faces > 1 && unhappy > 0 {
+            unhappy -= 1;
+            happy += 1;
+            happy_faces -= 2;
+        }
+        if effect("No_Unhappy") > 0 {
+            unhappy = 0;
+            angry = 0;
+        } else {
+            let mut force_faces = happy_faces + effect("Force_Content").max(0);
+            while force_faces > 0 && angry > 0 {
+                angry -= 1;
+                unhappy += 1;
+                force_faces -= 1;
+            }
+            while force_faces > 0 && unhappy > 0 {
+                unhappy -= 1;
+                force_faces -= 1;
+            }
+        }
+
+        (happy, unhappy, angry)
+    }
+
+    pub(super) fn city_base_content(&self, city: &City, government: Government) -> i32 {
+        let effect = |kind: &str| {
+            self.city_rule_effect(city, kind, None, None, None, false, government, None)
+        };
+        let city_count = self
             .cities
             .iter()
             .filter(|other| other.owner == city.owner)
             .count() as i32;
-        let basis = government.empire_size();
-        let empire_penalty = if basis > 0 {
-            (cities - 1).max(0) / basis
-        } else {
-            0
-        };
-        let base = 4 - empire_penalty;
-        let workers = city.tile_workers();
-        let resisting = city
-            .resisting_citizens
-            .iter()
-            .map(|&(_, count)| count)
-            .sum::<i32>();
-        let specialists = city.size - workers - resisting;
-        let content = (base.clamp(0, city.size) - specialists).max(0);
-        let mut angry = (-base).clamp(0, workers);
-        let mut unhappy = workers - content - angry;
-        let mut upgrades = luxury / 2;
-        let calmed = angry.min(upgrades);
-        angry -= calmed;
-        unhappy += calmed;
-        upgrades -= calmed;
-        let happy_content = content.min(upgrades);
-        upgrades -= happy_content;
-        let happy_unhappy = unhappy.min(upgrades / 2);
-        unhappy -= happy_unhappy;
-        upgrades -= happy_unhappy * 2;
-        if upgrades >= 1 {
-            let promoted = unhappy.min(1);
-            unhappy -= promoted;
+        let base = effect("City_Unhappy_Size");
+        let empire_base = effect("Empire_Size_Base");
+        let empire_step = effect("Empire_Size_Step");
+        if empire_base + empire_step <= 0 || city_count <= empire_base {
+            return base;
         }
-
-        let martial_limit = match government {
-            Government::Despotism => 2,
-            Government::Monarchy | Government::Feudalism => 3,
-            Government::Communism | Government::Fascism => 4,
-            Government::Anarchy | Government::Republic | Government::Democracy => 0,
-        };
-        let garrison = self
-            .units
-            .iter()
-            .filter(|unit| {
-                unit.owner == city.owner
-                    && unit.kind.is_military()
-                    && (unit.x, unit.y) == (city.x, city.y)
-            })
-            .count()
-            .min(martial_limit) as i32;
-        let pacification =
-            (if martial_enabled { garrison } else { 0 }) + self.building_content(city);
-        let calming_angry = pacification.min(angry);
-        angry -= calming_angry;
-        unhappy += calming_angry;
-        let promoted = unhappy.min(pacification - calming_angry);
-        unhappy -= promoted;
-
-        let happy = happy_content + happy_unhappy;
-        (happy, unhappy, angry)
+        base - 1
+            - if empire_step > 0 {
+                (city_count - empire_base - 1) / empire_step
+            } else {
+                0
+            }
     }
 }

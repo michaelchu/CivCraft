@@ -123,11 +123,8 @@ impl Simulation {
         }
         self.cities.push(city);
         self.list_order.city(self.cities.last().unwrap());
-        let railroad = self.has_tech(owner, Tech::STEAM_POWER);
         let tile = self.tile_mut(x, y);
-        tile.road = true;
         tile.base = None;
-        tile.railroad |= railroad;
         self.refresh_visibility();
         self.rebuild_city_ownership_for_city_event(id);
         self.refresh_diplomatic_contact_at(owner, x, y);
@@ -139,7 +136,7 @@ impl Simulation {
             && unit.owner == city.owner
             && unit.moves_left > 0
             && self.map_wrap.civ3_distance(unit.x, unit.y, city.x, city.y) <= 1
-            && city.size + unit.kind.stats().pop_cost <= Self::city_size_limit(city)
+            && city.size + unit.kind.stats().pop_cost <= self.city_size_limit(city)
     }
 
     pub(super) fn join_city(&mut self, unit_id: u32, city_id: u32) -> bool {
@@ -154,7 +151,7 @@ impl Simulation {
             return false;
         };
         let population = unit.kind.stats().pop_cost;
-        let retained = Self::food_retained(&self.cities[index]);
+        let retained = self.growth_food_retained(&self.cities[index]);
         let city = &mut self.cities[index];
         city.size += population;
         city.add_citizen_nationality(unit.nationality, population);
@@ -458,74 +455,7 @@ impl Simulation {
         government: Government,
     ) -> (i32, i32, i32) {
         let celebrating = self.base_city_celebrating(city);
-        let tile_penalty = matches!(government, Government::Despotism | Government::Anarchy)
-            && granted != Some(Tech::STEAM_POWER)
-            && !self.has_tech(city.owner, Tech::STEAM_POWER)
-            && !self.has_active_wonder(city.owner, Building::PYRAMIDS)
-            && self.city_rapture.get(&city.id).copied().unwrap_or(0) <= 0;
-        let republic_trade = matches!(government, Government::Republic | Government::Democracy);
-        let celebrate_trade = celebrating
-            && matches!(
-                government,
-                Government::Monarchy
-                    | Government::Feudalism
-                    | Government::Republic
-                    | Government::Democracy
-            );
-        let pyramids = city.has_building(Building::PYRAMIDS)
-            && !self.building_is_obsolete(city, Building::PYRAMIDS, granted);
-        let colossus = city.has_building(Building::COLOSSUS)
-            && !self.building_is_obsolete(city, Building::COLOSSUS, granted);
-        let mut center;
-        let tile = if is_center {
-            center = self.tile(x, y).clone();
-            center.railroad |= granted == Some(Tech::STEAM_POWER);
-            &center
-        } else {
-            self.tile(x, y)
-        };
-        let (mut food, mut shields, mut trade) = tile.yields();
-        if is_center && !tile.irrigation && !tile.mine && tile.terrain.irrigation_time() > 0 {
-            food += tile.irrigation_food();
-        }
-        // common/city.c:city_tile_output: terrain/extra/road outputs, then
-        // Add_Tile, Inc_Tile(+celebration), Per_Tile, penalty, punishment,
-        // and finally the Civ2Civ3 center minima (all zero in game.ruleset).
-        food += i32::from(
-            city.has_building(Building::HARBOR)
-                && matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Ocean),
-        );
-        shields += i32::from(is_center)
-            + i32::from(
-                city.has_building(Building::OFFSHORE_PLATFORM)
-                    && tile.terrain.is_water()
-                    && (tile.terrain != Terrain::Ocean || tile.oil_platform),
-            );
-        if shields > 0 {
-            shields += i32::from(pyramids);
-        }
-        if trade > 0 {
-            trade += i32::from(republic_trade && !tile.terrain.is_water())
-                + i32::from(celebrate_trade)
-                + i32::from(colossus)
-                + i32::from(
-                    city.has_building(Building::SUPER_HIGHWAYS)
-                        && tile.road
-                        && (is_center || !tile.farmland),
-                );
-        }
-        let farm = tile.farmland
-            || (is_center && !tile.mine && !tile.oil_well && tile.terrain.irrigation_time() > 0);
-        if food > 0 && city.has_building(Building::SUPERMARKET) && farm {
-            food += food * 50 / 100;
-        }
-        let finish =
-            |value| tile.contamination_output(value - i32::from(tile_penalty && value > 2));
-        (
-            finish(food).max(0),
-            finish(shields).max(0),
-            finish(trade).max(0),
-        )
+        self.c2c3_city_tile_yields(city, x, y, is_center, celebrating, granted, government)
     }
 
     pub(super) fn city_yields_with_tech(
@@ -541,11 +471,12 @@ impl Simulation {
             shields += s;
             trade += t;
         }
-        // common/city.c:set_city_production applies output bonuses before
-        // calculating waste; waste therefore includes industrial output.
-        shields = percent_of(shields, self.shield_output_bonus(city));
-        let (shields, trade) = self.government_output_waste(city, shields, trade, granted);
-        food = self.government_food_output(city, food, self.players[city.owner].government);
+        (food, shields, trade) = self.c2c3_finalize_city_outputs(
+            city,
+            (food, shields, trade),
+            self.players[city.owner].government,
+            granted,
+        );
         (food, shields, trade)
     }
 
@@ -553,14 +484,15 @@ impl Simulation {
         if size <= 0 {
             return 0;
         }
-        let initial_count = GRANARY_FOOD_INITIAL.len() as i32;
+        let settings = crate::sim::economy::ruleset::CityEconomySettings::campaign();
+        let initial_count = settings.granary_food_initial.len() as i32;
         let base = if size <= initial_count {
-            GRANARY_FOOD_INITIAL[(size - 1) as usize]
+            settings.granary_food_initial[(size - 1) as usize]
         } else {
-            GRANARY_FOOD_INITIAL[GRANARY_FOOD_INITIAL.len() - 1]
-                + GRANARY_FOOD_INCREMENT * (size - initial_count)
+            settings.granary_food_initial[settings.granary_food_initial.len() - 1]
+                + settings.granary_food_increment * (size - initial_count)
         };
-        percent_of(base, FOODBOX_PERCENT).max(1)
+        percent_of(base, settings.foodbox_percent).max(1)
     }
 
     pub(super) fn hitpoint_gain(unit: &Unit, in_city_center: bool) -> i32 {

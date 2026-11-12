@@ -115,7 +115,7 @@ impl Simulation {
         self.cities[0].size = 3;
         self.reconcile_city_workers();
         let science = self.choose_ai_production(1, city) == Production::Building(Building::LIBRARY);
-        self.cities[0].size = Self::city_size_limit(&self.cities[0]);
+        self.cities[0].size = self.city_size_limit(&self.cities[0]);
         self.cities[0].food = Self::growth_box(self.cities[0].size);
         self.players[1].rates = [30, 10, 60];
         self.reconcile_city_workers();
@@ -298,37 +298,16 @@ impl Simulation {
             .buildings
             .retain(|&building| building != Building::PALACE);
         (remote.x, remote.y) = offset_native_by_map(12, 24, 18, 0);
-        let waste = self.government_food_output(&remote, 100, Government::Communism) == 91;
-        self.players[1].government = Government::Despotism;
-        self.players[1].rates = [0, 0, 100];
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Plains;
-            tile.resource = Some(Resource::Wheat);
-            tile.irrigation = true;
-        }
-        self.cities[0].size = 3;
-        self.cities[0].food = 0;
-        self.cities[0].was_happy = false;
-        self.cities[0]
-            .buildings
-            .push(Building::SHAKESPEARES_THEATER);
-        self.reconcile_city_workers();
-        let initial = self.city_tile_yields(&self.cities[0], 12, 24, true, None).0 == 3;
-        self.process_cities();
-        let first = self.cities[0].was_happy
-            && self.cities[0].food == 6
-            && !self.city_rapture.contains_key(&city.id)
-            && self.city_tile_yields(&self.cities[0], 12, 24, true, None).0 == 3;
-        self.process_cities();
-        let second = self.city_rapture.get(&city.id) == Some(&1)
-            && self.cities[0].food == 12
-            && self.city_tile_yields(&self.cities[0], 12, 24, true, None).0 == 4;
-        self.cities[0]
-            .buildings
-            .retain(|&building| building != Building::SHAKESPEARES_THEATER);
-        self.players[1].rates = [100, 0, 0];
-        self.process_cities();
-        let ended = !self.cities[0].was_happy && !self.city_rapture.contains_key(&city.id);
+        // The selected Freeciv ruleset cancels C2C3's food-waste distance
+        // effect in Communism and uses celebration for tile output only.
+        let waste = self.government_food_output(&remote, 100, Government::Communism) == 100;
+        self.players[1].government = Government::Republic;
+        city.size = 3;
+        city.was_happy = false;
+        let ordinary_trade = self.city_tile_yields(&city, city.x, city.y, true, None).2;
+        city.was_happy = true;
+        let celebrating_trade = self.city_tile_yields(&city, city.x, city.y, true, None).2;
+        let celebration = celebrating_trade == ordinary_trade + 1;
         center
             && minimum
             && harbor
@@ -336,10 +315,7 @@ impl Simulation {
             && commerce
             && feudalism_has_no_extra_trade
             && waste
-            && initial
-            && first
-            && second
-            && ended
+            && celebration
     }
 
     pub(crate) fn industrial_output_playtest(&mut self) -> bool {

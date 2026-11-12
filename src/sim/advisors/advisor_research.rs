@@ -184,7 +184,7 @@ impl Simulation {
         let baseline = self.advisor_city_output(city, None);
         let (food, gross_shields, _) = self.city_yields(city);
         let upkeep = self.city_unit_upkeep(city);
-        let food_surplus = food - city.size * CITIZEN_FOOD_COST - upkeep.food;
+        let food_surplus = food - city.size * Self::citizen_food_cost() - upkeep.food;
         let shields = (gross_shields - upkeep.shields).max(0);
         let mut want = 0;
         for building in
@@ -219,8 +219,8 @@ impl Simulation {
     ) -> i32 {
         let mut benefit = 0;
         // Growth headroom matters when a city is about to reach its current limit.
-        let limit = Self::city_size_limit(city);
-        let new_limit = Self::city_size_limit(improved);
+        let limit = self.city_size_limit(city);
+        let new_limit = self.city_size_limit(improved);
         if new_limit > limit && limit != i32::MAX {
             let increase = (new_limit - limit).min(8);
             benefit += increase * 4 / limit;
@@ -233,7 +233,7 @@ impl Simulation {
                 benefit += (food_surplus + stored) * (FOOD_WEIGHT * increase + 30);
             }
         }
-        let retention = Self::food_retained(improved) - Self::food_retained(city);
+        let retention = self.growth_food_retained(improved) - self.growth_food_retained(city);
         if retention > 0 {
             benefit +=
                 8 + retention / 10 * food_surplus.max(0) + retention / 15 * (-food_surplus).max(1);

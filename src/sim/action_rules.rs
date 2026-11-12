@@ -25,9 +25,16 @@ pub(crate) struct SimulationRequirementContext<'a> {
     ruleset: &'static RulesetData,
     owner: usize,
     unit: Option<&'a Unit>,
+    city: Option<&'a super::City>,
     tile: Option<(i32, i32)>,
     tile_override: Option<((i32, i32), Tile)>,
     relation_target: Option<usize>,
+    output_type: Option<String>,
+    specialist: Option<String>,
+    government: Option<super::Government>,
+    granted_tech: Option<Tech>,
+    celebrating: Option<bool>,
+    unbound_content_is_absent: bool,
 }
 
 impl<'a> SimulationRequirementContext<'a> {
@@ -45,9 +52,16 @@ impl<'a> SimulationRequirementContext<'a> {
             ruleset: RulesetData::campaign_default(),
             owner: unit.owner,
             unit: Some(unit),
+            city: None,
             tile: Some(tile),
             tile_override: None,
             relation_target: None,
+            output_type: None,
+            specialist: None,
+            government: None,
+            granted_tech: None,
+            celebrating: None,
+            unbound_content_is_absent: false,
         }
     }
 
@@ -61,10 +75,71 @@ impl<'a> SimulationRequirementContext<'a> {
             ruleset: RulesetData::campaign_default(),
             owner,
             unit: None,
+            city: None,
             tile,
             tile_override: None,
             relation_target: None,
+            output_type: None,
+            specialist: None,
+            government: None,
+            granted_tech: None,
+            celebrating: None,
+            unbound_content_is_absent: false,
         }
+    }
+
+    pub(crate) fn for_city_at(
+        simulation: &'a Simulation,
+        city: &'a super::City,
+        tile: Option<(i32, i32)>,
+    ) -> Self {
+        Self {
+            simulation,
+            ruleset: RulesetData::campaign_default(),
+            owner: city.owner,
+            unit: None,
+            city: Some(city),
+            tile,
+            tile_override: None,
+            relation_target: None,
+            output_type: None,
+            specialist: None,
+            government: None,
+            granted_tech: None,
+            celebrating: None,
+            unbound_content_is_absent: true,
+        }
+    }
+
+    pub(crate) fn with_output_type(mut self, output_type: &str) -> Self {
+        self.output_type = Some(output_type.to_owned());
+        self
+    }
+
+    pub(crate) fn with_unit(mut self, unit: &'a Unit) -> Self {
+        self.owner = unit.owner;
+        self.unit = Some(unit);
+        self
+    }
+
+    pub(crate) fn with_specialist(mut self, specialist: &str) -> Self {
+        self.specialist = Some(specialist.to_owned());
+        self
+    }
+
+    pub(crate) fn with_government(mut self, government: super::Government) -> Self {
+        self.government = Some(government);
+        self
+    }
+
+    pub(crate) fn with_granted_tech(mut self, tech: Option<Tech>) -> Self {
+        self.granted_tech = tech;
+        self
+    }
+
+    pub(crate) fn with_celebrating(mut self, celebrating: bool) -> Self {
+        self.celebrating = Some(celebrating);
+        self
     }
 
     fn with_relation_target(mut self, owner: Option<usize>) -> Self {
@@ -78,9 +153,16 @@ impl<'a> SimulationRequirementContext<'a> {
             ruleset: self.ruleset,
             owner: self.owner,
             unit: self.unit,
+            city: self.city,
             tile: Some(tile),
             tile_override: self.tile_override.clone(),
             relation_target: self.relation_target,
+            output_type: self.output_type.clone(),
+            specialist: self.specialist.clone(),
+            government: self.government,
+            granted_tech: self.granted_tech,
+            celebrating: self.celebrating,
+            unbound_content_is_absent: self.unbound_content_is_absent,
         }
     }
 
@@ -277,10 +359,13 @@ impl<'a> SimulationRequirementContext<'a> {
         {
             tech
         } else {
+            if self.unbound_content_is_absent {
+                return Ok(false);
+            }
             // A Freeciv-only technology has no Civ III player-state identity.
             return Err(Self::unsupported(requirement));
         };
-        Ok(self.simulation.has_tech(self.owner, tech))
+        Ok(self.granted_tech == Some(tech) || self.simulation.has_tech(self.owner, tech))
     }
 
     fn building_present(
@@ -301,29 +386,52 @@ impl<'a> SimulationRequirementContext<'a> {
                             .is_some_and(|display| display.eq_ignore_ascii_case(name)))
             })
             .ok_or_else(|| Self::unsupported(requirement))?;
-        let building = Building::all()
-            .find(|building| {
-                building.data().name.eq_ignore_ascii_case(&record.rule_name)
-                    || record
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|display| building.data().name.eq_ignore_ascii_case(display))
-            })
-            .ok_or_else(|| Self::unsupported(requirement))?;
+        let Some(building) = Building::all().find(|building| {
+            building.data().name.eq_ignore_ascii_case(&record.rule_name)
+                || record
+                    .display_name
+                    .as_deref()
+                    .is_some_and(|display| building.data().name.eq_ignore_ascii_case(display))
+                || c2c3_building_name_aliases(building.data().name)
+                    .iter()
+                    .any(|alias| alias.eq_ignore_ascii_case(&record.rule_name))
+        }) else {
+            return if self.unbound_content_is_absent {
+                Ok(false)
+            } else {
+                Err(Self::unsupported(requirement))
+            };
+        };
 
-        // Wonders become inactive when obsolete. Ordinary improvements are
-        // present as long as one of the player's cities still owns them.
-        if matches!(
-            building.data().genus,
-            Genus::GreatWonder | Genus::SmallWonder
-        ) {
-            Ok(self.simulation.has_active_wonder(self.owner, building))
-        } else {
-            Ok(self
-                .simulation
-                .cities
-                .iter()
-                .any(|city| city.owner == self.owner && city.buildings.contains(&building)))
+        let local_city = self
+            .city
+            .or_else(|| self.tile.and_then(|(x, y)| self.simulation.city_at(x, y)));
+        match requirement.range {
+            RequirementRange::City => {
+                Ok(local_city.is_some_and(|city| city.buildings.contains(&building)))
+            }
+            RequirementRange::Player => {
+                if matches!(
+                    building.data().genus,
+                    Genus::GreatWonder | Genus::SmallWonder
+                ) {
+                    Ok(self.simulation.has_active_wonder(self.owner, building))
+                } else {
+                    Ok(self
+                        .simulation
+                        .cities
+                        .iter()
+                        .any(|city| city.owner == self.owner && city.buildings.contains(&building)))
+                }
+            }
+            RequirementRange::World => Ok(self.simulation.cities.iter().any(|city| {
+                city.buildings.contains(&building)
+                    && (!matches!(
+                        building.data().genus,
+                        Genus::GreatWonder | Genus::SmallWonder
+                    ) || self.simulation.has_active_wonder(city.owner, building))
+            })),
+            _ => Err(Self::unsupported(requirement)),
         }
     }
 
@@ -368,22 +476,24 @@ impl<'a> SimulationRequirementContext<'a> {
             // identity, so the selected C2C3 conflict is absent in current
             // runtime state rather than an unresolved extra.
             "buoy" => false,
-            "oasis" => state.resource == Some(Resource::Oasis),
-            "oil" => state.resource == Some(Resource::Oil),
-            "iron" => state.resource == Some(Resource::Iron),
-            "coal" => state.resource == Some(Resource::Coal),
-            "fish" => state.resource == Some(Resource::Fish),
-            "whales" => state.resource == Some(Resource::Whales),
-            "wheat" => state.resource == Some(Resource::Wheat),
-            "furs" => state.resource == Some(Resource::Furs),
-            "gems" => state.resource == Some(Resource::Gems),
-            "silk" => state.resource == Some(Resource::Silk),
-            "spice" => state.resource == Some(Resource::Spice),
-            "wine" => state.resource == Some(Resource::Wine),
-            "ivory" => state.resource == Some(Resource::Ivory),
-            "game" => state.resource == Some(Resource::Game),
-            "fruit" => state.resource == Some(Resource::TropicalFruit),
-            "buffalo" | "cattle" => state.resource == Some(Resource::Cattle),
+            "oasis" => state.active_resource() == Some(Resource::Oasis),
+            "oil" => state.active_resource() == Some(Resource::Oil),
+            "iron" => state.active_resource() == Some(Resource::Iron),
+            "coal" => state.active_resource() == Some(Resource::Coal),
+            "fish" => state.active_resource() == Some(Resource::Fish),
+            "whales" => state.active_resource() == Some(Resource::Whales),
+            "wheat" => state.active_resource() == Some(Resource::Wheat),
+            "icy ivory" => state.active_resource() == Some(Resource::Ivory),
+            "furs" => state.active_resource() == Some(Resource::Furs),
+            "gems" => state.active_resource() == Some(Resource::Gems),
+            "silk" => state.active_resource() == Some(Resource::Silk),
+            "spice" => state.active_resource() == Some(Resource::Spice),
+            "wine" => state.active_resource() == Some(Resource::Wine),
+            "ivory" => state.active_resource() == Some(Resource::Ivory),
+            "game" => state.active_resource() == Some(Resource::Game),
+            "fruit" => state.active_resource() == Some(Resource::TropicalFruit),
+            "buffalo" | "cattle" => state.active_resource() == Some(Resource::Cattle),
+            _ if self.unbound_content_is_absent => false,
             _ => return Err(Self::unsupported(requirement)),
         })
     }
@@ -589,11 +699,77 @@ impl RequirementContext for SimulationRequirementContext<'_> {
         let unsupported = || Self::unsupported(requirement);
         let kind = requirement.kind.to_ascii_lowercase();
         match kind.as_str() {
-            "building" if requirement.range == RequirementRange::Player => {
+            "building"
+                if matches!(
+                    requirement.range,
+                    RequirementRange::City | RequirementRange::Player | RequirementRange::World
+                ) =>
+            {
                 self.building_present(requirement)
             }
             "tech" if requirement.range == RequirementRange::Player => {
                 self.tech_present(requirement)
+            }
+            "gov" if requirement.range == RequirementRange::Player => {
+                let name = Self::string_name(requirement)?;
+                let government = self
+                    .government
+                    .unwrap_or(self.simulation.players[self.owner].government);
+                Ok(c2c3_government_rule_name(government)
+                    .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
+            }
+            "outputtype" if requirement.range == RequirementRange::Local => {
+                let name = Self::string_name(requirement)?;
+                Ok(self
+                    .output_type
+                    .as_deref()
+                    .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
+            }
+            "specialist" if requirement.range == RequirementRange::Local => {
+                let name = Self::string_name(requirement)?;
+                Ok(self
+                    .specialist
+                    .as_deref()
+                    .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
+            }
+            "minsize" if requirement.range == RequirementRange::City => {
+                let Some(city) = self.city else {
+                    return Ok(false);
+                };
+                let minimum = match &requirement.name {
+                    RequirementValue::String(value) => value.parse::<i32>().ok(),
+                    RequirementValue::Integer(value) => i32::try_from(*value).ok(),
+                    _ => None,
+                }
+                .ok_or_else(unsupported)?;
+                Ok(city.size >= minimum)
+            }
+            "citystatus" if requirement.range == RequirementRange::City => {
+                let name = Self::string_name(requirement)?;
+                if !name.eq_ignore_ascii_case("Celebration") {
+                    return Err(unsupported());
+                }
+                Ok(self.celebrating.unwrap_or(false))
+            }
+            "citytile" if requirement.range == RequirementRange::Tile => {
+                let name = Self::string_name(requirement)?;
+                let tile = self.tile.ok_or_else(unsupported)?;
+                let city = self
+                    .city
+                    .or_else(|| self.simulation.city_at(tile.0, tile.1));
+                match name.to_ascii_lowercase().as_str() {
+                    "center" => Ok(city.is_some_and(|city| (city.x, city.y) == tile)),
+                    _ => Err(unsupported()),
+                }
+            }
+            "ai" if requirement.range == RequirementRange::Player => {
+                let name = Self::string_name(requirement)?;
+                match name.to_ascii_lowercase().as_str() {
+                    // CivCraft has no difficulty tier; the campaign uses the
+                    // normal rules and does not enable these Freeciv cheats.
+                    "cheating" | "restricted" => Ok(false),
+                    _ => Err(unsupported()),
+                }
             }
             "unittype" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
@@ -663,6 +839,13 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             "terrainalter" if requirement.range == RequirementRange::Tile => {
                 self.terrain_alter(requirement)
             }
+            "nationgroup" if requirement.range == RequirementRange::Player => {
+                let name = Self::string_name(requirement)?;
+                if !name.eq_ignore_ascii_case("Barbarian") {
+                    return Err(unsupported());
+                }
+                Ok(self.owner == super::BARBARIANS)
+            }
             "extra" if requirement.range == RequirementRange::Tile => {
                 let name = Self::string_name(requirement)?;
                 let tile = self.tile.ok_or_else(unsupported)?;
@@ -685,14 +868,6 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 };
                 match name.to_ascii_lowercase().as_str() {
                     "fortified" => Ok(unit.state == UnitState::Fortified),
-                    _ => Err(unsupported()),
-                }
-            }
-            "citytile" if requirement.range == RequirementRange::Tile => {
-                let name = Self::string_name(requirement)?;
-                let tile = self.tile.ok_or_else(unsupported)?;
-                match name.to_ascii_lowercase().as_str() {
-                    "center" => Ok(self.simulation.city_at(tile.0, tile.1).is_some()),
                     _ => Err(unsupported()),
                 }
             }
@@ -725,6 +900,29 @@ impl EffectContext for SimulationRequirementContext<'_> {
         // multiplier field. Leave unknown effect multipliers unresolved so
         // future consumers must add their rule-specific player factor.
         None
+    }
+}
+
+fn c2c3_government_rule_name(government: super::Government) -> Option<&'static str> {
+    Some(match government {
+        super::Government::Anarchy => "Anarchy",
+        super::Government::Despotism => "Despotism",
+        super::Government::Monarchy => "Monarchy",
+        super::Government::Communism => "Communism",
+        super::Government::Republic => "Republic",
+        super::Government::Democracy => "Democracy",
+        // Fascism and Feudalism are Civ III governments without a direct
+        // identity in the selected C2C3 government catalog. P8 replaces these
+        // runtime identities; do not infer Fundamentalism or Federation here.
+        super::Government::Fascism | super::Government::Feudalism => return None,
+    })
+}
+
+fn c2c3_building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
+    match runtime_name {
+        "Harbor" => &["Harbour"],
+        "Shakespeare's Theater" => &["Shakespeare's Theatre"],
+        _ => &[],
     }
 }
 
