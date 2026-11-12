@@ -10,13 +10,15 @@
 //! and UI previews. Turn phase ordering can restore or consume movement at
 //! different points, so avoid treating `moves_left` as a simple per-frame cap.
 
+use super::movement_rules::{MovementRules, MovementTile};
 use super::*;
+use crate::rules::freeciv::{RulesetData, effect_value};
 
 mod activities;
 mod combat;
 mod routes;
 mod transports;
-use std::{cmp::Reverse, collections::BinaryHeap};
+use std::{cmp::Reverse, collections::BinaryHeap, sync::OnceLock};
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(super) struct RouteTile {
@@ -74,68 +76,28 @@ impl Simulation {
         gained.id
     }
 
-    fn naval_movement_bonus(&self, owner: usize) -> i32 {
-        MOVE_FRAGMENTS
-            * (i32::from(self.has_tech(owner, Tech::NUCLEAR_POWER))
-                + i32::from(self.has_active_wonder(owner, Building::LIGHTHOUSE))
-                + i32::from(self.has_active_wonder(owner, Building::MAGELLANS_EXPEDITION)))
-    }
-
-    pub(crate) fn unit_move_allowance(&self, owner: usize, kind: UnitKind) -> i32 {
-        let base = kind.stats().moves * MOVE_FRAGMENTS;
-        if kind.is_naval() && kind != UnitKind::Galley {
-            base + self.naval_movement_bonus(owner)
-        } else {
-            base
-        }
-    }
-
-    fn move_rate_with_bonus(unit: &Unit, bonus: i32) -> i32 {
-        // movement.c:utype_move_rate. All bundled veteran move bonuses are
-        // zero. DamageSlows is a class flag, absent on the air class.
-        let base = unit.kind.stats().moves * MOVE_FRAGMENTS;
-        let damage_slows = unit.kind.unit_class().damage_slows();
-        let movement = if damage_slows {
+    pub(crate) fn unit_move_rate(&self, unit: &Unit) -> i32 {
+        let movement_rules = super::movement_rules::MovementRules::campaign();
+        let fragments = movement_rules
+            .move_fragments()
+            .expect("campaign C2C3 movement fragment setting");
+        let class = movement_rules
+            .unit_class_movement_data_for_kind(unit.kind)
+            .expect("campaign C2C3 unit-class movement data");
+        let base = unit.kind.stats().moves * fragments;
+        let mut rate = if class.damage_slows {
             base * unit.hp / unit.max_hit_points()
         } else {
             base
         };
-        let minimum = if unit.kind.is_missile() {
-            0
-        } else if unit.kind.is_naval() {
-            2 * MOVE_FRAGMENTS
-        } else {
-            MOVE_FRAGMENTS
-        };
-        (movement + bonus).max(minimum.min(base))
-    }
-
-    pub(crate) fn unit_move_rate(&self, unit: &Unit) -> i32 {
-        let base = unit.kind.stats().moves * MOVE_FRAGMENTS;
-        let mut bonus = if unit.kind == UnitKind::Galley {
-            let center = self
-                .cities
-                .iter()
-                .find(|city| (city.x, city.y) == (unit.x, unit.y));
-            MOVE_FRAGMENTS
-                * i32::from(
-                    self.has_active_wonder(unit.owner, Building::LIGHTHOUSE)
-                        && ((center.is_none() && !self.tile(unit.x, unit.y).river)
-                            || center.is_some_and(|city| self.is_port(city))),
-                )
-        } else {
-            self.unit_move_allowance(unit.owner, unit.kind) - base
-        };
-        let tile = self.tile(unit.x, unit.y);
-        if !unit.kind.is_naval()
-            && !unit.kind.is_aircraft()
-            && tile.terrain == Terrain::Mountains
-            && !tile.road
-            && (!tile.river || unit.kind.is_big_land())
-        {
-            bonus -= MOVE_FRAGMENTS;
-        }
-        Self::move_rate_with_bonus(unit, bonus)
+        let ruleset = RulesetData::campaign_default();
+        let context = super::action_rules::SimulationRequirementContext::for_unit(self, unit);
+        let effect_bonus = effect_value(&ruleset.effects, "Move_Bonus", &context)
+            .expect("campaign C2C3 Move_Bonus requirements are supported");
+        rate += i32::try_from(effect_bonus).expect("campaign C2C3 movement bonus fits in i32")
+            * fragments;
+        let minimum = (class.min_speed * fragments).min(base);
+        rate.max(minimum)
     }
 
     pub(super) fn live_route_tile(&self, x: i32, y: i32) -> RouteTile {
@@ -177,117 +139,265 @@ impl Simulation {
         dest: Option<RouteTile>,
     ) -> Option<i32> {
         let kind = unit.kind;
+        let rules = MovementRules::campaign();
+        let class = rules
+            .unit_class_for_kind(kind)
+            .expect("campaign C2C3 unit class binding");
+        let fragments = rules
+            .move_fragments()
+            .expect("campaign C2C3 movement fragment setting");
         if kind.is_aircraft() {
-            return Some(MOVE_FRAGMENTS);
+            return Some(fragments);
         }
-        let Some(dest) = dest else {
-            return Some(if kind.is_naval() {
-                MOVE_FRAGMENTS
-            } else if kind.stats().ignores_terrain {
-                2
+        let destination_known = dest.is_some();
+        let destination = dest.unwrap_or(RouteTile {
+            terrain: if kind.is_naval() {
+                Terrain::Ocean
             } else {
-                Terrain::Mountains.movement_cost() * MOVE_FRAGMENTS
-            });
-        };
+                Terrain::Mountains
+            },
+            road: false,
+            railroad: false,
+            river: false,
+            city_owner: None,
+        });
         let source = self.observed_route_tile(unit.x, unit.y);
-        if kind.is_naval() {
-            let native = |tile: RouteTile| {
-                if kind == UnitKind::Galley {
-                    matches!(tile.terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake)
-                        || tile.river
-                } else {
-                    tile.terrain.is_water()
-                }
-            };
-            let port = dest
-                .city_owner
-                .is_some_and(|owner| self.allied(owner, unit.owner))
-                && self
-                    .map_wrap
-                    .civ3_neighbors(x, y)
-                    .any(|(nx, ny)| self.observed_route_tile(nx, ny).is_none_or(native));
-            return (native(dest) || port).then_some(MOVE_FRAGMENTS);
-        }
-        // common/map.c::tile_move_cost_ptrs and the same class-native rules
-        // used by raw_move_cost_for, evaluated on the player's observations.
-        // RouteTile keeps its historical save layout; base/owner come from
-        // the separately persisted observed map rather than live fogged data.
-        let native = |tile: RouteTile, x, y| {
-            kind.is_native_on(
+        let to_movement_tile = |tile: RouteTile, x: i32, y: i32, known: bool| {
+            MovementTile::new(
                 tile.terrain,
-                tile.river,
                 tile.road,
                 tile.railroad,
-                self.render_tile(x, y).base,
+                tile.river,
+                known.then(|| self.render_tile(x, y).base).flatten(),
             )
         };
-        let native_dest = native(dest, x, y);
-        let city_access = dest.city_owner.is_some_and(|owner| {
-            self.allied(owner, unit.owner)
-                || self.at_war(owner, unit.owner) && kind.can_occupy_city()
-        });
-        if !native_dest && !city_access {
+        let from = source.map_or_else(
+            || MovementTile::new(Terrain::Mountains, false, false, false, None),
+            |tile| to_movement_tile(tile, unit.x, unit.y, true),
+        );
+        let to = to_movement_tile(destination, x, y, destination_known);
+        let destination_native = rules
+            .movement_tile_native_to_class(
+                destination.terrain,
+                destination.road,
+                destination.railroad,
+                destination.river,
+                destination_known
+                    .then(|| self.render_tile(x, y).base)
+                    .flatten(),
+                class,
+            )
+            .expect("campaign C2C3 movement native_to data");
+        if destination_known
+            && destination.city_owner.is_none()
+            && super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
+                .expect("campaign C2C3 unit-type CoastStrict binding")
+            && !self.safe_ocean_at(x, y, Some(HUMAN))
+        {
             return None;
         }
-        if !kind.unit_class().terrain_speed() {
-            return Some(MOVE_FRAGMENTS);
+        if destination_known && kind.is_naval() {
+            let native = destination_native;
+            let port = destination
+                .city_owner
+                .is_some_and(|owner| self.allied(owner, unit.owner))
+                && self.map_wrap.civ3_neighbors(x, y).any(|(nx, ny)| {
+                    self.observed_route_tile(nx, ny).is_none_or(|tile| {
+                        rules
+                            .movement_tile_native_to_class(
+                                tile.terrain,
+                                tile.road,
+                                tile.railroad,
+                                tile.river,
+                                self.render_tile(nx, ny).base,
+                                class,
+                            )
+                            .expect("campaign C2C3 movement native_to data")
+                    })
+                });
+            if !native && !port {
+                return None;
+            }
+        } else if destination_known {
+            let city_access = destination.city_owner.is_some_and(|owner| {
+                self.allied(owner, unit.owner)
+                    || self.at_war(owner, unit.owner)
+                        && rules
+                            .unit_class_movement_data_for_kind(kind)
+                            .expect("campaign C2C3 unit class data")
+                            .can_occupy_city
+            });
+            if !destination_native && !city_access {
+                return None;
+            }
         }
-        let ignores = kind.stats().ignores_terrain;
-        if !native_dest || source.is_some_and(|tile| !native(tile, unit.x, unit.y)) {
-            return Some(if ignores { 2 } else { MOVE_FRAGMENTS });
-        }
-        let restricted = [(unit.x, unit.y), (x, y)].into_iter().any(|(x, y)| {
-            self.observed_route_tile(x, y).is_some()
+        let ignores_terrain = super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
+            .expect("campaign C2C3 unit-type IgTer binding");
+        let restricted = [(unit.x, unit.y), (x, y)].into_iter().any(|(tx, ty)| {
+            self.observed_route_tile(tx, ty).is_some()
                 && self
-                    .render_tile(x, y)
+                    .render_tile(tx, ty)
                     .owner
                     .is_some_and(|owner| self.at_war(unit.owner, owner))
         });
-        let mut cost = if kind.ignores_movement_cost_on(dest.terrain) {
-            MOVE_FRAGMENTS
-        } else {
-            dest.terrain.movement_cost() * MOVE_FRAGMENTS
-        };
-        if !restricted {
-            if dest.railroad && source.is_some_and(|tile| tile.railroad) {
-                cost = cost.min(1);
-            }
-            if dest.road && source.is_some_and(|tile| tile.road)
-                || dest.river && !kind.is_big_land() && source.is_some_and(|tile| tile.river)
-            {
-                cost = cost.min(2);
-            }
-        }
-        Some(if ignores { cost.min(2) } else { cost })
+        Some(
+            rules
+                .step_cost(
+                    from,
+                    to,
+                    class,
+                    self.movement_is_cardinal((unit.x, unit.y), (x, y)),
+                    restricted,
+                    ignores_terrain,
+                )
+                .expect("campaign C2C3 step movement data"),
+        )
     }
 
     pub(super) fn movement_cost_for(&self, unit: &Unit, nx: i32, ny: i32) -> Option<i32> {
+        let rules = MovementRules::campaign();
+        let fragments = rules
+            .move_fragments()
+            .expect("campaign C2C3 movement fragment setting");
         if unit.kind.is_aircraft() {
-            return Some(MOVE_FRAGMENTS);
+            return Some(fragments);
         }
         let dest = self.tile(nx, ny);
+        let source = self.tile(unit.x, unit.y);
+        let class = rules
+            .unit_class_for_kind(unit.kind)
+            .expect("campaign C2C3 unit class binding");
+        let source_movement = MovementTile::new(
+            source.terrain,
+            source.road,
+            source.railroad,
+            source.river,
+            source.base,
+        );
+        let destination_movement = MovementTile::new(
+            dest.terrain,
+            dest.road,
+            dest.railroad,
+            dest.river,
+            dest.base,
+        );
+        let destination_native = rules
+            .movement_tile_native_to_class(
+                dest.terrain,
+                dest.road,
+                dest.railroad,
+                dest.river,
+                dest.base,
+                class,
+            )
+            .expect("campaign C2C3 movement native_to data");
+        if self.city_at(nx, ny).is_none()
+            && super::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")
+                .expect("campaign C2C3 unit-type CoastStrict binding")
+            && !self.safe_ocean_at(nx, ny, None)
+        {
+            return None;
+        }
         if unit.kind.is_naval() {
-            let trireme = unit.kind == UnitKind::Galley;
-            let native = if trireme {
-                matches!(dest.terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake) || dest.river
-            } else {
-                dest.terrain.is_water()
-            };
-            return (native
+            return (destination_native
                 || self.cities.iter().any(|city| {
                     (city.x, city.y) == (nx, ny)
                         && self.allied(city.owner, unit.owner)
                         && self.naval_city_access(city, unit.kind)
                 }))
-            .then_some(MOVE_FRAGMENTS);
+            .then(|| self.ruleset_step_cost(unit, source_movement, destination_movement, nx, ny));
         }
         let city_access = self.cities.iter().any(|city| {
             (city.x, city.y) == (nx, ny)
                 && (self.allied(city.owner, unit.owner)
-                    || self.at_war(city.owner, unit.owner) && unit.kind.can_occupy_city())
+                    || self.at_war(city.owner, unit.owner)
+                        && rules
+                            .unit_class_movement_data_for_kind(unit.kind)
+                            .expect("campaign C2C3 unit class data")
+                            .can_occupy_city)
         });
-        (self.pf_native_tile(unit.kind, nx, ny) || city_access)
-            .then(|| self.raw_move_cost_for(unit, nx, ny))
+        (destination_native || city_access)
+            .then(|| self.ruleset_step_cost(unit, source_movement, destination_movement, nx, ny))
+    }
+
+    fn ruleset_step_cost(
+        &self,
+        unit: &Unit,
+        source: MovementTile,
+        destination: MovementTile,
+        nx: i32,
+        ny: i32,
+    ) -> i32 {
+        let rules = MovementRules::campaign();
+        let class = rules
+            .unit_class_for_kind(unit.kind)
+            .expect("campaign C2C3 unit class binding");
+        let ignores_terrain = super::action_rules::freeciv_unit_type_flag(unit.kind, "IgTer")
+            .expect("campaign C2C3 unit-type IgTer binding");
+        let restricted = [self.tile(unit.x, unit.y).owner, self.tile(nx, ny).owner]
+            .into_iter()
+            .flatten()
+            .any(|owner| self.at_war(unit.owner, owner));
+        rules
+            .step_cost(
+                source,
+                destination,
+                class,
+                self.movement_is_cardinal((unit.x, unit.y), (nx, ny)),
+                restricted,
+                ignores_terrain,
+            )
+            .expect("campaign C2C3 step movement data")
+    }
+
+    pub(super) fn movement_is_cardinal(&self, from: (i32, i32), to: (i32, i32)) -> bool {
+        super::topology::CIV3_DIRS
+            .iter()
+            .enumerate()
+            .any(|(direction, _)| {
+                !matches!(direction, 2 | 6)
+                    && self.map_wrap.civ3_neighbor(from.0, from.1, direction) == Some(to)
+            })
+    }
+
+    /// Freeciv `is_safe_ocean`: an adjacent known tile must not carry the
+    /// selected C2C3 UnsafeCoast terrain flag. `observer=None` uses live map
+    /// state; observer-scoped checks use that player's stored observation.
+    pub(super) fn safe_ocean_at(&self, x: i32, y: i32, observer: Option<usize>) -> bool {
+        let rules = MovementRules::campaign();
+        self.map_wrap
+            .civ3_neighbors(x, y)
+            .filter(|&(nx, ny)| self.movement_is_cardinal((x, y), (nx, ny)))
+            .any(|(nx, ny)| {
+                let index = self.map_wrap.index(nx, ny);
+                let route = match observer {
+                    None => Some(self.live_route_tile(nx, ny)),
+                    Some(HUMAN) => self.observed_route_tile(nx, ny),
+                    Some(owner) => self
+                        .ai_map_memory
+                        .get(&(owner, index))
+                        .map(|observation| observation.route),
+                };
+                route.is_some_and(|tile| {
+                    match rules.terrain_has_flag(
+                        tile.terrain,
+                        super::movement_rules::TerrainFlag::UnsafeCoast,
+                    ) {
+                        Ok(unsafe_coast) => !unsafe_coast,
+                        Err(super::movement_rules::MovementRulesError::UnsupportedTerrain(_)) => {
+                            false
+                        }
+                        Err(error) => panic!("invalid selected C2C3 coast data: {error:?}"),
+                    }
+                })
+            })
+    }
+
+    fn class_can_occupy_city(&self, kind: UnitKind) -> bool {
+        MovementRules::campaign()
+            .unit_class_movement_data_for_kind(kind)
+            .expect("campaign C2C3 unit class data")
+            .can_occupy_city
     }
 
     pub(super) fn under_foreign_control(
@@ -297,27 +407,159 @@ impl Simulation {
         y: i32,
         observed: bool,
     ) -> bool {
-        self.units.iter().any(|unit| {
-            if (observed && !self.unit_visible_to_human(unit))
-                || self.tile(unit.x, unit.y).terrain.is_water()
-                || self.map_wrap.civ3_distance(x, y, unit.x, unit.y) > 1
-            {
-                return false;
-            }
-            let occupied_foreign_city = self.cities.iter().any(|city| {
-                (city.x, city.y) == (unit.x, unit.y) && !self.allied(owner, city.owner)
-            });
-            occupied_foreign_city
-                || (!self.allied(owner, unit.owner)
-                    && unit.transport.is_none()
-                    && !unit.kind.has_no_zoc()
-                    && unit.kind.has_zone_of_control())
+        self.enemy_zoc_controls_tile(owner, x, y, observed)
+    }
+
+    fn enemy_zoc_controls_tile(&self, owner: usize, x: i32, y: i32, observed: bool) -> bool {
+        std::iter::once((x, y))
+            .chain(self.map_wrap.civ3_neighbors(x, y))
+            .any(|(tx, ty)| {
+                let tile = if observed {
+                    self.observed_route_tile(tx, ty)
+                } else {
+                    Some(self.live_route_tile(tx, ty))
+                };
+                let Some(tile) = tile else {
+                    // The client ignores unknown terrain and units under fog.
+                    return false;
+                };
+                if Self::terrain_has_no_zoc(tile.terrain) {
+                    return false;
+                }
+
+                if tile
+                    .city_owner
+                    .is_some_and(|city_owner| !self.allied(owner, city_owner))
+                {
+                    if observed {
+                        // Freeciv exposes an occupied bit for visible enemy
+                        // cities and assumes fogged cities are occupied. The
+                        // app does not persist that bit, so recover only the
+                        // boolean from a live stack when the city is visible.
+                        return !self.tile(tx, ty).visible
+                            || self.units.iter().any(|unit| (unit.x, unit.y) == (tx, ty));
+                    }
+                    return self.units.iter().any(|unit| (unit.x, unit.y) == (tx, ty));
+                }
+
+                // Freeciv can also source ZOC from extras and their owners.
+                // CivCraft's tile model has no generic extra-owner or ZOC
+                // extra collection, so those ruleset sources are not yet
+                // representable here.
+                self.units.iter().any(|unit| {
+                    (unit.x, unit.y) == (tx, ty)
+                        && (!observed || self.unit_visible_to_human(unit))
+                        && !self.allied(owner, unit.owner)
+                        && unit.transport.is_none()
+                        && Self::unit_class_uses_zoc(unit.kind)
+                        && !super::action_rules::freeciv_unit_type_flag(unit.kind, "HasNoZOC")
+                            .expect("campaign C2C3 unit-type HasNoZOC binding")
+                })
+            })
+    }
+
+    fn terrain_has_no_zoc(terrain: Terrain) -> bool {
+        match super::movement_rules::MovementRules::campaign()
+            .terrain_has_flag(terrain, super::movement_rules::TerrainFlag::NoZoc)
+        {
+            Ok(flag) => flag,
+            // Volcano has no C2C3 terrain record. Its movement-cost mapping
+            // does not imply any other terrain flags.
+            Err(super::movement_rules::MovementRulesError::UnsupportedTerrain(_)) => false,
+            Err(error) => panic!("campaign C2C3 terrain NoZoc data is invalid: {error:?}"),
+        }
+    }
+
+    fn unit_class_uses_zoc(kind: UnitKind) -> bool {
+        use crate::sim::unit_catalog::UnitClass as C;
+
+        // Keep the ruleset flags authoritative and cache them because route
+        // expansion asks this question for every candidate step. Civ III's
+        // runtime catalog has no separate Merchant class crosswalk.
+        static CLASS_ZOC: OnceLock<[bool; 8]> = OnceLock::new();
+        let class_zoc = CLASS_ZOC.get_or_init(|| {
+            let rules = super::movement_rules::MovementRules::campaign();
+            [
+                C::Land,
+                C::SmallLand,
+                C::BigLand,
+                C::Sea,
+                C::Trireme,
+                C::Air,
+                C::Helicopter,
+                C::Missile,
+            ]
+            .map(|class| {
+                rules
+                    .unit_class_movement_data(class)
+                    .expect("C2C3 defines the mapped unit classes")
+                    .zoc
+            })
+        });
+        let class_index = match super::movement_rules::MovementRules::campaign()
+            .unit_class_for_kind(kind)
+            .expect("campaign C2C3 unit class binding")
+        {
+            C::Land => 0,
+            C::SmallLand => 1,
+            C::BigLand => 2,
+            C::Sea => 3,
+            C::Trireme => 4,
+            C::Air => 5,
+            C::Helicopter => 6,
+            C::Missile => 7,
+        };
+        class_zoc[class_index]
+    }
+
+    fn allied_unit_at(&self, owner: usize, x: i32, y: i32, observed: bool) -> bool {
+        self.units.iter().any(|other| {
+            (other.x, other.y) == (x, y)
+                && (!observed || self.unit_visible_to_human(other))
+                && self.allied(owner, other.owner)
         })
     }
 
+    fn zone_blocks_step_with_observation(
+        &self,
+        unit: &Unit,
+        from: (i32, i32),
+        to: (i32, i32),
+        observed: bool,
+    ) -> bool {
+        if !Self::unit_class_uses_zoc(unit.kind)
+            || super::action_rules::freeciv_unit_type_flag(unit.kind, "IgZOC")
+                .expect("campaign C2C3 unit-type IgZOC binding")
+        {
+            return false;
+        }
+        if self.allied_unit_at(unit.owner, to.0, to.1, observed) {
+            return false;
+        }
+
+        let route_tile = |position: (i32, i32)| {
+            if observed {
+                self.observed_route_tile(position.0, position.1)
+            } else {
+                Some(self.live_route_tile(position.0, position.1))
+            }
+        };
+        let source = route_tile(from);
+        let destination = route_tile(to);
+        if source.is_some_and(|tile| tile.city_owner.is_some())
+            || destination.is_some_and(|tile| tile.city_owner.is_some())
+            || source.is_some_and(|tile| Self::terrain_has_no_zoc(tile.terrain))
+            || destination.is_some_and(|tile| Self::terrain_has_no_zoc(tile.terrain))
+        {
+            return false;
+        }
+
+        self.enemy_zoc_controls_tile(unit.owner, from.0, from.1, observed)
+            && self.enemy_zoc_controls_tile(unit.owner, to.0, to.1, observed)
+    }
+
     pub(super) fn zone_blocks_step(&self, unit: &Unit, from: (i32, i32), to: (i32, i32)) -> bool {
-        let _ = (unit, from, to);
-        false
+        self.zone_blocks_step_with_observation(unit, from, to, false)
     }
 
     pub(super) fn zone_blocks_route(
@@ -327,8 +569,7 @@ impl Simulation {
         to: (i32, i32),
         observed: bool,
     ) -> bool {
-        let _ = (unit, from, to, observed);
-        false
+        self.zone_blocks_step_with_observation(unit, from, to, observed)
     }
 
     fn try_capture_units(
@@ -459,6 +700,16 @@ impl Simulation {
         if unit.kind.is_nuclear_weapon() {
             return MoveResult::Blocked;
         }
+        let action_available = if unit.transport.is_some() {
+            self.transport_disembark_action_for_unit_fail_closed(&unit, (nx, ny))
+                .is_some()
+        } else {
+            self.action_available_for_unit(&unit, "Unit Move", (nx, ny))
+                .is_ok_and(|available| available)
+        };
+        if !action_available {
+            return MoveResult::Blocked;
+        }
         if unit.moves_left <= 0 || unit.work_left > 0 || unit.state == UnitState::Sentry {
             return MoveResult::Blocked;
         }
@@ -466,6 +717,13 @@ impl Simulation {
             if unit.owner == HUMAN {
                 self.add_event("A treaty prevents entry to that tile.");
             }
+            return MoveResult::Blocked;
+        }
+        let attack_target = self
+            .units
+            .iter()
+            .any(|other| (other.x, other.y) == (nx, ny) && self.at_war(unit.owner, other.owner));
+        if !attack_target && self.zone_blocks_step(&unit, (unit.x, unit.y), (nx, ny)) {
             return MoveResult::Blocked;
         }
         if !self.can_leave_transport(&unit) {
@@ -489,7 +747,9 @@ impl Simulation {
                 && unit.kind.is_military()
                 && self.best_defender_id(&unit, nx, ny).is_some() =>
             {
-                MOVE_FRAGMENTS
+                MovementRules::campaign()
+                    .move_fragments()
+                    .expect("campaign C2C3 movement fragment setting")
             }
             None => return MoveResult::Blocked,
         };
@@ -508,7 +768,7 @@ impl Simulation {
             && (self.units.iter().any(|other| {
                 (other.x, other.y) == (nx, ny) && self.at_war(unit.owner, other.owner)
             }) || self.cities.iter().any(|city| {
-                !unit.kind.can_occupy_city()
+                !self.class_can_occupy_city(unit.kind)
                     && (city.x, city.y) == (nx, ny)
                     && self.at_war(unit.owner, city.owner)
             }))
@@ -541,7 +801,7 @@ impl Simulation {
         }
         if let Some(city) = self.city_at(nx, ny)
             && self.at_war(city.owner, unit.owner)
-            && (!unit.kind.can_occupy_city()
+            && (!self.class_can_occupy_city(unit.kind)
                 || (unit.transport.is_some()
                     && self.tile(unit.x, unit.y).terrain.is_water()
                     && !unit.kind.has_marine_attack()))

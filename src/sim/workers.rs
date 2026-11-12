@@ -134,9 +134,11 @@ impl Simulation {
                 }
                 let cost = if !self.players[unit.owner].ai && !self.tile(x, y).known_by[unit.owner]
                 {
-                    // Native unit unknown-terrain cost is twice the highest
-                    // native terrain cost for this land class.
-                    Some(if unit.kind.is_naval() { 2 } else { 6 } * MOVE_FRAGMENTS)
+                    Some(
+                        super::movement_rules::MovementRules::campaign()
+                            .unknown_tile_move_cost(unit.kind)
+                            .expect("selected C2C3 unknown-tile movement cost"),
+                    )
                 } else {
                     self.movement_cost_for(&actor, x, y)
                 };

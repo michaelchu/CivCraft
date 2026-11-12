@@ -4,7 +4,11 @@ use super::*;
 
 impl Simulation {
     pub(crate) fn obsolete_wonders_playtest(&mut self) -> (bool, bool, bool) {
-        let naval_speed = |game: &Self| game.unit_move_allowance(HUMAN, UnitKind::Destroyer);
+        let naval_speed = |game: &Self| {
+            let city = &game.cities[0];
+            let ship = game.make_unit(0, HUMAN, UnitKind::Destroyer, city.x, city.y);
+            game.unit_move_rate(&ship)
+        };
         let science = |game: &Self| game.split_city_trade(&game.cities[0], 0, [100, 0, 0])[0];
         let base_speed = naval_speed(self);
         let base_science = science(self);

@@ -3,7 +3,7 @@
 use super::*;
 
 #[test]
-fn nuclear_submarines_carry_one_tactical_nuke_and_no_other_cargo() {
+fn nuclear_submarines_use_the_selected_submarine_transport_role() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     let (submarine, missile, _) = game.cruise_missile_playtest_setup();
     let sub = game
@@ -24,13 +24,24 @@ fn nuclear_submarines_carry_one_tactical_nuke_and_no_other_cargo() {
         UnitKind::NuclearSubmarine.required_tech().unwrap().name(),
         "Fission"
     );
-    // Conquests BIQ cargo capacities: Submarine 0; Nuclear Submarine 1.
+    // The Civ III catalog remains available as source data. Runtime transport
+    // behavior uses the selected C2C3 Submarine role for the retained
+    // Nuclear Submarine identity.
     assert_eq!(UnitKind::Submarine.transport_capacity(), 0);
     assert!(!UnitKind::Submarine.can_carry(UnitKind::CruiseMissile));
     assert_eq!(UnitKind::NuclearSubmarine.transport_capacity(), 1);
     assert!(!UnitKind::NuclearSubmarine.can_carry(UnitKind::Fighter));
     assert!(!UnitKind::NuclearSubmarine.can_carry(UnitKind::Warrior));
     assert!(UnitKind::NuclearSubmarine.can_carry(UnitKind::TacticalNuke));
+    assert_eq!(
+        game.ruleset_transport_capacity(UnitKind::NuclearSubmarine)
+            .unwrap(),
+        8
+    );
+    assert!(
+        game.ruleset_transport_pair_allowed(UnitKind::NuclearSubmarine, UnitKind::TacticalNuke)
+            .unwrap()
+    );
     assert!(game.board_or_deboard(missile));
     let missile = game.unit_by_id(missile).unwrap();
     assert_eq!(missile.transport, Some(submarine));
@@ -193,7 +204,7 @@ fn city_defenses_use_the_attacking_units_class_with_imported_defender_stats() {
 }
 
 #[test]
-fn helicopter_transport_uses_foot_only_cargo_and_city_access() {
+fn helicopter_transport_uses_selected_ruleset_cargo_and_city_access() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     let (x, y) = (10, 20);
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
@@ -206,15 +217,12 @@ fn helicopter_transport_uses_foot_only_cargo_and_city_access() {
     game.create_city(HUMAN, x, y);
     let helicopter = game.spawn_unit(HUMAN, UnitKind::Helicopter, x, y);
     let artillery = game.spawn_unit(HUMAN, UnitKind::Artillery, x, y);
-    let partisan = game.spawn_unit(HUMAN, UnitKind::Guerilla, x, y);
+    let marine = game.spawn_unit(HUMAN, UnitKind::Marine, x, y);
     assert!(!game.board_or_deboard(artillery));
-    assert!(game.board_or_deboard(partisan));
-    assert_eq!(
-        game.unit_by_id(partisan).unwrap().transport,
-        Some(helicopter)
-    );
-    assert!(game.board_or_deboard(partisan));
-    assert_eq!(game.unit_by_id(partisan).unwrap().transport, None);
+    assert!(game.board_or_deboard(marine));
+    assert_eq!(game.unit_by_id(marine).unwrap().transport, Some(helicopter));
+    assert!(game.board_or_deboard(marine));
+    assert_eq!(game.unit_by_id(marine).unwrap().transport, None);
 }
 
 #[test]

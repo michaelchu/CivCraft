@@ -17,6 +17,7 @@
 //! rules: tests and reference fixtures depend on both, and several derived
 //! fields are deliberately skipped during save serialization.
 
+mod action_rules;
 mod advisors;
 mod ai;
 mod ai_economy;
@@ -63,6 +64,8 @@ mod illness;
 mod leaders;
 mod list_order;
 mod movement;
+#[allow(dead_code)] // Shared ruleset adapter is introduced before call-site migration.
+mod movement_rules;
 mod presentation;
 mod resistance;
 #[cfg(test)]

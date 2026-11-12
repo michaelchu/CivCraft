@@ -243,12 +243,12 @@ fn full_allied_carrier_is_a_possible_refuel_point_and_unreachable_aircraft_do_no
     sim.tile_mut(10, 20).terrain = Terrain::Sea;
     let plane = actor(&mut sim, UnitKind::Bomber, (10, 20));
     let carrier = sim.spawn_unit(HUMAN, UnitKind::Carrier, 10, 20);
-    // The installed Conquests Carrier has capacity 4.
-    for _ in 0..4 {
+    // The selected C2C3 Carrier record has capacity 8.
+    for _ in 0..8 {
         let cargo = sim.spawn_unit(HUMAN, UnitKind::Fighter, 10, 20);
         assert!(sim.board_specific_ship(cargo, carrier));
     }
-    assert_eq!(sim.cargo_count(carrier), 4);
+    assert_eq!(sim.cargo_count(carrier), 8);
     assert!(!sim.board_specific_ship(plane.id, carrier));
     let map = FuelPaths::new(&sim, &plane, true).unwrap();
     assert!(map.possible_base(&sim, 10, 20));

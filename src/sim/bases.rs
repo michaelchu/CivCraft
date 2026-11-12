@@ -20,7 +20,10 @@ impl Base {
         }
     }
 
-    pub(super) fn prerequisite(self) -> Option<Self> {
+    /// The tile model stores one base even though C2C3's Fortress and Airbase
+    /// extras sit on top of Fort and Airstrip. Preserve that underlay when the
+    /// higher extra is pillaged.
+    pub(super) fn underlying_after_removal(self) -> Option<Self> {
         match self {
             Self::Fortress => Some(Self::Fort),
             Self::Airbase => Some(Self::Airstrip),
@@ -41,34 +44,21 @@ impl Base {
 impl Simulation {
     pub(crate) fn base_work_time(&self, unit: &Unit, base: Base) -> Option<i32> {
         let tile = self.tile(unit.x, unit.y);
-        let (tech, capable) = match base {
-            Base::Fort | Base::Fortress => (Tech::CONSTRUCTION, unit.kind.can_build_fortress()),
-            Base::Airstrip | Base::Airbase => (Tech::FLIGHT, unit.kind.is_worker()),
-        };
-        if !capable
-            || unit.transport.is_some()
-            || tile.terrain.is_water()
-            || !self.has_tech(unit.owner, tech)
-            || tile.base != base.prerequisite()
-            || (base.prerequisite().is_some() && tile.river)
+        if unit.transport.is_some()
             || self
                 .cities
                 .iter()
                 .any(|city| (city.x, city.y) == (unit.x, unit.y))
+            || !self.work_action_available_for_unit_fail_closed(
+                unit,
+                WorkKind::BuildBase(base),
+                (unit.x, unit.y),
+            )
         {
             return None;
         }
-        Some(
-            2 * match tile.terrain {
-                Terrain::Mountains => 3,
-                Terrain::Glacier
-                | Terrain::Forest
-                | Terrain::Hills
-                | Terrain::Jungle
-                | Terrain::Marsh => 2,
-                _ => 1,
-            },
-        )
+        let time = self.work_activity_time_fail_closed(WorkKind::BuildBase(base), tile.terrain);
+        (time > 0).then_some(time)
     }
 }
 
@@ -116,5 +106,26 @@ mod tests {
         )));
         game.update_activities_and_restore();
         assert_eq!(game.tile(x, y).base, Some(Base::Fort));
+    }
+
+    #[test]
+    fn c2c3_airstrip_requirements_replace_a_conflicting_fort() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        let (x, y) = (10, 20);
+        game.tile_mut(x, y).terrain = Terrain::Plains;
+        game.tile_mut(x, y).base = Some(Base::Fort);
+        game.players[HUMAN].known.push(Tech::RADIO);
+        let worker = game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
+
+        assert!(
+            game.base_work_time(game.unit_by_id(worker).unwrap(), Base::Airstrip)
+                .is_some()
+        );
+        assert!(game.apply(Command::Work(worker, WorkKind::BuildBase(Base::Airstrip))));
+        for _ in 0..10 {
+            game.update_activities_and_restore();
+        }
+        assert_eq!(game.tile(x, y).base, Some(Base::Airstrip));
     }
 }

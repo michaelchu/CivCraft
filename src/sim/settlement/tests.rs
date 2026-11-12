@@ -69,7 +69,7 @@ fn exhausted_arriving_founder_keeps_its_mission_until_movement_refreshes() {
     assert_eq!((arrived.x, arrived.y), destination);
     assert_eq!(arrived.moves_left, 0);
     assert!(game.ai_settlement_targets.contains_key(&id));
-    let allowance = game.unit_move_allowance(1, UnitKind::Settler);
+    let allowance = game.unit_move_rate(&founder);
     game.units
         .iter_mut()
         .find(|unit| unit.id == id)

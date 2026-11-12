@@ -2,6 +2,46 @@
 
 use super::*;
 
+fn prepare_zoc_test_map(game: &mut Simulation) {
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.river = false;
+        tile.road = false;
+        tile.railroad = false;
+        tile.base = None;
+        tile.hut = false;
+        tile.owner = None;
+        tile.visible = true;
+        tile.seen = true;
+    }
+}
+
+fn blocked_zoc_positions(game: &Simulation) -> ((i32, i32), (i32, i32), (i32, i32)) {
+    let start = (10, 20);
+    let destination = game.map_wrap.civ3_neighbor(start.0, start.1, 2).unwrap();
+    let enemy = game
+        .map_wrap
+        .civ3_neighbors(start.0, start.1)
+        .find(|&candidate| {
+            candidate != destination
+                && game.map_wrap.civ3_distance(
+                    destination.0,
+                    destination.1,
+                    candidate.0,
+                    candidate.1,
+                ) == 1
+        })
+        .unwrap();
+    assert_eq!(
+        game.map_wrap
+            .civ3_distance(start.0, start.1, enemy.0, enemy.1),
+        1
+    );
+    (start, destination, enemy)
+}
+
 #[test]
 fn activity_completion_is_immediate_and_old_mp_controls_only_work_count() {
     let game = Simulation::new(crate::mapgen::generate(42));
@@ -167,12 +207,13 @@ fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
     assert_eq!(game.project_turns_left(&native_unit), 9);
     assert_eq!(game.project_turns_left(&foreign_unit), 19);
 
-    // Keep the existing Democracy and Replaceable Parts multipliers, then
-    // apply the same source strength ratio to foreign Workers.
+    // Freeciv activity rate is independent of Civ III government and
+    // Replaceable Parts modifiers; the retained source WorkerStrength ratio
+    // still applies to captive Workers.
     game.players[HUMAN].government = Government::Democracy;
     game.players[HUMAN].known.push(Tech::REPLACEABLE_PARTS);
-    assert_eq!(game.activity_rate(&native_unit), 30);
-    assert_eq!(game.activity_rate(&foreign_unit), 15);
+    assert_eq!(game.activity_rate(&native_unit), 10);
+    assert_eq!(game.activity_rate(&foreign_unit), 5);
 }
 
 #[test]
@@ -522,7 +563,7 @@ fn movement_rates_scale_damage_before_effects_and_use_whole_move_class_minima() 
     let mut horse = game.make_unit(0, HUMAN, UnitKind::Horseman, 10, 24);
     let horse_minimum = MOVE_FRAGMENTS.min(horse.kind.stats().moves * MOVE_FRAGMENTS);
     let horse_base = horse.kind.stats().moves * MOVE_FRAGMENTS;
-    let horse_bonus = game.unit_move_allowance(HUMAN, horse.kind) - horse_base;
+    let horse_bonus = game.unit_move_rate(&horse) - horse_base;
     horse.hp = 5;
     assert_eq!(
         game.unit_move_rate(&horse),
@@ -535,7 +576,7 @@ fn movement_rates_scale_damage_before_effects_and_use_whole_move_class_minima() 
     );
     let mut ship = game.make_unit(0, HUMAN, UnitKind::Destroyer, 10, 24);
     let ship_base = ship.kind.stats().moves * MOVE_FRAGMENTS;
-    let ship_bonus = game.unit_move_allowance(HUMAN, ship.kind) - ship_base;
+    let ship_bonus = game.unit_move_rate(&ship) - ship_base;
     let ship_minimum = (2 * MOVE_FRAGMENTS).min(ship_base);
     ship.hp = 1;
     assert_eq!(
@@ -627,9 +668,12 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
     }
     let (warrior, _, (x, y)) = game.zone_control_playtest_setup();
     let direct = game.path_to(warrior, x, y);
-    assert_eq!(direct.len(), 1);
+    assert!(
+        direct.len() > 1,
+        "pathfinding should route around enemy control"
+    );
     let start = game.unit_by_id(warrior).unwrap();
-    assert_eq!(
+    assert_ne!(
         game.map_wrap
             .civ3_offset(start.x, start.y, direct[0].0, direct[0].1),
         Some((x, y))
@@ -637,15 +681,15 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
     game.set_random_seed(42);
     let rng_before_zoc_attack = game.random_snapshot();
     let hp_before_zoc_attack = game.unit_by_id(warrior).unwrap().hp;
-    assert!(game.apply(Command::Move(warrior, 1, 0)));
-    assert_ne!(game.random_snapshot(), rng_before_zoc_attack);
-    assert!(game.unit_by_id(warrior).unwrap().hp <= hp_before_zoc_attack);
+    assert!(!game.apply(Command::Move(warrior, 1, 0)));
+    assert_eq!(game.random_snapshot(), rng_before_zoc_attack);
+    assert_eq!(game.unit_by_id(warrior).unwrap().hp, hp_before_zoc_attack);
     assert_eq!(
         (
             game.unit_by_id(warrior).unwrap().x,
             game.unit_by_id(warrior).unwrap().y
         ),
-        (x, y)
+        (10, 20)
     );
     game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
     let friendly_mover = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
@@ -658,6 +702,140 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
         Some((x, y))
     );
     assert!(game.apply(Command::Move(friendly_mover, 1, 0)));
+}
+
+#[test]
+fn freeciv_zoc_blocks_a_step_between_two_enemy_controlled_tiles() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    prepare_zoc_test_map(&mut game);
+    let (start, destination, enemy) = blocked_zoc_positions(&game);
+    let mover = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
+    game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
+    let unit = game.unit_by_id(mover).unwrap().clone();
+
+    assert!(game.zone_blocks_step(&unit, start, destination));
+    assert!(!game.apply(Command::MoveCiv3(mover, 2)));
+    assert_eq!(
+        (
+            game.unit_by_id(mover).unwrap().x,
+            game.unit_by_id(mover).unwrap().y
+        ),
+        start
+    );
+}
+
+#[test]
+fn freeciv_zoc_allows_one_step_into_enemy_control_from_a_safe_tile() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    prepare_zoc_test_map(&mut game);
+    let start = (10, 20);
+    let destination = game.map_wrap.civ3_neighbor(start.0, start.1, 2).unwrap();
+    let enemy = game
+        .map_wrap
+        .civ3_neighbor(destination.0, destination.1, 2)
+        .unwrap();
+    assert_eq!(
+        game.map_wrap
+            .civ3_distance(start.0, start.1, enemy.0, enemy.1),
+        2
+    );
+    assert_eq!(
+        game.map_wrap
+            .civ3_distance(destination.0, destination.1, enemy.0, enemy.1),
+        1
+    );
+    let mover = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
+    game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
+    let unit = game.unit_by_id(mover).unwrap().clone();
+
+    assert!(!game.zone_blocks_step(&unit, start, destination));
+    assert!(game.apply(Command::MoveCiv3(mover, 2)));
+    assert_eq!(
+        (
+            game.unit_by_id(mover).unwrap().x,
+            game.unit_by_id(mover).unwrap().y
+        ),
+        destination
+    );
+}
+
+#[test]
+fn zoc_legality_does_not_preempt_the_existing_attack_action_path() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    prepare_zoc_test_map(&mut game);
+    let start = (10, 20);
+    let destination = game.map_wrap.civ3_neighbor(start.0, start.1, 2).unwrap();
+    let attacker = game.spawn_unit(HUMAN, UnitKind::ModernArmor, start.0, start.1);
+    game.spawn_unit(1, UnitKind::Warrior, destination.0, destination.1);
+    let unit = game.unit_by_id(attacker).unwrap().clone();
+    game.sign_pact(HUMAN, 1, Pact::War);
+
+    assert!(game.zone_blocks_step(&unit, start, destination));
+    game.set_random_seed(42);
+    let random_before_attack = game.random_snapshot();
+    assert!(game.apply(Command::MoveCiv3(attacker, 2)));
+    assert_ne!(game.random_snapshot(), random_before_attack);
+}
+
+#[test]
+fn freeciv_zoc_allied_stack_city_nozoc_terrain_and_igzoc_exemptions_apply() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    prepare_zoc_test_map(&mut game);
+    let (start, destination, enemy) = blocked_zoc_positions(&game);
+    let mover = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
+    game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
+    let allied_stack_mover = game.unit_by_id(mover).unwrap().clone();
+
+    game.spawn_unit(HUMAN, UnitKind::Worker, destination.0, destination.1);
+    assert!(!game.zone_blocks_step(&allied_stack_mover, start, destination));
+
+    game.units.retain(|unit| unit.kind != UnitKind::Worker);
+    game.create_city(HUMAN, start.0, start.1);
+    assert!(!game.zone_blocks_step(&allied_stack_mover, start, destination));
+    game.cities.clear();
+    game.create_city(HUMAN, destination.0, destination.1);
+    assert!(!game.zone_blocks_step(&allied_stack_mover, start, destination));
+
+    game.cities.clear();
+    game.tile_mut(destination.0, destination.1).terrain = Terrain::Sea;
+    assert!(!game.zone_blocks_step(&allied_stack_mover, start, destination));
+    game.tile_mut(destination.0, destination.1).terrain = Terrain::Grassland;
+
+    let explorer_id = game.spawn_unit(HUMAN, UnitKind::Explorer, start.0, start.1);
+    let explorer = game.unit_by_id(explorer_id).unwrap().clone();
+    assert!(!game.zone_blocks_step(&explorer, start, destination));
+
+    let carrier_id = game.spawn_unit(HUMAN, UnitKind::Carrier, start.0, start.1);
+    let carrier = game.unit_by_id(carrier_id).unwrap().clone();
+    assert!(!game.zone_blocks_step(&carrier, start, destination));
+}
+
+#[test]
+fn freeciv_route_zoc_uses_only_observed_enemy_units() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    prepare_zoc_test_map(&mut game);
+    let (start, destination, enemy) = blocked_zoc_positions(&game);
+    let mover_id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
+    let enemy_id = game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
+    game.remember_route_tiles(false);
+    game.tile_mut(enemy.0, enemy.1).visible = false;
+    let mover = game.unit_by_id(mover_id).unwrap().clone();
+
+    assert!(game.zone_blocks_route(&mover, start, destination, false));
+    assert!(!game.zone_blocks_route(&mover, start, destination, true));
+    game.tile_mut(enemy.0, enemy.1).visible = true;
+    assert!(game.zone_blocks_route(&mover, start, destination, true));
+
+    game.units.retain(|unit| unit.id != enemy_id);
+    game.create_city(1, enemy.0, enemy.1);
+    game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
+    game.remember_route_tiles(false);
+    assert!(game.zone_blocks_route(&mover, start, destination, true));
+    game.units
+        .retain(|unit| unit.id != enemy_id && (unit.x, unit.y) != enemy);
+    assert!(!game.zone_blocks_route(&mover, start, destination, true));
+    game.tile_mut(enemy.0, enemy.1).visible = false;
+    assert!(game.zone_blocks_route(&mover, start, destination, true));
 }
 
 #[test]
@@ -808,16 +986,16 @@ mod transport_tests {
             .unwrap()
             .id;
         assert!(game.apply(Command::Move(ship, 1, 0)));
-        for _ in 0..UnitKind::Transport.transport_capacity() {
+        let transport_capacity = game
+            .ruleset_transport_capacity(UnitKind::Transport)
+            .unwrap();
+        for _ in 0..transport_capacity {
             let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
             assert!(game.apply(Command::Move(cannon, 1, 0)));
         }
         let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
         assert!(!game.apply(Command::Move(cannon, 1, 0)));
-        assert_eq!(
-            game.cargo_count(ship),
-            UnitKind::Transport.transport_capacity()
-        );
+        assert_eq!(game.cargo_count(ship), transport_capacity);
     }
 
     #[test]
@@ -857,8 +1035,8 @@ mod transport_tests {
         game.tile_mut(x, y).terrain = Terrain::Grassland;
         game.tile_mut(sx, sy).terrain = Terrain::Sea;
         let ship = game.spawn_unit(HUMAN, UnitKind::Caravel, sx, sy);
-        let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
-        assert!(game.apply(Command::Move(cannon, 1, 0)));
+        let warrior = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
+        assert!(game.apply(Command::Move(warrior, 1, 0)));
         assert_eq!(game.cargo_count(ship), 1);
         for _ in 0..2 {
             let cargo = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);

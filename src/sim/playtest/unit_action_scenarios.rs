@@ -103,7 +103,7 @@ impl Simulation {
         let (x, y) = offset_native_by_map(city.x, city.y, 1, 0);
         self.players[HUMAN]
             .known
-            .extend([Tech::CONSTRUCTION, Tech::FLIGHT]);
+            .extend([Tech::CONSTRUCTION, Tech::RADIO]);
         let tile = self.tile_mut(x, y);
         tile.terrain = Terrain::Plains;
         tile.river = false;

@@ -41,19 +41,8 @@ impl PillageTarget {
 
 impl Simulation {
     pub(crate) fn can_pillage(&self, unit: &Unit, target: PillageTarget) -> bool {
-        // Civ2Civ3 assigns CanPillage to the Land class, excluding Small and Big Land.
         if unit.transport.is_some()
-            || !matches!(
-                unit.kind,
-                UnitKind::Warrior
-                    | UnitKind::Spearman
-                    | UnitKind::Archer
-                    | UnitKind::Swordsman
-                    | UnitKind::Horseman
-                    | UnitKind::Musketman
-                    | UnitKind::Knight
-                    | UnitKind::Guerilla
-            )
+            || !self.action_available_for_unit_fail_closed(unit, "Pillage", (unit.x, unit.y))
         {
             return false;
         }
@@ -72,13 +61,10 @@ impl Simulation {
         let city = self.city_at(x, y);
         match target {
             PillageTarget::Road => tile.road && !tile.railroad && city.is_none(),
-            PillageTarget::Railroad => {
-                tile.railroad
-                    && city.is_none_or(|city| {
-                        !self.has_tech(city.owner, Tech::STEAM_POWER)
-                            || (tile.river && !self.has_tech(city.owner, Tech::ENGINEERING))
-                    })
-            }
+            // City-center road extras are automatic in the selected C2C3
+            // ruleset, so their road/railroad presentation is not a pillage
+            // target. Technology no longer decides whether the extra exists.
+            PillageTarget::Railroad => tile.railroad && city.is_none(),
             PillageTarget::Irrigation => tile.irrigation && !tile.farmland,
             PillageTarget::Farmland => tile.farmland,
             PillageTarget::Mine => tile.mine && !tile.oil_well,
@@ -101,7 +87,7 @@ impl Simulation {
             PillageTarget::Mine => tile.mine = false,
             PillageTarget::OilWell => tile.oil_well = false,
             PillageTarget::OilPlatform => tile.oil_platform = false,
-            PillageTarget::Base(base) => tile.base = base.prerequisite(),
+            PillageTarget::Base(base) => tile.base = base.underlying_after_removal(),
         }
         if owner == HUMAN {
             self.add_event(format!("Your unit pillaged {}.", target.name()));

@@ -38,35 +38,6 @@ impl Simulation {
             .all(|c| self.map_distance(x, y, c.x, c.y) >= CITY_MIN_DISTANCE)
     }
 
-    pub(crate) fn can_irrigate_at(&self, owner: usize, x: i32, y: i32) -> bool {
-        let tile = self.tile(x, y);
-        !tile.irrigation
-            && tile.terrain.irrigation_time() > 0
-            && self.has_irrigation_source(owner, x, y)
-    }
-
-    pub(crate) fn can_farm_at(&self, owner: usize, x: i32, y: i32) -> bool {
-        let tile = self.tile(x, y);
-        tile.irrigation
-            && !tile.farmland
-            && !tile.mine
-            && tile.terrain.irrigation_time() > 0
-            && self.has_tech(owner, Tech::SANITATION)
-            && (tile.terrain != Terrain::Desert
-                || tile.river
-                || tile.resource == Some(Resource::Oasis))
-            && self.has_irrigation_source(owner, x, y)
-    }
-
-    fn has_irrigation_source(&self, owner: usize, x: i32, y: i32) -> bool {
-        self.has_tech(owner, Tech::ELECTRICITY)
-            || self.tile(x, y).river
-            || self.map_wrap.civ3_neighbors(x, y).any(|(nx, ny)| {
-                let source = self.tile(nx, ny);
-                source.terrain.is_water() || source.river || source.irrigation
-            })
-    }
-
     pub(super) fn city_name(&self, owner: usize) -> String {
         if let Some(civilization_id) = self.players[owner].civilization_id.as_deref() {
             if let Some(name) =

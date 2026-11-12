@@ -1,6 +1,7 @@
 //! Default-AI GOTO profiles and native PF_NORMAL iteration. Fuelled actors
 //! use PF_FUEL; human
 //! click routes deliberately remain a separate client policy.
+use super::movement_rules::{MovementRules, c2c3_base_extra_rule_name};
 use super::*;
 use super::{exploration::ExplorerQueue, pf_actions::PfAction};
 
@@ -52,13 +53,6 @@ enum Status {
     New,
     Processed,
 }
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Zoc {
-    Mine,
-    Allied,
-    No,
-}
-
 #[derive(Clone)]
 struct Node {
     cost: i32,
@@ -69,7 +63,6 @@ struct Node {
     action: PfAction,
     known: bool,
     scope: u8,
-    zoc: Zoc,
     extra_tile: u16,
 }
 impl Default for Node {
@@ -83,7 +76,6 @@ impl Default for Node {
             action: PfAction::None,
             known: false,
             scope: 0,
-            zoc: Zoc::Mine,
             extra_tile: 0,
         }
     }
@@ -97,6 +89,8 @@ pub(super) struct NormalPaths {
     current: usize,
     style: Style,
     policy: TilePolicy,
+    class_build_anywhere: bool,
+    class_can_occupy_city: bool,
     omniscient: bool,
     risk: bool,
     nodes: Vec<Node>,
@@ -145,6 +139,9 @@ impl NormalPaths {
         risk: bool,
     ) -> Self {
         let start = sim.map_wrap.index(unit.x, unit.y);
+        let class_rules = MovementRules::campaign()
+            .unit_class_movement_data_for_kind(unit.kind)
+            .expect("selected C2C3 unit-class movement data");
         let mut map = Self {
             map_wrap: sim.map_wrap,
             actor: unit.clone(),
@@ -153,6 +150,8 @@ impl NormalPaths {
             current: start,
             style,
             policy,
+            class_build_anywhere: class_rules.build_anywhere,
+            class_can_occupy_city: class_rules.can_occupy_city,
             omniscient,
             risk,
             nodes: vec![Node::default(); sim.tiles.len()],
@@ -161,13 +160,14 @@ impl NormalPaths {
         map.initialize(sim, start, 0);
         if let Some(ship) = unit.transport.and_then(|id| sim.unit_by_id(id)) {
             map.nodes[start].scope |= TRANSPORT;
-            if !Self::free_transport(unit.kind, ship.kind)
-                && !sim
-                    .cities
-                    .iter()
-                    .any(|city| (city.x, city.y) == (unit.x, unit.y))
-                && !Self::native_base(sim, ship.kind, unit.x, unit.y)
-            {
+            let at_port = sim
+                .city_at(unit.x, unit.y)
+                .is_some_and(|city| sim.allied(unit.owner, city.owner))
+                || Self::native_base(sim, ship.kind, unit.x, unit.y);
+            let can_disembark =
+                at_port || sim.ruleset_unit_can_disembark_fail_closed(unit.kind, ship.kind);
+            let ship_has_orders = sim.unit_goto_tiles.contains_key(&ship.id);
+            if !can_disembark || ship_has_orders {
                 map.nodes[start].behavior = Behavior::DontLeave;
             }
         }
@@ -176,38 +176,48 @@ impl NormalPaths {
         map
     }
 
-    fn free_transport(cargo: UnitKind, ship: UnitKind) -> bool {
-        ship != UnitKind::Helicopter
-            || matches!(
-                cargo,
-                UnitKind::Guerilla | UnitKind::Marine | UnitKind::Paratrooper
-            )
-    }
     fn native_base(sim: &Simulation, kind: UnitKind, x: i32, y: i32) -> bool {
-        match sim.tile(x, y).base {
-            Some(Base::Fort | Base::Fortress) => !kind.is_aircraft() && !kind.is_naval(),
-            Some(Base::Airstrip | Base::Airbase) => kind.is_aircraft(),
-            None => false,
+        let Some(base) = sim.tile(x, y).base else {
+            return false;
+        };
+        let rules = MovementRules::campaign();
+        let class = rules
+            .unit_class_for_kind(kind)
+            .expect("selected C2C3 unit class");
+        rules
+            .extra_is_native_to_class(c2c3_base_extra_rule_name(base), class)
+            .expect("selected C2C3 base extra nativity")
+    }
+
+    fn scope_native_tile(&self, sim: &Simulation, kind: UnitKind, x: i32, y: i32) -> bool {
+        let coast_strict = super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
+            .expect("selected C2C3 CoastStrict unit flag");
+        let observer = (!self.omniscient).then_some(self.actor.owner);
+        if coast_strict && !sim.safe_ocean_at(x, y, observer) {
+            return false;
         }
+        sim.pf_movement_native_tile(kind, x, y)
     }
 
     fn scope(&self, sim: &Simulation, x: i32, y: i32, previous: u8) -> (u8, bool) {
         let kind = self.actor.kind;
-        let mut scope = if sim.pf_native_tile(kind, x, y) {
+        // PF also supports a city-channel path when citymindist is 1. CivCraft
+        // has no equivalent city-channel search yet; prior-city continuation,
+        // selected BuildAnywhere, and native-neighbor access remain supported.
+        let mut scope = if self.scope_native_tile(sim, kind, x, y) {
             NATIVE
         } else {
             0
         };
         let city = sim.city_at(x, y);
-        let build_anywhere = !kind.is_naval() && !kind.is_aircraft();
-        if city
-            .is_some_and(|city| kind.can_occupy_city() || sim.allied(self.actor.owner, city.owner))
-            && (previous & CITY != 0
-                || build_anywhere
-                || self
-                    .map_wrap
-                    .civ3_neighbors(x, y)
-                    .any(|(nx, ny)| sim.pf_native_tile(kind, nx, ny)))
+        if city.is_some_and(|city| {
+            self.class_can_occupy_city || sim.allied(self.actor.owner, city.owner)
+        }) && (previous & CITY != 0
+            || self.class_build_anywhere
+            || self
+                .map_wrap
+                .civ3_neighbors(x, y)
+                .any(|(nx, ny)| self.scope_native_tile(sim, kind, nx, ny)))
         {
             scope |= CITY;
         }
@@ -216,18 +226,30 @@ impl NormalPaths {
             for carrier in sim.tile_units_ordered(x, y) {
                 if !sim.allied(self.actor.owner, carrier.owner)
                     || carrier.kind == kind
-                    || !carrier.kind.can_carry(kind)
-                    || kind.can_carry(carrier.kind)
+                    || !sim.ruleset_transport_pair_allowed_fail_closed(carrier.kind, kind)
+                    || sim.transport_would_create_cycle(self.actor.id, carrier.id)
                 {
                     continue;
                 }
-                // PF asks whether the TYPE fits, not whether current cargo
-                // slots are free. Execution performs the capacity check.
+                // PF checks type compatibility, not free slots. The shared
+                // rule adapter covers direct reciprocal cargo types and the
+                // live parent chain; Freeciv's deeper hypothetical cargo-type
+                // recursion is not representable with CivCraft's current unit
+                // nesting model. A stored GOTO target is the available proxy
+                // for Freeciv's persistent transport orders.
                 let at_base = city.is_some_and(|city| sim.allied(self.actor.owner, city.owner))
                     || Self::native_base(sim, carrier.kind, x, y);
-                if at_base || Self::free_transport(kind, carrier.kind) {
+                if at_base {
                     scope |= TRANSPORT;
-                    can_disembark = true; // No persistent manual orders in supported runtime.
+                    can_disembark = !sim.unit_goto_tiles.contains_key(&carrier.id);
+                    break;
+                }
+                if !sim.ruleset_unit_can_embark_fail_closed(kind, carrier.kind) {
+                    continue;
+                }
+                scope |= TRANSPORT;
+                if sim.ruleset_unit_can_disembark_fail_closed(kind, carrier.kind) {
+                    can_disembark = !sim.unit_goto_tiles.contains_key(&carrier.id);
                     break;
                 }
             }
@@ -322,22 +344,14 @@ impl NormalPaths {
             {
                 self.nodes[index].behavior = Behavior::DontLeave;
             }
-            if !self.actor.kind.ignores_zoc()
-                && sim.cities.iter().all(|city| (city.x, city.y) != (x, y))
-                && !sim.tile(x, y).terrain.is_water()
-                && sim.under_foreign_control(self.actor.owner, x, y, false)
-            {
-                self.nodes[index].zoc = if sim.units.iter().any(|unit| (unit.x, unit.y) == (x, y)) {
-                    Zoc::Allied
-                } else {
-                    Zoc::No
-                };
-            }
         } else {
             self.nodes[index].scope = NATIVE;
         }
         if self.style == Style::FerrySearch && sim.tile(x, y).terrain.is_water() {
-            self.nodes[index].extra_tile = (MOVE_FRAGMENTS * TURN_FACTOR / 12) as u16;
+            let fragments = MovementRules::campaign()
+                .move_fragments()
+                .expect("selected C2C3 movement fragments");
+            self.nodes[index].extra_tile = (fragments * TURN_FACTOR / 12) as u16;
         } else if self.risk {
             self.nodes[index].extra_tile = sim.explorer_stack_risk(&self.actor, x, y) as u16;
         }
@@ -382,7 +396,12 @@ impl NormalPaths {
                     continue;
                 }
                 let dest = self.nodes[next].clone();
-                if node.zoc != Zoc::Mine && dest.zoc == Zoc::No {
+                // PF_NORMAL and movement execution share the same C2C3 ZOC
+                // test, including class/type flags, city/terrain exceptions,
+                // and the direct-combat destination exception.
+                if dest.action != PfAction::Attack
+                    && sim.zone_blocks_route(&actor, (x, y), (nx, ny), false)
+                {
                     continue;
                 }
                 let cost = if self.style == Style::FerrySearch {
@@ -405,15 +424,9 @@ impl NormalPaths {
                     }
                     Simulation::pf_action_move_cost(actor.kind, dest.action, self.rate)
                 } else if !dest.known {
-                    if actor.kind.is_aircraft() {
-                        MOVE_FRAGMENTS
-                    } else if actor.kind.is_naval() {
-                        2 * MOVE_FRAGMENTS
-                    } else if actor.kind.stats().ignores_terrain {
-                        4
-                    } else {
-                        6 * MOVE_FRAGMENTS
-                    }
+                    MovementRules::campaign()
+                        .unknown_tile_move_cost(actor.kind)
+                        .expect("selected C2C3 unknown-tile movement cost")
                 } else if dest.scope != 0 {
                     sim.raw_move_cost_for(&actor, nx, ny)
                 } else if self.style == Style::Overlap && dest.scope & NATIVE == 0 {
@@ -702,3 +715,140 @@ impl Simulation {
 #[cfg(test)]
 #[path = "normal_paths/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod selected_rules_tests {
+    use super::*;
+
+    fn world() -> Simulation {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.units.clear();
+        sim.cities.clear();
+        for tile in &mut sim.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.known_by.fill(true);
+            tile.owner = None;
+            tile.base = None;
+            tile.road = false;
+            tile.railroad = false;
+            tile.river = false;
+        }
+        sim
+    }
+
+    #[test]
+    fn unknown_path_step_uses_selected_c2c3_unit_cost() {
+        let mut sim = world();
+        let id = sim.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
+        let actor = sim.unit_by_id(id).unwrap().clone();
+        let target = sim.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        sim.tile_mut(target.0, target.1).known_by[HUMAN] = false;
+
+        let expected = MovementRules::campaign()
+            .unknown_tile_move_cost(actor.kind)
+            .unwrap();
+        let mut map = NormalPaths::new(
+            &sim,
+            &actor,
+            Style::Default,
+            TilePolicy::Default,
+            false,
+            false,
+        );
+        assert_eq!(map.movement_cost(&sim, target.0, target.1), Some(expected));
+    }
+
+    #[test]
+    fn city_scope_uses_selected_build_anywhere_class_flag() {
+        let mut sim = world();
+        for tile in &mut sim.tiles {
+            tile.terrain = Terrain::Sea;
+        }
+        let id = sim.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
+        let actor = sim.unit_by_id(id).unwrap().clone();
+        let target = sim.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        sim.create_city(HUMAN, target.0, target.1);
+        sim.tile_mut(target.0, target.1).road = false;
+
+        let class = MovementRules::campaign()
+            .unit_class_movement_data_for_kind(actor.kind)
+            .unwrap();
+        assert!(class.build_anywhere);
+        assert!(class.can_occupy_city);
+
+        let map = NormalPaths::new(
+            &sim,
+            &actor,
+            Style::Default,
+            TilePolicy::Default,
+            true,
+            false,
+        );
+        assert_eq!(map.scope(&sim, target.0, target.1, 0).0, CITY);
+    }
+
+    #[test]
+    fn city_scope_uses_selected_can_occupy_city_class_flag() {
+        let mut sim = world();
+        let id = sim.spawn_unit(HUMAN, UnitKind::Helicopter, 10, 20);
+        let actor = sim.unit_by_id(id).unwrap().clone();
+        let target = sim.map_wrap.civ3_neighbor(10, 20, 2).unwrap();
+        sim.create_city(1, target.0, target.1);
+
+        let class = MovementRules::campaign()
+            .unit_class_movement_data_for_kind(actor.kind)
+            .unwrap();
+        assert!(!class.build_anywhere);
+        assert!(class.can_occupy_city);
+
+        let map = NormalPaths::new(
+            &sim,
+            &actor,
+            Style::Default,
+            TilePolicy::Default,
+            true,
+            false,
+        );
+        assert_ne!(map.scope(&sim, target.0, target.1, CITY).0 & CITY, 0);
+    }
+
+    #[test]
+    fn safe_ocean_uses_c2c3_flags_and_six_way_x_wrap_neighbors() {
+        let mut sim = world();
+        let rules = MovementRules::campaign();
+        let unsafe_terrain = [Terrain::Sea, Terrain::Ocean, Terrain::Lake]
+            .into_iter()
+            .find(|terrain| {
+                rules
+                    .terrain_has_flag(
+                        *terrain,
+                        super::super::movement_rules::TerrainFlag::UnsafeCoast,
+                    )
+                    .unwrap()
+            })
+            .expect("C2C3 has an unsafe-coast terrain");
+        for tile in &mut sim.tiles {
+            tile.terrain = unsafe_terrain;
+        }
+        let id = sim.spawn_unit(HUMAN, UnitKind::Galley, 0, 20);
+        let actor = sim.unit_by_id(id).unwrap().clone();
+        assert!(!sim.safe_ocean_at(actor.x, actor.y, None));
+
+        let diagonal_only = sim.map_wrap.civ3_neighbor(actor.x, actor.y, 2).unwrap();
+        sim.tile_mut(diagonal_only.0, diagonal_only.1).terrain = Terrain::Grassland;
+        assert!(
+            !sim.safe_ocean_at(actor.x, actor.y, None),
+            "C2C3 ISO|HEX coast adjacency excludes CivCraft's two diagonal steps"
+        );
+
+        let cardinal = sim.map_wrap.civ3_neighbor(actor.x, actor.y, 1).unwrap();
+        sim.tile_mut(cardinal.0, cardinal.1).terrain = Terrain::Grassland;
+        assert!(sim.safe_ocean_at(actor.x, actor.y, None));
+
+        sim.tile_mut(cardinal.0, cardinal.1).terrain = unsafe_terrain;
+        let seam_cardinal = sim.map_wrap.civ3_neighbor(actor.x, actor.y, 7).unwrap();
+        assert_eq!(seam_cardinal.0, sim.map_wrap.width() - 1);
+        sim.tile_mut(seam_cardinal.0, seam_cardinal.1).terrain = Terrain::Grassland;
+        assert!(sim.safe_ocean_at(actor.x, actor.y, None));
+    }
+}

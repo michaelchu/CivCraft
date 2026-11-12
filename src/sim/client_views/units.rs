@@ -8,6 +8,7 @@ impl Simulation {
         let owner_gold = self.players[unit.owner].gold;
         let stats = unit.kind.stats();
         let tile = self.tile(unit.x, unit.y);
+        let work_target = (unit.x, unit.y);
         let work_left = unit.work_left;
         let cities = self
             .cities
@@ -24,61 +25,82 @@ impl Simulation {
         let upgrade = self
             .paid_upgrade(unit)
             .map(|(target, price)| (target, price, owner_gold >= price));
-        let road_action = if stats.can_work && unit.transport.is_none() {
-            if tile.road && self.has_tech(unit.owner, Tech::STEAM_POWER) {
-                Some((
-                    "Build railroad [R]".to_owned(),
-                    self.can_railroad_at(unit.owner, unit.x, unit.y),
-                ))
-            } else {
-                Some((
-                    "Build road [R]".to_owned(),
-                    !tile.road
-                        && tile.terrain.road_time() > 0
-                        && (!tile.river || self.has_tech(unit.owner, Tech::ENGINEERING)),
-                ))
-            }
+        let road_work = if tile.road {
+            WorkKind::Railroad
+        } else {
+            WorkKind::Road
+        };
+        let road_available = self.work_action_available_fail_closed(id, road_work, work_target);
+        let road_action = if unit.transport.is_none() && (road_available || stats.can_work) {
+            Some((
+                if road_work == WorkKind::Railroad {
+                    "Build railroad [R]".to_owned()
+                } else {
+                    "Build road [R]".to_owned()
+                },
+                road_available && work_left == 0,
+            ))
         } else {
             None
         };
+        let irrigation_work = if tile.irrigation {
+            WorkKind::Farmland
+        } else {
+            WorkKind::Irrigation
+        };
+        let irrigation_available =
+            self.work_action_available_fail_closed(id, irrigation_work, work_target);
         let irrigation_action =
-            if stats.can_work && unit.transport.is_none() && !unit.kind.is_naval() {
-                if tile.irrigation {
-                    Some((
-                        "Build farmland [I]".to_owned(),
-                        self.can_farm_at(unit.owner, unit.x, unit.y),
-                    ))
-                } else {
-                    Some((
-                        "Irrigate [I]".to_owned(),
-                        self.can_irrigate_at(unit.owner, unit.x, unit.y),
-                    ))
-                }
+            if unit.transport.is_none() && (irrigation_available || stats.can_work) {
+                Some((
+                    if irrigation_work == WorkKind::Farmland {
+                        "Build farmland [I]".to_owned()
+                    } else {
+                        "Irrigate [I]".to_owned()
+                    },
+                    irrigation_available && work_left == 0,
+                ))
             } else {
                 None
             };
-        let mine_action = if let Some(kind) = self.oil_work(unit) {
-            Some((format!("Build {} [M]", kind.name()), work_left == 0))
-        } else if stats.can_work && unit.transport.is_none() && !unit.kind.is_naval() {
+        let mine_work = [WorkKind::OilPlatform, WorkKind::OilWell, WorkKind::Mine]
+            .into_iter()
+            .find(|&kind| self.work_action_available_fail_closed(id, kind, work_target))
+            .unwrap_or(WorkKind::Mine);
+        let mine_available = self.work_action_available_fail_closed(id, mine_work, work_target);
+        let mine_action = if mine_available || stats.can_work {
             Some((
-                "Mine [M]".to_owned(),
-                !tile.mine && tile.terrain.mine_time() > 0,
+                format!("Build {} [M]", mine_work.name()),
+                mine_available && work_left == 0,
             ))
         } else {
             None
         };
         let terrain_work = [WorkKind::Cultivate, WorkKind::Plant]
             .into_iter()
-            .filter(|&kind| self.terrain_work(unit, kind).is_some())
+            .filter(|&kind| {
+                self.terrain_work(unit, kind).is_some()
+                    && self.work_action_available_fail_closed(id, kind, work_target)
+            })
             .collect();
-        let clean_targets = if unit.kind.can_clean() && unit.transport.is_none() {
+        let clean_targets = if unit.transport.is_none() {
             [
                 Contamination::Pollution,
                 Contamination::Fallout,
                 Contamination::Craters,
             ]
             .into_iter()
-            .filter(|&target| tile.has_contamination(target))
+            .filter(|&target| {
+                tile.has_contamination(target)
+                    && self.work_action_available_fail_closed(
+                        id,
+                        WorkKind::Clean(target),
+                        work_target,
+                    )
+                    && self
+                        .work_activity_time(WorkKind::Clean(target), tile.terrain)
+                        .is_ok()
+            })
             .map(|target| (target, target.name().to_owned()))
             .collect()
         } else {
@@ -86,14 +108,28 @@ impl Simulation {
         };
         let base_work = [Base::Fort, Base::Fortress, Base::Airstrip, Base::Airbase]
             .into_iter()
-            .filter(|&base| self.base_work_time(unit, base).is_some())
+            .filter(|&base| {
+                self.base_work_time(unit, base).is_some()
+                    && self.work_action_available_fail_closed(
+                        id,
+                        WorkKind::BuildBase(base),
+                        work_target,
+                    )
+            })
             .map(|base| (base, base.name().to_owned()))
             .collect();
         let base_target = tile.base.map(PillageTarget::Base);
         let pillage_targets = PillageTarget::ALL
             .into_iter()
             .chain(base_target)
-            .filter(|&target| self.can_pillage(unit, target))
+            .filter(|&target| {
+                self.can_pillage(unit, target)
+                    && self.work_action_available_fail_closed(
+                        id,
+                        WorkKind::Pillage(target),
+                        work_target,
+                    )
+            })
             .map(|target| (target, target.name().to_owned()))
             .collect();
         let disband_cities = self
@@ -121,24 +157,17 @@ impl Simulation {
             found_city: (stats.can_found && unit.transport.is_none())
                 .then(|| self.can_found_at(unit.x, unit.y)),
             road_action,
-            road_work: if tile.road {
-                WorkKind::Railroad
-            } else {
-                WorkKind::Road
-            },
+            road_work,
             irrigation_action,
-            irrigation_work: if tile.irrigation {
-                WorkKind::Farmland
-            } else {
-                WorkKind::Irrigation
-            },
+            irrigation_work,
             mine_action,
-            mine_work: self.oil_work(unit).unwrap_or(WorkKind::Mine),
+            mine_work,
             terrain_work,
             clean_targets,
             base_work,
             pillage_targets,
-            fortify: unit.kind.is_military() && unit.transport.is_none(),
+            fortify: unit.transport.is_none()
+                && self.action_available_fail_closed(id, "Fortify", work_target),
             set_home_city: self.home_city_target(unit).is_some(),
             automate: unit.automated
                 || (unit.kind.fuel_capacity() == 0 && unit.kind != UnitKind::Helicopter),
@@ -267,7 +296,7 @@ impl Simulation {
             hp: unit.hp,
             max_hp: unit.max_hit_points(),
             moves_left: unit.moves_left,
-            moves_allowance: self.unit_move_allowance(unit.owner, unit.kind),
+            moves_allowance: self.unit_move_rate(unit),
             attack: stats.attack,
             defense: stats.defense,
         }

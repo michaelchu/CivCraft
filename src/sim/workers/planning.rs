@@ -98,63 +98,70 @@ impl Simulation {
         actor: &Unit,
         activity: WorkKind,
     ) -> Option<(Tile, i32)> {
-        if !actor.kind.is_worker() || actor.transport.is_some() {
+        if !actor.kind.is_worker()
+            || actor.transport.is_some()
+            || !self.work_action_available_for_unit_fail_closed(actor, activity, (actor.x, actor.y))
+        {
             return None;
         }
         let mut tile = self.tile(actor.x, actor.y).clone();
         let time = match activity {
-            WorkKind::Road
-                if !tile.road && (!tile.river || self.has_tech(actor.owner, Tech::ENGINEERING)) =>
-            {
-                tile.road = true;
-                tile.terrain.road_time()
+            WorkKind::Road if !tile.road => {
+                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                    return None;
+                }
+                self.work_activity_time_fail_closed(activity, tile.terrain)
             }
-            WorkKind::Railroad if self.can_railroad_at(actor.owner, actor.x, actor.y) => {
-                tile.railroad = true;
-                3
+            WorkKind::Railroad if !tile.railroad => {
+                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                    return None;
+                }
+                self.work_activity_time_fail_closed(activity, tile.terrain)
             }
-            WorkKind::Irrigation
-                if actor.kind.unit_class() != super::unit_catalog::UnitClass::Sea
-                    && self.can_irrigate_at(actor.owner, actor.x, actor.y) =>
-            {
-                tile.irrigation = true;
-                tile.mine = false;
-                tile.oil_well = false;
-                tile.terrain.irrigation_time()
+            WorkKind::Irrigation if !tile.irrigation => {
+                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                    return None;
+                }
+                self.work_activity_time_fail_closed(activity, tile.terrain)
             }
-            WorkKind::Mine
-                if !tile.mine && actor.kind.unit_class() != super::unit_catalog::UnitClass::Sea =>
-            {
-                tile.mine = true;
-                tile.irrigation = false;
-                tile.farmland = false;
-                tile.terrain.mine_time()
+            WorkKind::Mine if !tile.mine => {
+                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                    return None;
+                }
+                self.work_activity_time_fail_closed(activity, tile.terrain)
             }
-            WorkKind::Farmland
-                if actor.kind.unit_class() != super::unit_catalog::UnitClass::Sea
-                    && self.can_farm_at(actor.owner, actor.x, actor.y) =>
-            {
-                tile.farmland = true;
-                tile.terrain.irrigation_time()
+            WorkKind::Farmland if !tile.farmland => {
+                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                    return None;
+                }
+                self.work_activity_time_fail_closed(activity, tile.terrain)
             }
-            WorkKind::OilWell if self.oil_work(actor) == Some(activity) => {
-                tile.oil_well = true;
-                tile.terrain.mine_time()
+            WorkKind::OilWell if !tile.oil_well => {
+                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                    return None;
+                }
+                self.work_activity_time_fail_closed(activity, tile.terrain)
             }
-            WorkKind::OilPlatform if self.oil_work(actor) == Some(activity) => {
-                tile.oil_platform = true;
-                10
+            WorkKind::OilPlatform if !tile.oil_platform => {
+                if !super::super::action_rules::apply_freeciv_work_extra(&mut tile, activity) {
+                    return None;
+                }
+                self.work_activity_time_fail_closed(activity, tile.terrain)
             }
-            WorkKind::Clean(target) if actor.kind.can_clean() && tile.has_contamination(target) => {
+            WorkKind::Clean(target) if tile.has_contamination(target) => {
                 match target {
                     Contamination::Pollution => tile.pollution = false,
                     Contamination::Fallout => tile.fallout = false,
                     Contamination::Craters => tile.craters = false,
                 };
-                3
+                match self.work_activity_time(activity, tile.terrain) {
+                    Ok(time) => time,
+                    Err(_) => return None,
+                }
             }
             WorkKind::Cultivate | WorkKind::Plant => {
-                let (terrain, time) = self.terrain_work(actor, activity)?;
+                let (terrain, _) = self.terrain_work(actor, activity)?;
+                let time = self.work_activity_time_fail_closed(activity, tile.terrain);
                 tile.terrain = terrain;
                 if terrain.irrigation_time() == 0 {
                     tile.irrigation = false;
@@ -241,12 +248,37 @@ impl Simulation {
         }
         let bonus = (20 + 3 * absent) / 20;
         let tile = self.tile(position.0, position.1);
-        let old = if tile.road {
-            2
-        } else {
-            tile.terrain.movement_cost() * MOVE_FRAGMENTS
+        let rules = super::super::movement_rules::MovementRules::campaign();
+        let current = super::super::movement_rules::MovementTile::new(
+            tile.terrain,
+            tile.road,
+            tile.railroad,
+            tile.river,
+            tile.base,
+        );
+        let mut improved = current;
+        improved.road = true;
+        improved.railroad = railroad || tile.railroad;
+        let old = rules.step_cost(
+            current,
+            current,
+            super::super::unit_catalog::UnitClass::Land,
+            true,
+            false,
+            false,
+        );
+        let new = rules.step_cost(
+            improved,
+            improved,
+            super::super::unit_catalog::UnitClass::Land,
+            true,
+            false,
+            false,
+        );
+        let (Ok(old), Ok(new)) = (old, new) else {
+            debug_assert!(false, "could not evaluate C2C3 road movement benefit");
+            return 0.0;
         };
-        let new = if railroad { 1 } else { 2 };
         (bonus * if new < old { 1 - new + old } else { 1 }) as f32
     }
 
@@ -403,18 +435,25 @@ impl Simulation {
                         },
                     );
                 }
-                // A missing road can be worth building for its researched
+                // A missing road can be worth building for its ruleset-enabled
                 // railroad successor; source adds both cached total values.
                 if !self.tile(x, y).road
-                    && self.has_tech(actor.owner, Tech::STEAM_POWER)
                     && let Some((road, time)) = self.worker_projection(&at, WorkKind::Road)
+                    && self.work_action_available_for_unit_with_tile_fail_closed(
+                        &at,
+                        WorkKind::Railroad,
+                        position,
+                        Some(&road),
+                    )
                 {
+                    let railroad_time =
+                        self.work_activity_time_fail_closed(WorkKind::Railroad, road.terrain);
                     let road_value = self.worker_tile_value(&city, position, road.clone());
                     let mut rail = road;
                     rail.railroad = true;
                     let new = self.worker_tile_value(&city, position, rail) + road_value;
                     let rate = self.activity_rate(actor);
-                    let work = ((time + 3) * ACTIVITY_FACTOR + rate - 1) / rate;
+                    let work = ((time + railroad_time) * ACTIVITY_FACTOR + rate - 1) / rate;
                     consider_action(
                         &mut best,
                         WorkerPlan {

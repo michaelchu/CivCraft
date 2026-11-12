@@ -141,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn craters_reduce_each_tile_yield_and_workers_can_clear_them() {
+    fn craters_reduce_each_tile_yield_but_are_not_a_c2c3_clean_target() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (x, y) = (10, 20);
         let tile = game.tile_mut(x, y);
@@ -165,11 +165,11 @@ mod tests {
         );
 
         let worker = game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
-        assert!(game.begin_work(worker, WorkKind::Clean(Contamination::Craters)));
+        assert!(!game.begin_work(worker, WorkKind::Clean(Contamination::Craters)));
         for _ in 0..3 {
             game.update_activities_and_restore();
         }
-        assert!(!game.tile(x, y).craters);
+        assert!(game.tile(x, y).craters);
         assert_eq!(game.tile(x, y).yields(), (2, 0, 0));
     }
 }

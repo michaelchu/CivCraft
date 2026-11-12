@@ -76,6 +76,20 @@ pub(crate) struct RuleParameter {
     pub(crate) value: Value,
 }
 
+impl RuleParameter {
+    /// Read an integer ruleset parameter without exposing the section-file
+    /// parser's value representation to gameplay adapters.
+    pub(crate) fn integer_value(&self) -> Result<Option<i64>, String> {
+        match &self.value {
+            Value::Integer(value) => Ok(Some(*value)),
+            other => Err(format!(
+                "{}.{} must be an integer, found {other:?}",
+                self.section, self.key
+            )),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CalendarSettings {
     pub(crate) start_year: i32,
@@ -350,6 +364,81 @@ impl ContentRecord {
             )),
         }
     }
+
+    /// Read a string-list field without exposing the native parser's value
+    /// representation to gameplay adapters. A single quoted string is
+    /// normalized to a one-item list, as several ruleset fields permit either
+    /// spelling.
+    pub(crate) fn string_list_field(&self, key: &str) -> Result<Option<Vec<String>>, String> {
+        string_list_field(&self.section, &self.fields, key)
+    }
+
+    /// Read a table with one string key column and one integer value column.
+    /// Freeciv terrain `extra_settings` uses this shape for per-extra
+    /// removal times; gameplay adapters can inspect it without accessing the
+    /// section-file parser's generic `Value` enum.
+    pub(crate) fn string_integer_table_field(
+        &self,
+        key: &str,
+        string_column: &str,
+        integer_column: &str,
+    ) -> Result<Option<Vec<(String, i64)>>, String> {
+        let Some(entry) = self.fields.iter().find(|entry| entry.key == key) else {
+            return Ok(None);
+        };
+        let Value::Table { columns, rows } = &entry.value else {
+            return Err(format!(
+                "{}.{} must be a table, found {:?}",
+                self.section, key, entry.value
+            ));
+        };
+        let column_index = |name: &str| {
+            columns
+                .iter()
+                .position(|column| column.eq_ignore_ascii_case(name))
+        };
+        let string_index = column_index(string_column).ok_or_else(|| {
+            format!(
+                "{}.{} is missing the {string_column:?} column",
+                self.section, key
+            )
+        })?;
+        let integer_index = column_index(integer_column).ok_or_else(|| {
+            format!(
+                "{}.{} is missing the {integer_column:?} column",
+                self.section, key
+            )
+        })?;
+        rows.iter()
+            .enumerate()
+            .map(|(row_index, row)| {
+                let string_value = row.get(string_index).ok_or_else(|| {
+                    format!("{}.{} row {} is missing {string_column:?}", self.section, key, row_index + 1)
+                })?;
+                let integer_value = row.get(integer_index).ok_or_else(|| {
+                    format!("{}.{} row {} is missing {integer_column:?}", self.section, key, row_index + 1)
+                })?;
+                let Value::String(name) = string_value else {
+                    return Err(format!(
+                        "{}.{} row {} {string_column:?} must be a string, found {string_value:?}",
+                        self.section,
+                        key,
+                        row_index + 1
+                    ));
+                };
+                let Value::Integer(value) = integer_value else {
+                    return Err(format!(
+                        "{}.{} row {} {integer_column:?} must be an integer, found {integer_value:?}",
+                        self.section,
+                        key,
+                        row_index + 1
+                    ));
+                };
+                Ok((name.clone(), *value))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(Some)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -361,6 +450,86 @@ pub(crate) struct RuleRecord {
     pub(crate) display_name: Option<String>,
     pub(crate) requirements: Vec<Requirement>,
     pub(crate) fields: Vec<Entry>,
+}
+
+impl RuleRecord {
+    /// Read a string field without exposing the native parser's value
+    /// representation to gameplay adapters.
+    pub(crate) fn string_field(&self, key: &str) -> Result<Option<&str>, String> {
+        let Some(entry) = self
+            .fields
+            .iter()
+            .find(|entry| entry.key.eq_ignore_ascii_case(key))
+        else {
+            return Ok(None);
+        };
+        match &entry.value {
+            Value::String(value) => Ok(Some(value)),
+            other => Err(format!(
+                "{}.{} must be a string, found {other:?}",
+                self.section, key
+            )),
+        }
+    }
+
+    /// Read an integer field without exposing the native parser's value
+    /// representation to gameplay adapters.
+    pub(crate) fn integer_field(&self, key: &str) -> Result<Option<i64>, String> {
+        let Some(entry) = self
+            .fields
+            .iter()
+            .find(|entry| entry.key.eq_ignore_ascii_case(key))
+        else {
+            return Ok(None);
+        };
+        match &entry.value {
+            Value::Integer(value) => Ok(Some(*value)),
+            other => Err(format!(
+                "{}.{} must be an integer, found {other:?}",
+                self.section, key
+            )),
+        }
+    }
+
+    /// Read a string-list field without exposing the native parser's value
+    /// representation to gameplay adapters. A single quoted string is
+    /// normalized to a one-item list, as several ruleset fields permit either
+    /// spelling.
+    pub(crate) fn string_list_field(&self, key: &str) -> Result<Option<Vec<String>>, String> {
+        string_list_field(&self.section, &self.fields, key)
+    }
+}
+
+fn string_list_field(
+    section: &str,
+    fields: &[Entry],
+    key: &str,
+) -> Result<Option<Vec<String>>, String> {
+    let mut entries = fields
+        .iter()
+        .filter(|entry| entry.key.eq_ignore_ascii_case(key));
+    let Some(entry) = entries.next() else {
+        return Ok(None);
+    };
+    if entries.next().is_some() {
+        return Err(format!("{section}.{key} occurs more than once"));
+    }
+    match &entry.value {
+        Value::String(value) => Ok(Some(vec![value.clone()])),
+        Value::List(values) => values
+            .iter()
+            .map(|value| match value {
+                Value::String(value) => Ok(value.clone()),
+                other => Err(format!(
+                    "{section}.{key} must be a string list, found item {other:?}"
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(Some),
+        other => Err(format!(
+            "{section}.{key} must be a string list, found {other:?}"
+        )),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1282,6 +1451,7 @@ impl LoadError {
 
 #[cfg(test)]
 mod tests {
+    use super::freeciv_ini::{Entry, Value};
     use super::{
         ActionEnabler, ActionRecord, ContentKind, EffectContext, EffectRecord, LoadedRuleFile,
         RULESET_FILES, Requirement, RequirementContext, RequirementEvaluationError,
@@ -1611,6 +1781,39 @@ mod tests {
         };
         assert_eq!(record.rule_name, "mobile_warfare");
         assert_eq!(action.action, "Found City");
+    }
+
+    #[test]
+    fn content_record_reads_validated_string_integer_table_fields() {
+        let record = super::ContentRecord {
+            kind: ContentKind::Terrain,
+            rule_name: "grassland".to_owned(),
+            section: "terrain_grassland".to_owned(),
+            display_name: Some("Grassland".to_owned()),
+            requirements: vec![],
+            fields: vec![Entry {
+                key: "extra_settings".to_owned(),
+                value: Value::Table {
+                    columns: vec!["extra".to_owned(), "removal_time".to_owned()],
+                    rows: vec![vec![
+                        Value::String("Pollution".to_owned()),
+                        Value::Integer(3),
+                    ]],
+                },
+                line: 1,
+            }],
+        };
+        assert_eq!(
+            record
+                .string_integer_table_field("extra_settings", "extra", "removal_time")
+                .unwrap(),
+            Some(vec![("Pollution".to_owned(), 3)])
+        );
+        assert!(
+            record
+                .string_integer_table_field("extra_settings", "extra", "missing")
+                .is_err()
+        );
     }
 
     #[test]

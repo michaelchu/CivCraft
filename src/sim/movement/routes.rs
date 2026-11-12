@@ -112,11 +112,7 @@ impl Simulation {
                         && (!observed || dest.visible)
                         && dest.terrain.is_water()
                         && self.boarding_target(unit, nx, ny).is_some())
-                    .then_some(if unit.kind.stats().ignores_terrain {
-                        2
-                    } else {
-                        MOVE_FRAGMENTS
-                    })
+                    .then(|| self.raw_move_cost_for(unit, nx, ny))
                 });
                 let Some(cost) = cost else {
                     continue;

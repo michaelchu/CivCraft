@@ -102,7 +102,7 @@ that code has been added.
 | P3 | Create the CivCraft ruleset baseline | CivCraft-owned editable derivative of `civ2civ3`; provenance and changes recorded; no implicit fallback to another Freeciv ruleset. | Complete |
 | P4 | Map Civ III content | Civ III units, buildings, and technologies load through the ruleset model while preserving source identities and values. Missing mappings and unsupported source fields are explicit. | Complete |
 | P5 | Port world, turn, visibility, and random behavior | Rust transitions match the pinned Freeciv campaign behavior for the selected ruleset, within CivCraft's map topology and client architecture. | Complete |
-| P6 | Port movement, pathfinding, and unit actions | Ruleset-driven movement legality, costs, transport, exploration, worker actions, and action enablers; no parallel hardcoded rule paths remain for migrated behavior. | Not started |
+| P6 | Port movement, pathfinding, and unit actions | Ruleset-driven movement legality, costs, transport, exploration, worker actions, and action enablers; no parallel hardcoded rule paths remain for migrated behavior. | Complete |
 | P7 | Port cities and economy | Ruleset-driven tile output, citizen mood/assignment, growth, production, upkeep, trade allocation, and city management. | Not started |
 | P8 | Port research, government, and technology trade | Research progression, government effects, upkeep, revolution, and tech exchange use the shared ruleset model. | Not started |
 | P9 | Port combat and military actions | Defender choice, combat, capture, bombardment, aviation, nuclear actions, and veterancy match Freeciv behavior under the CivCraft content mapping. | Not started |
@@ -210,6 +210,34 @@ that code has been added.
 - Random-state parity intentionally stops before Freeciv-only animal creation: C2C3's `animals=14` creates `Storm` units with no Civ III catalog identity. This preserves the agreed Civ III unit catalog and is recorded as a content adaptation. C2C3 map-label text is likewise not persisted or rendered in this gameplay milestone; the hook's random draws are retained.
 - Validation: `cargo test --offline mapgen::` passed 64/64; `cargo test --offline --quiet` passed 758/758; `cargo build --offline --release` succeeded; targeted `rustfmt --check` and `git diff --check` passed. Seed-42 UI review passed 45 scenes and 145 checks before the RNG-only hook/retry changes; no presentation code changed in those follow-ups.
 
+### P6 evidence (complete)
+
+- Source comparison is against the pinned `common/movement.c`,
+  `common/map.c`, `common/unit.c`, `common/aicore/pf_tools.c`,
+  `server/advisors/autoexplorer.c`, and the selected C2C3
+  `actions.ruleset`, `effects.ruleset`, `terrain.ruleset`, and `units.ruleset`.
+- Added shared typed adapters in `src/sim/action_rules.rs` and
+  `src/sim/movement_rules.rs` for C2C3 action enablers and requirements, unit
+  classes/flags, terrain movement and native costs, roads/rivers, transport,
+  activity rates, and ZOC behavior. Existing movement, route preview,
+  pathfinding, autoexploration, worker planning/execution, and client action
+  availability now consume these adapters within their existing simulation
+  and client-view boundaries.
+- C2C3 action availability is evaluated with the shared requirement engine;
+  worker extras apply the selected ruleset's conflict removal when completed.
+  Civ III unit identities and catalog stats remain intact, with explicit
+  mappings where C2C3 class or transport roles differ. The compact tile model
+  still stores a single base, so pillaging Fortress/Airbase preserves the
+  represented Fort/Airstrip underlay.
+- Selected C2C3 ZOC flags now govern direct moves and PF_NORMAL route pruning.
+  A generic distant-goto route cannot model an enemy ZOC disappearing after an
+  intermediate attack; it follows Freeciv's pathfinder rule and avoids the
+  enemy-controlled corridor. Civ III horizontal wrapping and bounded polar
+  edges remain topology adaptations.
+- Validation: `cargo test --offline --quiet` passed 810/810, including focused
+  checks for C2C3 Airstrip replacement of a conflicting Fort and distant-goto
+  ZOC pruning. The Rust tests compile the changed gameplay and client code.
+
 ## Subsystem comparison ledger
 
 Fill this in from current implementation code and the pinned Freeciv source,
@@ -225,7 +253,7 @@ mechanics that need separate cutover or verification.
 | City output and citizens | `src/sim/economy.rs`, `src/sim/cities.rs`, `src/sim/citizens.rs` | `common/city.c::city_turns_to_build`, `common/citizens.c`; `server/cityturn.c::update_city_activities`, `update_city_activity`; `cities.ruleset`, `effects.ruleset` | Current: city forecast and manager are Freeciv-derived; output/effects remain partly hardcoded. Foreign nationality, assimilation, and resistance are Civ III-specific and need Freeciv citizen/migration behavior. | Not started |  |
 | Production and upkeep | `src/sim/cities/production.rs`, `src/sim/upkeep.rs`, `src/sim/buildings.rs` | `server/cityturn.c::update_city_activity`, `city_build_stuff`; `server/unittools.c`; `buildings.ruleset`, `units.ruleset`, `effects.ruleset` | Current: phase and production behavior partly track Freeciv, but building catalog is still Freeciv-derived (its source comment pins `eb8c7033`, not the selected revision) and upkeep/effects include Civ III rules. Map Civ III content into the Freeciv model. | Not started |  |
 | Research and government | `src/sim/research.rs`, `src/sim/government.rs`, `src/rules/research.rs` | `common/research.c::research_allowed`, `research_update`; `server/plrhand.c`; `governments.ruleset`, `techs.ruleset`, `effects.ruleset` | Current: Freeciv tech catalog/progression with Civ III additions and an era-completion gate; government roster/support are Civ III-specific. Replace catalog authority with Civ III tech tree and Freeciv mechanics. | Not started |  |
-| Movement and actions | `src/sim/movement.rs`, `src/sim/pf_actions.rs`, `src/sim/commands.rs`, `src/sim/normal_paths.rs` | `common/movement.c::unit_move_to_tile_test`, `unit_move`; `common/actions.c`; `common/aicore/pf_tools.c`; `actions.ruleset`, `units.ruleset`, `terrain.ruleset` | Current: costs/actions are substantially Freeciv-derived, but powered by static Rust data and Civ III topology; ZOC movement-blocking stubs return false. Port after topology and ruleset data. | Not started |  |
+| Movement and actions | `src/sim/movement.rs`, `src/sim/movement/`, `src/sim/pf_actions.rs`, `src/sim/commands.rs`, `src/sim/normal_paths.rs`, `src/sim/exploration.rs`, `src/sim/workers.rs`, `src/sim/action_rules.rs`, `src/sim/movement_rules.rs` | `common/movement.c::unit_move_to_tile_test`, `can_step_taken_wrt_to_zoc`; `common/map.c::tile_move_cost_ptrs`; `common/unit.c::get_activity_rate`, `tile_activity_time`; `common/actions.c`; `common/aicore/pf_tools.c`; `server/advisors/autoexplorer.c`; `actions.ruleset`, `units.ruleset`, `terrain.ruleset`, `effects.ruleset` | Complete: C2C3-backed action requirements, movement costs and legality, transport roles, worker extras, exploration and ZOC are routed through shared ruleset adapters. Civ III catalog identities and X-wrap/bounded-Y topology remain explicit mappings/adaptations; the compact base model retains one represented underlay when pillaging. | Complete | Full offline suite passed 810/810. Focused checks cover ruleset conflict replacement and distant-goto ZOC pruning. |
 | Combat and military | `src/sim/movement/combat.rs`, `src/sim/aviation.rs`, `src/sim/nuclear.rs` | `common/combat.c::unit_win_chance`, `get_defender`, `get_modified_firepower`; `server/unittools.c`; `actions.ruleset`, `units.ruleset`, combat settings | Current: Freeciv battle odds/defender selection with Civ III HP, data, and special effects; stack losses differ under Freeciv default `killstack`. Keep Civ III unit records, use ruleset mechanics. | Not started |  |
 | Diplomacy, espionage, and trade | `src/sim/diplomacy/`, `src/sim/tech_trade.rs` | `server/diplhand.c`, `server/diplomats.c`; `common/diptreaty.c`; `ai/default/daidiplomacy.c`; `actions.ruleset`, `effects.ruleset` | Current: bespoke pact/concession state with selected Freeciv AI formulas. Port treaty clauses and actions; map Civ III espionage without substituting Freeciv Diplomat/Spy unit content. | Not started |  |
 | Culture, borders, and migration | `src/sim/culture.rs`, `src/sim/borders.rs`, `src/sim/citizens.rs` | `common/culture.c::city_culture`, `city_history_gain`, `player_culture`; `common/borders.c::tile_border_source_radius_sq`, `tile_border_source_strength`; `server/cityturn.c::city_migration_score`, `do_city_migration`; `server/maphand.c::map_update_border`, `map_claim_border`; `game.ruleset`, `effects.ruleset`, inherited default Lua | Current: Civ III building culture, culture-ranked borders, capture history, and flip candidate. Replace with Freeciv culture scores, radius/strength borders, citizen migration, and configured victory. | Not started |  |

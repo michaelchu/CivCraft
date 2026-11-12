@@ -5,22 +5,13 @@ use super::*;
 impl Simulation {
     pub(in crate::sim) fn activity_rate(&self, unit: &Unit) -> i32 {
         let mut rate = unit.activity_rate();
-        if unit.kind.is_worker() {
-            if self.players[unit.owner].government == Government::Democracy {
-                rate = rate * 3 / 2;
-            }
-            if self.has_tech(unit.owner, Tech::REPLACEABLE_PARTS) {
-                rate *= 2;
-            }
-            if unit.kind == UnitKind::Worker && unit.nationality != unit.owner {
-                // Source WorkerStrength configures captive worker progress.
-                // The native worker baseline is 2; Conquests WorkerStrength
-                // is 1.0, so this gives foreign workers half the native rate.
-                // Apply it after the existing government/technology bonuses
-                // so those rates continue to scale both worker types.
-                let strength = unit.kind.conquests_rule().worker_strength;
-                rate = ((rate as f32 * strength / 2.0).round() as i32).max(1);
-            }
+        if unit.kind == UnitKind::Worker && unit.nationality != unit.owner {
+            // Civ III special data retains captive-worker strength while the
+            // activity rate itself comes from the Freeciv unit move rate and
+            // veteran power. Government and technology do not multiply the
+            // selected C2C3 work rate.
+            let strength = unit.kind.conquests_rule().worker_strength;
+            rate = ((rate as f32 * strength / 2.0).round() as i32).max(1);
         }
         rate
     }
@@ -30,28 +21,12 @@ impl Simulation {
         (unit.work_left + rate - 1) / rate
     }
 
-    pub(crate) fn can_railroad_at(&self, owner: usize, x: i32, y: i32) -> bool {
-        let tile = self.tile(x, y);
-        tile.road
-            && !tile.railroad
-            && !tile.terrain.is_water()
-            && self.has_tech(owner, Tech::STEAM_POWER)
-            && (!tile.river || self.has_tech(owner, Tech::ENGINEERING))
-    }
-
     pub(in crate::sim) fn begin_work(&mut self, unit_id: u32, kind: WorkKind) -> bool {
         let Some(index) = self.unit_index_by_id(unit_id) else {
             return false;
         };
         let unit = self.units[index].clone();
-        if (!unit.kind.is_worker()
-            && !matches!(
-                kind,
-                WorkKind::Pillage(_)
-                    | WorkKind::BuildBase(_)
-                    | WorkKind::Clean(_)
-                    | WorkKind::OilPlatform
-            ))
+        if !self.work_action_available_fail_closed(unit_id, kind, (unit.x, unit.y))
             || unit.work_left > 0
             || (unit.transport.is_some() && kind != WorkKind::OilPlatform)
         {
@@ -59,42 +34,33 @@ impl Simulation {
         }
         let tile = self.tile(unit.x, unit.y);
         let turns = match kind {
-            WorkKind::Road
-                if !tile.road && (!tile.river || self.has_tech(unit.owner, Tech::ENGINEERING)) =>
-            {
-                tile.terrain.road_time()
+            WorkKind::Road if !tile.road => self.work_activity_time_fail_closed(kind, tile.terrain),
+            WorkKind::Railroad if !tile.railroad => {
+                self.work_activity_time_fail_closed(kind, tile.terrain)
             }
-            WorkKind::Railroad if self.can_railroad_at(unit.owner, unit.x, unit.y) => 3,
-            WorkKind::Irrigation
-                if unit.kind.unit_class() != super::unit_catalog::UnitClass::Sea
-                    && self.can_irrigate_at(unit.owner, unit.x, unit.y) =>
-            {
-                tile.terrain.irrigation_time()
+            WorkKind::Irrigation if !tile.irrigation => {
+                self.work_activity_time_fail_closed(kind, tile.terrain)
             }
-            WorkKind::Farmland
-                if unit.kind.unit_class() != super::unit_catalog::UnitClass::Sea
-                    && self.can_farm_at(unit.owner, unit.x, unit.y) =>
-            {
-                tile.terrain.irrigation_time()
+            WorkKind::Farmland if !tile.farmland => {
+                self.work_activity_time_fail_closed(kind, tile.terrain)
             }
-            WorkKind::Cultivate | WorkKind::Plant => {
-                self.terrain_work(&unit, kind).map_or(0, |(_, time)| time)
-            }
+            WorkKind::Cultivate => self.terrain_work(&unit, kind).map_or(0, |_| {
+                self.work_activity_time_fail_closed(kind, tile.terrain)
+            }),
+            WorkKind::Plant => self.terrain_work(&unit, kind).map_or(0, |_| {
+                self.work_activity_time_fail_closed(kind, tile.terrain)
+            }),
             WorkKind::BuildBase(base) => self.base_work_time(&unit, base).unwrap_or(0),
-            WorkKind::Clean(target) if unit.kind.can_clean() && tile.has_contamination(target) => 3,
-            WorkKind::Pillage(target) if self.can_pillage(&unit, target) => 1,
-            WorkKind::OilWell | WorkKind::OilPlatform if self.oil_work(&unit) == Some(kind) => {
-                if kind == WorkKind::OilPlatform {
-                    10
-                } else {
-                    tile.terrain.mine_time()
-                }
+            WorkKind::Clean(target) if tile.has_contamination(target) => {
+                self.work_activity_time_fail_closed(kind, tile.terrain)
             }
-            WorkKind::Mine
-                if !tile.mine && unit.kind.unit_class() != super::unit_catalog::UnitClass::Sea =>
-            {
-                tile.terrain.mine_time()
+            WorkKind::Pillage(target) if self.can_pillage(&unit, target) => {
+                self.work_activity_time_fail_closed(kind, tile.terrain)
             }
+            WorkKind::OilWell | WorkKind::OilPlatform => {
+                self.work_activity_time_fail_closed(kind, tile.terrain)
+            }
+            WorkKind::Mine if !tile.mine => self.work_activity_time_fail_closed(kind, tile.terrain),
             _ => 0,
         };
         if turns <= 0 {
@@ -129,16 +95,25 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn fortify_unit(&mut self, unit_id: u32) -> bool {
-        let (owner, name, unit) = {
-            let Some(unit) = self.units.iter_mut().find(|u| u.id == unit_id) else {
-                return false;
-            };
-            if !unit.kind.can_fortify() || unit.transport.is_some() {
-                return false;
-            }
-            unit.state = UnitState::Fortifying;
-            (unit.owner, unit.kind.name(), unit.clone())
+        let Some(unit) = self.unit_by_id(unit_id).cloned() else {
+            return false;
         };
+        if unit.transport.is_some()
+            || !self.action_available_fail_closed(unit_id, "Fortify", (unit.x, unit.y))
+        {
+            return false;
+        }
+        let (owner, name) = (unit.owner, unit.kind.name());
+        if let Some(candidate) = self
+            .units
+            .iter_mut()
+            .find(|candidate| candidate.id == unit_id)
+        {
+            candidate.state = UnitState::Fortifying;
+        } else {
+            return false;
+        }
+        let unit = self.unit_by_id(unit_id).unwrap().clone();
         if owner == HUMAN {
             self.add_event(format!("{name} will be fortified next turn."));
         }
@@ -304,7 +279,9 @@ impl Simulation {
             if self.base_work_time(&unit, base).is_none() {
                 return false;
             }
-            self.tile_mut(x, y).base = Some(base);
+            if !super::super::action_rules::apply_freeciv_work_extra(self.tile_mut(x, y), kind) {
+                return false;
+            }
             if owner == HUMAN {
                 self.add_event(format!("Your unit completed a {}.", base.name()));
             }
@@ -314,43 +291,29 @@ impl Simulation {
             self.finish_pillage(owner, x, y, target);
             return true;
         }
-        let terrain = self.tile(x, y).terrain;
-        let valid = match kind {
-            WorkKind::Road | WorkKind::Railroad => !terrain.is_water(),
-            WorkKind::Irrigation => terrain.irrigation_time() > 0,
-            WorkKind::Farmland => self.can_farm_at(owner, x, y),
-            WorkKind::Mine => terrain.mine_time() > 0,
-            WorkKind::OilWell => {
-                self.tile(x, y).mine && matches!(terrain, Terrain::Desert | Terrain::Glacier)
-            }
-            WorkKind::OilPlatform => terrain == Terrain::Ocean,
-            WorkKind::Clean(target) => self.tile(x, y).has_contamination(target),
-            _ => unreachable!(),
-        };
+        let tile = self.tile(x, y);
+        let valid = self.work_action_available_fail_closed(id, kind, (x, y))
+            && match kind {
+                WorkKind::Road => !tile.road,
+                WorkKind::Railroad => !tile.railroad,
+                WorkKind::Irrigation => !tile.irrigation,
+                WorkKind::Farmland => !tile.farmland,
+                WorkKind::Mine => !tile.mine,
+                WorkKind::OilWell => !tile.oil_well,
+                WorkKind::OilPlatform => !tile.oil_platform,
+                WorkKind::Clean(target) => tile.has_contamination(target),
+                _ => unreachable!(),
+            };
         if !valid {
             return false;
         }
         let tile = self.tile_mut(x, y);
         match kind {
-            WorkKind::Road => tile.road = true,
-            WorkKind::Railroad => tile.railroad = true,
-            WorkKind::Irrigation => {
-                tile.irrigation = true;
-                tile.mine = false;
-                tile.oil_well = false;
-            }
-            WorkKind::Farmland => tile.farmland = true,
-            WorkKind::OilWell => tile.oil_well = true,
-            WorkKind::OilPlatform => tile.oil_platform = true,
             WorkKind::Clean(Contamination::Pollution) => tile.pollution = false,
             WorkKind::Clean(Contamination::Fallout) => tile.fallout = false,
             WorkKind::Clean(Contamination::Craters) => tile.craters = false,
-            WorkKind::Mine => {
-                tile.mine = true;
-                tile.irrigation = false;
-                tile.farmland = false;
-            }
-            _ => unreachable!(),
+            _ if super::super::action_rules::apply_freeciv_work_extra(tile, kind) => {}
+            _ => return false,
         }
         if owner == HUMAN {
             self.add_event(if matches!(kind, WorkKind::Clean(_)) {

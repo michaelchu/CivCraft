@@ -409,7 +409,7 @@ impl Simulation {
                 && self.cities.iter().all(|city| {
                     (city.x, city.y) != (nx, ny)
                         || !self.at_war(city.owner, attacker_owner)
-                        || attacker.kind.can_occupy_city()
+                        || self.class_can_occupy_city(attacker.kind)
                 })
             {
                 self.enter_tile(attacker_id, nx, ny, (cost - MOVE_FRAGMENTS).max(0), facing);

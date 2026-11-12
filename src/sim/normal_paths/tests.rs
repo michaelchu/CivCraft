@@ -146,16 +146,21 @@ fn overlap_stops_after_one_nonnative_tile_and_sanity_still_checks_known_map() {
 }
 
 #[test]
-fn potential_transport_capacity_is_a_planning_scope_but_execution_checks_real_space() {
+fn c2c3_field_embark_scope_uses_selected_rules_even_when_carrier_is_full() {
     let mut sim = world();
-    let actor = unit(&mut sim, 1, UnitKind::Warrior);
+    let actor = unit(&mut sim, 1, UnitKind::Marine);
     let sea = offset_native_by_map(10, 20, 1, 0);
     sim.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
-    let boat = sim.spawn_unit(1, UnitKind::Galley, sea.0, sea.1);
-    for _ in 0..2 {
-        let cargo = sim.spawn_unit(1, UnitKind::Warrior, sea.0, sea.1);
-        assert!(sim.board_specific_ship(cargo, boat));
-    }
+    let carrier = sim.spawn_unit(1, UnitKind::Helicopter, sea.0, sea.1);
+    let cargo = sim.spawn_unit(1, UnitKind::Marine, sea.0, sea.1);
+    assert!(sim.board_specific_ship(cargo, carrier));
+    assert!(
+        !sim.ruleset_transport_has_space(UnitKind::Helicopter, sim.cargo_count(carrier))
+            .unwrap()
+    );
+    assert!(sim.ruleset_unit_can_embark_fail_closed(UnitKind::Marine, UnitKind::Helicopter));
+    assert!(sim.ruleset_unit_can_disembark_fail_closed(UnitKind::Marine, UnitKind::Helicopter));
+
     let mut map = NormalPaths::new(
         &sim,
         &actor,
@@ -164,12 +169,37 @@ fn potential_transport_capacity_is_a_planning_scope_but_execution_checks_real_sp
         true,
         false,
     );
+    // The selected Marine record has free `embarks`/`disembarks` access to
+    // Helicopters. PF checks transport type eligibility but ignores full slots.
+    assert_eq!(map.scope(&sim, sea.0, sea.1, 0).0, TRANSPORT);
     assert_eq!(map.movement_cost(&sim, sea.0, sea.1), Some(MOVE_FRAGMENTS));
-    assert_eq!(sim.try_move_unit(actor.id, 1, 0), MoveResult::Blocked);
 }
 
 #[test]
-fn distant_goto_routes_through_zoc_for_free_attack_resolution_on_entry() {
+fn c2c3_field_embark_scope_rejects_unlisted_passengers_at_sea() {
+    let mut sim = world();
+    let actor = unit(&mut sim, 1, UnitKind::Warrior);
+    let sea = offset_native_by_map(10, 20, 1, 0);
+    sim.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
+    sim.spawn_unit(1, UnitKind::Galley, sea.0, sea.1);
+
+    assert!(!sim.ruleset_unit_can_embark_fail_closed(UnitKind::Warrior, UnitKind::Galley));
+    let mut map = NormalPaths::new(
+        &sim,
+        &actor,
+        Style::Default,
+        TilePolicy::Default,
+        true,
+        false,
+    );
+    // Warrior is compatible with the Trireme cargo class, but its C2C3
+    // `embarks` list does not allow field loading onto that carrier.
+    assert_eq!(map.scope(&sim, sea.0, sea.1, 0).0, 0);
+    assert_eq!(map.movement_cost(&sim, sea.0, sea.1), None);
+}
+
+#[test]
+fn distant_goto_does_not_route_through_an_enemy_zone_of_control() {
     let mut sim = world();
     for tile in &mut sim.tiles {
         tile.terrain = Terrain::Sea;
@@ -197,7 +227,10 @@ fn distant_goto_routes_through_zoc_for_free_attack_resolution_on_entry() {
         .movement_cost(&sim, goal.0, goal.1)
         .is_some()
     );
-    assert!(sim.ai_goto_path(&actor, goal, GotoTask::Attack).is_some());
+    // PF_NORMAL cannot model the enemy ZOC disappearing after an attack in
+    // the intermediate tile, so it must not route through the controlled
+    // corridor to a more distant goal.
+    assert!(sim.ai_goto_path(&actor, goal, GotoTask::Attack).is_none());
 }
 
 #[test]

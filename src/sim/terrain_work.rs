@@ -8,57 +8,26 @@ pub(super) fn neighbors(x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> {
         .map(move |(dx, dy)| offset_native_by_map(x, y, dx, dy))
 }
 
-impl Terrain {
-    pub(super) fn alteration(self, kind: WorkKind) -> Option<(Self, i32)> {
-        use Terrain::*;
-        use WorkKind::*;
-        Some(match (kind, self) {
-            (Cultivate, Forest) => (Plains, 10),
-            (Cultivate, Jungle) => (Marsh, 10),
-            (Plant, Forest) => (Grassland, 15),
-            (Plant, Grassland | GrasslandShield) => (Forest, 15),
-            (Plant, Plains) => (Forest, 10),
-            _ => return None,
-        })
-    }
-}
-
 impl Simulation {
-    pub(crate) fn oil_work(&self, unit: &Unit) -> Option<WorkKind> {
-        let tile = self.tile(unit.x, unit.y);
-        if tile.terrain == Terrain::Ocean
-            && tile.resource == Some(Resource::Oil)
-            && !tile.oil_platform
-            && self.has_tech(unit.owner, Tech::MINIATURIZATION)
-            && (unit.kind.unit_class() == super::unit_catalog::UnitClass::Sea
-                && unit.kind.is_worker()
-                || (unit.transport.is_some() && unit.kind.is_worker()))
-        {
-            return Some(WorkKind::OilPlatform);
-        }
-        if matches!(tile.terrain, Terrain::Desert | Terrain::Glacier)
-            && tile.mine
-            && tile.resource == Some(Resource::Oil)
-            && !tile.oil_well
-            && unit.kind.is_worker()
-            && unit.kind.unit_class() != super::unit_catalog::UnitClass::Sea
-            && unit.transport.is_none()
-            && self.has_tech(unit.owner, Tech::REFINING)
-        {
-            return Some(WorkKind::OilWell);
-        }
-        None
-    }
-
     pub(crate) fn terrain_work(&self, unit: &Unit, kind: WorkKind) -> Option<(Terrain, i32)> {
         let tile = self.tile(unit.x, unit.y);
-        let (target, time) = tile.terrain.alteration(kind)?;
-        if !unit.kind.is_worker()
-            || (matches!(kind, WorkKind::Cultivate | WorkKind::Plant)
-                && unit.kind.unit_class() == super::unit_catalog::UnitClass::Sea)
-            || (kind == WorkKind::Plant && !self.has_tech(unit.owner, Tech::ENGINEERING))
-            || unit.transport.is_some()
-        {
+        let rules = super::movement_rules::MovementRules::campaign();
+        let terrain = rules.terrain_data(tile.terrain).ok()?;
+        let result = match kind {
+            WorkKind::Cultivate => terrain.cultivate_result.as_deref(),
+            WorkKind::Plant => terrain.plant_result.as_deref(),
+            _ => return None,
+        }?;
+        let target = rules.terrain_result(result).ok()?;
+        let time = match kind {
+            WorkKind::Cultivate => terrain.activity_times.cultivate,
+            WorkKind::Plant => terrain.activity_times.plant,
+            _ => return None,
+        };
+        if time <= 0 {
+            return None;
+        }
+        if unit.transport.is_some() {
             return None;
         }
         self.terrain_change_allowed(unit.x, unit.y, target)
@@ -176,6 +145,33 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn terrain_changes_follow_selected_c2c3_results_and_times() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let (x, y) = (10, 20);
+        let worker = game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
+
+        game.tile_mut(x, y).terrain = Terrain::Forest;
+        assert_eq!(
+            game.terrain_work(game.unit_by_id(worker).unwrap(), WorkKind::Cultivate),
+            Some((Terrain::Plains, 10))
+        );
+        assert_eq!(
+            game.terrain_work(game.unit_by_id(worker).unwrap(), WorkKind::Plant),
+            Some((Terrain::Grassland, 15))
+        );
+
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        assert_eq!(
+            game.terrain_work(game.unit_by_id(worker).unwrap(), WorkKind::Plant),
+            Some((Terrain::Forest, 15))
+        );
+        assert_eq!(
+            game.terrain_work(game.unit_by_id(worker).unwrap(), WorkKind::Cultivate),
+            None
+        );
+    }
 
     #[test]
     fn transported_workers_build_oil_platforms_but_not_land_improvements() {

@@ -183,8 +183,9 @@ mod tests {
         assert!(!game.unit_available(HUMAN, UnitKind::TacticalNuke));
         game.completed_wonders.push(Building::MANHATTAN_PROJECT);
         assert!(game.unit_available(HUMAN, UnitKind::TacticalNuke));
+        let unit = game.make_unit(0, HUMAN, UnitKind::TacticalNuke, 10, 20);
         assert_eq!(
-            game.unit_move_allowance(HUMAN, UnitKind::TacticalNuke),
+            game.unit_move_rate(&unit),
             UnitKind::TacticalNuke.stats().moves * MOVE_FRAGMENTS
         );
     }

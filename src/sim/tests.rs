@@ -413,7 +413,7 @@ fn famine_destroys_size_one_city() {
 }
 
 #[test]
-fn irrigation_needs_water_and_conflicts_with_mines() {
+fn irrigation_uses_ruleset_water_enablers_and_conflicts_with_mines() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     let (x, y) = crate::mapgen::generate(42).starts[0];
     game.tile_mut(x, y).terrain = Terrain::Hills;
@@ -425,11 +425,6 @@ fn irrigation_needs_water_and_conflicts_with_mines() {
         neighbor.irrigation = false;
         neighbor.river = false;
     }
-    assert!(!game.can_irrigate_at(HUMAN, x, y));
-    let (water_x, water_y) = adjacent[0];
-    game.tile_mut(water_x, water_y).terrain = Terrain::Sea;
-    assert!(game.can_irrigate_at(HUMAN, x, y));
-
     let worker_index = game
         .units
         .iter()
@@ -437,6 +432,11 @@ fn irrigation_needs_water_and_conflicts_with_mines() {
         .expect("human worker");
     game.units[worker_index].x = x;
     game.units[worker_index].y = y;
+    let worker_id = game.units[worker_index].id;
+    assert!(!game.work_action_available_fail_closed(worker_id, WorkKind::Irrigation, (x, y)));
+    let (water_x, water_y) = adjacent[0];
+    game.tile_mut(water_x, water_y).terrain = Terrain::Sea;
+    assert!(game.work_action_available_fail_closed(worker_id, WorkKind::Irrigation, (x, y)));
     game.units[worker_index].work_kind = Some(WorkKind::Irrigation);
     game.units[worker_index].work_left = 1;
     game.tile_mut(x, y).mine = true;

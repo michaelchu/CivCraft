@@ -588,10 +588,15 @@ impl Simulation {
         self.tile_mut(dest.0, dest.1).owner = None;
         self.tile_mut(dest.0, dest.1).terrain = Terrain::Mountains;
         self.tile_mut(dest.0, dest.1).railroad = false;
-        let wheel_blocked = self.movement_cost_for(&chariot, dest.0, dest.1).is_none();
+        // C2C3 has no Civ III wheeled-terrain exception: mountain movement
+        // follows the selected terrain and unit-class costs.
+        let mountain_accessible = self.movement_cost_for(&chariot, dest.0, dest.1).is_some();
         self.tile_mut(dest.0, dest.1).road = true;
         let wheel_road = self.movement_cost_for(&chariot, dest.0, dest.1).is_some();
         self.tile_mut(dest.0, dest.1).terrain = Terrain::Sea;
+        self.tile_mut(dest.0, dest.1).river = false;
+        self.tile_mut(dest.0, dest.1).road = false;
+        self.tile_mut(dest.0, dest.1).railroad = false;
         self.spawn_unit(HUMAN, UnitKind::Transport, dest.0, dest.1);
         let explorer = self.spawn_unit(HUMAN, UnitKind::Explorer, home.0, home.1);
         let before = self
@@ -600,12 +605,20 @@ impl Simulation {
             .find(|u| u.id == explorer)
             .unwrap()
             .moves_left;
-        let boarding = self.try_move_unit(explorer, 1, 0) == MoveResult::Moved
-            && self
-                .units
-                .iter()
-                .find(|u| u.id == explorer)
-                .is_some_and(|u| u.transport.is_some() && u.moves_left == before - 2);
+        let embark_result = self.try_move_unit(explorer, 1, 0);
+        let (after_moves, carrier) = self
+            .units
+            .iter()
+            .find(|u| u.id == explorer)
+            .map(|unit| (unit.moves_left, unit.transport))
+            .unwrap();
+        let expected_after = before
+            - super::movement_rules::MovementRules::campaign()
+                .igter_cost()
+                .unwrap();
+        let boarding = embark_result == MoveResult::Moved
+            && carrier.is_some()
+            && after_moves == expected_after;
         self.units.clear();
         let enemy = self.spawn_unit(1, UnitKind::Cavalry, home.0, home.1);
         let leader_zoc = self.under_foreign_control(HUMAN, home.0, home.1, false);
@@ -617,7 +630,7 @@ impl Simulation {
             && UnitKind::Explorer.ignores_zoc();
         (
             river && rail && hostile,
-            wheel_blocked && wheel_road && boarding,
+            !mountain_accessible && wheel_road && boarding,
             leader_zoc && carrier_no_zoc && actors,
         )
     }
@@ -712,7 +725,9 @@ impl Simulation {
         ship.hp = ship.max_hit_points();
         self.players[HUMAN].known.push(Tech::NUCLEAR_POWER);
         let ship = self.unit_by_id(ship_id).unwrap();
-        restored && self.unit_move_rate(ship) == self.unit_move_allowance(HUMAN, ship.kind)
+        restored
+            && self.unit_move_rate(ship)
+                == ship.kind.stats().moves * MOVE_FRAGMENTS + MOVE_FRAGMENTS
     }
 
     pub(crate) fn ai_source_goto_playtest(&mut self) -> bool {

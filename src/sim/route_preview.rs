@@ -57,11 +57,7 @@ impl Simulation {
                         && self.tile(x, y).visible
                         && self.tile(x, y).terrain.is_water()
                         && self.boarding_target(unit, x, y).is_some())
-                    .then_some(if unit.kind.stats().ignores_terrain {
-                        2
-                    } else {
-                        MOVE_FRAGMENTS
-                    })
+                    .then(|| self.raw_move_cost_for(&actor, x, y))
                 })?;
             remaining -= cost.min(remaining);
             (actor.x, actor.y) = (x, y);

@@ -1,13 +1,13 @@
 //! Shared default PF action policy from common/aicore/pf_tools.c. Planning
 //! capabilities deliberately differ from legal action execution.
+use super::movement_rules::{MovementRules, MovementTile};
 use super::*;
 
 impl UnitKind {
     // IgZOC and absence of UCF_ZOC are separate native exemptions.
     pub(super) fn ignores_zoc(self) -> bool {
-        (self.is_naval() && self != Self::Galley)
-            || self.is_aircraft()
-            || matches!(self, Self::Explorer | Self::Guerilla | Self::Leader)
+        super::action_rules::freeciv_unit_type_flag(self, "IgZOC")
+            .expect("campaign C2C3 unit-type IgZOC binding")
     }
 }
 
@@ -19,46 +19,98 @@ pub(super) enum PfAction {
 }
 
 impl Simulation {
+    fn pf_class_can_occupy_city(kind: UnitKind) -> bool {
+        MovementRules::campaign()
+            .unit_class_movement_data_for_kind(kind)
+            .expect("campaign C2C3 unit-class movement data")
+            .can_occupy_city
+    }
+
     // tile_move_cost_ptrs: cost only; scopes/action callbacks decide legality.
     pub(super) fn raw_move_cost_for(&self, unit: &Unit, x: i32, y: i32) -> i32 {
         let kind = unit.kind;
-        if !kind.unit_class().terrain_speed() {
-            return MOVE_FRAGMENTS;
-        }
-        let ignores = kind.stats().ignores_terrain;
-        if !self.pf_native_tile(kind, unit.x, unit.y) || !self.pf_native_tile(kind, x, y) {
-            return if ignores { 2 } else { MOVE_FRAGMENTS };
-        }
+        let rules = MovementRules::campaign();
+        let class = rules
+            .unit_class_for_kind(kind)
+            .expect("campaign C2C3 unit class binding");
+        let ignores = super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
+            .expect("campaign C2C3 unit-type IgTer binding");
         let source = self.tile(unit.x, unit.y);
         let dest = self.tile(x, y);
         let restricted = [source.owner, dest.owner]
             .into_iter()
             .flatten()
             .any(|owner| self.at_war(unit.owner, owner));
-        let mut cost = if kind.ignores_movement_cost_on(dest.terrain) {
-            MOVE_FRAGMENTS
-        } else {
-            dest.terrain.movement_cost() * MOVE_FRAGMENTS
-        };
-        if !restricted {
-            if source.railroad && dest.railroad {
-                cost = cost.min(1);
-            }
-            if source.road && dest.road || source.river && dest.river && !kind.is_big_land() {
-                cost = cost.min(2);
-            }
-        }
-        if ignores { cost.min(2) } else { cost }
+        rules
+            .step_cost(
+                MovementTile::new(
+                    source.terrain,
+                    source.road,
+                    source.railroad,
+                    source.river,
+                    source.base,
+                ),
+                MovementTile::new(
+                    dest.terrain,
+                    dest.road,
+                    dest.railroad,
+                    dest.river,
+                    dest.base,
+                ),
+                class,
+                self.pf_move_is_cardinal((unit.x, unit.y), (x, y)),
+                restricted,
+                ignores,
+            )
+            .expect("campaign C2C3 step movement data")
     }
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
         let tile = self.tile(x, y);
-        kind.is_native_on(
+        let rules = MovementRules::campaign();
+        let class = rules
+            .unit_class_for_kind(kind)
+            .expect("campaign C2C3 unit class binding");
+        match rules.tile_native_to_class(
             tile.terrain,
-            tile.river,
             tile.road,
             tile.railroad,
+            tile.river,
             tile.base,
-        )
+            class,
+        ) {
+            Ok(native) => native,
+            // Volcano has no C2C3 terrain identity. Its Mountains adaptation
+            // applies only to movement cost, not native/action requirements.
+            Err(super::movement_rules::MovementRulesError::UnsupportedTerrain(_)) => false,
+            Err(error) => panic!("campaign C2C3 native-tile data is invalid: {error:?}"),
+        }
+    }
+
+    /// Movement scope uses its explicit Volcano→Mountains adapter; generic PF
+    /// action/native requirements continue to use `pf_native_tile` above.
+    pub(super) fn pf_movement_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
+        let tile = self.tile(x, y);
+        let rules = MovementRules::campaign();
+        let class = rules
+            .unit_class_for_kind(kind)
+            .expect("campaign C2C3 unit class binding");
+        rules
+            .movement_tile_native_to_class(
+                tile.terrain,
+                tile.road,
+                tile.railroad,
+                tile.river,
+                tile.base,
+                class,
+            )
+            .expect("campaign C2C3 movement native_to data")
+    }
+
+    /// Freeciv's C2C3 ISO|HEX topology marks six of CivCraft's eight steps as
+    /// cardinal. Delegate to movement's shared topology adapter so direct,
+    /// observed, and PF path costs classify X-wrap and bounded-Y steps alike.
+    fn pf_move_is_cardinal(&self, from: (i32, i32), to: (i32, i32)) -> bool {
+        self.movement_is_cardinal(from, to)
     }
 
     pub(super) fn pf_main_sight(&self, observer: usize, x: i32, y: i32) -> bool {
@@ -138,7 +190,9 @@ impl Simulation {
             }
         }
         if city && city_attack && !kind.is_civilian() {
-            return if kind.can_occupy_city() || self.pf_attack_possible(kind, owner, x, y, false) {
+            return if Self::pf_class_can_occupy_city(kind)
+                || self.pf_attack_possible(kind, owner, x, y, false)
+            {
                 PfAction::Attack
             } else {
                 PfAction::Impossible
@@ -157,7 +211,8 @@ impl Simulation {
             self.pf_native_tile(actor.kind, actor.x, actor.y)
                 || self.cities.iter().any(|city| {
                     (city.x, city.y) == (actor.x, actor.y)
-                        && (self.allied(actor.owner, city.owner) || actor.kind.can_occupy_city())
+                        && (self.allied(actor.owner, city.owner)
+                            || Self::pf_class_can_occupy_city(actor.kind))
                 })
                 || actor.transport.is_some()
                 || self.boarding_target(actor, actor.x, actor.y).is_some()
@@ -200,20 +255,34 @@ impl Simulation {
     }
 
     pub(super) fn pf_action_move_cost(kind: UnitKind, action: PfAction, rate: i32) -> i32 {
-        if action == PfAction::Attack && (kind.bombard_rate() > 0 || kind.is_missile()) {
+        let rules = MovementRules::campaign();
+        let fragments = rules
+            .move_fragments()
+            .expect("campaign C2C3 movement fragments");
+        let class = rules
+            .unit_class_movement_data_for_kind(kind)
+            .expect("campaign C2C3 unit-class movement data");
+        let one_attack = super::action_rules::freeciv_unit_type_flag(kind, "OneAttack")
+            .expect("campaign C2C3 unit-type OneAttack binding");
+        // C2C3's Attack consumes the full move rate for OneAttack units and
+        // Missile-class units (the latter can use Suicide Attack). Bombard is
+        // a separate C2C3 action with its own move-cost effect; CivCraft PF
+        // does not model that action yet.
+        if action == PfAction::Attack && (one_attack || class.missile) {
             rate
         } else {
-            MOVE_FRAGMENTS
+            fragments
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::movement_rules::{RoadMoveMode, RoadType};
     use super::*;
 
     #[test]
-    fn literal_class_zoc_and_big_land_native_extras() {
+    fn unit_zoc_exemptions_use_c2c3_flags_and_native_extras() {
         for kind in [
             UnitKind::Chariot,
             UnitKind::Catapult,
@@ -223,7 +292,11 @@ mod tests {
             assert!(!kind.ignores_zoc(), "{kind:?}");
         }
         assert!(UnitKind::Explorer.ignores_zoc());
-        assert!(UnitKind::Carrier.ignores_zoc());
+        // Civ III's similarly named Guerilla ID does not bind to the C2C3
+        // Partisan record, so it uses the selected default (no IgZOC).
+        assert!(!UnitKind::Guerilla.ignores_zoc());
+        assert!(UnitKind::Leader.ignores_zoc());
+        assert!(!UnitKind::Carrier.ignores_zoc());
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         for terrain in [Terrain::Jungle, Terrain::Mountains, Terrain::Marsh] {
             let tile = sim.tile_mut(10, 20);
@@ -272,5 +345,155 @@ mod tests {
         );
         sim.tile_mut(10, 20).terrain = Terrain::Grassland;
         sim.create_city(1, 10, 20);
+    }
+
+    fn clear_movement_tile(sim: &mut Simulation, position: (i32, i32), terrain: Terrain) {
+        let tile = sim.tile_mut(position.0, position.1);
+        tile.terrain = terrain;
+        tile.owner = None;
+        tile.road = false;
+        tile.railroad = false;
+        tile.river = false;
+        tile.base = None;
+    }
+
+    #[test]
+    fn pf_terrain_costs_use_campaign_terrain_records_and_move_fragments() {
+        let rules = MovementRules::campaign();
+        let fragments = rules.move_fragments().unwrap();
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.units.clear();
+        sim.cities.clear();
+        let from = (10, 20);
+        let to = sim.map_wrap.civ3_neighbor(from.0, from.1, 1).unwrap();
+        sim.spawn_unit(HUMAN, UnitKind::Warrior, from.0, from.1);
+        let actor = sim.units[0].clone();
+
+        for terrain in [
+            Terrain::Grassland,
+            Terrain::Hills,
+            Terrain::Mountains,
+            Terrain::Forest,
+        ] {
+            clear_movement_tile(&mut sim, from, Terrain::Grassland);
+            clear_movement_tile(&mut sim, to, terrain);
+            let expected = rules.terrain_movement_cost(terrain).unwrap() * fragments;
+            assert_eq!(
+                sim.raw_move_cost_for(&actor, to.0, to.1),
+                expected,
+                "{terrain:?}"
+            );
+        }
+        assert_eq!(fragments, 6);
+        // The explicit Volcano movement adapter borrows Mountain movement
+        // cost/nativity, while generic native/action requirements stay unsupported.
+        assert_eq!(rules.terrain_movement_cost(Terrain::Volcano).unwrap(), 3);
+        clear_movement_tile(&mut sim, to, Terrain::Volcano);
+        assert!(!sim.pf_native_tile(UnitKind::Warrior, to.0, to.1));
+        assert!(sim.pf_movement_native_tile(UnitKind::Warrior, to.0, to.1));
+        assert_eq!(
+            sim.raw_move_cost_for(&actor, to.0, to.1),
+            rules.terrain_movement_cost(Terrain::Volcano).unwrap() * fragments
+        );
+    }
+
+    #[test]
+    fn river_road_mode_is_cardinal_while_regular_roads_are_fast_always() {
+        let rules = MovementRules::campaign();
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.units.clear();
+        sim.cities.clear();
+        let from = (10, 20);
+        let cardinal = sim.map_wrap.civ3_neighbor(from.0, from.1, 1).unwrap();
+        let diagonal = sim.map_wrap.civ3_neighbor(from.0, from.1, 2).unwrap();
+        sim.spawn_unit(HUMAN, UnitKind::Warrior, from.0, from.1);
+        let actor = sim.units[0].clone();
+        let base_cost = rules.terrain_movement_cost(Terrain::Grassland).unwrap()
+            * rules.move_fragments().unwrap();
+        let river_cost = rules.road_move_cost(RoadType::River).unwrap();
+        let road_cost = rules.road_move_cost(RoadType::Road).unwrap();
+        assert_eq!(
+            rules.road_move_mode(RoadType::River).unwrap(),
+            RoadMoveMode::Cardinal
+        );
+        assert_eq!(
+            rules.road_move_mode(RoadType::Road).unwrap(),
+            RoadMoveMode::FastAlways
+        );
+
+        clear_movement_tile(&mut sim, from, Terrain::Grassland);
+        clear_movement_tile(&mut sim, cardinal, Terrain::Grassland);
+        sim.tile_mut(from.0, from.1).river = true;
+        sim.tile_mut(cardinal.0, cardinal.1).river = true;
+        assert!(sim.pf_move_is_cardinal(from, cardinal));
+        assert_eq!(
+            sim.raw_move_cost_for(&actor, cardinal.0, cardinal.1),
+            base_cost.min(river_cost)
+        );
+        sim.spawn_unit(HUMAN, UnitKind::Chariot, from.0, from.1);
+        let big_land_actor = sim.units[1].clone();
+        assert_eq!(
+            sim.raw_move_cost_for(&big_land_actor, cardinal.0, cardinal.1),
+            base_cost,
+            "C2C3 River native_to excludes Big Land units"
+        );
+
+        clear_movement_tile(&mut sim, diagonal, Terrain::Grassland);
+        sim.tile_mut(diagonal.0, diagonal.1).river = true;
+        assert!(!sim.pf_move_is_cardinal(from, diagonal));
+        assert_eq!(
+            sim.raw_move_cost_for(&actor, diagonal.0, diagonal.1),
+            base_cost
+        );
+
+        sim.tile_mut(from.0, from.1).river = false;
+        sim.tile_mut(diagonal.0, diagonal.1).river = false;
+        sim.tile_mut(from.0, from.1).road = true;
+        sim.tile_mut(diagonal.0, diagonal.1).road = true;
+        assert_eq!(
+            sim.raw_move_cost_for(&actor, diagonal.0, diagonal.1),
+            base_cost.min(road_cost)
+        );
+
+        // X-wrap seam adjacency retains the intended six-cardinal/two-diagonal
+        // direction classification; the north/south edges remain bounded.
+        let seam_from = (0, 20);
+        let seam_cardinal = sim
+            .map_wrap
+            .civ3_neighbor(seam_from.0, seam_from.1, 7)
+            .unwrap();
+        let seam_diagonal = sim
+            .map_wrap
+            .civ3_neighbor(seam_from.0, seam_from.1, 6)
+            .unwrap();
+        assert_eq!(seam_cardinal.0, sim.map_wrap.width() - 1);
+        assert_eq!(seam_diagonal.0, sim.map_wrap.width() - 1);
+        assert!(sim.pf_move_is_cardinal(seam_from, seam_cardinal));
+        assert!(!sim.pf_move_is_cardinal(seam_from, seam_diagonal));
+        assert!(sim.map_wrap.civ3_neighbor(10, 0, 0).is_none());
+    }
+
+    #[test]
+    fn attack_move_cost_uses_c2c3_one_attack_and_missile_rules() {
+        let fragments = MovementRules::campaign().move_fragments().unwrap();
+        let rate = 3 * fragments;
+        assert_eq!(
+            Simulation::pf_action_move_cost(UnitKind::Warrior, PfAction::Attack, rate),
+            fragments
+        );
+        assert_eq!(
+            Simulation::pf_action_move_cost(UnitKind::Catapult, PfAction::Attack, rate),
+            fragments,
+            "Bombarder is a separate action and does not change PF Attack cost"
+        );
+        assert_eq!(
+            Simulation::pf_action_move_cost(UnitKind::CruiseMissile, PfAction::Attack, rate),
+            rate,
+            "the selected Missile class can perform Suicide Attack"
+        );
+        assert_eq!(
+            Simulation::pf_action_move_cost(UnitKind::Warrior, PfAction::None, rate),
+            fragments
+        );
     }
 }

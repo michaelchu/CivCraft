@@ -1,5 +1,6 @@
 //! Unit exploration and frontier target selection.
 
+use super::movement_rules::MovementRules;
 use super::pathfinding::reconstruct_path;
 use super::*;
 
@@ -188,8 +189,11 @@ impl Simulation {
             + self.pf_extra_class_defense(unit.kind, x, y) / 100;
         let probability = if tile.terrain.is_water() { 0.05 } else { 0.15 };
         let allowance = self.unit_move_rate(unit).max(1);
+        let move_fragments = MovementRules::campaign()
+            .move_fragments()
+            .expect("selected C2C3 movement fragments");
         let fearfulness =
-            PF_TURN_FACTOR as f64 / 36.0 * f64::from(MOVE_FRAGMENTS) / f64::from(allowance);
+            PF_TURN_FACTOR as f64 / 36.0 * f64::from(move_fragments) / f64::from(allowance);
         let mut risk = f64::from(unit.kind.stats().cost + stack) * probability * 10.0
             / f64::from(db)
             * fearfulness;
@@ -209,18 +213,18 @@ impl Simulation {
             return None;
         }
         if !known_only && !self.players[unit.owner].ai && !self.tile(x, y).known_by[unit.owner] {
-            // common/movement.c: highest native terrain cost, doubled when
-            // the class cannot enter every terrain type.
-            return Some(if unit.kind.is_naval() {
-                2 * MOVE_FRAGMENTS
-            } else if unit.kind.stats().ignores_terrain {
-                4
-            } else {
-                6 * MOVE_FRAGMENTS
-            });
+            return Some(
+                MovementRules::campaign()
+                    .unknown_tile_move_cost(unit.kind)
+                    .expect("selected C2C3 unknown-tile movement cost"),
+            );
         }
-        self.movement_cost_for(unit, x, y)
-            .or_else(|| self.boarding_target(unit, x, y).map(|_| MOVE_FRAGMENTS))
+        self.movement_cost_for(unit, x, y).or_else(|| {
+            let fragments = MovementRules::campaign()
+                .move_fragments()
+                .expect("selected C2C3 movement fragments");
+            self.boarding_target(unit, x, y).map(|_| fragments)
+        })
     }
 
     fn explorer_search(
@@ -487,3 +491,43 @@ impl Simulation {
 #[cfg(test)]
 #[path = "exploration/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod selected_unknown_cost_tests {
+    use super::*;
+
+    #[test]
+    fn human_exploration_uses_ruleset_unknown_cost_in_move_fragments() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.units.clear();
+        sim.cities.clear();
+        for tile in &mut sim.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.known_by.fill(false);
+            tile.owner = None;
+            tile.base = None;
+            tile.road = false;
+            tile.railroad = false;
+            tile.river = false;
+        }
+        let id = sim.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
+        let actor = sim.unit_by_id(id).unwrap().clone();
+        sim.tile_mut(actor.x, actor.y).known_by[HUMAN] = true;
+        let target = sim.map_wrap.civ3_neighbor(actor.x, actor.y, 2).unwrap();
+        let expected = MovementRules::campaign()
+            .unknown_tile_move_cost(actor.kind)
+            .unwrap();
+
+        assert_eq!(
+            sim.explorer_step_cost(&actor, target.0, target.1, false),
+            Some(expected)
+        );
+        assert_eq!(
+            sim.explorer_step_cost(&actor, target.0, target.1, true),
+            None
+        );
+        let rules = MovementRules::campaign();
+        assert!(super::action_rules::freeciv_unit_type_flag(actor.kind, "IgTer").unwrap());
+        assert_eq!(expected, rules.igter_cost().unwrap() * 2);
+    }
+}

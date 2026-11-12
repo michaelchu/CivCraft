@@ -37,13 +37,15 @@ impl Simulation {
             .map(|ship| ship.id)
     }
 
-    fn can_board_ship(&self, passenger: &Unit, ship: &Unit) -> bool {
+    pub(in crate::sim) fn can_board_ship(&self, passenger: &Unit, ship: &Unit) -> bool {
         passenger.transport != Some(ship.id)
+            && passenger.id != ship.id
+            && !self.transport_would_create_cycle(passenger.id, ship.id)
             && self.allied(passenger.owner, ship.owner)
-            && ship.kind.can_carry(passenger.kind)
+            && self.ruleset_transport_pair_allowed_fail_closed(ship.kind, passenger.kind)
             && (ship.kind != UnitKind::Helicopter
-                || self.helicopter_cargo_access(passenger, ship.x, ship.y))
-            && self.cargo_count(ship.id) < ship.kind.transport_capacity()
+                || self.helicopter_embark_access(passenger, ship.x, ship.y))
+            && self.ruleset_transport_has_space_fail_closed(ship.kind, self.cargo_count(ship.id))
     }
 
     pub(in crate::sim) fn board_specific_ship(&mut self, unit_id: u32, ship_id: u32) -> bool {
@@ -57,6 +59,7 @@ impl Simulation {
                     && (ship.x, ship.y) == (unit.x, unit.y)
                     && self.can_board_ship(unit, ship)
             })
+            || !self.action_available_fail_closed(unit_id, "Transport Board", (unit.x, unit.y))
         {
             return false;
         }
@@ -86,6 +89,7 @@ impl Simulation {
             || !self.can_board_ship(passenger, ship)
             || self.best_defender_id(passenger, x, y).is_some()
             || !self.ai_guard_allows_step(passenger, (x, y))
+            || !self.action_available_fail_closed(unit_id, "Transport Embark", (x, y))
         {
             return false;
         }
@@ -105,13 +109,14 @@ impl Simulation {
         true
     }
 
-    fn helicopter_cargo_access(&self, passenger: &Unit, x: i32, y: i32) -> bool {
-        Self::can_disembark_helicopter_in_field(passenger)
+    fn helicopter_embark_access(&self, passenger: &Unit, x: i32, y: i32) -> bool {
+        self.ruleset_unit_can_embark_fail_closed(passenger.kind, UnitKind::Helicopter)
             || self.refuel_site(passenger.owner, x, y)
     }
 
-    fn can_disembark_helicopter_in_field(passenger: &Unit) -> bool {
-        passenger.kind.can_helicopter_field_load()
+    fn helicopter_disembark_access(&self, passenger: &Unit, x: i32, y: i32) -> bool {
+        self.ruleset_unit_can_disembark_fail_closed(passenger.kind, UnitKind::Helicopter)
+            || self.refuel_site(passenger.owner, x, y)
     }
 
     pub(in crate::sim) fn can_leave_transport(&self, passenger: &Unit) -> bool {
@@ -121,18 +126,32 @@ impl Simulation {
                 .find(|unit| unit.id == id)
                 .is_some_and(|carrier| {
                     carrier.kind != UnitKind::Helicopter
-                        || self.helicopter_cargo_access(passenger, passenger.x, passenger.y)
+                        || self.helicopter_disembark_access(passenger, passenger.x, passenger.y)
                 })
         })
     }
 
     pub(crate) fn transport_action(&self, unit: &Unit) -> Option<&'static str> {
         if unit.transport.is_some() {
-            return ((unit.kind.is_aircraft() || !self.tile(unit.x, unit.y).terrain.is_water())
-                && self.can_leave_transport(unit))
-            .then_some("Deboard");
+            let can_exit = (unit.kind.is_aircraft()
+                || !self.tile(unit.x, unit.y).terrain.is_water())
+                && self.can_leave_transport(unit);
+            (can_exit
+                && self.action_available_for_unit_fail_closed(
+                    unit,
+                    "Transport Deboard",
+                    (unit.x, unit.y),
+                ))
+            .then_some("Deboard")
+        } else {
+            (self.boarding_target(unit, unit.x, unit.y).is_some()
+                && self.action_available_for_unit_fail_closed(
+                    unit,
+                    "Transport Board",
+                    (unit.x, unit.y),
+                ))
+            .then_some("Board")
         }
-        self.boarding_target(unit, unit.x, unit.y).map(|_| "Board")
     }
 
     pub(in crate::sim) fn board_or_deboard(&mut self, unit_id: u32) -> bool {
@@ -244,7 +263,7 @@ impl Simulation {
                         }
                         let busy = ship.state != UnitState::Idle || ship.work_left > 0;
                         let restricted_unload = ship.kind == UnitKind::Helicopter
-                            && !Self::can_disembark_helicopter_in_field(passenger);
+                            && !self.helicopter_disembark_access(passenger, ship.x, ship.y);
                         Some((
                             (
                                 busy,
