@@ -208,7 +208,6 @@ impl<'a> Civ3WorldPainter<'a> {
                 };
                 self.assets.civ3.draw_overlay(
                     tile.terrain,
-                    tile.base_terrain,
                     super::super::tileset::TerrainOverlayContext {
                         hilly_neighbors,
                         dominant_vegetation,

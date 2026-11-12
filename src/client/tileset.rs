@@ -2261,7 +2261,6 @@ impl Civ3 {
     pub(super) fn draw_overlay(
         &self,
         terrain: Terrain,
-        base_terrain: TerrainBase,
         context: TerrainOverlayContext,
         (x, y): (i32, i32),
         center: Vec2,
@@ -2299,14 +2298,10 @@ impl Civ3 {
                 (index, shape / 4, shape % 4)
             }
             Terrain::Mountains => {
-                let index = if base_terrain == TerrainBase::Tundra {
-                    8
-                } else {
-                    match context.dominant_vegetation {
-                        Some(Terrain::Forest) => 9,
-                        Some(Terrain::Jungle) => 10,
-                        _ => 3,
-                    }
+                let index = match context.dominant_vegetation {
+                    Some(Terrain::Forest) => 9,
+                    Some(Terrain::Jungle) => 10,
+                    _ => 3,
                 };
                 let shape = usize::from(context.hilly_neighbors & 0x0f);
                 (index, shape / 4, shape % 4)
