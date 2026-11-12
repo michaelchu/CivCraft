@@ -20,6 +20,16 @@ const TERRITORY_PCX_TRANSPARENT_INDICES: [u8; 3] = [1, 254, 255];
 // 1.0 preserves the source alpha; higher values tighten the black fog fade.
 const FOG_ALPHA_GAMMA: f32 = 1.8;
 
+/// Neighbor data used to choose Civ III's connected landform and vegetation
+/// sprites. It is derived by the map painter, so every map generator shares
+/// the same visual selection rules.
+#[derive(Clone, Copy, Default)]
+pub(super) struct TerrainOverlayContext {
+    /// NW, NE, SW, SE bits used by the four-by-four hill/mountain atlases.
+    pub(super) hilly_neighbors: u8,
+    pub(super) dominant_vegetation: Option<Terrain>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Ground {
     Grass,
@@ -119,13 +129,20 @@ const LAND_SHEETS: [(&str, &str, [Ground; 3]); 6] = [
     ("tundra-grass-coast", "XTGC", [Tundra, Grass, Coast]),
     ("grass-coast", "XGGC", [Grass, Grass, Coast]),
 ];
-const OVERLAYS: [(&str, &str, u16, u16, usize); 6] = [
+const OVERLAYS: [(&str, &str, u16, u16, usize); 13] = [
     ("vegetation", "grassland forests", 768, 616, 88),
     ("marsh", "marsh", 768, 264, 88),
-    ("hills", "XHILLS", 128, 72, 72),
-    ("mountains", "Mountains", 128, 88, 88),
+    ("hills", "xhills", 512, 288, 72),
+    ("mountains", "Mountains", 512, 352, 88),
     ("floodplains", "floodplains", 512, 256, 64),
     ("volcano", "Volcanos", 512, 352, 88),
+    ("hills-forest", "hill forests", 512, 288, 72),
+    ("hills-jungle", "hill jungle", 512, 288, 72),
+    ("mountains-snow", "Mountains-snow", 512, 352, 88),
+    ("mountains-forest", "mountain forests", 512, 352, 88),
+    ("mountains-jungle", "mountain jungles", 512, 352, 88),
+    ("volcano-forest", "Volcanos forests", 512, 352, 88),
+    ("volcano-jungle", "Volcanos jungles", 512, 352, 88),
 ];
 const IRRIGATION: [(&str, &str); 4] = [
     ("irrigation", "irrigation"),
@@ -1450,7 +1467,7 @@ impl Civ3 {
             Ok(theme
                 .image(key, &format!("Terrain/{file}.png"), size, false)?
                 .map(|mut image| {
-                    if matches!(key, "floodplains" | "volcano") {
+                    if key == "floodplains" || key.starts_with("volcano") {
                         prepare_keyed_overlay(&mut image);
                     }
                     let texture = Texture2D::from_image(&image);
@@ -2310,6 +2327,8 @@ impl Civ3 {
     pub(super) fn draw_overlay(
         &self,
         terrain: Terrain,
+        base_terrain: TerrainBase,
+        context: TerrainOverlayContext,
         (x, y): (i32, i32),
         center: Vec2,
         size: Vec2,
@@ -2347,21 +2366,49 @@ impl Civ3 {
             );
             return true;
         }
-        let (index, row, count) = match terrain {
-            Terrain::Forest => (0, 6, 5),
-            Terrain::Jungle => (0, 2, 6),
-            Terrain::Marsh => (1, 2, 6),
-            Terrain::Hills => (2, 0, 1),
-            Terrain::Mountains => (3, 0, 1),
-            Terrain::FloodPlains => (4, 0, 4),
-            Terrain::Volcano => (5, 0, 4),
+        let (index, row, col) = match terrain {
+            Terrain::Forest => (0, 6, (x * 37 + y * 13).rem_euclid(5) as usize),
+            Terrain::Jungle => (0, 2, (x * 37 + y * 13).rem_euclid(6) as usize),
+            Terrain::Marsh => (1, 2, (x * 37 + y * 13).rem_euclid(6) as usize),
+            Terrain::Hills => {
+                let index = match context.dominant_vegetation {
+                    Some(Terrain::Forest) => 6,
+                    Some(Terrain::Jungle) => 7,
+                    _ => 2,
+                };
+                let shape = usize::from(context.hilly_neighbors & 0x0f);
+                (index, shape / 4, shape % 4)
+            }
+            Terrain::Mountains => {
+                let index = if base_terrain == TerrainBase::Tundra {
+                    8
+                } else {
+                    match context.dominant_vegetation {
+                        Some(Terrain::Forest) => 9,
+                        Some(Terrain::Jungle) => 10,
+                        _ => 3,
+                    }
+                };
+                let shape = usize::from(context.hilly_neighbors & 0x0f);
+                (index, shape / 4, shape % 4)
+            }
+            Terrain::FloodPlains => (4, 0, (x * 37 + y * 13).rem_euclid(4) as usize),
+            Terrain::Volcano => {
+                let index = match context.dominant_vegetation {
+                    Some(Terrain::Forest) => 11,
+                    Some(Terrain::Jungle) => 12,
+                    _ => 5,
+                };
+                let shape = usize::from(context.hilly_neighbors & 0x0f);
+                (index, shape / 4, shape % 4)
+            }
             _ => return true,
         };
         let Some(texture) = &self.overlays[index] else {
             return false;
         };
         let height = OVERLAYS[index].4 as f32;
-        let col = (x * 37 + y * 13).rem_euclid(count) as f32;
+        let col = col as f32;
         let dest = vec2(size.x, size.y * height / HEIGHT as f32);
         draw_sprite(
             texture,

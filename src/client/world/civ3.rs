@@ -169,8 +169,51 @@ impl<'a> Civ3WorldPainter<'a> {
             map_layers::MapLayer::Blend => {}
             map_layers::MapLayer::Terrain => {
                 let tile = self.game.sim.render_tile_view(x, y);
+                let mut hilly_neighbors = 0;
+                let mut forests = 0;
+                let mut jungles = 0;
+                for (bit, (dx, dy)) in [(-1, -1), (1, -1), (-1, 1), (1, 1)].into_iter().enumerate()
+                {
+                    let Some((nx, ny)) =
+                        super::render_neighbor(self.game.sim.map_wrap(), x, y, dx, dy)
+                    else {
+                        continue;
+                    };
+                    let neighbor = self.game.sim.render_tile_view(nx, ny);
+                    if !neighbor.seen {
+                        continue;
+                    }
+                    if matches!(
+                        neighbor.terrain,
+                        Terrain::Hills | Terrain::Mountains | Terrain::Volcano
+                    ) {
+                        hilly_neighbors |= 1 << bit;
+                    } else if neighbor.terrain == Terrain::Forest {
+                        forests += 1;
+                    } else if neighbor.terrain == Terrain::Jungle {
+                        jungles += 1;
+                    }
+                }
+                let dominant_vegetation = if forests > jungles {
+                    Some(Terrain::Forest)
+                } else if jungles > forests {
+                    Some(Terrain::Jungle)
+                } else if forests > 0 {
+                    Some(if x.rem_euclid(2) == 0 {
+                        Terrain::Forest
+                    } else {
+                        Terrain::Jungle
+                    })
+                } else {
+                    None
+                };
                 self.assets.civ3.draw_overlay(
                     tile.terrain,
+                    tile.base_terrain,
+                    super::super::tileset::TerrainOverlayContext {
+                        hilly_neighbors,
+                        dominant_vegetation,
+                    },
                     (x, y),
                     geometry.center,
                     geometry.size(),
