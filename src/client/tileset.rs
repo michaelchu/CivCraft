@@ -2217,21 +2217,12 @@ impl Civ3 {
     fn junctions(game: &Game, x: i32, y: i32) -> [Junction; 4] {
         let wrap = game.sim.map_wrap();
         let px = 2 * x + y.rem_euclid(2);
-        let fallback = if (0..wrap.height()).contains(&y) {
-            let tile = game.sim.render_tile_view(x, y);
-            render_ground(&tile)
-        } else {
-            Ice
-        };
-        // Ice marks polar coverage here; rasterization keeps ocean underneath.
+        // Use neighboring base art beneath the fog overlay, including for
+        // unexplored cells. This preserves terrain transitions at the known
+        // frontier without drawing hidden overlays or units.
         let ground = |x: i32, y: i32| {
             wrap.normalize(x.div_euclid(2), y).map_or(Ice, |(nx, ny)| {
-                let tile = game.sim.render_tile_view(nx, ny);
-                if tile.seen {
-                    render_ground(&tile)
-                } else {
-                    fallback
-                }
+                render_ground(&game.sim.render_tile_view(nx, ny))
             })
         };
         std::array::from_fn(|side| {
