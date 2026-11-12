@@ -172,10 +172,15 @@ impl<'a> Civ3WorldPainter<'a> {
                 let mut hilly_neighbors = 0;
                 let mut forests = 0;
                 let mut jungles = 0;
-                for (bit, (dx, dy)) in [(-1, -1), (1, -1), (-1, 1), (1, 1)].into_iter().enumerate()
-                {
-                    let Some((nx, ny)) =
-                        super::render_neighbor(self.game.sim.map_wrap(), x, y, dx, dy)
+                // The mountain/hill atlases store NW, NE, SW, SE adjacency
+                // masks. Use Civ III's staggered-grid directions here: the
+                // legacy render_neighbor offsets resolve to different tiles.
+                for (bit, direction) in [7, 1, 5, 3].into_iter().enumerate() {
+                    let Some((nx, ny)) = self
+                        .game
+                        .sim
+                        .map_wrap()
+                        .civ3_neighbor(x, y, direction)
                     else {
                         continue;
                     };
