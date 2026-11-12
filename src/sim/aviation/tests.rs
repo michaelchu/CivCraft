@@ -123,8 +123,10 @@ fn mobile_sam_air_defense_can_shoot_down_a_bombing_aircraft() {
     );
 
     // For Mobile SAM (Air Defense 4) versus Bomber defense 2, the source
-    // combat roll has values 0..24. Rng state 1 yields a roll below 4.
-    game.rng = 1;
+    // combat roll has values 0..24. Rng state 3 yields a roll below 4.
+    // This fixture uses the legacy xorshift stream controlled by `rng`.
+    game.native_random = None;
+    game.rng = 3;
     assert_eq!(
         game.try_bombard(&game.unit_by_id(bomber).unwrap().clone(), tx, ty),
         MoveResult::Fought
@@ -148,6 +150,7 @@ fn aircraft_survives_when_unit_air_defense_roll_fails_and_bombardment_continues(
     game.spawn_unit(1, UnitKind::Flak, tx, ty);
 
     // Flak has Air Defense 2; state 2 yields roll 2, which is not below 2.
+    game.native_random = None;
     game.rng = 2;
     assert_eq!(
         game.try_bombard(&game.unit_by_id(bomber).unwrap().clone(), tx, ty),
@@ -439,6 +442,7 @@ mod fighter_tests {
             .unwrap()
             .hp = 1;
         let ground_unit = game.spawn_unit(HUMAN, UnitKind::Warrior, target_x, target_y);
+        game.native_random = None;
         game.rng = 2; // 22% interception roll, then an attacking combat roll.
 
         assert_eq!(
@@ -900,6 +904,9 @@ mod stealth_tests {
     fn stealth_aircraft_replace_older_models_and_need_close_detection() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (_, hidden) = game.stealth_aircraft_playtest_setup();
+        // Keep the source city's ordinary vision, but avoid unrelated starting
+        // units providing stealth detection at the relocated target tile.
+        game.units.retain(|unit| unit.owner != HUMAN || unit.id == hidden);
         let city = game.cities_owned_by(HUMAN).next().unwrap().clone();
         let distant = offset_native_by_map(city.x, city.y, 2, 0);
         game.tile_mut(distant.0, distant.1).terrain = Terrain::Grassland;
@@ -910,6 +917,7 @@ mod stealth_tests {
             .unwrap();
         (target.x, target.y) = distant;
         target.kind = UnitKind::StealthFighter;
+        game.refresh_visibility();
         assert!(game.tile(distant.0, distant.1).visible);
         assert!(!game.unit_visible_to_human(game.unit_by_id(hidden).unwrap()));
         let explorer = game.spawn_unit(HUMAN, UnitKind::Explorer, city.x, city.y);
