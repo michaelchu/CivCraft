@@ -41,6 +41,7 @@ The city manager now captures modal input and removes underlying HUD hitboxes. T
 From the app directory:
 
 ```sh
+export CIVCRAFT_SOURCE_DIR="$HOME/Documents/projects/CivCraft/source"
 cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```

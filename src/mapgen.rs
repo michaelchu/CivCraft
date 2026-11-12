@@ -975,14 +975,14 @@ pub(crate) trait MapGenerator {
     fn generate(&self, request: MapGenerationRequest) -> GeneratedMap;
 }
 
-/// Current seeded OpenSimplex terrain and campaign-map implementation.
+/// Seeded OpenSimplex terrain and campaign-map implementation.
 pub(crate) struct OpenSimplexMapGenerator;
 
 /// Freeciv-inspired recursive fractal landmass field with CivCraft's
 /// terrain, feature, river, resource, and starting-location passes.
 pub(crate) struct FreecivFractalMapGenerator;
 
-static DEFAULT_MAP_GENERATOR: OpenSimplexMapGenerator = OpenSimplexMapGenerator;
+static DEFAULT_MAP_GENERATOR: FreecivFractalMapGenerator = FreecivFractalMapGenerator;
 
 fn default_map_generator() -> &'static dyn MapGenerator {
     &DEFAULT_MAP_GENERATOR

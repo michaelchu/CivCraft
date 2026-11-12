@@ -188,18 +188,18 @@ async fn main() {
         }
     } else {
         let generated = match argument_value("--map-generator").as_deref() {
-            None | Some("opensimplex") => {
+            None | Some("fractal") => {
                 mapgen::generate_for_civ3_size(seed, map_size, world_settings)
             }
-            Some("freeciv-fractal") => mapgen::generate_for_civ3_size_with(
-                &mapgen::FreecivFractalMapGenerator,
+            Some("opensimplex") => mapgen::generate_for_civ3_size_with(
+                &mapgen::OpenSimplexMapGenerator,
                 seed,
                 map_size,
                 world_settings,
             ),
             Some(value) => {
                 eprintln!(
-                    "Invalid --map-generator value '{value}'; expected opensimplex or freeciv-fractal"
+                    "Invalid --map-generator value '{value}'; expected fractal or opensimplex"
                 );
                 std::process::exit(2);
             }

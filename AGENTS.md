@@ -133,6 +133,14 @@ For focused screenshot galleries and visual review, see `docs/UI_REVIEW.md` and 
 `--ui-review` instructions in `README.md`. Run that mode separately from
 `--self-test`.
 
+For this checkout, the Civ III art source is available at
+`$HOME/Documents/projects/CivCraft/source`. Set it before launching any game
+window or screenshot/visual-review run:
+
+```sh
+export CIVCRAFT_SOURCE_DIR="$HOME/Documents/projects/CivCraft/source"
+```
+
 ## Checking map-generation goldens
 
 Campaigns use Civ III's horizontal map topology and 36×48 tile preset. All
