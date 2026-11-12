@@ -381,25 +381,17 @@ struct MapRng {
 
 impl OceanDepthSettings {
     /// Map C2C3's depth-ranked ocean terrains to Civ III's water labels.
-    /// Lake (depth 0) becomes Coast, Ocean (35) becomes Sea, and Deep Ocean
-    /// (70) becomes Ocean. Freeciv's `pick_ocean` excludes depth 0, so lake
-    /// remains available only to the later small-basin-to-Coast pass.
+    /// The shallow band up to C2C3's Ocean depth becomes Civ III Coast, the
+    /// next band becomes Sea, and deeper water becomes Ocean. Depth-zero lakes
+    /// are still assigned separately by the small-basin pass.
     fn civ3_ocean_for_depth(self, depth: i32) -> Terrain {
-        let mut best = (i32::MAX, Terrain::Sea);
-        for (rule_depth, terrain) in [
-            (self.lake, Terrain::Coast),
-            (self.ocean, Terrain::Sea),
-            (self.deep_ocean, Terrain::Ocean),
-        ] {
-            if rule_depth == 0 {
-                continue;
-            }
-            let difference = (depth - rule_depth).abs();
-            if difference < best.0 {
-                best = (difference, terrain);
-            }
+        if depth < self.ocean {
+            Terrain::Coast
+        } else if depth < self.deep_ocean {
+            Terrain::Sea
+        } else {
+            Terrain::Ocean
         }
-        best.1
     }
 
     fn unsafe_coast_for_civ3_terrain(self, terrain: Terrain) -> Option<bool> {

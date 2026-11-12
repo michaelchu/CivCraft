@@ -2248,38 +2248,10 @@ impl Civ3 {
         // Use neighboring base art beneath the fog overlay, including for
         // unexplored cells. This preserves terrain transitions at the known
         // frontier without drawing hidden overlays or units.
-        let mut ground_cache = HashMap::new();
-        let mut ground_at = |x: i32, y: i32| {
-            wrap.normalize(x, y).map(|(nx, ny)| {
-                *ground_cache
-                    .entry((nx, ny))
-                    .or_insert_with(|| render_ground(&game.sim.render_tile_view(nx, ny)))
+        let ground = |x: i32, y: i32| {
+            wrap.normalize(x.div_euclid(2), y).map_or(Ice, |(nx, ny)| {
+                render_ground(&game.sim.render_tile_view(nx, ny))
             })
-        };
-        let mut ground = |x: i32, y: i32| {
-            let Some((tile_x, tile_y)) = wrap.normalize(x.div_euclid(2), y) else {
-                return Ice;
-            };
-            let Some(tile_ground) = ground_at(tile_x, tile_y) else {
-                return Ice;
-            };
-            if matches!(tile_ground, Sea | Ocean)
-                && (0..8).any(|direction| {
-                    wrap.civ3_neighbor(tile_x, tile_y, direction)
-                        .is_some_and(|(nx, ny)| {
-                            ground_at(nx, ny).is_some_and(|neighbor| {
-                                neighbor != Ice && !is_water(neighbor)
-                            })
-                        })
-                })
-            {
-                // Freeciv can put Sea or Ocean directly against land. Draw
-                // the first water ring with Civ III's Coast artwork, without
-                // changing the simulation terrain or its gameplay rules.
-                Coast
-            } else {
-                tile_ground
-            }
         };
         std::array::from_fn(|side| {
             let (dx, dy) = SIDES[side];

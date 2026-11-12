@@ -237,10 +237,13 @@ fn c2c3_ocean_depths_are_parsed_and_mapped_to_civ3_water_labels() {
             deep_ocean_unsafe_coast: true,
         }
     );
-    // Freeciv excludes depth-zero Lake from `pick_ocean`; the 52.5 midpoint
-    // ties to the first eligible C2C3 terrain, Ocean, which maps to Civ III Sea.
+    // Civ III Coast uses the shallow band below the C2C3 Ocean depth; Sea
+    // covers the Ocean-to-Deep-Ocean band.
+    assert_eq!(depths.civ3_ocean_for_depth(34), Terrain::Coast);
+    assert_eq!(depths.civ3_ocean_for_depth(35), Terrain::Sea);
     assert_eq!(depths.civ3_ocean_for_depth(52), Terrain::Sea);
-    assert_eq!(depths.civ3_ocean_for_depth(53), Terrain::Ocean);
+    assert_eq!(depths.civ3_ocean_for_depth(69), Terrain::Sea);
+    assert_eq!(depths.civ3_ocean_for_depth(70), Terrain::Ocean);
 
     let wrap = MapWrap::with_dimensions(16, 16).unwrap();
     let generator = Generator {
@@ -277,7 +280,7 @@ fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
     terrain[land] = Terrain::Grassland;
 
     generator.assign_freeciv_water_depths(&mut terrain, &heights, &land_mask, 700, depths);
-    assert_eq!(terrain[near_land], Terrain::Sea);
+    assert_eq!(terrain[near_land], Terrain::Coast);
     assert_eq!(terrain[wrap.index(0, 0)], Terrain::Ocean);
 
     // Depth smoothing crosses the wrapped X seam, while Y remains bounded.
