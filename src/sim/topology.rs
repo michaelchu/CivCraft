@@ -76,7 +76,7 @@ mod campaign_boundary_tests {
 #[cfg(test)]
 mod campaign_geometry_tests {
     use super::*;
-    use crate::sim::{Command, HUMAN, Simulation, UnitKind};
+    use crate::sim::{Command, HUMAN, Pact, Simulation, UnitKind};
     #[test]
     fn both_geometries_coexist_while_campaigns_found_and_advance() {
         for seed in [42, 1337] {
@@ -92,10 +92,30 @@ mod campaign_geometry_tests {
                     .unwrap()
                     .id;
                 assert!(sim.apply(Command::FoundCity(founder)));
+                for owner in 1..sim.civilization_count {
+                    // This geometry test exercises turn advancement, not the
+                    // diplomatic outcome of nearby start locations.
+                    sim.sign_pact(HUMAN, owner, Pact::Peace);
+                }
             }
-            for _ in 0..12 {
+            for turn in 0..12 {
                 for sim in &mut games {
-                    assert!(sim.apply(Command::EndTurn));
+                    assert!(
+                        sim.apply(Command::EndTurn),
+                        "seed {seed}, turn {turn}, game over: {:?}, human units: {:?}, cities: {:?}, events: {:?}",
+                        sim.game_over,
+                        sim.units
+                            .iter()
+                            .filter(|unit| unit.owner == HUMAN)
+                            .map(|unit| (unit.id, unit.kind, unit.x, unit.y, unit.hp))
+                            .collect::<Vec<_>>(),
+                        sim.cities
+                            .iter()
+                            .filter(|city| city.owner == HUMAN)
+                            .map(|city| (city.id, city.x, city.y, city.size))
+                            .collect::<Vec<_>>(),
+                        sim.events.iter().rev().take(12).collect::<Vec<_>>()
+                    );
                 }
             }
             for sim in &games {

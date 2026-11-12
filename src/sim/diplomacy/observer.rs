@@ -9,8 +9,7 @@ impl Simulation {
         if observer >= self.players.len() {
             return false;
         }
-        let allied = self.allied(observer, unit.owner);
-        if unit.transport.is_some() && !allied {
+        if unit.transport.is_some() && !self.allied(observer, unit.owner) {
             return false;
         }
         if self
@@ -20,41 +19,7 @@ impl Simulation {
         {
             return false;
         }
-        let mut visible = false;
-        let mut stealth_visible = false;
-        for (owner, x, y, radius) in self
-            .units
-            .iter()
-            .map(|viewer| {
-                let extra = match self.tile(viewer.x, viewer.y).base {
-                    Some(Base::Fortress) if self.has_tech(viewer.owner, Tech::ASTRONOMY) => 8,
-                    Some(Base::Airbase) => 8,
-                    _ => 0,
-                };
-                (
-                    viewer.owner,
-                    viewer.x,
-                    viewer.y,
-                    viewer.kind.stats().vision_sq + extra,
-                )
-            })
-            .chain(
-                self.cities
-                    .iter()
-                    .map(|city| (city.owner, city.x, city.y, 8)),
-            )
-        {
-            if !self.vision_recipients(owner).contains(&observer) {
-                continue;
-            }
-            let distance = self.map_distance(x, y, unit.x, unit.y);
-            visible |= distance * distance <= radius;
-            stealth_visible |= distance * distance <= radius.clamp(0, 2);
-            if visible && (allied || !unit.kind.uses_stealth_vision() || stealth_visible) {
-                return true;
-            }
-        }
-        false
+        self.unit_is_visible_from_sources(observer, unit)
     }
 }
 

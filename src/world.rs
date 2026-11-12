@@ -20,7 +20,11 @@ pub(crate) const PERCENT_SCALE: i32 = 100;
 /// Compact map-generation output, independent of campaign ownership,
 /// visibility, and improvement state.
 pub(crate) struct GeneratedMap {
+    /// Caller-provided campaign/game seed retained as the reproducible world
+    /// identity. The Freeciv generator uses a separate 32-bit map seed.
     pub(crate) seed: u64,
+    /// Distinct value drawn from the initialized gameplay stream for map work.
+    pub(crate) map_seed: u32,
     pub(crate) map_wrap: topology::MapWrap,
     pub(crate) game_random: FreecivRng,
     pub(crate) tiles: Vec<GeneratedTile>,

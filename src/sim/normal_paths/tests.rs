@@ -216,6 +216,7 @@ fn source_risk_uses_extra_attributes_not_fort_defense_effects() {
 #[test]
 fn ai_goto_executes_final_combat_and_restores_nonferry_goal_but_sets_ferry_goal() {
     let mut sim = world();
+    sim.set_random_seed(1);
     let actor = unit(&mut sim, 1, UnitKind::Swordsman);
     let target = offset_native_by_map(10, 20, 1, 0);
     let defender = sim.spawn_unit(BARBARIANS, UnitKind::Warrior, target.0, target.1);

@@ -286,6 +286,9 @@ impl Simulation {
     }
 
     pub(super) fn advance_space_race(&mut self) {
+        if !self.victory_enabled(crate::rules::freeciv::VictoryCondition::SpaceRace) {
+            return;
+        }
         for owner in 1..self.players.len() {
             if self.players[owner].ai && self.spaceships[owner].built == [32, 16, 12] {
                 self.launch_spaceship(owner);

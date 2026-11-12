@@ -69,7 +69,8 @@ impl Simulation {
         }
         self.allied(HUMAN, unit.owner)
             || (unit.transport.is_none()
-                && (!unit.kind.uses_stealth_vision() || tile.stealth_visible))
+                && (!self.unit_vision_layer_for(unit.kind).requires_detection()
+                    || tile.stealth_visible))
     }
 
     pub(in crate::sim) fn vision_safe(&self, giver: usize, receiver: usize) -> bool {

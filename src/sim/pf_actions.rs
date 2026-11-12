@@ -62,30 +62,7 @@ impl Simulation {
     }
 
     pub(super) fn pf_main_sight(&self, observer: usize, x: i32, y: i32) -> bool {
-        self.units
-            .iter()
-            .map(|unit| {
-                let extra = match self.tile(unit.x, unit.y).base {
-                    Some(Base::Fortress) if self.has_tech(unit.owner, Tech::ASTRONOMY) => 8,
-                    Some(Base::Airbase) => 8,
-                    _ => 0,
-                };
-                (
-                    unit.owner,
-                    unit.x,
-                    unit.y,
-                    unit.kind.stats().vision_sq + extra,
-                )
-            })
-            .chain(
-                self.cities
-                    .iter()
-                    .map(|city| (city.owner, city.x, city.y, 8)),
-            )
-            .any(|(owner, sx, sy, radius)| {
-                self.vision_recipients(owner).contains(&observer)
-                    && self.map_distance(sx, sy, x, y).pow(2) <= radius
-            })
+        self.has_main_sight_at(observer, x, y)
     }
 
     fn pf_attack_possible(&self, kind: UnitKind, owner: usize, x: i32, y: i32, seen: bool) -> bool {

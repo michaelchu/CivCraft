@@ -716,6 +716,7 @@ impl Simulation {
     }
 
     pub(crate) fn ai_source_goto_playtest(&mut self) -> bool {
+        self.set_random_seed(1);
         self.units.clear();
         self.cities.clear();
         self.prune_unit_ai_state();

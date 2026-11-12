@@ -30,7 +30,7 @@ where
     serde::Serialize::serialize(&ordered, serializer)
 }
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x18";
+const HEADER: &[u8] = b"CIVCRAFT\0\x19";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
@@ -355,6 +355,14 @@ impl Simulation {
             || self.nation_scores.len() != players
             || self.spaceships.len() != players
             || self.turn < 1
+            || (self.year_0_hack && self.year != 1)
+            || self
+                .global_advances
+                .iter()
+                .enumerate()
+                .any(|(index, tech)| {
+                    tech.data().is_none() || self.global_advances[..index].contains(tech)
+                })
             || self
                 .native_random
                 .as_ref()

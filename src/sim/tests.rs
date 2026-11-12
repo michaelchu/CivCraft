@@ -130,6 +130,99 @@ fn native_and_map_coordinates_round_trip() {
 }
 
 #[test]
+fn new_game_advances_freeciv_post_mapgen_rng_and_keeps_civ3_assignments() {
+    let map = crate::mapgen::generate(42);
+    let starts = map.starts.clone();
+    let mut expected_starts = starts.clone();
+    let expected_roster = crate::rules::civilizations::select_roster(map.seed, MAX_CIVILIZATIONS);
+    let mut expected_random = map.game_random.clone();
+
+    // srv_main.c::shuffle_players() calls array_shuffle() for all 512 slots.
+    for bound in (2..=PLAYER_SLOTS).rev() {
+        expected_random.draw(bound as u32);
+    }
+    // gamehand.c::init_new_game() generates a 32-character identifier from
+    // the 64-character base64url alphabet before shuffling flexible starts.
+    for _ in 0..32 {
+        expected_random.draw(64);
+    }
+    // All starts are unrestricted; Freeciv Fisher-Yates shuffles the whole
+    // list. CivCraft's deterministic generated order is the adapted input.
+    for index in 0..expected_starts.len().saturating_sub(1) {
+        let bound = expected_starts.len() - index;
+        let swap_index = index + expected_random.draw(bound as u32) as usize;
+        expected_starts.swap(index, swap_index);
+    }
+    assert_ne!(
+        expected_starts, starts,
+        "seed 42 should exercise a start swap"
+    );
+
+    let game = Simulation::new(map);
+
+    assert_eq!(game.native_random.as_ref(), Some(&expected_random));
+    assert_eq!(starts.len(), game.civilization_count);
+    for (owner, civilization) in expected_roster.iter().enumerate() {
+        assert_eq!(
+            game.players[owner].civilization_id.as_deref(),
+            Some(civilization.id.as_str())
+        );
+    }
+    let mut assigned_starts = Vec::with_capacity(game.civilization_count);
+    for (owner, &(start_x, start_y)) in expected_starts.iter().enumerate() {
+        let starting_units: Vec<_> = game
+            .units
+            .iter()
+            .filter(|unit| unit.owner == owner)
+            .collect();
+        let assigned_start = starting_units
+            .first()
+            .map(|unit| (unit.x, unit.y))
+            .unwrap_or_else(|| panic!("player {owner} has no start units"));
+        assert_eq!(assigned_start, (start_x, start_y));
+        assert!(
+            starting_units
+                .iter()
+                .all(|unit| (unit.x, unit.y) == assigned_start)
+        );
+        assigned_starts.push(assigned_start);
+    }
+    assert_eq!(assigned_starts, expected_starts);
+    let mut original_start_set = starts;
+    let mut assigned_start_set = assigned_starts;
+    original_start_set.sort_unstable();
+    assigned_start_set.sort_unstable();
+    assert_eq!(assigned_start_set, original_start_set);
+}
+
+#[test]
+fn civilization_ai_plans_after_begin_phase_restores_movement_points() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.known_by.fill(false);
+        tile.visible = false;
+        tile.owner = None;
+        tile.border_city = None;
+        tile.hut = false;
+    }
+    game.spawn_unit(HUMAN, UnitKind::Warrior, 0, 0);
+    let explorer = game.spawn_unit(1, UnitKind::Explorer, 10, 20);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == explorer)
+        .unwrap()
+        .moves_left = 0;
+
+    game.end_turn();
+
+    let explorer = game.unit_by_id(explorer).expect("AI explorer survives");
+    assert_ne!((explorer.x, explorer.y), (10, 20));
+}
+
+#[test]
 fn isohex_neighbors_and_wrapping_match_freeciv_distance() {
     assert!(!is_isohex_step(1, -1));
     assert!(!is_isohex_step(-1, 1));

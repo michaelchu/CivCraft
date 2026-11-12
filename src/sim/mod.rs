@@ -127,6 +127,8 @@ pub(crate) const MAX_CIVILIZATIONS: usize = 16;
 pub(crate) const HUMAN: usize = 0;
 pub(crate) const PLAYER_SLOTS: usize = 512;
 pub(crate) const BARBARIANS: usize = MAX_CIVILIZATIONS;
+const FREECIV_GAME_IDENTIFIER_DRAWS: usize = 32;
+const FREECIV_BASE64URL_CHARACTERS: u32 = 64;
 const PERCENT_SCALE: i32 = crate::world::PERCENT_SCALE;
 const CITY_MIN_DISTANCE: i32 = 3;
 pub(crate) const MOVE_FRAGMENTS: i32 = 6;
@@ -136,6 +138,7 @@ const BASE_TECH_COST: i32 = 10;
 const MIN_TECH_COST: i32 = 10;
 const TECH_COST_PERCENT: i32 = 300;
 const SCIENCEBOX_PERCENT: i32 = 100;
+
 const FOODBOX_PERCENT: i32 = 100;
 pub(crate) const CITIZEN_FOOD_COST: i32 = 2;
 const GRANARY_FOOD_INITIAL: [i32; 8] = [20, 20, 20, 20, 20, 30, 30, 40];
@@ -147,6 +150,49 @@ const FORTIFY_DEFENSE_BONUS: i32 = 50;
 const CITY_MIN_HP_PERCENT: i32 = 33;
 const BASE_HP_REGEN_2: i32 = 10;
 const FORTIFIED_HP_REGEN_2: i32 = 10;
+
+/// Advances the gameplay stream through Freeciv's post-mapgen new-game setup.
+///
+/// Freeciv shuffles all player slots, generates a random game identifier, and
+/// shuffles the unrestricted start-position list before assigning players.
+/// CivCraft retains its Civ III roster and player identities. Freeciv's
+/// `map_startpos_iterate` supplies starts in process-address-dependent hash
+/// order; `GeneratedMap::starts` instead has deterministic map-generator
+/// order. Apply the same Fisher-Yates shuffle to that deterministic order as
+/// an explicit adaptation. Pre-map nation/leader draws and later
+/// content-driven draws are separate parity gaps.
+fn apply_post_mapgen_setup_randomness(
+    rng: &mut crate::random::FreecivRng,
+    starts: &mut [(i32, i32)],
+) {
+    consume_shuffle_draws(rng, PLAYER_SLOTS);
+
+    // MAX_LEN_GAME_IDENTIFIER is 33, so randomize_base64url_string() draws
+    // once for each of the 32 non-terminator characters from a 64-char set.
+    for _ in 0..FREECIV_GAME_IDENTIFIER_DRAWS {
+        rng.draw(FREECIV_BASE64URL_CHARACTERS);
+    }
+
+    // Current generated starts are all unrestricted, so Freeciv shuffles the
+    // whole list even when fewer players than starts will be assigned.
+    shuffle_with_freeciv_rng(rng, starts);
+}
+
+/// Matches utility/shared.c::array_shuffle(): n - 1 calls with bounds n..2.
+fn consume_shuffle_draws(rng: &mut crate::random::FreecivRng, item_count: usize) {
+    for bound in (2..=item_count).rev() {
+        rng.draw(bound as u32);
+    }
+}
+
+/// Matches utility/shared.c::array_shuffle()'s Fisher-Yates swaps and bounds.
+fn shuffle_with_freeciv_rng<T>(rng: &mut crate::random::FreecivRng, items: &mut [T]) {
+    for index in 0..items.len().saturating_sub(1) {
+        let bound = items.len() - index;
+        let swap_index = index + rng.draw(bound as u32) as usize;
+        items.swap(index, swap_index);
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MoveResult {
@@ -170,7 +216,10 @@ struct MapObservation {
 /// snapshots, and event presentation caches are rebuilt or reset as needed.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Simulation {
+    /// Full caller-provided campaign/game seed used as the reproducible world ID.
     pub(crate) world_seed: u64,
+    /// 32-bit map seed drawn from the initialized Freeciv gameplay stream.
+    pub(crate) map_seed: u32,
     pub(crate) civilization_count: usize,
     pub(crate) map_wrap: MapWrap,
     tiles: Vec<Tile>,
@@ -187,10 +236,16 @@ pub(crate) struct Simulation {
     previous_naval_positions: std::collections::HashMap<u32, (i32, i32)>,
     diplomacy: std::collections::BTreeMap<(usize, usize), diplomacy::Relation>,
     apollo_completed: bool,
+    /// Technologies ever discovered by any civilization, including advances
+    /// later lost to upkeep. Freeciv's `survives=true, range=World` checks use
+    /// this monotonic campaign history.
+    global_advances: Vec<Tech>,
     players: Vec<Player>,
     government_adoptions: [i32; 9],
     turn: i32,
     year: i32,
+    /// Freeciv's one-turn state after skipping year zero.
+    year_0_hack: bool,
     next_unit_id: u32,
     next_city_id: u32,
     rng: u64,
@@ -358,12 +413,15 @@ impl Simulation {
     pub(crate) fn new(map: crate::world::GeneratedMap) -> Self {
         let crate::world::GeneratedMap {
             seed,
+            map_seed,
             map_wrap,
             tiles: generated_tiles,
-            starts,
+            mut starts,
             civilization_count,
-            game_random,
+            mut game_random,
         } = map;
+
+        apply_post_mapgen_setup_randomness(&mut game_random, &mut starts);
 
         let tiles = generated_tiles
             .into_iter()
@@ -437,6 +495,21 @@ impl Simulation {
             ai: true,
         });
 
+        let mut global_advances = Vec::new();
+        for tech in players
+            .iter()
+            .flat_map(|player| player.known.iter().copied())
+        {
+            if !global_advances.contains(&tech) {
+                global_advances.push(tech);
+            }
+        }
+
+        let calendar = crate::rules::freeciv::RulesetData::campaign_default()
+            .calendar_settings()
+            .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
+        let start_year = calendar.start_year;
+
         let mut units = Vec::new();
         let mut next_unit_id = 1;
         for (owner, start) in starts.iter().take(civilization_count).enumerate() {
@@ -462,6 +535,7 @@ impl Simulation {
 
         let mut game = Self {
             world_seed: seed,
+            map_seed,
             civilization_count,
             map_wrap,
             tiles,
@@ -475,10 +549,12 @@ impl Simulation {
             previous_naval_positions: Default::default(),
             diplomacy: Default::default(),
             apollo_completed: false,
+            global_advances,
             players,
             government_adoptions: [0; 9],
             turn: 1,
-            year: -4000,
+            year: start_year,
+            year_0_hack: false,
             next_unit_id,
             next_city_id: 1,
             rng: 0x9e37_79b9_7f4a_7c15,
@@ -486,7 +562,10 @@ impl Simulation {
             cargo_order: Default::default(),
             visual_events: Default::default(),
             events: vec![
-                "4000 BCE - Your people are ready to settle.".to_owned(),
+                format!(
+                    "{} - Your people are ready to settle.",
+                    year_label(start_year)
+                ),
                 "Choose the Settlers and press B to found a city.".to_owned(),
                 "Explore, research, grow, and unite the world.".to_owned(),
             ],
@@ -671,12 +750,15 @@ impl Simulation {
     }
 }
 
-/// Formats an in-game year using the campaign calendar's BC/AD convention.
+/// Formats an in-game year using the selected ruleset's calendar labels.
 pub(crate) fn year_label(year: i32) -> String {
+    let calendar = crate::rules::freeciv::RulesetData::campaign_default()
+        .calendar_settings()
+        .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
     if year < 0 {
-        format!("{} BCE", -year)
+        format!("{} {}", -year, calendar.negative_label)
     } else {
-        format!("{} CE", year)
+        format!("{} {}", year, calendar.positive_label)
     }
 }
 

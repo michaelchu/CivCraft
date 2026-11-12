@@ -11,7 +11,6 @@ pub(crate) struct UnitStats {
     pub(crate) hp: i32,
     pub(crate) firepower: i32,
     pub(crate) moves: i32,
-    pub(crate) vision_sq: i32,
     pub(crate) ignores_terrain: bool,
     pub(crate) can_work: bool,
     pub(crate) can_found: bool,
@@ -36,8 +35,6 @@ impl UnitKind {
             // round; bombardment uses the separately imported rate-of-fire.
             firepower: 1,
             moves: rule.moves,
-            // Vision radius is an engine default, not a PRTO field.
-            vision_sq: 2,
             ignores_terrain: rule.has_flag_1(0, 4),
             can_work: metadata.flags & (1u64 << crate::sim::unit_catalog::UnitFlag::Workers as u32)
                 != 0,

@@ -64,22 +64,6 @@ impl Default for FreecivRng {
 }
 
 impl FreecivRng {
-    /// Convert the equivalent map generator cursor without reheating or drawing.
-    pub(crate) fn from_map_state(values: [u32; 56], next: usize) -> Result<Self, &'static str> {
-        if next >= 56 {
-            return Err("invalid Freeciv map random cursor");
-        }
-        let state = Self {
-            values: values.to_vec(),
-            j: next as u8,
-            k: ((next + 31) % 56) as u8,
-            x: ((next + 55) % 56) as u8,
-            initialized: true,
-        };
-        debug_assert!(state.valid());
-        Ok(state)
-    }
-
     pub(crate) fn new(seed: u32) -> Self {
         let mut state = Self::default();
         state.values[0] = seed;

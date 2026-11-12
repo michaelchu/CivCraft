@@ -246,6 +246,7 @@ fn conquests_air_bombard_can_be_lethal_and_does_not_move_the_bomber() {
 #[test]
 fn conquests_artillery_bombards_within_its_source_range_without_moving() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.set_random_seed(1);
     let (x, y) = (10, 20);
     let (tx, ty) = game.map_wrap.offset(x, y, 2, 0).unwrap();
     game.tile_mut(x, y).terrain = Terrain::Grassland;
@@ -526,6 +527,8 @@ mod carrier_tests {
         let port = Production::Unit(UnitKind::Carrier);
         let (x, y) = (10, 20);
         game.tile_mut(x, y).terrain = Terrain::Grassland;
+        let harbor = game.map_wrap.civ3_neighbor(x, y, 0).unwrap();
+        game.tile_mut(harbor.0, harbor.1).terrain = Terrain::Sea;
         game.create_city(HUMAN, x, y);
         let city = game.cities.last().unwrap().clone();
         assert!(!game.can_produce(&city, port));
@@ -906,7 +909,8 @@ mod stealth_tests {
         let (_, hidden) = game.stealth_aircraft_playtest_setup();
         // Keep the source city's ordinary vision, but avoid unrelated starting
         // units providing stealth detection at the relocated target tile.
-        game.units.retain(|unit| unit.owner != HUMAN || unit.id == hidden);
+        game.units
+            .retain(|unit| unit.owner != HUMAN || unit.id == hidden);
         let city = game.cities_owned_by(HUMAN).next().unwrap().clone();
         let distant = offset_native_by_map(city.x, city.y, 2, 0);
         game.tile_mut(distant.0, distant.1).terrain = Terrain::Grassland;

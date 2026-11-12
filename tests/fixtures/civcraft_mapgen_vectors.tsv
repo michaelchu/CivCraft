@@ -1,7 +1,7 @@
-# CivCraft output using OpenCiv3's OpenSimplex 3D cylindrical field, noise-varied polar land suppression, Civ III topology, shelf rules, and default world settings.
+# CivCraft output using adapted Freeciv fractal height, water depth, temperature zones, property-driven terrain, river and C2C3 resource/hut placement rules with retained Civ III resource identities, values and rendering on CivCraft topology; player/nation assignment and exact source RNG parity remain adapted.
 # wrap seed width height fnv64(terrain,altitude,extras) sorted_start_positions
-x	1	36	48	ff37a98310d24cde	2,13;2,27;8,39;16,36;18,16;21,25
-x	42	36	48	2dd8cfb9f7f2d1b9	11,20;16,42;20,14;21,39;25,22;27,31
-x	12345	36	48	c83bc79888da683f	1,21;4,31;15,17;16,42;27,39;31,8
-x	700001	36	48	e9525363cf7b8b6e	3,17;7,41;8,22;18,26;24,37;27,17
-x	2147483647	36	48	31a9f6552839ccb3	19,38;20,13;22,26;28,40;29,24;32,9
+x	1	36	48	f810a553cb0e8e74	2,10;2,28;6,39;9,20;15,31;30,27
+x	42	36	48	76818b1c17b9cd71	1,25;8,22;15,39;24,5;25,21;31,19
+x	12345	36	48	199b4501fd3a6108	0,32;12,28;19,33;23,24;27,39;32,26
+x	700001	36	48	354acb089a791363	4,5;8,27;15,23;16,9;29,15;34,8
+x	2147483647	36	48	8d04724c3d9210f5	0,13;3,28;11,21;16,13;21,24;28,16

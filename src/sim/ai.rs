@@ -91,8 +91,21 @@ impl Simulation {
     }
 
     pub(super) fn run_ai_player(&mut self, owner: usize) {
-        if owner != BARBARIANS && (owner >= self.civilization_count || !self.player_alive(owner)) {
+        if !self.run_ai_player_planning(owner) {
             return;
+        }
+        self.run_ai_worker_phase(owner);
+        self.prune_ai_player_units();
+    }
+
+    /// Run the AI's non-worker first-activity unit planning. Campaign turn
+    /// orchestration calls this in begin phase after activity and movement
+    /// refresh and visibility; end phase runs worker automation before AI
+    /// last activities. `run_ai_player` remains a convenience wrapper for
+    /// isolated callers.
+    pub(super) fn run_ai_player_planning(&mut self, owner: usize) -> bool {
+        if owner != BARBARIANS && (owner >= self.civilization_count || !self.player_alive(owner)) {
+            return false;
         }
         // dai_do_first_activities assesses danger (and its research feedback)
         // before moving units; do_last_activities clears these wants later.
@@ -322,7 +335,10 @@ impl Simulation {
                 }
             }
         }
-        self.run_ai_worker_phase(owner);
+        true
+    }
+
+    pub(super) fn prune_ai_player_units(&mut self) {
         let alive: std::collections::HashSet<_> = self.units.iter().map(|u| u.id).collect();
         self.ai_ground_targets.retain(|id, _| alive.contains(id));
     }

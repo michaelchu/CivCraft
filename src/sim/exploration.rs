@@ -144,12 +144,12 @@ impl Simulation {
         {
             return 0;
         }
-        let radius_sq = unit.kind.stats().vision_sq;
+        let radius_sq = self.unit_vision_radius_sq_for(unit.owner, unit.kind, x, y);
         let radius = (radius_sq as f64).sqrt().ceil() as i32;
         let mut unknown = 0;
         let mut score = 0;
         for (nx, ny, distance) in self.map_wrap.civ3_radius(x, y, radius) {
-            if distance * distance > radius_sq {
+            if !self.within_vision_distance_sq(distance, radius_sq) {
                 continue;
             }
             let native = self.explorer_likely_native(unit.owner, unit.kind, nx, ny);

@@ -281,3 +281,300 @@ fn observed_map_round_trips_and_rejects_corrupt_owners() {
     assert!(!loaded.valid_render_memory());
     std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn c2c3_unit_sight_values_resolve_through_civ3_sight_bindings() {
+    let ruleset = RulesetData::campaign_default();
+    assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::Fighter), 8);
+    assert_eq!(
+        ruleset_unit_vision_radius_sq(ruleset, UnitKind::Explorer),
+        6
+    );
+    assert_eq!(
+        ruleset_unit_vision_radius_sq(ruleset, UnitKind::Conquistador),
+        6
+    );
+    assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::Leader), 8);
+    assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::Warrior), 2);
+    for (kind, section) in [
+        (UnitKind::Horseman, "unit_horsemen"),
+        (UnitKind::Pikeman, "unit_pikemen"),
+        (UnitKind::Rifleman, "unit_riflemen"),
+        (UnitKind::MechInfantry, "unit_mech_inf"),
+    ] {
+        let id = kind
+            .conquests_id()
+            .expect("campaign unit has a Conquests identity");
+        assert_eq!(
+            unit_sight_binding_for(id),
+            Some(SightBinding::SightAlias(section)),
+            "{id}"
+        );
+        assert_eq!(ruleset_unit_vision_radius_sq(ruleset, kind), 2, "{id}");
+        assert_eq!(
+            ruleset_unit_vision_layer(ruleset, kind),
+            UnitVisionLayer::Main,
+            "{id}"
+        );
+    }
+
+    for kind in UnitKind::ALL_NATIVE {
+        assert!(
+            ruleset_unit_vision_radius_sq(ruleset, kind) >= 2,
+            "missing or invalid sight binding for {kind:?}"
+        );
+    }
+
+    // These Freeciv-only unit identities have no exact Civ III unit record.
+    // Do not silently use Guerilla or F-15 as semantic substitutes; Civ III
+    // Conquests has no Spy unit identity at all.
+    assert_eq!(
+        ruleset_unit_vision_radius_sq(ruleset, UnitKind::Guerilla),
+        2
+    );
+    assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::F15), 8);
+
+    for kind in UnitKind::ALL_NATIVE {
+        let id = kind
+            .conquests_id()
+            .expect("every campaign unit has a Conquests identity");
+        if unit_sight_binding_for(id) == Some(SightBinding::Unresolved) {
+            assert_eq!(ruleset_unit_vision_radius_sq(ruleset, kind), 2, "{id}");
+            let expected_layer = if kind.uses_stealth_vision() {
+                UnitVisionLayer::Stealth
+            } else {
+                UnitVisionLayer::Main
+            };
+            assert_eq!(
+                ruleset_unit_vision_layer(ruleset, kind),
+                expected_layer,
+                "{id}"
+            );
+        }
+    }
+
+    assert_eq!(UNMAPPED_FREECIV_UNIT_VISION.len(), 3);
+    for gap in UNMAPPED_FREECIV_UNIT_VISION {
+        let record = ruleset
+            .content
+            .iter()
+            .find(|record| record.section == gap.freeciv_section)
+            .unwrap_or_else(|| panic!("missing explicit Freeciv unit gap {}", gap.freeciv_section));
+        assert_eq!(
+            record.integer_field("vision_radius_sq").unwrap(),
+            Some(i64::from(gap.freeciv_radius_sq)),
+            "{}: {}",
+            gap.freeciv_section,
+            gap.note
+        );
+        assert_eq!(gap.fallback_radius_sq, 2);
+    }
+    assert_eq!(
+        UNMAPPED_FREECIV_UNIT_VISION[0].civ3_catalog_id,
+        Some("guerilla")
+    );
+    assert_eq!(
+        UNMAPPED_FREECIV_UNIT_VISION[0].civ3_source,
+        Some("Conquests/conquests.biq#PRTO[75]")
+    );
+    assert_eq!(
+        UNMAPPED_FREECIV_UNIT_VISION[1].civ3_catalog_id, None,
+        "Conquests does not have a Spy unit record"
+    );
+    assert_eq!(
+        UNMAPPED_FREECIV_UNIT_VISION[2].civ3_catalog_id,
+        Some("f_15")
+    );
+    assert_eq!(
+        UNMAPPED_FREECIV_UNIT_VISION[2].civ3_source,
+        Some("Conquests/conquests.biq#PRTO[64]")
+    );
+}
+
+#[test]
+fn c2c3_vision_layers_bind_stealth_and_subsurface_units() {
+    let game = Simulation::new(crate::mapgen::generate(42));
+    assert_eq!(
+        game.unit_vision_layer_for(UnitKind::StealthFighter),
+        UnitVisionLayer::Stealth
+    );
+    assert_eq!(
+        game.unit_vision_layer_for(UnitKind::StealthBomber),
+        UnitVisionLayer::Stealth
+    );
+    assert_eq!(
+        game.unit_vision_layer_for(UnitKind::Submarine),
+        UnitVisionLayer::Subsurface
+    );
+    assert_eq!(
+        game.unit_vision_layer_for(UnitKind::Fighter),
+        UnitVisionLayer::Main
+    );
+    let unresolved_fallback = if UnitKind::Guerilla.uses_stealth_vision() {
+        UnitVisionLayer::Stealth
+    } else {
+        UnitVisionLayer::Main
+    };
+    assert_eq!(
+        game.unit_vision_layer_for(UnitKind::Guerilla),
+        unresolved_fallback
+    );
+}
+
+#[test]
+fn mapped_hidden_layers_need_short_range_detection_inside_main_sight() {
+    for hidden_kind in [
+        UnitKind::StealthFighter,
+        UnitKind::StealthBomber,
+        UnitKind::Submarine,
+    ] {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        for tile in &mut game.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.base = None;
+            tile.seen = false;
+            tile.visible = false;
+            tile.stealth_visible = false;
+            tile.known_by.fill(false);
+        }
+
+        // The Explorer sees the target tile at distance two, while its
+        // Freeciv invisible/subsurface detection radius is capped at two
+        // squared movement points (only distance one on this grid).
+        game.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
+        let target_id = game.spawn_unit(1, hidden_kind, 12, 20);
+        game.refresh_visibility();
+        assert!(
+            game.tile(12, 20).visible,
+            "{hidden_kind:?} tile is in main sight"
+        );
+        assert!(
+            !game.unit_visible_to_human(game.unit_by_id(target_id).unwrap()),
+            "{hidden_kind:?} remains hidden outside layer detection range"
+        );
+
+        // Any main-vision source also supplies the C2C3 short-range detector
+        // for both Freeciv hidden layers.
+        game.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
+        game.refresh_visibility();
+        assert!(
+            game.unit_visible_to_human(game.unit_by_id(target_id).unwrap()),
+            "{hidden_kind:?} is detected within radius-squared 2"
+        );
+    }
+}
+
+#[test]
+fn vision_uses_c2c3_effects_for_units_cities_and_reveal() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.seen = false;
+        tile.known_by.fill(false);
+    }
+
+    let worker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
+    assert_eq!(
+        game.unit_vision_radius_sq_for(HUMAN, UnitKind::Warrior, 10, 20),
+        2
+    );
+    assert!(!game.pf_main_sight(HUMAN, 12, 20));
+    game.tile_mut(10, 20).terrain = Terrain::Mountains;
+    assert_eq!(
+        game.unit_vision_radius_sq_for(HUMAN, UnitKind::Warrior, 10, 20),
+        6
+    );
+    assert!(game.pf_main_sight(HUMAN, 12, 20));
+    game.tile_mut(10, 20).terrain = Terrain::Grassland;
+    game.tile_mut(10, 20).base = Some(Base::Fortress);
+    assert_eq!(
+        game.unit_vision_radius_sq_for(HUMAN, UnitKind::Warrior, 10, 20),
+        2
+    );
+    game.players[HUMAN].known.push(Tech::ASTRONOMY);
+    assert_eq!(
+        game.unit_vision_radius_sq_for(HUMAN, UnitKind::Warrior, 10, 20),
+        10
+    );
+    game.tile_mut(10, 20).base = Some(Base::Airbase);
+    assert_eq!(
+        game.unit_vision_radius_sq_for(HUMAN, UnitKind::Warrior, 10, 20),
+        10
+    );
+    assert!(game.units.iter().any(|unit| unit.id == worker));
+
+    game.create_city(HUMAN, 15, 20);
+    let city = game.cities.len() - 1;
+    assert_eq!(game.city_vision_radius_sq(HUMAN), 5);
+    assert!(!game.pf_main_sight(HUMAN, 18, 20));
+    game.players[HUMAN].known.push(Tech::ELECTRICITY);
+    assert_eq!(game.city_vision_radius_sq(HUMAN), 10);
+    assert!(game.pf_main_sight(HUMAN, 18, 20));
+
+    game.cities[city].buildings.push(Building::APOLLO_PROGRAM);
+    assert!(game.reveals_map(HUMAN));
+    game.refresh_visibility();
+    assert!(game.tiles.iter().all(|tile| tile.known_by[HUMAN]));
+    assert!(game.tiles.iter().all(|tile| tile.seen));
+
+    // Refresh only rebuilds current visibility. A former global reveal stays
+    // in the player's map memory after its source wonder is lost.
+    game.cities[city].buildings.clear();
+    game.refresh_visibility();
+    assert!(game.tiles.iter().all(|tile| tile.known_by[HUMAN]));
+    assert!(game.tiles.iter().all(|tile| tile.seen));
+
+    game.cities[city].buildings.push(Building::INTERNET);
+    assert!(game.reveals_cities(HUMAN));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.known_by.fill(false);
+        tile.seen = false;
+    }
+    game.create_city(HUMAN, 5, 5);
+    game.cities[0].buildings.push(Building::INTERNET);
+    game.create_city(1, 30, 30);
+    game.refresh_visibility();
+    let distant_city_tile = game.map_wrap.index(30, 30);
+    assert!(game.tiles[distant_city_tile].known_by[HUMAN]);
+    assert!(game.tiles[distant_city_tile].seen);
+}
+
+#[test]
+fn c2c3_hex_radius_sq_uses_civ3_steps_without_crossing_poles() {
+    let game = Simulation::new(crate::mapgen::generate(42));
+    let origin = (20, 20);
+    let one_step = game.map_wrap.civ3_neighbor(origin.0, origin.1, 2).unwrap();
+    let two_steps = game
+        .map_wrap
+        .civ3_neighbor(one_step.0, one_step.1, 2)
+        .unwrap();
+    let three_steps = game
+        .map_wrap
+        .civ3_neighbor(two_steps.0, two_steps.1, 2)
+        .unwrap();
+    assert!(game.within_vision_radius_sq(origin, one_step, 2));
+    assert!(game.within_vision_radius_sq(origin, two_steps, 5));
+    assert!(!game.within_vision_radius_sq(origin, three_steps, 5));
+
+    let north = (origin.0, 0);
+    let south = (origin.0, game.map_wrap.height() - 1);
+    assert!(
+        game.map_wrap
+            .civ3_radius(north.0, north.1, 3)
+            .iter()
+            .all(|(_, y, _)| *y >= 0)
+    );
+    assert!(
+        game.map_wrap
+            .civ3_radius(south.0, south.1, 3)
+            .iter()
+            .all(|(_, y, _)| *y < game.map_wrap.height())
+    );
+}

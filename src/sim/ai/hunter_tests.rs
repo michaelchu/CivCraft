@@ -111,13 +111,9 @@ fn ordinary_horseman_does_not_enter_source_missile_hunter_phase() {
         .insert(target, offset_native_by_map(start.0, start.1, 10, 0));
     assert!(sim.apply(Command::EndTurn));
     assert!(!sim.hunter_targets.contains_key(&hunter));
-    assert!(!sim.unit_goto_tiles.contains_key(&hunter));
-    let actor = sim.unit_by_id(hunter).unwrap();
-    assert_eq!(
-        (actor.x, actor.y),
-        start,
-        "ordinary Horsemen are not routed through missile hunter management"
-    );
+    // The corrected begin phase may assign a normal AI route or move the
+    // Horseman. This fixture only asserts it did not enter missile-hunter
+    // management, whose target state is `hunter_targets`.
     assert_eq!(sim.previous_naval_positions.get(&target), Some(&far));
 }
 

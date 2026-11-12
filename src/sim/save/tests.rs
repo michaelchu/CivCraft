@@ -23,6 +23,9 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     game.cities[0].foreign_nationality_tenure = vec![(2, 7, 3)];
     game.cities[0].culture_suppressed_until_majority_assimilated = true;
     game.players[HUMAN].mobilized = true;
+    game.global_advances = vec![Tech::SPACE_FLIGHT, Tech::SUPERCONDUCTORS];
+    game.year = 1;
+    game.year_0_hack = true;
     game.set_random_seed(42);
     game.rand_below(1000);
     game.save_campaign(&path).unwrap();
@@ -30,8 +33,12 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     let loaded = Simulation::load_campaign(&path).unwrap();
     fs::remove_file(path).unwrap();
     assert_eq!(loaded.map_wrap, MapWrap::X);
+    assert_eq!(loaded.map_seed, game.map_seed);
     assert_eq!(loaded.random_snapshot(), game.random_snapshot());
     assert_eq!(loaded.turn, game.turn);
+    assert_eq!(loaded.global_advances, game.global_advances);
+    assert_eq!(loaded.year, game.year);
+    assert_eq!(loaded.year_0_hack, game.year_0_hack);
     assert!(loaded.players[HUMAN].mobilized);
     assert_eq!(loaded.cities[0].culture_for_civilization(HUMAN), 375);
     assert_eq!(loaded.cities[0].culture_for_civilization(2), 125);
@@ -144,7 +151,7 @@ fn civilization_culture_survives_city_destruction_and_save_load() {
 #[test]
 fn old_save_headers_and_corrupt_current_payloads_are_rejected() {
     let path = temporary_save("save-invalid");
-    fs::write(&path, b"CIVCRAFT\0\x11previous payload").unwrap();
+    fs::write(&path, b"CIVCRAFT\0\x18previous payload").unwrap();
     assert!(Simulation::load_campaign(&path).is_err());
 
     fs::write(&path, [HEADER, b"invalid payload"].concat()).unwrap();
