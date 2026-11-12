@@ -4,8 +4,11 @@ use super::*;
 
 impl super::Generator {
     pub(super) fn place_resources(&self, tiles: &mut [GeneratedTile], rng: &mut MapRng) {
-        // Civ III's terrain chart permits Fish on Coast, and Fish plus Whales
-        // on Sea and Ocean. Habitat is terrain data; placement stays generic.
+        use crate::world::Resource::{Fish, Whales};
+
+        // Keep ordinary resources on the generic terrain-based roll. Aquatic
+        // resources use bounded map-wide targets below so their total does not
+        // grow with the size of the ocean.
         for tile in 0..tiles.len() {
             if self
                 .neighbors(tile)
@@ -16,9 +19,51 @@ impl super::Generator {
             }
             let terrain = tiles[tile].terrain;
             for (index, &resource) in terrain.resource_options().iter().enumerate() {
+                if matches!(resource, Fish | Whales) {
+                    continue;
+                }
                 if rng.below(index as i32 + 1) == 0 {
                     tiles[tile].resource = Some(resource);
                 }
+            }
+        }
+
+        for (resource, target) in [
+            (Fish, self.civilization_count * 2),
+            (Whales, self.civilization_count),
+        ] {
+            let mut candidates: Vec<_> = (0..tiles.len())
+                .filter(|&tile| {
+                    tiles[tile].terrain.resource_options().contains(&resource)
+                        && self.neighbors(tile).any(|next| {
+                            !tiles[next].terrain.is_water()
+                                || self
+                                    .neighbors(next)
+                                    .any(|near| !tiles[near].terrain.is_water())
+                        })
+                })
+                .collect();
+
+            // Shuffle eligible tiles with the map RNG, then take the target
+            // number that satisfy the same one-tile spacing as land resources.
+            for i in (1..candidates.len()).rev() {
+                let j = rng.below((i + 1) as i32) as usize;
+                candidates.swap(i, j);
+            }
+            let mut placed = 0;
+            for tile in candidates {
+                if placed >= target {
+                    break;
+                }
+                if tiles[tile].resource.is_some()
+                    || self
+                        .neighbors(tile)
+                        .any(|next| tiles[next].resource.is_some())
+                {
+                    continue;
+                }
+                tiles[tile].resource = Some(resource);
+                placed += 1;
             }
         }
     }

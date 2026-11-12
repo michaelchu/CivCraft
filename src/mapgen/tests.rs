@@ -62,6 +62,18 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
             "generated rivers use only the four junction-sheet directions for seed {seed}"
         );
         assert!(tiles.iter().any(|tile| tile.resource.is_some()));
+        let fish_count = tiles
+            .iter()
+            .filter(|tile| tile.resource == Some(Resource::Fish))
+            .count();
+        assert!(fish_count <= crate::world::DEFAULT_CIVILIZATION_COUNT * 2);
+        assert!(
+            tiles
+                .iter()
+                .filter(|tile| tile.resource == Some(Resource::Whales))
+                .count()
+                <= crate::world::DEFAULT_CIVILIZATION_COUNT
+        );
         assert!(tiles.iter().any(|tile| tile.hut));
         assert!(map.starts.iter().all(|&(x, y)| {
             !tiles[(Generator {
@@ -119,6 +131,18 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                         .resource_options()
                         .contains(&tile.resource.unwrap())
                 );
+                if matches!(tile.resource, Some(Resource::Fish | Resource::Whales)) {
+                    assert!(
+                        (Generator {
+                            wrap: MapWrap::X,
+                            settings: Civ3WorldSettings::default(),
+                            civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
+                        })
+                        .within(index, 2)
+                        .any(|near| !tiles[near].terrain.is_water()),
+                        "aquatic resource at {index} is too far from land for seed {seed}"
+                    );
+                }
             }
             if !tile.river || visited[index] {
                 continue;
@@ -239,28 +263,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0x2adb4491d079515e,
-            [(0, 30), (1, 10), (3, 20), (8, 39), (16, 36), (20, 42)],
+            0xff37a98310d24cde,
+            [(2, 13), (2, 27), (8, 39), (16, 36), (18, 16), (21, 25)],
         ),
         (
             42,
-            0x4050f82d22df1719,
-            [(11, 20), (14, 37), (20, 13), (22, 42), (25, 23), (33, 13)],
+            0x2dd8cfb9f7f2d1b9,
+            [(11, 20), (16, 42), (20, 14), (21, 39), (25, 22), (27, 31)],
         ),
         (
             12345,
-            0xe29ceb5cec5d0a7f,
-            [(1, 23), (7, 38), (9, 7), (19, 37), (29, 38), (33, 16)],
+            0xc83bc79888da683f,
+            [(1, 21), (4, 31), (15, 17), (16, 42), (27, 39), (31, 8)],
         ),
         (
             700001,
-            0x3950c3f65302ac6e,
-            [(6, 26), (8, 40), (12, 21), (17, 27), (25, 37), (30, 18)],
+            0xe9525363cf7b8b6e,
+            [(3, 17), (7, 41), (8, 22), (18, 26), (24, 37), (27, 17)],
         ),
         (
             2147483647,
-            0xb3f5374c65145473,
-            [(15, 42), (20, 12), (20, 38), (21, 25), (25, 35), (29, 10)],
+            0x31a9f6552839ccb3,
+            [(19, 38), (20, 13), (22, 26), (28, 40), (29, 24), (32, 9)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {
@@ -728,11 +752,6 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
         let checksum = map_checksum(&map.tiles);
         let mut starts = map.starts.to_vec();
         starts.sort_unstable();
-        assert_eq!(
-            checksum,
-            u64::from_str_radix(fields[4], 16).unwrap(),
-            "terrain/altitude/extras for {wrap} seed {seed}"
-        );
         let expected: Vec<(i32, i32)> = fields[5]
             .split(';')
             .map(|pair| {
@@ -740,6 +759,11 @@ fn generated_worlds_match_civcraft_resource_goldens_for_each_wrap() {
                 (x.parse().unwrap(), y.parse().unwrap())
             })
             .collect();
+        assert_eq!(
+            checksum,
+            u64::from_str_radix(fields[4], 16).unwrap(),
+            "terrain/altitude/extras for {wrap} seed {seed}"
+        );
         assert_eq!(
             starts, expected,
             "starting locations for {wrap} seed {seed}"
