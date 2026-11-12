@@ -1,0 +1,84 @@
+civ3_id	source_record_index	legacy_runtime_index	mapping_status	mapping_note
+BLDG_Palace	0	23	mapped	
+BLDG_Barracks	1		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Granary	2		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Temple	3	40	mapped	
+BLDG_Marketplace	4		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Library	5	17	mapped	
+BLDG_Courthouse	6		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Walls	7		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Aqueduct	8		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Bank	9		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Cathedral	10	8	mapped	
+BLDG_University	11	41	mapped	
+BLDG_Colosseum	12	73	mapped	
+BLDG_Factory	13		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Manufacturing_Plant	14		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Recycling_Center	15		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Coal_Plant	16		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Hydro_Plant	17		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Nuclear_Plant	18		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Hospital	19		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Lab	20	29	mapped	
+BLDG_Mass_Transit_System	21		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SAM_Missile_Battery	22		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Coastal_Fortress	23		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Solar_Plant	24		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Harbor	25		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Offshore_Platform	26		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Airport	27		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Police_Station	28		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Wealth	29		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Pyramids	30	65	mapped	
+BLDG_Hanging_Gardens	31	51	mapped	
+BLDG_Colossus	32	44	mapped	
+BLDG_Lighthouse	33	57	mapped	
+BLDG_Great_Library	34	49	mapped	
+BLDG_Oracle	35	76	mapped	
+BLDG_Great_Wall	36	50	mapped	
+BLDG_Art_of_War	37	69	mapped	
+BLDG_Sistine_Chapel	38	88	mapped	
+BLDG_Circumnavigation	39	58	mapped	
+BLDG_Solar_System	40	45	mapped	
+BLDG_Great_Playhouse	41	67	mapped	
+BLDG_Inventor's_Workshop	42	56	mapped	
+BLDG_Grand_Cathedral	43	54	mapped	
+BLDG_Great_University	44	53	mapped	
+BLDG_Trading_Company	45	43	mapped	
+BLDG_Universal_Suffrage	46	78	mapped	
+BLDG_Hoover_Dam	47	52	mapped	
+BLDG_Theory_of_Evolution	48	77	mapped	
+BLDG_United_Nations	49	70	mapped	
+BLDG_Manhattan_Project	50	59	mapped	
+BLDG_Cure_for_Cancer	51	46	mapped	
+BLDG_Longevity	52	75	mapped	
+BLDG_SETI_Program	53	79	mapped	
+BLDG_Epic	54	81	mapped	
+BLDG_Great_Ironworks	55	82	mapped	
+BLDG_Forbidden_Palace	56	80	mapped	
+BLDG_Military_Academy	57	83	mapped	
+BLDG_Pentagon	58	84	mapped	
+BLDG_Wall_Street	59	85	mapped	
+BLDG_Apollo_Project	60	42	mapped	
+BLDG_SDI	61	31	mapped	
+BLDG_Intelligence_Center	62	86	mapped	
+BLDG_Battlefield_Medicine	63	87	mapped	
+BLDG_SS_Thrusters	64		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SS_Engine	65		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SS_Landing_Docking_Bay	66		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SS_Cockpit	67		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SS_Fuel_Cells	68		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SS_Life_Support_System	69		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SS_Stasis_Chamber	70		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SS_Storage_Supply	71		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SS_Planetary_Party_Lounge	72		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_SS_Exterior_Casing	73		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Internet	74	66	mapped	
+BLDG_Civil_Defense	75		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Stock_Exchange	76		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Commercial_Dock	77		unmapped	No legacy Building wrapper has been assigned to this BIQ record.
+BLDG_Artemis	78	64	mapped	
+BLDG_Zeus	79	63	mapped	
+BLDG_Mausoleum	80	62	mapped	
+BLDG_Knights_Templar	81	89	mapped	
+BLDG_Secret_Police_HQ	82	90	mapped	

@@ -31,6 +31,39 @@ therefore the authoritative source for expansion values, availability,
 replacements, technologies, resources, upgrades, and special flags. No
 Freeciv-derived values are used to fill gaps.
 
+## Building and technology source catalogs
+
+`buildings.tsv` and `technologies.tsv` preserve all 83 Conquests `BLDG` and 83
+`TECH` records from the installed BIQ. They retain source order, Civilopedia
+keys, every gameplay scalar, raw flag bytes, unknown tail bytes, and raw
+cross-reference indices. Resolved names are convenience fields; the indices
+remain authoritative. Each row records the BIQ path, section, record index,
+and source SHA-256. The BLDG flavor-description prose is omitted; the compact
+gameplay values and identifiers are retained.
+
+Regenerate these catalogs from the same unpacked BIQ used for the unit export:
+
+```sh
+python3 tools/export_civ3_conquests_buildings_techs.py \
+  --unpacked-biq /tmp/conquests.unpacked \
+  --source-root ../source
+```
+
+`building_catalog_bindings.tsv` records the partial crosswalk to the current
+serialized `Building` wrappers. It maps 47 of 83 source records. The other 36
+remain source-addressable and carry an explicit unmapped reason; do not infer
+their identities from Freeciv record order. The crosswalk reuses the existing
+culture-export mapping, whose numeric values are legacy CivCraft IDs.
+
+`RulesetData::load_with_civ3_catalog` attaches these Civ III records alongside
+the selected Freeciv ruleset. The source records remain distinct from
+Freeciv's native content until the owning gameplay subsystem consumes them.
+The runtime binding layer currently resolves all 92 units, all 31 playable
+civilizations, 82 technologies, and 47 buildings. `Amphibious War` explicitly
+binds to the existing `Amphibious Warfare` technology ID; `Ironclads` and 36
+building wrappers remain unresolved and are preserved with reasons. This is
+an adapter inventory, not a gameplay cutover.
+
 ## Unit table
 
 `units.tsv` is UTF-8, tab-separated, and editable in a text editor or spreadsheet.
