@@ -82,7 +82,7 @@ async fn main() {
             eprintln!("Invalid --map-size value: {error}");
             std::process::exit(2);
         })
-        .unwrap_or_default();
+        .unwrap_or(mapgen::Civ3MapSize::Small);
     map_size.topology().unwrap_or_else(|error| {
         eprintln!("Invalid --map-size value: {error}");
         std::process::exit(2);

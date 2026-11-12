@@ -35,8 +35,9 @@ CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release -- \
   --world-age 4 --landform continents --temperature temperate --tileset civ3
 ```
 
-`--map-size` accepts `tiny`, `small`, `standard`, `large`, `huge`, or custom
-`WIDTHxHEIGHT` dimensions. Ocean coverage accepts `60`, `70`, or `80`; climate
+`--map-size` defaults to `small` (80×80). It accepts `tiny`, `small`,
+`standard`, `large`, `huge`, or custom `WIDTHxHEIGHT` dimensions. Ocean
+coverage accepts `60`, `70`, or `80`; climate
 accepts `arid`, `normal`, or `wet`; world age accepts `3`, `4`, or `5` billion
 years; landform accepts `archipelago`, `continents`, or `pangaea`; and
 temperature accepts `cool`, `temperate`, or `warm`. The built-in `--tileset`
