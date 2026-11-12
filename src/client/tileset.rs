@@ -912,6 +912,7 @@ fn spatial_variant_hash(x: i32, y: i32, choices: u8) -> u8 {
     (value % u64::from(choices)) as u8
 }
 
+#[derive(Clone, Copy)]
 struct SheetCell<'a> {
     image: &'a Image,
     offset: usize,
@@ -1028,9 +1029,22 @@ impl GroundArt {
         let pure_ice = ground == [Ice; 4];
         let ice_over_water = ground.iter().all(|&tile| is_water(tile) || tile == Ice);
         let depths = ground.map(water_depth);
-        let ocean = SheetCell::lookup(&self.water, depths);
+        let water_transition = SheetCell::lookup(&self.water, depths);
+        let land_water_transition = SheetCell::lookup(
+            &self.water,
+            ground.map(|tile| match tile {
+                Coast => 0,
+                Sea => 1,
+                Ocean => 2,
+                // The water atlas has no land entries. Use its shallow-water
+                // edge for land corners when drawing a land/water junction.
+                _ => 0,
+            }),
+        );
         let mut patch = [None, None, None, None];
         let mut tundra_blend = false;
+        let blend_land_water =
+            !pure_water && !ice_over_water && ground.iter().any(|&tile| is_water(tile));
         // Polar PCX cells are keyed overlays; keep ocean art beneath the cap.
         let main = if pure_ice || key.straight_ice {
             SheetCell::new(&self.ocean, variant, (variant * 5) % 9)
@@ -1039,7 +1053,7 @@ impl GroundArt {
         } else if pure_water && depths == [2; 4] {
             SheetCell::new(&self.ocean, variant, (variant * 5) % 9)
         } else if ice_over_water {
-            SheetCell::lookup(&self.water, depths)
+            water_transition
         } else {
             let land = ground.map(|tile| match tile {
                 Ice => Tundra,
@@ -1100,11 +1114,25 @@ impl GroundArt {
             let mut color = main.pixel(x, y);
             let signed_tip = [-dy - dx.abs(), dx - dy.abs(), dy - dx.abs(), -dx - dy.abs()];
             for (i, distance) in signed_tip.into_iter().enumerate() {
-                if let Some(other) = &patch[i] {
+                if blend_land_water && is_water(ground[i]) {
+                    // Keep the selected land sprite on the shore side, while
+                    // carrying the generated water depths into the junction.
+                    color = mix(
+                        color,
+                        land_water_transition.pixel(x, y),
+                        // Fade the shoreline art across the mixed junction so
+                        // its edge does not read as a clipped tile.
+                        smooth(0.5 + distance / 0.5),
+                    );
+                } else if let Some(other) = &patch[i] {
                     let width = if tundra_blend { 0.28 } else { 0.08 };
                     color = mix(color, other.pixel(x, y), smooth(0.5 + distance / width));
                 } else if blend_ice && !ice_over_water && is_water(ground[i]) && depths[i] != 0 {
-                    color = mix(color, ocean.pixel(x, y), smooth(0.5 + distance / 0.28));
+                    color = mix(
+                        color,
+                        water_transition.pixel(x, y),
+                        smooth(0.5 + distance / 0.28),
+                    );
                 }
             }
             *pixel = [color[0], color[1], color[2], 255];
@@ -2220,10 +2248,38 @@ impl Civ3 {
         // Use neighboring base art beneath the fog overlay, including for
         // unexplored cells. This preserves terrain transitions at the known
         // frontier without drawing hidden overlays or units.
-        let ground = |x: i32, y: i32| {
-            wrap.normalize(x.div_euclid(2), y).map_or(Ice, |(nx, ny)| {
-                render_ground(&game.sim.render_tile_view(nx, ny))
+        let mut ground_cache = HashMap::new();
+        let mut ground_at = |x: i32, y: i32| {
+            wrap.normalize(x, y).map(|(nx, ny)| {
+                *ground_cache
+                    .entry((nx, ny))
+                    .or_insert_with(|| render_ground(&game.sim.render_tile_view(nx, ny)))
             })
+        };
+        let mut ground = |x: i32, y: i32| {
+            let Some((tile_x, tile_y)) = wrap.normalize(x.div_euclid(2), y) else {
+                return Ice;
+            };
+            let Some(tile_ground) = ground_at(tile_x, tile_y) else {
+                return Ice;
+            };
+            if matches!(tile_ground, Sea | Ocean)
+                && (0..8).any(|direction| {
+                    wrap.civ3_neighbor(tile_x, tile_y, direction)
+                        .is_some_and(|(nx, ny)| {
+                            ground_at(nx, ny).is_some_and(|neighbor| {
+                                neighbor != Ice && !is_water(neighbor)
+                            })
+                        })
+                })
+            {
+                // Freeciv can put Sea or Ocean directly against land. Draw
+                // the first water ring with Civ III's Coast artwork, without
+                // changing the simulation terrain or its gameplay rules.
+                Coast
+            } else {
+                tile_ground
+            }
         };
         std::array::from_fn(|side| {
             let (dx, dy) = SIDES[side];
