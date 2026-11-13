@@ -470,7 +470,11 @@ fn grave_home_danger_keeps_its_strong_defender_even_with_a_threatened_neighbor()
     game.spawn_unit(HUMAN, UnitKind::Cavalry, near_home.0, near_home.1);
     game.spawn_unit(HUMAN, UnitKind::Cavalry, near_front.0, near_front.1);
     assert!(game.city_grave_danger(&game.cities[0]) > 0);
-    assert!(!game.reinforce_ai_cities(1).contains(&marine));
+    assert!(
+        !game
+            .reinforce_ai_cities(1, &std::collections::HashSet::new())
+            .contains(&marine)
+    );
     assert!(
         game.units
             .iter()

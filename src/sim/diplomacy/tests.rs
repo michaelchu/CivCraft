@@ -610,6 +610,52 @@ fn profitable_war_target_loses_love_while_expansion_suppresses_war_desire() {
 }
 
 #[test]
+fn war_desire_uses_the_selected_ruleset_city_defense_bonus() {
+    let mut game = war_planning_game();
+    assert_eq!(
+        game.campaign_city_effect(&game.cities[0], "Defend_Bonus"),
+        0
+    );
+    let undefended = game.ai_war_desire(1, HUMAN);
+    game.tile_mut(8, 20).base = Some(Base::Fortress);
+    assert_eq!(
+        game.campaign_city_effect(&game.cities[0], "Defend_Bonus"),
+        100
+    );
+    let fortified = game.ai_war_desire(1, HUMAN);
+    assert_eq!(fortified, undefended - 100);
+}
+
+#[test]
+fn ai_love_wonder_bonus_uses_gain_ai_love_effect_and_apollo_requirement() {
+    let plain = war_planning_game();
+    let mut eiffel = plain.clone();
+    eiffel
+        .cities
+        .iter_mut()
+        .find(|city| city.owner == HUMAN)
+        .unwrap()
+        .buildings
+        .push(Building::EIFFEL_TOWER);
+    eiffel.completed_wonders.push(Building::EIFFEL_TOWER);
+
+    let mut apollo = eiffel.clone();
+    apollo
+        .cities
+        .iter_mut()
+        .find(|city| city.owner == HUMAN)
+        .unwrap()
+        .buildings
+        .push(Building::APOLLO_PROGRAM);
+    apollo.completed_wonders.push(Building::APOLLO_PROGRAM);
+    apollo.apollo_completed = true;
+
+    assert_eq!(plain.campaign_player_effect(HUMAN, "Gain_AI_Love"), 0);
+    assert_eq!(eiffel.campaign_player_effect(HUMAN, "Gain_AI_Love"), 10);
+    assert_eq!(apollo.campaign_player_effect(HUMAN, "Gain_AI_Love"), 0);
+}
+
+#[test]
 fn treaty_city_listing_excludes_capitals_hidden_cities_and_other_owners() {
     let mut game = war_planning_game();
     for (x, y) in [(14, 24), (16, 24), (18, 24)] {

@@ -1,6 +1,12 @@
 //! Advisor selection and valuation of research goals.
 
+use super::super::action_rules::SimulationRequirementContext;
+use super::super::content_adapter::{FreecivTechBinding, bind_freeciv_technology};
 use super::*;
+use crate::rules::freeciv::{
+    EffectRecord, Requirement as FreecivRequirement, RequirementContext, RequirementRange,
+    RequirementValue, RulesetData,
+};
 
 impl Simulation {
     pub(in crate::sim) fn advisor_tech_want(&self, owner: usize, tech: Tech) -> f32 {
@@ -136,20 +142,17 @@ impl Simulation {
 
     pub(super) fn city_tech_effect_want(&self, city: &City, tech: Tech) -> i32 {
         let baseline = self.advisor_city_output(city, None);
-        let owner = city.owner;
         let direct = match tech {
             Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION => {
                 self.advisor_city_output(city, Some(tech)) - baseline
             }
-            Tech::MYSTICISM
-                if city.has_building(Building::TEMPLE)
-                    && self.players[owner].government != Government::Communism =>
-            {
-                TRADE_WEIGHT
-            }
             _ => 0,
         };
-        let mut want = direct * 14 / 8;
+        // daitech.c adds each supported effect's raw value to the per-city
+        // accumulator before applying its common 14/8 conversion. The direct
+        // output preview above remains the base-want path for output effects.
+        let effect_value = self.freeciv_city_tech_effect_value(city, tech);
+        let mut want = (direct + effect_value) * 14 / 8;
         for &building in &city.buildings {
             if building
                 .data()
@@ -165,6 +168,165 @@ impl Simulation {
             }
         }
         want
+    }
+
+    /// Source-backed subset of Freeciv daieffects.c:dai_effect_value used by
+    /// daitech.c:dai_tech_effect_values. This covers the selected C2C3
+    /// vision, movement, upgrade-price, health, and Make_Content effects.
+    /// Output-waste/penalty effects are covered by the city-output preview;
+    /// Railroad/Trade remain explicit output-preview adapters because their
+    /// requirements have no direct Civ III advance binding. Freeciv itself
+    /// gives no value to the selected Trade_Revenue_Bonus, Inspire_Partisans,
+    /// Has_Senate, or timeline effects.
+    fn freeciv_city_tech_effect_value(&self, city: &City, tech: Tech) -> i32 {
+        if !tech.is_civ3_advance() {
+            return 0;
+        }
+
+        let ruleset = RulesetData::campaign_default();
+        // dai_tech_effect_values temporarily marks the candidate advance as
+        // known while checking whether the effect's other requirements remain
+        // possible, including whether it makes a building obsolete.
+        let context = SimulationRequirementContext::for_city_at(self, city, None)
+            .with_granted_tech(Some(tech));
+        let mut total = 0_i32;
+
+        for effect in &ruleset.effects {
+            if effect.multiplier.is_some()
+                || !matches!(
+                    effect.kind.to_ascii_lowercase().as_str(),
+                    "city_vision_radius_sq"
+                        | "unit_vision_radius_sq"
+                        | "move_bonus"
+                        | "upgrade_price_pct"
+                        | "make_content"
+                        | "health_pct"
+                )
+            {
+                continue;
+            }
+
+            let candidate_techs: Vec<_> = effect
+                .requirements
+                .iter()
+                .filter_map(|requirement| bound_player_tech(ruleset, requirement))
+                .filter(|(required, _)| *required == tech)
+                .collect();
+            if candidate_techs.is_empty() {
+                continue;
+            }
+
+            // Freeciv evaluates the effect with the candidate advance known,
+            // then subtracts it when that advance removes the effect.
+            let active_after = candidate_techs.iter().all(|(_, present)| *present);
+            let active_before = candidate_techs.iter().all(|(_, present)| !*present);
+            let direction = match (active_before, active_after) {
+                (true, false) => -1,
+                (false, true) => 1,
+                _ => continue,
+            };
+
+            let other_requirements_active = effect.requirements.iter().all(|requirement| {
+                if bound_player_tech(ruleset, requirement)
+                    .is_some_and(|(required, _)| required == tech)
+                {
+                    return true;
+                }
+                // dai_tech_effect_values passes only player and city to
+                // is_req_active(..., RPT_POSSIBLE). In that context Local and
+                // Tile requirements are TRI_MAYBE and therefore possible,
+                // independent of their present flag.
+                if matches!(
+                    requirement.range,
+                    RequirementRange::Local | RequirementRange::Tile
+                ) {
+                    return true;
+                }
+                context
+                    .is_present(requirement)
+                    .is_ok_and(|present| present == requirement.present)
+            });
+            if !other_requirements_active {
+                continue;
+            }
+
+            let amount = match i32::try_from(effect.value) {
+                Ok(value) => value,
+                Err(_) => continue,
+            };
+            let value = match effect.kind.to_ascii_lowercase().as_str() {
+                // Freeciv's WAG: one unit of value per city per radius amount.
+                "city_vision_radius_sq" | "unit_vision_radius_sq" => amount,
+                // C2C3 sets illness_on=TRUE. daieffects.c uses the city's
+                // current illness before the candidate tech's health bonus.
+                "health_pct" => {
+                    // The selected C2C3 game.ruleset sets illness_on=TRUE.
+                    let illness = self.city_illness(city, self.city_forecast(city).shields);
+                    5 + (amount / 5) * illness
+                }
+                "make_content" => {
+                    let luxury = self.city_forecast(city).luxury;
+                    let max_converted = self.city_min_unhappy_after_effect_stage(city, luxury);
+                    let entertainers = self.city_entertainer_count(city);
+                    amount.min(max_converted + entertainers) * 35
+                }
+                // Preserve daieffects.c's expression exactly: v starts at 0,
+                // so EFT_MOVE_BONUS contributes num_affected_units(). Its
+                // class matcher ignores UnitType requirements, as Freeciv's
+                // unit_class_found() marks those requirements not applicable.
+                "move_bonus" => match self.tech_effect_affected_units(city.owner, effect) {
+                    Some(count) => count,
+                    None => continue,
+                },
+                // Freeciv estimates 50 shields as the average base upgrade
+                // price and applies -upgradeable * amount / 2.
+                "upgrade_price_pct" => {
+                    let upgradeable = self
+                        .units
+                        .iter()
+                        .filter(|unit| {
+                            unit.owner == city.owner && self.upgrade_target(unit).is_some()
+                        })
+                        .count() as i32;
+                    -(upgradeable * amount / 2)
+                }
+                _ => continue,
+            };
+            total += direction * value;
+        }
+
+        total
+    }
+
+    /// Mirror daieffects.c:num_affected_units for the selected Move_Bonus
+    /// effects. UnitClass requirements filter C2C3 class bindings; UnitType
+    /// requirements are not applicable to a Freeciv unit class and therefore
+    /// do not narrow this count.
+    fn tech_effect_affected_units(&self, owner: usize, effect: &EffectRecord) -> Option<i32> {
+        let class_requirements: Vec<_> = effect
+            .requirements
+            .iter()
+            .filter(|requirement| {
+                requirement.kind.eq_ignore_ascii_case("UnitClass")
+                    && requirement.range == RequirementRange::Local
+            })
+            .collect();
+        if class_requirements.is_empty() {
+            return Some(self.units.iter().filter(|unit| unit.owner == owner).count() as i32);
+        }
+
+        let mut count = 0;
+        for unit in self.units.iter().filter(|unit| unit.owner == owner) {
+            let class = super::super::action_rules::freeciv_unit_class_rule_name(unit.kind)?;
+            let matches = class_requirements.iter().all(|requirement| {
+                let RequirementValue::String(name) = &requirement.name else {
+                    return false;
+                };
+                class.eq_ignore_ascii_case(name) == requirement.present
+            });
+            count += i32::from(matches);
+        }
+        Some(count)
     }
 
     pub(in crate::sim) fn record_ai_tech_effect_wants(&mut self, owner: usize) {
@@ -239,5 +401,28 @@ impl Simulation {
                 8 + retention / 10 * food_surplus.max(0) + retention / 15 * (-food_surplus).max(1);
         }
         benefit
+    }
+}
+
+/// Resolve only the player-scoped, non-surviving Tech universals that
+/// daitech.c treats as the candidate advance itself.
+fn bound_player_tech(
+    ruleset: &RulesetData,
+    requirement: &FreecivRequirement,
+) -> Option<(Tech, bool)> {
+    if !requirement.kind.eq_ignore_ascii_case("Tech")
+        || requirement.range != RequirementRange::Player
+        || requirement.survives
+    {
+        return None;
+    }
+    let RequirementValue::String(name) = &requirement.name else {
+        return None;
+    };
+    match bind_freeciv_technology(ruleset, name).ok()? {
+        FreecivTechBinding::Bound(tech) if tech.is_civ3_advance() => {
+            Some((tech, requirement.present))
+        }
+        FreecivTechBinding::Bound(_) | FreecivTechBinding::MissingFromCiv3Catalog => None,
     }
 }

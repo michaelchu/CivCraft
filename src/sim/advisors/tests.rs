@@ -14,3 +14,5 @@ mod military_advice;
 mod threats;
 #[path = "tests/wonders.rs"]
 mod wonders;
+#[path = "tests/worker_production.rs"]
+mod worker_production;

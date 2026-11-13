@@ -1,6 +1,9 @@
 //! Advisor evaluation of spending, reserves, and gold priorities.
 
 use super::*;
+use crate::rules::freeciv::{
+    ContentKind, EffectRecord, Requirement, RequirementContext, RequirementValue, RulesetData,
+};
 
 impl Simulation {
     pub(crate) fn ai_gold_reserve(&self, owner: usize) -> i32 {
@@ -16,6 +19,307 @@ impl Simulation {
     fn record_ai_purchase_cost(&mut self, owner: usize, price: i32) {
         let highest = self.ai_purchase_reserve.entry(owner).or_default();
         *highest = (*highest).max(price);
+    }
+
+    /// Freeciv dai_manage_cities first sells one redundant, noncritical
+    /// improvement per city, then sells other noncritical improvements only
+    /// when its expected income cannot cover the current treasury deficit.
+    fn ai_sell_city_building(&mut self, owner: usize, city_id: u32, redundant_only: bool) -> bool {
+        let Some(city) = self
+            .cities
+            .iter()
+            .find(|city| city.owner == owner && city.id == city_id)
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(building) = Building::all().find(|&building| {
+            Self::building_sale_price(&city, building).is_some()
+                && !self.ai_building_is_crucial(&city, building)
+                && (!redundant_only || self.ai_building_is_redundant(&city, building))
+        }) else {
+            return false;
+        };
+        self.sell_building(owner, city_id, building)
+    }
+
+    fn ai_sell_redundant_city_buildings(&mut self, owner: usize) {
+        let cities: Vec<_> = self
+            .player_cities_ordered(owner)
+            .map(|city| city.id)
+            .collect();
+        for city_id in cities {
+            self.ai_sell_city_building(owner, city_id, true);
+        }
+    }
+
+    fn ai_sell_for_solvency(&mut self, owner: usize) -> bool {
+        if self.players[owner].rates[1] < 30
+            || self.ai_projected_income(owner) >= -self.players[owner].gold
+        {
+            return false;
+        }
+
+        // daicity.c randomizes seller order with one fc_rand(count) draw for
+        // each city, swapping each slot with the selected city.
+        let mut sellers: Vec<_> = self
+            .player_cities_ordered(owner)
+            .map(|city| city.id)
+            .collect();
+        for index in 0..sellers.len() {
+            let replace = self.rand_below(sellers.len() as i32) as usize;
+            sellers.swap(index, replace);
+        }
+
+        let mut sold_any = false;
+        for city_id in sellers {
+            if self.ai_projected_income(owner) >= -self.players[owner].gold {
+                break;
+            }
+            sold_any |= self.ai_sell_city_building(owner, city_id, false);
+        }
+        sold_any
+    }
+
+    /// Projected per-turn income follows common/player.c's accounting split:
+    /// city gold pays city-style unit upkeep, while mixed/nation styles charge
+    /// the nation for paid unit upkeep. C2C3 selects Mixed.
+    fn ai_projected_income(&self, owner: usize) -> i32 {
+        let style = crate::sim::economy::ruleset::CityEconomySettings::campaign().gold_upkeep_style;
+        let mut income = 0;
+        for city in self.cities.iter().filter(|city| city.owner == owner) {
+            let forecast = self.city_forecast(city);
+            income += forecast.gold - forecast.building_upkeep;
+            if let Production::Building(building) = city.production {
+                let converts_to_gold = Self::ai_ruleset_building_record(building)
+                    .and_then(|record| {
+                        record.string_list_field("flags").unwrap_or_else(|error| {
+                            panic!("invalid C2C3 production building flags: {error}")
+                        })
+                    })
+                    .is_some_and(|flags| {
+                        flags.iter().any(|flag| flag.eq_ignore_ascii_case("Gold"))
+                    });
+                if converts_to_gold {
+                    income += city.shields + forecast.shield_surplus();
+                }
+            }
+            match style {
+                crate::sim::economy::ruleset::GoldUpkeepStyle::City => {
+                    income -= forecast.support.gold;
+                }
+                crate::sim::economy::ruleset::GoldUpkeepStyle::Mixed
+                | crate::sim::economy::ruleset::GoldUpkeepStyle::Nation => {
+                    income -= self
+                        .city_gold_upkeep(city)
+                        .paid
+                        .iter()
+                        .map(|(_, upkeep)| upkeep)
+                        .sum::<i32>();
+                }
+            }
+        }
+        if style != crate::sim::economy::ruleset::GoldUpkeepStyle::City {
+            income -= self
+                .homeless_unit_gold_upkeep(owner)
+                .paid
+                .iter()
+                .map(|(_, upkeep)| upkeep)
+                .sum::<i32>();
+        }
+        income
+    }
+
+    fn ai_building_is_crucial(&self, city: &City, building: Building) -> bool {
+        Self::ai_building_has_effect(city, building, "Defend_Bonus")
+            || self.ai_building_is_productive(city, building)
+    }
+
+    fn ai_building_is_productive(&self, city: &City, building: Building) -> bool {
+        if Self::ai_building_is_obsolete(self, city, building) {
+            return false;
+        }
+        let rules = RulesetData::campaign_default();
+        let Some(record) = Self::ai_ruleset_building_record(building) else {
+            // Missing identity data cannot establish that the improvement is
+            // harmless, so preserve it during solvency sales.
+            return true;
+        };
+        if Self::ai_building_has_gold_or_infra_flag(record)
+            || Self::ai_building_has_side_effect(city, building, record)
+        {
+            return true;
+        }
+        Self::ai_building_source_effects(building, rules)
+            .into_iter()
+            .any(|effect| !Self::ai_effect_is_replaced(self, city, effect))
+    }
+
+    fn ai_building_is_redundant(&self, city: &City, building: Building) -> bool {
+        if Self::ai_building_is_obsolete(self, city, building) {
+            return true;
+        }
+        let Some(record) = Self::ai_ruleset_building_record(building) else {
+            // Unknown ruleset content is not safe to call redundant.
+            return false;
+        };
+        if Self::ai_building_has_gold_or_infra_flag(record)
+            || Self::ai_building_has_side_effect(city, building, record)
+        {
+            return false;
+        }
+        let effects = Self::ai_building_source_effects(building, RulesetData::campaign_default());
+        effects.is_empty()
+            || effects
+                .iter()
+                .all(|effect| Self::ai_effect_is_replaced(self, city, effect))
+    }
+
+    fn ai_building_is_obsolete(simulation: &Simulation, city: &City, building: Building) -> bool {
+        let Some(record) = Self::ai_ruleset_building_record(building) else {
+            return false;
+        };
+        let context = super::super::action_rules::SimulationRequirementContext::for_city_at(
+            simulation,
+            city,
+            Some((city.x, city.y)),
+        );
+        record.obsolete_by.iter().any(|requirement| {
+            RequirementContext::is_present(&context, requirement)
+                .is_ok_and(|present| present == requirement.present)
+        })
+    }
+
+    fn ai_building_has_effect(city: &City, building: Building, kind: &str) -> bool {
+        Self::ai_building_source_effects(building, RulesetData::campaign_default())
+            .iter()
+            .any(|effect| effect.kind.eq_ignore_ascii_case(kind))
+            && city.buildings.contains(&building)
+    }
+
+    fn ai_building_source_effects(
+        building: Building,
+        rules: &'static RulesetData,
+    ) -> Vec<&'static EffectRecord> {
+        let flags = Self::ai_ruleset_building_record(building)
+            .and_then(|record| {
+                record
+                    .string_list_field("flags")
+                    .unwrap_or_else(|error| panic!("invalid C2C3 building flags: {error}"))
+            })
+            .unwrap_or_default();
+        rules
+            .effects
+            .iter()
+            .filter(|effect| {
+                effect.requirements.iter().any(|requirement| {
+                    requirement.present
+                        && ((requirement.kind.eq_ignore_ascii_case("Building")
+                            && Self::ai_requirement_names_building(requirement, building))
+                            || (requirement.kind.eq_ignore_ascii_case("BuildingFlag")
+                                && matches!(&requirement.name, RequirementValue::String(flag)
+                                    if flags.iter().any(|candidate| candidate.eq_ignore_ascii_case(flag)))))
+                })
+            })
+            .collect()
+    }
+
+    fn ai_ruleset_building_record(
+        building: Building,
+    ) -> Option<&'static crate::rules::freeciv::ContentRecord> {
+        let rules = RulesetData::campaign_default();
+        rules.content.iter().find(|record| {
+            record.kind == ContentKind::Building
+                && (Self::ai_building_name_matches(building, &record.rule_name)
+                    || record
+                        .display_name
+                        .as_deref()
+                        .is_some_and(|name| Self::ai_building_name_matches(building, name)))
+        })
+    }
+
+    fn ai_building_name_matches(building: Building, name: &str) -> bool {
+        let canonical = building.data().name;
+        canonical.eq_ignore_ascii_case(name)
+            || match canonical {
+                "Harbor" => name.eq_ignore_ascii_case("Harbour"),
+                "Shakespeare's Theater" => name.eq_ignore_ascii_case("Shakespeare's Theatre"),
+                _ => false,
+            }
+    }
+
+    fn ai_requirement_names_building(requirement: &Requirement, building: Building) -> bool {
+        let RequirementValue::String(name) = &requirement.name else {
+            return false;
+        };
+        Self::ai_building_name_matches(building, name)
+            || Self::ai_ruleset_building_record(building).is_some_and(|record| {
+                record.rule_name.eq_ignore_ascii_case(name)
+                    || record
+                        .display_name
+                        .as_deref()
+                        .is_some_and(|display| display.eq_ignore_ascii_case(name))
+            })
+    }
+
+    fn ai_building_has_gold_or_infra_flag(record: &crate::rules::freeciv::ContentRecord) -> bool {
+        record
+            .string_list_field("flags")
+            .unwrap_or_else(|error| panic!("invalid C2C3 building flags: {error}"))
+            .is_some_and(|flags| {
+                flags.iter().any(|flag| {
+                    flag.eq_ignore_ascii_case("Gold") || flag.eq_ignore_ascii_case("Infra")
+                })
+            })
+    }
+
+    fn ai_building_has_side_effect(
+        _city: &City,
+        building: Building,
+        record: &crate::rules::freeciv::ContentRecord,
+    ) -> bool {
+        let rules = RulesetData::campaign_default();
+        let flags = record
+            .string_list_field("flags")
+            .unwrap_or_else(|error| panic!("invalid C2C3 building flags: {error}"))
+            .unwrap_or_default();
+        let requirement_needs_building = |requirement: &Requirement| {
+            (requirement.kind.eq_ignore_ascii_case("Building")
+                && Self::ai_requirement_names_building(requirement, building))
+                || (requirement.kind.eq_ignore_ascii_case("BuildingFlag")
+                    && matches!(&requirement.name, RequirementValue::String(flag)
+                        if flags.iter().any(|candidate| candidate.eq_ignore_ascii_case(flag))))
+        };
+        rules.action_enablers.iter().any(|enabler| {
+            enabler
+                .actor_requirements
+                .iter()
+                .chain(&enabler.target_requirements)
+                .any(requirement_needs_building)
+        }) || rules
+            .content
+            .iter()
+            .filter(|content| content.kind == ContentKind::Unit)
+            .any(|unit| unit.requirements.iter().any(requirement_needs_building))
+    }
+
+    fn ai_effect_is_replaced(simulation: &Simulation, city: &City, effect: &EffectRecord) -> bool {
+        let context = super::super::action_rules::SimulationRequirementContext::for_city_at(
+            simulation,
+            city,
+            Some((city.x, city.y)),
+        );
+        effect.requirements.iter().any(|requirement| {
+            !requirement.present
+                && RequirementContext::is_present(&context, requirement).unwrap_or(false)
+        })
+    }
+
+    /// Runs Freeciv's redundant-building and solvency sales before city
+    /// production choices are calculated.
+    pub(crate) fn manage_ai_city_sales(&mut self, owner: usize) {
+        self.ai_sell_redundant_city_buildings(owner);
+        self.ai_sell_for_solvency(owner);
     }
 
     pub(crate) fn spend_ai_defense_gold(&mut self, owner: usize) {
@@ -73,23 +377,6 @@ impl Simulation {
                     && (unit.x, unit.y) == position
             });
             let invested = city.shields > 0;
-            if undefended
-                && matches!(target, Production::Unit(_))
-                && self.players[owner].gold - price < expenses
-            {
-                let sale = Building::all().find(|&building| {
-                    !matches!(
-                        building,
-                        Building::CITY_WALLS
-                            | Building::COASTAL_DEFENSE
-                            | Building::SAM_BATTERY
-                            | Building::SDI_DEFENSE
-                    ) && Self::building_sale_price(city, building).is_some()
-                });
-                if let Some(building) = sale {
-                    self.sell_building(owner, id, building);
-                }
-            }
             let remaining = self.players[owner].gold - price;
             if remaining >= expenses && (undefended || (invested && remaining >= 2 * reserve)) {
                 self.rush_production(owner, id);
@@ -201,5 +488,85 @@ impl Simulation {
                 self.record_ai_purchase_cost(owner, price);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod city_sale_tests {
+    use super::*;
+
+    fn obsolete_redundant_building(game: &mut Simulation) -> Building {
+        game.cities[0].buildings.push(Building::BARRACKS_II);
+        let city = game.cities[0].clone();
+        assert!(Simulation::ai_building_is_obsolete(
+            game,
+            &city,
+            Building::BARRACKS
+        ));
+        assert!(game.ai_building_is_redundant(&city, Building::BARRACKS));
+        Building::BARRACKS
+    }
+
+    fn test_game() -> Simulation {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        game.cities.clear();
+        game.create_city(1, 10, 24);
+        game.players[1].gold = 0;
+        game
+    }
+
+    #[test]
+    fn sale_pass_keeps_defensive_and_productive_buildings_and_sells_at_most_one() {
+        let mut game = test_game();
+        let candidate = obsolete_redundant_building(&mut game);
+        game.cities[0]
+            .buildings
+            .extend([Building::CITY_WALLS, Building::LIBRARY, candidate]);
+        let city_id = game.cities[0].id;
+
+        assert!(Simulation::ai_building_has_effect(
+            &game.cities[0],
+            Building::CITY_WALLS,
+            "Defend_Bonus"
+        ));
+        assert!(game.ai_building_is_crucial(&game.cities[0], Building::CITY_WALLS));
+        assert!(game.ai_building_is_crucial(&game.cities[0], Building::LIBRARY));
+        assert!(game.ai_sell_city_building(1, city_id, true));
+
+        let city = game.city_by_id(city_id).unwrap();
+        assert!(!city.buildings.contains(&candidate));
+        assert!(city.buildings.contains(&Building::CITY_WALLS));
+        assert!(city.buildings.contains(&Building::LIBRARY));
+        assert!(city.sold_building);
+        assert!(!game.ai_sell_city_building(1, city_id, false));
+    }
+
+    #[test]
+    fn solvency_sales_wait_for_thirty_percent_tax_and_require_a_real_deficit() {
+        let mut game = test_game();
+        let candidate = obsolete_redundant_building(&mut game);
+        // Large upkeep makes the forecast negative while keeping the Library
+        // productive, so the sale pass has only the selected candidate.
+        game.cities[0].buildings.extend([candidate]);
+        game.cities[0]
+            .buildings
+            .extend(std::iter::repeat(Building::LIBRARY).take(20));
+        game.players[1].rates = [0, 29, 71];
+        assert!(game.ai_projected_income(1) < -game.players[1].gold);
+        assert!(!game.ai_sell_for_solvency(1));
+        assert!(game.cities[0].buildings.contains(&candidate));
+
+        game.players[1].rates[1] = 30;
+        game.players[1].gold = 1_000;
+        assert!(game.ai_projected_income(1) >= -game.players[1].gold);
+        assert!(!game.ai_sell_for_solvency(1));
+        assert!(game.cities[0].buildings.contains(&candidate));
+
+        game.players[1].gold = 0;
+        assert!(game.ai_projected_income(1) < -game.players[1].gold);
+        assert!(game.ai_sell_for_solvency(1));
+        assert!(!game.cities[0].buildings.contains(&candidate));
+        assert!(game.cities[0].buildings.contains(&Building::LIBRARY));
     }
 }

@@ -18,6 +18,96 @@ pub(super) const ACTIVITIES: &[WorkKind] = &[
     WorkKind::Railroad,
 ];
 
+// Freeciv autoworkers.c's square-topology neighborhood, expressed in map
+// coordinates. The first eight positions surround the candidate tile; the
+// remaining four extend the network two steps cardinally.
+const ROAD_BONUS_OFFSETS: [(i32, i32); 12] = [
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+    (-1, 0),
+    (1, 0),
+    (-1, 1),
+    (0, 1),
+    (1, 1),
+    (0, -2),
+    (-2, 0),
+    (2, 0),
+    (0, 2),
+];
+
+fn freeciv_square_road_connector_bonus(
+    real_road: &[bool; ROAD_BONUS_OFFSETS.len()],
+    potential_road: &[bool; ROAD_BONUS_OFFSETS.len()],
+    is_slow: &[bool; ROAD_BONUS_OFFSETS.len()],
+) -> i32 {
+    // Transcribed from autoworkers.c::adv_workers_road_bonus's non-hex
+    // topology branch. Each pattern recognizes a useful road continuation.
+    let mut bonus = 0;
+    if potential_road[0]
+        && !real_road[1]
+        && !real_road[3]
+        && (!real_road[2] || !real_road[8])
+        && (!is_slow[2] || !is_slow[4] || !is_slow[7] || !is_slow[6] || !is_slow[5])
+    {
+        bonus += 1;
+    }
+    if potential_road[2]
+        && !real_road[1]
+        && !real_road[4]
+        && (!real_road[7] || !real_road[10])
+        && (!is_slow[0] || !is_slow[3] || !is_slow[7] || !is_slow[6] || !is_slow[5])
+    {
+        bonus += 1;
+    }
+    if potential_road[5]
+        && !real_road[6]
+        && !real_road[3]
+        && (!real_road[5] || !real_road[11])
+        && (!is_slow[2] || !is_slow[4] || !is_slow[7] || !is_slow[1] || !is_slow[0])
+    {
+        bonus += 1;
+    }
+    if potential_road[7]
+        && !real_road[6]
+        && !real_road[4]
+        && (!real_road[0] || !real_road[9])
+        && (!is_slow[2] || !is_slow[3] || !is_slow[0] || !is_slow[1] || !is_slow[5])
+    {
+        bonus += 1;
+    }
+
+    if potential_road[1]
+        && !real_road[4]
+        && !real_road[3]
+        && (!is_slow[5] || !is_slow[6] || !is_slow[7])
+    {
+        bonus += 1;
+    }
+    if potential_road[3]
+        && !real_road[1]
+        && !real_road[6]
+        && (!is_slow[2] || !is_slow[4] || !is_slow[7])
+    {
+        bonus += 1;
+    }
+    if potential_road[4]
+        && !real_road[1]
+        && !real_road[6]
+        && (!is_slow[0] || !is_slow[3] || !is_slow[5])
+    {
+        bonus += 1;
+    }
+    if potential_road[6]
+        && !real_road[4]
+        && !real_road[3]
+        && (!is_slow[0] || !is_slow[1] || !is_slow[2])
+    {
+        bonus += 1;
+    }
+    bonus
+}
+
 #[derive(Clone)]
 pub(super) struct WorkerPlan {
     pub(super) destination: (i32, i32),
@@ -227,26 +317,48 @@ impl Simulation {
     }
 
     pub(super) fn worker_road_extra(&self, position: (i32, i32), railroad: bool) -> f32 {
-        let mut absent = 0;
-        for (x, y) in self.map_wrap.civ3_neighbors(position.0, position.1) {
-            let real = {
-                let tile = self.tile(x, y);
-                (if railroad { tile.railroad } else { tile.road })
-                    || self.units.iter().any(|u| {
-                        (u.x, u.y) == (x, y)
-                            && u.work_kind
-                                == Some(if railroad {
-                                    WorkKind::Railroad
-                                } else {
-                                    WorkKind::Road
-                                })
-                    })
-            };
-            if !real {
-                absent += 1;
+        let (map_x, map_y) = native_to_map(position.0, position.1);
+        let mut real_road = [false; ROAD_BONUS_OFFSETS.len()];
+        let mut potential_road = [false; ROAD_BONUS_OFFSETS.len()];
+        let mut is_slow = [false; ROAD_BONUS_OFFSETS.len()];
+        let target_activity = if railroad {
+            WorkKind::Railroad
+        } else {
+            WorkKind::Road
+        };
+        for (index, &(dx, dy)) in ROAD_BONUS_OFFSETS.iter().enumerate() {
+            let (x, y) = map_to_native(map_x + dx, map_y + dy);
+            if !(0..self.map_wrap.height()).contains(&y) {
+                // Freeciv's bounded-map edge has no tile here. Its road bonus
+                // treats such cells as neither roads nor slow destinations.
+                continue;
             }
+            let position = (x.rem_euclid(self.map_wrap.width()), y);
+            let tile = self.tile(position.0, position.1);
+            let exact_extra = if railroad { tile.railroad } else { tile.road };
+            let dependency_extra = railroad && tile.road;
+            let dependency_activity = railroad
+                && self.units.iter().any(|unit| {
+                    (unit.x, unit.y) == position && unit.work_kind == Some(WorkKind::Road)
+                });
+            let activity_in_progress = self.units.iter().any(|unit| {
+                (unit.x, unit.y) == position && unit.work_kind == Some(target_activity)
+            });
+
+            real_road[index] = exact_extra || activity_in_progress;
+            // Railroad has Road as a C2C3 extra dependency. A neighboring
+            // road is therefore a potential connector even before upgrade.
+            potential_road[index] = real_road[index] || dependency_extra || dependency_activity;
+            let build_time = self
+                .work_activity_time(target_activity, tile.terrain)
+                .unwrap_or(0);
+            is_slow[index] = build_time == 0 || build_time > 5;
         }
-        let bonus = (20 + 3 * absent) / 20;
+
+        let bonus = freeciv_square_road_connector_bonus(&real_road, &potential_road, &is_slow);
+        if bonus == 0 {
+            return 0.0;
+        }
         let tile = self.tile(position.0, position.1);
         let rules = super::super::movement_rules::MovementRules::campaign();
         let current = super::super::movement_rules::MovementTile::new(

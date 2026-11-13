@@ -61,6 +61,7 @@ impl Simulation {
             .filter(|city| {
                 city.owner == owner
                     && self.is_port(city)
+                    && !self.local_settlement_site_is_sufficient(owner, city)
                     && !ferries.iter().any(|ship| {
                         (ship.x, ship.y) == (city.x, city.y)
                             || !self.path_for_unit(ship, city.x, city.y).is_empty()
@@ -69,6 +70,14 @@ impl Simulation {
             .count() as i32;
         // Freeciv's settlement advisor assigns this want to the first ferry role's tech.
         500 * ports
+    }
+
+    fn local_settlement_site_is_sufficient(&self, owner: usize, city: &City) -> bool {
+        // daisettler.c::find_best_city_placement stops before the ferry search
+        // when the local search finds a result above RESULT_IS_ENOUGH (250).
+        let virtual_settler = self.make_unit(u32::MAX, owner, UnitKind::Settler, city.x, city.y);
+        self.best_city_site(&virtual_settler)
+            .is_some_and(|(_, _, score)| score > 250.0)
     }
 
     pub(super) fn settlement_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
@@ -417,6 +426,7 @@ impl Simulation {
     pub(super) fn dispatch_settlement_ferries(
         &mut self,
         owner: usize,
+        reserved_defenders: &std::collections::HashSet<u32>,
     ) -> BTreeMap<u32, SettlementFerry> {
         let mut dispatch = BTreeMap::new();
         let founders: Vec<_> = self
@@ -435,9 +445,9 @@ impl Simulation {
             } else {
                 self.worker_improvement_want(founder)
             };
-            if let Some((ship, plan)) =
-                self.best_settlement_ferry(founder, |id| dispatch.contains_key(&id))
-                && (assigned || plan.value as f32 > improvement)
+            if let Some((ship, plan)) = self.best_settlement_ferry(founder, |id| {
+                dispatch.contains_key(&id) || reserved_defenders.contains(&id)
+            }) && (assigned || plan.value as f32 > improvement)
                 && (founder.transport.is_some()
                     || self
                         .best_city_site(founder)
@@ -454,7 +464,7 @@ impl Simulation {
                 let actual = if needs_guard && founder.transport.is_none() {
                     self.best_settlement_ferry_with_capacity(
                         founder,
-                        |id| dispatch.contains_key(&id),
+                        |id| dispatch.contains_key(&id) || reserved_defenders.contains(&id),
                         2,
                     )
                 } else {

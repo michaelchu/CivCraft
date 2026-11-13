@@ -26,6 +26,26 @@ impl super::Simulation {
             * 3
     }
 
+    pub(super) fn government_revolution_unhappiness(
+        &self,
+        owner: usize,
+        government: Government,
+    ) -> i32 {
+        // advdata.c:get_government_wants queries EFT_REVOLUTION_UNHAPPINESS
+        // for the hypothetical government. Keep this value ruleset-driven:
+        // C2C3's Republic, Democracy, and United Nations requirements are
+        // data, not government-specific AI branches.
+        let rules = RulesetData::campaign_default();
+        let context = SimulationRequirementContext::for_player_at(self, owner, None)
+            .with_government(government);
+        i32::try_from(
+            effect_value(&rules.effects, "Revolution_Unhappiness", &context).unwrap_or_else(
+                |error| panic!("could not evaluate C2C3 Revolution_Unhappiness: {error:?}"),
+            ),
+        )
+        .expect("C2C3 Revolution_Unhappiness value exceeds advisor range")
+    }
+
     pub(super) fn government_advisor_add_city_value(&self, city: &City, total: &mut f32) {
         let government = self.players[city.owner].government;
         let forecast = self.city_forecast(city);
@@ -128,17 +148,7 @@ impl super::Simulation {
                 self.government_advisor_add_city_value(city, &mut value);
             }
             let mut bonus = self.government_player_bonus(owner, government);
-            let revolution_unhappiness =
-                if matches!(government, Government::Republic | Government::Democracy)
-                    || self
-                        .cities
-                        .iter()
-                        .any(|city| city.has_building(Building::UNITED_NATIONS))
-                {
-                    2
-                } else {
-                    0
-                };
+            let revolution_unhappiness = self.government_revolution_unhappiness(owner, government);
             if revolution_unhappiness > 0 {
                 bonus -= 6 / revolution_unhappiness;
             }
@@ -381,5 +391,33 @@ mod ruleset_government_tests {
             Government::Despotism,
             &catalog
         ));
+    }
+
+    #[test]
+    fn government_revolution_unhappiness_uses_selected_ruleset_effects() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(
+            game.government_revolution_unhappiness(1, Government::Republic),
+            2
+        );
+        assert_eq!(
+            game.government_revolution_unhappiness(1, Government::Democracy),
+            2
+        );
+        assert_eq!(
+            game.government_revolution_unhappiness(1, Government::Despotism),
+            0
+        );
+
+        game.create_city(1, 10, 20);
+        game.cities[0].buildings.push(Building::UNITED_NATIONS);
+        assert_eq!(
+            game.government_revolution_unhappiness(1, Government::Despotism),
+            2
+        );
+        assert_eq!(
+            game.government_revolution_unhappiness(1, Government::Republic),
+            2
+        );
     }
 }

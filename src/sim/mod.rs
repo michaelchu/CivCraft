@@ -21,6 +21,7 @@ mod action_rules;
 mod advisors;
 mod ai;
 mod ai_economy;
+mod ai_traits;
 mod aviation;
 mod bases;
 mod borders;
@@ -747,6 +748,7 @@ impl Simulation {
         }
         self.choose_ai_rates(owner);
         self.arrange_ai_emergency_workers(owner);
+        self.manage_ai_city_sales(owner);
         self.record_ai_domestic_tech_wants(owner);
         self.prepare_ai_city_defenses(owner);
         self.spend_ai_defense_gold(owner);

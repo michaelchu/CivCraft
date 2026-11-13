@@ -62,6 +62,8 @@ impl Simulation {
         candidates
             .into_iter()
             .filter_map(|building| {
+                // Freeciv applies Builder to building_advisor_choose's
+                // improvement choice, not to the separate wonder helper.
                 let want = self.projected_wonder_want(&mut scratch, city, building);
                 (want > 0.0).then_some(AiBuildChoice {
                     production: Production::Building(building),
@@ -122,8 +124,10 @@ impl Simulation {
                     && self.building_blocker(city, *building).is_none()
             })
             .filter_map(|building| {
-                let want = self.domestic_improvement_want(city, building)
-                    / if wonder_city { 5.0 } else { 1.0 };
+                let want = (self.domestic_improvement_want(city, building) as f32
+                    / if wonder_city { 5.0 } else { 1.0 }
+                    * crate::sim::ai_traits::builder_building_want_factor())
+                    as f64;
                 (want > 0.0).then_some(AiBuildChoice {
                     production: Production::Building(building),
                     want: want.min(DOMESTIC_WANT_MAX),

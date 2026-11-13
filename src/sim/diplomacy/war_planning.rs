@@ -173,9 +173,11 @@ impl Simulation {
                 }
             }
 
-            // classic/nations.ruleset supplies a fixed default of 50; current
-            // fixed civilization identities have no trait overrides or modifiers.
-            let war_threshold = aggression_war_threshold(50);
+            // Freeciv defaults traitdistribution to FIXED. CivCraft currently
+            // has no nation-specific trait overrides, so use the selected
+            // C2C3 `aggressive_default` rather than a compiled-in 50.
+            let war_threshold =
+                aggression_war_threshold(crate::sim::ai_traits::fixed_default("aggressive"));
             let target = contacts
                 .iter()
                 .copied()

@@ -86,3 +86,26 @@ fn coastal_ports_and_embarkation_use_all_civ3_directions() {
         );
     }
 }
+
+#[test]
+fn ferry_tech_want_requires_the_local_city_search_to_need_a_boat() {
+    let shore = (10, 24);
+    let water = (11, 24);
+
+    let mut no_local_site = ocean_game();
+    no_local_site.players[1].known = vec![Tech::ALPHABET];
+    no_local_site.tile_mut(shore.0, shore.1).terrain = Terrain::Grassland;
+    no_local_site.create_city(1, shore.0, shore.1);
+    assert!(no_local_site.is_port(no_local_site.cities.last().unwrap()));
+    assert_eq!(no_local_site.ferry_tech_want(1, Tech::MAP_MAKING), 500);
+
+    let mut good_local_site = ocean_game();
+    good_local_site.players[1].known = vec![Tech::ALPHABET];
+    for tile in &mut good_local_site.tiles {
+        tile.terrain = Terrain::Grassland;
+    }
+    good_local_site.tile_mut(water.0, water.1).terrain = Terrain::Sea;
+    good_local_site.create_city(1, shore.0, shore.1);
+    assert!(good_local_site.is_port(good_local_site.cities.last().unwrap()));
+    assert_eq!(good_local_site.ferry_tech_want(1, Tech::MAP_MAKING), 0);
+}

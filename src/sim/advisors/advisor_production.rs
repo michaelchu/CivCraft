@@ -3,6 +3,111 @@
 use super::*;
 
 impl Simulation {
+    /// Freeciv's `contemplate_terrain_improvements` values the best task a
+    /// virtual worker could perform, then scales that want by upkeep,
+    /// population cost, and the owner's worker-to-city ratio.
+    pub(super) fn worker_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
+        // `dai_role_utype_for_terrain_class(..., UTYF_WORKERS, TC_LAND)` walks
+        // role units backwards and returns the first buildable type. CivCraft
+        // maps the source worker flag from the Civ III catalog and uses its
+        // source roster order for that walk, which selects the dedicated Worker.
+        let kind = UnitKind::ALL_NATIVE
+            .into_iter()
+            .rev()
+            .find(|&kind| kind.is_worker() && self.unit_buildable(city, kind))?;
+        if kind.stats().pop_cost >= city.size {
+            // daicity.c::contemplate_terrain_improvements avoids valuing a
+            // worker type that would consume the city.
+            return None;
+        }
+
+        let food_upkeep = self.worker_food_upkeep(city, kind)?;
+        let forecast = self.city_forecast(city);
+        if forecast.food_surplus(city.size, forecast.support.food) <= food_upkeep {
+            // domestic_advisor_choose_build requires surplus strictly greater
+            // than this role unit's food upkeep.
+            return None;
+        }
+
+        // The worker planner already evaluates city tiles, work activities,
+        // path delay, and the worker-factor normalization used by the native
+        // autoworker advisor. A virtual unit starts at this city, like the
+        // unit created by contemplate_terrain_improvements.
+        let mut planner = self.clone();
+        let worker = planner.make_unit(0, city.owner, kind, city.x, city.y);
+        let raw_want = planner.worker_improvement_want(&worker) as i32;
+        if raw_want <= 0 {
+            return None;
+        }
+
+        let foodbox_cost = self.worker_foodbox_cost(city, kind);
+        // daicity.c stores the raw worker want in an int and uses integer
+        // arithmetic for all three scaling steps.
+        let mut want = (raw_want - food_upkeep * FOOD_WEIGHT / 2) * 100 / (40 + foodbox_cost);
+
+        // Freeciv groups worker and city counts by continent. Campaign cities
+        // are land cities, so CivCraft's connected-land labels provide that
+        // grouping. The Civ III unit catalog determines which units have the
+        // worker role; Settlers remain founders only.
+        let labels = self.continent_labels();
+        let place = labels[self.map_wrap.index(city.x, city.y)];
+        let workers = self
+            .units
+            .iter()
+            .filter(|unit| {
+                unit.owner == city.owner
+                    && unit.kind.is_worker()
+                    && labels[self.map_wrap.index(unit.x, unit.y)] == place
+            })
+            .count() as i32;
+        let cities = self
+            .cities
+            .iter()
+            .filter(|other| {
+                other.owner == city.owner && labels[self.map_wrap.index(other.x, other.y)] == place
+            })
+            .count() as i32;
+        want /= (workers / (cities + 1)).max(1);
+        want = (want - workers).max(0);
+        (want > 0).then_some((kind, f64::from(want)))
+    }
+
+    /// Return the selected ruleset's raw food upkeep for a prospective worker.
+    /// The native advisor calls `unit_food_upkeep` on a virtual unit, so use
+    /// CivCraft's shared unit-economics evaluator with a temporary home-city
+    /// binding and read its pre-free-upkeep cost.
+    fn worker_food_upkeep(&self, city: &City, kind: UnitKind) -> Option<i32> {
+        let mut preview = self.clone();
+        let mut worker = preview.make_unit(u32::MAX, city.owner, kind, city.x, city.y);
+        worker.home_city = Some(city.id);
+        preview.units.push(worker);
+        let city = preview.city_by_id(city.id)?;
+        preview
+            .city_unit_upkeep(city)
+            .per_unit
+            .into_iter()
+            .find(|row| row.unit_id == u32::MAX)
+            .and_then(|row| match row.economics {
+                crate::sim::upkeep::UnitUpkeepMapping::Mapped { raw, .. } => Some(raw.food),
+                crate::sim::upkeep::UnitUpkeepMapping::Unsupported(_) => None,
+            })
+    }
+
+    /// Freeciv's `unit_foodbox_cost` charges the production-time food lost
+    /// when the selected worker role unit consumes population. Civ III
+    /// Workers have zero population cost, but retain the generic calculation
+    /// for ruleset-driven future catalog mappings.
+    fn worker_foodbox_cost(&self, city: &City, kind: UnitKind) -> i32 {
+        let population_cost = kind.stats().pop_cost;
+        if population_cost <= 0 {
+            return 0;
+        }
+        let granary_food: i32 = (0..population_cost)
+            .map(|offset| Self::growth_box(city.size - offset))
+            .sum();
+        granary_food * (100 - self.shrink_food_retained(city)) / 100
+    }
+
     pub(in crate::sim) fn city_attacker_odds(
         &self,
         city: &City,
@@ -164,7 +269,8 @@ impl Simulation {
             let affordable = self.players[city.owner].gold > price;
             let want = self.native_defense_building_want(city, building, assessment);
             if want > 0.0 && (danger < 101 || count > 1 || assessment.grave == 0 && affordable) {
-                let want = f64::from((want * 0.5) as f32);
+                let builder_factor = super::super::ai_traits::builder_building_want_factor() as f32;
+                let want = f64::from((want as f32 * builder_factor) as f32);
                 choice = Some(AiBuildChoice {
                     production: Production::Building(building),
                     want: if assessment.urgency == 0 {
@@ -312,7 +418,8 @@ impl Simulation {
             choice.production = Production::Building(building);
             // All six civilizations use the default Builder50. Native int divisions
             // 50/TRAIT_DEFAULT_VALUE(50)/2 yield0, before adding double0.5.
-            choice.want = (f64::from(choice.want as f32) * 0.5) as f32 as f64;
+            let builder_factor = super::super::ai_traits::builder_building_want_factor() as f32;
+            choice.want = f64::from((choice.want as f32 * builder_factor) as f32);
         }
     }
 
@@ -412,19 +519,24 @@ impl Simulation {
                 best = Some(AiBuildChoice { production, want });
             }
         };
-        if let Some(choice) = self.domestic_build_choice(city) {
-            consider(choice.production, choice.want);
-        }
-        if let Some(choice) = self.wonder_build_choice(city) {
-            consider(choice.production, choice.want);
+        if let Some((kind, want)) = self.worker_production_choice(city) {
+            consider(Production::Unit(kind), want);
         }
         if let Some((kind, want)) = self.settlement_production_choice(city) {
+            let want =
+                want * f64::from(super::super::ai_traits::fixed_default("expansionist")) / 50.0;
             let want = if self.ai_wonder_city(city.owner) == Some(city.id) {
                 want / if kind.stats().pop_cost > 0 { 5.0 } else { 2.0 }
             } else {
                 want
             };
             consider(Production::Unit(kind), want);
+        }
+        if let Some(choice) = self.wonder_build_choice(city) {
+            consider(choice.production, choice.want);
+        }
+        if let Some(choice) = self.domestic_build_choice(city) {
+            consider(choice.production, choice.want);
         }
         for building in [
             Building::SPACE_MODULE,
