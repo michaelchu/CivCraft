@@ -3,7 +3,12 @@ name = "civcraft"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "headless_sim"
+path = "src/headless_sim.rs"
+
 [dependencies]
+serde_json = "1"
 bincode = "1.3.3"
 macroquad = { version = "0.4.14", features = ["audio"] }
 serde = { version = "1", features = ["derive"] }

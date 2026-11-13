@@ -45,6 +45,7 @@ impl Simulation {
             return;
         }
         // srv_main:end_phase also enacts changes made during this phase.
+        self.trace.phase(trace::Phase::EndActivities);
         self.finish_revolutions();
         let automated: Vec<u32> = self
             .player_units_ordered(HUMAN)
@@ -61,7 +62,7 @@ impl Simulation {
                 continue;
             }
             self.run_ai_worker_phase(owner);
-            if owner != HUMAN {
+            if self.players[owner].ai {
                 self.run_ai_last_activities(owner);
             }
         }
@@ -73,6 +74,7 @@ impl Simulation {
         // and last-activity changes, before any city calculates output.
         self.reconcile_trade_routes();
         self.establish_connected_trade_routes();
+        self.trace.phase(trace::Phase::CityProcessing);
         for owner in 0..self.players.len() {
             if !self.player_alive(owner) || (owner < BARBARIANS && owner >= self.civilization_count)
             {
@@ -97,6 +99,7 @@ impl Simulation {
         }
         // Freeciv summons barbarians at end_turn(), after city activity. They
         // first move in ai_start_phase() at the following begin_phase().
+        self.trace.phase(trace::Phase::WorldEvents);
         self.summon_barbarians();
         self.check_city_migrations(crate::sim::migration::MigrationSettings::c2c3_default());
         self.check_disasters();
@@ -108,6 +111,7 @@ impl Simulation {
         // srv_main:begin_phase progresses activities with the previous
         // movement budget, then refills MP. Revolution completion is also
         // checked here, after activities (update_revolution at line 1381).
+        self.trace.phase(trace::Phase::UnitActivities);
         for owner in 0..self.players.len() {
             self.progress_player_unit_activities(owner);
         }
@@ -116,6 +120,7 @@ impl Simulation {
             city.airlift_used = false;
         }
         self.refresh_visibility();
+        self.trace.phase(trace::Phase::AiPlanning);
         self.run_civilization_begin_phase_ai();
         self.run_barbarian_begin_phase();
         self.continue_player_gotos();
@@ -131,6 +136,7 @@ impl Simulation {
             self.previous_naval_positions.contains_key(hunter)
                 && self.previous_naval_positions.contains_key(target)
         });
+        self.trace.phase(trace::Phase::TurnEnd);
         self.check_achievements();
         self.add_event(format!(
             "Turn {} begins - {}.",
@@ -149,8 +155,8 @@ impl Simulation {
     /// Runs Freeciv's `ai_start_phase()` for the campaign civilizations after
     /// unit activities, movement-point refresh, and visibility have updated.
     fn run_civilization_begin_phase_ai(&mut self) {
-        for owner in 1..self.civilization_count {
-            if self.run_ai_player_planning(owner) {
+        for owner in 0..self.civilization_count {
+            if self.players[owner].ai && self.run_ai_player_planning(owner) {
                 self.prune_ai_player_units();
             }
         }
@@ -413,14 +419,24 @@ impl Simulation {
         if self.game_over.is_some() {
             return;
         }
-        if !self.player_alive(HUMAN) {
+        let ai_only = self.players[HUMAN].ai;
+        if !self.player_alive(HUMAN) && !ai_only {
             self.game_over = Some("Your civilization has passed into history.".to_owned());
             return;
         }
-        let rival_survives =
-            (0..self.civilization_count).any(|owner| owner != HUMAN && self.player_alive(owner));
-        if !rival_survives {
-            self.game_over = Some("The world is united beneath your banner.".to_owned());
+        let living = (0..self.civilization_count)
+            .filter(|&owner| self.player_alive(owner))
+            .count();
+        if (ai_only && living <= 1)
+            || (!ai_only
+                && !(0..self.civilization_count)
+                    .any(|owner| owner != HUMAN && self.player_alive(owner)))
+        {
+            self.game_over = Some(if ai_only {
+                "One civilization remains.".to_owned()
+            } else {
+                "The world is united beneath your banner.".to_owned()
+            });
         }
     }
 }
