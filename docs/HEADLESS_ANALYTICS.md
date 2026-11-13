@@ -9,7 +9,7 @@ state and never participate in gameplay decisions.
 
 | Component | Location | Responsibility |
 | --- | --- | --- |
-| CLI and orchestration | `src/headless_sim.rs`, `src/headless/` | Configuration, advancing turns, dispatch, checkpoints |
+| CLI and orchestration | `src/headless_sim.rs`, `src/lib.rs`, `src/headless/` | Configuration, advancing turns, dispatch, checkpoints |
 | Runtime collector and event envelope | `src/sim/trace/` | Lazy capture, subscriptions, phase labels, sequence IDs, overflow accounting |
 | Domain event payloads | `src/sim/cities/observations.rs`, `src/sim/settlement/observations.rs` | Typed, versioned facts about actual execution |
 | Read-only adapters and typed snapshots | `src/sim/observation.rs` | Expose observational state without JSON strings or mutation |
@@ -223,6 +223,20 @@ last valid `running` checkpoint. No findings is not proof of correct gameplay.
 Schema 5 replaces schema 4's history sidecar with independent snapshots/events,
 adds the initial snapshot and analyzer metadata, and introduces finding episode
 IDs. Readers should inspect `version` before applying schema-specific queries.
+
+## Test entry points
+
+Both executables are thin wrappers around the library. Shared simulation,
+analytics, UI, and CLI tests run once in the library harness:
+
+```sh
+cargo test --offline --lib -- analytics:: headless:: sim::trace::
+cargo test --offline --no-fail-fast -- --test-threads=4
+```
+
+The binaries have `test = false`; select `--lib` rather than `--bin headless_sim`
+for focused simulator tests. The headless invocation and report schema are
+unchanged.
 
 ## Verification requirements
 

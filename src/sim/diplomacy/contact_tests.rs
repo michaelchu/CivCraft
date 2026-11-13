@@ -133,7 +133,7 @@ fn a_lost_attack_does_not_refresh_contact_without_actual_movement() {
 #[test]
 fn nuclear_actions_apply_selected_success_casus_belli_after_the_blast() {
     for intercepted in [true, false] {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let (missile, _, city_id) = game.nuclear_playtest_setup(intercepted);
         let city = game.city_by_id(city_id).unwrap();
         let target = (city.x, city.y);
@@ -232,7 +232,7 @@ fn first_contact_skips_the_first_decrement_and_common_allies_start_at_peace() {
 
 #[test]
 fn observer_incidents_and_offer_cadence_work_together() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_observer_incident_cadence_playtest());
 }
 
@@ -307,7 +307,7 @@ fn first_contact_notifies_the_human_once_and_diplomacy_exposes_war_status() {
 
 #[test]
 fn a_capital_attack_does_not_guarantee_free_peace_after_twelve_turns() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.tile_mut(8, 24).terrain = Terrain::Grassland;
     game.create_city(HUMAN, 8, 24);

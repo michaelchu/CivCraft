@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn small_wonder_projects_government_center_effects_across_empire() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
@@ -45,13 +45,13 @@ fn small_wonder_projects_government_center_effects_across_empire() {
 
 #[test]
 fn wonder_production_and_helpers_compete_using_empire_effects() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_wonder_advisor_playtest());
 }
 
 #[test]
 fn projected_wonder_counts_other_cities_and_restores_scratch_state() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
@@ -81,7 +81,7 @@ fn projected_wonder_counts_other_cities_and_restores_scratch_state() {
 
 #[test]
 fn wonder_city_requires_a_helper_cluster_and_rejects_immediate_danger() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
@@ -105,7 +105,7 @@ fn wonder_city_requires_a_helper_cluster_and_rejects_immediate_danger() {
 
 #[test]
 fn productive_wonder_city_retains_project_and_suppresses_space_parts() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
@@ -131,7 +131,7 @@ fn productive_wonder_city_retains_project_and_suppresses_space_parts() {
 
 #[test]
 fn space_parts_need_a_competitive_empire_or_an_active_race() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);

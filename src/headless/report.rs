@@ -9,7 +9,7 @@ use std::{
     collections::BTreeMap,
     fs::{self, File},
     io::{BufWriter, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::Instant,
 };
 

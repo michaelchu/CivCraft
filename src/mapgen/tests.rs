@@ -761,6 +761,7 @@ fn opensimplex_civ3_generation_does_not_emit_legacy_glacier_or_lake_terrains() {
     for wrap in [MapWrap::X] {
         for seed in [42, 12345] {
             let map = generate_opensimplex(seed, wrap, Civ3WorldSettings::default());
+            assert_eq!(map.tiles.len(), wrap.tile_count(), "seed {seed}");
             assert!(
                 map.tiles
                     .iter()

@@ -4,7 +4,7 @@ use super::*;
 use std::collections::HashSet;
 
 fn emergency_tile_reclaim_fixture(donor_tile: (i32, i32)) -> (Simulation, u32, u32) {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -73,7 +73,7 @@ fn ai_city_emergency_leaves_neighbor_allocations_when_no_worked_tile_is_eligible
 
 #[test]
 fn foreign_nationality_remains_available_for_tile_work() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
@@ -89,7 +89,7 @@ fn foreign_nationality_remains_available_for_tile_work() {
 
 #[test]
 fn city_manager_allocates_all_population_including_foreign_nationalities() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
@@ -106,7 +106,7 @@ fn city_manager_allocates_all_population_including_foreign_nationalities() {
 
 #[test]
 fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.players[HUMAN].known.clear();
@@ -144,7 +144,7 @@ fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
 
 #[test]
 fn field_units_do_not_create_freeciv_unhappiness_or_military_police_from_airbases() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.players[HUMAN].known.clear();
@@ -172,7 +172,7 @@ fn field_units_do_not_create_freeciv_unhappiness_or_military_police_from_airbase
 
 #[test]
 fn military_police_require_an_attacking_unit_and_only_work_in_its_city() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.players[1].government = Government::Despotism;
@@ -210,7 +210,7 @@ fn military_police_require_an_attacking_unit_and_only_work_in_its_city() {
 
 #[test]
 fn unit_unrest_still_changes_city_feelings_without_martial_law() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
@@ -257,7 +257,7 @@ fn unit_unrest_still_changes_city_feelings_without_martial_law() {
 
 #[test]
 fn disorder_keeps_civ3_gold_support_out_of_food_and_shield_outputs() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.players[1].government = Government::Despotism;
@@ -292,7 +292,7 @@ fn disorder_keeps_civ3_gold_support_out_of_food_and_shield_outputs() {
 
 #[test]
 fn conquests_governments_do_not_apply_fundamentalism_tithes() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.players[1].known = vec![Tech::MYSTICISM];
@@ -316,13 +316,13 @@ fn conquests_governments_do_not_apply_fundamentalism_tithes() {
 
 #[test]
 fn city_manager_desktop_fixture() {
-    let game = Simulation::new(crate::mapgen::generate(42));
+    let game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_city_manager_playtest());
 }
 
 #[test]
 fn city_manager_matches_small_city_lattice_oracle_across_rates_and_governments() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -442,7 +442,7 @@ fn city_manager_matches_small_city_lattice_oracle_across_rates_and_governments()
 
 #[test]
 fn city_manager_equal_tiles_follow_native_city_index_not_row_order() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -468,7 +468,7 @@ fn city_manager_equal_tiles_follow_native_city_index_not_row_order() {
 
 #[test]
 fn city_manager_equal_specialist_fitness_uses_native_output_lexicographic_order() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -542,7 +542,7 @@ fn specialists_only_lattice() -> CmLattice {
 
 #[test]
 fn native_cm_budget_counts_nonterminal_stack_steps_and_returns_incumbent() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 12, 24);
@@ -572,7 +572,7 @@ fn native_cm_budget_counts_nonterminal_stack_steps_and_returns_incumbent() {
 
 #[test]
 fn native_cm_learns_minimum_luxury_from_disorder_and_prunes_later_choices() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -631,7 +631,7 @@ fn native_cm_learns_minimum_luxury_from_disorder_and_prunes_later_choices() {
 
 #[test]
 fn native_cm_emergency_sentinel_preserves_local_c_int_production_arithmetic() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -656,7 +656,7 @@ fn native_cm_emergency_sentinel_preserves_local_c_int_production_arithmetic() {
 
 #[test]
 fn city_manager_large_city_preserves_citizen_count_under_native_search_budget() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for (index, tile) in game.tiles.iter_mut().enumerate() {

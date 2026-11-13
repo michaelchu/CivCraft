@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn gated_resource_becomes_visible_after_required_technology_is_discovered() {
-    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.players[HUMAN].known.clear();
 
     assert!(!sim.resource_visible_to(HUMAN, Resource::Oil));
@@ -16,7 +16,7 @@ fn gated_resource_becomes_visible_after_required_technology_is_discovered() {
 
 #[test]
 fn unset_goal_is_distinct_and_clears_on_gift_and_negative_advisor_values() {
-    let sim = Simulation::new(crate::mapgen::generate(42));
+    let sim = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         sim.native_unset_research_goal_playtest(),
         (true, true, true)
@@ -25,7 +25,7 @@ fn unset_goal_is_distinct_and_clears_on_gift_and_negative_advisor_values() {
 
 #[test]
 fn human_gift_clears_goal_without_allowing_unset_as_active_research() {
-    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.players[HUMAN].known.clear();
     sim.players[HUMAN].research_goal = Tech::POTTERY;
     sim.players[HUMAN].researching = Tech::BRONZE_WORKING;
@@ -42,7 +42,7 @@ fn human_gift_clears_goal_without_allowing_unset_as_active_research() {
 
 #[test]
 fn actual_human_science_completion_clears_goal_and_retains_valid_automatic_target() {
-    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.players[HUMAN].known.clear();
     sim.players[HUMAN].research_goal = Tech::POTTERY;
     sim.players[HUMAN].researching = Tech::POTTERY;
@@ -57,7 +57,7 @@ fn actual_human_science_completion_clears_goal_and_retains_valid_automatic_targe
 
 #[test]
 fn goal_less_research_matches_freeciv_random_frontier_and_draw_order() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].research_goal = Tech::UNSET;
     game.players[HUMAN].researching = Tech::UNSET;
 
@@ -82,7 +82,7 @@ fn goal_less_research_matches_freeciv_random_frontier_and_draw_order() {
 
 #[test]
 fn campaign_starts_with_no_hard_coded_goal_and_a_ruleset_progression_target() {
-    let game = Simulation::new(crate::mapgen::generate(42));
+    let game = Simulation::new(crate::test_support::seeded_map());
     for owner in 0..game.civilization_count {
         assert_eq!(game.players[owner].research_goal, Tech::UNSET);
         assert!(game.tech_available(owner, game.players[owner].researching));
@@ -91,7 +91,7 @@ fn campaign_starts_with_no_hard_coded_goal_and_a_ruleset_progression_target() {
 
 #[test]
 fn future_research_retains_its_project_but_clears_its_advisor_goal() {
-    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.players[1].known = Tech::all().collect();
     sim.players[1].researching = Tech::FUTURE;
     sim.players[1].research_goal = Tech::FUTURE;
@@ -105,7 +105,7 @@ fn future_research_retains_its_project_but_clears_its_advisor_goal() {
 
 #[test]
 fn native_research_integer_and_float_compound_vectors_match_c() {
-    let sim = Simulation::new(crate::mapgen::generate(42));
+    let sim = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         sim.native_research_arithmetic_playtest(),
         (true, true, true)
@@ -138,7 +138,7 @@ fn native_research_integer_and_float_compound_vectors_match_c() {
 
 #[test]
 fn player_research_keeps_the_selected_goal_after_an_advance() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known.clear();
     game.players[HUMAN].research_goal = Tech::GUNPOWDER;
     game.players[HUMAN].researching = game.research_target(HUMAN);
@@ -151,13 +151,13 @@ fn player_research_keeps_the_selected_goal_after_an_advance() {
 
 #[test]
 fn switching_respects_investment_and_exempts_discovery_overflow() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_research_switching_playtest());
 }
 
 #[test]
 fn c2c3_tech_switch_suspends_one_project_and_restores_its_bulbs() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known.clear();
     game.players[HUMAN].researching = Tech::ALPHABET;
     game.players[HUMAN].research = 40;
@@ -177,7 +177,7 @@ fn c2c3_tech_switch_suspends_one_project_and_restores_its_bulbs() {
 
 #[test]
 fn suspended_research_accumulates_city_science_before_technology_upkeep() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.players[HUMAN].known = Tech::all().collect();
     game.players[HUMAN].researching = Tech::FUTURE;
@@ -195,7 +195,7 @@ fn suspended_research_accumulates_city_science_before_technology_upkeep() {
 
 #[test]
 fn losing_a_technology_does_not_retarget_the_active_project() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known = vec![Tech::ALPHABET];
     game.players[HUMAN].research_goal = Tech::UNSET;
     game.players[HUMAN].researching = Tech::BRONZE_WORKING;
@@ -209,7 +209,7 @@ fn losing_a_technology_does_not_retarget_the_active_project() {
 
 #[test]
 fn switching_keeps_free_discovery_bulbs_out_of_the_penalty() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known.clear();
     game.players[HUMAN].researching = Tech::ALPHABET;
     game.players[HUMAN].research = 17;
@@ -222,7 +222,7 @@ fn switching_keeps_free_discovery_bulbs_out_of_the_penalty() {
 
 #[test]
 fn later_era_research_waits_for_critical_advances_in_prior_eras() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known.clear();
 
     assert_eq!(Tech::FEUDALISM.era(), crate::rules::TechEra::MiddleAges);
@@ -251,7 +251,7 @@ fn later_era_research_waits_for_critical_advances_in_prior_eras() {
 
 #[test]
 fn research_cannot_be_switched_to_a_later_era_technology_early() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known.clear();
     game.players[HUMAN].researching = Tech::ALPHABET;
     game.players[HUMAN].research = 37;
@@ -268,7 +268,7 @@ fn research_cannot_be_switched_to_a_later_era_technology_early() {
 fn era_advances_only_after_every_critical_advance_of_each_age_is_known() {
     use crate::rules::TechEra;
 
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known.clear();
 
     for (era, next_era) in [
@@ -300,7 +300,7 @@ fn era_advances_only_after_every_critical_advance_of_each_age_is_known() {
 
 #[test]
 fn research_selection_rejects_a_technology_with_unknown_biq_prerequisites() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].known.clear();
     game.players[1].research = 0;
     game.players[1].researching = Tech::ALPHABET;
@@ -313,7 +313,7 @@ fn research_selection_rejects_a_technology_with_unknown_biq_prerequisites() {
 
 #[test]
 fn completed_project_follows_goal_without_running_advisor_selection() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].known.clear();
     game.players[1].research_goal = Tech::GUNPOWDER;
     game.players[1].researching = Tech::BRONZE_WORKING;
@@ -328,7 +328,7 @@ fn completed_project_follows_goal_without_running_advisor_selection() {
 
 #[test]
 fn completed_goal_uses_reservoir_sampling_in_reference_draw_order() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].known.clear();
     game.players[1].research_goal = Tech::BRONZE_WORKING;
     game.players[1].researching = Tech::BRONZE_WORKING;
@@ -355,7 +355,7 @@ fn completed_goal_uses_reservoir_sampling_in_reference_draw_order() {
 
 #[test]
 fn unrelated_discovery_does_not_exempt_existing_research() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.ai_free_bulbs.clear();
     game.players[1].researching = Tech::BRONZE_WORKING;
     game.players[1].research = 12;
@@ -367,7 +367,7 @@ fn unrelated_discovery_does_not_exempt_existing_research() {
 
 #[test]
 fn discovery_overflow_can_complete_the_next_goal_in_the_same_update() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].known = Tech::all()
         .filter(|&tech| tech != Tech::BRONZE_WORKING && tech != Tech::ALPHABET)
         .collect();
@@ -386,7 +386,7 @@ fn discovery_overflow_can_complete_the_next_goal_in_the_same_update() {
 
 #[test]
 fn completed_ai_tree_continues_with_future_technology() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].known = Tech::all().collect();
     game.players[1].researching = Tech::FUTURE;
     assert_eq!(game.next_ai_research_target(1), Tech::FUTURE);

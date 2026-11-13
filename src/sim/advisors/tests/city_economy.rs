@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn gold_spending_preserves_final_nondefense_advice() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (city, _) = game.hunter_production_playtest_setup();
     let position = {
         let port = game.city_by_id(city).unwrap();
@@ -57,7 +57,7 @@ fn gold_spending_preserves_final_nondefense_advice() {
 
 #[test]
 fn domestic_wants_penalize_discarding_invested_unit_production() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(1, 10, 24);
     let mut city = game.cities[0].clone();
     city.production = Production::Unit(UnitKind::Warrior);
@@ -75,13 +75,13 @@ fn domestic_wants_penalize_discarding_invested_unit_production() {
 
 #[test]
 fn growth_and_expansion_options_remain_available_to_city_advisor() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_growth_expansion_playtest());
 }
 
 #[test]
 fn production_compares_domestic_and_military_wants_on_one_scale() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Plains;
@@ -144,7 +144,7 @@ fn production_compares_domestic_and_military_wants_on_one_scale() {
 
 #[test]
 fn routine_rush_preserves_reserve_and_requires_invested_shields() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.players[1].known.push(Tech::POTTERY);
     game.create_city(1, 20, 20);
@@ -169,7 +169,7 @@ fn routine_rush_preserves_reserve_and_requires_invested_shields() {
 
 #[test]
 fn routine_settler_rush_requires_no_war_preparation_and_enough_population() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.create_city(1, 20, 20);
     game.turn += 1;
@@ -205,7 +205,7 @@ fn routine_settler_rush_requires_no_war_preparation_and_enough_population() {
 
 #[test]
 fn city_output_priorities_raise_the_bid_for_a_library_technology() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let literature = Tech::LITERATURE;
     game.players[HUMAN].known = vec![Tech::ALPHABET, literature];
     for (_, _, x, y) in Simulation::city_radius_at(20, 20) {
@@ -236,7 +236,7 @@ fn city_output_priorities_raise_the_bid_for_a_library_technology() {
 
 #[test]
 fn offensive_choice_amortizes_balanced_risk_even_with_existing_shield_stock() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(1, 10, 24);
     game.players[1]
         .known

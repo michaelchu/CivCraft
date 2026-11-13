@@ -5,7 +5,7 @@ use crate::rules::Tech;
 
 #[test]
 fn baseline_clones_preserve_rng_and_normal_campaign_results() {
-    let initial = Simulation::new(crate::mapgen::generate(42));
+    let initial = Simulation::new(crate::test_support::seeded_map());
     let original = bincode::serialize(&initial).unwrap();
     let mut a = initial.clone();
     let mut b = initial.clone();
@@ -33,7 +33,7 @@ fn baseline_clones_preserve_rng_and_normal_campaign_results() {
 fn resource_shadow_review_scene_contains_every_civ3_resource() {
     use Resource::*;
 
-    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.players[HUMAN].known = Tech::all().collect();
     ui_review_resource_shadows(&mut sim);
     let placed: Vec<_> = sim

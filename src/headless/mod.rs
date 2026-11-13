@@ -134,3 +134,20 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// Run the headless CLI with arguments excluding the executable name.
+pub fn run_cli(args: &[String]) -> Result<(), String> {
+    if args.iter().any(|a| a == "--help") {
+        println!("{}", config::HELP);
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "--list-analyzers") {
+        println!("{}", crate::analytics::registry::IDS.join("\n"));
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "--list-scenarios") {
+        println!("{}", scenario::IDS.join("\n"));
+        return Ok(());
+    }
+    run(config::Config::parse(args)?)
+}

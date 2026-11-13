@@ -6,10 +6,10 @@ pub(crate) mod providers;
 pub(crate) mod registry;
 
 use crate::sim::{observation::Snapshot, trace::Event};
-pub(crate) use finding::{AnalysisOutput, Finding};
+pub(crate) use finding::AnalysisOutput;
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 #[derive(Clone, Serialize)]
 pub(crate) struct Descriptor {
