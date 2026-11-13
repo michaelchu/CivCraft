@@ -1065,6 +1065,172 @@ impl Simulation {
         moved
     }
 
+    pub(super) fn start_connect_order(&mut self, id: u32, x: i32, y: i32) -> bool {
+        let Some(unit) = self.unit_by_id(id) else {
+            return false;
+        };
+        if !unit.kind.stats().can_work
+            || unit.transport.is_some()
+            || unit.work_left > 0
+            || (unit.x, unit.y) == (x, y)
+            || !(0..self.map_wrap.width()).contains(&x)
+            || !(0..self.map_wrap.height()).contains(&y)
+            || self.plan_route(unit, x, y, true).is_empty()
+        {
+            return false;
+        }
+        let index = self.unit_index_by_id(id).expect("unit checked above");
+        self.units[index].order = Some(UnitOrder::Connect { x, y });
+        self.unit_goto_tiles.remove(&id);
+        true
+    }
+
+    pub(super) fn start_patrol_order(&mut self, id: u32, x: i32, y: i32) -> bool {
+        let Some(unit) = self.unit_by_id(id) else {
+            return false;
+        };
+        let origin = (unit.x, unit.y);
+        if unit.transport.is_some()
+            || origin == (x, y)
+            || !(0..self.map_wrap.width()).contains(&x)
+            || !(0..self.map_wrap.height()).contains(&y)
+            || self.plan_route(unit, x, y, true).is_empty()
+        {
+            return false;
+        }
+        let index = self.unit_index_by_id(id).expect("unit checked above");
+        self.units[index].order = Some(UnitOrder::Patrol {
+            origin,
+            destination: (x, y),
+            returning: false,
+        });
+        self.unit_goto_tiles.remove(&id);
+        self.player_goto(id, x, y);
+        if self
+            .unit_by_id(id)
+            .is_some_and(|unit| (unit.x, unit.y) == (x, y))
+            && let Some(UnitOrder::Patrol { returning, .. }) = self
+                .unit_index_by_id(id)
+                .and_then(|index| self.units[index].order.as_mut())
+        {
+            *returning = true;
+        }
+        true
+    }
+
+    fn continue_unit_orders(&mut self) {
+        let orders: Vec<_> = self
+            .units
+            .iter()
+            .filter(|unit| unit.owner == HUMAN && unit.order.is_some())
+            .map(|unit| (unit.id, unit.order.unwrap()))
+            .collect();
+        for (id, order) in orders {
+            match order {
+                UnitOrder::Patrol {
+                    origin,
+                    destination,
+                    returning,
+                } => {
+                    let target = if returning { origin } else { destination };
+                    let Some(unit) = self.unit_by_id(id) else {
+                        continue;
+                    };
+                    if (unit.x, unit.y) == target {
+                        if let Some(index) = self.unit_index_by_id(id) {
+                            if let Some(UnitOrder::Patrol { returning, .. }) =
+                                self.units[index].order.as_mut()
+                            {
+                                *returning = !*returning;
+                            }
+                        }
+                    } else {
+                        self.player_goto(id, target.0, target.1);
+                        if self
+                            .unit_by_id(id)
+                            .is_some_and(|unit| (unit.x, unit.y) == target)
+                            && let Some(index) = self.unit_index_by_id(id)
+                            && let Some(UnitOrder::Patrol { returning, .. }) =
+                                self.units[index].order.as_mut()
+                        {
+                            *returning = !*returning;
+                        }
+                    }
+                }
+                UnitOrder::Connect { x, y } => {
+                    let Some(unit) = self.unit_by_id(id).cloned() else {
+                        continue;
+                    };
+                    if (unit.x, unit.y) == (x, y) {
+                        let tile_is_city = self
+                            .cities
+                            .iter()
+                            .any(|city| (city.x, city.y) == (unit.x, unit.y));
+                        if !self.tile(unit.x, unit.y).road && !tile_is_city {
+                            if !self.begin_work(id, WorkKind::Road)
+                                && let Some(index) = self.unit_index_by_id(id)
+                            {
+                                self.units[index].order = None;
+                            }
+                        } else if let Some(index) = self.unit_index_by_id(id) {
+                            self.units[index].order = None;
+                        }
+                        continue;
+                    }
+                    if unit.work_left > 0 {
+                        continue;
+                    }
+                    let tile_is_city = self
+                        .cities
+                        .iter()
+                        .any(|city| (city.x, city.y) == (unit.x, unit.y));
+                    if !self.tile(unit.x, unit.y).road && !tile_is_city {
+                        if !self.begin_work(id, WorkKind::Road)
+                            && let Some(index) = self.unit_index_by_id(id)
+                        {
+                            self.units[index].order = None;
+                        }
+                        continue;
+                    }
+                    let path = self.plan_route(&unit, x, y, true);
+                    if path.is_empty() {
+                        if let Some(index) = self.unit_index_by_id(id) {
+                            self.units[index].order = None;
+                        }
+                        continue;
+                    }
+                    for (dx, dy) in path {
+                        let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy))
+                        else {
+                            break;
+                        };
+                        if self.try_move_unit_civ3(id, direction) == MoveResult::Blocked {
+                            break;
+                        }
+                        let Some(unit) = self.unit_by_id(id) else {
+                            break;
+                        };
+                        let tile_is_city = self
+                            .cities
+                            .iter()
+                            .any(|city| (city.x, city.y) == (unit.x, unit.y));
+                        if !self.tile(unit.x, unit.y).road && !tile_is_city {
+                            if !self.begin_work(id, WorkKind::Road)
+                                && let Some(index) = self.unit_index_by_id(id)
+                            {
+                                self.units[index].order = None;
+                            }
+                            break;
+                        }
+                        if unit.moves_left <= 0 {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     pub(super) fn continue_player_gotos(&mut self) {
         let orders: Vec<_> = self
             .unit_goto_tiles
@@ -1095,6 +1261,7 @@ impl Simulation {
                 self.unit_goto_tiles.remove(&id);
             }
         }
+        self.continue_unit_orders();
     }
 
     pub(super) fn follow_civ3_path(

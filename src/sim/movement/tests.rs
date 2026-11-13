@@ -1316,7 +1316,11 @@ fn workers_pool_matching_progress_only_when_they_have_movement() {
     for id in [first, second] {
         assert!(game.apply(Command::Work(id, WorkKind::Irrigation)));
     }
-    assert!(game.apply(Command::Wait(first)));
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == first)
+        .unwrap()
+        .moves_left = 0;
     game.update_activities_and_restore();
     let idle = game.unit_by_id(first).unwrap();
     assert_eq!(idle.work_done, 0);
@@ -1613,6 +1617,34 @@ fn stack_losses_leave_units_the_winner_cannot_reach() {
 #[cfg(test)]
 mod transport_tests {
     use super::*;
+
+    #[test]
+    fn unload_all_deboards_every_eligible_cargo_unit() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.units.clear();
+        let (x, y) = (10, 20);
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        let carrier = game.spawn_unit(HUMAN, UnitKind::Transport, x, y);
+        let cargo = [
+            game.spawn_unit(HUMAN, UnitKind::Warrior, x, y),
+            game.spawn_unit(HUMAN, UnitKind::Worker, x, y),
+        ];
+        for id in cargo {
+            game.units
+                .iter_mut()
+                .find(|unit| unit.id == id)
+                .unwrap()
+                .transport = Some(carrier);
+        }
+
+        assert!(game.apply(Command::UnloadAll(carrier)));
+        assert_eq!(game.cargo_count(carrier), 0);
+        assert!(
+            cargo
+                .iter()
+                .all(|id| game.unit_by_id(*id).unwrap().transport.is_none())
+        );
+    }
 
     #[test]
     fn rescue_prefers_idle_carriers_then_uses_future_speed_to_break_ties() {

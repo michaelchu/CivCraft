@@ -151,6 +151,9 @@ pub(crate) struct UnitActionView {
     pub(crate) nuclear_weapon: bool,
     pub(crate) nuclear_strike: bool,
     pub(crate) transport_action: Option<String>,
+    pub(crate) unload_all: bool,
+    pub(crate) can_connect: bool,
+    pub(crate) can_patrol: bool,
     pub(crate) found_city: Option<bool>,
     pub(crate) road_action: Option<(String, bool)>,
     pub(crate) road_work: WorkKind,
@@ -509,6 +512,40 @@ mod tests {
         assert!(!selectable.contains(&fortified_military));
         assert!(selectable.contains(&worker));
         assert!(selectable.contains(&ordinary_military));
+    }
+
+    #[test]
+    fn selectable_units_skip_units_with_active_goto_orders() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let unit_id = sim.units_owned_by(HUMAN).next().unwrap().id;
+        let unit = sim.units.iter_mut().find(|unit| unit.id == unit_id).unwrap();
+        unit.moves_left = 1;
+        unit.work_left = 0;
+        unit.automated = false;
+        unit.state = UnitState::Idle;
+        sim.unit_goto_tiles.insert(unit_id, (0, 0));
+
+        assert!(
+            !sim.selectable_units_view()
+                .iter()
+                .any(|unit| unit.id == unit_id)
+        );
+
+        sim.unit_goto_tiles.remove(&unit_id);
+        sim.units
+            .iter_mut()
+            .find(|unit| unit.id == unit_id)
+            .unwrap()
+            .order = Some(UnitOrder::Patrol {
+            origin: (1, 1),
+            destination: (2, 2),
+            returning: false,
+        });
+        assert!(
+            !sim.selectable_units_view()
+                .iter()
+                .any(|unit| unit.id == unit_id)
+        );
     }
 
     #[test]

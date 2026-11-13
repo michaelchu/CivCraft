@@ -68,6 +68,15 @@ impl Game {
                 if let Some(label) = view.transport_action {
                     entries.push((format!("{label} [L]"), UiAction::BoardOrDeboard, true));
                 }
+                if view.unload_all {
+                    entries.push(("Unload all".to_owned(), UiAction::UnloadAll, true));
+                }
+                if view.can_connect {
+                    entries.push(("Connect by road".to_owned(), UiAction::BeginConnect, true));
+                }
+                if view.can_patrol {
+                    entries.push(("Patrol".to_owned(), UiAction::BeginPatrol, true));
+                }
                 if let Some(enabled) = view.found_city {
                     entries.push(("Found city [B]".to_owned(), UiAction::FoundCity, enabled));
                 }

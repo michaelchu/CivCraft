@@ -27,6 +27,19 @@ pub(crate) enum WorkKind {
     Mine,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) enum UnitOrder {
+    Connect {
+        x: i32,
+        y: i32,
+    },
+    Patrol {
+        origin: (i32, i32),
+        destination: (i32, i32),
+        returning: bool,
+    },
+}
+
 impl WorkKind {
     pub(crate) fn name(self) -> &'static str {
         match self {
@@ -76,6 +89,8 @@ pub(crate) struct Unit {
     /// units can move before paradropping, but may only paradrop once.
     #[serde(default)]
     pub(crate) paradropped: bool,
+    #[serde(default)]
+    pub(crate) order: Option<UnitOrder>,
 }
 
 impl Unit {
@@ -108,6 +123,7 @@ impl Unit {
             work_left: 0,
             work_done: 0,
             paradropped: false,
+            order: None,
         }
     }
 

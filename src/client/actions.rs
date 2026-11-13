@@ -160,9 +160,50 @@ impl Game {
                     .and_then(|id| self.sim.unit_action_view(id))
                     .is_some_and(|view| view.nuclear_strike);
             }
+            UiAction::BeginConnect => {
+                self.connect_mode = self
+                    .selected_unit
+                    .and_then(|id| self.sim.unit_action_view(id))
+                    .is_some_and(|view| view.can_connect);
+                self.goto_mode = false;
+                self.patrol_mode = false;
+            }
+            UiAction::ConnectTo(x, y) => {
+                if self.connect_mode
+                    && let Some(id) = self.selected_unit
+                    && self.move_selected(Command::Connect(id, x, y), id)
+                {
+                    self.select_next_unit();
+                }
+                self.connect_mode = false;
+            }
+            UiAction::BeginPatrol => {
+                self.patrol_mode = self
+                    .selected_unit
+                    .and_then(|id| self.sim.unit_action_view(id))
+                    .is_some_and(|view| view.can_patrol);
+                self.goto_mode = false;
+                self.connect_mode = false;
+            }
+            UiAction::PatrolTo(x, y) => {
+                if self.patrol_mode
+                    && let Some(id) = self.selected_unit
+                    && self.move_selected(Command::Patrol(id, x, y), id)
+                {
+                    self.select_next_unit();
+                }
+                self.patrol_mode = false;
+            }
             UiAction::BoardOrDeboard => {
                 if let Some(id) = self.selected_unit {
                     self.sim.apply(Command::BoardOrDeboard(id));
+                }
+            }
+            UiAction::UnloadAll => {
+                if let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::UnloadAll(id))
+                {
+                    self.select_next_unit();
                 }
             }
             UiAction::HomeCity => {
@@ -183,13 +224,15 @@ impl Game {
                 self.sim.apply(Command::PlaceShipPart(part));
             }
             UiAction::EndTurn => {
-                if self.sim.apply(Command::EndTurn)
-                    && self.autosave_enabled
-                    && let Err(error) = self
-                        .sim
-                        .save_campaign(std::path::Path::new(crate::AUTOSAVE_PATH))
-                {
-                    self.notify(format!("Autosave failed. {error}"));
+                if self.sim.apply(Command::EndTurn) {
+                    self.waiting_units.clear();
+                    if self.autosave_enabled
+                        && let Err(error) = self
+                            .sim
+                            .save_campaign(std::path::Path::new(crate::AUTOSAVE_PATH))
+                    {
+                        self.notify(format!("Autosave failed. {error}"));
+                    }
                 }
                 self.select_next_unit();
             }
@@ -202,6 +245,7 @@ impl Game {
                     .unit_action_view(id)
                     .is_some_and(|unit| unit.owner == HUMAN)
                 {
+                    self.waiting_units.remove(&id);
                     self.action_page = 0;
                     self.selected_unit = Some(id);
                     self.selected_city = None;
@@ -244,10 +288,7 @@ impl Game {
                 }
             }
             UiAction::Wait => {
-                if let Some(id) = self.selected_unit {
-                    self.sim.apply(Command::Wait(id));
-                    self.select_next_unit();
-                }
+                self.wait_selected_unit();
             }
             UiAction::Automate => {
                 if let Some(id) = self.selected_unit {

@@ -154,6 +154,45 @@ impl Simulation {
         }
     }
 
+    pub(crate) fn can_unload_all(&self, carrier: &Unit) -> bool {
+        carrier.owner == HUMAN
+            && self
+                .ruleset_transport_capacity(carrier.kind)
+                .is_ok_and(|capacity| capacity > 0)
+            && self.cargo_count(carrier.id) > 0
+            && self.units.iter().any(|cargo| {
+                cargo.transport == Some(carrier.id)
+                    && self.transport_action(cargo) == Some("Deboard")
+            })
+    }
+
+    pub(in crate::sim) fn unload_all(&mut self, carrier_id: u32) -> bool {
+        let Some(carrier) = self.unit_by_id(carrier_id) else {
+            return false;
+        };
+        if !self.can_unload_all(carrier) {
+            return false;
+        }
+        let mut cargo: Vec<_> = self
+            .units
+            .iter()
+            .filter(|unit| unit.transport == Some(carrier_id))
+            .filter(|unit| self.transport_action(unit) == Some("Deboard"))
+            .map(|unit| unit.id)
+            .collect();
+        cargo.sort_unstable();
+        let mut unloaded = false;
+        for id in cargo {
+            if let Some(index) = self.unit_index_by_id(id)
+                && self.transport_action(&self.units[index]) == Some("Deboard")
+            {
+                self.set_transport(index, None);
+                unloaded = true;
+            }
+        }
+        unloaded
+    }
+
     pub(in crate::sim) fn board_or_deboard(&mut self, unit_id: u32) -> bool {
         let Some(index) = self.unit_index_by_id(unit_id) else {
             return false;
