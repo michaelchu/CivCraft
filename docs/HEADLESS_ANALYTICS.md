@@ -18,10 +18,30 @@ state and never participate in gameplay decisions.
 | Analyzers | `src/analytics/analyzers/` | State, thresholds, findings, metrics |
 | Finding lifecycle | `src/analytics/finding.rs` | Episodes, recovery, recurrence, evidence references |
 | Output | `src/headless/report.rs` | Stream JSONL and atomically replace summary checkpoints |
+| Scenario inputs | `src/headless/scenario.rs` | Build named fixtures or load persisted campaigns before tracing |
 
 There are two extension paths: events for transitions/decisions and providers
 for persistent state. A new analyzer can use either or both. No runner or
 reporter changes are needed to register an analyzer or provider.
+
+## Scenario inputs
+
+The runner accepts either `--scenario NAME` or `--load-campaign PATH`. Use
+`--list-scenarios` to inspect registered names. Both forms produce a normal
+`Simulation`, enable all civilizations as AI, attach a fresh trace collector,
+and then enter the same snapshot, analyzer, event, and reporting loop. They are
+mutually exclusive; omitting both retains generated-campaign behavior.
+
+Named scenarios are versioned Rust definitions. Their setup checks are written
+under `run.scenario` and failed checks make the process exit unsuccessfully
+after publishing the final report. Saved campaigns preserve elaborate starting
+states without persisting trace buffers or analyzer state. The report records
+their source path as provenance.
+
+Reusable state mutation belongs in simulation-level scenario helpers. Scenario
+definitions compose setup, actions, and checks; desktop-only input/rendering
+assertions stay in the desktop playtest layer. This allows engine scenarios to
+migrate out of `--self-test` without coupling the headless runner to UI code.
 
 ## Add a game trace
 
