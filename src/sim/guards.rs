@@ -1,7 +1,7 @@
 //! Implements guards behavior within the sim subsystem.
 
 use super::normal_paths::GotoTask;
-use super::unit_catalog::{UnitAiStrategy, UnitClass};
+use super::unit_catalog::UnitClass;
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -168,7 +168,7 @@ impl Simulation {
     }
 
     pub(super) fn guard_defender_role(kind: UnitKind) -> bool {
-        kind.has_ai_strategy(UnitAiStrategy::Defense)
+        super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
     }
 
     fn guard_native_sets(kind: UnitKind) -> (u16, u16) {
@@ -459,20 +459,23 @@ impl Simulation {
         best.map(|target| (target, (best_def * 100 / toughness) as f32))
     }
 
-    fn ai_guard_rampage(&mut self, id: u32) {
-        // dai_military_rampage(BODYGUARD_RAMPAGE_THRESHOLD=17*4,
-        // RAMPAGE_FREE_CITY_OR_BETTER=99999), default occupychance=0.
+    pub(super) fn ai_military_rampage(
+        &mut self,
+        id: u32,
+        adjacent_threshold: i32,
+        movement_threshold: i32,
+    ) -> bool {
         let Some(initial) = self.unit_by_id(id) else {
-            return;
+            return false;
         };
         let mut attempts = initial.moves_left + 1;
         while attempts > 0 {
             attempts -= 1;
             let Some(actor) = self.unit_by_id(id).cloned() else {
-                return;
+                return false;
             };
             if actor.moves_left <= 0 || actor.kind.stats().attack <= 0 {
-                return;
+                return true;
             }
             let mut best = None;
             let mut best_want = 0;
@@ -528,9 +531,9 @@ impl Simulation {
                     .civ3_distance(actor.x, actor.y, target.0, target.1)
                     == 1
                 {
-                    68
+                    adjacent_threshold
                 } else {
-                    99999
+                    movement_threshold
                 };
                 if desire > threshold && desire > best_want {
                     best = Some(path);
@@ -538,10 +541,14 @@ impl Simulation {
                 }
             }
             let Some(path) = best else {
-                return;
+                return true;
             };
             self.follow_civ3_path(id, path);
+            if self.unit_by_id(id).is_none() {
+                return false;
+            }
         }
+        self.unit_by_id(id).is_some()
     }
 
     /// The native manager retains an escort only while its charge still
@@ -631,7 +638,10 @@ impl Simulation {
                 return false;
             }
         }
-        self.ai_guard_rampage(id);
+        // Freeciv bodyguards attack worthwhile adjacent threats but move only
+        // to a free city. Keep those thresholds distinct from paratrooper
+        // rampage, which attacks any worthwhile target after landing.
+        self.ai_military_rampage(id, 68, 99999);
         true
     }
 

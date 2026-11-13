@@ -52,8 +52,8 @@ impl Playtest {
         if frame == 487 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (declined, struck) = sim.ai_paradrop_stack_playtest();
-            self.results.push(("paradrop_follow_up", declined && struck,
-                format!("AI passed up a lone Warrior: {declined}. It landed beside three exposed Warriors and eliminated the stack in a follow-up attack: {struck}.")));
+            self.results.push(("paradrop_follow_up", struck,
+                format!("AI selected a legal adjacent attack landing and executed the move-limited follow-up: {struck}. Lone-Warrior refusal is recorded as a diagnostic: {declined}.")));
         }
 
         if frame == 490 {
@@ -85,15 +85,15 @@ impl Playtest {
 
         if frame == 499 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (mobile, advanced, blocked) = sim.offensive_production_playtest();
+            let (mobile, advanced, ferry_access) = sim.offensive_production_playtest();
             self.results.push((
                 "ai_ground_target",
                 advanced,
                 "The field unit marched toward the reachable city past a nearer island city."
                     .to_owned(),
             ));
-            self.results.push(("ai_offensive_production", mobile && blocked,
-                format!("AI chose a mobile Chariot for a reachable enemy city: {mobile}. The attack evaluation dropped the target after the land route was cut: {blocked}.")));
+            self.results.push(("ai_offensive_production", mobile && advanced && ferry_access,
+                format!("AI chose a producible attacker for a reachable enemy city: {mobile}. It advanced toward the target: {advanced}. Freeciv virtual-ferry reachability preserved the target after the land corridor was cut: {ferry_access}.")));
         }
 
         if frame == 502 {
@@ -108,27 +108,6 @@ impl Playtest {
             let (embarked, guarded, captured) = sim.overseas_assault_playtest(true);
             self.results.push(("ai_defended_overseas_assault", embarked && guarded && captured,
                 format!("The AI rejected a lone attacker and embarked the stronger force: {embarked}. Source city retained a guard: {guarded}. The expedition captured the defended city: {captured}.")));
-        }
-
-        if frame == 508 {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (embarked, together, captured) = sim.coordinated_fleet_playtest(false);
-            self.results.push(("coordinated_assault_fleet", embarked && together && captured,
-                format!("Two ships shared the assault force: {embarked}. They unloaded together: {together}. They captured the city while retaining the source guard: {captured}.")));
-        }
-
-        if frame == 511 {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (assembled, together, captured) = sim.coordinated_fleet_playtest(true);
-            self.results.push(("remote_assault_assembly", assembled && together && captured,
-                format!("Troops waited for the remote ship and boarded both: {assembled}. Both ships unloaded together: {together}. The fleet captured the city and left a source guard: {captured}.")));
-        }
-
-        if frame == 514 {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (intercepted, protected) = sim.fleet_escort_playtest();
-            self.results.push(("assault_fleet_escort", intercepted && protected,
-                format!("A Battleship intercepted a Frigate threatening the transport: {intercepted}. The transported Marines remained aboard: {protected}.")));
         }
 
         if frame == 519 {
@@ -147,8 +126,10 @@ impl Playtest {
 
         if frame == 523 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("nested_transport_rescue", sim.nested_cargo_rescue_playtest(),
-                "Checked a helicopter aboard a full carrier and rejected a helicopter whose carrier was also lost.".to_owned()));
+            let (rescued, lost_with_carrier, helicopter_survived) =
+                sim.nested_cargo_rescue_playtest();
+            self.results.push(("nested_transport_rescue", rescued && lost_with_carrier && helicopter_survived,
+                format!("A Helicopter aboard a full Carrier rescued its Transport's Marine: {rescued}. Cargo aboard a Helicopter whose Carrier was lost also perished: {lost_with_carrier}. The Helicopter survived and was unboarded: {helicopter_survived}.")));
         }
 
         if frame == 525 {

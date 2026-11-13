@@ -228,7 +228,7 @@ impl Playtest {
             super::reset_founded_city_scenario(game);
             let (hp, docked_moves, sea_moves, rank) =
                 game.sim.playtest_harness().naval_bonus_playtest();
-            self.results.push(("naval_bonuses", (hp, docked_moves, sea_moves, rank) == (30, 42, 27, 1),
+            self.results.push(("naval_bonuses", (hp, docked_moves, sea_moves, rank) == (3, 54, 40, 1),
                 format!("Port repaired the cruiser to {hp} HP and grants build rank {rank}. Repaired and damaged ships received {docked_moves} and {sea_moves} movement fragments.")));
         }
     }

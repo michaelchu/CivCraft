@@ -50,7 +50,26 @@ fn nuclear_submarines_use_the_selected_submarine_transport_role() {
     assert!(game.board_or_deboard(missile));
     let missile = game.unit_by_id(missile).unwrap();
     assert_eq!(missile.transport, Some(submarine));
-    assert_eq!(missile.fuel, 0);
+    assert_eq!(UnitKind::TacticalNuke.fuel_capacity(), 1);
+    assert_eq!(missile.fuel, UnitKind::TacticalNuke.fuel_capacity());
+}
+
+#[test]
+fn ai_submarine_launches_its_loaded_cruise_missile_at_an_adjacent_carrier() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let (submarine, missile, target) = game.ai_submarine_playtest_setup();
+    let hunter = game.unit_by_id(submarine).unwrap().clone();
+    let target_unit = game.unit_by_id(target).unwrap();
+    let mut paths = super::super::normal_paths::NormalPaths::enemy_map(&game, &hunter);
+    let target_cost = paths.movement_cost(&game, target_unit.x, target_unit.y);
+    assert_eq!(target_cost, Some(MOVE_FRAGMENTS));
+    assert_eq!(game.unit_by_id(missile).unwrap().moves_left, MOVE_FRAGMENTS);
+
+    game.run_ai_player(1);
+
+    assert!(game.unit_by_id(submarine).is_some());
+    assert!(game.unit_by_id(missile).is_none());
+    assert!(game.unit_by_id(target).is_none());
 }
 
 #[test]
@@ -325,7 +344,7 @@ fn cruise_missile_uses_missile_class_city_defense_and_sdi_bonus() {
         (2, 1),
         "selected C2C3 CityBuster doubles Cruise Missile firepower in a city"
     );
-    assert_eq!(attacker.kind.fuel_capacity(), 0);
+    assert_eq!(attacker.kind.fuel_capacity(), 1);
 }
 
 #[test]
@@ -648,7 +667,10 @@ fn aircraft_can_return_to_airstrips_or_crash_when_out_of_fuel() {
     game.refresh_visibility(); // Newly placed human aircraft see the nearby airstrip.
     game.restore_aircraft();
     let saved = game.unit_by_id(first).unwrap();
-    assert_eq!((saved.x, saved.y, saved.fuel), (nx, ny, 10));
+    assert_eq!(
+        (saved.x, saved.y, saved.fuel),
+        (nx, ny, UnitKind::Bomber.fuel_capacity())
+    );
     assert!(!game.units.iter().any(|unit| unit.id == second));
 }
 
@@ -916,7 +938,7 @@ mod stealth_tests {
     }
 
     #[test]
-    fn helicopter_uses_source_operational_range_and_does_not_emergency_embark_at_fuel_five() {
+    fn fuel_free_c2c3_helicopter_does_not_emergency_embark() {
         let (mut game, _boat, helicopter, _victim) =
             loaded_hunt(2, UnitKind::Helicopter, UnitKind::Carrier);
         assert!(game.board_or_deboard(helicopter));
@@ -930,7 +952,7 @@ mod stealth_tests {
         game.restore_aircraft();
         assert!(game.units.iter().any(|unit| unit.id == helicopter
             && unit.transport.is_none()
-            && unit.fuel == UnitKind::Helicopter.fuel_capacity() - 1
+            && unit.fuel == UnitKind::Helicopter.fuel_capacity()
             && unit.hp == before - nonnative_decay));
     }
 
@@ -953,7 +975,7 @@ mod stealth_tests {
     #[test]
     fn c2c3_bomber_bombard_rules_use_selected_unit_data() {
         let one_attack = super::super::unit_catalog::UnitFlag::OneAttack;
-        assert_eq!(UnitKind::Bomber.fuel_capacity(), 10);
+        assert_eq!(UnitKind::Bomber.fuel_capacity(), 3);
         assert_eq!(UnitKind::Bomber.bombard_rate(), 3);
         assert!(!UnitKind::Bomber.has_flag(one_attack));
         assert!(UnitKind::CruiseMissile.has_flag(one_attack));
@@ -1332,4 +1354,18 @@ mod stealth_tests {
         assert!(!game.tile(landing.0, landing.1).visible);
         assert!(!game.unit_visible_to_human(game.unit_by_id(hidden_unit).unwrap()));
     }
+}
+
+#[test]
+fn paradrop_conquer_enters_and_captures_an_undefended_city() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let (troop, target, gates) = game.paradrop_playtest_setup();
+    assert!(gates, "Civ III tech gate or range check failed");
+    assert!(game.apply(Command::Paradrop(troop, target.0, target.1)));
+    let landed = game.unit_by_id(troop).unwrap();
+    assert_eq!((landed.x, landed.y), target);
+    assert!(landed.paradropped);
+    assert!(landed.moves_left > 0);
+    assert_eq!(game.city_at(target.0, target.1).unwrap().owner, HUMAN);
+    assert!(!game.can_begin_paradrop(landed));
 }

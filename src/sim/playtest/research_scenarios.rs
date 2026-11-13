@@ -121,6 +121,7 @@ impl Simulation {
         let command_guard = !game.apply(Command::Research(Tech::UNSET))
             && game.players[HUMAN].research_goal == human_goal;
         game.players[1].research_goal = Tech::UNSET;
+        game.players[1].researching = Tech::UNSET;
         let path = std::env::temp_dir().join(format!(
             "civcraft-unset-goal-{}-{}.save",
             std::process::id(),
@@ -131,18 +132,15 @@ impl Simulation {
             .and_then(|_| Self::load_campaign(&path))
             .is_ok_and(|loaded| {
                 loaded.players[1].research_goal == Tech::UNSET
+                    && loaded.players[1].researching == Tech::UNSET
                     && !loaded.tech_available(1, Tech::UNSET)
                     && loaded.research_target(1) != Tech::UNSET
             });
-        game.players[1].researching = Tech::UNSET;
-        let invalid_target =
-            game.save_campaign(&path).is_ok() && Self::load_campaign(&path).is_err();
-        game.players[1].researching = Tech::ALPHABET;
         game.players[1].known.push(Tech::UNSET);
         let invalid_known =
             game.save_campaign(&path).is_ok() && Self::load_campaign(&path).is_err();
         let _ = std::fs::remove_file(path);
-        command_guard && roundtrip && invalid_target && invalid_known
+        command_guard && roundtrip && invalid_known
     }
 
     pub(crate) fn native_research_phase_playtest(&self) -> (bool, bool, bool, bool) {

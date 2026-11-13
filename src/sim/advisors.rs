@@ -9,7 +9,7 @@ mod advisor_threats;
 #[cfg(test)]
 use advisor_buildings::DefenseEffectContext;
 
-use super::unit_catalog::{UnitAiStrategy, UnitClass, UnitFlag};
+use super::unit_catalog::{UnitClass, UnitFlag};
 use super::*;
 
 mod playtest;

@@ -72,9 +72,10 @@ impl Simulation {
     }
 
     pub(super) fn production_defender_types() -> impl Iterator<Item = UnitKind> {
-        UnitKind::simple_military()
-            .into_iter()
-            .filter(|kind| kind.has_ai_strategy(UnitAiStrategy::Defense))
+        UnitKind::simple_military().into_iter().filter(|&kind| {
+            super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
+                || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk")
+        })
     }
 
     pub(super) fn base_defender_desire(kind: UnitKind, firepower: i32) -> f32 {

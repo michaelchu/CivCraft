@@ -104,7 +104,8 @@ impl Simulation {
         self.check_city_migrations(crate::sim::migration::MigrationSettings::c2c3_default());
         self.check_disasters();
         // srv_main.c::end_phase calls do_reveal_effects before end_turn.
-        // Refresh visibility before the post-disaster achievement cohort.
+        // Refresh here so effects such as Apollo's Reveal_Map are reflected
+        // before Freeciv's post-disaster achievement check.
         self.refresh_visibility();
         // srv_main.c::end_turn evaluates achievement cohorts after disasters
         // and before the global-warming/nuclear-winter phase.
@@ -390,6 +391,7 @@ mod tests {
         }
         let city_position = (10, 20);
         game.create_city(HUMAN, city_position.0, city_position.1);
+        game.cities[0].size = 2;
         let approach = game
             .map_wrap
             .civ3_neighbor(city_position.0, city_position.1, 1)

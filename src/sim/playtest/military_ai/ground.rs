@@ -11,18 +11,24 @@ impl Simulation {
         self.tile_mut(x, y).terrain = Terrain::Grassland;
         self.tile_mut(nx, ny).terrain = Terrain::Grassland;
         self.create_city(1, x, y);
+        self.sign_pact(1, HUMAN, Pact::War);
         let marine = self.spawn_unit(1, UnitKind::Marine, x, y);
-        let cannon = self.spawn_unit(HUMAN, UnitKind::Cannon, nx, ny);
-        self.units.last_mut().unwrap().hp = 1;
+        let bad_odds = self.spawn_unit(HUMAN, UnitKind::ModernArmor, nx, ny);
         self.run_ai_player(1);
-        let held = self.units.iter().any(|unit| unit.id == cannon)
+        let held = self.units.iter().any(|unit| unit.id == bad_odds)
             && self
                 .units
                 .iter()
                 .any(|unit| unit.id == marine && (unit.x, unit.y) == (x, y));
         self.update_activities_and_restore();
+        self.units.retain(|unit| unit.id != bad_odds);
+        let cannon = self.spawn_unit(HUMAN, UnitKind::Cannon, nx, ny);
+        self.units.last_mut().unwrap().hp = 1;
         let guard = self.spawn_unit(1, UnitKind::Warrior, x, y);
         self.units.last_mut().unwrap().moves_left = 0;
+        // The original Marine is reserved as the city defender; a second
+        // movable Marine tests whether a spare can counterattack.
+        self.spawn_unit(1, UnitKind::Marine, x, y);
         self.set_random_seed(1);
         self.run_ai_player(1);
         let attack = self.units.iter().all(|unit| unit.id != cannon)
@@ -32,6 +38,7 @@ impl Simulation {
                 .any(|unit| unit.id == guard && (unit.x, unit.y) == (x, y));
 
         self.units.clear();
+        self.sign_pact(1, HUMAN, Pact::War);
         self.spawn_unit(1, UnitKind::Warrior, x, y);
         self.spawn_unit(1, UnitKind::Warrior, x, y);
         let enemy = self.spawn_unit(HUMAN, UnitKind::Marine, nx, ny);
@@ -61,13 +68,17 @@ impl Simulation {
         let home = (10, 24);
         let point = |step| offset_native_by_map(home.0, home.1, step, 0);
         let front = point(3);
-        let enemy = point(4);
+        // Keep the home city outside the cavalry's grave-danger horizon.
+        // Freeciv retains a home defender when source and front cities are
+        // equally urgent; this enemy still reaches the front city first.
+        let enemy = point(7);
         self.create_city(1, home.0, home.1);
         self.create_city(1, front.0, front.1);
+        self.sign_pact(1, HUMAN, Pact::War);
         let marine = self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
         let guard = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         self.spawn_unit(1, UnitKind::Warrior, front.0, front.1);
-        // Cannons have no attack value, so they do not create a city threat.
+        // Keep an attack-capable enemy cavalry unit outside the front city.
         self.spawn_unit(HUMAN, UnitKind::Cavalry, enemy.0, enemy.1);
         let no_near_route = std::collections::HashSet::new();
         let too_far = !self
@@ -80,16 +91,23 @@ impl Simulation {
         let dispatched = self
             .reinforce_ai_cities(1, &no_near_route)
             .contains(&marine);
+        let position = self
+            .units
+            .iter()
+            .find(|unit| unit.id == marine)
+            .map(|unit| (unit.x, unit.y));
+        let guarded = self
+            .units
+            .iter()
+            .any(|unit| unit.id == guard && (unit.x, unit.y) == home);
+        // The C2C3 road move cost is two fragments per tile. A Marine cannot
+        // cross three tiles in one movement allotment, so assert dispatch,
+        // route retention, and progress instead of same-turn arrival.
         too_far
             && dispatched
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == marine && (unit.x, unit.y) == front)
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == guard && (unit.x, unit.y) == home)
+            && position.is_some_and(|position| position != home)
+            && self.unit_goto_tiles.get(&marine) == Some(&front)
+            && guarded
     }
 
     pub(crate) fn ai_reinforcements_playtest(&mut self) -> (bool, bool, bool) {
@@ -104,10 +122,22 @@ impl Simulation {
         let enemy = offset_native_by_map(home.0, home.1, 4, 0);
         self.create_city(1, home.0, home.1);
         self.create_city(1, front.0, front.1);
+        self.sign_pact(1, HUMAN, Pact::War);
         let guard = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         let marine = self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
+        self.units
+            .iter_mut()
+            .find(|unit| unit.id == marine)
+            .unwrap()
+            .moves_left = UnitKind::Marine.stats().moves * MOVE_FRAGMENTS;
         self.spawn_unit(1, UnitKind::Warrior, front.0, front.1);
-        self.spawn_unit(HUMAN, UnitKind::Cannon, enemy.0, enemy.1);
+        // A mobile attacker at war creates a real incoming city threat.
+        let horseman = self.spawn_unit(HUMAN, UnitKind::Horseman, enemy.0, enemy.1);
+        self.units
+            .iter_mut()
+            .find(|unit| unit.id == horseman)
+            .unwrap()
+            .moves_left = UnitKind::Horseman.stats().moves * MOVE_FRAGMENTS;
         let position = |game: &Self, id| {
             game.units
                 .iter()
@@ -219,8 +249,9 @@ impl Simulation {
         resource.resource = Some(Resource::Saltpeter);
         resource.road = true;
         let source_defender = |game: &Simulation| {
-            game.preferred_city_defender(&game.cities[0])
-                .has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::Defense)
+            let kind = game.preferred_city_defender(&game.cities[0]);
+            super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
+                || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk")
         };
         let budget = source_defender(self);
         self.cities[0].shields = 20;
@@ -231,13 +262,18 @@ impl Simulation {
         self.cities[0].buildings.push(Building::BARRACKS_II);
         self.spawn_unit(1, UnitKind::Warrior, x, y);
         self.cities[0].production = Production::Building(Building::GRANARY);
+        let no_emergency_bid = self.native_city_defense_choice(&self.cities[0]).0.is_none();
         self.prepare_ai_city_defenses(1);
-        let quiet = self.cities[0].production == Production::Building(Building::GRANARY);
+        let quiet = no_emergency_bid
+            && !matches!(self.cities[0].production, Production::Unit(kind)
+                if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
+                    || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk"));
         self.sign_pact(1, HUMAN, Pact::War);
         self.spawn_unit(HUMAN, UnitKind::Warrior, nx, ny);
         self.prepare_ai_city_defenses(1);
         let responded = matches!(self.cities[0].production, Production::Unit(kind)
-            if kind.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::Defense));
+            if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
+                || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk"));
         (budget && stocked, quiet, responded)
     }
 
@@ -256,7 +292,9 @@ impl Simulation {
             tile.railroad = false;
             tile.base = None;
         }
-        let charge = self.spawn_unit(1, UnitKind::Catapult, 10, 20);
+        // Use a charge with lower defense and higher attack than the Musketman
+        // guard, matching Freeciv's bodyguard compatibility requirements.
+        let charge = self.spawn_unit(1, UnitKind::Longbowman, 10, 20);
         let guard = self.spawn_unit(1, UnitKind::Musketman, 10, 20);
         self.request_ai_guard(charge);
         let selected =
@@ -284,11 +322,29 @@ impl Simulation {
             .unwrap()
             .moves_left = 6;
         let target = offset_native_by_map(actor.x, actor.y, 1, 0);
+        self.sign_pact(1, HUMAN, Pact::War);
         let enemy = self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
         self.units.last_mut().unwrap().hp = 1;
         self.set_random_seed(1);
         let attack = self.try_move_unit(charge, 1, 0) == MoveResult::Fought
             && self.units.iter().all(|u| u.id != enemy);
         (selected, waited && followed, attack)
+    }
+}
+
+#[cfg(test)]
+mod focused_p13_tests {
+    use super::*;
+
+    #[test]
+    fn reserved_defender_can_reinforce_a_more_urgent_city() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let (dispatched, arrived, home_guarded) = sim.ai_reinforcements_playtest();
+        assert!(
+            dispatched,
+            "reserved Marine was not dispatched: {dispatched}, {arrived}, {home_guarded}"
+        );
+        assert!(arrived, "Marine did not reach the threatened city");
+        assert!(home_guarded, "source city lost its Warrior");
     }
 }

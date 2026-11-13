@@ -14,6 +14,14 @@ impl Simulation {
         let inland = self.ferry_tech_want(1, Tech::MAP_MAKING) == 0
             && self.research_target(1) == Tech::BRONZE_WORKING;
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
+        // The inland case has several good local sites. Once it is turned
+        // into a coastal port, remove those sites so the C2C3 settler advisor
+        // has a real ferry need (daisettler.c stops at RESULT_IS_ENOUGH).
+        for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
+            if (nx, ny) != (sx, sy) {
+                self.tile_mut(nx, ny).terrain = Terrain::Sea;
+            }
+        }
         self.tile_mut(sx, sy).terrain = Terrain::Sea;
         let path = self.research_path(1, Tech::MAP_MAKING);
         let coastal = self.ferry_tech_want(1, Tech::MAP_MAKING) == 500
@@ -54,6 +62,13 @@ impl Simulation {
         let island = offset_native_by_map(home.0, home.1, 6, 0);
         self.tile_mut(home.0, home.1).terrain = Terrain::Forest;
         self.tile_mut(island.0, island.1).terrain = Terrain::Grassland;
+        // The remote settlement needs a second land tile to work for food
+        // and shields; a lone Grassland tile is not a legal city site.
+        let productive = offset_native_by_map(island.0, island.1, 1, 0);
+        let productive_tile = self.tile_mut(productive.0, productive.1);
+        productive_tile.terrain = Terrain::Grassland;
+        productive_tile.known_by[1] = true;
+        self.tile_mut(island.0, island.1).known_by[1] = true;
         self.create_city(1, home.0, home.1);
         self.cities[0].size = 3;
         self.cities[0].food = 20;

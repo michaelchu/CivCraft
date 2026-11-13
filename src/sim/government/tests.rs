@@ -43,7 +43,7 @@ fn barbarians_keep_the_current_government_output_waste_rules() {
     );
     game.players[BARBARIANS]
         .known
-        .extend([Tech::TRADE, Tech::THE_CORPORATION]);
+        .extend([Tech::ECONOMICS, Tech::THE_CORPORATION]);
     assert_eq!(
         game.government_output_waste_under(&city, 100, 100, None, Government::Despotism),
         (90, 80)
@@ -123,7 +123,7 @@ fn government_player_bonus_uses_c2c3_fanatics_and_partisans_effects() {
     game.players[1]
         .known
         .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
-    game.players[HUMAN].known.push(Tech::GUERILLA_WARFARE);
+    game.players[HUMAN].known.push(Tech::NATIONALISM);
     assert_eq!(game.government_player_bonus(1, Government::Communism), 3);
     assert_eq!(game.government_player_bonus(1, Government::Democracy), 3);
     assert_eq!(

@@ -67,33 +67,27 @@ impl Simulation {
             return false;
         };
         let (city_id, x, y) = (city.id, city.x, city.y);
+        // Isolate the unit-support check from the opening UI city's current
+        // population and specialist mix; a size-four city can represent the
+        // C2C3 military-content rules without falling into disorder.
+        if let Some(city) = self.cities.iter_mut().find(|city| city.id == city_id) {
+            city.size = 4;
+            city.specialists = [0; 3];
+            city.food = 0;
+            city.was_happy = false;
+        }
+        self.reconcile_city_workers();
         self.players[HUMAN].gold = 100;
 
-        let mut supported_units: Vec<u32> = self
-            .units
-            .iter()
-            .filter(|unit| unit.owner == HUMAN && unit.kind.requires_support())
-            .map(|unit| unit.id)
+        self.units.retain(|unit| unit.owner != HUMAN);
+        let supported_units: Vec<u32> = (0..5)
+            .map(|_| self.spawn_unit(HUMAN, UnitKind::Warrior, x, y))
             .collect();
-        while supported_units.len() < 5 {
-            supported_units.push(self.spawn_unit(HUMAN, UnitKind::Warrior, x, y));
-        }
-        supported_units.sort_unstable();
-
-        for unit in self
-            .units
-            .iter_mut()
-            .filter(|unit| unit.owner == HUMAN && unit.kind.requires_support())
-        {
-            unit.home_city = None;
-            unit.home_order = unit.id;
-        }
-        if let Some(unit) = self
-            .units
-            .iter_mut()
-            .find(|unit| unit.id == supported_units[4])
-        {
-            unit.home_city = Some(city_id);
+        for unit_id in supported_units.iter().rev().take(3) {
+            if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == *unit_id) {
+                unit.home_city = Some(city_id);
+                unit.home_order = unit.id;
+            }
         }
         self.reconcile_city_workers();
 

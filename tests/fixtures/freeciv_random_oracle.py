@@ -4,11 +4,22 @@ Usage: python3 tests/fixtures/freeciv_random_oracle.py /path/to/freeciv [output.
 Only logging/assert infrastructure is stubbed; RNG function bodies are verbatim.
 """
 import pathlib
+import hashlib
 import subprocess
 import sys
 import tempfile
 
-source = (pathlib.Path(sys.argv[1]) / 'utility/rand.c').read_text()
+PINNED_REVISION = '9ff184b6eb128ca636c7ad6269e27aa959600006'
+reference = pathlib.Path(sys.argv[1])
+revision = subprocess.check_output(
+    ['git', '-C', str(reference), 'rev-parse', 'HEAD'], text=True
+).strip()
+if revision != PINNED_REVISION:
+    raise SystemExit(f'expected Freeciv {PINNED_REVISION}, found {revision}')
+source_path = reference / 'utility/rand.c'
+source_bytes = source_path.read_bytes()
+source_hash = hashlib.sha256(source_bytes).hexdigest()
+source = source_bytes.decode()
 def extract(signature):
     start = source.index(signature)
     brace = source.index('{', start)
@@ -63,4 +74,8 @@ with tempfile.TemporaryDirectory() as directory:
     subprocess.run(['clang','-O2',str(src),'-o',str(binary)],check=True)
     result = subprocess.check_output([str(binary)])
 output = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else pathlib.Path(__file__).with_name('freeciv_random_vectors.tsv')
-output.write_bytes(result)
+provenance = (
+    f'# Freeciv source revision: {revision}\n'
+    f'# utility/rand.c SHA-256: {source_hash}\n'
+).encode()
+output.write_bytes(provenance + result)

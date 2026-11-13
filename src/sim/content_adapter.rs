@@ -84,8 +84,9 @@ impl Civ3ContentBindings {
 }
 
 /// Resolve a Freeciv technology universal through the selected ruleset and
-/// the explicit Civ III source catalog. A missing source counterpart is only
-/// accepted for the documented Freeciv-only `Plastics` advance.
+/// the explicit Civ III source catalog. Missing source counterparts are only
+/// accepted for the documented Freeciv-only `Plastics` advance and for the
+/// derived C2C3 Radio-to-Flight airfield mapping.
 pub(crate) fn bind_freeciv_technology(
     ruleset: &RulesetData,
     freeciv_name: &str,
@@ -112,6 +113,14 @@ pub(crate) fn bind_freeciv_technology(
         .unwrap_or(&freeciv_record.rule_name);
     if display_name.eq_ignore_ascii_case("Plastics") {
         return Ok(FreecivTechBinding::MissingFromCiv3Catalog);
+    }
+    if display_name.eq_ignore_ascii_case("Radio") {
+        // C2C3's Radio advance unlocks airstrips and airbases, but Conquests
+        // has no researchable Radio node. Its manual makes Flight the
+        // prerequisite for the corresponding Airfield worker action. Bind
+        // this selected-ruleset requirement to that Civ III advance without
+        // adding the legacy Freeciv Radio ID to the Civ III research tree.
+        return Ok(FreecivTechBinding::Bound(Tech::FLIGHT));
     }
 
     let source = ruleset
@@ -364,6 +373,11 @@ mod tests {
             bind_freeciv_technology(&rules, "Conscription"),
             Ok(FreecivTechBinding::Bound(Tech::NATIONALISM))
         );
+        assert_eq!(
+            bind_freeciv_technology(&rules, "Radio"),
+            Ok(FreecivTechBinding::Bound(Tech::FLIGHT))
+        );
+        assert!(!Tech::RADIO.is_civ3_advance());
         assert_eq!(
             bind_freeciv_technology(&rules, "Environmentalism"),
             Ok(FreecivTechBinding::Bound(Tech::ECOLOGY))

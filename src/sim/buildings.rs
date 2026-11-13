@@ -255,6 +255,13 @@ impl Simulation {
         building: Building,
         granted: Option<Tech>,
     ) -> bool {
+        if let Some(obsolete) =
+            super::action_rules::selected_building_is_obsolete(self, city, building, granted)
+        {
+            return obsolete;
+        }
+        // A Civ III building with no selected C2C3 content record retains the
+        // catalog rule until its explicit Freeciv mapping is added.
         building
             .data()
             .obsolete

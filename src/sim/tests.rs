@@ -71,7 +71,7 @@ fn civ3_map_roster_controls_active_players_and_score_standings() {
 }
 
 #[test]
-fn newly_founded_city_claims_only_its_center_and_nearest_eight_tiles() {
+fn newly_founded_city_uses_c2c3_border_and_work_radii() {
     for wrap in [MapWrap::X] {
         let mut game = Simulation::new(crate::mapgen::generate_with_wrap(42, wrap));
         game.cities.clear();
@@ -86,6 +86,7 @@ fn newly_founded_city_claims_only_its_center_and_nearest_eight_tiles() {
 
         let distances = game.map_wrap.civ3_distances_from(cx, cy);
         let mut first_ring = 0;
+        let mut second_ring = 0;
         let mut worked_candidate = None;
         for (index, tile) in game.tiles.iter().enumerate() {
             let rank = distances[index];
@@ -93,7 +94,10 @@ fn newly_founded_city_claims_only_its_center_and_nearest_eight_tiles() {
                 first_ring += 1;
                 assert_eq!(tile.owner, Some(HUMAN), "wrap {wrap:?}");
                 worked_candidate.get_or_insert(game.map_wrap.position(index));
-            } else if rank > 1 {
+            } else if rank == 2 {
+                second_ring += 1;
+                assert_eq!(tile.owner, Some(HUMAN), "wrap {wrap:?}");
+            } else if rank > 2 {
                 assert_eq!(
                     tile.owner, None,
                     "unexpected claim at index {index}, rank {rank}, wrap {wrap:?}"
@@ -101,11 +105,20 @@ fn newly_founded_city_claims_only_its_center_and_nearest_eight_tiles() {
             }
         }
         assert_eq!(first_ring, 8, "wrap {wrap:?}");
+        assert_eq!(second_ring, 16, "wrap {wrap:?}");
         let (inside_x, inside_y) = worked_candidate.unwrap();
         assert!(game.can_assign_city_tile(&game.cities[0], inside_x, inside_y));
+        let second_ring_workable = distances.iter().enumerate().any(|(index, &rank)| {
+            if rank != 2 {
+                return false;
+            }
+            let (x, y) = game.map_wrap.position(index);
+            game.can_assign_city_tile(&game.cities[0], x, y)
+        });
+        assert!(second_ring_workable);
         let outside = distances
             .iter()
-            .position(|&rank| rank == 2)
+            .position(|&rank| rank == 3)
             .map(|index| game.map_wrap.position(index))
             .unwrap();
         assert!(!game.can_assign_city_tile(&game.cities[0], outside.0, outside.1));
@@ -143,7 +156,11 @@ fn new_game_advances_freeciv_post_mapgen_rng_and_keeps_civ3_assignments() {
         let known = civilization.starting_techs;
         let mut available_count = 0;
         for tech in Tech::all().filter(|tech| tech.is_civ3_advance()) {
-            if known.contains(&tech)
+            // Fresh campaign players start in the Ancient era. Mirror
+            // tech_available()'s era gate as well as its known/prerequisite
+            // checks so the expected reservoir-sampling draws stay aligned.
+            if tech.era() > crate::rules::TechEra::Ancient
+                || known.contains(&tech)
                 || tech
                     .civ3_equivalent()
                     .is_some_and(|equivalent| known.contains(&equivalent))

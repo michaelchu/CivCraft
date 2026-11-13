@@ -10,7 +10,8 @@ impl Simulation {
         self.tile_mut(tx, ty).terrain = Terrain::Sea;
         self.tile_mut(tx, ty).known_by[1] = true;
         self.tile_mut(tx, ty).hut = false;
-        // Cruise Missile requires connected Aluminum in the Conquests roster.
+        // Ensure resources are available for content-specific production
+        // advice; the selected C2C3 Cruise Missile record has no resource req.
         let (ax, ay) = offset_native_by_map(x, y, -1, 0);
         let aluminum = self.tile_mut(ax, ay);
         aluminum.terrain = Terrain::Hills;
@@ -42,6 +43,7 @@ impl Simulation {
 
     pub(crate) fn ai_submarine_playtest_setup(&mut self) -> (u32, u32, u32) {
         let (submarine, missile, target, _) = self.submarine_playtest_setup();
+        self.sign_pact(1, HUMAN, Pact::War);
         for unit in &mut self.units {
             if unit.id == submarine || unit.id == missile {
                 unit.owner = 1;
@@ -49,6 +51,7 @@ impl Simulation {
             if unit.id == target {
                 unit.owner = HUMAN;
                 unit.kind = UnitKind::Carrier;
+                unit.moves_left = UnitKind::Carrier.stats().moves * MOVE_FRAGMENTS;
             }
             if unit.id == missile {
                 unit.transport = Some(submarine);
@@ -60,6 +63,16 @@ impl Simulation {
             .find(|unit| unit.id == target)
             .map(|unit| (unit.x, unit.y))
             .unwrap();
+        let (sx, sy) = self
+            .units
+            .iter()
+            .find(|unit| unit.id == submarine)
+            .map(|unit| (unit.x, unit.y))
+            .unwrap();
+        // dai_hunter_manage only pursues a faster target when the target's
+        // observed last position forms an intercept vector (dist1 < dist2).
+        self.previous_naval_positions
+            .insert(target, offset_native_by_map(sx, sy, 2, 0));
         self.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
         self.units.last_mut().unwrap().transport = Some(target);
         (submarine, missile, target)
@@ -74,6 +87,7 @@ impl Simulation {
             .unwrap();
         ship.kind = UnitKind::Submarine;
         ship.hp = UnitKind::Submarine.stats().hp;
+        ship.moves_left = UnitKind::Submarine.stats().moves * MOVE_FRAGMENTS;
         let mut destroyer = self
             .units
             .iter()
@@ -96,34 +110,68 @@ impl Simulation {
         self.tile_mut(tx, ty).terrain = Terrain::Grassland;
         self.tile_mut(tx, ty).base = None;
         self.players[HUMAN].known.extend([
+            Tech::MAGNETISM,
+            Tech::IRONCLADS,
             Tech::NAVIGATION,
             Tech::STEAM_ENGINE,
             Tech::ENGINEERING,
+            Tech::COMBUSTION,
             Tech::STEEL,
             Tech::MASS_PRODUCTION,
         ]);
+        // Keep the Civ III catalog requirements available for the city.
+        let resource_sites: Vec<_> = self
+            .map_wrap
+            .civ3_neighbors(x, y)
+            .filter(|&(rx, ry)| (rx, ry) != (nx, ny) && self.city_at(rx, ry).is_none())
+            .take(4)
+            .collect();
+        for ((rx, ry), (resource, terrain)) in resource_sites.into_iter().zip([
+            (Resource::Iron, Terrain::Hills),
+            (Resource::Saltpeter, Terrain::Desert),
+            (Resource::Coal, Terrain::Forest),
+            (Resource::Oil, Terrain::Plains),
+        ]) {
+            let tile = self.tile_mut(rx, ry);
+            tile.terrain = terrain;
+            tile.resource = Some(resource);
+            tile.owner = Some(HUMAN);
+            tile.road = true;
+        }
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let production = self.can_produce(city, Production::Unit(UnitKind::Destroyer))
             && self.can_produce(city, Production::Unit(UnitKind::Cruiser))
             && self.can_produce(city, Production::Unit(UnitKind::Battleship))
-            && !self.can_produce(city, Production::Unit(UnitKind::Frigate))
+            && self.can_produce(city, Production::Unit(UnitKind::Frigate))
             && !self.can_produce(city, Production::Unit(UnitKind::Ironclad));
         let frigate = self.spawn_unit(HUMAN, UnitKind::Frigate, x, y);
-        let upgrade = self
+        let frigate_has_no_catalog_upgrade = self
             .units
             .iter()
             .find(|unit| unit.id == frigate)
             .and_then(|unit| self.paid_upgrade(unit))
+            .is_none();
+        let ironclad = self.spawn_unit(HUMAN, UnitKind::Ironclad, x, y);
+        let upgrade = self
+            .units
+            .iter()
+            .find(|unit| unit.id == ironclad)
+            .and_then(|unit| self.paid_upgrade(unit))
             .is_some_and(|(kind, _)| kind == UnitKind::Destroyer);
         let battleship = self.spawn_unit(HUMAN, UnitKind::Battleship, nx, ny);
         let defender = self.spawn_unit(1, UnitKind::Worker, tx, ty);
+        self.sign_pact(HUMAN, 1, Pact::War);
         let shore_attack = self.apply(Command::Move(battleship, 1, 0))
             && self.units.iter().all(|unit| unit.id != defender)
             && self
                 .units
                 .iter()
                 .any(|unit| unit.id == battleship && (unit.x, unit.y) == (nx, ny));
-        (production, upgrade, shore_attack)
+        (
+            production,
+            frigate_has_no_catalog_upgrade && upgrade,
+            shore_attack,
+        )
     }
 
     pub(crate) fn trireme_playtest_setup(&mut self) -> (u32, u32) {
@@ -165,10 +213,10 @@ impl Simulation {
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
         self.tile_mut(nx, ny).terrain = Terrain::Sea;
         let docked = self.spawn_unit(HUMAN, UnitKind::AegisCruiser, x, y);
-        self.units.last_mut().unwrap().hp = 15;
+        self.units.last_mut().unwrap().hp = 2;
         let at_sea = self.spawn_unit(HUMAN, UnitKind::AegisCruiser, nx, ny);
         let ship = self.units.last_mut().unwrap();
-        ship.hp = 15;
+        ship.hp = 2;
         ship.moved = true;
         self.update_activities_and_restore();
         let docked = self.unit_by_id(docked).unwrap();

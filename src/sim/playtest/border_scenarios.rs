@@ -15,22 +15,22 @@ impl Simulation {
         }
         let (x, y) = (10, 24);
         let wrap = self.map_wrap;
-        let civ3_east = |position: (i32, i32)| wrap.civ3_offset(position.0, position.1, 2, 0);
-        let coast = civ3_east((x, y)).unwrap();
-        let sea = civ3_east(coast).unwrap();
-        let lake = wrap.civ3_offset(x, y, -1, -1).unwrap();
-        for step in 1..=8 {
-            let (sx, sy) = offset_native_by_map(x, y, step, 0);
-            self.tile_mut(sx, sy).terrain = Terrain::Sea;
-        }
-        // Enlarge the connected sea so it cannot qualify as an enclosed lake.
-        for step in 3..=8 {
-            for dy in 0..=4 {
-                let (sx, sy) = offset_native_by_map(x, y, step, dy);
+        // Build and sample the geometry in the same map-coordinate space.
+        // The open-water region is large and not enclosed; the one-tile lake
+        // remains surrounded by land.
+        let coast = wrap.offset(x, y, 1, 0).unwrap();
+        let sea = wrap.offset(x, y, 2, 0).unwrap();
+        let lake = wrap.offset(x, y, -1, -1).unwrap();
+        for dx in 1..=8 {
+            for dy in -4..=4 {
+                let (sx, sy) = wrap.offset(x, y, dx, dy).unwrap();
                 self.tile_mut(sx, sy).terrain = Terrain::Sea;
             }
         }
         self.tile_mut(lake.0, lake.1).terrain = Terrain::Lake;
+        for (tx, ty) in [(x, y), coast, sea, lake] {
+            self.tile_mut(tx, ty).known_by[1] = true;
+        }
         self.create_city(1, x, y);
         let water = self.tile(coast.0, coast.1).owner == Some(1)
             && self.tile(sea.0, sea.1).owner.is_none()
@@ -128,6 +128,12 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fogged_border_playtest_separates_known_coast_lake_and_open_sea() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(game.fogged_border_playtest(), (true, true));
+    }
 
     #[test]
     fn city_border_playtest_uses_selected_c2c3_strength_and_radius() {

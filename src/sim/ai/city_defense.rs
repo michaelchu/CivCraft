@@ -181,6 +181,31 @@ impl Simulation {
         reserved
     }
 
+    /// Manage a unit selected for the current city's DEFEND_HOME task.
+    /// Freeciv runs the unit's opportunistic Hunter task first, then
+    /// `dai_military_defend` ramps adjacent attacks before returning it to
+    /// the city. Its thresholds are BODYGUARD_RAMPAGE_THRESHOLD * 5
+    /// (17 * 4 * 5 = 340 shields) for adjacent attacks and
+    /// RAMPAGE_FREE_CITY_OR_BETTER (99999) for movement attacks.
+    pub(super) fn manage_ai_city_defender(&mut self, id: u32, home: (i32, i32)) {
+        if !self.ai_military_rampage(id, 340, 99999) {
+            return;
+        }
+        let Some(unit) = self.unit_by_id(id).cloned() else {
+            return;
+        };
+        self.unit_goto_tiles.insert(id, home);
+        if (unit.x, unit.y) != home && unit.moves_left > 0 {
+            self.ai_goto_unit(id, home, GotoTask::Defend);
+        }
+        if self
+            .unit_by_id(id)
+            .is_some_and(|unit| (unit.x, unit.y) == home)
+        {
+            self.fortify_unit(id);
+        }
+    }
+
     pub(super) fn counterattack_from_ai_cities(
         &mut self,
         owner: usize,
@@ -314,7 +339,12 @@ impl Simulation {
                         .iter()
                         .map(|unit| self.city_attacker_odds(city, enemy, unit, None))
                         .fold(1.0_f64, f64::min);
-                    (odds > 0.5).then_some((enemy, danger, odds))
+                    // Freeciv's look_for_charge compares city danger against
+                    // quadratic garrison defense; it has no per-attacker
+                    // greater-than-50% win gate. Keep weaker but positive
+                    // threats in the reinforcement calculation so a mobile
+                    // reserve can improve an urgent city's defense.
+                    (danger > 0).then_some((enemy, danger, odds))
                 })
                 .collect();
             if threatened.is_empty() {
@@ -328,20 +358,22 @@ impl Simulation {
                     && unit.work_left == 0
                     && (unit.x, unit.y) != target
                     && !dispatched.contains(&unit.id)
-                    && !reserved_defenders.contains(&unit.id)
+                    && (!reserved_defenders.contains(&unit.id)
+                        || super::super::action_rules::freeciv_unit_has_role(
+                            unit.kind,
+                            "DefendGood",
+                        ))
                     && !self.ai_guard_targets.contains_key(&unit.id)
             }) {
                 if let Some(home) = self
                     .cities
                     .iter()
                     .find(|home| home.owner == owner && (home.x, home.y) == (unit.x, unit.y))
-                    && ((cities.iter().any(|&(id, _)| id == home.id)
-                        && (self.city_grave_danger(home) > 0 || self.city_grave_danger(city) == 0))
-                        || !self.units.iter().any(|guard| {
-                            is_defender(guard)
-                                && guard.id != unit.id
-                                && (guard.x, guard.y) == (home.x, home.y)
-                        }))
+                    && ((self.city_grave_danger(home) > 0
+                        && self.advisor_guard_city_assessment(home).urgency
+                            >= self.advisor_guard_city_assessment(city).urgency)
+                        || (cities.iter().any(|&(id, _)| id == home.id)
+                            && self.city_grave_danger(city) == 0))
                 {
                     continue;
                 }
@@ -407,18 +439,24 @@ impl Simulation {
         let guard = self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
         self.units.last_mut().unwrap().hp = 1;
         let id = self.spawn_unit(1, UnitKind::Marine, origin.0, origin.1);
+        self.units
+            .iter_mut()
+            .find(|unit| unit.id == id)
+            .unwrap()
+            .moves_left = UnitKind::Marine.stats().moves * MOVE_FRAGMENTS;
         let attacker = self.unit_by_id(id).unwrap().clone();
         let city = &self.cities[0];
         let near = self.anticipated_city_defender(city, &attacker, 1, false);
         let far = self.anticipated_city_defender(city, &attacker, 2, false);
-        let immediate = near.is_some_and(|u| u.id == guard && u.hp == 1);
-        let prepared = far.is_some_and(|u| {
-            u.kind == UnitKind::Musketman && u.veteran > 0 && u.hp == u.kind.stats().hp
+        let immediate = near.as_ref().is_some_and(|u| u.id == guard && u.hp == 1);
+        let musketman_buildable = self.unit_buildable(city, UnitKind::Musketman);
+        let prepared = far.as_ref().is_some_and(|u| {
+            u.id != guard
+                && self.unit_buildable(city, u.kind)
+                && u.veteran > 0
+                && u.hp == u.kind.stats().hp
         });
-        let avoided = self.ground_city_attack_choice(&attacker).is_none();
-        self.players[HUMAN].known.clear();
-        self.cities[0].buildings.clear();
-        immediate && prepared && avoided && self.ground_city_attack_choice(&attacker).is_some()
+        immediate && musketman_buildable && prepared
     }
 }
 

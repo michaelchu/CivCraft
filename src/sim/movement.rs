@@ -883,7 +883,7 @@ impl Simulation {
             {
                 return MoveResult::Blocked;
             }
-            if unit.kind.stats().attack <= 0
+            if unit.kind.attack_strength() <= 0
                 || unit.kind.is_nuclear_weapon()
                 || (unit.kind == UnitKind::Submarine && !self.tile(nx, ny).terrain.is_water())
                 || (unit.transport.is_some()
@@ -964,6 +964,18 @@ impl Simulation {
         cost: i32,
         facing: Option<u8>,
     ) -> bool {
+        self.enter_tile_with_conquest_action(unit_id, nx, ny, cost, facing, None)
+    }
+
+    pub(super) fn enter_tile_with_conquest_action(
+        &mut self,
+        unit_id: u32,
+        nx: i32,
+        ny: i32,
+        cost: i32,
+        facing: Option<u8>,
+        conquest_action: Option<&'static str>,
+    ) -> bool {
         let entering_city = self
             .unit_by_id(unit_id)
             .and_then(|unit| {
@@ -974,7 +986,9 @@ impl Simulation {
                     })
                     .map(|city| (unit.clone(), city))
             })
-            .map(|(unit, city)| self.city_conquest_action_for_unit(&unit, city));
+            .map(|(unit, city)| {
+                conquest_action.or_else(|| self.city_conquest_action_for_unit(&unit, city))
+            });
         if entering_city.is_some_and(|action| action.is_none()) {
             return false;
         }

@@ -203,7 +203,7 @@ impl Simulation {
         unit.transport.is_some_and(|id| {
             self.units.iter().any(|ship| {
                 ship.id == id
-                    && ship.kind.can_carry(unit.kind)
+                    && self.ruleset_transport_pair_allowed_fail_closed(ship.kind, unit.kind)
                     && self.allied(unit.owner, ship.owner)
             })
         })

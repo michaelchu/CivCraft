@@ -26,19 +26,19 @@ impl Playtest {
             let (production, upgrade, shore_attack) =
                 game.sim.playtest_harness().surface_warship_playtest();
             self.results.push(("surface_warships", production && upgrade && shore_attack,
-                format!("Port production and obsolescence: {production}. Frigate can upgrade directly to Destroyer: {upgrade}. Battleship defeated a shore unit while staying at sea: {shore_attack}.")));
+                format!("Civ III ship requirements and upgrade chain: {production}. Frigate has no catalog upgrade and Ironclad upgrades to Destroyer: {upgrade}. Battleship defeated a shore unit while staying at sea: {shore_attack}.")));
         }
         if frame == 352 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (submarine, missile, _target, doubled) =
                 game.sim.playtest_harness().submarine_playtest_setup();
-            let rejected = !game
+            let allowed = game
                 .sim
                 .playtest_harness()
                 .apply(Command::BoardOrDeboard(missile))
-                && game.sim.playtest_state().cargo_count(submarine) == 0;
-            self.results.push(("submarine", rejected && doubled,
-                format!("Regular Submarine rejected Cruise Missile cargo: {rejected}. Destroyer defense doubled against a Submarine: {doubled}.")));
+                && game.sim.playtest_state().cargo_count(submarine) == 1;
+            self.results.push(("submarine", allowed && doubled,
+                format!("C2C3 Submarine accepted Cruise Missile cargo: {allowed}. Destroyer defense doubled against a Submarine: {doubled}.")));
         }
         if frame == 355 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
@@ -85,7 +85,7 @@ impl Playtest {
             let (trade, luxury, colossus_obsolete, gardens_obsolete) =
                 game.sim.playtest_harness().wonder_output_playtest();
             self.results.push(("wonder_output", trade && luxury && colossus_obsolete && gardens_obsolete,
-                format!("Colossus increased only trade-producing tiles: {trade}. Luxury bonuses respected city and empire scope and Marketplace: {luxury}. Flight obsoleted Colossus: {colossus_obsolete}. Steam Power obsoleted Hanging Gardens: {gardens_obsolete}.")));
+                format!("Colossus increased only trade-producing tiles: {trade}. Luxury bonuses respected city and empire scope and Marketplace: {luxury}. C2C3 Automobile (Civ III Motorized Transportation) obsoleted Colossus: {colossus_obsolete}. Steam Power obsoleted Hanging Gardens: {gardens_obsolete}.")));
         }
         if frame == 382 && self.act_passed {
             super::reset_founded_city_scenario(game);
@@ -97,7 +97,7 @@ impl Playtest {
             super::reset_founded_city_scenario(game);
             let (active, ended, retained) = game.sim.playtest_harness().obsolete_wonders_playtest();
             self.results.push(("obsolete_wonders", active && ended && retained,
-                format!("Rival discoveries left wonders active: {active}. Owner discoveries ended movement, defense and science effects: {ended}. Selected C2C3 history effects continued accumulating while the buildings remained: {retained}.")));
+                format!("Rival technologies left the owner's wonders active: {active}. Owner technologies obsolete the selected wonders and suppress movement and science effects: {ended}. Wonder history accumulated while buildings remained: {retained}.")));
         }
         if frame == 388 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));

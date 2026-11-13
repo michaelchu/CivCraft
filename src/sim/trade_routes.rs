@@ -776,7 +776,9 @@ mod tests {
     #[test]
     fn source_tech_requirements_for_goods_use_shared_requirement_evaluator() {
         let mut game = route_test_game();
-        game.players[0].known.retain(|&tech| tech != Tech::TRADE);
+        game.players[0]
+            .known
+            .retain(|&tech| tech != Tech::ECONOMICS);
         let mut good = campaign_settings().goods.first().unwrap().clone();
         good.requirements.push(crate::rules::freeciv::Requirement {
             kind: "Tech".to_owned(),
@@ -793,7 +795,7 @@ mod tests {
             },
         });
         assert!(!game.city_provides_good(&game.cities[0], &good));
-        game.players[0].known.push(Tech::TRADE);
+        game.players[0].known.push(Tech::ECONOMICS);
         assert!(game.city_provides_good(&game.cities[0], &good));
     }
 

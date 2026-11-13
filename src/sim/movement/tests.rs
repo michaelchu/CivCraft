@@ -333,6 +333,7 @@ fn imported_marine_small_land_units_can_occupy_cities() {
     game.tile_mut(home.0, home.1).terrain = Terrain::Grassland;
     game.tile_mut(target.0, target.1).terrain = Terrain::Grassland;
     game.create_city(1, target.0, target.1);
+    game.cities.last_mut().unwrap().size = 2;
     game.sign_pact(HUMAN, 1, Pact::War);
     let marine = game.spawn_unit(HUMAN, UnitKind::Marine, home.0, home.1);
     assert!(UnitKind::Marine.can_occupy_city());
@@ -1520,8 +1521,11 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (12, 12);
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
+    game.tile_mut(x, y).terrain = Terrain::Grassland;
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
     game.create_city(1, nx, ny);
+    game.cities.last_mut().unwrap().size = 2;
+    game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(HUMAN, UnitKind::ModernArmor, x, y);
     let first = game.spawn_unit(1, UnitKind::Warrior, nx, ny);
     let second = game.spawn_unit(1, UnitKind::Warrior, nx, ny);
@@ -1546,16 +1550,20 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
     );
     game.units
         .iter_mut()
-        .find(|unit| unit.id == second)
-        .unwrap()
-        .hp = 1;
-    game.units
-        .iter_mut()
         .find(|unit| unit.id == attacker)
         .unwrap()
         .moves_left = MOVE_FRAGMENTS;
-    game.set_random_seed(42);
-    game.resolve_combat(attacker, second, nx, ny, None);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == second)
+        .unwrap()
+        .hp = 1;
+    assert!(game.apply(Command::Move(attacker, 1, 0)));
+    assert!(!game.units.iter().any(|unit| unit.id == second));
+    assert!(
+        game.unit_by_id(attacker)
+            .is_some_and(|unit| (unit.x, unit.y) == (nx, ny))
+    );
     assert!(
         game.cities
             .iter()

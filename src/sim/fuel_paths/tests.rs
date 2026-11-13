@@ -55,26 +55,29 @@ fn an_isolated_aircraft_without_any_refuel_point_cannot_leave_its_start() {
 }
 
 #[test]
-fn waiting_for_refuel_preserves_the_earliest_position_separately_from_more_fuel() {
+fn waiting_for_refuel_preserves_the_earliest_position_for_the_mapped_fuel_budget() {
     let mut sim = world();
     sim.create_city(HUMAN, 10, 20);
     let start = civ3_east(&sim, (10, 20), 1);
-    // Four tiles out and four back requires the Conquests Stealth Bomber's
-    // 16-point operational range; a Fighter's range is only 6.
+    // Fuel comes from the selected C2C3 unit record; movement allowance stays
+    // with the mapped Civ III unit, so this aircraft covers three tiles per
+    // fuel load. It uses a nearby airstrip to refuel before continuing.
+    let airstrip = civ3_east(&sim, (10, 20), 2);
+    sim.tile_mut(airstrip.0, airstrip.1).base = Some(Base::Airstrip);
     let mut plane = actor(&mut sim, UnitKind::StealthBomber, start);
     plane.fuel = 1;
     plane.moves_left = MOVE_FRAGMENTS;
-    let target = civ3_east(&sim, (10, 20), 4);
+    let target = civ3_east(&sim, (10, 20), 3);
     let earlier = civ3_east(&sim, (10, 20), 2);
     let mut map = FuelPaths::new(&sim, &plane, true).unwrap();
-    // Return one step, wait at the city to refuel, then fly to the goal.
+    // Reach the airstrip on the initial fuel, wait to refuel, then continue.
     assert_eq!(
         map.movement_cost(&sim, target.0, target.1),
-        Some(6 * MOVE_FRAGMENTS)
+        Some(2 * MOVE_FRAGMENTS)
     );
     assert_eq!(
         map.movement_cost(&sim, earlier.0, earlier.1),
-        Some(4 * MOVE_FRAGMENTS)
+        Some(MOVE_FRAGMENTS)
     );
     assert_eq!(map.movement_cost(&sim, start.0, start.1), Some(0));
     assert!(
@@ -101,21 +104,21 @@ fn waiting_for_refuel_preserves_the_earliest_position_separately_from_more_fuel(
     let result = sim.follow_source_ai_path(plane.id, path);
     assert!(result.alive && result.moved && !result.at_goal);
     let live = sim.unit_by_id(plane.id).unwrap();
-    assert_eq!((live.x, live.y), (10, 20));
+    assert_eq!((live.x, live.y), airstrip);
     assert_eq!(live.moves_left, 0);
 }
 
 #[test]
-fn refuel_waits_are_recorded_at_the_city_but_not_added_to_path_cost() {
+fn refuel_waits_are_recorded_at_the_city_without_extending_the_mapped_fuel_range() {
     let mut sim = world();
     sim.create_city(HUMAN, 10, 20);
     let mut plane = actor(&mut sim, UnitKind::StealthBomber, (10, 20));
     plane.fuel = 1;
-    let target = offset_native_by_map(10, 20, 8, 0);
+    let target = offset_native_by_map(10, 20, 1, 0);
     let mut boundary = FuelPaths::new(&sim, &plane, true).unwrap();
     assert_eq!(
         boundary.movement_cost(&sim, target.0, target.1),
-        Some(8 * MOVE_FRAGMENTS)
+        Some(MOVE_FRAGMENTS)
     );
     assert_eq!(
         boundary.path(&sim, target.0, target.1).unwrap().first(),
@@ -127,7 +130,7 @@ fn refuel_waits_are_recorded_at_the_city_but_not_added_to_path_cost() {
     let mut partial = FuelPaths::new(&sim, &plane, true).unwrap();
     assert_eq!(
         partial.movement_cost(&sim, target.0, target.1),
-        Some(8 * MOVE_FRAGMENTS)
+        Some(MOVE_FRAGMENTS)
     );
     assert_eq!(
         partial.path(&sim, target.0, target.1).unwrap().first(),
@@ -140,7 +143,9 @@ fn fuel_goto_executes_only_the_prefix_before_refuel_wait() {
     let mut sim = world();
     sim.create_city(HUMAN, 10, 20);
     let start = offset_native_by_map(10, 20, 1, 0);
-    let target = offset_native_by_map(10, 20, 4, 0);
+    let airstrip = offset_native_by_map(10, 20, 2, 0);
+    let target = offset_native_by_map(10, 20, 3, 0);
+    sim.tile_mut(airstrip.0, airstrip.1).base = Some(Base::Airstrip);
     let plane = actor(&mut sim, UnitKind::StealthBomber, start);
     let live = sim
         .units
@@ -155,11 +160,11 @@ fn fuel_goto_executes_only_the_prefix_before_refuel_wait() {
         .ai_goto_path(&plane, target, super::super::normal_paths::GotoTask::None)
         .unwrap();
     assert!(path.contains(&(0, 0)));
-    assert_eq!(cost, 5 * MOVE_FRAGMENTS);
+    assert_eq!(cost, 2 * MOVE_FRAGMENTS);
     let result = sim.ai_goto_unit(plane.id, target, super::super::normal_paths::GotoTask::None);
     assert!(result.alive && result.moved && !result.at_goal);
     let live = sim.unit_by_id(plane.id).unwrap();
-    assert_eq!((live.x, live.y), (10, 20));
+    assert_eq!((live.x, live.y), airstrip);
     assert_eq!(live.moves_left, 0);
 }
 
@@ -182,7 +187,7 @@ fn one_attack_bomber_returns_to_refuel_instead_of_attacking_on_last_fuel_turn() 
 }
 
 #[test]
-fn fighter_attack_uses_return_requirement_and_unfuelled_missiles_skip_fuel_paths() {
+fn fighter_attack_uses_return_requirement_and_missiles_use_selected_fuel_paths() {
     let mut sim = world();
     sim.create_city(HUMAN, 10, 20);
     let mut fighter = actor(&mut sim, UnitKind::Fighter, (10, 20));
@@ -192,8 +197,8 @@ fn fighter_attack_uses_return_requirement_and_unfuelled_missiles_skip_fuel_paths
     assert!(map.attack_possible(MOVE_FRAGMENTS, 0));
     assert!(!map.attack_possible(MOVE_FRAGMENTS, MOVE_FRAGMENTS));
     let missile = actor(&mut sim, UnitKind::CruiseMissile, (10, 20));
-    assert_eq!(missile.kind.fuel_capacity(), 0);
-    assert!(FuelPaths::new(&sim, &missile, true).is_none());
+    assert_eq!(missile.kind.fuel_capacity(), 1);
+    assert!(FuelPaths::new(&sim, &missile, true).is_some());
 }
 
 #[test]

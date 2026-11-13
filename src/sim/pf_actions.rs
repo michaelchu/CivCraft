@@ -123,7 +123,7 @@ impl Simulation {
         // even though the PF default flags can attack native sea targets.
         let shore = kind.is_naval()
             && !matches!(kind, UnitKind::Galley | UnitKind::Submarine)
-            && kind.stats().attack > 0;
+            && kind.attack_strength() > 0;
         if !shore && !self.pf_native_tile(kind, x, y) {
             return false;
         }
@@ -205,7 +205,7 @@ impl Simulation {
         if action == PfAction::Attack {
             self.pf_native_tile(actor.kind, actor.x, actor.y)
                 || actor.kind.has_marine_attack()
-                || (actor.kind.is_naval() && actor.kind.stats().attack > 0)
+                || (actor.kind.is_naval() && actor.kind.attack_strength() > 0)
         } else {
             // Units can act from transport scope; native/city scope also permits actions.
             self.pf_native_tile(actor.kind, actor.x, actor.y)
@@ -239,7 +239,8 @@ impl Simulation {
         x: i32,
         y: i32,
     ) -> bool {
-        if enemy.kind.stats().attack <= 0 || !self.pf_action_step_possible(enemy, PfAction::Attack)
+        if enemy.kind.attack_strength() <= 0
+            || !self.pf_action_step_possible(enemy, PfAction::Attack)
         {
             return false;
         }

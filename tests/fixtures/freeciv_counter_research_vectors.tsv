@@ -1,3 +1,5 @@
+# Freeciv source revision: 9ff184b6eb128ca636c7ad6269e27aa959600006
+# ai/default/daitech.c SHA-256: a4abfe493c82da6b3730d5d8b9e60339cd65ff6a56276ff9370928962ff1692c
 # want; four(defense,available,later,tech,cost,reachable); chosen_tech delta
 101	2	1	1	-1	0	0	3	0	1	0	40	1	9	0	1	1	400	1	1	0	1	2	80	1	0	50
 101	2	1	1	-1	0	0	4	0	1	0	40	1	9	0	1	1	400	1	1	0	1	2	80	1	0	101

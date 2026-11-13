@@ -1,3 +1,5 @@
+# Freeciv source revision: 9ff184b6eb128ca636c7ad6269e27aa959600006
+# utility/rand.c SHA-256: f523dc36a50cdb0b40f5199dcb07998c1a5e48dac5315a9ae146ef47c01fb442
 # seed	size	value	state_hash (literal utility/rand.c, clang -O2)
 0	0	0	17188624
 0	1	0	17188624

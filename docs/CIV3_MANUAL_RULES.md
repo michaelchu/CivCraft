@@ -122,9 +122,18 @@ Limitations or conflicts:
 - URL or local file: [online manual](https://www.scribd.com/document/764777075/Sid-Meier-s-Civilization-III-Conquests-Manual)
 - Source type: Original game material
 - Edition / expansion / patch scope: Civilization III: Conquests
-- Pages, table, figure, or section: pp. 38–39, “Clear Damage” worker action
-- Retrieved or checked date: 2026-11-10
-- Claims this source supports: Bombardment can cause craters; Workers clear them with the Clear Damage command.
+- Pages, table, figure, or section: pp. 36–39, “Airfield” and “Radar Tower”
+  worker actions; “Clear Damage” worker action
+- Retrieved or checked date: 2026-11-13
+- Claims this source supports: Workers can build Airfields after Flight; an
+  Airfield can host air units for re-basing and air operations (pp. 36–37).
+  Bombardment can cause craters; Workers clear them with the Clear Damage
+  command (pp. 38–39).
+- Supplementary claim: The selected C2C3 Airstrip/Airbase requirements name
+  Freeciv Radio, which is absent from the Conquests research catalog. The
+  campaign adapter binds those requirements to Civ III Flight, matching the
+  manual's Airfield prerequisite without adding Radio as a researchable
+  advance.
 - Limitations or conflicts: The manual does not specify which unit field enables craters, the exact creation probability, or the yield penalty.
 
 - Source ID: CIV3-CONQUESTS-CIVILOPEDIA

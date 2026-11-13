@@ -23,37 +23,44 @@ impl Simulation {
             Building::COPERNICUS_OBSERVATORY,
         ];
         self.cities[0].buildings.extend(wonders);
-        self.players[1].known.extend([
-            Tech::METALLURGY,
-            Tech::MAGNETISM,
-            Tech::NUCLEAR_POWER,
-            Tech::COMPUTERS,
-        ]);
-        let active = naval_speed(self) == base_speed + 2 * MOVE_FRAGMENTS
+        // In these records the final FALSE is `survives`, while the
+        // requirement's `present` defaults to TRUE. The selected C2C3
+        // wonders are therefore active until their owner learns the listed
+        // technology.
+        let active_before_discoveries = naval_speed(self) == base_speed + 2 * MOVE_FRAGMENTS
             && science(self) == base_science + science_tiles
             && self.has_active_wonder(HUMAN, Building::GREAT_WALL);
         self.record_city_history(0);
-        let active_history = self.cities[0].history > base_history;
-        self.players[HUMAN].known.push(Tech::MAGNETISM);
-        let lighthouse_ended = naval_speed(self) == base_speed + MOVE_FRAGMENTS;
+        let history_recorded = self.cities[0].history > base_history;
+        self.players[1].known.extend([
+            Tech::ENGINEERING,
+            Tech::NUCLEAR_POWER,
+            Tech::COMPUTERS,
+            Tech::ROBOTICS,
+        ]);
+        let rivals_did_not_obsolete = active_before_discoveries
+            && history_recorded
+            && naval_speed(self) == base_speed + 2 * MOVE_FRAGMENTS
+            && science(self) == base_science + science_tiles
+            && self.has_active_wonder(HUMAN, Building::GREAT_WALL);
         self.players[HUMAN].known.extend([
-            Tech::METALLURGY,
-            Tech::MAGNETISM,
+            Tech::ENGINEERING,
+            Tech::ROBOTICS,
             Tech::NUCLEAR_POWER,
             Tech::COMPUTERS,
         ]);
-        // Nuclear Power's own movement bonus replaces Magellan's bonus.
-        let naval_ended = lighthouse_ended && naval_speed(self) == base_speed + MOVE_FRAGMENTS;
-        let prior_history = self.cities[0].history;
+        // Nuclear Power replaces Magellan's movement bonus when it makes that
+        // wonder obsolete; Lighthouse is also obsolete at Engineering.
+        let owner_techs_obsoleted_wonders = naval_speed(self) == base_speed + MOVE_FRAGMENTS
+            && science(self) == base_science
+            && !self.has_active_wonder(HUMAN, Building::GREAT_WALL);
         self.record_city_history(0);
-        let history_retained = self.cities[0].history > prior_history
+        let history_accumulated = self.cities[0].history > base_history
             && wonders.iter().all(|b| self.cities[0].buildings.contains(b));
         (
-            active && active_history,
-            naval_ended
-                && science(self) == base_science
-                && !self.has_active_wonder(HUMAN, Building::GREAT_WALL),
-            history_retained,
+            rivals_did_not_obsolete,
+            owner_techs_obsoleted_wonders,
+            history_accumulated,
         )
     }
 
@@ -105,8 +112,11 @@ impl Simulation {
         self.tile_mut(wx, wy).river = true;
         let trade_bonus =
             zero_tile_unchanged && self.city_yields(&self.cities[0]).2 == base_trade + 3;
-        // The source record obsoletes the Colossus with Flight.
-        self.players[HUMAN].known.push(Tech::FLIGHT);
+        // The pinned C2C3 record obsoletes Colossus with Automobile, which
+        // maps to Civ III's Motorized Transportation research state.
+        self.players[HUMAN]
+            .known
+            .push(Tech::MOTORIZED_TRANSPORTATION);
         let colossus_obsolete = self.city_yields(&self.cities[0]).2 == base_trade + 1;
 
         let (sx, sy) = (0..self.tiles.len())
@@ -129,7 +139,8 @@ impl Simulation {
         let luxury =
             |game: &Self, city: usize| game.split_city_trade(&game.cities[city], 0, [100, 0, 0])[2];
         let luxury_scoped = luxury(self, 0) == 12 && luxury(self, 1) == 4 && luxury(self, 2) == 0;
-        self.players[HUMAN].known.push(Tech::STEAM_POWER);
+        // The pinned C2C3 record obsoletes Hanging Gardens with Electricity.
+        self.players[HUMAN].known.push(Tech::ELECTRICITY);
         let gardens_obsolete = luxury(self, 0) == 6 && luxury(self, 1) == 4;
         (
             trade_bonus,

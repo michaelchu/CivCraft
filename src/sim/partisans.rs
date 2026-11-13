@@ -311,7 +311,7 @@ mod tests {
             .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
         assert_eq!(game.inspire_partisans(city, 1), 0);
 
-        game.players[HUMAN].known.push(Tech::GUERILLA_WARFARE);
+        game.players[HUMAN].known.push(Tech::NATIONALISM);
         let placed = game.inspire_partisans(city, 1);
         assert!(placed > 0);
         assert!(placed <= 8);
@@ -340,7 +340,7 @@ mod tests {
         game.players[1]
             .known
             .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
-        game.players[HUMAN].known.push(Tech::GUERILLA_WARFARE);
+        game.players[HUMAN].known.push(Tech::NATIONALISM);
         let city_record = game.cities[city].clone();
         let context = super::super::action_rules::SimulationRequirementContext::for_player_in_city(
             &game,

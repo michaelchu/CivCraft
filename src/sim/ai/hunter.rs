@@ -123,11 +123,13 @@ impl Simulation {
             tile.known_by.fill(false);
         }
         let start = (20, 30);
-        let near = offset_native_by_map(start.0, start.1, 2, 0);
+        // Keep the first target beyond this Horseman's two-move turn so the
+        // tactical path can advance without resolving the stack's combat.
+        let near = offset_native_by_map(start.0, start.1, 3, 0);
         let far = offset_native_by_map(start.0, start.1, 5, 0);
         let hunter_id = sim.spawn_unit(1, UnitKind::Horseman, start.0, start.1);
         sim.spawn_unit(HUMAN, UnitKind::Swordsman, near.0, near.1);
-        let near_id = sim.spawn_unit(HUMAN, UnitKind::Swordsman, near.0, near.1);
+        sim.spawn_unit(HUMAN, UnitKind::Swordsman, near.0, near.1);
         let far_id = sim.spawn_unit(HUMAN, UnitKind::Cavalry, far.0, far.1);
         for _ in 0..4 {
             sim.spawn_unit(HUMAN, UnitKind::Cavalry, far.0, far.1);
@@ -143,16 +145,21 @@ impl Simulation {
         // A much richer target must not replace an already worthwhile
         // earlier PF tile. Both enemy squares are unknown to this Normal AI.
         let first = sim.hunter_target(&hunter, &Default::default()).map(|v| v.0);
+        let first_is_near = first
+            .and_then(|id| sim.unit_by_id(id))
+            .is_some_and(|unit| (unit.x, unit.y) == near);
         let far_unit = sim.unit_by_id(far_id).unwrap();
         let richer = sim.hunt_value(&hunter, far_unit).is_some_and(|(v, _)| {
-            sim.hunt_value(&hunter, sim.unit_by_id(near_id).unwrap())
+            first
+                .and_then(|id| sim.unit_by_id(id))
+                .and_then(|near_unit| sim.hunt_value(&hunter, near_unit))
                 .is_some_and(|(near_value, _)| v > near_value)
         });
-        let normal_omni = first == Some(near_id)
+        let normal_omni = first_is_near
             && !sim.tile(near.0, near.1).known_by[1]
             && !sim.tile(far.0, far.1).known_by[1];
         sim.run_ai_player(1);
-        let land = first == Some(near_id)
+        let land = first_is_near
             && richer
             && sim
                 .units

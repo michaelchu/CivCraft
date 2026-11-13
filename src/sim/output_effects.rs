@@ -110,6 +110,65 @@ mod city_output_tests {
     }
 
     #[test]
+    fn science_wonders_add_output_to_center_and_worked_tiles_in_freeciv_order() {
+        let mut game = fixture();
+        // The Great Library bonus has a World + survives requirement. Keep
+        // every civilization below its obsolescence advance in this fixture.
+        for player in &mut game.players {
+            player.known.clear();
+        }
+        game.players[1].rates = [100, 0, 0];
+        let city_id = game.cities[0].id;
+        let center = (game.cities[0].x, game.cities[0].y);
+        let worked = offset_native_by_map(center.0, center.1, 1, 0);
+        game.cities[0].size = 2;
+        game.cities[0].worked_tiles.push(worked);
+        game.cities[0].buildings.push(Building::LIBRARY);
+        game.finish_building(city_id, 1, Building::GREAT_LIBRARY, 300);
+        assert_eq!(
+            game.c2c3_city_output_additions(
+                &game.cities[0],
+                "Science",
+                game.players[1].government,
+            ),
+            4
+        );
+        game.create_city(
+            1,
+            offset_native_by_map(center.0, center.1, 8, 0).0,
+            center.1,
+        );
+        let rival_id = game.cities[1].id;
+        game.cities[1].buildings.push(Building::LIBRARY);
+        assert_eq!(game.city_trade(&game.cities[0], 10)[0], 28);
+        assert_eq!(game.city_trade(&game.cities[1], 10)[0], 20);
+
+        game.cities[0]
+            .buildings
+            .push(Building::COPERNICUS_OBSERVATORY);
+        game.completed_wonders
+            .push(Building::COPERNICUS_OBSERVATORY);
+        let worked_output_tiles = 1 + game.cities[0]
+            .worked_tiles
+            .iter()
+            .filter(|&&tile| tile != center)
+            .count() as i32;
+        assert_eq!(
+            game.c2c3_city_output_additions(
+                &game.cities[0],
+                "Science",
+                game.players[1].government,
+            ),
+            4 + worked_output_tiles
+        );
+        assert_eq!(
+            game.city_trade(&game.cities[0], 0)[0],
+            (4 + worked_output_tiles) * 2
+        );
+        assert_eq!(game.cities[1].id, rival_id);
+    }
+
+    #[test]
     fn shared_city_output_desktop_fixture() {
         let mut game = fixture();
         assert!(game.city_output_rules_playtest());
@@ -302,6 +361,9 @@ mod city_output_tests {
     fn celebration_trade_uses_prior_happiness_while_tile_penalty_uses_rapture_history() {
         let mut game = fixture();
         let mut city = game.cities[0].clone();
+        // C2C3 Grassland has no base trade. Road trade makes the center's
+        // positive output eligible for its celebration increment.
+        game.tile_mut(city.x, city.y).road = true;
         game.players[1].government = Government::Monarchy;
         assert_eq!(
             game.city_tile_yields(&city, city.x, city.y, true, None).2,
@@ -323,5 +385,35 @@ mod city_output_tests {
             game.city_tile_yields(&city, city.x, city.y, true, None).2,
             2
         );
+    }
+
+    #[test]
+    fn shakespeare_luxury_tile_additions_follow_player_city_and_world_scopes() {
+        let mut game = fixture();
+        game.create_city(1, 20, 24);
+        game.create_city(2, 30, 24);
+        game.cities[0]
+            .buildings
+            .push(Building::SHAKESPEARES_THEATER);
+
+        let luxury =
+            |game: &Simulation, city: &City| game.split_city_trade(city, 0, [100, 0, 0])[2];
+        assert_eq!(luxury(&game, &game.cities[0]), 6); // player + city
+        assert_eq!(luxury(&game, &game.cities[1]), 1); // player only
+        assert_eq!(luxury(&game, &game.cities[2]), 0); // neither scope
+
+        // The selected ruleset's specialist effect is World+survives, unlike
+        // the center tile's Player and City effects above.
+        game.cities[2].specialists[2] = 1;
+        assert_eq!(luxury(&game, &game.cities[2]), 2);
+        game.completed_wonders.push(Building::SHAKESPEARES_THEATER);
+        assert_eq!(luxury(&game, &game.cities[2]), 3);
+
+        game.cities[0]
+            .buildings
+            .retain(|&building| building != Building::SHAKESPEARES_THEATER);
+        assert_eq!(luxury(&game, &game.cities[0]), 0);
+        assert_eq!(luxury(&game, &game.cities[1]), 0);
+        assert_eq!(luxury(&game, &game.cities[2]), 3);
     }
 }

@@ -527,7 +527,7 @@ impl Simulation {
         let ferry = Self::is_ai_ferry(unit.kind) && task != GotoTask::Hunter;
         let style = if ferry {
             Style::Overlap
-        } else if unit.kind.stats().attack > 0
+        } else if unit.kind.attack_strength() > 0
             && matches!(
                 task,
                 GotoTask::Attack | GotoTask::Defend | GotoTask::Escort | GotoTask::Hunter

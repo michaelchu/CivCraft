@@ -48,13 +48,15 @@ impl Simulation {
             tile.hut = false;
             tile.base = None;
         }
-        // Conquests sea transports can carry missile-class cargo; carriers
-        // carry aircraft and helicopters instead.
-        let carrier = self.spawn_unit(HUMAN, UnitKind::Transport, x, y);
+        // C2C3 carriers and submarines carry missile-class cargo; transports
+        // do not. The submarine scenario below changes this carrier to a sub.
+        let carrier = self.spawn_unit(HUMAN, UnitKind::Carrier, x, y);
         let missile = self.spawn_unit(HUMAN, UnitKind::CruiseMissile, x, y);
         let target = self.spawn_unit(1, UnitKind::Transport, nx, ny);
+        self.sign_pact(HUMAN, 1, Pact::War);
         self.units.last_mut().unwrap().hp = 1;
         self.set_random_seed(1);
+        self.refresh_visibility();
         (carrier, missile, target)
     }
 
@@ -67,14 +69,18 @@ impl Simulation {
             tile.hut = false;
             tile.base = None;
         }
-        let attacker = self.spawn_unit(HUMAN, UnitKind::Helicopter, x, y);
+        // Conquests Helicopters have attack 0. Use an attack-capable aircraft
+        // while testing the ruleset's AirAttacker defense multiplier.
+        let attacker = self.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
         let cruiser = self.spawn_unit(1, UnitKind::AegisCruiser, nx, ny);
+        self.sign_pact(HUMAN, 1, Pact::War);
         self.units
             .iter_mut()
             .filter(|unit| [attacker, cruiser].contains(&unit.id))
             .for_each(|unit| unit.hp = 1);
         // This seed makes the first round hinge on the anti-air bonus.
         self.set_random_seed(19);
+        self.refresh_visibility();
         (attacker, cruiser)
     }
 
@@ -94,12 +100,23 @@ impl Simulation {
                 .buildings
                 .push(Building::SAM_BATTERY);
         }
-        let bomber = self.spawn_unit(HUMAN, UnitKind::Bomber, x, y);
+        // Civ III leaves the Bomber -> Stealth Bomber upgrade link empty.
+        // Spawn the mapped unit directly for its ruleset bombard behavior.
+        let bomber = self.spawn_unit(HUMAN, UnitKind::StealthBomber, x, y);
         // Use a durable source roster unit so the unprotected combat roll
         // cannot remove the defender and hide the SAM damage comparison.
         let defender = self.spawn_unit(1, UnitKind::MechInfantry, nx, ny);
+        self.sign_pact(HUMAN, 1, Pact::War);
         self.set_random_seed(91); // All three native rolls distinguish SAM defense.
+        self.refresh_visibility();
         (bomber, defender)
+    }
+
+    pub(crate) fn sam_battery_defense_playtest(&mut self, protected: bool) -> i32 {
+        let (bomber, defender) = self.sam_battery_playtest_setup(protected);
+        let attacker = self.unit_by_id(bomber).unwrap().clone();
+        let defender = self.unit_by_id(defender).unwrap().clone();
+        self.defense_power_against(&defender, defender.x, defender.y, attacker.kind)
     }
 
     pub(crate) fn helicopter_playtest_setup(&mut self) -> (u32, u32) {
@@ -142,8 +159,12 @@ impl Simulation {
             tile.road = true;
         }
         self.players[HUMAN].gold = 1000;
-        let bomber = self.spawn_unit(HUMAN, UnitKind::Bomber, x, y);
+        // Civ III does not link the Bomber to a Stealth Bomber upgrade. Spawn
+        // the mapped catalog identity directly for the bombard-action check.
+        let bomber = self.spawn_unit(HUMAN, UnitKind::StealthBomber, x, y);
         let target = self.spawn_unit(1, UnitKind::Worker, nx, ny);
+        self.sign_pact(HUMAN, 1, Pact::War);
+        self.refresh_visibility();
         (bomber, target)
     }
 
@@ -169,8 +190,10 @@ impl Simulation {
         self.tile_mut(nx, ny).terrain = Terrain::Grassland;
         let fighter = self.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
         let bomber = self.spawn_unit(1, UnitKind::Bomber, nx, ny);
+        self.sign_pact(HUMAN, 1, Pact::War);
         self.units.last_mut().unwrap().hp = 1;
         self.set_random_seed(4);
+        self.refresh_visibility();
         (fighter, bomber)
     }
 
@@ -184,6 +207,8 @@ impl Simulation {
             self.spawn_unit(1, UnitKind::Worker, nx, ny),
             self.spawn_unit(1, UnitKind::Spearman, nx, ny),
         ];
+        self.sign_pact(HUMAN, 1, Pact::War);
+        self.refresh_visibility();
         (bomber, targets)
     }
 
@@ -238,17 +263,5 @@ impl Simulation {
         self.set_random_seed(4);
         self.refresh_visibility();
         (fighter, victim)
-    }
-
-    pub(crate) fn ai_nuclear_strike_playtest_setup(&mut self) -> (u32, u32) {
-        let (fighter, target) = self.ai_aircraft_advisor_playtest_setup();
-        self.units.retain(|u| u.id != fighter);
-        let victim = self.unit_by_id(target).unwrap().clone();
-        for _ in 0..4 {
-            self.spawn_unit(HUMAN, UnitKind::Battleship, victim.x, victim.y);
-        }
-        let city = self.cities[0].clone();
-        let missile = self.spawn_unit(1, UnitKind::TacticalNuke, city.x, city.y);
-        (missile, target)
     }
 }

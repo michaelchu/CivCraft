@@ -237,7 +237,7 @@ impl Playtest {
             });
             let completed = position.zip(action).is_some_and(|((x, y), (_, action))| {
                 game.perform_action(action.clone());
-                (0..2).all(|_| game.sim.playtest_harness().apply(Command::EndTurn))
+                (0..3).all(|_| game.sim.playtest_harness().apply(Command::EndTurn))
                     && !game.sim.playtest_state().tile(x, y).fallout
                     && game.sim.playtest_state().tile(x, y).pollution
             });

@@ -18,13 +18,21 @@ parser.add_argument("--reference", type=Path, required=True)
 parser.add_argument("--output", type=Path, default=Path(__file__).with_name("freeciv_normal_tax_vectors.tsv"))
 args = parser.parse_args()
 reference = args.reference
+PINNED_REVISION = "9ff184b6eb128ca636c7ad6269e27aa959600006"
+revision = subprocess.check_output(
+    ["git", "-C", str(reference), "rev-parse", "HEAD"], text=True
+).strip()
+if revision != PINNED_REVISION:
+    raise SystemExit(f"expected Freeciv {PINNED_REVISION}, found {revision}")
 
-src=(reference / "ai/default/daihand.c").read_text()
+tax_source = reference / "ai/default/daihand.c"
+distribution_source = reference / "utility/distribute.c"
+src=tax_source.read_text()
 a=src.index('static void dai_manage_taxes(');start=src.index('{',a);depth=1;i=start+1
 while depth:
  depth+=(src[i]=='{')-(src[i]=='}');i+=1
 function=src[a:i]
-dist=(reference / "utility/distribute.c").read_text();a=dist.index('void distribute(');dist=dist[a:]
+dist=distribution_source.read_text();a=dist.index('void distribute(');dist=dist[a:]
 stubs=r'''
 #include <stdio.h>
 #include <stdlib.h>
@@ -125,10 +133,13 @@ with tempfile.TemporaryDirectory(prefix="civcraft-tax-oracle-") as temporary:
                   random_source.randrange(2), random_source.randrange(2)]
         result = subprocess.check_output([str(binary), *map(str, values)], text=True).strip()
         rows.append("\t".join(map(str, values)) + "\t" + result.replace(",", "\t"))
-    digest = hashlib.sha256((reference / "ai/default/daihand.c").read_bytes()).hexdigest()
-    header = ("# Literal dai_manage_taxes + utility/distribute.c compiled with clang -O2; "
+    digest = hashlib.sha256(tax_source.read_bytes()).hexdigest()
+    distribute_digest = hashlib.sha256(distribution_source.read_bytes()).hexdigest()
+    header = (f"# Freeciv source revision: {revision}\n"
+              "# Literal dai_manage_taxes + utility/distribute.c compiled with clang -O2; "
               "Normal H_RATES, Civ2Civ3 no Rapture_Grow/Tech_Parasite.\n"
               f"# daihand.c SHA256 {digest}\n"
+              f"# distribute.c SHA256 {distribute_digest}\n"
               "# maxrate trade expenses grossGold gold reserve upkeep bulbs lastScience "
               "savedScience savedTax savedLuxury wantsScience warFooting => science tax luxury\n")
     args.output.write_text(header + "\n".join(rows) + "\n")

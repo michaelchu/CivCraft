@@ -289,6 +289,10 @@ fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
     generator.finish_freeciv_water_depths(&mut topology_terrain, depths, &mut MapRng::new(42));
     assert_eq!(
         topology_terrain[wrap.index(wrap.width() - 1, 0)],
+        Terrain::Coast
+    );
+    assert_eq!(
+        topology_terrain[wrap.index(wrap.width() - 2, 0)],
         Terrain::Sea
     );
     assert_eq!(
@@ -742,16 +746,17 @@ fn freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() 
     tiles[wrap.index(ocean_x, ocean_y)].terrain = Terrain::Grassland;
     let polar_glacier = wrap.index(9, 0);
     tiles[polar_glacier].terrain = Terrain::Glacier;
-    let glacier_course = generator.trace_river(
+    let glacier_step = generator.select_freeciv_river_step(
         &tiles,
         &heights,
+        &properties,
+        &vec![false; wrap.tile_count()],
         polar_glacier,
-        Some(&properties),
         &mut MapRng::new(7),
     );
     assert!(
-        glacier_course.is_some_and(|course| course.len() > 1),
-        "frozen terrain must not terminate a river before it reaches an outlet"
+        glacier_step.is_some(),
+        "frozen terrain must not prevent a river from leaving its spring"
     );
 }
 
@@ -805,6 +810,27 @@ fn map_checksum(tiles: &[GeneratedTile]) -> u64 {
     checksum
 }
 
+#[test]
+#[ignore = "manual self-regression vector generator"]
+fn dump_civcraft_mapgen_vectors() {
+    for seed in [1, 42, 12345, 700001, 2147483647] {
+        let map = generate(seed);
+        let mut starts = map.starts.to_vec();
+        starts.sort_unstable();
+        let starts = starts
+            .iter()
+            .map(|(x, y)| format!("{x},{y}"))
+            .collect::<Vec<_>>()
+            .join(";");
+        println!(
+            "x\t{seed}\t{}\t{}\t{:016x}\t{starts}",
+            map.map_wrap.width(),
+            map.map_wrap.height(),
+            map_checksum(&map.tiles)
+        );
+    }
+}
+
 #[cfg(test)]
 #[test]
 fn default_worlds_match_civcraft_resource_goldens() {
@@ -813,28 +839,28 @@ fn default_worlds_match_civcraft_resource_goldens() {
     let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
         (
             1,
-            0xf810a553cb0e8e74,
-            [(2, 10), (2, 28), (6, 39), (9, 20), (15, 31), (30, 27)],
+            0x7397e149e920ef7e,
+            [(2, 28), (5, 12), (13, 18), (14, 33), (21, 30), (32, 22)],
         ),
         (
             42,
-            0x76818b1c17b9cd71,
-            [(1, 25), (8, 22), (15, 39), (24, 5), (25, 21), (31, 19)],
+            0x55a4c27d734602b3,
+            [(0, 29), (9, 29), (16, 43), (23, 20), (24, 7), (31, 19)],
         ),
         (
             12345,
-            0x199b4501fd3a6108,
-            [(0, 32), (12, 28), (19, 33), (23, 24), (27, 39), (32, 26)],
+            0x413a934a4d7d6ce8,
+            [(1, 23), (12, 37), (15, 25), (23, 34), (24, 22), (34, 40)],
         ),
         (
             700001,
-            0x354acb089a791363,
-            [(4, 5), (8, 27), (15, 23), (16, 9), (29, 15), (34, 8)],
+            0x7871d48c9ce661b0,
+            [(0, 9), (0, 34), (7, 26), (14, 21), (28, 13), (34, 20)],
         ),
         (
             2147483647,
-            0x8d04724c3d9210f5,
-            [(0, 13), (3, 28), (11, 21), (16, 13), (21, 24), (28, 16)],
+            0xae6e0f41cf92022b,
+            [(1, 34), (16, 20), (22, 33), (25, 12), (27, 41), (35, 17)],
         ),
     ];
     for (seed, expected, expected_starts) in cases {

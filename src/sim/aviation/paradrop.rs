@@ -274,7 +274,15 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn run_ai_paratrooper(&mut self, unit: &Unit) -> bool {
-        if !self.can_begin_paradrop(unit) || unit.hp * 2 < unit.max_hit_points() {
+        // daiparadrop.c first clears immediate threats and opportunistic
+        // attacks before considering a jump.
+        if !self.ai_military_rampage(unit.id, 1, 99999) {
+            return true;
+        }
+        let Some(unit) = self.unit_by_id(unit.id).cloned() else {
+            return true;
+        };
+        if !self.can_begin_paradrop(&unit) || unit.hp * 2 < unit.max_hit_points() {
             return false;
         }
         let owner = unit.owner;
@@ -294,10 +302,9 @@ impl Simulation {
         }
 
         let empty = |x, y| self.units.iter().all(|other| (other.x, other.y) != (x, y));
-        let cities = self
-            .cities
-            .iter()
-            .filter(|city| self.paradrop_tile_legal(unit, city.x, city.y) && empty(city.x, city.y));
+        let cities = self.cities.iter().filter(|city| {
+            self.paradrop_tile_legal(&unit, city.x, city.y) && empty(city.x, city.y)
+        });
         let threatened = cities
             .clone()
             .filter(|city| city.owner == owner)
@@ -310,7 +317,7 @@ impl Simulation {
             })
             .max_by_key(|&(score, city)| (score, std::cmp::Reverse(city.id)));
         if let Some((_, city)) = threatened {
-            return self.paradrop(unit.id, city.x, city.y);
+            return self.ai_paradrop_and_rampage(unit.id, city.x, city.y);
         }
         let labels = self.continent_labels();
         let origin = labels[self.map_wrap.index(unit.x, unit.y)];
@@ -321,7 +328,7 @@ impl Simulation {
                 (city.size + i32::from(overseas), std::cmp::Reverse(city.id))
             });
         if let Some(city) = conquest {
-            return self.paradrop(unit.id, city.x, city.y);
+            return self.ai_paradrop_and_rampage(unit.id, city.x, city.y);
         }
 
         let mut best = None;
@@ -329,7 +336,7 @@ impl Simulation {
         for (index, _) in self.tiles.iter().enumerate() {
             let (x, y) = self.map_wrap.position(index);
             if !empty(x, y)
-                || !self.paradrop_tile_legal(unit, x, y)
+                || !self.paradrop_tile_legal(&unit, x, y)
                 || self
                     .cities
                     .iter()
@@ -339,7 +346,7 @@ impl Simulation {
             }
             let mut staged = unit.clone();
             (staged.x, staged.y) = (x, y);
-            for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+            for (dx, dy) in CIV3_DIRS {
                 let Some((tx, ty)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
                     continue;
                 };
@@ -373,17 +380,28 @@ impl Simulation {
                     + f64::from(self.tile(x, y).terrain.defense_bonus() / 10);
                 if value > best_value {
                     best_value = value;
-                    best = Some((x, y, direction));
+                    best = Some((x, y));
                 }
             }
         }
-        if let Some((x, y, direction)) = best
-            && self.paradrop(unit.id, x, y)
-        {
-            self.try_move_unit_civ3(unit.id, direction);
-            return true;
+        if let Some((x, y)) = best {
+            if self.paradrop(unit.id, x, y) {
+                self.ai_military_rampage(unit.id, 1, 1);
+                return true;
+            }
         }
         false
+    }
+
+    fn ai_paradrop_and_rampage(&mut self, id: u32, x: i32, y: i32) -> bool {
+        if self.paradrop(id, x, y) {
+            if self.unit_by_id(id).is_some() {
+                self.ai_military_rampage(id, 1, 1);
+            }
+            true
+        } else {
+            false
+        }
     }
 
     pub(in crate::sim) fn paradrop(&mut self, id: u32, x: i32, y: i32) -> bool {
@@ -472,7 +490,10 @@ impl Simulation {
         let actual_owner = self.tile(x, y).owner;
         // The drop costs no movement, but Freeciv still runs the movement
         // callback before applying action-success consequences.
-        self.enter_tile(id, x, y, 0, None);
+        let conquest_action = (action == "Paradrop Unit Enter Conquer").then_some(action);
+        if !self.enter_tile_with_conquest_action(id, x, y, 0, None, conquest_action) {
+            return false;
+        }
         self.action_success_casus_belli(&unit, action, actual_owner, (x, y));
         self.refresh_visibility();
         self.check_game_over();

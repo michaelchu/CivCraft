@@ -279,7 +279,7 @@ impl Simulation {
         f64::from(value)
     }
 
-    pub(super) fn domestic_improvement_want(&self, city: &City, building: Building) -> f64 {
+    pub(in crate::sim) fn domestic_improvement_want(&self, city: &City, building: Building) -> f64 {
         let forecast = self.city_forecast(city);
         let mut improved = city.clone();
         improved.buildings.push(building);

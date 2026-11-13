@@ -67,7 +67,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bases_require_their_prerequisites_and_fortresses_protect_without_extra_healing() {
+    fn bases_require_their_prerequisites_and_fortresses_apply_selected_healing() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         let (x, y) = (10, 20);
@@ -88,7 +88,13 @@ mod tests {
         game.update_activities_and_restore();
         assert_eq!(game.tile(x, y).base, Some(Base::Fort));
         assert_eq!(game.defense_power(&game.units[1], x, y), initial * 3 / 2);
-        assert!(!game.apply(build(Base::Airstrip)));
+        // The selected C2C3 action allows Airstrip to replace a conflicting
+        // Fort; leave it unstarted here so the following Fortress checks keep
+        // their Fort prerequisite. A separate test exercises the replacement.
+        assert!(
+            game.work_action_available(worker, WorkKind::BuildBase(Base::Airstrip), (x, y))
+                .unwrap()
+        );
         game.tile_mut(x, y).river = true;
         assert!(!game.apply(build(Base::Fortress)));
         game.tile_mut(x, y).river = false;
@@ -99,7 +105,7 @@ mod tests {
         assert_eq!(game.defense_power(&game.units[1], x, y), initial * 2);
         game.units[1].hp = 1;
         game.update_activities_and_restore();
-        assert_eq!(game.units[1].hp, 1);
+        assert_eq!(game.units[1].hp, 2);
         assert!(game.apply(Command::Work(
             warrior,
             WorkKind::Pillage(PillageTarget::Base(Base::Fortress))
@@ -115,7 +121,7 @@ mod tests {
         let (x, y) = (10, 20);
         game.tile_mut(x, y).terrain = Terrain::Plains;
         game.tile_mut(x, y).base = Some(Base::Fort);
-        game.players[HUMAN].known.push(Tech::RADIO);
+        game.players[HUMAN].known.push(Tech::FLIGHT);
         let worker = game.spawn_unit(HUMAN, UnitKind::Worker, x, y);
 
         assert!(

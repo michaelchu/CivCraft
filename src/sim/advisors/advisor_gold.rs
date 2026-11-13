@@ -43,6 +43,26 @@ impl Simulation {
         self.sell_building(owner, city_id, building)
     }
 
+    /// Freeciv's grave-danger path sells one eligible improvement, skipping
+    /// any building with Defend_Bonus, then retries the urgent defender buy.
+    fn ai_sell_one_for_emergency_defense(&mut self, owner: usize, city_id: u32) -> bool {
+        let Some(city) = self
+            .cities
+            .iter()
+            .find(|city| city.owner == owner && city.id == city_id)
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(building) = Building::all().find(|&building| {
+            Self::building_sale_price(&city, building).is_some()
+                && !Self::ai_building_has_effect(&city, building, "Defend_Bonus")
+        }) else {
+            return false;
+        };
+        self.sell_building(owner, city_id, building)
+    }
+
     fn ai_sell_redundant_city_buildings(&mut self, owner: usize) {
         let cities: Vec<_> = self
             .player_cities_ordered(owner)
@@ -333,29 +353,30 @@ impl Simulation {
             .into_iter()
             .filter_map(|city| {
                 let chosen = self.ai_build_choice(city)?;
-                // daicity.c:dai_spend_gold consumes the FINAL city choice.
-                // A lower defense-only bid must never replace a selected
-                // hunter, ammunition, wonder or domestic improvement here.
-                if self.city_defense_production(city) != Some(chosen.production)
-                    || city.production != chosen.production
-                {
+                // dai_spend_gold consumes the final cached city choice, across
+                // all advisor categories. CivCraft stores that choice as the
+                // city's current production after prepare_ai_city_defenses.
+                if city.production != chosen.production {
                     return None;
                 }
-                let immediate = self
-                    .city_threat_arrivals(city)
-                    .filter(|&(_, _, turns)| turns <= 1)
-                    .map(|(_, rating, _)| rating)
-                    .sum::<i32>();
-                (immediate > 0).then_some((chosen.want, city.id, chosen.production))
+                Some((chosen.want, city.id, chosen.production))
             })
             .collect();
         // Stable ties retain the native player-city list order.
         priorities.sort_by(|a, b| b.0.total_cmp(&a.0));
         self.ai_purchase_reserve.remove(&owner);
-        let emergency_cities: Vec<_> = priorities.iter().map(|&(_, city, _)| city).collect();
-        for (_, id, target) in priorities {
+        let emergency_cities: Vec<_> = priorities
+            .iter()
+            .filter_map(|&(_, city_id, _)| {
+                let city = self.city_by_id(city_id)?;
+                let assessment = self.advisor_guard_city_assessment(city);
+                (self.city_grave_danger(city) > 0 || assessment.urgency > 1).then_some(city_id)
+            })
+            .collect();
+        for (want, id, target) in priorities {
             let city = self.city_by_id(id).unwrap();
             let position = (city.x, city.y);
+            let urgency = self.advisor_guard_city_assessment(city).urgency;
             self.spend_ai_upgrade_gold(owner, Some(position), expenses);
             let city = self.city_by_id(id).unwrap();
             // Upgrading a garrison may change speculative new advice. Native
@@ -370,18 +391,37 @@ impl Simulation {
             let Some(price) = self.rush_cost(city) else {
                 continue;
             };
-            let undefended = !self.units.iter().any(|unit| {
-                unit.owner == owner
-                    && unit.transport.is_none()
-                    && unit.kind.is_military()
-                    && (unit.x, unit.y) == position
-            });
-            let invested = city.shields > 0;
+            let founder = matches!(target, Production::Unit(kind) if kind.stats().can_found);
+            if let Production::Unit(kind) = target
+                && kind.stats().can_found
+                && (city.size <= kind.stats().pop_cost
+                    || self.player_cities_ordered(owner).count() > 6
+                    || self.ai_on_war_footing(owner))
+            {
+                continue;
+            }
+            let limit = if founder { reserve } else { 2 * reserve };
             let remaining = self.players[owner].gold - price;
-            if remaining >= expenses && (undefended || (invested && remaining >= 2 * reserve)) {
+            let expensive = city.shields == 0 || remaining < limit;
+            let assessment = self.advisor_guard_city_assessment(city);
+            let grave_danger = self.city_grave_danger(city) > 0;
+            let emergency_override = grave_danger && assessment.defense == 0;
+            let urgent_want = want > 200.0 && urgency > 1;
+            if remaining >= expenses && (!expensive || emergency_override || urgent_want) {
                 self.rush_production(owner, id);
-            } else if undefended && matches!(target, Production::Unit(_)) {
-                self.record_ai_purchase_cost(owner, price);
+            } else if grave_danger
+                && matches!(target, Production::Unit(kind)
+                    if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
+                        || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk"))
+                && assessment.defense == 0
+            {
+                if self.ai_sell_one_for_emergency_defense(owner, id)
+                    && self.players[owner].gold - expenses >= price
+                {
+                    self.rush_production(owner, id);
+                } else {
+                    self.record_ai_purchase_cost(owner, price);
+                }
             }
         }
         let at_war = self.ai_on_war_footing(owner);

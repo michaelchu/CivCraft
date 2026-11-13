@@ -6,12 +6,15 @@
 //! rules, without creating or substituting Freeciv unit identities.
 
 use super::{
-    Base, Contamination, Pact, PillageTarget, Simulation, Tile, Unit, UnitKind, UnitState, WorkKind,
+    Base, City, Contamination, Pact, PillageTarget, Simulation, Tile, Unit, UnitKind, UnitState,
+    WorkKind,
 };
+#[cfg(test)]
+use crate::rules::freeciv::effect_value;
 use crate::rules::freeciv::{
     ActionEvaluationError, ContentKind, EffectContext, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, RuleRecord, RulesetData,
-    action_enabled, effect_value, requirements_met,
+    action_enabled, requirements_met,
 };
 use crate::rules::{Building, Genus, Tech};
 use crate::world::{Resource, Terrain};
@@ -427,7 +430,13 @@ impl<'a> SimulationRequirementContext<'a> {
             .ok_or_else(|| Self::unsupported(requirement))?;
         let freeciv_name = record.display_name.as_deref().unwrap_or(&record.rule_name);
         let direct = Tech::all().find(|tech| tech.name().eq_ignore_ascii_case(freeciv_name));
-        let tech = if let Some(tech) = direct {
+        let tech = if let Some(tech) = direct.filter(|tech| tech.is_civ3_advance()) {
+            tech
+        } else if let Some(tech) = direct.and_then(Tech::civ3_equivalent) {
+            // A Freeciv label can still match a legacy stable ID even when
+            // that advance is absent from the Conquests tree. Resolve those
+            // aliases to the actual Civ III research state (for example,
+            // C2C3 Machine Tools -> Civ III Robotics).
             tech
         } else if let super::content_adapter::FreecivTechBinding::Bound(tech) =
             super::content_adapter::bind_freeciv_technology(self.ruleset, freeciv_name)
@@ -950,6 +959,39 @@ impl<'a> SimulationRequirementContext<'a> {
             _ => return Err(Self::unsupported(requirement)),
         })
     }
+}
+
+/// Evaluate selected-ruleset obsolescence for a mapped runtime building.
+/// `None` means the selected ruleset has no mapped record, allowing the
+/// caller to apply the explicit content fallback for that building.
+pub(crate) fn selected_building_is_obsolete(
+    simulation: &Simulation,
+    city: &City,
+    building: Building,
+    granted: Option<Tech>,
+) -> Option<bool> {
+    let context =
+        SimulationRequirementContext::for_city_at(simulation, city, Some((city.x, city.y)))
+            .with_building_override(Some(building))
+            .with_granted_tech(granted);
+    let record = context.ruleset.content.iter().find(|record| {
+        record.kind == crate::rules::freeciv::ContentKind::Building
+            && context.runtime_building_for_record(record) == Some(building)
+    })?;
+    for requirement in &record.obsolete_by {
+        match crate::rules::freeciv::requirements_met(std::slice::from_ref(requirement), &context) {
+            Ok(true) => return Some(true),
+            Ok(false) => (),
+            Err(error) => {
+                eprintln!(
+                    "Freeciv obsolescence evaluation for {} failed: {error:?}; treating it as obsolete",
+                    record.rule_name
+                );
+                return Some(true);
+            }
+        }
+    }
+    Some(false)
 }
 
 impl RequirementContext for SimulationRequirementContext<'_> {
@@ -2485,6 +2527,62 @@ pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsReco
     UnitEconomicsRecordBinding::Mapped { record, kind }
 }
 
+/// Whether the explicit gameplay identity for a Civ III unit carries a
+/// Freeciv unit role. The unit-economics crosswalk also contains upkeep-only
+/// aliases; those must not grant gameplay roles. Tactical AI dispatch uses
+/// selected ruleset roles because Civ III strategy bits do not include roles
+/// such as `Hunter`.
+pub(crate) fn freeciv_unit_has_role(unit: UnitKind, role: &str) -> bool {
+    selected_c2c3_unit_role_record(unit)
+        .and_then(|record| {
+            record
+                .string_list_field("roles")
+                .expect("selected C2C3 unit role list is valid")
+        })
+        .is_some_and(|roles| {
+            roles
+                .iter()
+                .any(|candidate| candidate.eq_ignore_ascii_case(role))
+        })
+}
+
+/// C2C3 role bindings for Civ III units without the same-name C2C3 record.
+/// This is intentionally separate from the upkeep crosswalk: only selected
+/// combat archetypes whose roles drive a migrated AI decision are listed.
+fn selected_c2c3_unit_role_record(
+    unit: UnitKind,
+) -> Option<&'static crate::rules::freeciv::ContentRecord> {
+    direct_c2c3_unit_record(unit).or_else(|| {
+        let id = unit.conquests_id()?;
+        let section = C2C3_UNIT_ROLE_ALIASES
+            .iter()
+            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(id))?
+            .1;
+        RulesetData::campaign_default()
+            .content
+            .iter()
+            .find(|record| {
+                record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case(section)
+            })
+    })
+}
+
+/// BIQ-to-C2C3 role archetypes used by military AI. Keep upkeep-only aliases
+/// such as Curragh, Dromon, Army, and Privateer out of this list.
+const C2C3_UNIT_ROLE_ALIASES: &[(&str, &str)] = &[
+    ("spearman", "unit_phalanx"),
+    ("swordsman", "unit_legion"),
+    ("horseman", "unit_horsemen"),
+    ("pikeman", "unit_pikemen"),
+    ("longbowman", "unit_archers"),
+    ("musketman", "unit_musketeers"),
+    ("rifleman", "unit_riflemen"),
+    ("infantry", "unit_riflemen"),
+    ("mech_infantry", "unit_mech_inf"),
+    ("tank", "unit_armor"),
+    ("modern_armor", "unit_armor"),
+];
+
 /// C2C3 records that define transport capacity and cargo compatibility.
 /// Galley maps to the early Trireme role; Nuclear Submarine maps to the
 /// selected Submarine role because C2C3 has no separate nuclear submarine.
@@ -2640,6 +2738,47 @@ pub(crate) fn freeciv_unit_class_rule_name(unit: UnitKind) -> Option<String> {
 /// combat-bonus table.
 pub(crate) fn freeciv_unit_type_section(unit: UnitKind) -> Option<String> {
     direct_c2c3_unit_record(unit).map(|record| record.section.clone())
+}
+
+/// Resolve the selected C2C3 fuel duration for a mapped unit type. This is a
+/// gameplay rule; the Civ III operational-range field remains available on
+/// the source catalog record and continues to govern sortie distance.
+pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
+    // Civ III's Tactical Nuke maps only this one fuel property to C2C3's
+    // Nuclear type; the remaining unit fields stay with the Civ III catalog.
+    let record = direct_c2c3_unit_record(unit).or_else(|| {
+        (unit == UnitKind::TacticalNuke).then(|| {
+            RulesetData::campaign_default()
+                .content
+                .iter()
+                .find(|record| {
+                    record.kind == ContentKind::Unit
+                        && record.section.eq_ignore_ascii_case("unit_nuclear")
+                })
+                .expect("selected C2C3 Nuclear unit record")
+        })
+    })?;
+    let fuel = record
+        .integer_field("fuel")
+        .expect("selected C2C3 unit fuel field is valid")
+        .expect("selected C2C3 unit record declares fuel");
+    Some(u8::try_from(fuel).expect("selected C2C3 unit fuel fits in u8"))
+}
+
+/// Civ III records expose the Cruise Missile's offensive strength as
+/// bombardment data, while C2C3 models it as a missile-class suicide attacker.
+/// Keep the Civ III catalog intact and use the selected ruleset's attack value
+/// for that mapped action profile.
+pub(crate) fn freeciv_missile_attack_strength(unit: UnitKind) -> Option<i32> {
+    if unit != UnitKind::CruiseMissile {
+        return None;
+    }
+    let record = direct_c2c3_unit_record(unit)?;
+    let attack = record
+        .integer_field("attack")
+        .expect("selected C2C3 Cruise Missile attack is valid")
+        .expect("selected C2C3 Cruise Missile declares attack");
+    Some(i32::try_from(attack).expect("selected C2C3 Cruise Missile attack fits in i32"))
 }
 
 fn direct_c2c3_unit_record(
@@ -3009,9 +3148,7 @@ mod tests {
         let (x, y) = (10, 20);
         let worker = game.spawn_unit(crate::sim::HUMAN, UnitKind::Worker, x, y);
         game.tile_mut(x, y).irrigation = true;
-        game.players[crate::sim::HUMAN]
-            .known
-            .push(Tech::REFRIGERATION);
+        game.players[crate::sim::HUMAN].known.push(Tech::SANITATION);
         assert!(
             game.work_action_available(worker, WorkKind::Farmland, (x, y))
                 .unwrap()
@@ -3019,7 +3156,7 @@ mod tests {
 
         game.players[crate::sim::HUMAN]
             .known
-            .retain(|tech| *tech != Tech::REFRIGERATION);
+            .retain(|tech| *tech != Tech::SANITATION);
         assert!(
             !game
                 .work_action_available(worker, WorkKind::Farmland, (x, y))
@@ -3157,6 +3294,40 @@ mod tests {
             )),
             Err(RequirementEvaluationError::Unsupported { .. })
         ));
+    }
+
+    #[test]
+    fn c2c3_machine_tools_requirement_uses_the_civ3_robotics_advance() {
+        let mut game = flat_game();
+        let requirement = Requirement {
+            kind: "Tech".to_owned(),
+            name: RequirementValue::String("Machine Tools".to_owned()),
+            range: RequirementRange::Player,
+            present: true,
+            survives: false,
+            quiet: false,
+            source: crate::rules::freeciv::RuleSourceLocation {
+                file: "buildings.ruleset".into(),
+                section: "building_great_wall".to_owned(),
+                key: "obsolete_by".to_owned(),
+                line: 1,
+            },
+        };
+
+        game.players[crate::sim::HUMAN]
+            .known
+            .push(Tech::MACHINE_TOOLS);
+        let stale_freeciv_alias =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
+        assert!(!stale_freeciv_alias.is_present(&requirement).unwrap());
+
+        game.players[crate::sim::HUMAN]
+            .known
+            .retain(|tech| *tech != Tech::MACHINE_TOOLS);
+        game.players[crate::sim::HUMAN].known.push(Tech::ROBOTICS);
+        let civ3_context =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
+        assert!(civ3_context.is_present(&requirement).unwrap());
     }
 
     #[test]
@@ -3608,6 +3779,18 @@ mod tests {
     }
 
     #[test]
+    fn selected_military_roles_use_explicit_civ3_archetype_bindings() {
+        assert!(freeciv_unit_has_role(UnitKind::Warrior, "DefendOk"));
+        assert!(freeciv_unit_has_role(UnitKind::Spearman, "DefendGood"));
+        assert!(freeciv_unit_has_role(UnitKind::Musketman, "DefendGood"));
+        assert!(freeciv_unit_has_role(UnitKind::MechInfantry, "DefendGood"));
+        assert!(freeciv_unit_has_role(UnitKind::Horseman, "Hunter"));
+        assert!(!freeciv_unit_has_role(UnitKind::Curragh, "Ferryboat"));
+        assert!(!freeciv_unit_has_role(UnitKind::Dromon, "BarbarianBoat"));
+        assert!(!freeciv_unit_has_role(UnitKind::Army, "DefendGood"));
+    }
+
+    #[test]
     fn combat_target_classes_follow_selected_c2c3_rules() {
         assert_eq!(
             freeciv_unit_can_target_class(UnitKind::Warrior, UnitKind::Worker),
@@ -3642,7 +3825,9 @@ mod tests {
         let worker_id =
             game.spawn_unit(crate::sim::HUMAN, UnitKind::Worker, position.0, position.1);
         let worker = game.unit_by_id(worker_id).unwrap().clone();
-        game.players[crate::sim::HUMAN].known.push(Tech::RAILROAD);
+        game.players[crate::sim::HUMAN]
+            .known
+            .push(Tech::STEAM_POWER);
 
         assert!(
             !game
@@ -3663,7 +3848,7 @@ mod tests {
 
         game.players[crate::sim::HUMAN]
             .known
-            .retain(|tech| *tech != Tech::RAILROAD);
+            .retain(|tech| *tech != Tech::STEAM_POWER);
         assert!(
             !game
                 .work_action_available_for_unit_with_tile(

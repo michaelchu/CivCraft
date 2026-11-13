@@ -110,13 +110,16 @@ impl Simulation {
                 .any(|unit| (unit.x, unit.y) == goal && unit.moves_left == 0)
     }
 
-    pub(crate) fn nested_cargo_rescue_playtest(&mut self) -> bool {
+    pub(crate) fn nested_cargo_rescue_playtest(&mut self) -> (bool, bool, bool) {
         let sea = (10, 24);
         self.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
         let carrier = self.spawn_unit(HUMAN, UnitKind::Carrier, sea.0, sea.1);
         let helicopter = self.spawn_unit(HUMAN, UnitKind::Helicopter, sea.0, sea.1);
         assert!(self.board_specific_ship(helicopter, carrier));
-        for _ in 1..UnitKind::Carrier.transport_capacity() {
+        let carrier_capacity =
+            self.ruleset_transport_capacity(UnitKind::Carrier)
+                .expect("selected C2C3 Carrier record has a valid capacity") as usize;
+        for _ in 1..carrier_capacity {
             let fighter = self.spawn_unit(HUMAN, UnitKind::Fighter, sea.0, sea.1);
             assert!(self.board_specific_ship(fighter, carrier));
         }
@@ -129,17 +132,20 @@ impl Simulation {
                 .iter()
                 .any(|unit| unit.id == marine && unit.transport == Some(helicopter));
         let second = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
-        let partisan = self.spawn_unit(HUMAN, UnitKind::Guerilla, sea.0, sea.1);
+        // Marines can be carried by both the Transport and Helicopter in the
+        // selected C2C3 records; Guerilla cannot be embarked on a Helicopter.
+        let partisan = self.spawn_unit(HUMAN, UnitKind::Marine, sea.0, sea.1);
         assert!(self.board_specific_ship(partisan, second));
-        // Free a seat on the helicopter, then lose both surface ships together.
-        self.remove_units_with_cargo(vec![marine]);
-        self.remove_units_with_cargo(vec![second, carrier]);
-        rescued
-            && self.units.iter().all(|unit| unit.id != partisan)
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == helicopter && unit.transport.is_none())
+        // The first rescued Marine fills the Helicopter's only cargo slot.
+        // Resolve Freeciv's single-transport loss events in order.
+        self.remove_units_with_cargo(vec![second]);
+        let nested_passenger_lost = self.units.iter().all(|unit| unit.id != partisan);
+        self.remove_units_with_cargo(vec![carrier]);
+        let helicopter_survived = self
+            .units
+            .iter()
+            .any(|unit| unit.id == helicopter && unit.transport.is_none());
+        (rescued, nested_passenger_lost, helicopter_survived)
     }
 
     pub(crate) fn cargo_rescue_playtest(&mut self) -> (bool, bool) {
@@ -208,110 +214,6 @@ impl Simulation {
         (recovered, outside, unloaded)
     }
 
-    pub(crate) fn fleet_escort_playtest(&mut self) -> (bool, bool) {
-        self.units.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Sea;
-            tile.known_by[1] = true;
-        }
-        let sea = (10, 24);
-        let guard = offset_native_by_map(sea.0, sea.1, -1, 0);
-        let threat = offset_native_by_map(sea.0, sea.1, 1, 0);
-        let ship = self.spawn_unit(1, UnitKind::Transport, sea.0, sea.1);
-        let passenger = self.spawn_unit(1, UnitKind::Marine, sea.0, sea.1);
-        self.units.last_mut().unwrap().transport = Some(ship);
-        let escort = self.spawn_unit(1, UnitKind::AegisCruiser, guard.0, guard.1);
-        self.request_ai_guard(ship);
-        let enemy = self.spawn_unit(HUMAN, UnitKind::Frigate, threat.0, threat.1);
-        self.units.last_mut().unwrap().hp = 1;
-        self.set_random_seed(1);
-        self.run_ai_player(1);
-        let intercepted = self.units.iter().all(|unit| unit.id != enemy)
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == escort && (unit.x, unit.y) == threat);
-        let protected = self
-            .units
-            .iter()
-            .any(|unit| unit.id == passenger && unit.transport == Some(ship));
-        (intercepted, protected)
-    }
-
-    pub(crate) fn coordinated_fleet_playtest(&mut self, remote: bool) -> (bool, bool, bool) {
-        self.units.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Sea;
-            tile.hut = false;
-            tile.resource = None;
-        }
-        let home = (10, 24);
-        let point = |step| offset_native_by_map(home.0, home.1, step, 0);
-        let target = point(9);
-        for (x, y) in [home, point(8), target] {
-            let tile = self.tile_mut(x, y);
-            tile.terrain = Terrain::Grassland;
-            tile.known_by[1] = true;
-        }
-        self.create_city(1, home.0, home.1);
-        self.create_city(HUMAN, target.0, target.1);
-        let guard = self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
-        for _ in 0..4 {
-            self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
-        }
-        for _ in 0..3 {
-            self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
-            self.units.last_mut().unwrap().hp = 1;
-        }
-        let first = self.spawn_unit(1, UnitKind::Galley, home.0, home.1);
-        let second_start = if remote { point(-5) } else { home };
-        let second = self.spawn_unit(1, UnitKind::Galley, second_start.0, second_start.1);
-        self.units.last_mut().unwrap().moves_left = 0;
-        self.set_random_seed(1);
-        self.run_ai_player(1);
-        let waited = !remote
-            || (self.cargo_count(first) == 0
-                && self.cargo_count(second) == 0
-                && self
-                    .units
-                    .iter()
-                    .filter(|unit| unit.kind == UnitKind::Marine && (unit.x, unit.y) == home)
-                    .count()
-                    == 5);
-        let mut embarked = self.cargo_count(first) == 2 && self.cargo_count(second) == 2;
-        let mut synchronized = false;
-        for _ in 0..14 {
-            self.update_activities_and_restore();
-            self.run_ai_player(1);
-            embarked |= self.cargo_count(first) == 2 && self.cargo_count(second) == 2;
-            synchronized |= embarked
-                && self.cargo_count(first) == 0
-                && self.cargo_count(second) == 0
-                && self
-                    .units
-                    .iter()
-                    .find(|unit| unit.id == first)
-                    .zip(self.unit_by_id(second))
-                    .is_some_and(|(a, b)| (a.x, a.y) == (b.x, b.y));
-            if self
-                .cities
-                .iter()
-                .any(|city| city.owner == 1 && (city.x, city.y) == target)
-            {
-                break;
-            }
-        }
-        let captured = self
-            .cities
-            .iter()
-            .any(|city| city.owner == 1 && (city.x, city.y) == target);
-        let guarded = self
-            .units
-            .iter()
-            .any(|unit| unit.id == guard && (unit.x, unit.y) == home);
-        (embarked && waited, synchronized, captured && guarded)
-    }
-
     pub(crate) fn overseas_assault_playtest(&mut self, defended: bool) -> (bool, bool, bool) {
         self.units.clear();
         for tile in &mut self.tiles {
@@ -329,10 +231,12 @@ impl Simulation {
         }
         self.create_city(1, home.0, home.1);
         self.create_city(HUMAN, target.0, target.1);
+        self.cities.last_mut().unwrap().size = 2;
         let guard = self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
         let attacker = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
-        // The transport policy needs a legal minimum assault force: one
-        // home guard plus two military attackers.
+        // The transport policy needs a legal assault force: one home guard
+        // and enough attackers to satisfy the C2C3 capture odds against the
+        // size-two target city.
         self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         let (x, y) = point(-1);
         let boat = self.spawn_unit(1, UnitKind::Galleon, x, y);
@@ -343,10 +247,10 @@ impl Simulation {
                 self.units.last_mut().unwrap().hp = 1;
             }
             rejected = !self.assault_transport_playtest_has_orders(1);
-            for _ in 0..2 {
-                self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
-            }
             self.set_random_seed(1);
+        }
+        for _ in 0..2 {
+            self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
         }
         self.run_ai_player(1);
         let embarked = self

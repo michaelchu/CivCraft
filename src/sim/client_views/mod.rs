@@ -518,7 +518,11 @@ mod tests {
     fn selectable_units_skip_units_with_active_goto_orders() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let unit_id = sim.units_owned_by(HUMAN).next().unwrap().id;
-        let unit = sim.units.iter_mut().find(|unit| unit.id == unit_id).unwrap();
+        let unit = sim
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == unit_id)
+            .unwrap();
         unit.moves_left = 1;
         unit.work_left = 0;
         unit.automated = false;

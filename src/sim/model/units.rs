@@ -413,7 +413,8 @@ impl UnitKind {
     }
 
     pub(crate) fn fuel_capacity(self) -> u8 {
-        self.metadata().fuel
+        crate::sim::action_rules::freeciv_unit_type_fuel_capacity(self)
+            .unwrap_or_else(|| self.metadata().fuel)
     }
 
     pub(in crate::sim) fn operational_range(self) -> i32 {
@@ -487,7 +488,16 @@ impl UnitKind {
     }
 
     pub(crate) fn is_military(self) -> bool {
-        self.stats().attack > 0
+        self.attack_strength() > 0
+    }
+
+    /// Combat strength for the selected ruleset action profile. Most mapped
+    /// units retain their Civ III catalog attack value; Cruise Missile uses
+    /// C2C3's suicide-attack strength because Civ III stores that capability
+    /// separately as bombard strength.
+    pub(crate) fn attack_strength(self) -> i32 {
+        crate::sim::action_rules::freeciv_missile_attack_strength(self)
+            .unwrap_or_else(|| self.stats().attack)
     }
 
     pub(crate) fn is_civilian(self) -> bool {

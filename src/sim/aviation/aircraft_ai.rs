@@ -178,7 +178,11 @@ impl Simulation {
             // move cost is compared with missile MP divided by SINGLE_MOVE.
             let mut map = super::normal_paths::NormalPaths::enemy_map(self, &hunter);
             let mut target = None;
-            for (x, y) in map.reachable_within(self, missile.moves_left / MOVE_FRAGMENTS) {
+            // NormalPaths stores costs in movement fragments. Freeciv's
+            // `missile->moves_left / SINGLE_MOVE` is therefore already the
+            // corresponding fragment budget in CivCraft; do not divide a
+            // second time before passing it to reachable_within().
+            for (x, y) in map.reachable_within(self, missile.moves_left) {
                 if self.cities.iter().any(|city| (city.x, city.y) == (x, y))
                     || self.best_defender_id(&hunter, x, y).is_none()
                 {

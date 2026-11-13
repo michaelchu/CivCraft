@@ -306,11 +306,15 @@ impl Simulation {
             .map(|choice| choice.production)
     }
 
-    pub(in crate::sim) fn bodyguard_production_choice(
+    /// dai_choose_bodyguard: choose the strongest currently buildable unit
+    /// with the requested C2C3 role before checking whether it can guard an
+    /// eligible charge. Keep the type selector separate from charge scoring
+    /// so the ordering remains explicit and testable.
+    pub(in crate::sim) fn preferred_bodyguard_type(
         &self,
         city: &City,
         sea: bool,
-    ) -> Option<(UnitKind, f64)> {
+    ) -> Option<UnitKind> {
         // daimilitary.c:dai_choose_bodyguard deliberately chooses the best
         // defensive type BEFORE checking whether it can serve any charge.
         // The source computes allow_gold from tax and ACTUAL homed upkeep,
@@ -340,7 +344,15 @@ impl Simulation {
                 best_desire = desire;
             }
         }
-        let kind = best?;
+        best
+    }
+
+    pub(in crate::sim) fn bodyguard_production_choice(
+        &self,
+        city: &City,
+        sea: bool,
+    ) -> Option<(UnitKind, f64)> {
+        let kind = self.preferred_bodyguard_type(city, sea)?;
         let mut virtual_unit = self.make_unit(0, city.owner, kind, city.x, city.y);
         virtual_unit.veteran = self.trained_rank(city, kind);
         virtual_unit.hp = virtual_unit.max_hit_points();

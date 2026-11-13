@@ -11,7 +11,7 @@ enum PhysicalAttackResult {
 
 impl Simulation {
     pub(crate) fn attack_power(unit: &Unit) -> i32 {
-        Self::attack_power_with_base(unit, unit.kind.stats().attack)
+        Self::attack_power_with_base(unit, unit.kind.attack_strength())
     }
 
     fn attack_power_with_base(unit: &Unit, attack: i32) -> i32 {
@@ -27,7 +27,7 @@ impl Simulation {
             attacker,
             x,
             y,
-            attacker.kind.stats().attack,
+            attacker.kind.attack_strength(),
             self.combat_action_for_unit(attacker),
         )
     }
@@ -798,7 +798,7 @@ impl Simulation {
             &attacker,
             nx,
             ny,
-            attacker.kind.stats().attack,
+            attacker.kind.attack_strength(),
             attack_action,
         );
         let defense_power = self.defense_power_against(&defender, nx, ny, attacker.kind);

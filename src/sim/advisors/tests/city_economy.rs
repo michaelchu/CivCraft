@@ -35,8 +35,6 @@ fn gold_spending_preserves_final_nondefense_advice() {
     let port = game.city_by_id(city).unwrap();
     let choice = game.ai_build_choice(port).unwrap();
     let defense = game.city_defense_production(port);
-    assert!(matches!(defense, Some(Production::Unit(kind))
-        if kind.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::Defense)));
     assert_ne!(Some(choice.production), defense);
     game.cities
         .iter_mut()

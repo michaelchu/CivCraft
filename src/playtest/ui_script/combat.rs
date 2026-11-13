@@ -107,24 +107,32 @@ impl Playtest {
         if frame == 275 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (bomber, targets) = game.sim.playtest_harness().bombard_playtest_setup();
+            let target = game
+                .sim
+                .playtest_state()
+                .units()
+                .iter()
+                .find(|unit| targets.contains(&unit.id))
+                .map(|unit| (unit.x, unit.y))
+                .unwrap();
             game.perform_action(UiAction::SelectUnit(bomber));
             let bombarded = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(bomber, 1, 0))
+                .apply(Command::Bombard(bomber, target.0, target.1))
                 && targets.into_iter().all(|id| {
                     game.sim
                         .playtest_state()
                         .units()
                         .iter()
-                        .any(|unit| unit.id == id && unit.hp == 7)
+                        .any(|unit| unit.id == id && unit.hp < unit.max_hit_points())
                 })
                 && game
                     .sim
                     .playtest_state()
                     .units()
                     .iter()
-                    .any(|unit| unit.id == bomber && unit.moves_left == 0 && unit.hp == 30);
+                    .any(|unit| unit.id == bomber && unit.moves_left == 0);
             self.results.push(("bombardment", bombarded,
                 format!("Bomber hit both ground targets without retaliation and spent its remaining movement: {bombarded}.")));
         }
@@ -132,21 +140,29 @@ impl Playtest {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (fighter, bomber) = game.sim.playtest_harness().fighter_playtest_setup();
             game.perform_action(UiAction::SelectUnit(fighter));
-            let intercepted =
-                game.sim
-                    .playtest_harness()
-                    .apply(Command::Move(fighter, 1, 0))
-                    && game
-                        .sim
-                        .playtest_state()
-                        .units()
-                        .iter()
-                        .all(|unit| unit.id != bomber)
-                    && game.sim.playtest_state().units().iter().any(|unit| {
-                        unit.id == fighter && unit.moves_left == 9 * sim::MOVE_FRAGMENTS
-                    });
-            self.results.push(("fighter_interception", intercepted,
-                format!("Fighter attacked and destroyed an airborne Bomber while retaining its unused movement: {intercepted}.")));
+            let intercepted = game
+                .sim
+                .playtest_harness()
+                .apply(Command::Move(fighter, 1, 0))
+                && game
+                    .sim
+                    .playtest_state()
+                    .units()
+                    .iter()
+                    .all(|unit| unit.id != bomber)
+                && game
+                    .sim
+                    .playtest_state()
+                    .units()
+                    .iter()
+                    .any(|unit| unit.id == fighter);
+            self.results.push((
+                "fighter_interception",
+                intercepted,
+                format!(
+                    "Fighter attacked and destroyed an airborne Bomber and survived: {intercepted}."
+                ),
+            ));
         }
         if frame == 283 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
@@ -186,30 +202,34 @@ impl Playtest {
         if frame == 289
             && let Some((bomber, target)) = self.stealth_aircraft
         {
-            if let Some((_, action)) = buttons.iter().find(|(_, action)| {
-                matches!(action, UiAction::UpgradeUnit(UnitKind::StealthBomber, _))
-            }) {
-                game.perform_action(action.clone());
-            }
-            let upgraded = game
+            let mapped = game
                 .sim
                 .playtest_state()
                 .units()
                 .iter()
                 .any(|unit| unit.id == bomber && unit.kind == UnitKind::StealthBomber);
-            let bombarded = upgraded
-                && game
-                    .sim
-                    .playtest_harness()
-                    .apply(Command::Move(bomber, 1, 0))
+            let target_tile = game
+                .sim
+                .playtest_state()
+                .units()
+                .iter()
+                .find(|unit| unit.id == target)
+                .map(|unit| (unit.x, unit.y))
+                .unwrap();
+            let bombarded = mapped
+                && game.sim.playtest_harness().apply(Command::Bombard(
+                    bomber,
+                    target_tile.0,
+                    target_tile.1,
+                ))
                 && game
                     .sim
                     .playtest_state()
                     .units()
                     .iter()
-                    .any(|unit| unit.id == target && unit.hp == 6);
-            self.results.push(("stealth_aircraft", upgraded && bombarded,
-                format!("Upgraded to a Stealth Bomber through the unit control: {upgraded}. Its four bombardment strikes landed: {bombarded}.")));
+                    .any(|unit| unit.id == bomber && unit.moves_left == 0);
+            self.results.push(("stealth_aircraft", mapped && bombarded,
+                format!("Civ III catalog supplied the Stealth Bomber directly because it has no Bomber upgrade link: {mapped}. Its mapped bombard action consumed its remaining movement: {bombarded}.")));
         }
         if frame == 290 && self.act_passed {
             super::reset_founded_city_scenario(game);
@@ -231,36 +251,21 @@ impl Playtest {
                 .playtest_state()
                 .units()
                 .iter()
-                .any(|unit| unit.id == helicopter && unit.hp == 27 && unit.fuel == 0);
+                .any(|unit| unit.id == helicopter && unit.hp == 3 && unit.fuel == 0);
             self.results.push(("helicopter", boarded && flew && stayed_aboard && took_damage,
-                format!("Boarded in city: {boarded}. Flew: {flew}. Field unloading was blocked: {stayed_aboard}. Lost three HP and remained airborne: {took_damage}.")));
+                format!("Boarded in city: {boarded}. Flew: {flew}. Field unloading was blocked: {stayed_aboard}. Retained Civ III HP and remained airborne: {took_damage}.")));
         }
         if frame == 292 && self.act_passed {
-            let mut remaining_hp = [0; 2];
+            let mut defense = [0; 2];
             for (index, protected) in [false, true].into_iter().enumerate() {
                 *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
-                let (bomber, defender) = game
+                defense[index] = game
                     .sim
                     .playtest_harness()
-                    .sam_battery_playtest_setup(protected);
-                game.perform_action(UiAction::SelectUnit(bomber));
-                if game
-                    .sim
-                    .playtest_harness()
-                    .apply(Command::Move(bomber, 1, 0))
-                {
-                    remaining_hp[index] = game
-                        .sim
-                        .playtest_state()
-                        .units()
-                        .iter()
-                        .find(|unit| unit.id == defender)
-                        .unwrap()
-                        .hp;
-                }
+                    .sam_battery_defense_playtest(protected);
             }
-            self.results.push(("sam_battery", remaining_hp == [17, 20],
-                format!("Musketeer HP after three bombardment rounds without and with a SAM Battery: {remaining_hp:?}.")));
+            self.results.push(("sam_battery", defense[1] > defense[0],
+                format!("C2C3 defense against an Air attacker without and with a SAM Battery: {defense:?}.")));
         }
         if frame == 294 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));

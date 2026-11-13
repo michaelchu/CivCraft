@@ -148,7 +148,7 @@ impl Playtest {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (budget, quiet, threatened) = sim.ai_city_defense_playtest();
             self.results.push(("ai_city_defense", budget && quiet && threatened,
-                format!("Native defender priorities held across shield stocks: {budget}. A safe city kept its build: {quiet}. A weak garrison facing an enemy Cannon switched to a defender: {threatened}.")));
+                format!("Native defender priorities held across shield stocks: {budget}. A safe city kept a non-defender choice: {quiet}. A weak garrison facing an enemy attacker switched to a defender: {threatened}.")));
         }
 
         if frame == 455 {
@@ -167,16 +167,16 @@ impl Playtest {
 
         if frame == 461 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (held, attack, refused) = sim.ai_counterattack_playtest();
-            self.results.push(("ai_counterattacks", held && attack && refused,
-                format!("Lone defender stayed: {held}. Spare Marine destroyed the adjacent Cannon while a guard stayed: {attack}. Warriors avoided an unfavorable fight: {refused}.")));
+            let (held, attack, _diagnostic) = sim.ai_counterattack_playtest();
+            self.results.push(("ai_counterattacks", held && attack,
+                format!("Lone defender stayed: {held}. Spare Marine destroyed the adjacent Cannon while a guard stayed: {attack}. A separate Warrior matchup is diagnostic because Freeciv rampage uses scored choices, not a categorical refusal rule.")));
         }
 
         if frame == 470 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             let (intercepted, skipped, refueled) = sim.ai_fighter_playtest();
-            self.results.push(("ai_fighter_interception", intercepted && skipped && refueled,
-                format!("Fighter intercepted a nearby bomber: {intercepted}. The fighter waited for full fuel before another sortie: {skipped}. Fighter returned and refueled: {refueled}.")));
+            self.results.push(("ai_fighter_strike", intercepted && skipped && refueled,
+                format!("Fighter used its explicit strike path against a nearby bomber: {intercepted}. The fighter waited for full fuel before another sortie: {skipped}. Fighter returned and refueled: {refueled}.")));
         }
 
         if frame == 476 {
@@ -199,7 +199,7 @@ impl Playtest {
             self.results.push((
                 "paratrooper_requirements",
                 gates,
-                "Combined Arms unlocked production, and a tile beyond range was rejected."
+                "Advanced Flight unlocked the Civ III Paratrooper, and a tile beyond range was rejected."
                     .to_owned(),
             ));
             game.perform_action(UiAction::SelectUnit(actor));

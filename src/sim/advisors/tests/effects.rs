@@ -42,6 +42,8 @@ fn science_priority_truncates_to_twenty_one_before_source_float_accumulation() {
     tile.resource = None;
     tile.irrigation = false;
     tile.mine = false;
+    // C2C3 grassland has no base trade; its River and Road each add one.
+    tile.road = true;
     tile.river = true;
     tile.pollution = false;
     tile.fallout = false;

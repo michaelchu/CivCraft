@@ -415,6 +415,37 @@ impl Simulation {
         )
     }
 
+    /// Science, gold, and luxury are assigned from trade, but C2C3 may add
+    /// output directly to the city center or any worked tile. Freeciv's
+    /// `city_tile_output()` evaluates those effects per tile before bonuses.
+    pub(in crate::sim) fn c2c3_city_output_additions(
+        &self,
+        city: &City,
+        output_type: &str,
+        government: Government,
+    ) -> i32 {
+        std::iter::once((city.x, city.y))
+            .chain(
+                city.worked_tiles
+                    .iter()
+                    .copied()
+                    .filter(|&tile| tile != (city.x, city.y)),
+            )
+            .map(|tile| {
+                self.city_rule_effect(
+                    city,
+                    "Output_Add_Tile",
+                    Some(tile),
+                    Some(output_type),
+                    None,
+                    false,
+                    government,
+                    None,
+                )
+            })
+            .sum()
+    }
+
     pub(in crate::sim) fn city_output_bonus_percent(
         &self,
         city: &City,

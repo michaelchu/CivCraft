@@ -69,7 +69,7 @@ mod native_type_order_tests {
         game.cities.clear();
         game.prune_unit_ai_state();
         game.players[1].known = vec![
-            Tech::GUERILLA_WARFARE,
+            Tech::NATIONALISM,
             Tech::AMPHIBIOUS_WARFARE,
             Tech::REPLACEABLE_PARTS,
         ];

@@ -109,7 +109,7 @@ that code has been added.
 | P10 | Port diplomacy and culture | Treaties, contact, city/map clauses, culture, borders, migration, conversions, and culture victory use the Freeciv model and `civ2civ3` settings/effects. Espionage and spy/diplomat missions are deferred to separate work per the user's decision; this milestone does not add those units. This replaces the custom culture path unless a specific CivCraft extension is approved and documented. | Complete |
 | P11 | Port AI | City, tax, research, diplomacy, settlement, worker, and military planning use Freeciv behavior adapted to CivCraft state and the Civ III content catalog. | Complete |
 | P12 | Port remaining campaign systems | Disasters, climate, villages, spaceship, score, achievements, and endgame behavior match the selected baseline where in campaign scope. | Complete |
-| P13 | Validate and cut over | Deterministic comparisons cover every migrated subsystem; end-to-end campaign scenarios cover interactions; old divergent implementations are removed or clearly isolated as unsupported. | Not started |
+| P13 | Validate and cut over | Deterministic comparisons cover every migrated subsystem; end-to-end campaign scenarios cover interactions; old divergent implementations are removed or clearly isolated as unsupported. | Complete |
 | P14 | Maintain the port | Document how to change the CivCraft ruleset, add a content mapping, update the pinned Freeciv reference, and extend parity fixtures. | Not started |
 
 ### P2 evidence
@@ -141,7 +141,8 @@ that code has been added.
   settings (`victories`, `landmass`, `startpos`, `steepness`, `wetness`,
   `specials`, and `huts`). P8 adds seven explicit research/revolution engine
   defaults and the explicit `happyborders` engine default, bringing the current
-  selected ruleset to 40 settings.
+  selected ruleset to 40 settings. P9 adds six explicit combat settings, so the
+  current selected ruleset has 46 settings.
 - Pre-P5 full-suite snapshot, `cargo test --offline --quiet`: 698/703 passed.
   The five failures were
   three map-generation checks (`default_worlds_match_civcraft_resource_goldens`,
@@ -628,8 +629,43 @@ that code has been added.
   P12 parent revision (`git archive HEAD`), at the same assertion in the
   unchanged direct helper test. The full 1,006-test run was stopped at 551
   tests after failures had been reported in mapgen, advisor, AI, base, and
-  upkeep tests; several other tests exceeded 60 seconds. P13 will triage the
-  repository-wide failures and finish broad validation.
+  upkeep tests; several other tests exceeded 60 seconds. P13 later triaged
+  those failures; see the final broad-validation results below.
+
+### P13 evidence (complete)
+
+- After merging current `origin/main` (merge commit `ddb6def`),
+  `cargo test --offline --all-targets -- --test-threads=4` passed 1,051
+  library tests and all 3 headless CLI integration tests, with 0 failures and
+  1 intentionally ignored map-generation vector dumper. `cargo test --doc
+  --offline` passed; `cargo build --offline --release`,
+  `cargo fmt --all -- --check`, and `git diff --check` also pass. `cargo
+  nextest` was unavailable, so the repository's `cargo test` fallback was
+  used.
+- The headless campaign scenarios completed with seed 42: `generated-ai`
+  simulated 1 turn (0 scenario checks defined), `city-healing` passed 1/1
+  checks, and `settlement-ferry` passed 3/3. Reports:
+  `/tmp/civcraft-p13-generated-ai.json`,
+  `/tmp/civcraft-p13-city-healing.json`, and
+  `/tmp/civcraft-p13-settlement-ferry.json`.
+- The end-turn campaign regression compares connected and unconnected city
+  pairs and verifies route creation, same-turn tax income, next-turn
+  progression, and the Freeciv begin-turn score snapshot boundary. Raw
+  Freeciv map-generation vectors remain separate from CivCraft's
+  content-adjusted vectors.
+- The rebuilt release desktop self-test ran with seed 42, the Civ III
+  renderer, and the installed source art. It exited successfully with 212/212
+  checks passed; report: `/tmp/civcraft-playtest-P13-verified/report.json`.
+  Earlier failed reports remain available for comparison.
+- P13 source-traced and corrected the prior scenario mismatches in AI
+  movement, obsolescence, unit-role eligibility, reinforcements, paradrop,
+  production choice, guard advice, and hunter scans. The obsolete custom
+  coordinated-assault convoy planner was removed. CivCraft does not add
+  standalone nuclear Hunter targeting because the selected C2C3 Nuclear
+  record has no Hunter role; espionage actors and missions remain deferred by
+  the user's earlier decision. The C2C3 `Automobile` obsolescence requirement
+  is tested through its mapped Civ III `Motorized Transportation` research
+  state.
 
 ## Subsystem comparison ledger
 

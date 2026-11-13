@@ -103,7 +103,7 @@ impl Simulation {
         let (x, y) = offset_native_by_map(city.x, city.y, 1, 0);
         self.players[HUMAN]
             .known
-            .extend([Tech::CONSTRUCTION, Tech::RADIO]);
+            .extend([Tech::CONSTRUCTION, Tech::FLIGHT]);
         let tile = self.tile_mut(x, y);
         tile.terrain = Terrain::Plains;
         tile.river = false;
@@ -123,11 +123,9 @@ impl Simulation {
     pub(crate) fn farmland_playtest_setup(&mut self) -> u32 {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = (city.x, city.y);
-        self.players[HUMAN].known.extend([
-            Tech::SANITATION,
-            Tech::REFRIGERATION,
-            Tech::ELECTRICITY,
-        ]);
+        self.players[HUMAN]
+            .known
+            .extend([Tech::SANITATION, Tech::ELECTRICITY]);
         let tile = self.tile_mut(x, y);
         tile.terrain = Terrain::Plains;
         tile.irrigation = true;

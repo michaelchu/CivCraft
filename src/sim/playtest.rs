@@ -139,6 +139,8 @@ impl<'a> PlaytestState<'a> {
 mod ai_scenarios;
 mod aviation_scenarios;
 mod border_scenarios;
+#[cfg(test)]
+mod campaign_turn_scenarios;
 mod city_economy_scenarios;
 mod combat_scenarios;
 mod culture_scenarios;
@@ -158,6 +160,13 @@ mod world_events_scenarios;
 #[cfg(test)]
 mod ai_integration_tests {
     use super::*;
+
+    #[test]
+    fn nested_transport_rescue_matches_selected_helicopter_cargo_rules() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(game.nested_cargo_rescue_playtest(), (true, true, true));
+    }
+
     #[test]
     fn city_healing_uses_civ3_restore_preconditions() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
@@ -274,10 +283,35 @@ mod ai_integration_tests {
     }
     #[test]
     fn uprising_playtest_targets_the_active_map_topology() {
-        for sea in [false, true] {
+        for (sea, advanced) in [(false, false), (true, false), (true, true)] {
             let mut game = Simulation::new(crate::mapgen::generate(42));
-            assert!(game.uprising_playtest(sea, false), "sea={sea}");
+            let passed = game.uprising_playtest(sea, advanced);
+            let roster = game
+                .units
+                .iter()
+                .map(|unit| (unit.kind, unit.transport))
+                .collect::<Vec<_>>();
+            assert!(passed, "sea={sea} advanced={advanced} roster={roster:?}");
         }
+    }
+
+    #[test]
+    fn selected_c2c3_obsolete_wonder_requirements_use_the_civ3_research_tree() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let settler = game
+            .units
+            .iter()
+            .find(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Settler)
+            .unwrap()
+            .id;
+        assert!(game.apply(Command::FoundCity(settler)));
+        assert_eq!(game.obsolete_wonders_playtest(), (true, true, true));
+    }
+
+    #[test]
+    fn nuclear_ai_role_scenario_matches_the_selected_c2c3_record() {
+        let game = Simulation::new(crate::mapgen::generate(42));
+        assert!(game.nuclear_ai_role_playtest());
     }
     #[test]
     fn shakespeares_theater_trade_effect_is_local_and_enduring() {

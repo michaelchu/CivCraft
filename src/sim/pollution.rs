@@ -23,7 +23,7 @@ impl Contamination {
 // radius-5 city map under C2C3's ISO|HEX topology, then sorts by (distance,
 // dx, dy). The result is the full draw domain used by `cityturn.c::place_pollution`.
 // C2C3's game.ruleset sets `init_city_radius_sq = 5`.
-const C2C3_CITY_MAP_RADIUS_5: [(i32, i32); 19] = [
+pub(super) const C2C3_CITY_MAP_RADIUS_5: [(i32, i32); 19] = [
     (0, 0),
     (-1, -1),
     (-1, 0),

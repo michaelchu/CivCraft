@@ -125,6 +125,68 @@ fn reserved_city_defenders_are_not_sent_on_counterattacks() {
 }
 
 #[test]
+fn assigned_city_defender_rampages_before_returning_to_home() {
+    let (mut game, _) = city_fixture(1);
+    let (x, y) = (10, 24);
+    let (enemy_x, enemy_y) = crate::world::topology::offset_native_by_map(x, y, 1, 0);
+    game.sign_pact(1, HUMAN, Pact::War);
+    let defender = game.spawn_unit(1, UnitKind::Marine, x, y);
+    let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, enemy_x, enemy_y);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == cannon)
+        .unwrap()
+        .hp = 1;
+
+    game.run_ai_player(1);
+
+    assert!(game.unit_by_id(cannon).is_none());
+    assert!(game.unit_by_id(defender).is_some());
+    assert_eq!(game.unit_goto_tiles.get(&defender), Some(&(x, y)));
+    game.update_activities_and_restore();
+    game.run_ai_player(1);
+    assert!(
+        game.unit_by_id(defender)
+            .is_some_and(|unit| (unit.x, unit.y) == (x, y))
+    );
+}
+
+#[test]
+fn hunter_role_runs_before_assigned_city_defense() {
+    let (mut game, _) = city_fixture(1);
+    let start = (10, 24);
+    game.sign_pact(1, HUMAN, Pact::War);
+    let hunter = game.spawn_unit(1, UnitKind::Horseman, start.0, start.1);
+    let target = crate::world::topology::offset_native_by_map(start.0, start.1, 2, 0);
+    for _ in 0..4 {
+        game.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
+    }
+
+    game.run_ai_player(1);
+
+    assert!(
+        game.hunter_targets.contains_key(&hunter)
+            || game
+                .unit_by_id(hunter)
+                .is_some_and(|unit| (unit.x, unit.y) != start)
+    );
+}
+
+#[test]
+fn city_defender_and_spare_counterattack_fixtures_use_expected_thresholds() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let (held, spare_attacked, _) = game.ai_counterattack_playtest();
+    assert!(held && spare_attacked);
+}
+
+#[test]
+fn future_defender_forecast_scores_a_buildable_trained_counter_unit() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let forecast = game.ai_defender_forecast_playtest();
+    assert!(forecast, "near/far defender forecast failed");
+}
+
+#[test]
 fn city_defender_wall_scaling_uses_selected_ruleset_defend_effects() {
     let (mut game, _) = city_fixture(1);
     let (x, y) = (10, 24);

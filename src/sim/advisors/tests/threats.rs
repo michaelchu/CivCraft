@@ -96,9 +96,13 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
         UnitKind::Musketman
     );
     assert!(
-        game.production_city_defender(city, 100).is_some_and(
-            |kind| kind.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::Defense)
-        )
+        game.production_city_defender(city, 100)
+            .is_some_and(|kind| super::super::action_rules::freeciv_unit_has_role(
+                kind,
+                "DefendGood"
+            ) || super::super::action_rules::freeciv_unit_has_role(
+                kind, "DefendOk"
+            ))
     );
 }
 
@@ -244,6 +248,17 @@ fn danger_counter_choice_assumes_the_next_full_turn_without_mutating_the_enemy()
         .unwrap();
     enemy.moves_left = 0;
     let id = enemy.id;
+    for (step, terrain, resource) in [
+        (-1, Terrain::Desert, Resource::Oil),
+        (-2, Terrain::Hills, Resource::Rubber),
+    ] {
+        let (x, y) = offset_native_by_map(game.cities[0].x, game.cities[0].y, step, 0);
+        let tile = game.tile_mut(x, y);
+        tile.terrain = terrain;
+        tile.resource = Some(resource);
+        tile.owner = Some(1);
+        tile.road = true;
+    }
     assert!(game.city_defense_production(&game.cities[0]).is_some());
     assert_eq!(game.unit_by_id(id).unwrap().moves_left, 0);
 }

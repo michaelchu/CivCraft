@@ -199,7 +199,7 @@ impl Playtest {
                 "unit_upkeep",
                 verified,
                 format!(
-                    "Under Despotism, the fifth supported unit charged one gold on the next turn: {verified}."
+                    "Under Despotism, the third unit housed in a city exceeded C2C3's two free gold-upkeep slots and was charged one gold: {verified}."
                 ),
             ));
         }

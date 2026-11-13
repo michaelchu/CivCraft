@@ -43,9 +43,15 @@ impl Simulation {
         } else {
             Contamination::Pollution
         };
-        city.size == 1
-            && Self::city_radius(city)
-                .any(|(_, _, x, y)| self.tile(x, y).has_contamination(contamination))
+        let nearby_contamination =
+            super::super::pollution::C2C3_CITY_MAP_RADIUS_5
+                .iter()
+                .any(|&(dx, dy)| {
+                    self.map_wrap
+                        .offset(city.x, city.y, dx, dy)
+                        .is_some_and(|(x, y)| self.tile(x, y).has_contamination(contamination))
+                });
+        city.size == 1 && nearby_contamination
     }
 
     pub(crate) fn climate_playtest_setup(&mut self, warming: bool) {
@@ -62,7 +68,9 @@ impl Simulation {
         self.cities.clear();
         if advanced {
             for owner in 0..3 {
-                self.players[owner].known.push(Tech::AMPHIBIOUS_WARFARE);
+                // Isolate the BarbarianSeaTech roster from Musketeer techs so
+                // the seed has a single eligible advanced sea-raider type.
+                self.players[owner].known = vec![Tech::AMPHIBIOUS_WARFARE];
             }
         }
 
@@ -90,6 +98,26 @@ impl Simulation {
         self.tile_mut(lx, ly).terrain = Terrain::Grassland;
         self.tile_mut(city_x, city_y).terrain = Terrain::Grassland;
         self.create_city(HUMAN, city_x, city_y);
+        if advanced {
+            // Freeciv's find_a_unit_type() only uses a technology role when
+            // more than two living civilizations can build it. This fixture
+            // cleared the normal roster, so keep two additional civilizations
+            // alive outside the uprising area to exercise that source path.
+            let random_before_setup = self.random_snapshot();
+            for owner in 1..3 {
+                let (px, py) = (0..self.tiles.len())
+                    .map(|index| self.map_wrap.position(index))
+                    .find(|&(px, py)| {
+                        self.map_distance(x, y, px, py) >= 8
+                            && self.map_distance(city_x, city_y, px, py) >= 8
+                            && !self.units.iter().any(|unit| (unit.x, unit.y) == (px, py))
+                    })
+                    .expect("the map contains distant sites for uprising eligibility players");
+                self.tile_mut(px, py).terrain = Terrain::Grassland;
+                self.spawn_unit(owner, UnitKind::Warrior, px, py);
+            }
+            self.restore_random(random_before_setup);
+        }
 
         // The seed also yields an open uprising roll and a successful
         // Despotism unrest roll. Check before the real call, then restore so
@@ -104,7 +132,7 @@ impl Simulation {
         }
         self.turn = BARBARIAN_ONSET - 1;
         self.summon_barbarians();
-        let gated = self.units.is_empty() && self.tile(x, y).hut;
+        let gated = !self.units.iter().any(|unit| unit.owner == BARBARIANS) && self.tile(x, y).hut;
         self.turn += 1;
         self.summon_barbarians();
         let boat = self.units.iter().find(|unit| {

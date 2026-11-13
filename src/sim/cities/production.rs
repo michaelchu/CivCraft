@@ -660,9 +660,13 @@ mod upkeep_tests {
     }
 
     #[test]
-    fn newly_built_unit_pays_its_gold_upkeep_during_the_same_city_turn() {
+    fn newly_built_unit_uses_free_gold_support_before_same_turn_charging_excess_units() {
         let mut game = flat_game();
         let city_id = game.cities[0].id;
+        let already_supported = [
+            add_supported_unit(&mut game, city_id, UnitKind::Warrior),
+            add_supported_unit(&mut game, city_id, UnitKind::Warrior),
+        ];
         game.cities[0].production = Production::Unit(UnitKind::Warrior);
         game.cities[0].shields = game.cities[0].production.cost();
 
@@ -670,13 +674,30 @@ mod upkeep_tests {
         let built = game
             .units
             .iter()
-            .find(|unit| unit.home_city == Some(city_id) && unit.kind == UnitKind::Warrior)
+            .find(|unit| {
+                unit.home_city == Some(city_id)
+                    && unit.kind == UnitKind::Warrior
+                    && !already_supported.contains(&unit.id)
+            })
             .expect("city completed its Warrior");
-
+        let built_row = game
+            .city_unit_upkeep(&game.cities[0])
+            .per_unit
+            .into_iter()
+            .find(|row| row.unit_id == built.id)
+            .expect("new unit is included in the same-turn upkeep refresh");
+        assert!(matches!(
+            built_row.economics,
+            UnitUpkeepMapping::Mapped {
+                raw: crate::sim::upkeep::UnitOutputCosts { gold: 1, .. },
+                net: crate::sim::upkeep::UnitOutputCosts { gold: 0, .. },
+            }
+        ));
         assert!(
             paid.iter()
-                .any(|&(unit_id, cost)| unit_id == built.id && cost > 0)
+                .any(|&(unit_id, cost)| { already_supported.contains(&unit_id) && cost > 0 })
         );
+        assert!(paid.iter().all(|&(unit_id, _)| unit_id != built.id));
     }
 
     #[test]

@@ -277,11 +277,11 @@ fn conquest_invokes_partisans_after_transfer_and_population_loss() {
     game.players[1]
         .known
         .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
-    // The world requirement is the selected C2C3 technology identity, not
-    // Civ III's Nationalism advance.
+    // C2C3 Guerilla Warfare is adapted to Civ III Nationalism in the selected
+    // technology crosswalk, while the Civ III research tree stays authoritative.
     game.players[HUMAN]
         .known
-        .extend([Tech::COMMUNISM, Tech::GUNPOWDER, Tech::GUERILLA_WARFARE]);
+        .extend([Tech::COMMUNISM, Tech::GUNPOWDER, Tech::NATIONALISM]);
     game.players[1].gold = 0;
     game.players[HUMAN].gold = 0;
     game.sign_pact(HUMAN, 1, Pact::War);
@@ -717,12 +717,9 @@ fn desert_farmland_needs_a_food_bonus_and_supermarket_applies_to_worked_tiles() 
     tile.irrigation = true;
     tile.river = false;
     tile.resource = None;
-    game.players[HUMAN].known.extend([
-        Tech::REFRIGERATION,
-        Tech::ELECTRICITY,
-        Tech::SANITATION,
-        Tech::STEAM_POWER,
-    ]);
+    game.players[HUMAN]
+        .known
+        .extend([Tech::ELECTRICITY, Tech::SANITATION, Tech::STEAM_POWER]);
     let worker = game.spawn_unit(HUMAN, UnitKind::Worker, fx, fy);
     assert!(!game.apply(Command::Work(worker, WorkKind::Farmland)));
     game.tile_mut(fx, fy).river = true;

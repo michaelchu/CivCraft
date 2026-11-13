@@ -121,7 +121,57 @@ impl Simulation {
         for boat in boats {
             self.refresh_ferry_boss(boat);
         }
-        let city_defenders = self.assign_ai_city_defenders(owner);
+        let mut city_defenders = self.assign_ai_city_defenders(owner);
+        // Keep the home city for this pass. A Freeciv DEFEND_HOME unit may
+        // rampage and leave its tile before dai_military_defend sends it back.
+        let mut city_defender_homes: std::collections::HashMap<_, _> = city_defenders
+            .iter()
+            .filter_map(|&id| {
+                let unit = self.unit_by_id(id)?;
+                let city = self
+                    .cities
+                    .iter()
+                    .find(|city| city.owner == owner && (city.x, city.y) == (unit.x, unit.y))?;
+                Some((id, (city.x, city.y)))
+            })
+            .collect();
+        // `unit_goto_tiles` is CivCraft's persisted movement order. Reuse an
+        // owned-city destination to retain DEFEND_HOME when rampage spent the
+        // defender's remaining movement on the prior turn.
+        let returning_defenders: Vec<_> = self
+            .units
+            .iter()
+            .filter_map(|unit| {
+                if unit.owner != owner
+                    || !unit.kind.is_military()
+                    || unit.kind.is_naval()
+                    || unit.kind.is_aircraft()
+                    || unit.transport.is_some()
+                    || self.ai_guard_targets.contains_key(&unit.id)
+                    || self.ai_ground_targets.contains_key(&unit.id)
+                    || self.ai_settlement_targets.contains_key(&unit.id)
+                    || self.hunter_targets.contains_key(&unit.id)
+                    || self.ai_ferries.passengers.contains_key(&unit.id)
+                    || self.ai_ferries.boats.contains_key(&unit.id)
+                {
+                    return None;
+                }
+                let home = *self.unit_goto_tiles.get(&unit.id)?;
+                if (unit.x, unit.y) == home
+                    || !self
+                        .cities
+                        .iter()
+                        .any(|city| city.owner == owner && (city.x, city.y) == home)
+                {
+                    return None;
+                }
+                Some((unit.id, home))
+            })
+            .collect();
+        for (id, home) in returning_defenders {
+            city_defenders.insert(id);
+            city_defender_homes.entry(id).or_insert(home);
+        }
         let counterattacks = self.counterattack_from_ai_cities(owner, &city_defenders);
         let reinforcements = self.reinforce_ai_cities(owner, &city_defenders);
         let paratroopers: Vec<_> = self
@@ -130,7 +180,6 @@ impl Simulation {
             .filter(|unit| {
                 unit.owner == owner
                     && unit.kind == UnitKind::Paratrooper
-                    && !city_defenders.contains(&unit.id)
                     && !counterattacks.contains(&unit.id)
                     && !reinforcements.contains(&unit.id)
             })
@@ -142,25 +191,14 @@ impl Simulation {
             .collect();
         self.prune_settlement_reservations(owner);
         let settlement_ferries = self.dispatch_settlement_ferries(owner, &city_defenders);
-        let fleet = self.coordinate_assault_fleets(
-            owner,
-            |id| settlement_ferries.contains_key(&id),
-            |id| {
-                city_defenders.contains(&id)
-                    || counterattacks.contains(&id)
-                    || reinforcements.contains(&id)
-                    || drops.contains(&id)
-            },
-        );
         let assault = self.dispatch_assault_transports(
             owner,
-            |id| settlement_ferries.contains_key(&id) || fleet.contains(&id),
+            |id| settlement_ferries.contains_key(&id),
             |id| {
                 counterattacks.contains(&id)
                     || city_defenders.contains(&id)
                     || reinforcements.contains(&id)
                     || drops.contains(&id)
-                    || fleet.contains(&id)
             },
         );
         let reserved = city_defenders
@@ -168,7 +206,6 @@ impl Simulation {
             .chain(&counterattacks)
             .chain(&reinforcements)
             .chain(&drops)
-            .chain(&fleet)
             .chain(&assault)
             .copied()
             .collect();
@@ -180,15 +217,19 @@ impl Simulation {
             let Some(unit) = self.unit_by_id(id).cloned() else {
                 continue;
             };
-            if city_defenders.contains(&id) {
-                if let Some(city) = self
-                    .cities
-                    .iter()
-                    .find(|city| city.owner == owner && (city.x, city.y) == (unit.x, unit.y))
+            if drops.contains(&id) {
+                continue;
+            }
+            if let Some(home) = city_defender_homes.get(&id).copied() {
+                // dai_manage_military tries Hunter management before the
+                // DEFEND_HOME task, even for a unit selected by dai_set_defenders.
+                if owner != BARBARIANS
+                    && super::action_rules::freeciv_unit_has_role(unit.kind, "Hunter")
+                    && self.run_existing_hunter(&unit, &mut claimed_targets)
                 {
-                    self.unit_goto_tiles.insert(id, (city.x, city.y));
-                    self.fortify_unit(id);
+                    continue;
                 }
+                self.manage_ai_city_defender(id, home);
                 continue;
             }
             if unit.kind.is_nuclear_weapon() {
@@ -213,8 +254,6 @@ impl Simulation {
                 continue;
             }
             if assault.contains(&id)
-                || fleet.contains(&id)
-                || drops.contains(&id)
                 || counterattacks.contains(&id)
                 || reinforcements.contains(&id)
                 || settlement_ferries.values().any(|plan| plan.founder == id)
@@ -245,12 +284,7 @@ impl Simulation {
                 continue;
             }
             if owner != BARBARIANS
-                && (unit
-                    .kind
-                    .has_ai_strategy(super::unit_catalog::UnitAiStrategy::CruiseMissile)
-                    || unit
-                        .kind
-                        .has_ai_strategy(super::unit_catalog::UnitAiStrategy::Icbm))
+                && super::action_rules::freeciv_unit_has_role(unit.kind, "Hunter")
                 && self.run_existing_hunter(&unit, &mut claimed_targets)
             {
                 continue;

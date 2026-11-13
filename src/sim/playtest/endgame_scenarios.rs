@@ -96,12 +96,28 @@ impl Simulation {
             .unwrap()
             .id;
         self.finish_building(city, HUMAN, Building::APOLLO_PROGRAM, 600);
-        let before = self.civilization_score(HUMAN);
+        let before_score = self.civilization_score(HUMAN);
+        let before_history = self.players[HUMAN].history;
+        // Match the source phase's do_reveal_effects() call before achievements.
+        self.refresh_visibility();
         self.check_achievements();
-        let scored = self.civilization_score(HUMAN);
+        let after_award_history = self.players[HUMAN].history;
+        let before_refresh_score = self.civilization_score(HUMAN);
         self.check_achievements();
-        if self.civilization_score(HUMAN) == scored {
-            scored - before
+        let duplicate_check_kept_score = self.civilization_score(HUMAN) == before_refresh_score;
+        let duplicate_check_kept_history = self.players[HUMAN].history == after_award_history;
+
+        // Freeciv awards the achievement now, but score.culture is refreshed
+        // at the next begin-turn boundary. Model that boundary explicitly in
+        // the fixture instead of changing gameplay timing for the test.
+        self.refresh_score_snapshot();
+        let after_refresh_score = self.civilization_score(HUMAN);
+        if after_award_history > before_history
+            && before_refresh_score == before_score
+            && duplicate_check_kept_score
+            && duplicate_check_kept_history
+        {
+            after_refresh_score - before_score
         } else {
             0
         }

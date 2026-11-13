@@ -4,8 +4,18 @@ The bundled ruleset has no unit-building prerequisites; its unreachable
 building branch is removed. All selection/half-threshold code is verbatim.
 """
 from pathlib import Path
-import sys, subprocess, tempfile, random
-src=(Path(sys.argv[1])/'ai/default/daitech.c').read_text()
+import sys, subprocess, tempfile, random, hashlib
+
+PINNED_REVISION = '9ff184b6eb128ca636c7ad6269e27aa959600006'
+reference = Path(sys.argv[1])
+revision = subprocess.check_output(
+    ['git', '-C', str(reference), 'rev-parse', 'HEAD'], text=True
+).strip()
+if revision != PINNED_REVISION:
+    raise SystemExit(f'expected Freeciv {PINNED_REVISION}, found {revision}')
+source_path = reference/'ai/default/daitech.c'
+src=source_path.read_text()
+source_hash=hashlib.sha256(source_path.read_bytes()).hexdigest()
 a=src.index('struct unit_type *dai_wants_defender_against(');b=src.index('{',a);n=1;i=b+1
 while n:
     n+=(src[i]=='{')-(src[i]=='}');i+=1
@@ -76,6 +86,8 @@ with tempfile.TemporaryDirectory() as d:
     c=Path(d)/'oracle.c';e=Path(d)/'oracle';c.write_text(h)
     subprocess.run(['clang','-O2',str(c),'-o',str(e)],check=True)
     out=subprocess.check_output([str(e)],input=('\n'.join(' '.join(map(str,row)) for row in rows)+'\n').encode()).decode().splitlines()
-result='# want; four(defense,available,later,tech,cost,reachable); chosen_tech delta\n'
+result=(f'# Freeciv source revision: {revision}\n'
+        f'# ai/default/daitech.c SHA-256: {source_hash}\n'
+        '# want; four(defense,available,later,tech,cost,reachable); chosen_tech delta\n')
 result+='\n'.join('\t'.join(map(str,row))+ '\t'+line.replace(' ','\t') for row,line in zip(rows,out))+'\n'
 Path(__file__).with_name('freeciv_counter_research_vectors.tsv').write_text(result)

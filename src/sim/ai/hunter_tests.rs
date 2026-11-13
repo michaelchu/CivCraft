@@ -6,6 +6,14 @@ use super::*;
 fn native_hunter_roles_and_combat_values_match_imported_conquests_rules() {
     use crate::sim::unit_catalog::UnitAiStrategy;
 
+    assert!(super::super::action_rules::freeciv_unit_has_role(
+        UnitKind::Horseman,
+        "Hunter"
+    ));
+    assert!(!super::super::action_rules::freeciv_unit_has_role(
+        UnitKind::Warrior,
+        "Hunter"
+    ));
     assert!(UnitKind::CruiseMissile.has_ai_strategy(UnitAiStrategy::CruiseMissile));
     assert!(UnitKind::ICBM.has_ai_strategy(UnitAiStrategy::Icbm));
     assert!(!UnitKind::Horseman.has_ai_strategy(UnitAiStrategy::CruiseMissile));
@@ -77,7 +85,7 @@ fn hunter_assigns_same_tile_missiles_only_when_a_real_hunt_begins() {
 }
 
 #[test]
-fn ordinary_horseman_does_not_enter_source_missile_hunter_phase() {
+fn selected_c2c3_hunter_role_dispatches_existing_hunter_management() {
     let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.units.clear();
     sim.cities.clear();
@@ -99,17 +107,17 @@ fn ordinary_horseman_does_not_enter_source_missile_hunter_phase() {
     }
     let start = (20, 30);
     let far = offset_native_by_map(start.0, start.1, 5, 0);
-    // run_ai_player only dispatches missile hunters with the imported
-    // CruiseMissile or Icbm AI strategy. A Horseman has neither strategy.
     let hunter = sim.spawn_unit(1, UnitKind::Horseman, start.0, start.1);
     let target = sim.spawn_unit(HUMAN, UnitKind::Cavalry, far.0, far.1);
     sim.previous_naval_positions
         .insert(target, offset_native_by_map(start.0, start.1, 10, 0));
     assert!(sim.apply(Command::EndTurn));
-    assert!(!sim.hunter_targets.contains_key(&hunter));
-    // The corrected begin phase may assign a normal AI route or move the
-    // Horseman. This fixture only asserts it did not enter missile-hunter
-    // management, whose target state is `hunter_targets`.
+    let position = sim.unit_by_id(hunter).map(|unit| (unit.x, unit.y));
+    assert!(
+        sim.hunter_targets.contains_key(&hunter)
+            || position.is_some_and(|position| position != start),
+        "a ruleset Hunter-role unit should enter hunter planning"
+    );
     assert_eq!(sim.previous_naval_positions.get(&target), Some(&far));
 }
 

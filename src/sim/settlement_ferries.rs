@@ -9,12 +9,7 @@ use std::{
     collections::{BTreeMap, BinaryHeap},
 };
 
-const SETTLEMENT_FERRIES: [UnitKind; 4] = [
-    UnitKind::Galley,
-    UnitKind::Caravel,
-    UnitKind::Galleon,
-    UnitKind::Transport,
-];
+const SETTLEMENT_FERRY_ROLE: &str = "Ferryboat";
 
 struct Rendezvous {
     tile: (i32, i32),
@@ -34,14 +29,21 @@ pub(super) struct SettlementFerry {
 }
 
 impl Simulation {
+    fn settlement_ferry_unit_kinds() -> impl Iterator<Item = UnitKind> {
+        // daisettler.c and daidomestic.c use the ruleset's Ferryboat role for
+        // ordinary settlement trips. BarbarianBoat is a separate creation
+        // role and must not qualify a unit for this production choice.
+        UnitKind::ALL_NATIVE
+            .into_iter()
+            .filter(|&kind| super::action_rules::freeciv_unit_has_role(kind, SETTLEMENT_FERRY_ROLE))
+    }
+
     pub(super) fn ferry_tech_want(&self, owner: usize, tech: Tech) -> i32 {
         if owner == BARBARIANS
             || !self.players[owner].ai
             || tech != Tech::MAP_MAKING
             || self.has_tech(owner, tech)
-            || SETTLEMENT_FERRIES
-                .into_iter()
-                .any(|kind| self.unit_available(owner, kind))
+            || Self::settlement_ferry_unit_kinds().any(|kind| self.unit_available(owner, kind))
         {
             return 0;
         }
@@ -112,18 +114,15 @@ impl Simulation {
         if surplus > 0 && !forecast.disorder {
             let labels = self.continent_labels();
             let origin = labels[self.map_wrap.index(city.x, city.y)];
-            let new_ferry = SETTLEMENT_FERRIES
-                .into_iter()
+            let new_ferry = Self::settlement_ferry_unit_kinds()
                 .filter(|&kind| self.unit_buildable(city, kind))
                 .filter_map(|kind| {
                     let ship = self.make_unit(0, city.owner, kind, city.x, city.y);
-                    let invested = if city.production == Production::Unit(kind) {
-                        city.shields
-                    } else {
-                        0
-                    };
-                    let build_turns =
-                        ((kind.stats().cost - invested).max(0) + surplus - 1) / surplus;
+                    // daisettler.c creates a virtual Ferryboat at the coastal
+                    // city and charges one third of its shield cost in the
+                    // city-result score. Production delay is not added to the
+                    // route's travel turns; the founder/boat costs are the
+                    // source advisor's explicit penalties.
                     self.settlement_ferry_route(
                         founder,
                         &ship,
@@ -131,7 +130,7 @@ impl Simulation {
                         origin,
                         &[Rendezvous {
                             tile: (city.x, city.y),
-                            turns: build_turns,
+                            turns: 0,
                             walk: Vec::new(),
                         }],
                     )

@@ -65,7 +65,7 @@ impl Playtest {
         if frame == 565 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push(("ai_road_reinforcements", sim.ai_road_reinforcement_playtest(),
-                "A Marine reached the threatened city once the road opened and left a guard behind.".to_owned()));
+                "A Marine moved toward the higher-priority threatened city on the road route while a guard stayed home.".to_owned()));
         }
 
         if frame == 569 {

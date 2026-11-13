@@ -124,7 +124,7 @@ impl Simulation {
             .cities
             .iter()
             .filter(|city| city.owner != unit.owner && self.at_war(unit.owner, city.owner))
-            .filter(|city| self.can_launch_nuclear_strike_at(&unit, city.x, city.y))
+            .filter(|city| self.ai_air_target_reachable(&unit, city.x, city.y))
             .max_by_key(|city| city.size)
             .map(|city| (city.x, city.y));
         let target = city_target.or_else(|| {
@@ -135,13 +135,23 @@ impl Simulation {
                         && self.at_war(unit.owner, other.owner)
                         && other.transport.is_none()
                 })
-                .filter(|other| self.can_launch_nuclear_strike_at(&unit, other.x, other.y))
+                .filter(|other| self.ai_air_target_reachable(&unit, other.x, other.y))
                 .max_by_key(|other| other.kind.stats().attack * 3 + other.kind.stats().defense * 2)
                 .map(|other| (other.x, other.y))
         });
         if let Some((x, y)) = target {
             self.launch_nuclear_strike(id, x, y);
         }
+    }
+
+    fn ai_air_target_reachable(&self, unit: &Unit, x: i32, y: i32) -> bool {
+        if !self.can_launch_nuclear_strike_at(unit, x, y) {
+            return false;
+        }
+        let mut paths = super::normal_paths::NormalPaths::enemy_map(self, unit);
+        paths
+            .movement_cost(self, x, y)
+            .is_some_and(|cost| cost < unit.moves_left)
     }
 
     fn nuclear_action_in_range(&self, unit: &Unit, action: &str, x: i32, y: i32) -> bool {

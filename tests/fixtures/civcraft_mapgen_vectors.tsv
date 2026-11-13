@@ -1,7 +1,7 @@
-# CivCraft output using adapted Freeciv fractal height, water depth, temperature zones, property-driven terrain, river and C2C3 resource/hut placement rules with retained Civ III resource identities, values and rendering on CivCraft topology; player/nation assignment and exact source RNG parity remain adapted.
+# CivCraft self-regression vectors; refreshed after the river-course change in 0949d6d. Regenerate with `cargo test --offline dump_civcraft_mapgen_vectors -- --ignored --nocapture`. These are not Freeciv native oracle vectors.
 # wrap seed width height fnv64(terrain,altitude,extras) sorted_start_positions
-x	1	36	48	f810a553cb0e8e74	2,10;2,28;6,39;9,20;15,31;30,27
-x	42	36	48	76818b1c17b9cd71	1,25;8,22;15,39;24,5;25,21;31,19
-x	12345	36	48	199b4501fd3a6108	0,32;12,28;19,33;23,24;27,39;32,26
-x	700001	36	48	354acb089a791363	4,5;8,27;15,23;16,9;29,15;34,8
-x	2147483647	36	48	8d04724c3d9210f5	0,13;3,28;11,21;16,13;21,24;28,16
+x	1	36	48	7397e149e920ef7e	2,28;5,12;13,18;14,33;21,30;32,22
+x	42	36	48	55a4c27d734602b3	0,29;9,29;16,43;23,20;24,7;31,19
+x	12345	36	48	413a934a4d7d6ce8	1,23;12,37;15,25;23,34;24,22;34,40
+x	700001	36	48	7871d48c9ce661b0	0,9;0,34;7,26;14,21;28,13;34,20
+x	2147483647	36	48	ae6e0f41cf92022b	1,34;16,20;22,33;25,12;27,41;35,17

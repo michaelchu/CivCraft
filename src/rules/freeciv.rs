@@ -2253,7 +2253,7 @@ mod tests {
     #[test]
     fn campaign_map_generation_settings_are_explicit_and_validated() {
         let mut rules = RulesetData::campaign_default().clone();
-        assert_eq!(rules.settings.len(), 40);
+        assert_eq!(rules.settings.len(), 46);
         let defaults = rules.map_generation_settings().unwrap();
         assert_eq!(defaults.landmass_percent, 30);
         assert_eq!(defaults.ocean_coverage_percent(), 70);

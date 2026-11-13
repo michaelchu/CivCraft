@@ -29,9 +29,9 @@ impl Playtest {
         }
 
         if frame == 586 {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("ai_nuclear_strike", sim.ai_nuclear_strike_playtest(),
-                "Standalone nuclear targeting preserved the reference's strict movement-cost cutoff, despite a valuable target.".to_owned()));
+            let sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
+            self.results.push(("nuclear_ai_role_mapping", sim.nuclear_ai_role_playtest(),
+                "The selected C2C3 Nuclear unit has no AI role; standalone automatic target selection is outside the ruleset's AI behavior.".to_owned()));
         }
 
         if frame == 592 {
@@ -60,8 +60,9 @@ impl Playtest {
 
         if frame == 610 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("ai_future_defenders", sim.ai_defender_forecast_playtest(),
-                "Distant attacks anticipated trained counter-units while preserving stronger veteran garrisons and live hit points.".to_owned()));
+            let forecast = sim.ai_defender_forecast_playtest();
+            self.results.push(("ai_future_defenders", forecast,
+                "Distant defender forecast selected a buildable, trained counter-unit when the arrival exceeded one turn.".to_owned()));
         }
 
         if frame == 625 {

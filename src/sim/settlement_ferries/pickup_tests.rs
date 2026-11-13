@@ -109,3 +109,42 @@ fn ferry_tech_want_requires_the_local_city_search_to_need_a_boat() {
     assert!(good_local_site.is_port(good_local_site.cities.last().unwrap()));
     assert_eq!(good_local_site.ferry_tech_want(1, Tech::MAP_MAKING), 0);
 }
+
+#[test]
+fn settlement_ferry_candidates_follow_selected_c2c3_roles() {
+    use super::super::action_rules::freeciv_unit_has_role;
+
+    assert_eq!(
+        Simulation::settlement_ferry_unit_kinds().collect::<Vec<_>>(),
+        vec![
+            UnitKind::Galley,
+            UnitKind::Caravel,
+            UnitKind::Galleon,
+            UnitKind::Transport,
+        ]
+    );
+    assert!(freeciv_unit_has_role(UnitKind::Galley, "Ferryboat"));
+    assert!(!freeciv_unit_has_role(UnitKind::Galley, "BarbarianBoat"));
+    assert!(freeciv_unit_has_role(UnitKind::Caravel, "Ferryboat"));
+    assert!(freeciv_unit_has_role(UnitKind::Caravel, "BarbarianBoat"));
+    assert!(freeciv_unit_has_role(UnitKind::Galleon, "Ferryboat"));
+    assert!(freeciv_unit_has_role(UnitKind::Galleon, "BarbarianBoat"));
+    assert!(freeciv_unit_has_role(UnitKind::Transport, "Ferryboat"));
+    assert!(!freeciv_unit_has_role(UnitKind::Transport, "BarbarianBoat"));
+    assert!(!freeciv_unit_has_role(UnitKind::Carrack, "Ferryboat"));
+    assert!(!freeciv_unit_has_role(UnitKind::Carrack, "BarbarianBoat"));
+    assert!(!freeciv_unit_has_role(UnitKind::Dromon, "Ferryboat"));
+    assert!(!freeciv_unit_has_role(UnitKind::Dromon, "BarbarianBoat"));
+    assert!(!freeciv_unit_has_role(UnitKind::Curragh, "Ferryboat"));
+    assert!(!freeciv_unit_has_role(UnitKind::Curragh, "BarbarianBoat"));
+}
+
+#[test]
+fn map_making_port_builds_a_ferry_before_settling_a_worthwhile_overseas_site() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    assert_eq!(
+        game.settlement_ferry_production_playtest(),
+        (true, true, true),
+        "the AI should queue the ferry, then the founder, and settle the island"
+    );
+}

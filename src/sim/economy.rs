@@ -220,6 +220,9 @@ impl Simulation {
         }
 
         for (index, output_type) in ["Science", "Gold", "Luxury"].into_iter().enumerate() {
+            // Freeciv evaluates Output_Add_Tile on the city center and each
+            // worked tile before applying city-wide output bonuses.
+            output[index] += self.c2c3_city_output_additions(city, output_type, government);
             let bonus = self.city_output_bonus_percent(city, output_type, government, None);
             output[index] = (i64::from(output[index]) * i64::from(bonus) / 100)
                 .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;

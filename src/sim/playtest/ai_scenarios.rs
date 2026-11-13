@@ -84,6 +84,7 @@ impl Simulation {
 
     pub(crate) fn ai_defense_sale_playtest(&mut self) -> bool {
         self.units.clear();
+        self.sign_pact(1, HUMAN, Pact::War);
         let front = (10, 24);
         let enemy = offset_native_by_map(front.0, front.1, 1, 0);
         for (x, y) in [front, enemy] {
@@ -94,7 +95,8 @@ impl Simulation {
         self.cities[0]
             .buildings
             .extend([Building::CITY_WALLS, Building::GRANARY]);
-        self.spawn_unit(HUMAN, UnitKind::Cannon, enemy.0, enemy.1);
+        // City danger uses incoming attack power; a Cannon has zero attack.
+        self.spawn_unit(HUMAN, UnitKind::Horseman, enemy.0, enemy.1);
         self.prepare_ai_city_defenses(1);
         let Some(price) = self.rush_cost(&self.cities[0]) else {
             return false;
@@ -112,6 +114,7 @@ impl Simulation {
 
     pub(crate) fn ai_defense_purchase_playtest(&mut self) -> bool {
         self.units.clear();
+        self.sign_pact(1, HUMAN, Pact::War);
         let front = (10, 24);
         let enemy = offset_native_by_map(front.0, front.1, 1, 0);
         let rear = offset_native_by_map(front.0, front.1, 9, 0);
@@ -121,7 +124,7 @@ impl Simulation {
         self.create_city(1, front.0, front.1);
         self.create_city(1, rear.0, rear.1);
         self.turn += 1;
-        self.spawn_unit(HUMAN, UnitKind::Cannon, enemy.0, enemy.1);
+        self.spawn_unit(HUMAN, UnitKind::Horseman, enemy.0, enemy.1);
         self.prepare_ai_city_defenses(1);
         let Some(price) = self.rush_cost(&self.cities[0]) else {
             return false;
@@ -173,11 +176,8 @@ impl Simulation {
             && plane.kind.required_resources().contains(&Resource::Oil)
     }
 
-    pub(crate) fn ai_nuclear_strike_playtest(&mut self) -> bool {
-        let (missile, victim) = self.ai_nuclear_strike_playtest_setup();
-        self.run_ai_player(1);
-        !self.units.iter().any(|unit| unit.id == missile)
-            && self.units.iter().any(|unit| unit.id == victim)
+    pub(crate) fn nuclear_ai_role_playtest(&self) -> bool {
+        !super::super::action_rules::freeciv_unit_has_role(UnitKind::TacticalNuke, "Hunter")
     }
     pub(crate) fn ai_threat_route_cost_playtest(&mut self) -> bool {
         self.units.clear();
