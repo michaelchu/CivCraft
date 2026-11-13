@@ -3,6 +3,18 @@
 use super::*;
 
 impl Simulation {
+    pub(in crate::sim) fn begin_ai_threat_cache(&self) {
+        self.ai_threat_arrival_cache.borrow_mut().clear();
+        self.ai_danger_route_cache.borrow_mut().clear();
+        self.ai_threat_cache_enabled.set(true);
+    }
+
+    pub(in crate::sim) fn end_ai_threat_cache(&self) {
+        self.ai_threat_cache_enabled.set(false);
+        self.ai_threat_arrival_cache.borrow_mut().clear();
+        self.ai_danger_route_cache.borrow_mut().clear();
+    }
+
     pub(in crate::sim) fn city_threats<'a>(
         &'a self,
         city: &'a City,
@@ -12,6 +24,56 @@ impl Simulation {
     }
 
     pub(super) fn danger_route_turns(&self, unit: &Unit, city: &City) -> Option<i32> {
+        if self.ai_threat_cache_enabled.get() && !unit.kind.is_naval() {
+            let goal = self.map_wrap.index(city.x, city.y);
+            if let Some(costs) = self.ai_danger_route_cache.borrow().get(&unit.id) {
+                let spent = costs[goal];
+                return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
+            }
+            let costs = self.danger_route_costs(unit)?;
+            let spent = costs[goal];
+            self.ai_danger_route_cache.borrow_mut().insert(unit.id, costs);
+            return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
+        }
+        self.danger_route_turns_uncached(unit, city)
+    }
+
+    fn danger_route_costs(&self, unit: &Unit) -> Option<Vec<i32>> {
+        use std::{cmp::Reverse, collections::BinaryHeap};
+        let allowance = self.unit_move_rate(unit);
+        if allowance <= 0 {
+            return None;
+        }
+        let limit = 4 * allowance - 1; // normal assess_danger horizon: turns0..3
+        let start = self.map_wrap.index(unit.x, unit.y);
+        let mut distance = vec![i32::MAX; self.tiles.len()];
+        let mut queue = BinaryHeap::from([Reverse((0, start))]);
+        distance[start] = 0;
+        let mut actor = unit.clone();
+        actor.moves_left = allowance;
+        while let Some(Reverse((spent, index))) = queue.pop() {
+            if distance[index] != spent {
+                continue;
+            }
+            (actor.x, actor.y) = self.map_wrap.position(index);
+            let remaining = allowance - spent % allowance;
+            for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
+                let index = self.map_wrap.index(x, y);
+                let cost = self.movement_cost_for(&actor, x, y);
+                let Some(cost) = cost else {
+                    continue;
+                };
+                let candidate = spent + cost.min(remaining);
+                if candidate <= limit && candidate < distance[index] {
+                    distance[index] = candidate;
+                    queue.push(Reverse((candidate, index)));
+                }
+            }
+        }
+        Some(distance)
+    }
+
+    fn danger_route_turns_uncached(&self, unit: &Unit, city: &City) -> Option<i32> {
         use std::{cmp::Reverse, collections::BinaryHeap};
         // pft_fill_reverse_parameter uses a terrain-only reverse map: no
         // current movement, diplomacy, ZOC, fog or intervening-unit blockers.
@@ -19,7 +81,7 @@ impl Simulation {
         if allowance <= 0 {
             return None;
         }
-        let limit = 4 * allowance - 1; // normal assess_danger horizon: turns0..3
+        let limit = 4 * allowance - 1;
         let start = self.map_wrap.index(unit.x, unit.y);
         let goal = self.map_wrap.index(city.x, city.y);
         let mut distance = vec![i32::MAX; self.tiles.len()];
@@ -57,6 +119,19 @@ impl Simulation {
     }
 
     pub(super) fn city_danger_arrival(&self, unit: &Unit, city: &City) -> Option<i32> {
+        if self.ai_threat_cache_enabled.get() {
+            let key = (unit.id, city.id);
+            if let Some(turns) = self.ai_threat_arrival_cache.borrow().get(&key) {
+                return *turns;
+            }
+            let turns = self.city_danger_arrival_uncached(unit, city);
+            self.ai_threat_arrival_cache.borrow_mut().insert(key, turns);
+            return turns;
+        }
+        self.city_danger_arrival_uncached(unit, city)
+    }
+
+    fn city_danger_arrival_uncached(&self, unit: &Unit, city: &City) -> Option<i32> {
         // assess_danger_unit initializes with paradrop range, then compares
         // ordinary travel and the current ferry. Paradrop capability is a
         // future action estimate, not a promise that a drop is legal now.

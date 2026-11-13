@@ -304,6 +304,14 @@ pub(crate) struct Simulation {
     ai_government_cache: std::collections::BTreeMap<usize, government::GovernmentAdvisorCache>,
     #[serde(skip)]
     diplomatic_contact_until: std::collections::BTreeMap<(usize, usize), i32>,
+    #[serde(skip)]
+    ai_threat_cache_enabled: std::cell::Cell<bool>,
+    #[serde(skip)]
+    ai_threat_arrival_cache:
+        std::cell::RefCell<std::collections::BTreeMap<(u32, u32), Option<i32>>>,
+    #[serde(skip)]
+    ai_danger_route_cache:
+        std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
 }
 
 fn percent_of(value: i32, percent: i32) -> i32 {
@@ -577,6 +585,9 @@ impl Simulation {
             ai_ferries: Default::default(),
             ai_government_cache: Default::default(),
             diplomatic_contact_until: Default::default(),
+            ai_threat_cache_enabled: Default::default(),
+            ai_threat_arrival_cache: Default::default(),
+            ai_danger_route_cache: Default::default(),
         };
         for owner in 0..civilization_count {
             game.players[owner].researching = game.choose_research_target(owner);
@@ -748,6 +759,9 @@ impl Simulation {
         if owner != BARBARIANS && (owner >= self.civilization_count || !self.player_alive(owner)) {
             return;
         }
+        // Worker movement can change threat routes between owners. Cache only
+        // within this owner's read-heavy advisor pass, then discard it.
+        self.begin_ai_threat_cache();
         // ai/default/aihand.c:dai_do_last_activities runs government and
         // taxes before city management and spending, then research.
         self.clear_ai_tech_wants(owner);
@@ -759,11 +773,12 @@ impl Simulation {
         self.arrange_ai_emergency_workers(owner);
         self.manage_ai_city_sales(owner);
         self.record_ai_domestic_tech_wants(owner);
-        self.prepare_ai_city_defenses(owner);
-        self.spend_ai_defense_gold(owner);
+        let build_choices = self.prepare_ai_city_defenses(owner);
+        self.spend_ai_defense_gold_with_choices(owner, &build_choices);
         self.record_ai_tech_effect_wants(owner);
         self.manage_ai_research(owner);
         self.auto_launch_ai_spaceship(owner);
+        self.end_ai_threat_cache();
     }
 }
 

@@ -566,7 +566,11 @@ impl Simulation {
         best
     }
 
-    pub(in crate::sim) fn prepare_ai_city_defenses(&mut self, owner: usize) {
+    pub(in crate::sim) fn prepare_ai_city_defenses(
+        &mut self,
+        owner: usize,
+    ) -> std::collections::BTreeMap<u32, AiBuildChoice> {
+        let mut choices = std::collections::BTreeMap::new();
         let ids: Vec<_> = self
             .player_cities_ordered(owner)
             .map(|city| city.id)
@@ -576,11 +580,13 @@ impl Simulation {
                 continue;
             };
             self.record_ai_military_tech_wants(&city);
-            if let Some(choice) = self.ai_build_choice(&city)
-                && city.production != choice.production
-            {
-                self.change_production(id, choice.production);
+            if let Some(choice) = self.ai_build_choice(&city) {
+                choices.insert(id, choice);
+                if city.production != choice.production {
+                    self.change_production(id, choice.production);
+                }
             }
         }
+        choices
     }
 }

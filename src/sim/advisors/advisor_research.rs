@@ -141,6 +141,35 @@ impl Simulation {
     }
 
     pub(super) fn city_tech_effect_want(&self, city: &City, tech: Tech) -> i32 {
+        let direct_output = matches!(tech, Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION);
+        let obsoletes_building = city.buildings.iter().any(|building| {
+            building
+                .data()
+                .obsolete
+                .contains(&(Requirement::Tech(tech.0), true))
+        });
+        let ruleset = RulesetData::campaign_default();
+        let has_supported_effect = tech.is_civ3_advance()
+            && ruleset.effects.iter().any(|effect| {
+                effect.multiplier.is_none()
+                    && matches!(
+                        effect.kind.to_ascii_lowercase().as_str(),
+                        "city_vision_radius_sq"
+                            | "unit_vision_radius_sq"
+                            | "move_bonus"
+                            | "upgrade_price_pct"
+                            | "make_content"
+                            | "health_pct"
+                    )
+                    && effect
+                        .requirements
+                        .iter()
+                        .filter_map(|requirement| bound_player_tech(ruleset, requirement))
+                        .any(|(required, _)| required == tech)
+            });
+        if !direct_output && !obsoletes_building && !has_supported_effect {
+            return 0;
+        }
         let baseline = self.advisor_city_output(city, None);
         let direct = match tech {
             Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION => {
@@ -343,6 +372,18 @@ impl Simulation {
     }
 
     pub(super) fn city_building_tech_want(&self, city: &City, tech: Tech) -> i32 {
+        // Most advances unlock no city improvement. Avoid computing the
+        // expensive city forecast and upkeep baseline for those advances;
+        // the loop below would necessarily return zero for them.
+        if !Building::all().any(|building| {
+            building.data().genus == Genus::Improvement
+                && building
+                    .data()
+                    .requirements
+                    .contains(&(Requirement::Tech(tech.0), true))
+        }) {
+            return 0;
+        }
         let baseline = self.advisor_city_output(city, None);
         let (food, gross_shields, _) = self.city_yields(city);
         let upkeep = self.city_unit_upkeep(city);

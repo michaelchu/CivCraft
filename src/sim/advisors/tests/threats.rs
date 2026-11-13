@@ -164,6 +164,42 @@ fn threat_arrival_uses_source_pf_floor_and_retains_road_turn_zero() {
 }
 
 #[test]
+fn scoped_threat_cache_preserves_arrivals_across_multiple_cities() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.road = false;
+        tile.river = false;
+    }
+    game.create_city(1, 10, 24);
+    game.create_city(1, 18, 24);
+    game.spawn_unit(HUMAN, UnitKind::Warrior, 13, 24);
+    game.spawn_unit(HUMAN, UnitKind::Horseman, 15, 24);
+
+    let arrivals = |simulation: &Simulation| {
+        simulation
+            .cities
+            .iter()
+            .flat_map(|city| {
+                simulation
+                    .city_threat_arrivals(city)
+                    .map(move |(unit, _, turns)| (city.id, unit.id, turns))
+            })
+            .collect::<Vec<_>>()
+    };
+    let uncached = arrivals(&game);
+    game.begin_ai_threat_cache();
+    let cached = arrivals(&game);
+    let repeated = arrivals(&game);
+    game.end_ai_threat_cache();
+
+    assert_eq!(cached, uncached);
+    assert_eq!(repeated, uncached);
+}
+
+#[test]
 fn transported_troops_and_paradrops_enter_city_danger_without_illegal_moves() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_embarked_paradrop_danger_playtest());

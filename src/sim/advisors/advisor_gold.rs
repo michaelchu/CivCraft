@@ -343,6 +343,18 @@ impl Simulation {
     }
 
     pub(crate) fn spend_ai_defense_gold(&mut self, owner: usize) {
+        let choices = self
+            .player_cities_ordered(owner)
+            .filter_map(|city| self.ai_build_choice(city).map(|choice| (city.id, choice)))
+            .collect();
+        self.spend_ai_defense_gold_with_choices(owner, &choices);
+    }
+
+    pub(in crate::sim) fn spend_ai_defense_gold_with_choices(
+        &mut self,
+        owner: usize,
+        choices: &std::collections::BTreeMap<u32, AiBuildChoice>,
+    ) {
         let owned: Vec<_> = self.player_cities_ordered(owner).collect();
         let expenses: i32 = owned
             .iter()
@@ -352,7 +364,7 @@ impl Simulation {
         let mut priorities: Vec<_> = owned
             .into_iter()
             .filter_map(|city| {
-                let chosen = self.ai_build_choice(city)?;
+                let chosen = *choices.get(&city.id)?;
                 // dai_spend_gold consumes the final cached city choice, across
                 // all advisor categories. CivCraft stores that choice as the
                 // city's current production after prepare_ai_city_defenses.
@@ -425,7 +437,14 @@ impl Simulation {
             }
         }
         let at_war = self.ai_on_war_footing(owner);
-        self.spend_ai_routine_gold(owner, reserve, expenses, at_war, &emergency_cities);
+        self.spend_ai_routine_gold(
+            owner,
+            reserve,
+            expenses,
+            at_war,
+            &emergency_cities,
+            choices,
+        );
         if !at_war {
             self.spend_ai_upgrade_gold(owner, None, reserve.max(expenses));
         }
@@ -438,6 +457,7 @@ impl Simulation {
         expenses: i32,
         at_war: bool,
         emergency_cities: &[u32],
+        choices: &std::collections::BTreeMap<u32, AiBuildChoice>,
     ) {
         let city_count = self
             .cities
@@ -482,8 +502,8 @@ impl Simulation {
             if missing <= surplus {
                 continue;
             }
-            let want = self
-                .ai_build_choice(city)
+            let want = choices
+                .get(&city.id)
                 .filter(|choice| choice.production == city.production)
                 .map_or(0.0, |choice| choice.want);
             purchases.push((want, price, city.id, cash_floor));
