@@ -546,6 +546,12 @@ impl Simulation {
         if civil_war {
             self.split_civil_war(old_owner);
         }
+        // The inherited default.lua city_transferred callback runs after the
+        // city population loss and any resulting civil war. It is only emitted
+        // for a city that survived the transfer.
+        if let Some(index) = self.city_index_by_id(city_id) {
+            self.inspire_partisans(index, old_owner);
+        }
         self.refresh_diplomatic_contact_at(unit.owner, x, y);
         self.refresh_visibility();
         if unit.owner == HUMAN || old_owner == HUMAN {

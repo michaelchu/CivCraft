@@ -82,7 +82,22 @@ impl Simulation {
         y: i32,
         attacker: UnitKind,
     ) -> i32 {
-        self.defense_power_with_building(unit, x, y, attacker, None)
+        self.defense_power_with_attacker(unit, x, y, Some(attacker), None)
+    }
+
+    /// Score an unfortified virtual defender without an attacking unit type.
+    /// Freeciv's `get_virtual_defense_power(..., nullptr, ...)` deliberately
+    /// skips attacker-dependent combat bonuses while retaining terrain,
+    /// nativity, extra, and fortification effects.
+    pub(in crate::sim) fn virtual_defense_power(
+        &self,
+        owner: usize,
+        kind: UnitKind,
+        x: i32,
+        y: i32,
+    ) -> i32 {
+        let unit = self.make_unit(0, owner, kind, x, y);
+        self.defense_power_with_attacker(&unit, x, y, None, None)
     }
 
     pub(in crate::sim) fn defense_power_with_building(
@@ -91,6 +106,17 @@ impl Simulation {
         x: i32,
         y: i32,
         attacker: UnitKind,
+        building: Option<Building>,
+    ) -> i32 {
+        self.defense_power_with_attacker(unit, x, y, Some(attacker), building)
+    }
+
+    fn defense_power_with_attacker(
+        &self,
+        unit: &Unit,
+        x: i32,
+        y: i32,
+        attacker: Option<UnitKind>,
         building: Option<Building>,
     ) -> i32 {
         // Freeciv applies these as separate integer-multiplication stages:
@@ -128,36 +154,38 @@ impl Simulation {
             power = power * class_rules.non_native_def_pct / 100;
         }
 
-        let defense_multiplier =
-            100 + self.unit_combat_bonus_total(
-                unit.kind,
-                attacker,
-                crate::rules::freeciv::CombatBonusKind::DefenseMultiplierPct,
-            ) + 100
-                * self.unit_combat_bonus_total(
+        if let Some(attacker) = attacker {
+            let defense_multiplier =
+                100 + self.unit_combat_bonus_total(
                     unit.kind,
                     attacker,
-                    crate::rules::freeciv::CombatBonusKind::DefenseMultiplier,
-                );
-        power = (power * defense_multiplier / 100).max(0);
-        let defend_bonus = self.defend_bonus_against(unit.owner, attacker, x, y, building);
-        power = (apply_percent_bonus(power, defend_bonus)).max(0);
-        let defense_divider =
-            100 + self.unit_combat_bonus_total(
-                attacker,
-                unit.kind,
-                crate::rules::freeciv::CombatBonusKind::DefenseDividerPct,
-            ) + 100
-                * self.unit_combat_bonus_total(
+                    crate::rules::freeciv::CombatBonusKind::DefenseMultiplierPct,
+                ) + 100
+                    * self.unit_combat_bonus_total(
+                        unit.kind,
+                        attacker,
+                        crate::rules::freeciv::CombatBonusKind::DefenseMultiplier,
+                    );
+            power = (power * defense_multiplier / 100).max(0);
+            let defend_bonus = self.defend_bonus_against(unit.owner, attacker, x, y, building);
+            power = (apply_percent_bonus(power, defend_bonus)).max(0);
+            let defense_divider =
+                100 + self.unit_combat_bonus_total(
                     attacker,
                     unit.kind,
-                    crate::rules::freeciv::CombatBonusKind::DefenseDivider,
-                );
-        assert!(
-            defense_divider > 0,
-            "campaign C2C3 combat bonuses produced a nonpositive defense divider"
-        );
-        power = power * 100 / defense_divider;
+                    crate::rules::freeciv::CombatBonusKind::DefenseDividerPct,
+                ) + 100
+                    * self.unit_combat_bonus_total(
+                        attacker,
+                        unit.kind,
+                        crate::rules::freeciv::CombatBonusKind::DefenseDivider,
+                    );
+            assert!(
+                defense_divider > 0,
+                "campaign C2C3 combat bonuses produced a nonpositive defense divider"
+            );
+            power = power * 100 / defense_divider;
+        }
         // combat.c:defense_multiplication applies the extra attribute after
         // defense effects and before fortification. River is native only to
         // its selected C2C3 classes and is separate from terrain defense.

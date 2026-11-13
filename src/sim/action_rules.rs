@@ -132,6 +132,20 @@ impl<'a> SimulationRequirementContext<'a> {
         }
     }
 
+    /// Build a target-city context evaluated on behalf of a different player.
+    /// Freeciv uses this for effects such as `Inspire_Partisans`, where the
+    /// transferred city supplies local requirements but the defeated owner
+    /// supplies player requirements.
+    pub(crate) fn for_player_in_city(
+        simulation: &'a Simulation,
+        owner: usize,
+        city: &'a super::City,
+    ) -> Self {
+        let mut context = Self::for_city_at(simulation, city, Some((city.x, city.y)));
+        context.owner = owner;
+        context
+    }
+
     pub(crate) fn with_output_type(mut self, output_type: &str) -> Self {
         self.output_type = Some(output_type.to_owned());
         self

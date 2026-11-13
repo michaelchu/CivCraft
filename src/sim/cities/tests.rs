@@ -243,6 +243,82 @@ fn conquest_fixture() -> (Simulation, u32, u32, (i32, i32)) {
 }
 
 #[test]
+fn conquest_invokes_partisans_after_transfer_and_population_loss() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.road = false;
+        tile.railroad = false;
+        tile.river = false;
+    }
+
+    let center = (20, 24);
+    game.create_city(1, center.0, center.1);
+    let city_id = game.cities[0].id;
+    game.cities[0].size = 5;
+    game.cities[0]
+        .buildings
+        .retain(|&building| building != Building::PALACE);
+    // The city starts at 60% defeated-player nationality after transfer
+    // (3/5), below C2C3's 75% threshold. The population-loss draw must remove
+    // a citizen of nation 2 to make the surviving city eligible (3/4).
+    game.cities[0].foreign_citizens = vec![(2, 2)];
+    assert_eq!(game.cities[0].domestic_citizens(), 3);
+    assert_eq!(game.cities[0].foreign_citizens, [(2, 2)]);
+
+    for player in &mut game.players {
+        player.known.clear();
+        player.future_techs = 0;
+    }
+    game.players[1].government = Government::Communism;
+    game.players[1]
+        .known
+        .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
+    // The world requirement is the selected C2C3 technology identity, not
+    // Civ III's Nationalism advance.
+    game.players[HUMAN]
+        .known
+        .extend([Tech::COMMUNISM, Tech::GUNPOWDER, Tech::GUERILLA_WARFARE]);
+    game.players[1].gold = 0;
+    game.players[HUMAN].gold = 0;
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Swordsman, center.0, center.1);
+
+    let (seed, captured) = (1..=256)
+        .find_map(|seed| {
+            let mut candidate = game.clone();
+            candidate.set_random_seed(seed);
+            candidate.capture_city_if_needed(attacker, center.0, center.1);
+            let city = candidate.city_by_id(city_id)?;
+            (city.size == 4
+                && city.foreign_citizens == [(1, 3), (2, 1)]
+                && candidate.units.iter().any(|unit| {
+                    unit.owner == 1
+                        && unit.kind == UnitKind::Guerilla
+                        && unit.state == UnitState::Fortified
+                }))
+            .then_some((seed, candidate))
+        })
+        .expect(
+            "a deterministic seed leaves 75% defeated-player nationality and inspires Partisans",
+        );
+
+    let captured_city = captured.city_by_id(city_id).unwrap();
+    assert_eq!(captured_city.owner, HUMAN, "the city has transferred first");
+    assert_eq!(captured_city.size, 4, "conquest removes one population");
+    assert_eq!(captured_city.foreign_citizens, [(1, 3), (2, 1)]);
+    assert!(captured.units.iter().any(|unit| {
+        unit.owner == 1 && unit.kind == UnitKind::Guerilla && unit.state == UnitState::Fortified
+    }));
+    let expected_event = format!("The loss of {} has inspired partisans.", captured_city.name);
+    assert!(captured.events.iter().any(|event| event == &expected_event));
+    assert!(seed > 0);
+}
+
+#[test]
 fn conquest_transfers_center_garrison_and_resolves_unique_game_loss_conflicts() {
     let (mut game, city_id, attacker, center) = conquest_fixture();
     let garrison_id = game.spawn_unit(1, UnitKind::Warrior, center.0, center.1);
