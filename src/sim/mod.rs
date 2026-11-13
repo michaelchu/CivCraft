@@ -55,6 +55,8 @@ mod exploration;
 mod government;
 mod guards;
 mod headless;
+pub(crate) mod observation;
+pub(crate) mod trace;
 pub(crate) use government::Government;
 mod achievements;
 mod citizens;
@@ -211,6 +213,8 @@ struct MapObservation {
 /// snapshots, and event presentation caches are rebuilt or reset as needed.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Simulation {
+    #[serde(skip)]
+    pub(crate) trace: trace::Collector,
     /// Full caller-provided campaign/game seed used as the reproducible world ID.
     pub(crate) world_seed: u64,
     /// 32-bit map seed drawn from the initialized Freeciv gameplay stream.
@@ -511,6 +515,7 @@ impl Simulation {
         let start_year = calendar.start_year;
 
         let mut game = Self {
+            trace: Default::default(),
             world_seed: seed,
             map_seed,
             civilization_count,

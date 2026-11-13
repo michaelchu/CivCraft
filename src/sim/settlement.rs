@@ -1,6 +1,8 @@
 //! City founding and settlement-site selection.
 
 use super::pathfinding::reconstruct_path_to_root;
+pub(super) mod observations;
+
 use super::*;
 
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
@@ -97,6 +99,16 @@ impl Simulation {
             government,
             &map,
         ) {
+            self.trace.emit(
+                self.turn,
+                || {
+                    vec![
+                        trace::Entity::Unit(founder.id),
+                        trace::Entity::Civilization(founder.owner),
+                    ]
+                },
+                || observations::SiteSelected { destination },
+            );
             self.ai_worker_tasks.remove(&founder.id);
             self.unit_goto_tiles.insert(founder.id, destination);
             self.ai_settlement_targets.insert(

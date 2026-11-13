@@ -275,6 +275,20 @@ impl Simulation {
                 city.protected_shields = surplus.min(city.shields);
             }
             if let Some((target, shields)) = finished {
+                self.trace.emit(
+                    self.turn,
+                    || {
+                        vec![
+                            trace::Entity::City(city_id),
+                            trace::Entity::Civilization(snapshot.owner),
+                        ]
+                    },
+                    || crate::sim::cities::observations::ProductionCompleted {
+                        item: target.name().into(),
+                        shields_before: snapshot.shields,
+                        shields_after: self.cities[index].shields,
+                    },
+                );
                 match target {
                     Production::Unit(kind) => {
                         self.nation_scores[snapshot.owner].units_built += 1;
@@ -354,6 +368,8 @@ impl Simulation {
                 self.resolve_missing_unit_upkeep(unit_id, UnitUpkeepOutput::Food)
             });
             let city = &mut self.cities[index];
+            let food_before = city.food;
+            let population_before = city.size;
             let growth = city.resolve_growth(
                 self.map_wrap,
                 food_surplus,
@@ -362,6 +378,29 @@ impl Simulation {
                 shrink_retained,
                 food_upkeep_unit.is_some(),
                 rapture_growth,
+            );
+            self.trace.emit(
+                self.turn,
+                || {
+                    vec![
+                        trace::Entity::City(city_id),
+                        trace::Entity::Civilization(populated.owner),
+                    ]
+                },
+                || crate::sim::cities::observations::GrowthApplied {
+                    food_before,
+                    food_after: self.cities[index].food,
+                    population_before,
+                    population_after: self.cities[index].size,
+                    applied_surplus: food_surplus,
+                    size_limit,
+                    outcome: match growth {
+                        Growth::Starved => "starved",
+                        Growth::Destroyed => "destroyed",
+                        Growth::Grew => "grew",
+                        Growth::Unchanged => "unchanged",
+                    },
+                },
             );
             if growth == Growth::Starved {
                 self.remove_citizen_nationalities(index, 1);

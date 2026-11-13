@@ -1,0 +1,122 @@
+pub(crate) mod config;
+mod report;
+
+use crate::{
+    analytics, mapgen,
+    sim::{
+        Simulation,
+        trace::{Collector, Phase},
+    },
+};
+use config::Config;
+use std::io::Write;
+
+pub(crate) fn run(config: Config) -> Result<(), String> {
+    // Validate registration before generating a world or touching output files.
+    let mut registry = analytics::registry::build(
+        &config.analyzers,
+        config.growth_stall_turns,
+        config.settlement_every,
+    )?;
+    let mut provider_ids = registry
+        .providers()
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<std::collections::BTreeSet<_>>();
+    provider_ids.extend(config.providers.iter().cloned());
+    let providers = analytics::providers::build(&provider_ids)?;
+    let mut kinds = registry.event_kinds();
+    for domain in &config.trace_domains {
+        kinds.insert(if domain == "all" {
+            "*".into()
+        } else {
+            format!("{domain}.*")
+        });
+    }
+    let map = mapgen::generate_for_civ3_size(config.seed, config.map_size, config.world);
+    let mut game = Simulation::new(map);
+    game.enable_all_civilizations_as_ai();
+    game.trace = Collector::enabled(kinds, config.buffer_events);
+    let mut report = report::Report::new(&config.report)?;
+    let mut snapshot = analytics::providers::capture(&game, &providers, Phase::Initial);
+    report.snapshot(&snapshot)?;
+    registry.start(&snapshot);
+    report.checkpoint(
+        &config,
+        &registry,
+        &snapshot,
+        0,
+        None,
+        game.game_over(),
+        game.trace.dropped(),
+    )?;
+    let mut turns = 0;
+    let mut reason = "turn_limit";
+    let mut previous_dropped = 0;
+    while turns < config.turns as usize {
+        if game.game_over().is_some() {
+            reason = "game_over";
+            break;
+        }
+        game.simulate_turn();
+        turns += 1;
+        let dropped = game.trace.dropped();
+        registry.gap(dropped - previous_dropped);
+        previous_dropped = dropped;
+        for event in game.trace.drain() {
+            let retained = report.event(&event, &config)?;
+            registry.event(&event, retained);
+        }
+        snapshot = analytics::providers::capture(&game, &providers, Phase::TurnEnd);
+        report.snapshot(&snapshot)?;
+        registry.boundary(&snapshot);
+        if config.stop_on_finding != "none"
+            && registry.output.findings.iter().any(|f| {
+                f.status == "open"
+                    && (config.stop_on_finding == "any"
+                        || f.classification == "invariant_violation")
+            })
+        {
+            reason = "finding";
+            break;
+        }
+        if turns % config.checkpoint_every == 0 {
+            report.checkpoint(
+                &config,
+                &registry,
+                &snapshot,
+                turns,
+                None,
+                game.game_over(),
+                game.trace.dropped(),
+            )?;
+            println!(
+                "Simulated {}/{} turns (game turn {}, {} cities, {} findings)",
+                turns,
+                config.turns,
+                game.turn(),
+                snapshot.city_count,
+                registry.output.findings.len()
+            );
+            std::io::stdout().flush().map_err(|e| e.to_string())?;
+        }
+    }
+    if game.game_over().is_some() {
+        reason = "game_over";
+    }
+    registry.finish();
+    report.checkpoint(
+        &config,
+        &registry,
+        &snapshot,
+        turns,
+        Some(reason),
+        game.game_over(),
+        game.trace.dropped(),
+    )?;
+    println!(
+        "Completed {turns} turns; stop reason: {reason}. Report: {}",
+        config.report
+    );
+    Ok(())
+}
