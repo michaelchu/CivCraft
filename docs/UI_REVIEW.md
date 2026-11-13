@@ -38,10 +38,21 @@ The city manager now captures modal input and removes underlying HUD hitboxes. T
 
 ## Reproduce visual QA
 
+Visual QA requires a complete Civ III installation. `CIVCRAFT_SOURCE_DIR` must
+point to its root and that root must contain `Conquests/Art/Terrain`. If the
+variable is unset or the directory is unavailable, do not run `--ui-review` or
+baseline comparisons in that environment. Run the portable headless and Rust
+tests instead and report visual review as skipped, not passed. Baselines made
+with missing, fallback, generated, or partial assets are not valid substitutes.
+The executable also rejects a missing or invalid source directory, but agents
+should perform the preflight below rather than launching a review expected to
+fail during startup.
+
 From the app directory:
 
 ```sh
 export CIVCRAFT_SOURCE_DIR="$HOME/Documents/projects/CivCraft/source"
+test -d "$CIVCRAFT_SOURCE_DIR/Conquests/Art/Terrain"
 cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```

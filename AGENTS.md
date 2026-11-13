@@ -63,7 +63,10 @@ Use the narrowest test path that exercises the behavior being changed:
   desktop client: use the built-in `--self-test` gameplay scenarios below.
 - Rendering, layout, screenshots, or visual regressions: use `--ui-review`.
   Compare against an explicit baseline for regression work; never update a
-  baseline implicitly. See `docs/UI_REVIEW.md`.
+  baseline implicitly. Run it only when `CIVCRAFT_SOURCE_DIR` is set and points
+  to a complete Civ III installation. Otherwise skip visual testing, report the
+  missing prerequisite, and do not describe the skipped review as passing. See
+  `docs/UI_REVIEW.md`.
 
 Run the regular Rust suite with the repository's nextest profile:
 
@@ -205,6 +208,20 @@ window or screenshot/visual-review run:
 ```sh
 export CIVCRAFT_SOURCE_DIR="$HOME/Documents/projects/CivCraft/source"
 ```
+
+Before launching `--ui-review`, verify that the configured installation has
+the required terrain assets:
+
+```sh
+test -n "${CIVCRAFT_SOURCE_DIR:-}" \
+  && test -d "$CIVCRAFT_SOURCE_DIR/Conquests/Art/Terrain"
+```
+
+If that preflight fails, do not run `--ui-review` or a baseline comparison in
+that environment. Continue with applicable headless and Rust tests and state
+that visual testing was skipped because the Civ III installation was not
+available. Do not substitute fallback, generated, or partial assets for an
+authoritative visual baseline.
 
 ## Checking map-generation goldens
 
