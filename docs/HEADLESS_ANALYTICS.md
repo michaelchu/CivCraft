@@ -18,7 +18,7 @@ state and never participate in gameplay decisions.
 | Analyzers | `src/analytics/analyzers/` | State, thresholds, findings, metrics |
 | Finding lifecycle | `src/analytics/finding.rs` | Episodes, recovery, recurrence, evidence references |
 | Output | `src/headless/report.rs` | Stream JSONL and atomically replace summary checkpoints |
-| Scenario inputs | `src/headless/scenario.rs` | Build named fixtures or load persisted campaigns before tracing |
+| Scenario inputs | `src/headless/scenario.rs` | Prepare named fixtures or load persisted campaigns, then run traced actions |
 
 There are two extension paths: events for transitions/decisions and providers
 for persistent state. A new analyzer can use either or both. No runner or
@@ -32,11 +32,17 @@ The runner accepts either `--scenario NAME` or `--load-campaign PATH`. Use
 and then enter the same snapshot, analyzer, event, and reporting loop. They are
 mutually exclusive; omitting both retains generated-campaign behavior.
 
-Named scenarios are versioned Rust definitions. Their setup checks are written
+Named scenarios are versioned Rust definitions. Their checks are written
 under `run.scenario` and failed checks make the process exit unsuccessfully
 after publishing the final report. Saved campaigns preserve elaborate starting
 states without persisting trace buffers or analyzer state. The report records
 their source path as provenance.
+
+The lifecycle is `prepare -> attach tracing/start analyzers -> execute actions
+-> capture scenario_actions boundary -> simulate turns -> finish checks`.
+Scenario actions therefore emit ordinary retained events and produce a typed
+snapshot before turn simulation begins. Generated campaigns and loaded saves
+without scripted actions omit that extra boundary.
 
 Reusable state mutation belongs in simulation-level scenario helpers. Scenario
 definitions compose setup, actions, and checks; desktop-only input/rendering

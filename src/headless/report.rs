@@ -76,6 +76,9 @@ impl Report {
         );
         Ok(())
     }
+    pub fn scenario(&mut self, scenario: Provenance) {
+        self.scenario = scenario;
+    }
     pub fn event(&mut self, event: &Event, config: &Config) -> Result<bool, String> {
         if !config.retains(event) || self.event_records >= config.max_events {
             self.omitted_events += 1;
@@ -123,11 +126,11 @@ impl Report {
             .sum::<u64>();
         let scenario_checks_passed = self
             .scenario
-            .setup_checks
+            .checks
             .iter()
             .filter(|check| check.passed)
             .count();
-        let scenario_failed = self.scenario.setup_checks.iter().any(|check| !check.passed);
+        let scenario_failed = self.scenario.checks.iter().any(|check| !check.passed);
         let status = if reason.is_none() {
             "running"
         } else if scenario_failed {
@@ -153,7 +156,7 @@ impl Report {
                 "note":"Trace output filters do not filter analyzer input. Collector overflow does. No finding is not proof of correct gameplay."},
             "summary":{"finding_count":registry.output.findings.len(),"finding_observations":observations,
                 "open_findings":registry.output.findings.iter().filter(|f|f.status=="open").count(),
-                "scenario_checks_passed":scenario_checks_passed,"scenario_checks_total":self.scenario.setup_checks.len(),
+                "scenario_checks_passed":scenario_checks_passed,"scenario_checks_total":self.scenario.checks.len(),
                 "final_city_count":last.city_count,"civilizations":civilizations,"city_growth_status_counts":growth_counts},
             "findings":registry.output.findings,"timeline":self.timeline,
             "evidence":{
@@ -204,7 +207,7 @@ mod tests {
                 kind: "generated",
                 name: "test".into(),
                 version: 1,
-                setup_checks: vec![],
+                checks: vec![],
             },
         )
         .unwrap();

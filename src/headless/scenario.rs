@@ -22,59 +22,36 @@ pub(crate) struct Provenance {
     pub kind: &'static str,
     pub name: String,
     pub version: u16,
-    pub setup_checks: Vec<Check>,
+    pub checks: Vec<Check>,
 }
 
-pub(crate) fn load(path: &Path) -> Result<(Simulation, Provenance), String> {
-    let mut game = Simulation::load_campaign(path)
-        .map_err(|error| format!("could not load campaign {}: {error}", path.display()))?;
-    game.enable_all_civilizations_as_ai();
-    Ok((
-        game,
-        Provenance {
-            kind: "saved_campaign",
-            name: path.display().to_string(),
-            version: 1,
-            setup_checks: vec![],
-        },
-    ))
+enum Action {
+    None,
+    CityHealing,
+    SettlementFerry,
 }
 
-pub(crate) fn build(
-    name: &str,
-    seed: u64,
-    size: mapgen::Civ3MapSize,
-    world: mapgen::Civ3WorldSettings,
-) -> Result<(Simulation, Provenance), String> {
-    let (game, checks) = match name {
-        "generated-ai" => {
-            let mut game = Simulation::new(mapgen::generate_for_civ3_size(seed, size, world));
-            game.enable_all_civilizations_as_ai();
-            (game, vec![])
-        }
-        "city-healing" => {
-            // Pin the historical fixture used by the original desktop
-            // regression rather than inheriting campaign map options.
-            let mut game = Simulation::new(mapgen::generate(seed));
-            let healed = game.city_healing_playtest();
-            game.enable_all_civilizations_as_ai();
-            (
-                game,
-                vec![Check {
-                    name: "city_healing",
-                    passed: healed,
-                    detail: "Barracks and ordinary city recovery used their expected rules".into(),
-                }],
-            )
-        }
-        "settlement-ferry" => {
-            // Pin the historical fixture used by the original desktop
-            // regression rather than inheriting campaign map options.
-            let mut game = Simulation::new(mapgen::generate(seed));
-            let (queued, sequenced, founded) = game.settlement_ferry_production_playtest();
-            game.enable_all_civilizations_as_ai();
-            (
-                game,
+pub(crate) struct Run {
+    pub game: Simulation,
+    pub provenance: Provenance,
+    action: Action,
+}
+
+impl Run {
+    pub fn has_actions(&self) -> bool {
+        !matches!(self.action, Action::None)
+    }
+
+    pub fn execute_actions(&mut self) {
+        self.provenance.checks = match self.action {
+            Action::None => vec![],
+            Action::CityHealing => vec![Check {
+                name: "city_healing",
+                passed: self.game.city_healing_playtest(),
+                detail: "Barracks and ordinary city recovery used their expected rules".into(),
+            }],
+            Action::SettlementFerry => {
+                let (queued, sequenced, founded) = self.game.settlement_ferry_production_playtest();
                 vec![
                     Check {
                         name: "ferry_queued",
@@ -91,7 +68,52 @@ pub(crate) fn build(
                         passed: founded,
                         detail: "AI transported its founder and established the island city".into(),
                     },
-                ],
+                ]
+            }
+        };
+        self.action = Action::None;
+        self.game.enable_all_civilizations_as_ai();
+    }
+}
+
+pub(crate) fn load(path: &Path) -> Result<Run, String> {
+    let mut game = Simulation::load_campaign(path)
+        .map_err(|error| format!("could not load campaign {}: {error}", path.display()))?;
+    game.enable_all_civilizations_as_ai();
+    Ok(Run {
+        game,
+        provenance: Provenance {
+            kind: "saved_campaign",
+            name: path.display().to_string(),
+            version: 1,
+            checks: vec![],
+        },
+        action: Action::None,
+    })
+}
+
+pub(crate) fn build(
+    name: &str,
+    seed: u64,
+    size: mapgen::Civ3MapSize,
+    world: mapgen::Civ3WorldSettings,
+) -> Result<Run, String> {
+    let (mut game, action) = match name {
+        "generated-ai" => {
+            let game = Simulation::new(mapgen::generate_for_civ3_size(seed, size, world));
+            (game, Action::None)
+        }
+        "city-healing" => {
+            // Pin the historical fixture used by the original desktop
+            // regression rather than inheriting campaign map options.
+            (Simulation::new(mapgen::generate(seed)), Action::CityHealing)
+        }
+        "settlement-ferry" => {
+            // Pin the historical fixture used by the original desktop
+            // regression rather than inheriting campaign map options.
+            (
+                Simulation::new(mapgen::generate(seed)),
+                Action::SettlementFerry,
             )
         }
         _ => {
@@ -101,33 +123,36 @@ pub(crate) fn build(
             ));
         }
     };
-    Ok((
+    game.enable_all_civilizations_as_ai();
+    Ok(Run {
         game,
-        Provenance {
+        provenance: Provenance {
             kind: "named",
             name: name.into(),
             version: 1,
-            setup_checks: checks,
+            checks: vec![],
         },
-    ))
+        action,
+    })
 }
 
 pub(crate) fn generated(
     seed: u64,
     size: mapgen::Civ3MapSize,
     world: mapgen::Civ3WorldSettings,
-) -> (Simulation, Provenance) {
+) -> Run {
     let mut game = Simulation::new(mapgen::generate_for_civ3_size(seed, size, world));
     game.enable_all_civilizations_as_ai();
-    (
+    Run {
         game,
-        Provenance {
+        provenance: Provenance {
             kind: "generated",
             name: "default".into(),
             version: 1,
-            setup_checks: vec![],
+            checks: vec![],
         },
-    )
+        action: Action::None,
+    }
 }
 
 #[cfg(test)]
@@ -151,9 +176,25 @@ mod tests {
             Default::default(),
         ));
         game.save_campaign(&path).unwrap();
-        let (loaded, provenance) = load(&path).unwrap();
-        assert_eq!(loaded.turn(), game.turn());
-        assert_eq!(provenance.kind, "saved_campaign");
+        let loaded = load(&path).unwrap();
+        assert_eq!(loaded.game.turn(), game.turn());
+        assert_eq!(loaded.provenance.kind, "saved_campaign");
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn named_actions_are_deferred_until_the_runner_executes_them() {
+        let mut run = build(
+            "settlement-ferry",
+            42,
+            mapgen::Civ3MapSize::Tiny,
+            Default::default(),
+        )
+        .unwrap();
+        assert!(run.has_actions());
+        assert!(run.provenance.checks.is_empty());
+        run.execute_actions();
+        assert!(!run.has_actions());
+        assert!(run.provenance.checks.iter().all(|check| check.passed));
     }
 }

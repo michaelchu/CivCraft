@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 pub(crate) enum Phase {
     #[default]
     Initial,
+    ScenarioActions,
     EndActivities,
     CityProcessing,
     WorldEvents,

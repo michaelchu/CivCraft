@@ -31,36 +31,54 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
             format!("{domain}.*")
         });
     }
-    let (mut game, scenario) = if let Some(path) = &config.load_campaign {
+    let mut scenario = if let Some(path) = &config.load_campaign {
         scenario::load(path)?
     } else if let Some(name) = &config.scenario {
         scenario::build(name, config.seed, config.map_size, config.world)?
     } else {
         scenario::generated(config.seed, config.map_size, config.world)
     };
-    let failed_scenario_checks = scenario
-        .setup_checks
-        .iter()
-        .filter(|check| !check.passed)
-        .map(|check| check.name)
-        .collect::<Vec<_>>();
-    game.trace = Collector::enabled(kinds, config.buffer_events);
-    let mut report = report::Report::new(&config.report, scenario)?;
-    let mut snapshot = analytics::providers::capture(&game, &providers, Phase::Initial);
+    scenario.game.trace = Collector::enabled(kinds, config.buffer_events);
+    let mut report = report::Report::new(&config.report, scenario.provenance.clone())?;
+    let mut snapshot = analytics::providers::capture(&scenario.game, &providers, Phase::Initial);
     report.snapshot(&snapshot)?;
     registry.start(&snapshot);
+    let mut previous_dropped = 0;
+    if scenario.has_actions() {
+        scenario.game.trace.phase(Phase::ScenarioActions);
+        scenario.execute_actions();
+        report.scenario(scenario.provenance.clone());
+        let dropped = scenario.game.trace.dropped();
+        registry.gap(dropped - previous_dropped);
+        previous_dropped = dropped;
+        for event in scenario.game.trace.drain() {
+            let retained = report.event(&event, &config)?;
+            registry.event(&event, retained);
+        }
+        snapshot =
+            analytics::providers::capture(&scenario.game, &providers, Phase::ScenarioActions);
+        report.snapshot(&snapshot)?;
+        registry.boundary(&snapshot);
+    }
     report.checkpoint(
         &config,
         &registry,
         &snapshot,
         0,
         None,
-        game.game_over(),
-        game.trace.dropped(),
+        scenario.game.game_over(),
+        scenario.game.trace.dropped(),
     )?;
+    let failed_scenario_checks = scenario
+        .provenance
+        .checks
+        .iter()
+        .filter(|check| !check.passed)
+        .map(|check| check.name)
+        .collect::<Vec<_>>();
+    let game = &mut scenario.game;
     let mut turns = 0;
     let mut reason = "turn_limit";
-    let mut previous_dropped = 0;
     while turns < config.turns as usize {
         if game.game_over().is_some() {
             reason = "game_over";
@@ -75,7 +93,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
             let retained = report.event(&event, &config)?;
             registry.event(&event, retained);
         }
-        snapshot = analytics::providers::capture(&game, &providers, Phase::TurnEnd);
+        snapshot = analytics::providers::capture(game, &providers, Phase::TurnEnd);
         report.snapshot(&snapshot)?;
         registry.boundary(&snapshot);
         if config.stop_on_finding != "none"
