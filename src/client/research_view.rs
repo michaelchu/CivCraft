@@ -76,7 +76,7 @@ impl Game {
             } else if is_mouse_button_pressed(MouseButton::Left)
                 && let Some((_, action)) = buttons.iter().find(|(rect, _)| rect.contains(mouse))
             {
-                self.perform_action(*action);
+                self.perform_action(action.clone());
             }
         }
         self.clamp_research_center();
@@ -369,9 +369,11 @@ mod tests {
         let tree = ResearchTree::new();
         let branch = tree.ancestors(Tech::COMPUTERS);
 
-        assert!(Tech::all()
-            .filter(|tech| tech.era() < TechEra::Modern && tech.required_for_civ3_era())
-            .all(|tech| branch.contains(&tech)));
+        assert!(
+            Tech::all()
+                .filter(|tech| tech.era() < TechEra::Modern && tech.required_for_civ3_era())
+                .all(|tech| branch.contains(&tech))
+        );
         assert!(branch.contains(&Tech::COMPUTERS));
     }
 

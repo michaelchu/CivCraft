@@ -123,7 +123,19 @@ pub(crate) fn bind_freeciv_technology(
                     || (display_name.eq_ignore_ascii_case("Superconductors")
                         && source.display_name.eq_ignore_ascii_case("Superconductor"))
                     || (display_name.eq_ignore_ascii_case("Amphibious Warfare")
-                        && source.display_name.eq_ignore_ascii_case("Amphibious War")))
+                        && source.display_name.eq_ignore_ascii_case("Amphibious War"))
+                    // Freeciv calls the draft-related advance Conscription;
+                    // the Civ III catalog names that advance Nationalism.
+                    || (display_name.eq_ignore_ascii_case("Conscription")
+                        && source.display_name.eq_ignore_ascii_case("Nationalism"))
+                    || (display_name.eq_ignore_ascii_case("Environmentalism")
+                        && source.display_name.eq_ignore_ascii_case("Ecology"))
+                    || (display_name.eq_ignore_ascii_case("Laser")
+                        && source.display_name.eq_ignore_ascii_case("The Laser"))
+                    || (display_name.eq_ignore_ascii_case("Mobile Warfare")
+                        && source.display_name.eq_ignore_ascii_case("Motorized Transportation"))
+                    || (display_name.eq_ignore_ascii_case("Nuclear Fission")
+                        && source.display_name.eq_ignore_ascii_case("Fission")))
         })
         .ok_or_else(|| {
             ContentBindingError(format!(
@@ -343,6 +355,26 @@ mod tests {
         assert_eq!(
             bind_freeciv_technology(&rules, "Superconductors"),
             Ok(FreecivTechBinding::Bound(Tech::SUPERCONDUCTORS))
+        );
+        assert_eq!(
+            bind_freeciv_technology(&rules, "Nuclear Fission"),
+            Ok(FreecivTechBinding::Bound(Tech::FISSION))
+        );
+        assert_eq!(
+            bind_freeciv_technology(&rules, "Conscription"),
+            Ok(FreecivTechBinding::Bound(Tech::NATIONALISM))
+        );
+        assert_eq!(
+            bind_freeciv_technology(&rules, "Environmentalism"),
+            Ok(FreecivTechBinding::Bound(Tech::ECOLOGY))
+        );
+        assert_eq!(
+            bind_freeciv_technology(&rules, "Laser"),
+            Ok(FreecivTechBinding::Bound(Tech::THE_LASER))
+        );
+        assert_eq!(
+            bind_freeciv_technology(&rules, "Mobile Warfare"),
+            Ok(FreecivTechBinding::Bound(Tech::MOTORIZED_TRANSPORTATION))
         );
         assert_eq!(
             bind_freeciv_technology(&rules, "Plastics"),

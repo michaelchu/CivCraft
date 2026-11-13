@@ -278,7 +278,6 @@ impl Game {
                 self.treaty_draft = None;
                 self.treaty_feedback = None;
                 self.diplomacy_page = 0;
-                self.city_deals = None;
                 self.reviewed_offer = None;
             }
             UiAction::OpenDiplomacyWith(owner) => {
@@ -289,7 +288,6 @@ impl Game {
                 self.treaty_item_page = [0; MAX_CIVILIZATIONS];
                 self.treaty_item_group = [0; MAX_CIVILIZATIONS];
                 self.diplomacy_page = 0;
-                self.city_deals = None;
                 self.reviewed_offer = None;
             }
             UiAction::OpenDiplomacyOverview => {
@@ -298,11 +296,29 @@ impl Game {
                 self.treaty_draft = None;
                 self.treaty_feedback = None;
                 self.diplomacy_page = 0;
-                self.city_deals = None;
                 self.reviewed_offer = None;
             }
             UiAction::DiplomacyPage(page) => self.diplomacy_page = page,
             UiAction::EditTreatyDraft(owner, offer) => {
+                let previous = self
+                    .treaty_draft
+                    .as_ref()
+                    .filter(|(target, _)| *target == owner)
+                    .map(|(_, draft)| draft.clone())
+                    .or_else(|| {
+                        self.sim
+                            .diplomacy_meeting_view(owner, None)
+                            .map(|view| view.offer)
+                    });
+                if let Some(previous) = previous {
+                    for side in 0..offer.terms.len() {
+                        for &city in offer.terms[side].cities() {
+                            if !previous.terms[side].cities().contains(&city) {
+                                self.sim.apply(Command::ShareTreatyCityMap(owner, city));
+                            }
+                        }
+                    }
+                }
                 self.treaty_draft = Some((owner, offer));
                 self.treaty_feedback = None;
             }
@@ -338,7 +354,7 @@ impl Game {
                 }
             }
             UiAction::ProposeTreaty(owner, offer) => {
-                let accepted = self.sim.apply(Command::ProposeTreaty(owner, offer));
+                let accepted = self.sim.apply(Command::ProposeTreaty(owner, offer.clone()));
                 let message = self
                     .sim
                     .campaign_messages_view()
@@ -350,15 +366,11 @@ impl Game {
                     self.treaty_draft = Some((owner, offer));
                 }
             }
-            UiAction::CityDeals(selection) => self.city_deals = selection,
-            UiAction::BuyCity(city, price) => {
-                self.sim.apply(Command::BuyCity(city, price));
-            }
-            UiAction::BuyMap(owner, map) => {
-                self.sim.apply(Command::BuyMap(owner, map));
-            }
             UiAction::CancelPact(other) => {
                 self.sim.apply(Command::CancelPact(other));
+            }
+            UiAction::CancelSharedVision(other) => {
+                self.sim.apply(Command::CancelSharedVision(other));
             }
             UiAction::ReviewOffer(other, offer) => {
                 self.diplomacy_open = true;

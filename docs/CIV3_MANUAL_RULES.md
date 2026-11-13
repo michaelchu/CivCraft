@@ -49,17 +49,33 @@ Limitations or conflicts:
 - URL or local file: [`civ3_manual.pdf`](civ3_manual.pdf), docs folder
 - Source type: Original game material
 - Edition / expansion / patch scope: Base Civilization III manual, 2001
-- Pages, table, figure, or section: p. 80, Hit Points and Damage; p. 83,
-  Bombardment; pp. 206–207,
-  terrain yield and resource tables
-- Retrieved or checked date: 2026-11-09
+- Pages, table, figure, or section: p. 43–44, diplomacy changes and absence of
+  Diplomat/Spy units; pp. 138–139, embassies and diplomatic actions; pp. 148–149,
+  espionage and international incidents; p. 80, Hit Points and Damage; p. 83,
+  Bombardment; pp. 96–97, Nationalism and mobilization; pp. 206–207, terrain
+  yield and resource tables
+- Retrieved or checked date: 2026-11-13
 - Claims this source supports: Coast, Sea, and Ocean base yields and resource
   habitats; Flood Plains and shield yielding Grassland yields; new units
   generally have 3 hit points, Veterans 4, and Elites 5 (p. 80)
+- Supplementary claims: Civilization III has no moving Diplomat or Spy units;
+  embassies provide diplomatic actions and city intelligence after Writing,
+  and espionage missions require Espionage plus the Intelligence Agency and
+  are initiated through embassies (pp. 43–44, 138–139, 148–149). Trade routes
+  and resource supply/demand are handled through diplomatic trade agreements
+  in this edition (p. 44). Nationalism allows mobilization, including drafting
+  citizens to create military units (pp. 96–97); this supports binding the
+  C2C3 Conscription ruleset advance to Civ III Nationalism for the draft-related
+  tech identity.
 - Limitations or conflicts: Does not specify procedural map-generation
   thresholds, the frequency of shielded Grassland, or Conquests-only Volcano
   and Marsh rules. The manual says "generally" for starting hit points and
-  does not enumerate Conquests unit-specific hit-point bonuses.
+  does not enumerate Conquests unit-specific hit-point bonuses. These
+  Civilization III actions are compatibility context only; Freeciv remains
+  the authority for the ported action formulas and state transitions. The
+  Conscription-to-Nationalism mapping preserves the Civ III research tree; it
+  does not claim the C2C3 prerequisites or all effects of the two advances are
+  identical.
 
 - Source ID: PRIMA-CIV3-GUIDE
 - Title / publisher: *Prima's Official Strategy Guide*, David Ellis, Prima Games

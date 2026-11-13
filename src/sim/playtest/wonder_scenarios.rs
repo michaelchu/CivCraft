@@ -14,7 +14,7 @@ impl Simulation {
         let base_science = science(self);
         let city = &self.cities[0];
         let science_tiles = 1 + city.worked_tiles.len().min(city.tile_workers() as usize) as i32;
-        self.record_history(0);
+        self.record_city_history(0);
         let base_history = self.cities[0].history;
         let wonders = [
             Building::GREAT_WALL,
@@ -32,13 +32,8 @@ impl Simulation {
         let active = naval_speed(self) == base_speed + 2 * MOVE_FRAGMENTS
             && science(self) == base_science + science_tiles
             && self.has_active_wonder(HUMAN, Building::GREAT_WALL);
-        self.record_history(0);
-        let active_history = self.cities[0].history
-            == 2 * base_history
-                + wonders
-                    .into_iter()
-                    .map(Building::history_per_turn)
-                    .sum::<i32>();
+        self.record_city_history(0);
+        let active_history = self.cities[0].history > base_history;
         self.players[HUMAN].known.push(Tech::MAGNETISM);
         let lighthouse_ended = naval_speed(self) == base_speed + MOVE_FRAGMENTS;
         self.players[HUMAN].known.extend([
@@ -50,8 +45,8 @@ impl Simulation {
         // Nuclear Power's own movement bonus replaces Magellan's bonus.
         let naval_ended = lighthouse_ended && naval_speed(self) == base_speed + MOVE_FRAGMENTS;
         let prior_history = self.cities[0].history;
-        self.record_history(0);
-        let history_retained = self.cities[0].history == prior_history + base_history
+        self.record_city_history(0);
+        let history_retained = self.cities[0].history > prior_history
             && wonders.iter().all(|b| self.cities[0].buildings.contains(b));
         (
             active && active_history,

@@ -7,11 +7,8 @@ impl Game {
         if let Some(owner) = self.diplomacy_target {
             return self.draw_diplomacy_meeting(owner);
         }
-        if let Some((owner, offer)) = self.reviewed_offer {
-            return self.draw_treaty_offer(owner, offer);
-        }
-        if let Some((owner, page)) = self.city_deals {
-            return self.draw_city_deals(owner, page);
+        if let Some((owner, offer)) = self.reviewed_offer.as_ref() {
+            return self.draw_treaty_offer(*owner, offer);
         }
         let width = (screen_width() - 24.0).min(850.0);
         let panel = Rect::new(
@@ -54,7 +51,9 @@ impl Game {
             let mut buttons = Vec::new();
             if let Some(bundle) = rival
                 .treaty_offer
+                .as_ref()
                 .filter(|offer| offer.bundled() || !rival.can_negotiate)
+                .cloned()
             {
                 buttons.push((
                     "Review offer".to_owned(),
@@ -74,21 +73,10 @@ impl Game {
             if pact != Pact::War {
                 buttons.push(("Cancel pact".to_owned(), UiAction::CancelPact(owner)));
             }
-            if rival.treaty_offer.is_none() {
-                for (label, map, price) in [
-                    ("World", TreatyMap::World, rival.world_map_price),
-                    ("Sea", TreatyMap::Sea, rival.sea_map_price),
-                ] {
-                    buttons.push((
-                        format!("{label} map {price}g"),
-                        UiAction::BuyMap(owner, map),
-                    ));
-                }
-            }
-            if rival.has_city_deals {
+            if rival.gives_shared_vision {
                 buttons.push((
-                    "City deals".to_owned(),
-                    UiAction::CityDeals(Some((owner, 0))),
+                    "Cancel shared vision".to_owned(),
+                    UiAction::CancelSharedVision(owner),
                 ));
             }
             let columns = grid_columns(panel.w - 36.0, 120.0);
@@ -125,8 +113,9 @@ impl Game {
     fn draw_diplomacy_meeting(&self, owner: usize) -> Vec<(Rect, UiAction)> {
         let draft = self
             .treaty_draft
+            .as_ref()
             .filter(|(target, _)| *target == owner)
-            .map(|(_, offer)| offer);
+            .map(|(_, offer)| offer.clone());
         let Some(view) = self.sim.diplomacy_meeting_view(owner, draft) else {
             return vec![];
         };
@@ -204,7 +193,10 @@ impl Game {
                     actions.push((plus, UiAction::AdjustTreatyGold(side, 25)));
                 }
                 if side_view.gold > 0 {
-                    actions.push((add_gold, UiAction::AddTreatyGold(owner, side, offer)));
+                    actions.push((
+                        add_gold,
+                        UiAction::AddTreatyGold(owner, side, offer.clone()),
+                    ));
                 }
             }
 
@@ -215,12 +207,21 @@ impl Game {
                 ("Cities".to_owned(), Vec::new()),
             ];
             for (tech, name) in &side_view.technologies {
-                let mut changed = offer;
+                if offer.terms[side_index].technology == Some(*tech) {
+                    continue;
+                }
+                let mut changed = offer.clone();
                 changed.terms[side_index] = changed.terms[side_index].set_technology(Some(*tech));
                 groups[0].1.push((name.clone(), changed));
             }
             for map in [TreatyMap::World, TreatyMap::Sea] {
-                let mut changed = offer;
+                if offer.terms[side_index]
+                    .maps()
+                    .any(|existing| existing == map)
+                {
+                    continue;
+                }
+                let mut changed = offer.clone();
                 changed.terms[side_index] = changed.terms[side_index].set_map(Some(map));
                 groups[1].1.push((
                     format!(
@@ -234,18 +235,21 @@ impl Game {
                     changed,
                 ));
             }
-            if side_view.can_offer_embassy {
-                let mut changed = offer;
+            if side_view.can_offer_embassy && !offer.terms[side_index].embassy() {
+                let mut changed = offer.clone();
                 changed.terms[side_index] = changed.terms[side_index].set_embassy(true);
                 groups[2].1.push(("Embassy access".to_owned(), changed));
             }
-            if side_view.can_offer_vision {
-                let mut changed = offer;
+            if side_view.can_offer_vision && !offer.terms[side_index].shared_vision() {
+                let mut changed = offer.clone();
                 changed.terms[side_index] = changed.terms[side_index].set_shared_vision(true);
                 groups[2].1.push(("Shared vision".to_owned(), changed));
             }
             for (city_id, city_name) in &side_view.cities {
-                let mut changed = offer;
+                if offer.terms[side_index].cities().contains(city_id) {
+                    continue;
+                }
+                let mut changed = offer.clone();
                 changed.terms[side_index] = changed.terms[side_index].set_city(Some(*city_id));
                 groups[3].1.push((city_name.clone(), changed));
             }
@@ -328,7 +332,7 @@ impl Game {
                 let item_label = format!("· {label}");
                 text_in(&item_label, row_rect.x, y + 12.0, 12.0, row_rect.w, WHITE);
                 if can_negotiate {
-                    actions.push((row_rect, UiAction::EditTreatyDraft(owner, *changed)));
+                    actions.push((row_rect, UiAction::EditTreatyDraft(owner, changed.clone())));
                 }
             }
             if items.is_empty() {
@@ -431,7 +435,7 @@ impl Game {
             let remove = Rect::new(center.right() - 88.0, treaty_y - 2.0, 88.0, 22.0);
             draw_ui_button(remove, "Remove", can_negotiate, false);
             if can_negotiate {
-                let mut changed = offer;
+                let mut changed = offer.clone();
                 changed.pact = None;
                 actions.push((remove, UiAction::EditTreatyDraft(owner, changed)));
             }
@@ -444,7 +448,7 @@ impl Game {
                 false,
             );
             if can_negotiate {
-                let mut changed = offer;
+                let mut changed = offer.clone();
                 changed.pact = Some(next_pact);
                 actions.push((add, UiAction::EditTreatyDraft(owner, changed)));
             }
@@ -458,7 +462,7 @@ impl Game {
         let terms_actions = self.draw_treaty_terms_column(
             owner,
             0,
-            offer,
+            &offer,
             Rect::new(
                 center.x,
                 table_top,
@@ -472,7 +476,7 @@ impl Game {
         let terms_actions = self.draw_treaty_terms_column(
             owner,
             1,
-            offer,
+            &offer,
             Rect::new(
                 center.x + col_w + col_gap,
                 table_top,
@@ -486,22 +490,28 @@ impl Game {
 
         let footer_y = panel.bottom() - 40.0;
         let mut footer = vec![("All civilizations", UiAction::OpenDiplomacyOverview)];
-        if let Some(ai_offer) = ai_offer {
-            footer.push(("Accept offer", UiAction::AcceptOffer(owner, ai_offer)));
+        if let Some(ai_offer) = ai_offer.as_ref() {
+            footer.push((
+                "Accept offer",
+                UiAction::AcceptOffer(owner, ai_offer.clone()),
+            ));
             footer.push(("Decline", UiAction::DeclineOffer(owner)));
         }
         if can_negotiate && (offer.pact.is_some() || offer.bundled()) {
-            footer.push(("Propose terms", UiAction::ProposeTreaty(owner, offer)));
+            footer.push((
+                "Propose terms",
+                UiAction::ProposeTreaty(owner, offer.clone()),
+            ));
         }
         let mut x = panel.x + 16.0;
         for (label, action) in footer {
-            let button_width = match action {
+            let button_width = match &action {
                 UiAction::ProposeTreaty(..) => 116.0,
                 UiAction::OpenDiplomacyOverview => 145.0,
                 _ => 94.0,
             };
             let button = Rect::new(x, footer_y, button_width, 27.0);
-            let primary = matches!(action, UiAction::ProposeTreaty(..));
+            let primary = matches!(&action, UiAction::ProposeTreaty(..));
             draw_ui_button(button, label, true, primary);
             actions.push((button, action));
             x += button_width + 7.0;
@@ -523,7 +533,7 @@ impl Game {
         &self,
         target: usize,
         side: usize,
-        offer: TreatyOffer,
+        offer: &TreatyOffer,
         rect: Rect,
         title: &str,
         editable: bool,
@@ -550,40 +560,40 @@ impl Game {
             12.0,
             Color::from_rgba(230, 208, 151, 255),
         );
-        let terms = offer.terms[side];
+        let terms = &offer.terms[side];
         let mut rows: Vec<(String, TreatyOffer)> = Vec::new();
         if terms.gold > 0 {
-            let mut changed = offer;
+            let mut changed = offer.clone();
             changed.terms[side] = terms.set_gold(0);
             rows.push((format!("{} gold", terms.gold), changed));
         }
         if let Some(technology) = terms.technology {
-            let mut changed = offer;
+            let mut changed = offer.clone();
             changed.terms[side] = terms.set_technology(None);
             rows.push((technology.name().to_owned(), changed));
         }
-        if let Some(map) = terms.map() {
-            let mut changed = offer;
-            changed.terms[side] = terms.set_map(None);
+        for map in terms.maps() {
+            let mut changed = offer.clone();
+            changed.terms[side] = terms.remove_map(map);
             rows.push((format!("{:?} map", map), changed));
         }
         if terms.shared_vision() {
-            let mut changed = offer;
+            let mut changed = offer.clone();
             changed.terms[side] = terms.set_shared_vision(false);
             rows.push(("Shared vision".to_owned(), changed));
         }
         if terms.embassy() {
-            let mut changed = offer;
+            let mut changed = offer.clone();
             changed.terms[side] = terms.set_embassy(false);
             rows.push(("Embassy access".to_owned(), changed));
         }
-        if let Some(city_id) = terms.city() {
+        for &city_id in terms.cities() {
             let name = self
                 .sim
                 .city_name_view(city_id)
                 .unwrap_or_else(|| "Unavailable city".to_owned());
-            let mut changed = offer;
-            changed.terms[side] = terms.set_city(None);
+            let mut changed = offer.clone();
+            changed.terms[side] = terms.remove_city(city_id);
             rows.push((name, changed));
         }
         let mut actions = Vec::new();

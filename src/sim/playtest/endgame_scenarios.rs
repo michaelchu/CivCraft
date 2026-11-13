@@ -40,7 +40,9 @@ impl Simulation {
         let before = self.city_mood(&self.cities[index], 0).0;
         self.players[HUMAN].known.push(Tech::ELECTRICITY);
         let after = self.city_mood(&self.cities[index], 0).0;
-        let history = Building::AMPHITHEATER.history_per_turn();
+        let prior_history = self.cities[index].history;
+        self.record_city_history(index);
+        let history = self.cities[index].history - prior_history;
         (before, after, history)
     }
 

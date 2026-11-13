@@ -149,6 +149,7 @@ impl Simulation {
             gold,
             rates: [60, 40, 0],
             government: Government::Despotism,
+            history: 0,
             revolution_target: None,
             revolution_turn: None,
             mobilized: false,
@@ -183,7 +184,6 @@ impl Simulation {
             if remaining >= candidates.len() - position
                 || (remaining > 0 && self.rand_below(2) == 1)
             {
-                self.cities[index].assign_culture_building_ownership(rebel);
                 self.cities[index].transfer_citizens(rebel);
                 self.list_order.city(&self.cities[index]);
                 defectors.push(index);

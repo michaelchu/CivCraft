@@ -11,7 +11,7 @@ pub(crate) const UI_REVIEW_SCENES: &[&str] = &[
     "worklist",
     "government",
     "diplomacy",
-    "city-deals",
+    "treaty-draft",
     "treaty",
     "research",
     "spaceship",
@@ -200,7 +200,8 @@ impl Game {
             }
             7 => {
                 self.diplomacy_open = true;
-                self.city_deals = Some((1, 0));
+                self.diplomacy_target = Some(1);
+                self.treaty_draft = Some((1, TreatyOffer::default()));
             }
             8 => {
                 self.diplomacy_open = true;
@@ -399,12 +400,12 @@ impl UiReviewSequence {
     ) -> Result<(), &'static str> {
         let rect = buttons
             .iter()
-            .find(|(_, action)| wanted(*action))
+            .find(|(_, action)| wanted((*action).clone()))
             .map(|(rect, _)| *rect);
         self.check(label, rect.is_some())?;
         let rect = rect.unwrap();
         let point = vec2(rect.x + rect.w * 0.5, rect.y + rect.h * 0.5);
-        let actual = Game::ui_action_at(point, buttons).filter(|action| wanted(*action));
+        let actual = Game::ui_action_at(point, buttons).filter(|action| wanted(action.clone()));
         self.check("click_reaches_requested_control", actual.is_some())?;
         game.perform_action(actual.unwrap());
         Ok(())
@@ -480,7 +481,8 @@ impl Game {
                 sequence.check(
                     "compensation_added_to_rome_offer",
                     self.treaty_draft
-                        .is_some_and(|(owner, offer)| owner == 1 && offer.terms[HUMAN].gold == 75),
+                        .as_ref()
+                        .is_some_and(|(owner, offer)| *owner == 1 && offer.terms[HUMAN].gold == 75),
                 )?;
             } else if phase == 6 {
                 sequence.click(self, buttons, "propose_compensated_peace", |action| {
@@ -838,7 +840,7 @@ impl Game {
                 (1, UiAction::UnitProductionPage(page)) => *page > 0,
                 (2, UiAction::ProductionPage(page)) => *page > 1,
                 (6, UiAction::DiplomacyPage(page)) => *page > 0,
-                (7, UiAction::CityDeals(Some((_, page)))) => *page > 0,
+                (7, UiAction::TreatyItemsPage(_, page)) => *page > 0,
                 (11, UiAction::ActionPage(page)) => *page > 0,
                 _ => false,
             })
@@ -850,7 +852,7 @@ impl Game {
             self.unit_production_page,
             self.production_page,
             self.diplomacy_page,
-            self.city_deals,
+            self.treaty_item_page,
             self.action_page,
         );
         let point = vec2(rect.x + rect.w * 0.5, rect.y + rect.h * 0.5);
@@ -861,7 +863,7 @@ impl Game {
             self.unit_production_page,
             self.production_page,
             self.diplomacy_page,
-            self.city_deals,
+            self.treaty_item_page,
             self.action_page,
         );
         sequence.check("page_changed_through_ui", before != after)?;

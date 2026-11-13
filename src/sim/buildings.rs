@@ -15,7 +15,6 @@ impl Simulation {
     pub(crate) fn rush_cost(&self, city: &City) -> Option<i32> {
         if city.founded_turn == self.turn
             || city.bought_production
-            || !city.resisting_citizens.is_empty()
             || !self.can_produce(city, city.production)
         {
             return None;
@@ -358,7 +357,6 @@ impl Simulation {
             .find(|city| city.id == city_id)
             .unwrap();
         city.buildings.push(building);
-        city.record_culture_building_completion(building, owner, self.year);
         if matches!(
             building,
             Building::GREAT_LIBRARY | Building::ISAAC_NEWTONS_COLLEGE | Building::INTERNET
@@ -605,14 +603,13 @@ mod transaction_tests {
     use super::*;
 
     #[test]
-    fn cities_with_resisters_cannot_rush_production() {
+    fn foreign_nationality_does_not_block_rush_production() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 24, 15);
         game.turn += 1;
-        game.cities[0].resisting_citizens = vec![(1, 1)];
         game.cities[0].foreign_citizens = vec![(1, 1)];
 
-        assert_eq!(game.rush_cost(&game.cities[0]), None);
+        assert!(game.rush_cost(&game.cities[0]).is_some());
     }
 
     #[test]

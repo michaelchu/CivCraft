@@ -14,21 +14,6 @@ pub(super) struct NationScore {
 }
 
 impl Simulation {
-    pub(super) fn record_history(&mut self, city_index: usize) {
-        let city = &self.cities[city_index];
-        let history: i32 = city
-            .buildings
-            .iter()
-            .copied()
-            .filter(|&building| !self.building_is_obsolete(city, building, None))
-            .filter(|&building| {
-                building != Building::ECCLESIASTICAL_PALACE || !city.has_building(Building::PALACE)
-            })
-            .map(Building::history_per_turn)
-            .sum();
-        self.cities[city_index].history += history;
-    }
-
     pub(crate) fn civilization_score(&self, owner: usize) -> i32 {
         let (mut population, mut wonders, mut culture) = (0, 0, 0);
         for city in self.cities_owned_by(owner) {
@@ -106,15 +91,12 @@ mod tests {
         city.buildings
             .extend([Building::LIBRARY, Building::APOLLO_PROGRAM]);
         city.history = 45;
-        game.record_history(0);
-        assert_eq!(game.cities[0].history, 53);
         game.players[HUMAN].known = vec![Tech::ALPHABET];
         game.players[HUMAN].future_techs = 1;
         game.nation_scores[HUMAN].units_built = 19;
         game.nation_scores[HUMAN].units_killed = 7;
-        // Apollo is a Civ III Small Wonder, so it no longer adds Great
-        // Wonder score; its culture still contributes to city history.
-        assert_eq!(game.civilization_score(HUMAN), 7 + 6 + 1 + 2 + 1);
+        // City history is retained as the Freeciv culture score input.
+        assert_eq!(game.civilization_score(HUMAN), 7 + 6 + 1 + 2);
     }
 
     #[test]

@@ -21,7 +21,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::BoardOrDeboard))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let boarded = game.sim.playtest_state().cargo_count(ship) == 1;
             let sailed = game.sim.playtest_harness().apply(Command::Move(ship, 1, 0));
@@ -48,13 +48,13 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::RushProduction(_)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ProductionPage(1)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
         }
         if frame == 159 && self.act_passed {
@@ -72,7 +72,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::SellBuilding(_, Building::GRANARY)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let sold = game.sim.playtest_state().players()[HUMAN].gold
                 == 50 + Building::GRANARY.data().cost
@@ -102,13 +102,13 @@ impl Playtest {
                     )
                 )
             }) {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::WorklistPage(Some(0))))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
         }
         if frame == 164 && self.act_passed {
@@ -139,7 +139,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Irrigate))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let work = game
                 .selected_unit
@@ -173,7 +173,7 @@ impl Playtest {
                 )
             });
             let completed = action.is_some_and(|(_, action)| {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
                 game.sim.playtest_state().tile(x, y).railroad
                     && game.sim.playtest_harness().apply(Command::EndTurn)
                     && !game.sim.playtest_state().tile(x, y).railroad
@@ -195,7 +195,7 @@ impl Playtest {
             if !buttons.iter().any(|(_,action)| matches!(action, UiAction::TerrainWork(sim::WorkKind::BuildBase(base)) if *base == target))
                 && let Some((_, action)) = buttons.iter().find(|(_,action)| matches!(action,UiAction::ActionPage(_)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
         }
         if frame == 184 || frame == 187 {
@@ -236,7 +236,7 @@ impl Playtest {
                 )
             });
             let completed = position.zip(action).is_some_and(|((x, y), (_, action))| {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
                 (0..2).all(|_| game.sim.playtest_harness().apply(Command::EndTurn))
                     && !game.sim.playtest_state().tile(x, y).fallout
                     && game.sim.playtest_state().tile(x, y).pollution
@@ -266,7 +266,7 @@ impl Playtest {
                 )
             });
             let completed = position.zip(action).is_some_and(|((x, y), (_, action))| {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
                 (0..3).all(|_| game.sim.playtest_harness().apply(Command::EndTurn))
                     && !game.sim.playtest_state().tile(x, y).pollution
             });
@@ -287,7 +287,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Mine));
             let completed = action.is_some_and(|(_, action)| {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
                 let site = game
                     .selected_unit
                     .and_then(|id| {
@@ -352,7 +352,7 @@ fn build_base_from_control(
     let available = action.is_some();
     let mut started = false;
     let completed = action.is_some_and(|(_, action)| {
-        game.perform_action(*action);
+        game.perform_action(action.clone());
         let work = game
             .selected_unit
             .and_then(|id| {

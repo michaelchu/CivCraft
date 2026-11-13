@@ -38,7 +38,7 @@ impl Playtest {
         if frame == 258 && self.act_passed {
             let gold = game.sim.playtest_state().players()[HUMAN].gold;
             let upgrade = buttons.iter().find_map(|(_, action)| match action {
-                UiAction::UpgradeUnit(UnitKind::Legionary, price) => Some((*action, *price)),
+                UiAction::UpgradeUnit(UnitKind::Legionary, price) => Some((action.clone(), *price)),
                 _ => None,
             });
             let upgraded = upgrade.is_some_and(|(action, price)| {
@@ -69,7 +69,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Irrigate))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             game.perform_action(UiAction::SelectUnit(second));
         }
@@ -80,7 +80,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Irrigate))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let site = game
                 .sim
@@ -189,7 +189,7 @@ impl Playtest {
             if let Some((_, action)) = buttons.iter().find(|(_, action)| {
                 matches!(action, UiAction::UpgradeUnit(UnitKind::StealthBomber, _))
             }) {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let upgraded = game
                 .sim

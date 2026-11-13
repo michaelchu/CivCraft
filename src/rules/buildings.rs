@@ -140,63 +140,6 @@ impl Building {
     // Conquests BLDG[82], included because its headquarters counts as a culture-flip capital.
     pub(crate) const SECRET_POLICE_HQ: Self = Self(90);
 
-    pub(crate) fn history_per_turn(self) -> i32 {
-        match self.0 {
-            8 => 3,  // Cathedral
-            11 => 2, // Amphitheater (Colosseum)
-            17 => 1, // Library
-            23 => 1, // Palace
-            24 => 1, // Ecclesiastical Palace
-            29 => 3, // Research Lab
-            40 => 1, // Temple
-            41 => 2, // University
-            42 => 6, // Apollo Program
-            43 => 4, // A.Smith's Trading Co.
-            44 => 2, // Colossus
-            45 => 3, // Copernicus' Observatory
-            46 => 6, // Cure For Cancer
-            47 => 4, // Darwin's Voyage
-            48 => 3, // Eiffel Tower
-            49 => 3, // Great Library
-            50 => 3, // Great Wall
-            51 => 2, // Hanging Gardens
-            52 => 6, // Hoover Dam
-            53 => 4, // Isaac Newton's College
-            54 => 4, // J.S. Bach's Cathedral
-            55 => 3, // King Richard's Crusade
-            56 => 4, // Leonardo's Workshop
-            57 => 2, // Lighthouse
-            58 => 4, // Magellan's Expedition
-            59 => 6, // Manhattan Project
-            60 => 2, // Marco Polo's Embassy
-            61 => 4, // Michelangelo's Chapel
-            62 => 2, // Mausoleum of Mausolos
-            63 => 2, // Statue of Zeus
-            64 => 2, // Temple of Artemis
-            65 => 2, // Pyramids
-            66 => 6, // Internet
-            67 => 3, // Shakespeare's Theater
-            68 => 4, // Statue of Liberty
-            69 => 3, // Sun Tzu's War Academy
-            70 => 6, // United Nations
-            71 => 6, // Women's Suffrage
-            75 => 3, // Longevity
-            76 => 4, // Oracle
-            77 => 3, // Theory of Evolution
-            78 => 4, // Universal Suffrage
-            79 => 3, // SETI Program
-            80 => 3, // Forbidden Palace
-            81 => 4, // Heroic Epic
-            82 => 2, // Iron Works
-            83 => 1, // Military Academy
-            84 => 1, // Pentagon
-            85 => 2, // Wall Street
-            86 => 1, // Intelligence Agency
-            87 => 1, // Battlefield Medicine
-            _ => 0,
-        }
-    }
-
     pub(crate) fn all() -> impl Iterator<Item = Self> {
         (0..BUILDINGS.len()).map(Self)
     }

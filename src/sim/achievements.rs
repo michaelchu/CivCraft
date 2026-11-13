@@ -121,7 +121,8 @@ impl Simulation {
             let cultured_city = self
                 .cities
                 .iter()
-                .any(|city| city.culture_for_civilization(owner) >= 1_000);
+                .filter(|city| city.owner == owner)
+                .any(|city| self.city_culture_score(city) >= 1_000);
             for (earned, achievement) in [
                 (map_known, EntireMap),
                 (land_ahoy, LandAhoy),
@@ -150,7 +151,7 @@ mod tests {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         let city = &mut game.cities[0];
-        city.add_culture(HUMAN, 10_000);
+        city.history = 10_000;
         city.size = 20;
         city.buildings
             .extend([Building::LIBRARY, Building::UNIVERSITY]);
@@ -169,13 +170,13 @@ mod tests {
     }
 
     #[test]
-    fn score_history_does_not_unlock_culture_achievements() {
+    fn freeciv_culture_history_unlocks_culture_achievements() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         game.cities[0].history = 10_000;
         game.check_achievements();
         let cultural = Achievement::CulturedCity.bit() | Achievement::CulturedNation.bit();
-        assert_eq!(game.nation_scores[HUMAN].achievements & cultural, 0);
+        assert_eq!(game.nation_scores[HUMAN].achievements & cultural, cultural);
     }
 
     #[test]

@@ -87,7 +87,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::CloseCity))
         {
-            game.perform_action(*action);
+            game.perform_action(action.clone());
             self.city_manager_closed = true;
         }
 
@@ -98,7 +98,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::RaiseRate(1)))
         {
-            game.perform_action(*rate_button);
+            game.perform_action(rate_button.clone());
             let rate_changed = game.sim.playtest_state().players()[HUMAN].rates == [50, 50, 0];
             let city = game
                 .sim
@@ -153,7 +153,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::CloseCity))
         {
-            game.perform_action(*action);
+            game.perform_action(action.clone());
         }
 
         if frame == 55 && self.act_passed {
@@ -169,7 +169,7 @@ impl Playtest {
             if let Some((_, action)) = buttons.iter().find(
                 |(_, action)| matches!(action, UiAction::Specialist(id, 0, 1) if *id == city_id),
             ) {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let city = game
                 .sim
@@ -191,7 +191,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Specialist(_, 0, -1)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let mut isolated = game.sim.isolated_playtest_copy();
             let verified = isolated.playtest_harness().despotism_upkeep_playtest();
@@ -210,7 +210,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ToggleGovernment))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
         }
         if frame == 83 && self.act_passed {
@@ -221,7 +221,7 @@ impl Playtest {
             if let Some((_, action)) = buttons.iter().find(|(_, action)| {
                 matches!(action, UiAction::ChangeGovernment(Government::Despotism))
             }) {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let player = &game.sim.playtest_state().players()[HUMAN];
             self.act_passed = locked
@@ -286,7 +286,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ToggleDiplomacy))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
         }
         if frame == 101 && self.act_passed {
@@ -294,7 +294,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::OpenDiplomacyWith(1)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             self.act_passed = game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::War;
         }
@@ -303,7 +303,7 @@ impl Playtest {
                 matches!(action, UiAction::ProposeTreaty(1, offer)
                     if offer.pact == Some(sim::Pact::Ceasefire))
             }) {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             self.act_passed = game.sim.playtest_state().pact_turns(HUMAN, 1) == 16;
         }
@@ -312,7 +312,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::CancelPact(1)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let ceasefire_turns = game.sim.playtest_state().pact_turns(HUMAN, 1);
             let attack_blocked = !game.sim.playtest_harness().apply(Command::MoveCiv3(
@@ -397,9 +397,11 @@ impl Playtest {
         }
         if frame == 128 && self.act_passed {
             let treaty_offer = game.sim.playtest_state().treaty_offer(1);
-            let offered = treaty_offer.is_some_and(|offer| offer.pact == Some(sim::Pact::Peace));
-            if let Some(offer) = treaty_offer {
-                game.perform_action(UiAction::AcceptOffer(1, offer));
+            let offered = treaty_offer
+                .as_ref()
+                .is_some_and(|offer| offer.pact == Some(sim::Pact::Peace));
+            if let Some(offer) = treaty_offer.as_ref() {
+                game.perform_action(UiAction::AcceptOffer(1, offer.clone()));
             }
             self.act_passed =
                 offered && game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Armistice;
@@ -460,7 +462,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::AcceptOffer(1, _)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let (unit, x, y, direction) = self.diplomacy_probe.unwrap();
             let entered = game
@@ -491,7 +493,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ReviewOffer(1, _)))
         {
-            game.perform_action(*action);
+            game.perform_action(action.clone());
         }
         if frame == 144 && self.act_passed {
             let offer = game
@@ -505,7 +507,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::AcceptOffer(1, _)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let gold = offer.terms[0].gold;
             self.act_passed = offer.pact.is_none()
@@ -539,7 +541,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ReviewOffer(1, _)))
         {
-            game.perform_action(*action);
+            game.perform_action(action.clone());
         }
         if frame == 147 && self.act_passed {
             let offer = game
@@ -556,7 +558,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::AcceptOffer(1, _)))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let paid = offer.terms[1].gold;
             self.act_passed = offer.pact.is_none()
@@ -621,7 +623,7 @@ impl Playtest {
                     })
                 });
                 if let Some((_, action)) = tile_action {
-                    game.perform_action(*action);
+                    game.perform_action(action.clone());
                     let reassigned = game
                         .sim
                         .playtest_state()
@@ -636,14 +638,14 @@ impl Playtest {
                     .iter()
                     .find(|(_, action)| matches!(action, UiAction::CityTiles))
                 {
-                    game.perform_action(*action);
+                    game.perform_action(action.clone());
                 }
             }
             Some(true) => {
                 if let Some((_, action)) = buttons.iter().find(|(_, action)| {
                     matches!(action, UiAction::Specialist(id, 2, -1) if *id == city_id)
                 }) {
-                    game.perform_action(*action);
+                    game.perform_action(action.clone());
                     let restored = game
                         .sim
                         .playtest_state()
@@ -665,7 +667,7 @@ impl Playtest {
                         .iter()
                         .find(|(_, action)| matches!(action, UiAction::CityTiles))
                     {
-                        game.perform_action(*action);
+                        game.perform_action(action.clone());
                     }
                 }
             }

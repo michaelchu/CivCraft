@@ -3,28 +3,25 @@
 use super::*;
 
 #[test]
-fn peace_quells_only_the_signatory_nationality_in_their_cities() {
+fn peace_does_not_rewrite_citizen_nationalities() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
     game.cities[0].size = 3;
-    game.cities[0].resisting_citizens = vec![(1, 2), (2, 1)];
     game.cities[0].foreign_citizens = vec![(1, 2), (2, 1)];
     game.create_city(1, 20, 24);
     game.cities[1].size = 2;
-    game.cities[1].resisting_citizens = vec![(HUMAN, 1), (2, 1)];
     game.cities[1].foreign_citizens = vec![(HUMAN, 1), (2, 1)];
     game.create_city(3, 30, 24);
-    game.cities[2].resisting_citizens = vec![(1, 1)];
     game.cities[2].foreign_citizens = vec![(1, 1)];
 
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
-    assert_eq!(game.cities[0].resisting_citizens, [(1, 2), (2, 1)]);
+    assert_eq!(game.cities[0].foreign_citizens, [(1, 2), (2, 1)]);
     game.sign_pact(HUMAN, 1, Pact::Peace);
 
-    assert_eq!(game.cities[0].resisting_citizens, [(2, 1)]);
-    assert_eq!(game.cities[1].resisting_citizens, [(2, 1)]);
-    assert_eq!(game.cities[2].resisting_citizens, [(1, 1)]);
+    assert_eq!(game.cities[0].foreign_citizens, [(1, 2), (2, 1)]);
+    assert_eq!(game.cities[1].foreign_citizens, [(HUMAN, 1), (2, 1)]);
+    assert_eq!(game.cities[2].foreign_citizens, [(1, 1)]);
 }
 
 #[test]
@@ -119,27 +116,34 @@ fn defense_building_baseline_respects_native_peace_love_and_ceasefire_danger() {
 }
 
 #[test]
-fn embassy_access_extends_the_legacy_wire_without_aliasing_city_ids() {
-    let legacy_access = (u64::from(u32::MAX) << 3) | 3;
-    let legacy = Concessions {
-        gold: 77,
-        technology: Some(Tech::POTTERY),
-        access: legacy_access,
-    };
-    let bytes = bincode::serialize(&(77i32, Some(Tech::POTTERY), legacy_access)).unwrap();
-    assert_eq!(bincode::serialize(&legacy).unwrap(), bytes);
-    let decoded: Concessions = bincode::deserialize(&bytes).unwrap();
-    assert_eq!(decoded.city(), Some(u32::MAX));
-    assert!(!decoded.embassy());
-    let extended = decoded.with_embassy();
-    assert!(extended.valid_access());
-    assert_eq!(extended.city(), Some(u32::MAX));
-    assert!(extended.shared_vision() && extended.embassy());
-    assert_eq!(extended.map(), Some(TreatyMap::World));
-    let cleared = extended.with_city(0);
-    assert_eq!(cleared.city(), None);
-    assert!(cleared.embassy() && cleared.shared_vision());
-    for access in [6, 1u64 << 36, u64::MAX] {
+fn treaty_concessions_round_trip_multiple_cities_maps_and_access_flags() {
+    let clauses = Concessions::default()
+        .set_city(Some(17))
+        .set_city(Some(29))
+        .set_city(Some(17))
+        .set_map(Some(TreatyMap::World))
+        .set_map(Some(TreatyMap::Sea))
+        .set_shared_vision(true)
+        .set_embassy(true);
+
+    assert_eq!(clauses.cities(), [17, 29]);
+    assert_eq!(
+        clauses.maps().collect::<Vec<_>>(),
+        [TreatyMap::World, TreatyMap::Sea]
+    );
+    assert!(clauses.valid_access());
+    assert!(clauses.shared_vision() && clauses.embassy());
+    assert_eq!(
+        bincode::deserialize::<Concessions>(&bincode::serialize(&clauses).unwrap()).unwrap(),
+        clauses
+    );
+
+    let removed = clauses.remove_city(17).remove_map(TreatyMap::Sea);
+    assert_eq!(removed.cities(), [29]);
+    assert_eq!(removed.maps().collect::<Vec<_>>(), [TreatyMap::World]);
+    assert!(removed.embassy() && removed.shared_vision());
+    assert!(removed.set_city(None).cities().is_empty());
+    for access in [1u64 << 36, u64::MAX] {
         assert!(
             !Concessions {
                 access,
@@ -156,23 +160,23 @@ fn embassy_clause_gold_values_follow_pact_love_and_embassy_leakage_rules() {
     let embassy = Concessions::default().with_embassy();
     let empty = Concessions::default();
     assert_eq!(
-        game.ai_treaty_clause_balance(1, HUMAN, embassy, empty, Pact::Alliance),
+        game.ai_treaty_clause_balance(1, HUMAN, &embassy, &empty, Pact::Alliance),
         Some((0, true))
     );
     assert_eq!(
-        game.ai_treaty_clause_balance(1, HUMAN, embassy, empty, Pact::Peace),
+        game.ai_treaty_clause_balance(1, HUMAN, &embassy, &empty, Pact::Peace),
         Some((-150, false))
     );
     assert_eq!(
-        game.ai_treaty_clause_balance(1, HUMAN, embassy, empty, Pact::Ceasefire),
+        game.ai_treaty_clause_balance(1, HUMAN, &embassy, &empty, Pact::Ceasefire),
         Some((-2000, false))
     );
     assert_eq!(
-        game.ai_treaty_clause_balance(1, HUMAN, empty, embassy, Pact::Peace),
+        game.ai_treaty_clause_balance(1, HUMAN, &empty, &embassy, Pact::Peace),
         Some((10, true))
     );
     assert!(
-        game.ai_treaty_clause_balance(1, HUMAN, empty, embassy, Pact::War)
+        game.ai_treaty_clause_balance(1, HUMAN, &empty, &embassy, Pact::War)
             .is_none()
     );
 }
@@ -183,15 +187,15 @@ fn embassy_clauses_are_directional_permanent_and_reject_stale_duplicates() {
     game.sign_pact(HUMAN, 1, Pact::Alliance);
     let mut offer = TreatyOffer::default();
     offer.terms[1] = Concessions::default().with_embassy();
-    assert!(game.execute_offer(HUMAN, 1, offer));
+    assert!(game.execute_offer(HUMAN, 1, &offer));
     assert!(game.has_real_embassy(HUMAN, 1));
     assert!(!game.has_real_embassy(1, HUMAN));
     game.diplomatic_contact_until.clear();
     assert!(game.diplomatic_meeting_possible(HUMAN, 1));
-    assert!(!game.execute_offer(HUMAN, 1, offer));
+    assert!(!game.execute_offer(HUMAN, 1, &offer));
     offer.terms[1] = Concessions::default();
     offer.terms[0] = Concessions::default().with_embassy();
-    assert!(game.execute_offer(HUMAN, 1, offer));
+    assert!(game.execute_offer(HUMAN, 1, &offer));
     assert!(game.has_real_embassy(1, HUMAN));
 }
 
@@ -217,7 +221,7 @@ fn accepted_treaty_technology_uses_the_c2c3_transfer_path() {
     let mut expected = game.clone();
     expected.rand_below(100);
 
-    assert!(game.execute_offer(HUMAN, 1, offer));
+    assert!(game.execute_offer(HUMAN, 1, &offer));
 
     assert!(game.has_tech(HUMAN, Tech::ALPHABET));
     assert_eq!(game.random_snapshot(), expected.random_snapshot());
@@ -229,7 +233,7 @@ fn an_existing_offer_can_be_accepted_after_physical_contact_expires() {
     let mut game = war_planning_game();
     let mut offer = TreatyOffer::default();
     offer.terms[0].gold = 11;
-    game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().offer = Some(offer);
+    game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().offer = Some(offer.clone());
     game.diplomatic_contact_until.clear();
     assert!(!game.can_negotiate(1));
     assert!(game.accept_offer(1, offer));
@@ -358,11 +362,11 @@ fn shared_ally_greed_discount_is_a_phase_snapshot() {
 }
 
 #[test]
-fn explicit_map_and_city_deal_fixtures_establish_finite_contact() {
+fn treaty_map_and_city_clause_fixtures_use_negotiated_terms() {
     let fresh = || Simulation::new(crate::mapgen::generate(42));
     assert!(fresh().treaty_map_playtest());
-    assert!(fresh().city_trade_playtest());
-    assert!(fresh().city_buyback_playtest());
+    assert!(fresh().city_clause_playtest());
+    assert!(fresh().city_clause_bundle_playtest());
 }
 
 #[test]
@@ -424,10 +428,13 @@ fn allied_trade_baseline_recomputes_embassy_leakage_before_advisor_premium() {
     game.players[1].known.push(Tech::WARRIOR_CODE);
     let before = game.diplomacy_playtest_allied_trade_baseline().unwrap();
     let embassy = TreatyOffer {
-        terms: [Concessions::default().with_embassy(); 2],
+        terms: [
+            Concessions::default().with_embassy(),
+            Concessions::default().with_embassy(),
+        ],
         ..Default::default()
     };
-    assert!(game.execute_offer(HUMAN, 1, embassy));
+    assert!(game.execute_offer(HUMAN, 1, &embassy));
     let after = game.diplomacy_playtest_allied_trade_baseline().unwrap();
     assert!(after < before);
     let expected = (3 * game.target_cost(1, currency) / 2) / 2
@@ -464,8 +471,11 @@ fn automatic_alliance_origination_is_a_pact_then_trusted_allied_sharing() {
     game.advance_diplomatic_offers();
     let offer = game.treaty_offer(1).unwrap();
     assert_eq!(offer.pact, Some(Pact::Alliance));
-    assert_eq!(offer.terms, [Concessions::default(); 2]);
-    assert!(game.execute_offer(HUMAN, 1, offer));
+    assert_eq!(
+        offer.terms,
+        [Concessions::default(), Concessions::default()]
+    );
+    assert!(game.execute_offer(HUMAN, 1, &offer));
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = 5000;
     game.advance_diplomatic_offers();
     assert!(game.treaty_offer(1).is_none());
@@ -478,7 +488,7 @@ fn automatic_alliance_origination_is_a_pact_then_trusted_allied_sharing() {
         sharing
             .terms
             .iter()
-            .all(|terms| terms.map().is_none() && terms.city().is_none())
+            .all(|terms| terms.maps().next().is_none() && terms.cities().is_empty())
     );
 }
 
@@ -537,14 +547,14 @@ fn gold_can_compensate_for_missing_love_but_not_a_hard_alliance_refusal() {
         ..TreatyOffer::default()
     };
     assert_eq!(game.pact_clause_value(1, HUMAN, Pact::Peace), -62);
-    assert!(!game.execute_offer(HUMAN, 1, offer));
+    assert!(!game.execute_offer(HUMAN, 1, &offer));
     offer.terms[0].gold = 62;
-    assert!(game.execute_offer(HUMAN, 1, offer));
+    assert!(game.execute_offer(HUMAN, 1, &offer));
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().pact = Pact::Peace;
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = 990;
     offer.pact = Some(Pact::Alliance);
     offer.terms[0].gold = 900;
-    assert!(!game.execute_offer(HUMAN, 1, offer));
+    assert!(!game.execute_offer(HUMAN, 1, &offer));
 }
 
 #[test]
@@ -559,7 +569,7 @@ fn human_counteroffer_pays_gold_to_sign_peace_through_command() {
         pact: Some(Pact::Peace),
         ..TreatyOffer::default()
     };
-    assert!(!game.apply(Command::ProposeTreaty(1, offer)));
+    assert!(!game.apply(Command::ProposeTreaty(1, offer.clone())));
     assert!(
         game.events()
             .last()
@@ -600,33 +610,96 @@ fn profitable_war_target_loses_love_while_expansion_suppresses_war_desire() {
 }
 
 #[test]
-fn an_ai_city_concession_must_leave_more_than_two_cities() {
+fn treaty_city_listing_excludes_capitals_hidden_cities_and_other_owners() {
     let mut game = war_planning_game();
-    game.sign_pact(HUMAN, 1, Pact::Alliance);
+    for (x, y) in [(14, 24), (16, 24), (18, 24)] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.create_city(1, x, y);
+    }
+    let city_id = game.cities.last().unwrap().id;
+    let target = game.city_by_id(city_id).unwrap();
+    game.tile_mut(target.x, target.y).known_by[HUMAN] = true;
+    let hidden_ids: Vec<_> = game
+        .cities
+        .iter()
+        .filter(|city| city.owner == 1 && city.id != city_id)
+        .map(|city| city.id)
+        .collect();
+    for hidden_id in hidden_ids {
+        let hidden = game.city_by_id(hidden_id).unwrap();
+        game.tile_mut(hidden.x, hidden.y).known_by[HUMAN] = false;
+    }
+    assert_eq!(game.treaty_trade_cities(1, HUMAN), [city_id]);
+    assert!(game.treaty_trade_cities(1, 1).is_empty());
+}
+
+#[test]
+fn c2c3_ai_rejects_city_clauses_at_war_and_keeps_two_cities() {
+    let mut game = war_planning_game();
+    for (x, y) in [(14, 24), (16, 24), (18, 24)] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.create_city(1, x, y);
+    }
+    let city_ids: Vec<_> = game
+        .cities
+        .iter()
+        .filter(|city| city.owner == 1 && !city.has_building(Building::PALACE))
+        .map(|city| city.id)
+        .collect();
+    assert_eq!(city_ids.len(), 3);
+
+    let one_city = Concessions::default().set_city(Some(city_ids[0]));
+    let two_cities = one_city.set_city(Some(city_ids[1]));
+    let empty = Concessions::default();
+
+    assert!(
+        game.ai_treaty_clause_balance(1, HUMAN, &one_city, &empty, Pact::War)
+            .is_none()
+    );
+    // Four cities before the offer, so giving one leaves three and passes the
+    // source minimum-city guard. Giving two would leave only two and is refused.
+    assert!(
+        game.ai_treaty_clause_balance(1, HUMAN, &one_city, &empty, Pact::Peace)
+            .is_some()
+    );
+    assert!(
+        game.ai_treaty_clause_balance(1, HUMAN, &two_cities, &empty, Pact::Peace)
+            .is_none()
+    );
+}
+
+#[test]
+fn multiple_city_clauses_transfer_when_the_recipient_accepts() {
+    let mut game = war_planning_game();
+    game.players[1].ai = false;
     for (x, y) in [(14, 24), (16, 24)] {
         game.tile_mut(x, y).terrain = Terrain::Grassland;
         game.create_city(1, x, y);
     }
-    let city = game.cities.last().unwrap();
-    let mut give = Concessions::default().with_city(city.id);
-    let receive = Concessions {
-        gold: game.city_sale_value(city, HUMAN),
-        ..Default::default()
-    };
+    let city_ids: Vec<_> = game
+        .cities
+        .iter()
+        .filter(|city| city.owner == 1 && !city.has_building(Building::PALACE))
+        .map(|city| city.id)
+        .collect();
+    assert_eq!(city_ids.len(), 2);
+    for &id in &city_ids {
+        let (x, y) = {
+            let city = game.city_by_id(id).unwrap();
+            (city.x, city.y)
+        };
+        game.tile_mut(x, y).known_by[HUMAN] = true;
+    }
+
+    let mut offer = TreatyOffer::default();
+    offer.terms[1] = Concessions::default()
+        .set_city(Some(city_ids[0]))
+        .set_city(Some(city_ids[1]));
+    assert!(game.execute_offer(HUMAN, 1, &offer));
     assert!(
-        game.ai_treaty_clause_balance(1, HUMAN, give, receive, Pact::Alliance)
-            .is_none()
-    );
-    game.tile_mut(20, 24).terrain = Terrain::Grassland;
-    game.create_city(1, 20, 24);
-    assert!(
-        game.ai_treaty_clause_balance(1, HUMAN, give, receive, Pact::Alliance)
-            .is_some()
-    );
-    give.gold = 0;
-    assert!(
-        game.ai_treaty_clause_balance(1, HUMAN, give, receive, Pact::War)
-            .is_none()
+        city_ids
+            .iter()
+            .all(|&id| game.city_by_id(id).unwrap().owner == HUMAN)
     );
 }
 
@@ -639,7 +712,7 @@ fn balanced_trades_do_not_count_as_all_beneficial_gifts() {
     let mut terms = TreatyOffer::default();
     terms.terms[0].gold = 110;
     terms.terms[1].gold = 110;
-    assert!(game.execute_offer(HUMAN, 1, terms));
+    assert!(game.execute_offer(HUMAN, 1, &terms));
     assert_eq!(game.diplomacy[&(HUMAN, 1)].trust[1], 1000);
 }
 
@@ -664,7 +737,7 @@ fn dangerous_technology_is_an_ai_giver_veto_not_a_receiving_veto() {
             .unwrap()
             .1
     );
-    assert!(!game.execute_offer(HUMAN, 1, gift));
+    assert!(!game.execute_offer(HUMAN, 1, &gift));
     assert!(!game.has_tech(HUMAN, Tech::POTTERY));
 }
 
@@ -678,7 +751,7 @@ fn only_ai_givers_reject_unsafe_vision_and_alliance_cancellation_preserves_grant
     let mut gift = TreatyOffer::default();
     gift.terms[1].access = 1;
     assert!(!game.vision_safe(1, HUMAN));
-    assert!(!game.execute_offer(HUMAN, 1, gift));
+    assert!(!game.execute_offer(HUMAN, 1, &gift));
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().vision = [true; 2];
     assert!(game.cancel_pact(HUMAN, 1));
     assert_eq!(game.diplomacy[&(HUMAN, 1)].vision, [true; 2]);
@@ -731,10 +804,10 @@ fn stale_bundle_applies_no_gold_technology_pact_or_vision() {
     relation.trust = [3000; 2];
     let offer = game.build_offer(HUMAN, 1, Some(Pact::Alliance));
     assert!(offer.terms[0].gold > 0 && offer.terms[1].technology.is_some());
-    game.diplomacy.get_mut(&key).unwrap().offer = Some(offer);
+    game.diplomacy.get_mut(&key).unwrap().offer = Some(offer.clone());
     game.players[HUMAN].gold = offer.terms[0].gold - 1;
     let balances = [game.players[HUMAN].gold, game.players[1].gold];
-    assert!(!game.apply(Command::AcceptOffer(1, offer)));
+    assert!(!game.apply(Command::AcceptOffer(1, offer.clone())));
     assert_eq!(game.pact(HUMAN, 1), Pact::Peace);
     assert_eq!([game.players[HUMAN].gold, game.players[1].gold], balances);
     assert!(!game.has_tech(HUMAN, offer.terms[1].technology.unwrap()));
@@ -757,6 +830,40 @@ fn an_armistice_disbands_units_that_fail_to_withdraw() {
 }
 
 #[test]
+fn a_ceasefire_expires_back_to_war() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.create_city(HUMAN, 10, 10);
+    game.create_city(1, 20, 20);
+    game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+
+    game.diplomacy_playtest_tick(15);
+    assert_eq!(game.pact(HUMAN, 1), Pact::Ceasefire);
+    game.diplomacy_playtest_tick(1);
+    assert_eq!(game.pact(HUMAN, 1), Pact::War);
+    assert_eq!(game.diplomacy[&(HUMAN, 1)].until, 0);
+}
+
+#[test]
+fn ceasefire_expiry_breaks_mutual_alliances_despite_the_senate() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.create_city(HUMAN, 10, 10);
+    game.create_city(1, 20, 20);
+    game.create_city(2, 30, 30);
+    game.players[2].government = Government::Democracy;
+    game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+    game.sign_pact(2, HUMAN, Pact::Alliance);
+    game.sign_pact(2, 1, Pact::Alliance);
+    assert!(game.senate_blocks_cancellation(2, HUMAN));
+
+    game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().until = game.turn;
+    game.advance_diplomacy();
+
+    assert_eq!(game.pact(HUMAN, 1), Pact::War);
+    assert_eq!(game.pact(2, HUMAN), Pact::Armistice);
+    assert_eq!(game.pact(2, 1), Pact::Armistice);
+}
+
+#[test]
 fn breaking_an_alliance_removes_visitors_from_former_allied_cities() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.create_city(HUMAN, 10, 10);
@@ -773,11 +880,49 @@ fn breaking_an_alliance_removes_visitors_from_former_allied_cities() {
 }
 
 #[test]
+fn treaty_lengths_and_cancellation_follow_selected_ruleset_effects() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.create_city(HUMAN, 10, 10);
+    game.create_city(1, 20, 20);
+
+    assert_eq!(
+        game.diplomacy_effect_value(HUMAN, "Ceasefire_Length_Pct"),
+        100
+    );
+    assert_eq!(game.diplomacy_effect_value(1, "Armistice_Length_Pct"), 100);
+    game.sign_pact(HUMAN, 1, Pact::Ceasefire);
+    assert_eq!(game.diplomacy[&(HUMAN, 1)].until, game.turn + 16);
+    game.sign_pact(HUMAN, 1, Pact::Peace);
+    assert_eq!(game.diplomacy[&(HUMAN, 1)].pact, Pact::Armistice);
+    assert_eq!(game.diplomacy[&(HUMAN, 1)].until, game.turn + 16);
+
+    for (initial, expected) in [
+        (Pact::Armistice, Pact::War),
+        (Pact::Ceasefire, Pact::War),
+        (Pact::Peace, Pact::War),
+        (Pact::Alliance, Pact::Armistice),
+    ] {
+        game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().pact = initial;
+        game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().until = game.turn + 5;
+        assert!(game.cancel_pact(HUMAN, 1));
+        assert_eq!(game.pact(HUMAN, 1), expected);
+        assert_eq!(
+            game.diplomacy[&(HUMAN, 1)].until,
+            if expected == Pact::Armistice {
+                game.turn + 16
+            } else {
+                0
+            }
+        );
+    }
+}
+
+#[test]
 fn senate_enforces_treaties_unless_provoked_or_waived() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.create_city(HUMAN, 10, 10);
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
-    game.players[HUMAN].government = Government::Feudalism;
+    game.players[HUMAN].government = Government::Democracy;
     assert!(!game.apply(Command::CancelPact(1)));
     game.record_provocation(HUMAN, 1);
     assert!(game.apply(Command::CancelPact(1)));
@@ -797,6 +942,7 @@ fn senate_enforces_treaties_unless_provoked_or_waived() {
         .retain(|building| building.data().name != "Statue of Liberty");
     game.players[HUMAN].government = Government::Despotism;
     game.cities[0].buildings.push(find("United Nations"));
+    game.completed_wonders.push(find("United Nations"));
     game.completed_wonders.push(find("Manhattan Project"));
     let fission = Tech::all()
         .find(|tech| *tech == Tech::NUCLEAR_FISSION)

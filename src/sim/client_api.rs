@@ -4,12 +4,12 @@
 //! through this type. The underlying campaign model stays private to `sim`.
 
 use super::{
-    CityContextView, CityDealView, CityManagerView, Command, DiplomacyMeetingView,
-    DiplomacyRivalView, GameOverView, GotoPreview, GovernmentView, MinimapCityView,
-    MinimapTileView, MusicCueView, Pact, PlaytestHarness, PlaytestState, PresentationEventView,
-    RenderTileView, RenderedCityView, RenderedUnitView, ResearchProgressView, SelectableUnitView,
-    Simulation, SpaceshipAssemblyView, Tech, TechnologyResearchView, TopBarView, TreatyOffer,
-    UnitActionView, UnitContextView, UnitFidgetView,
+    CityContextView, CityManagerView, Command, DiplomacyMeetingView, DiplomacyRivalView,
+    GameOverView, GotoPreview, GovernmentView, MinimapCityView, MinimapTileView, MusicCueView,
+    Pact, PlaytestHarness, PlaytestState, PresentationEventView, RenderTileView, RenderedCityView,
+    RenderedUnitView, ResearchProgressView, SelectableUnitView, Simulation, SpaceshipAssemblyView,
+    Tech, TechnologyResearchView, TopBarView, TreatyOffer, UnitActionView, UnitContextView,
+    UnitFidgetView,
 };
 use crate::world::topology::MapWrap;
 use std::collections::VecDeque;
@@ -103,10 +103,6 @@ impl ClientSimulation {
         self.simulation.city_manager_view(city_id)
     }
 
-    pub(crate) fn city_deals_view(&self, owner: usize) -> Vec<CityDealView> {
-        self.simulation.city_deals_view(owner)
-    }
-
     pub(crate) fn diplomacy_overview_view(&self) -> Vec<DiplomacyRivalView> {
         self.simulation.diplomacy_overview_view()
     }
@@ -119,7 +115,7 @@ impl ClientSimulation {
         self.simulation.diplomacy_meeting_view(owner, draft)
     }
 
-    pub(crate) fn treaty_offer_current_view(&self, owner: usize, offer: TreatyOffer) -> bool {
+    pub(crate) fn treaty_offer_current_view(&self, owner: usize, offer: &TreatyOffer) -> bool {
         self.simulation.treaty_offer_current_view(owner, offer)
     }
 

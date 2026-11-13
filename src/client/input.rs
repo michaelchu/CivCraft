@@ -47,7 +47,7 @@ impl Game {
         }
         if self.government_open || self.diplomacy_open {
             if is_key_pressed(KeyCode::Escape) {
-                if self.reviewed_offer.take().is_some() || self.city_deals.take().is_some() {
+                if self.reviewed_offer.take().is_some() {
                     return;
                 }
                 self.government_open = false;
@@ -352,7 +352,7 @@ impl Game {
                     && (!matches!(action, UiAction::WorkCityTile(..))
                         || super::city_map::tile_hit(*rect, point))
             })
-            .map(|(_, action)| *action)
+            .map(|(_, action)| action.clone())
     }
 
     pub(crate) fn handle_mouse(&mut self, buttons: &[(Rect, UiAction)]) {

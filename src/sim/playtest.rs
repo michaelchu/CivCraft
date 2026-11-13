@@ -150,7 +150,6 @@ mod movement_scenarios;
 mod naval_trade_scenarios;
 mod research_scenarios;
 mod settlement_scenarios;
-mod treaty_scenarios;
 mod turn_scenarios;
 mod unit_action_scenarios;
 mod unit_catalog_scenarios;

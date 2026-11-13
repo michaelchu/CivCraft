@@ -491,6 +491,15 @@ impl<'a> SimulationRequirementContext<'a> {
             };
         };
 
+        // Freeciv checks improvement_obsolete() before all building ranges.
+        // Use the selected C2C3 `obsolete_by` requirements here: Civ III's
+        // catalog can obsolete a wonder at a different technology point.
+        for obsolete_by in &record.obsolete_by {
+            if requirements_met(std::slice::from_ref(obsolete_by), self)? {
+                return Ok(false);
+            }
+        }
+
         let local_city = self
             .city
             .or_else(|| self.tile.and_then(|(x, y)| self.simulation.city_at(x, y)));
@@ -503,27 +512,27 @@ impl<'a> SimulationRequirementContext<'a> {
                 if hypothetical_here {
                     return Ok(true);
                 }
-                if matches!(
-                    building.data().genus,
-                    Genus::GreatWonder | Genus::SmallWonder
-                ) {
-                    Ok(self.simulation.has_active_wonder(self.owner, building))
-                } else {
-                    Ok(self
-                        .simulation
-                        .cities
-                        .iter()
-                        .any(|city| city.owner == self.owner && city.buildings.contains(&building)))
-                }
+                Ok(self
+                    .simulation
+                    .cities
+                    .iter()
+                    .any(|city| city.owner == self.owner && city.buildings.contains(&building)))
+            }
+            RequirementRange::World if requirement.survives => {
+                // Freeciv common/requirements.c::is_building_req_active uses
+                // num_world_buildings_total() for World+survives. CivCraft
+                // persists completed Great Wonders and Apollo's completion
+                // separately because its catalog classifies Apollo as a
+                // Small Wonder.
+                Ok(self.simulation.completed_wonders.contains(&building)
+                    || (building == Building::APOLLO_PROGRAM && self.simulation.apollo_completed))
             }
             RequirementRange::World => Ok(hypothetical_here
-                || self.simulation.cities.iter().any(|city| {
-                    city.buildings.contains(&building)
-                        && (!matches!(
-                            building.data().genus,
-                            Genus::GreatWonder | Genus::SmallWonder
-                        ) || self.simulation.has_active_wonder(city.owner, building))
-                })),
+                || self
+                    .simulation
+                    .cities
+                    .iter()
+                    .any(|city| city.buildings.contains(&building))),
             _ => Err(Self::unsupported(requirement)),
         }
     }
@@ -932,7 +941,7 @@ impl<'a> SimulationRequirementContext<'a> {
             "armistice" => pact == Pact::Armistice,
             "peace" => pact == Pact::Peace,
             "alliance" => pact == Pact::Alliance,
-            "has real embassy" => self.simulation.has_embassy(owner, other),
+            "has real embassy" => self.simulation.has_real_embassy(owner, other),
             // The current single-player model has no team assignment state;
             // each player is its own Freeciv team. This is centralized here
             // so future explicit teams can replace the policy for every
@@ -1081,6 +1090,13 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             }
             "unittype" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
+                if let Some(record) = self.unit_type_flag_record {
+                    return Ok(record.rule_name.eq_ignore_ascii_case(name)
+                        || record
+                            .display_name
+                            .as_deref()
+                            .is_some_and(|display| display.eq_ignore_ascii_case(name)));
+                }
                 if !name.eq_ignore_ascii_case("Nuclear") {
                     return Err(unsupported());
                 }
@@ -1105,9 +1121,6 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             }
             "unittypeflag" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
-                let Some(unit) = self.unit else {
-                    return Ok(false);
-                };
                 if let Some(record) = self.unit_type_flag_record {
                     let flags = record
                         .string_list_field("flags")
@@ -1115,6 +1128,9 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                         .unwrap_or_default();
                     Ok(flags.iter().any(|flag| flag.eq_ignore_ascii_case(name)))
                 } else {
+                    let Some(unit) = self.unit else {
+                        return Ok(false);
+                    };
                     freeciv_unit_type_flag(unit.kind, name).ok_or_else(unsupported)
                 }
             }
@@ -1201,16 +1217,13 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 self.unit_state(requirement)
             }
             "minmovefrags" if requirement.range == RequirementRange::Local => {
-                let Some(unit) = self.unit else {
-                    return Ok(false);
-                };
                 let threshold = match &requirement.name {
                     RequirementValue::String(value) => value.parse::<i32>().ok(),
                     RequirementValue::Integer(value) => i32::try_from(*value).ok(),
                     _ => None,
                 }
                 .ok_or_else(unsupported)?;
-                Ok(unit.moves_left >= threshold)
+                Ok(self.unit.is_some_and(|unit| unit.moves_left >= threshold))
             }
             "maxunitsontile" if requirement.range == RequirementRange::Tile => {
                 let tile = self.tile.ok_or_else(unsupported)?;
@@ -3057,6 +3070,92 @@ mod tests {
             )),
             Err(RequirementEvaluationError::Unsupported { .. })
         ));
+    }
+
+    #[test]
+    fn world_building_requirements_use_selected_obsolescence_and_history() {
+        let mut game = flat_game();
+        let (x, y) = (10, 20);
+        game.players[crate::sim::HUMAN].known.push(Tech::FISSION);
+        let mut city = super::super::City::new(1, crate::sim::HUMAN, x, y, "Test".to_owned(), 0);
+        city.buildings.extend([Building::UNITED_NATIONS]);
+        game.cities.push(city);
+        game.completed_wonders.push(Building::MANHATTAN_PROJECT);
+
+        let requirement = |name: &str, present, survives| Requirement {
+            kind: "Building".to_owned(),
+            name: RequirementValue::String(name.to_owned()),
+            range: RequirementRange::World,
+            present,
+            survives,
+            quiet: false,
+            source: crate::rules::freeciv::RuleSourceLocation {
+                file: "effects.ruleset".into(),
+                section: "test".to_owned(),
+                key: "reqs".to_owned(),
+                line: 1,
+            },
+        };
+        let context =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some((x, y)));
+
+        assert!(
+            context
+                .is_present(&requirement("United Nations", true, false))
+                .unwrap()
+        );
+        assert!(
+            context
+                .is_present(&requirement("Manhattan Project", true, true))
+                .unwrap()
+        );
+        assert!(
+            crate::rules::freeciv::requirements_met(
+                &[requirement("Apollo Program", false, true)],
+                &context,
+            )
+            .unwrap()
+        );
+
+        // The Freeciv survives form remains true after its city is gone; its
+        // ordinary World form only reports a building that exists now.
+        game.cities[0].buildings.clear();
+        game.completed_wonders.push(Building::UNITED_NATIONS);
+        let context =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some((x, y)));
+        assert!(
+            !context
+                .is_present(&requirement("United Nations", true, false))
+                .unwrap()
+        );
+        assert!(
+            crate::rules::freeciv::requirements_met(
+                &[requirement("United Nations", false, false)],
+                &context,
+            )
+            .unwrap()
+        );
+        assert!(
+            context
+                .is_present(&requirement("United Nations", true, true))
+                .unwrap()
+        );
+
+        game.apollo_completed = true;
+        let context =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some((x, y)));
+        assert!(
+            context
+                .is_present(&requirement("Apollo Program", true, true))
+                .unwrap()
+        );
+        assert!(
+            !crate::rules::freeciv::requirements_met(
+                &[requirement("Apollo Program", false, true)],
+                &context,
+            )
+            .unwrap()
+        );
     }
 
     #[test]

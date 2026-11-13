@@ -3,6 +3,37 @@
 use super::*;
 
 #[test]
+fn selected_no_diplomacy_effect_blocks_barbarian_meetings_and_contact_timers() {
+    let mut game = war_planning_game();
+    game.create_city(BARBARIANS, 28, 24);
+    game.cities
+        .iter_mut()
+        .find(|city| city.owner == HUMAN)
+        .unwrap()
+        .buildings
+        .push(Building::MARCO_POLOS_EMBASSY);
+
+    assert_eq!(game.diplomacy_effect_value(BARBARIANS, "No_Diplomacy"), 1);
+    assert_eq!(game.diplomacy_effect_value(HUMAN, "No_Diplomacy"), 0);
+    game.make_diplomatic_contact(HUMAN, BARBARIANS);
+
+    assert_eq!(
+        game.diplomacy[&(HUMAN, BARBARIANS)].first_contact,
+        Some(game.turn)
+    );
+    assert!(
+        !game
+            .diplomatic_contact_until
+            .contains_key(&(HUMAN, BARBARIANS))
+    );
+    assert!(!game.diplomatic_meeting_possible(HUMAN, BARBARIANS));
+    assert!(
+        game.pact_refusal(HUMAN, BARBARIANS, Pact::Ceasefire)
+            .is_some()
+    );
+}
+
+#[test]
 fn finite_contact_expires_and_only_physical_events_refresh_it() {
     let mut game = war_planning_game();
     let first = game.diplomacy[&(HUMAN, 1)].first_contact;

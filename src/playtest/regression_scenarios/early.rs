@@ -120,9 +120,9 @@ impl Playtest {
 
         if frame == 446 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            let (tie, strength, culture_reach) = sim.city_borders_playtest();
-            self.results.push(("city_border_claims", tie && strength && culture_reach,
-                format!("Equal culture preserved the existing claim: {tie}. Greater civilization culture won rival claims even at a farther rank: {strength}. Added city culture expanded the claim reach, and clearing it contracted the reach: {culture_reach}.")));
+            let (tie, history, size_reach) = sim.city_borders_playtest();
+            self.results.push(("city_border_claims", tie && history && size_reach,
+                format!("Equal Freeciv border claims kept the earlier source: {tie}. City culture history did not alter border strength: {history}. C2C3 city size expanded border reach: {size_reach}.")));
         }
 
         if frame == 448 {
@@ -132,7 +132,7 @@ impl Playtest {
                 "culture_accumulation",
                 before_boundary && at_boundary && turn_refresh,
                 format!(
-                    "A Temple produced 2 culture after 999 years: {before_boundary}. Its output doubled at the configured 1,000-year boundary and accumulated into city and civilization culture: {at_boundary}. Crossing the 10-point threshold during a city turn expanded and refreshed the next border ring: {turn_refresh}."
+                    "City history accrued from selected ruleset effects and contributed to culture score: {before_boundary}. National culture reflected the city's Freeciv score: {at_boundary}. C2C3 culture victory remained disabled by default: {turn_refresh}."
                 ),
             ));
         }

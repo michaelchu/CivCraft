@@ -3,6 +3,20 @@
 use super::*;
 
 impl Simulation {
+    pub(super) fn diplomacy_effect_value(&self, owner: usize, kind: &str) -> i64 {
+        let rules = crate::rules::freeciv::RulesetData::campaign_default();
+        let context = super::super::action_rules::SimulationRequirementContext::for_player_at(
+            self, owner, None,
+        )
+        .with_government(self.players[owner].government);
+        crate::rules::freeciv::effect_value(&rules.effects, kind, &context)
+            .unwrap_or_else(|error| panic!("could not evaluate campaign {kind} effect: {error:?}"))
+    }
+
+    pub(super) fn player_has_no_diplomacy(&self, owner: usize) -> bool {
+        self.diplomacy_effect_value(owner, "No_Diplomacy") > 0
+    }
+
     pub(super) fn diplomacy_neighbors(
         &self,
         owner: usize,
@@ -33,10 +47,10 @@ impl Simulation {
         owner != other
             && owner < self.players.len()
             && other < self.players.len()
-            && owner != BARBARIANS
-            && other != BARBARIANS
             && self.player_alive(owner)
             && self.player_alive(other)
+            && !self.player_has_no_diplomacy(owner)
+            && !self.player_has_no_diplomacy(other)
             && (self.has_embassy(owner, other)
                 || self.has_embassy(other, owner)
                 || self
@@ -50,14 +64,13 @@ impl Simulation {
         // srv_main.c:do_have_contacts_effect runs after city refresh at phase
         // end, before the turn advances. Civ2Civ3 grants this via Marco Polo.
         for owner in 0..self.players.len() {
-            if owner == BARBARIANS
-                || !self.player_alive(owner)
+            if !self.player_alive(owner)
                 || !self.has_active_wonder(owner, Building::MARCO_POLOS_EMBASSY)
             {
                 continue;
             }
             for other in 0..self.players.len() {
-                if other != owner && other != BARBARIANS && self.player_alive(other) {
+                if other != owner && self.player_alive(other) {
                     self.make_diplomatic_contact(owner, other);
                 }
             }
@@ -65,7 +78,7 @@ impl Simulation {
     }
 
     pub(crate) fn refresh_diplomatic_contact_at(&mut self, owner: usize, x: i32, y: i32) {
-        if owner == BARBARIANS || owner >= self.players.len() || !self.player_alive(owner) {
+        if owner >= self.players.len() || !self.player_alive(owner) {
             return;
         }
         // plrhand.c:maybe_make_contact examines adjacent units/cities, not
@@ -76,10 +89,7 @@ impl Simulation {
             .map(|unit| (unit.owner, unit.x, unit.y))
             .chain(self.cities.iter().map(|city| (city.owner, city.x, city.y)))
             .filter_map(|(other, tx, ty)| {
-                (other != owner
-                    && other != BARBARIANS
-                    && self.map_wrap.civ3_distance(x, y, tx, ty) <= 1)
-                    .then_some(other)
+                (other != owner && self.map_wrap.civ3_distance(x, y, tx, ty) <= 1).then_some(other)
             })
             .collect();
         for other in contacts {
@@ -89,8 +99,8 @@ impl Simulation {
 
     pub(in crate::sim) fn make_diplomatic_contact(&mut self, a: usize, b: usize) {
         if a == b
-            || a == BARBARIANS
-            || b == BARBARIANS
+            || a >= self.players.len()
+            || b >= self.players.len()
             || !self.player_alive(a)
             || !self.player_alive(b)
         {
@@ -111,6 +121,11 @@ impl Simulation {
         }
         // Native decrements before advancing the turn and exempts the first
         // contact turn. Later physical contacts refresh the ordinary20 turns.
+        // No_Diplomacy still permits the first-contact state transition, but
+        // Freeciv does not grant either player a contact timer in that case.
+        if self.player_has_no_diplomacy(a) || self.player_has_no_diplomacy(b) {
+            return;
+        }
         let first_turn = self.diplomacy[&Self::relation_key(a, b)].first_contact == Some(self.turn);
         self.diplomatic_contact_until.insert(
             Self::relation_key(a, b),
@@ -162,7 +177,7 @@ impl Simulation {
         }
     }
 
-    pub(super) fn has_real_embassy(&self, owner: usize, other: usize) -> bool {
+    pub(in crate::sim) fn has_real_embassy(&self, owner: usize, other: usize) -> bool {
         self.diplomacy
             .get(&Self::relation_key(owner, other))
             .is_some_and(|relation| relation.embassy[usize::from(owner > other)])

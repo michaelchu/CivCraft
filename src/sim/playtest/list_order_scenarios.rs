@@ -116,19 +116,29 @@ impl Simulation {
             city.production = Production::Unit(UnitKind::Warrior);
             city.shields = city.production.cost();
         }
-        // Native seed 2 selects index one after the conversion checks.
-        // The stream itself is independently checked against the C oracle.
+        let city_ids: Vec<_> = self
+            .player_cities_ordered(HUMAN)
+            .map(|city| city.id)
+            .collect();
+        // Each city consumes the C2C3 conversion roll before city activity
+        // selection, even though these cities have no foreign residents.
+        let mut reference_rng = crate::random::FreecivRng::new(2);
+        for _ in &city_ids {
+            reference_rng.draw(1000);
+        }
+        let expected_first_city = city_ids[reference_rng.draw(city_ids.len() as u32) as usize];
         self.set_random_seed(2);
-        self.process_cities();
-        self.units
+        self.process_player_cities(HUMAN);
+        let first_unit_home = self
+            .units
             .iter()
             .min_by_key(|unit| unit.id)
-            .is_some_and(|unit| unit.home_city == Some(oldest))
-            && self
-                .units
-                .iter()
-                .filter(|unit| unit.kind == UnitKind::Warrior)
-                .count()
-                == 2
+            .and_then(|unit| unit.home_city);
+        let warrior_count = self
+            .units
+            .iter()
+            .filter(|unit| unit.kind == UnitKind::Warrior)
+            .count();
+        first_unit_home == Some(expected_first_city) && warrior_count == 2
     }
 }

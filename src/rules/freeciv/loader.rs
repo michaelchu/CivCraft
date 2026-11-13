@@ -369,12 +369,18 @@ fn parse_content(
         ContentKind::GovernmentMultiplier => field_requirements(file, section, "reqs")?,
         ContentKind::Nation | ContentKind::Style => Vec::new(),
     };
+    let obsolete_by = if kind == ContentKind::Building {
+        field_requirements(file, section, "obsolete_by")?
+    } else {
+        Vec::new()
+    };
     Ok(ContentRecord {
         kind,
         rule_name,
         section: section.name.clone(),
         display_name: Some(display_name),
         requirements,
+        obsolete_by,
         fields: section.entries.clone(),
     })
 }
@@ -585,7 +591,12 @@ fn validate_requirement_values(rules: &RulesetData) -> Result<(), LoadError> {
             .iter()
             .chain(&record.target_requirements)
     }));
-    requirements.extend(rules.content.iter().flat_map(|record| &record.requirements));
+    requirements.extend(
+        rules
+            .content
+            .iter()
+            .flat_map(|record| record.requirements.iter().chain(&record.obsolete_by)),
+    );
     requirements.extend(
         rules
             .rule_records

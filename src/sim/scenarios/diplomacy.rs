@@ -27,12 +27,12 @@ pub(crate) fn ui_review_offer(sim: &mut Simulation) -> TreatyOffer {
         .set_city(Some(city));
     let offer = TreatyOffer {
         pact: Some(Pact::Alliance),
-        terms: [terms; 2],
+        terms: [terms.clone(), terms],
     };
     sim.diplomacy
         .get_mut(&Simulation::relation_key(HUMAN, 1))
         .unwrap()
-        .offer = Some(offer);
+        .offer = Some(offer.clone());
     offer
 }
 

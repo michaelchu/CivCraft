@@ -24,6 +24,8 @@ mod combat;
 mod identifiers;
 #[path = "freeciv/loader.rs"]
 mod loader;
+#[path = "freeciv/trade_routes.rs"]
+mod trade_routes;
 #[path = "freeciv/veterancy.rs"]
 mod veterancy;
 #[allow(unused_imports)]
@@ -36,6 +38,12 @@ pub(crate) use combat::{
 };
 #[cfg(test)]
 pub(crate) use loader::RULESET_FILES;
+#[allow(unused_imports)]
+pub(crate) use trade_routes::{
+    CaravanBonusStyle, GoodsSelection, TradeGoodFlag, TradeGoodRulesetRecord, TradeRevenueStyle,
+    TradeRouteBonus, TradeRouteCancellation, TradeRouteRulesetSettings, TradeRouteType,
+    TradeRouteTypeSettings,
+};
 pub(crate) use veterancy::{VeteranLevel, VeteranSystem, VeterancySettings};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -510,6 +518,9 @@ pub(crate) struct ContentRecord {
     pub(crate) section: String,
     pub(crate) display_name: Option<String>,
     pub(crate) requirements: Vec<Requirement>,
+    /// Technologies and other conditions that make a building obsolete in
+    /// this selected ruleset. This is distinct from Civ III catalog data.
+    pub(crate) obsolete_by: Vec<Requirement>,
     /// Keep native fields in source order so content adapters can read fields
     /// not yet consumed by gameplay without throwing them away.
     pub(crate) fields: Vec<Entry>,
@@ -2738,6 +2749,7 @@ mod tests {
             section: "advance_mobile_warfare".to_owned(),
             display_name: Some("Mobile Warfare".to_owned()),
             requirements: vec![],
+            obsolete_by: vec![],
             fields: vec![],
         };
         let action = ActionRecord {
@@ -2757,6 +2769,7 @@ mod tests {
             section: "terrain_grassland".to_owned(),
             display_name: Some("Grassland".to_owned()),
             requirements: vec![],
+            obsolete_by: vec![],
             fields: vec![Entry {
                 key: "extra_settings".to_owned(),
                 value: Value::Table {
@@ -2799,7 +2812,7 @@ mod tests {
             ),
             (
                 "buildings.ruleset",
-                "[building_library]\nrule_name = \"civcraft_library\"\nname = \"Library\"\nreqs =\n { \"type\", \"name\", \"range\"\n \"Tech\", \"civ3_literacy\", \"Player\"\n }\n",
+                "[building_library]\nrule_name = \"civcraft_library\"\nname = \"Library\"\nreqs =\n { \"type\", \"name\", \"range\"\n \"Tech\", \"civ3_literacy\", \"Player\"\n }\nobsolete_by =\n { \"type\", \"name\", \"range\", \"survives\"\n \"Tech\", \"civ3_literacy\", \"Player\", FALSE\n }\n",
             ),
             (
                 "units.ruleset",
@@ -2836,7 +2849,12 @@ mod tests {
             RequirementRange::Tile
         );
         assert!(rules.content.iter().any(|record| {
-            record.kind == ContentKind::Building && record.rule_name == "civcraft_library"
+            record.kind == ContentKind::Building
+                && record.rule_name == "civcraft_library"
+                && record.obsolete_by.len() == 1
+                && record.obsolete_by[0].kind == "Tech"
+                && record.obsolete_by[0].range == RequirementRange::Player
+                && !record.obsolete_by[0].survives
         }));
         assert!(rules.content.iter().any(|record| {
             record.kind == ContentKind::Unit && record.rule_name == "civ3_scout"

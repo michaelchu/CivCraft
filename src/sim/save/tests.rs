@@ -15,6 +15,23 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     let path = temporary_save("save-round-trip");
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.create_city(HUMAN, 10, 20);
+    game.create_city(1, 20, 20);
+    game.trade_routes.push(trade_routes::TradeRoute {
+        from_city_id: game.cities[0].id,
+        to_city_id: game.cities[1].id,
+        goods_rule_name: "Goods".to_owned(),
+    });
+    game.sign_pact(HUMAN, 1, Pact::Peace);
+    let city_ids = [game.cities[0].id, game.cities[1].id];
+    let pending_terms = diplomacy::Concessions::default()
+        .set_city(Some(city_ids[0]))
+        .set_city(Some(city_ids[1]))
+        .set_map(Some(TreatyMap::World))
+        .set_map(Some(TreatyMap::Sea));
+    game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().offer = Some(TreatyOffer {
+        terms: [pending_terms, diplomacy::Concessions::default()],
+        ..TreatyOffer::default()
+    });
     game.cities[0].size = 2;
     let veteran_unit = game.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
     game.units
@@ -27,13 +44,9 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         .find(|unit| unit.id == veteran_unit)
         .unwrap()
         .paradropped = true;
-    game.cities[0].add_culture(HUMAN, 375);
-    game.cities[0].add_culture(2, 125);
-    game.cities[0].record_culture_building_completion(Building::TEMPLE, HUMAN, -4000);
-    game.cities[0].resisting_citizens = vec![(2, 1)];
+    game.cities[0].history = 375;
+    game.players[HUMAN].history = 125;
     game.cities[0].foreign_citizens = vec![(2, 1)];
-    game.cities[0].foreign_nationality_tenure = vec![(2, 7, 3)];
-    game.cities[0].culture_suppressed_until_majority_assimilated = true;
     game.players[HUMAN].mobilized = true;
     game.players[HUMAN].government = Government::Fundamentalism;
     game.players[HUMAN].revolution_target = Some(Government::Federation);
@@ -90,23 +103,15 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         loaded.ai_government_cache[&1].scores[Government::Federation as usize],
         17.5
     );
-    assert_eq!(loaded.cities[0].culture_for_civilization(HUMAN), 375);
-    assert_eq!(loaded.cities[0].culture_for_civilization(2), 125);
+    assert_eq!(loaded.cities[0].history, 375);
+    assert_eq!(loaded.players[HUMAN].history, 125);
+    assert_eq!(loaded.cities[0].foreign_citizens, [(2, 1)]);
+    assert_eq!(loaded.trade_routes, game.trade_routes);
+    let loaded_offer = loaded.diplomacy[&(HUMAN, 1)].offer.as_ref().unwrap();
+    assert_eq!(loaded_offer.terms[0].cities(), &city_ids);
     assert_eq!(
-        loaded.cities[0].historical_culture_for_civilization(HUMAN),
-        375
-    );
-    assert_eq!(loaded.cities[0].historical_culture_for_civilization(2), 125);
-    assert_eq!(loaded.cities[0].resisting_citizens, [(2, 1)]);
-    assert_eq!(loaded.cities[0].foreign_nationality_tenure, [(2, 7, 3)]);
-    assert!(loaded.cities[0].culture_suppressed_until_majority_assimilated);
-    assert_eq!(
-        loaded.cities[0].culture_building_years,
-        [(Building::PALACE.0, -4000), (Building::TEMPLE.0, -4000)]
-    );
-    assert_eq!(
-        loaded.cities[0].culture_building_owners,
-        [(Building::PALACE.0, HUMAN), (Building::TEMPLE.0, HUMAN)]
+        loaded_offer.terms[0].maps().collect::<Vec<_>>(),
+        [TreatyMap::World, TreatyMap::Sea]
     );
     assert_eq!(
         bincode::serialize(&loaded.cities).unwrap(),
@@ -119,8 +124,8 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
 }
 
 #[test]
-fn captured_city_culture_and_resistance_survive_save_load() {
-    let path = temporary_save("captured-culture-resistance");
+fn captured_city_history_and_nationalities_survive_save_load() {
+    let path = temporary_save("captured-history-nationalities");
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
@@ -129,25 +134,16 @@ fn captured_city_culture_and_resistance_survive_save_load() {
     game.create_city(HUMAN, 30, 24);
     let captured_city_id = game.cities[1].id;
     game.cities[1].size = 6;
-    game.cities[1].add_culture(1, 300);
-    game.cities[2].add_culture(HUMAN, 375);
+    game.cities[1].history = 300;
+    game.cities[2].history = 375;
     game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
     game.capture_city_if_needed(attacker, 20, 24);
 
     let captured_city = game.city_index_by_id(captured_city_id).unwrap();
     assert_eq!(game.cities[captured_city].owner, HUMAN);
-    assert_eq!(
-        game.cities[captured_city].culture_by_civilization,
-        [(HUMAN, 0)]
-    );
+    assert_eq!(game.cities[captured_city].history, 300);
     assert_eq!(game.cities[captured_city].foreign_citizens, [(1, 5)]);
-    game.advance_foreign_nationality_tenure(captured_city);
-    assert_eq!(
-        game.cities[captured_city].foreign_nationality_tenure,
-        [(1, 0, 1)]
-    );
-    game.cities[captured_city].resisting_citizens = vec![(1, 2)];
     game.reconcile_city_workers();
     game.save_campaign(&path).unwrap();
 
@@ -155,23 +151,11 @@ fn captured_city_culture_and_resistance_survive_save_load() {
     fs::remove_file(path).unwrap();
     let loaded_city = loaded.city_index_by_id(captured_city_id).unwrap();
     assert_eq!(loaded.cities[loaded_city].owner, HUMAN);
-    assert_eq!(
-        loaded.cities[loaded_city].culture_by_civilization,
-        [(HUMAN, 0)]
-    );
-    assert_eq!(
-        loaded.cities[loaded_city].culture_memory_by_civilization,
-        [(HUMAN, 0), (1, 300)]
-    );
+    assert_eq!(loaded.cities[loaded_city].history, 300);
     assert_eq!(loaded.cities[loaded_city].foreign_citizens, [(1, 5)]);
-    assert_eq!(
-        loaded.cities[loaded_city].foreign_nationality_tenure,
-        [(1, 0, 1)]
-    );
-    assert_eq!(loaded.cities[loaded_city].resisting_citizens, [(1, 2)]);
-    assert_eq!(loaded.cities[2].culture_for_civilization(HUMAN), 375);
-    assert_eq!(loaded.civilization_culture(1), 300);
-    assert_eq!(loaded.civilization_culture(HUMAN), 375);
+    assert_eq!(loaded.cities[2].history, 375);
+    assert_eq!(loaded.civilization_culture(1), 0);
+    assert_eq!(loaded.civilization_culture(HUMAN), 675);
     assert_eq!(
         bincode::serialize(&loaded.cities).unwrap(),
         bincode::serialize(&game.cities).unwrap()
@@ -179,15 +163,14 @@ fn captured_city_culture_and_resistance_survive_save_load() {
 }
 
 #[test]
-fn civilization_culture_survives_city_destruction_and_save_load() {
-    let path = temporary_save("retired-city-culture");
+fn player_history_survives_city_destruction_and_save_load() {
+    let path = temporary_save("national-history");
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
-    game.cities[0].add_culture(HUMAN, 300);
-    let removed = game.cities.remove(0);
-    game.archive_city_culture(&removed);
+    game.players[HUMAN].history = 300;
+    game.cities.remove(0);
     game.rebuild_city_ownership();
     assert_eq!(game.civilization_culture(HUMAN), 300);
     game.save_campaign(&path).unwrap();
@@ -208,6 +191,9 @@ fn old_save_headers_and_corrupt_current_payloads_are_rejected() {
         b"CIVCRAFT\0\x1B".as_slice(),
         b"CIVCRAFT\0\x1C".as_slice(),
         b"CIVCRAFT\0\x1D".as_slice(),
+        b"CIVCRAFT\0\x1E".as_slice(),
+        b"CIVCRAFT\0\x1F".as_slice(),
+        b"CIVCRAFT\0\x20".as_slice(),
     ] {
         fs::write(&path, [header, b"previous payload"].concat()).unwrap();
         assert!(Simulation::load_campaign(&path).is_err());
@@ -232,7 +218,26 @@ fn invalid_campaign_state_is_rejected_on_load() {
     assert!(Simulation::load_campaign(&path).is_err());
 
     game.climate_current = [0, 0];
-    game.cities[0].resisting_citizens = vec![(2, game.cities[0].size + 1)];
+    game.cities[0].history = -1;
+    game.save_campaign(&path).unwrap();
+    assert!(Simulation::load_campaign(&path).is_err());
+
+    game.cities[0].history = 0;
+    game.trade_routes.push(trade_routes::TradeRoute {
+        from_city_id: game.cities[0].id,
+        to_city_id: game.cities[0].id + 1,
+        goods_rule_name: "Goods".to_owned(),
+    });
+    game.save_campaign(&path).unwrap();
+    assert!(Simulation::load_campaign(&path).is_err());
+
+    game.trade_routes.clear();
+    game.create_city(1, 20, 20);
+    game.trade_routes.push(trade_routes::TradeRoute {
+        from_city_id: game.cities[0].id,
+        to_city_id: game.cities[1].id,
+        goods_rule_name: "Unknown_Good".to_owned(),
+    });
     game.save_campaign(&path).unwrap();
     assert!(Simulation::load_campaign(&path).is_err());
     fs::remove_file(path).unwrap();

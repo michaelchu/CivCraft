@@ -1,0 +1,32 @@
+# Freeciv server 3.3.90.17-dev; binary SHA-256 63b810467344afb42de73451bf6f6760da51b1318bd4dee4ddbb1b4a0b707389; library SHA-256 05d8cbcb520f0a5916834728a38db2b1ebc994a9ef3cd0c39ba67c3db2fa5d5a; source revision 9ff184b6eb128ca636c7ad6269e27aa959600006; ruleset civ2civ3.
+# Native map 36x48, ISO|HEX, WrapX, seed 42; all tiles Grassland and revealed.
+# Native rows come from map.owner/map.source. civ3_topology rows are the explicit CivCraft topology expansion.
+# case	x	y	owner	source_x	source_y	basis
+radius	4	2	0	4	6	native
+radius	3	3	0	4	6	native
+radius	4	3	0	4	6	native
+radius	3	4	0	4	6	native
+radius	4	4	0	4	6	native
+radius	5	4	0	4	6	native
+radius	3	5	0	4	6	native
+radius	4	5	0	4	6	native
+radius	3	6	0	4	6	native
+radius	4	6	0	4	6	native
+radius	5	6	0	4	6	native
+radius	3	7	0	4	6	native
+radius	4	7	0	4	6	native
+radius	3	8	0	4	6	native
+radius	4	8	0	4	6	native
+radius	5	8	0	4	6	native
+radius	3	9	0	4	6	native
+radius	4	9	0	4	6	native
+radius	4	10	0	4	6	native
+radius	2	5	0	4	6	civ3_topology
+radius	5	5	0	4	6	civ3_topology
+radius	2	6	0	4	6	civ3_topology
+radius	6	6	0	4	6	civ3_topology
+radius	2	7	0	4	6	civ3_topology
+radius	5	7	0	4	6	civ3_topology
+strong	19	10	1	20	12	native
+tie	19	24	0	18	22	native
+permanent	23	33	0	24	32	native

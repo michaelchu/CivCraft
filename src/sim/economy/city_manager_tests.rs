@@ -4,43 +4,36 @@ use super::*;
 use std::collections::HashSet;
 
 #[test]
-fn resisting_citizens_are_not_available_for_tile_work() {
+fn foreign_nationality_remains_available_for_tile_work() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
     game.cities[0].size = 4;
-    game.cities[0].resisting_citizens = vec![(HUMAN, 2)];
     game.cities[0].foreign_citizens = vec![(HUMAN, 2)];
+    game.cities[0].specialists = [0; 3];
     game.reconcile_city_workers();
 
-    assert_eq!(game.cities[0].tile_workers(), 2);
-    assert_eq!(game.cities[0].worked_tiles.len(), 2);
+    assert_eq!(game.cities[0].tile_workers(), 4);
+    assert!(game.cities[0].worked_tiles.len() <= 4);
     assert_eq!(game.cities[0].specialists.iter().sum::<i32>(), 0);
 }
 
 #[test]
-fn city_manager_never_assigns_resisting_citizens_to_work_or_specialists() {
+fn city_manager_allocates_all_population_including_foreign_nationalities() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
     game.cities[0].size = 4;
     game.cities[0].foreign_citizens = vec![(1, 2)];
-    game.cities[0].resisting_citizens = vec![(1, 2)];
+    assert_eq!(game.cities[0].tile_workers(), 4);
 
-    let partially_resisting = game.city_manager_result(&game.cities[0], &Default::default());
+    let with_foreign = game.city_manager_result(&game.cities[0], &Default::default());
     assert!(
-        partially_resisting.worked_tiles.len() as i32
-            + partially_resisting.specialists.iter().sum::<i32>()
-            <= game.cities[0].non_resisting_citizens()
+        with_foreign.worked_tiles.len() as i32 + with_foreign.specialists.iter().sum::<i32>()
+            == game.cities[0].size
     );
-
-    game.cities[0].foreign_citizens = vec![(1, 4)];
-    game.cities[0].resisting_citizens = vec![(1, 4)];
-    let fully_resisting = game.city_manager_result(&game.cities[0], &Default::default());
-    assert!(fully_resisting.worked_tiles.is_empty());
-    assert_eq!(fully_resisting.specialists, [0; 3]);
 }
 
 #[test]

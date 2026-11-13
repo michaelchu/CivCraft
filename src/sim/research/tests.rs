@@ -240,10 +240,13 @@ fn later_era_research_waits_for_critical_advances_in_prior_eras() {
     );
 
     let modern_path = game.research_path(HUMAN, Tech::COMPUTERS);
-    assert!(Tech::all()
-        .filter(|tech| tech.era() < crate::rules::TechEra::Modern
-            && tech.required_for_civ3_era())
-        .all(|tech| modern_path.contains(&tech)));
+    assert!(
+        Tech::all()
+            .filter(
+                |tech| tech.era() < crate::rules::TechEra::Modern && tech.required_for_civ3_era()
+            )
+            .all(|tech| modern_path.contains(&tech))
+    );
 }
 
 #[test]
@@ -276,16 +279,21 @@ fn era_advances_only_after_every_critical_advance_of_each_age_is_known() {
         let required: Vec<_> = Tech::all()
             .filter(|tech| tech.era() == era && tech.required_for_civ3_era())
             .collect();
-        assert!(!required.is_empty(), "expected critical advances for {era:?}");
+        assert!(
+            !required.is_empty(),
+            "expected critical advances for {era:?}"
+        );
 
         for &tech in &required[..required.len() - 1] {
             game.discover(HUMAN, tech);
             assert_eq!(game.research_era(HUMAN), era);
         }
         game.discover(HUMAN, *required.last().unwrap());
-        assert!(Tech::all()
-            .filter(|tech| tech.era() == era && tech.optional_in_civ3())
-            .all(|tech| !game.has_tech(HUMAN, tech)));
+        assert!(
+            Tech::all()
+                .filter(|tech| tech.era() == era && tech.optional_in_civ3())
+                .all(|tech| !game.has_tech(HUMAN, tech))
+        );
         assert_eq!(game.research_era(HUMAN), next_era);
     }
 }

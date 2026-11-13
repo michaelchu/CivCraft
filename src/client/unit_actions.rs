@@ -197,7 +197,7 @@ impl Game {
             } else {
                 GRAY
             };
-            draw_hud_icon(unit_action_icon(action), rect.center(), 21.0, color);
+            draw_hud_icon(unit_action_icon(action.clone()), rect.center(), 21.0, color);
             if rect.contains(ui_pointer()) {
                 tooltip = Some((rect, label));
             }

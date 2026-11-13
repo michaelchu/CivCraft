@@ -70,39 +70,68 @@ impl Simulation {
         let (x, y) = (10, 24);
         let wrap = self.map_wrap;
         let mut points = vec![(x, y)];
-        for _ in 0..4 {
+        for _ in 0..8 {
             let previous = *points.last().unwrap();
             points.push(wrap.civ3_offset(previous.0, previous.1, 1, 1).unwrap());
         }
         let point = |step: usize| points[step];
-        let (rx, ry) = point(2);
+        let (rx, ry) = point(4);
         self.create_city(HUMAN, x, y);
         self.create_city(1, rx, ry);
-        self.cities[0].size = 12;
-        self.cities[1].size = 12;
+        self.cities[0].size = 1;
+        self.cities[1].size = 1;
         self.rebuild_city_ownership();
-        let (outer_x, outer_y) = point(4);
-        let population_does_not_expand = self.tile(outer_x, outer_y).owner.is_none();
         let owner = |game: &Self, step| {
             let (x, y) = point(step);
             game.tile(x, y).owner
         };
-        let tie = owner(self, 1) == Some(HUMAN);
-        self.cities[0].add_culture(HUMAN, 1_000);
+        let tie = owner(self, 2) == Some(HUMAN);
+        self.cities[1].history = 1_000_000;
         self.rebuild_city_ownership();
-        let human_culture_wins = owner(self, 1) == Some(HUMAN);
-        self.cities[1].add_culture(1, 2_000);
-        self.rebuild_city_ownership();
-        let rival_culture_wins = owner(self, 1) == Some(1);
-        let strength = human_culture_wins && rival_culture_wins;
-        let expanded = owner(self, 4) == Some(1);
-        self.cities[0].clear_culture_for_capture(HUMAN);
-        self.cities[1].clear_culture_for_capture(1);
-        self.rebuild_city_ownership();
+        let history_does_not_change_border_strength = owner(self, 2) == Some(HUMAN);
+
+        let mut size_growth = Simulation::new(crate::mapgen::generate(42));
+        size_growth.units.clear();
+        size_growth.cities.clear();
+        for tile in &mut size_growth.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.known_by[HUMAN] = true;
+            tile.owner = None;
+            tile.border_city = None;
+        }
+        let origin = (40, 24);
+        let mut path = vec![origin];
+        for _ in 0..4 {
+            let previous = *path.last().unwrap();
+            path.push(
+                size_growth
+                    .map_wrap
+                    .civ3_neighbor(previous.0, previous.1, 2)
+                    .expect("city border path stays on the map"),
+            );
+        }
+        size_growth.create_city(HUMAN, origin.0, origin.1);
+        size_growth.rebuild_city_ownership();
+        let small_city = size_growth.tile(path[3].0, path[3].1).owner.is_none();
+        size_growth.cities[0].size = 4;
+        size_growth.rebuild_city_ownership();
+        let grown_city = size_growth.tile(path[3].0, path[3].1).owner == Some(HUMAN);
+
         (
             tie,
-            strength,
-            population_does_not_expand && expanded && owner(self, 4).is_none(),
+            history_does_not_change_border_strength,
+            small_city && grown_city,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn city_border_playtest_uses_selected_c2c3_strength_and_radius() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(game.city_borders_playtest(), (true, true, true));
     }
 }

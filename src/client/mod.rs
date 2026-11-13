@@ -118,7 +118,7 @@ impl TileGeometry {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) enum UiAction {
     BlockMapClick,
     DismissIntro,
@@ -163,10 +163,8 @@ pub(crate) enum UiAction {
     AdjustTreatyGold(usize, i32),
     AddTreatyGold(usize, usize, TreatyOffer),
     ProposeTreaty(usize, TreatyOffer),
-    BuyMap(usize, TreatyMap),
-    CityDeals(Option<(usize, usize)>),
-    BuyCity(u32, i32),
     CancelPact(usize),
+    CancelSharedVision(usize),
     DeclineOffer(usize),
     ReviewOffer(usize, TreatyOffer),
     CloseOffer,
@@ -236,7 +234,6 @@ pub(crate) struct Game {
     treaty_item_page: [usize; MAX_CIVILIZATIONS],
     treaty_item_group: [usize; MAX_CIVILIZATIONS],
     treaty_feedback: Option<(usize, String)>,
-    city_deals: Option<(usize, usize)>,
     diplomacy_page: usize,
     research_age: usize,
     research_inspected: Option<Tech>,
@@ -306,7 +303,6 @@ impl Game {
             treaty_item_page: [0; MAX_CIVILIZATIONS],
             treaty_item_group: [0; MAX_CIVILIZATIONS],
             treaty_feedback: None,
-            city_deals: None,
             diplomacy_page: 0,
             research_age: 0,
             research_inspected: None,

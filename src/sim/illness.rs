@@ -39,7 +39,7 @@ impl Simulation {
             let name = city.name.clone();
             self.add_event(format!("Plague struck {name}. One citizen died."));
         }
-        self.remove_resisters_first_nationalities(index, 1);
+        self.remove_citizen_nationalities(index, 1);
         self.rebuild_city_ownership_for_city_event(self.cities[index].id);
         true
     }
@@ -73,17 +73,15 @@ mod tests {
     }
 
     #[test]
-    fn plague_removes_resisting_foreign_citizens_first() {
+    fn plague_updates_foreign_citizen_nationality_counts() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.cities.clear();
         game.create_city(HUMAN, 10, 20);
         game.cities[0].size = 7;
         game.cities[0].foreign_citizens = vec![(1, 2)];
-        game.cities[0].resisting_citizens = vec![(1, 2)];
 
         assert!(game.check_city_plague(0, 4_000));
 
         assert_eq!(game.cities[0].foreign_citizens, [(1, 1)]);
-        assert_eq!(game.cities[0].resisting_citizens, [(1, 1)]);
     }
 }

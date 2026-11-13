@@ -68,6 +68,11 @@ impl Simulation {
         self.run_ai_worker_phase(BARBARIANS);
         self.ai_free_bulbs.clear();
         self.prune_ai_player_units();
+        // Route connectivity is an actor-free CivCraft adapter for C2C3's
+        // Caravan/Freight delivery step. Resolve it globally after all worker
+        // and last-activity changes, before any city calculates output.
+        self.reconcile_trade_routes();
+        self.establish_connected_trade_routes();
         for owner in 0..self.players.len() {
             if !self.player_alive(owner) || (owner < BARBARIANS && owner >= self.civilization_count)
             {
@@ -93,6 +98,7 @@ impl Simulation {
         // Freeciv summons barbarians at end_turn(), after city activity. They
         // first move in ai_start_phase() at the following begin_phase().
         self.summon_barbarians();
+        self.check_city_migrations(crate::sim::migration::MigrationSettings::c2c3_default());
         self.check_disasters();
         self.update_climate();
         self.refresh_diplomatic_contact_effects();

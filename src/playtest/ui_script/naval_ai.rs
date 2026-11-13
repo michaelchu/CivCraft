@@ -97,7 +97,7 @@ impl Playtest {
             super::reset_founded_city_scenario(game);
             let (active, ended, retained) = game.sim.playtest_harness().obsolete_wonders_playtest();
             self.results.push(("obsolete_wonders", active && ended && retained,
-                format!("Rival discoveries left wonders active: {active}. Owner discoveries ended movement, defense and science effects: {ended}. Buildings and accumulated history survived obsolescence: {retained}.")));
+                format!("Rival discoveries left wonders active: {active}. Owner discoveries ended movement, defense and science effects: {ended}. Selected C2C3 history effects continued accumulating while the buildings remained: {retained}.")));
         }
         if frame == 388 && self.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));

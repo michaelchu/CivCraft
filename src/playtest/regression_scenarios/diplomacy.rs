@@ -38,32 +38,22 @@ impl Playtest {
                 "Verified payment, sea-only coverage, allied world-map transfer, and no shared live vision.".to_owned()));
         }
 
-        if frame == 555 {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("ai_map_treaty_offer", sim.ai_map_offer_playtest(),
-                "The AI offered an affordable sea map, and acceptance transferred knowledge and cleared the offer.".to_owned()));
-        }
-
         if frame == 557 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("diplomacy_city_purchase", sim.city_trade_playtest(),
-                "A capital and stale price were rejected. A purchased city kept its population, stocks, improvements and eligible units, and relocated an incompatible visitor.".to_owned()));
+            self.results.push((
+                "diplomacy_city_clause",
+                sim.city_clause_playtest(),
+                "A treaty City clause rejects the capital and transfers an eligible city during war with its treaty gold.".to_owned(),
+            ));
         }
 
         if frame == 559 {
             let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
             self.results.push((
-                "diplomacy_city_buyback",
-                sim.city_buyback_playtest(),
-                "The city's founding civilization bought it back for half the regular price."
-                    .to_owned(),
+                "diplomacy_city_clause_bundle",
+                sim.city_clause_bundle_playtest(),
+                "A treaty City clause transfers a noncapital during war with map and gold clauses; a capital invalidates the whole offer.".to_owned(),
             ));
-        }
-
-        if frame == 561 {
-            let mut sim = crate::sim::Simulation::new(crate::mapgen::generate(42));
-            self.results.push(("diplomacy_city_bundle", sim.city_bundle_playtest(),
-                "A city, map, and gold traded together. A city that became a capital blocked the entire deal.".to_owned()));
         }
 
         if frame == 563 {

@@ -15,11 +15,10 @@ impl Simulation {
         let pact = self.pact(HUMAN, owner);
         let ai_offer = self.treaty_offer(owner);
         let next_pact = self.next_pact(HUMAN, owner);
-        let offer = draft.or(ai_offer).unwrap_or(TreatyOffer {
+        let offer = draft.or_else(|| ai_offer.clone()).unwrap_or(TreatyOffer {
             pact: next_pact,
             ..TreatyOffer::default()
         });
-        let after = offer.pact.unwrap_or(pact);
         let sides = [HUMAN, owner].map(|side| {
             let other = if side == HUMAN { owner } else { HUMAN };
             TreatySideView {
@@ -31,9 +30,9 @@ impl Simulation {
                     .map(|tech| (tech, tech.name().to_owned()))
                     .collect(),
                 can_offer_embassy: self.treaty_can_offer_embassy(side, other),
-                can_offer_vision: self.treaty_can_offer_vision(side, other, after),
+                can_offer_vision: self.treaty_can_offer_vision(side, other),
                 cities: self
-                    .treaty_trade_cities(side, after)
+                    .treaty_trade_cities(side, other)
                     .into_iter()
                     .filter_map(|id| self.city_by_id(id).map(|city| (id, city.name.clone())))
                     .collect(),
@@ -50,8 +49,8 @@ impl Simulation {
         })
     }
 
-    pub(crate) fn treaty_offer_current_view(&self, owner: usize, offer: TreatyOffer) -> bool {
-        self.treaty_offer(owner) == Some(offer)
+    pub(crate) fn treaty_offer_current_view(&self, owner: usize, offer: &TreatyOffer) -> bool {
+        self.treaty_offer(owner).as_ref() == Some(offer)
     }
 
     pub(crate) fn diplomacy_overview_view(&self) -> Vec<DiplomacyRivalView> {
@@ -59,7 +58,8 @@ impl Simulation {
             .filter_map(|owner| {
                 let can_negotiate = self.can_negotiate(owner);
                 let treaty_offer = self.treaty_offer(owner);
-                if !can_negotiate && treaty_offer.is_none() {
+                let gives_shared_vision = self.gives_shared_vision(HUMAN, owner);
+                if !can_negotiate && treaty_offer.is_none() && !gives_shared_vision {
                     return None;
                 }
                 let pact = self.pact(HUMAN, owner);
@@ -71,33 +71,12 @@ impl Simulation {
                     pact,
                     pact_turns: self.pact_turns(HUMAN, owner),
                     has_embassy: self.has_embassy(HUMAN, owner),
+                    gives_shared_vision,
                     senate_veto: pact != Pact::War && self.senate_blocks_cancellation(HUMAN, owner),
                     pact_offer: self.pact_offer(owner),
                     next_pact: self.next_pact(HUMAN, owner),
                     can_negotiate,
                     treaty_offer,
-                    world_map_price: self.map_trade_price(owner, HUMAN, TreatyMap::World, pact),
-                    sea_map_price: self.map_trade_price(owner, HUMAN, TreatyMap::Sea, pact),
-                    has_city_deals: self
-                        .cities
-                        .iter()
-                        .any(|city| city.owner == owner && self.city_trade_price(city).is_some()),
-                })
-            })
-            .collect()
-    }
-
-    pub(crate) fn city_deals_view(&self, owner: usize) -> Vec<CityDealView> {
-        self.cities
-            .iter()
-            .filter(|city| city.owner == owner)
-            .filter_map(|city| {
-                let price = self.city_trade_price(city)?;
-                Some(CityDealView {
-                    id: city.id,
-                    name: city.name.clone(),
-                    price,
-                    affordable: self.players[HUMAN].gold >= price,
                 })
             })
             .collect()

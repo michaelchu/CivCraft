@@ -287,6 +287,29 @@ impl Simulation {
 mod tests {
     use super::*;
 
+    fn city_activity_order_game() -> Simulation {
+        let map_wrap = crate::world::topology::MapWrap::with_dimensions(36, 48)
+            .expect("valid compact city-order test map");
+        let grassland = crate::world::GeneratedTile {
+            terrain: Terrain::Grassland,
+            base_terrain: crate::world::TerrainBase::Grassland,
+            altitude: 0,
+            hut: false,
+            river: false,
+            river_edges: 0,
+            resource: None,
+        };
+        Simulation::new(crate::world::GeneratedMap {
+            seed: 42,
+            map_seed: 42,
+            map_wrap,
+            game_random: crate::random::FreecivRng::new(42),
+            tiles: vec![grassland; map_wrap.tile_count()],
+            starts: Vec::new(),
+            civilization_count: crate::world::DEFAULT_CIVILIZATION_COUNT,
+        })
+    }
+
     #[test]
     fn player_creation_tile_arrival_and_transfer_orders_are_independent() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
@@ -301,7 +324,7 @@ mod tests {
 
     #[test]
     fn city_activity_uses_native_list_then_random_selection_after_conversion() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = city_activity_order_game();
         assert!(game.native_city_activity_order_playtest());
     }
 

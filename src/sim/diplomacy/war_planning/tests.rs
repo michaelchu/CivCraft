@@ -183,6 +183,7 @@ fn senate_in_anarchy_aborts_revolution_and_war_tantrum_uses_native_love() {
     game.players[1].government = Government::Democracy;
     game.players[1].known.push(Tech::NUCLEAR_FISSION);
     game.cities[0].buildings.push(Building::UNITED_NATIONS);
+    game.completed_wonders.push(Building::UNITED_NATIONS);
     game.completed_wonders.push(Building::MANHATTAN_PROJECT);
     game.apollo_completed = false;
     game.declare_prepared_ai_war(1, HUMAN, WarReason::Hatred);

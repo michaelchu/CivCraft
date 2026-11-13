@@ -30,14 +30,11 @@ where
     serde::Serialize::serialize(&ordered, serializer)
 }
 
-// P8 adds suspended research state, C3 technology catalog IDs, C2C3
-// government identities, the expanded government adoption/cache state, and
-// per-city disorder duration for Freeciv's revolution threshold. P9 adds a
-// separate selected-ruleset veterancy level to each unit while retaining its
-// Civ III experience rank for source HP and display behavior, then a distinct
-// per-turn paradrop-used flag matching Freeciv's unit state.
+// P10 replaces Civ III's culture ledger with Freeciv city/player history,
+// persists city-pair trade routes, and stores multi-city/multi-map treaty
+// clauses in pending offers.
 // Earlier save versions remain unsupported rather than silently discarding it.
-const HEADER: &[u8] = b"CIVCRAFT\0\x1E";
+const HEADER: &[u8] = b"CIVCRAFT\0\x21";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
@@ -344,20 +341,20 @@ impl Simulation {
 
     fn validate_campaign(&self) -> io::Result<()> {
         let players = self.players.len();
+        let trade_route_settings = crate::rules::freeciv::RulesetData::campaign_default()
+            .trade_route_settings()
+            .map_err(|error| invalid(format!("Invalid C2C3 trade-route rules: {error}")))?;
         let position = |x, y| {
             (0..self.map_wrap.width()).contains(&x) && (0..self.map_wrap.height()).contains(&y)
         };
         let tech = |tech: Tech| tech == Tech::FUTURE || tech.data().is_some();
         let building = |building| Building::all().any(|known| known == building);
+        let mut trade_route_pairs = std::collections::BTreeSet::new();
         let production = |item| match item {
             Production::Building(item) => building(item),
             Production::Unit(_) => true,
         };
         if !(PLAYER_COUNT + 1..=PLAYER_SLOTS).contains(&players)
-            || self
-                .retired_city_culture
-                .iter()
-                .any(|(&owner, &culture)| owner >= players || culture < 0)
             || self.tiles.len() != (self.map_wrap.width() * self.map_wrap.height()) as usize
             || self.nation_scores.len() != players
             || self.spaceships.len() != players
@@ -391,86 +388,20 @@ impl Simulation {
                 city.owner >= players
                     || !position(city.x, city.y)
                     || city.size <= 0
+                    || city.history < 0
+                    || city.specialists.iter().any(|&count| count < 0)
+                    || city.specialists.iter().sum::<i32>() > city.size
                     || city
-                        .resisting_citizens
-                        .windows(2)
-                        .any(|pair| pair[0].0 >= pair[1].0)
-                    || city
-                        .foreign_nationality_tenure
-                        .windows(2)
-                        .any(|pair| pair[0].0 >= pair[1].0)
-                    || city
-                        .foreign_nationality_tenure
-                        .iter()
-                        .any(|&(nationality, _, _)| {
-                            nationality >= players
-                                || nationality == city.owner
-                                || !city
-                                    .foreign_citizens
-                                    .iter()
-                                    .any(|&(nation, _)| nation == nationality)
-                        })
-                    || city.resisting_citizens.iter().any(|&(owner, count)| {
-                        owner >= players || owner == city.owner || count <= 0
-                    })
-                    || city
-                        .resisting_citizens
+                        .foreign_citizens
                         .iter()
                         .map(|&(_, count)| count)
                         .sum::<i32>()
-                        > city.size
-                    || city.specialists.iter().any(|&count| count < 0)
-                    || city.specialists.iter().sum::<i32>()
-                        + city
-                            .resisting_citizens
-                            .iter()
-                            .map(|&(_, count)| count)
-                            .sum::<i32>()
                         > city.size
                     || city.id >= self.next_city_id
                     || city
                         .foreign_citizens
                         .iter()
                         .any(|&(owner, count)| owner >= players || count <= 0)
-                    || city
-                        .culture_by_civilization
-                        .windows(2)
-                        .any(|pair| pair[0].0 >= pair[1].0)
-                    || city
-                        .culture_by_civilization
-                        .iter()
-                        .any(|&(owner, culture)| owner >= players || culture < 0)
-                    || city
-                        .culture_memory_by_civilization
-                        .windows(2)
-                        .any(|pair| pair[0].0 >= pair[1].0)
-                    || city
-                        .culture_memory_by_civilization
-                        .iter()
-                        .any(|&(owner, culture)| owner >= players || culture < 0)
-                    || city
-                        .culture_by_civilization
-                        .iter()
-                        .any(|&(owner, culture)| {
-                            city.historical_culture_for_civilization(owner) < culture
-                        })
-                    || city
-                        .culture_building_years
-                        .windows(2)
-                        .any(|pair| pair[0].0 >= pair[1].0)
-                    || city.culture_building_years.iter().any(|&(building, year)| {
-                        building >= Building::all().count() || year > self.year
-                    })
-                    || city
-                        .culture_building_owners
-                        .windows(2)
-                        .any(|pair| pair[0].0 >= pair[1].0)
-                    || city
-                        .culture_building_owners
-                        .iter()
-                        .any(|&(building, owner)| {
-                            building >= Building::all().count() || owner >= players
-                        })
                     || !production(city.production)
                     || city.worklist.iter().any(|&item| !production(item))
                     || city
@@ -478,11 +409,23 @@ impl Simulation {
                         .is_some_and(|(item, _)| !production(item))
                     || city.buildings.iter().any(|&item| !building(item))
             })
+            || self.trade_routes.iter().any(|route| {
+                route.from_city_id == route.to_city_id
+                    || self.city_by_id(route.from_city_id).is_none()
+                    || self.city_by_id(route.to_city_id).is_none()
+                    || route.goods_rule_name.trim().is_empty()
+                    || !trade_route_settings
+                        .goods
+                        .iter()
+                        .any(|good| good.id.eq_ignore_ascii_case(&route.goods_rule_name))
+                    || !trade_route_pairs.insert(route.unordered_city_pair())
+            })
             || self.completed_wonders.iter().any(|&item| !building(item))
             || self.players.iter().any(|player| {
                 (player.researching != Tech::UNSET && !tech(player.researching))
                     || (player.research_goal != Tech::UNSET && !tech(player.research_goal))
                     || player.known.iter().any(|&item| !tech(item))
+                    || player.history < 0
             })
             || self.diplomacy.keys().any(|&(a, b)| a >= b || b >= players)
         {

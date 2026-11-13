@@ -175,7 +175,7 @@ impl Simulation {
         let mut gift = TreatyOffer::default();
         gift.terms[0].technology = Some(Tech::POTTERY);
         let received = quote.is_some_and(|(_, danger)| danger)
-            && self.execute_offer(HUMAN, 1, gift)
+            && self.execute_offer(HUMAN, 1, &gift)
             && self.has_tech(1, Tech::POTTERY);
 
         // A human can knowingly give vision that leaks to a third party.
@@ -184,7 +184,7 @@ impl Simulation {
         self.diplomacy.get_mut(&(1, 2)).unwrap().vision[0] = true;
         let mut vision = TreatyOffer::default();
         vision.terms[0].access = 1;
-        let shared = !self.vision_safe(HUMAN, 1) && self.execute_offer(HUMAN, 1, vision);
+        let shared = !self.vision_safe(HUMAN, 1) && self.execute_offer(HUMAN, 1, &vision);
         self.cancel_pact(HUMAN, 1);
         let preserved = self.diplomacy[&(HUMAN, 1)].vision[0];
 
@@ -199,13 +199,11 @@ impl Simulation {
             ..TreatyOffer::default()
         };
         alliance.terms[0].gold = 2311;
-        let compensated = !self.execute_offer(HUMAN, 1, alliance) && {
+        let compensated = !self.execute_offer(HUMAN, 1, &alliance) && {
             alliance.terms[0].gold = 2312;
-            self.execute_offer(HUMAN, 1, alliance)
+            self.execute_offer(HUMAN, 1, &alliance)
         };
         self.players[1].government = Government::Democracy;
-        self.players[1].revolution_target = None;
-        self.players[1].revolution_turn = Some(self.turn - 10);
         self.declare_prepared_ai_war(1, HUMAN, WarReason::Hatred);
         let pending = !self.at_war(1, HUMAN)
             && !self.ai_on_war_footing(1)
@@ -213,7 +211,7 @@ impl Simulation {
             && self.ai_pending_war_targets.get(&1) == Some(&HUMAN)
             && self.players[1]
                 .revolution_turn
-                .is_some_and(|finish| finish > self.turn);
+                .is_some_and(|finish| finish >= self.turn);
         let resumed = self.change_government(1, Government::Despotism)
             && self.at_war(1, HUMAN)
             && !self.ai_pending_war_targets.contains_key(&1);
@@ -302,7 +300,7 @@ impl Simulation {
         self.players[HUMAN].gold = 1000;
         let mut gift = TreatyOffer::default();
         gift.terms[0].gold = 110;
-        let accepted = self.execute_offer(HUMAN, 1, gift);
+        let accepted = self.execute_offer(HUMAN, 1, &gift);
         growth && resentment && accepted && self.diplomacy[&(HUMAN, 1)].trust[1] == -200
     }
 
@@ -335,8 +333,100 @@ impl Simulation {
             && self.pact(HUMAN, 1) == Pact::Armistice
     }
 
-    pub(crate) fn city_bundle_playtest(&mut self) -> bool {
+    pub(crate) fn city_clause_playtest(&mut self) -> bool {
         self.units.clear();
+        // This fixture exercises server-side clause validation and transfer;
+        // AI acceptance of city clauses has its own C2C3-specific checks.
+        self.players[1].ai = false;
+        for (owner, point) in [(HUMAN, (8, 24)), (1, (12, 24)), (1, (14, 24))] {
+            self.tile_mut(point.0, point.1).terrain = Terrain::Grassland;
+            self.create_city(owner, point.0, point.1);
+        }
+        let capital = self.cities[1].id;
+        let id = self.cities[2].id;
+        let value = self.city_clause_value(&self.cities[2], HUMAN);
+        if value <= 0 {
+            return false;
+        }
+        let seller_gold = self.players[1].gold;
+        self.players[HUMAN].gold = value;
+        let mut offer = TreatyOffer::default();
+        offer.terms[HUMAN].gold = value;
+        offer.terms[1] = offer.terms[1].with_city(id);
+        let mut capital_offer = offer.clone();
+        capital_offer.terms[1] = capital_offer.terms[1].with_city(capital);
+        self.diplomacy
+            .entry(Self::relation_key(HUMAN, 1))
+            .or_default()
+            .pact = Pact::War;
+        let rejected = !self.execute_offer(HUMAN, 1, &capital_offer)
+            && self.players[HUMAN].gold == value
+            && self.cities[1].owner == 1;
+        let executed = self.execute_offer(HUMAN, 1, &offer);
+        rejected
+            && executed
+            && self.players[HUMAN].gold == 0
+            && self.players[1].gold == seller_gold + value
+            && self.cities[2].owner == HUMAN
+    }
+
+    pub(crate) fn treaty_map_playtest(&mut self) -> bool {
+        self.units.clear();
+        self.sign_pact(HUMAN, 1, Pact::Ceasefire);
+        let land = (18, 35);
+        let sea = self.map_wrap.civ3_neighbor(land.0, land.1, 2).unwrap();
+        let unexplored = self.map_wrap.civ3_neighbor(land.0, land.1, 3).unwrap();
+        for (point, terrain, known) in [
+            (land, Terrain::Grassland, true),
+            (sea, Terrain::Sea, true),
+            (unexplored, Terrain::Sea, false),
+        ] {
+            let tile = self.tile_mut(point.0, point.1);
+            tile.terrain = terrain;
+            tile.known_by[1] = known;
+            tile.known_by[HUMAN] = false;
+            tile.visible = false;
+            tile.seen = false;
+        }
+        self.create_city(HUMAN, 3, 3);
+        // Meet away from the map probes so contact reveals none of the test tiles.
+        self.tile_mut(22, 10).terrain = Terrain::Grassland;
+        self.create_city(1, 22, 10);
+        let envoy = offset_native_by_map(22, 10, 1, 0);
+        self.tile_mut(envoy.0, envoy.1).terrain = Terrain::Grassland;
+        self.make_diplomatic_contact(HUMAN, 1);
+
+        let price = self.map_trade_price(1, HUMAN, TreatyMap::Sea, Pact::Ceasefire);
+        let mut sea_offer = TreatyOffer::default();
+        sea_offer.terms[HUMAN].gold = price;
+        sea_offer.terms[1] = sea_offer.terms[1].set_map(Some(TreatyMap::Sea));
+        self.players[HUMAN].gold = price - 1;
+        let refused = !self.execute_offer(HUMAN, 1, &sea_offer)
+            && !self.tile(sea.0, sea.1).seen
+            && self.players[HUMAN].gold == price - 1;
+        self.players[HUMAN].gold = price;
+        let paid = self.execute_offer(HUMAN, 1, &sea_offer)
+            && self.players[HUMAN].gold == 0
+            && self.tile(sea.0, sea.1).seen
+            && !self.tile(land.0, land.1).seen;
+
+        self.sign_pact(HUMAN, 1, Pact::Alliance);
+        let mut world_offer = TreatyOffer::default();
+        world_offer.terms[1] = world_offer.terms[1].set_map(Some(TreatyMap::World));
+        let world = self.execute_offer(HUMAN, 1, &world_offer)
+            && self.tile(land.0, land.1).seen
+            && !self.tile(unexplored.0, unexplored.1).seen
+            && !self.tile(sea.0, sea.1).visible
+            && !self.tile(land.0, land.1).visible
+            && self.vision_recipients(1) == [1];
+        refused && paid && world
+    }
+
+    pub(crate) fn city_clause_bundle_playtest(&mut self) -> bool {
+        self.units.clear();
+        // Keep this fixture focused on atomic server validation/transfer;
+        // C2C3 AI refusal rules are tested separately.
+        self.players[1].ai = false;
         for (owner, (x, y)) in [(HUMAN, (8, 24)), (1, (14, 24)), (HUMAN, (10, 24))] {
             self.tile_mut(x, y).terrain = Terrain::Grassland;
             self.create_city(owner, x, y);
@@ -353,58 +443,32 @@ impl Simulation {
         tile.known_by[HUMAN] = false;
         tile.seen = false;
         let key = (HUMAN, 1);
-        self.diplomacy.entry(key).or_default().pact = Pact::Peace;
+        self.diplomacy.entry(key).or_default().pact = Pact::War;
         self.players[HUMAN].known.clear();
         self.players[1].known.clear();
         self.players[HUMAN].gold = 20_000;
         self.make_diplomatic_contact(HUMAN, 1);
-        let offer = self.build_offer(HUMAN, 1, None);
-        if offer.terms[1].city() != Some(self.cities[2].id)
-            || offer.terms[1].map() != Some(TreatyMap::World)
-        {
-            return false;
-        }
+        let city_value = self.city_clause_value(&self.cities[2], HUMAN);
+        let map_value = self.map_trade_price(1, HUMAN, TreatyMap::World, Pact::War);
+        let total = city_value + map_value;
+        let mut offer = TreatyOffer::default();
+        offer.terms[0].gold = total;
+        offer.terms[1] = offer.terms[1]
+            .with_city(self.cities[2].id)
+            .set_map(Some(TreatyMap::World));
 
         self.cities[2].buildings.push(Building::PALACE);
-        self.diplomacy.get_mut(&key).unwrap().offer = Some(offer);
-        let rejected = !self.apply(Command::AcceptOffer(1, offer))
+        let rejected = !self.execute_offer(HUMAN, 1, &offer)
             && self.players[HUMAN].gold == 20_000
             && self.cities[2].owner == 1
             && !self.tile(point.0, point.1).seen;
         self.cities[2]
             .buildings
             .retain(|building| *building != Building::PALACE);
-        self.diplomacy.get_mut(&key).unwrap().offer = Some(offer);
         rejected
-            && self.apply(Command::AcceptOffer(1, offer))
-            && self.players[HUMAN].gold == 20_000 - offer.terms[0].gold
+            && self.execute_offer(HUMAN, 1, &offer)
+            && self.players[HUMAN].gold == 20_000 - total
             && self.cities[2].owner == HUMAN
             && self.tile(point.0, point.1).seen
-    }
-
-    pub(crate) fn ai_map_offer_playtest(&mut self) -> bool {
-        self.create_city(HUMAN, 3, 3);
-        self.create_city(1, 18, 32);
-        let point = (11, 24);
-        let tile = self.tile_mut(point.0, point.1);
-        tile.terrain = Terrain::Sea;
-        tile.known_by[1] = true;
-        tile.known_by[HUMAN] = false;
-        tile.visible = false;
-        tile.seen = false;
-        let relation = self.diplomacy.entry((HUMAN, 1)).or_default();
-        relation.pact = Pact::Peace;
-        relation.trust = [0; 2];
-        self.players[HUMAN].gold = 15;
-        let offer = self.build_offer(HUMAN, 1, None);
-        if offer.terms[1].map() != Some(TreatyMap::Sea) || offer.terms[0].gold != 15 {
-            return false;
-        }
-        self.diplomacy.get_mut(&(HUMAN, 1)).unwrap().offer = Some(offer);
-        self.apply(Command::AcceptOffer(1, offer))
-            && self.players[HUMAN].gold == 0
-            && self.treaty_offer(1).is_none()
-            && self.tile(point.0, point.1).seen
-            && !self.tile(point.0, point.1).visible
     }
 }

@@ -2,11 +2,11 @@
 
 ## Purpose and scope
 
-Replace the legacy trainable Diplomat and Spy unit paths with a Civ III style diplomacy and espionage interface. Missions are initiated from a diplomacy/espionage screen or city context; no agent is trained, moved on the map, or represented by a combat `UnitKind`. This consolidated note records source-backed behavior, edition differences, a proposed API boundary, and unresolved evidence gaps. It does not define unverified formulas.
+This is a research and design note for future espionage work, separate from P10. The user deferred espionage gameplay and chose not to add Diplomat or Spy units. The unit-free screen model described below is a candidate only; its actor mapping and locality are not selected. No implementation should be inferred from this note.
 
-Conquests is the target ruleset. Where the base manual differs from the Conquests Civilopedia, use the Conquests description and flag the difference.
+Do not use the Conquests espionage catalog as the target action catalog. Keep edition differences as compatibility evidence and label claims by source.
 
-## Confirmed behavior
+## Civ III interface compatibility evidence
 
 ### Diplomatic access and embassies
 
@@ -25,7 +25,7 @@ Conquests is the target ruleset. Where the base manual differs from the Conquest
 - The manual says a spy can remain planted during war and can reveal rival unit locations. A failed or discovered mission can cause a diplomatic incident; success and discovery are distinct outcomes. Discovery can provoke war, and diplomatic attitude may affect the response. (Manual, ch. 13, “Espionage,” printed pp. 145-49.)
 - Expose Enemy Spy is counterespionage. The manual says it requires a successfully planted Spy in the rival capital and success removes the rival operative, while Conquests text does not specify that exact location requirement.
 
-### Conquests mission catalog
+### Conquests mission catalog as UI reference
 
 The Conquests Civilopedia lists these actions (lines 847-71, 902-28):
 
@@ -43,13 +43,15 @@ The Conquests Civilopedia lists these actions (lines 847-71, 902-28):
 
 The Conquests description says “most” missions unlock after Espionage and that spy missions unlock after Espionage, but does not give a complete per-mission technology matrix. Therefore, treat the table as a catalog, not a complete availability specification.
 
-Diplomatic and covert missions are presented through the diplomacy/espionage interface rather than through map units. The screen supports an opponent selector, mission class and type, an optional city selector, operational-cost/risk choices, and execute/cancel controls. Cancellation before execution should not spend gold or alter game state.
+This table describes the Conquests interface, not P10 gameplay scope. The in-scope action set comes from C2C3 `actions.ruleset`, `effects.ruleset`, and the pinned Freeciv handlers. Map actions to the Civ III embassy/spy interface when possible. C2C3 actions without a direct Conquests mission analogue remain in scope and need an explicit unit-free adapter or a documented technical blocker; do not silently omit them or add Freeciv-only combat units.
 
-## Edition differences to honor
+A candidate unit-free interface could present diplomatic and covert missions through a diplomacy/espionage screen rather than through map units. It might support an opponent selector, mission class and type, an optional city selector, and execute/cancel controls. This is a proposal for later work, not an implementation decision.
 
-- The base manual says sabotage destroys half the shields in the current project; the Conquests Civilopedia explicitly says it destroys all shields in the production box. Implement the Conquests behavior.
-- The base manual includes Plant Disease as a spy mission. The Conquests mission catalog does not include it. Exclude Plant Disease from the initial Conquests roster unless a Conquests rules source establishes otherwise.
-- The manual describes Propaganda as city defection, with Democracy immune and capitals/Courthouses lowering success; Conquests Civilopedia confirms defection but does not repeat those modifiers. Verify these conditions in Conquests game data/source before implementing them as rules.
+## Edition differences relevant to the interface
+
+- The base manual and Conquests Civilopedia describe sabotage with different production losses. Neither description overrides the selected C2C3 action handler.
+- The base manual includes Plant Disease and the Conquests catalog does not. That difference does not authorize dropping or adding an action; inspect only the pinned C2C3 action/ruleset scope. For example, C2C3 defines Poison City separately.
+- The manual describes Propaganda as city defection, with Democracy immunity and capital/Courthouse modifiers; Conquests Civilopedia confirms defection but does not repeat those modifiers. Use C2C3 Incite City enablers, effects, and handler behavior for mechanics; keep any unresolved unit-free presentation mapping explicit.
 
 ## Suggested UI and API boundary
 
@@ -60,37 +62,37 @@ DiplomacyState
   relations[player][opponent].embassy: EmbassyState
   relations[player][opponent].spy: SpyAssetState
 
-DiplomacyMission
-  EstablishEmbassy | PlantSpy | StealTechnology | StealMilitaryPlans
-  | InitiatePropaganda | ExposeEnemySpy | InvestigateCity
-  | StealWorldMap | SabotageProduction
+C2C3DiplomacyAction
+  action: selected Freeciv ActionId
+  target: civilization, city, unit, or none, as defined by that action
 
-available_missions(player, opponent, game_state) -> MissionAvailability[]
-quote_mission(player, opponent, mission, target?, risk_setting?) -> MissionQuote
-execute_mission(player, opponent, mission, target?, risk_setting?) -> MissionResult
+available_actions(player, opponent, game_state) -> ActionAvailability[]
+execute_action(player, opponent, action, target?) -> ActionResult
 ```
 
-`MissionAvailability` should include a source-backed unavailable reason (missing Writing, missing Espionage/Agency, no contact, war restriction, absent planted spy, invalid target, etc.). `MissionQuote` should carry a gold cost and risk choice only after their formulas are recovered. `MissionResult` should distinguish mission success, spy discovery, diplomatic incident, and resulting state change; the manual makes clear that success and discovery are independent outcomes.
+The action IDs, targets, enablers, costs, random rolls, and outcomes come from the effective selected C2C3 ruleset and pinned Freeciv handlers. The Civ III-facing screen can group or rename those actions, but its Conquests catalog and risk controls do not alter their mechanics. Availability must use the shared action-enabler evaluator; execution must use shared effect/action resolution rather than parallel formulas.
 
-The UI should expose opponent selection, embassy/spy status, mission selection, a city selector when applicable, cost/risk controls, and execute/cancel actions, matching the Conquests screen flow (Conquests Civilopedia lines 826-42 and 881-99). Do not add recruit/train/move-agent controls.
+P10 does not implement a screen actor adapter or espionage action eligibility. The selected C2C3 ruleset retains its action records as data, but future espionage work must decide how its unit actor requirements map to the Civ III-facing interface. The evaluator distinguishes a real embassy from Marco Polo's broader access for other ruleset checks.
 
-Eligibility should be derived from game state rather than stored as UI-only availability. Check contact, Writing, Espionage technology, Intelligence Agency, war/peace status, embassy and planted-spy assets, target ownership and eligibility, and treasury. Require an embassy or planted spy only where the Conquests rules establish that prerequisite; the mission list alone does not settle every gate. Reject or disable unaffordable actions, and show a quote before execution.
+No espionage eligibility or execution adapter is implemented. The native Freeciv actions also require a map actor at distance 0–1 from the target city (`common/actions.c::action_prob_possible`, pinned revision `9ff184b6eb128ca636c7ad6269e27aa959600006`). A unit-free screen has no native actor location, so locality remains an unresolved compatibility question for the separately scoped work.
 
-## Facts still unresolved
+A future UI could expose opponent selection, embassy/spy state, mapped C2C3 action choices, and a target selector when an action requires one. Conquests screen descriptions are interface guidance only. Do not add Freeciv-only unit identities or movement controls.
 
-Do not invent these values or gates during the first implementation pass:
+Eligibility should be derived from game state and selected C2C3 action enablers rather than stored as UI-only availability. Map Civ III-compatible embassy/spy state to the actor requirements those enablers use. Do not add Writing, Espionage, Intelligence Agency, treasury, or mission gates solely because a Civ III source describes them; include them only where the selected C2C3 ruleset requires them.
 
-1. Gold cost formulas for embassy establishment and each mission; how operational-cost/risk options alter price and detection chance.
-2. Success, failure, discovery, incident, and war-trigger probability formulas, including modifiers from government, difficulty, target city, and spy experience.
-3. Whether a planted spy is attached to a specific city, can change cities, or merely enables actions against a civilization. Conquests says propaganda targets the city where the spy resides, while other listed actions refer to civilization or selected city.
-4. Exact tech/building gates for each mission and whether existing embassies are prerequisites for any particular action.
-5. The precise “spy experience” state and how it changes mission outcomes.
-6. Exact investigation payload, map/technology theft selection and duplicate-tech behavior, and military-plan intel duration.
-7. Whether first-capital investigation is free in Conquests. The manual confirms no failure/incident for the initial capital investigation but is ambiguous on extra gold cost.
-8. Propaganda immunity/modifier details in Conquests, and whether the base-manual Democracy, capital, Courthouse, and civil-disorder modifiers carry over.
-9. Whether embassy closure/reopening at war, one-time establishment, and “contact required” are precisely Conquests rules. The manual confirms these; the Civilopedia embassy summary does not restate them.
+## Unit-free compatibility questions
 
-Resolve these against the Conquests BIQ and executable behavior or a focused in-game reference before treating them as canonical rules. Keep unresolved values data-driven so later corrections do not require rewriting the mission flow.
+The selected C2C3 ruleset and handlers specify gameplay costs, probabilities,
+enablers, and outcomes. These are implementation inputs, not open design
+choices. The remaining questions concern adapting their unit-actor model while
+keeping the Civ III unit catalog. These questions are deferred and are not
+P10 blockers or decisions already made:
+
+1. Which unit-free C2C3 actor profile supplies each actor requirement, including `Diplomat`/`Spy` flags and movement-point requirements. Actor location and native 0–1 target range have no direct screen equivalent and need an explicit adapter decision.
+2. How to represent Freeciv actor consumption, capture, escape, and detection without adding Freeciv-only unit kinds or map movement, while preserving C2C3 outcomes and deterministic random-call order.
+3. How each C2C3 action target and result maps to the Civ III-facing interface, especially actions whose native handler expects a unit actor, a unit target, or a stack target.
+
+Resolve these adapter questions against the pinned C2C3 ruleset, handlers, and the Civ III unit catalog. Keep any compatibility mapping explicit and data-driven; do not substitute Conquests mission mechanics or another Freeciv ruleset.
 
 ## Evidence consulted
 

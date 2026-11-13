@@ -37,7 +37,7 @@ mod client_views;
 mod content_adapter;
 pub(crate) use client_api::ClientSimulation;
 pub(crate) use client_views::{
-    CityContextView, CityDealView, CityManagerView, CombatPresentationView, DiplomacyMeetingView,
+    CityContextView, CityManagerView, CombatPresentationView, DiplomacyMeetingView,
     DiplomacyRivalView, GameOverView, GovernmentView, MinimapCityView, MinimapTileView,
     MusicCueView, PresentationEventView, RenderTileView, RenderedCityView, RenderedUnitView,
     ResearchProgressView, SelectableUnitView, SpaceshipAssemblyView, TechnologyResearchView,
@@ -47,6 +47,7 @@ mod combat_rules;
 mod commands;
 mod diplomacy;
 mod tech_trade;
+mod trade_routes;
 pub(crate) use diplomacy::{Pact, TreatyMap, TreatyOffer};
 mod economy;
 mod exploration;
@@ -63,11 +64,11 @@ mod fuel_paths;
 mod illness;
 mod leaders;
 mod list_order;
+mod migration;
 mod movement;
 #[allow(dead_code)] // Shared ruleset adapter is introduced before call-site migration.
 mod movement_rules;
 mod presentation;
-mod resistance;
 #[cfg(test)]
 pub(crate) use presentation::CombatVisual;
 pub(crate) use presentation::VisualEvent;
@@ -217,8 +218,7 @@ pub(crate) struct Simulation {
     tiles: Vec<Tile>,
     units: Vec<Unit>,
     cities: Vec<City>,
-    /// Culture accumulated by civilizations in cities that no longer exist.
-    retired_city_culture: std::collections::BTreeMap<usize, i64>,
+    trade_routes: Vec<trade_routes::TradeRoute>,
     completed_wonders: Vec<Building>,
     spaceships: Vec<Spaceship>,
     nation_scores: Vec<NationScore>,
@@ -456,6 +456,7 @@ impl Simulation {
                 gold: 50,
                 rates: [60, 40, 0],
                 government: Government::Despotism,
+                history: 0,
                 revolution_target: None,
                 revolution_turn: None,
                 mobilized: false,
@@ -477,6 +478,7 @@ impl Simulation {
             gold: 0,
             rates: [60, 40, 0],
             government: Government::Despotism,
+            history: 0,
             revolution_target: None,
             revolution_turn: None,
             mobilized: false,
@@ -514,7 +516,7 @@ impl Simulation {
             tiles,
             units: Vec::new(),
             cities: Vec::new(),
-            retired_city_culture: Default::default(),
+            trade_routes: Vec::new(),
             completed_wonders: Vec::new(),
             spaceships: vec![Spaceship::default(); players.len()],
             nation_scores: vec![NationScore::default(); players.len()],

@@ -44,7 +44,7 @@ impl Playtest {
             if let Some((_, action)) = buttons.iter().find(
                 |(_, action)| matches!(action, UiAction::Airlift(city) if *city == destination),
             ) {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let city = game
                 .sim
@@ -73,14 +73,14 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ToggleSpaceship))
         {
-            game.perform_action(*action);
+            game.perform_action(action.clone());
         }
         if frame == 320 && self.act_passed {
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::LaunchSpaceship))
             {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let launched = game
                 .sim
@@ -116,7 +116,7 @@ impl Playtest {
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ToggleManualAssembly))
         {
-            game.perform_action(*action);
+            game.perform_action(action.clone());
             game.sim
                 .playtest_harness()
                 .manual_spaceship_playtest_build_structural();
@@ -129,7 +129,7 @@ impl Playtest {
             };
             let blocked = offered(child).is_none();
             if let Some((_, action)) = offered(root) {
-                game.perform_action(*action);
+                game.perform_action(action.clone());
             }
             let (unplaced, structure, _, _, manual) = game.sim.playtest_state().ship_assembly();
             let installed = manual && structure[0] && unplaced[0] == 0;
@@ -215,8 +215,8 @@ impl Playtest {
         if frame == 337 && self.act_passed {
             super::reset_founded_city_scenario(game);
             let (before, after, history) = game.sim.playtest_harness().amphitheater_playtest();
-            self.results.push(("amphitheater", before && !after && history == 2,
-                format!("Electricity let an Amphitheater end disorder in a size-eight city: {}. History per turn: {history}.", before && !after)));
+            self.results.push(("amphitheater", before && !after && history == 3,
+                format!("Electricity let an Amphitheater end disorder in a size-eight city: {}. Selected C2C3 Palace and Colosseum effects added this turn's history: {history}.", before && !after)));
         }
         if frame == 340 && self.act_passed {
             super::reset_founded_city_scenario(game);

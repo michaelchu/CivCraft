@@ -6,7 +6,7 @@ impl Simulation {
     pub(crate) fn treaty_offer(&self, other: usize) -> Option<TreatyOffer> {
         self.diplomacy
             .get(&Self::relation_key(HUMAN, other))
-            .and_then(|relation| relation.offer)
+            .and_then(|relation| relation.offer.clone())
     }
 
     pub(crate) fn pact_offer(&self, other: usize) -> Option<Pact> {
@@ -23,21 +23,15 @@ impl Simulation {
             .collect()
     }
 
-    pub(crate) fn treaty_trade_cities(&self, seller: usize, pact: Pact) -> Vec<u32> {
-        if !matches!(pact, Pact::Peace | Pact::Alliance)
-            || self
-                .cities
-                .iter()
-                .filter(|city| city.owner == seller)
-                .count()
-                <= 3
-        {
+    pub(crate) fn treaty_trade_cities(&self, seller: usize, receiver: usize) -> Vec<u32> {
+        if seller == receiver || seller >= self.players.len() || receiver >= self.players.len() {
             return Vec::new();
         }
         self.cities
             .iter()
             .filter(|city| {
                 city.owner == seller
+                    && self.tile(city.x, city.y).known_by[receiver]
                     && !city.has_building(Building::PALACE)
                     && !city.has_building(Building::ECCLESIASTICAL_PALACE)
             })
@@ -49,13 +43,11 @@ impl Simulation {
         !self.has_real_embassy(receiver, giver)
     }
 
-    pub(crate) fn treaty_can_offer_vision(
-        &self,
-        giver: usize,
-        receiver: usize,
-        pact: Pact,
-    ) -> bool {
-        pact == Pact::Alliance && self.vision_safe(giver, receiver)
+    pub(crate) fn treaty_can_offer_vision(&self, giver: usize, receiver: usize) -> bool {
+        giver != receiver
+            && giver < self.players.len()
+            && receiver < self.players.len()
+            && !self.gives_shared_vision(giver, receiver)
     }
 
     pub(in crate::sim) fn propose_treaty(&mut self, other: usize, offer: TreatyOffer) -> bool {
@@ -72,13 +64,13 @@ impl Simulation {
             self.add_event(format!("{} declined. {reason}", self.players[other].name));
             return false;
         }
-        if !self.execute_offer(HUMAN, other, offer) {
+        if !self.execute_offer(HUMAN, other, &offer) {
             if let Some(pact) = offer.pact
                 && let Some((terms_balance, _)) = self.ai_treaty_clause_balance(
                     other,
                     HUMAN,
-                    offer.terms[1],
-                    offer.terms[0],
+                    &offer.terms[1],
+                    &offer.terms[0],
                     pact,
                 )
                 && let balance = terms_balance + self.pact_clause_value(other, HUMAN, pact)
@@ -109,11 +101,11 @@ impl Simulation {
         // prevents opening a new meeting, not concluding an existing one.
         if other >= self.players.len()
             || !self.player_alive(other)
-            || self.treaty_offer(other) != Some(offer)
+            || self.treaty_offer(other).as_ref() != Some(&offer)
         {
             return false;
         }
-        if !self.execute_offer(HUMAN, other, offer) {
+        if !self.execute_offer(HUMAN, other, &offer) {
             self.decline_offer(other);
             self.add_event("That treaty offer is no longer valid.");
             return false;
@@ -154,26 +146,7 @@ impl Simulation {
         }
     }
 
-    pub(crate) fn city_trade_price(&self, city: &City) -> Option<i32> {
-        let seller = city.owner;
-        if !self.can_negotiate(seller)
-            || self
-                .cities
-                .iter()
-                .filter(|city| city.owner == seller)
-                .count()
-                <= 3
-            || !matches!(self.pact(HUMAN, seller), Pact::Peace | Pact::Alliance)
-            || !self.tile(city.x, city.y).known_by[HUMAN]
-            || city.has_building(Building::PALACE)
-            || city.has_building(Building::ECCLESIASTICAL_PALACE)
-        {
-            return None;
-        }
-        Some(self.city_sale_value(city, HUMAN))
-    }
-
-    pub(in crate::sim) fn city_sale_value(&self, city: &City, buyer: usize) -> i32 {
+    pub(in crate::sim) fn city_clause_value(&self, city: &City, buyer: usize) -> i32 {
         let value = 15 * self.city_gold_worth(city);
         if self.city_founders.get(&city.id) == Some(&buyer) {
             value / 2
@@ -234,47 +207,7 @@ impl Simulation {
         }
     }
 
-    pub(in crate::sim) fn buy_city(&mut self, id: u32, quoted: i32) -> bool {
-        let Some(index) = self.city_index_by_id(id) else {
-            return false;
-        };
-        let city = self.cities[index].clone();
-        if self.city_trade_price(&city) != Some(quoted) || self.players[HUMAN].gold < quoted {
-            return false;
-        }
-        self.players[HUMAN].gold -= quoted;
-        self.players[city.owner].gold += quoted;
-        self.transfer_traded_city(index, HUMAN);
-        self.add_event(format!(
-            "Bought {} from {} for {quoted} gold.",
-            city.name, self.players[city.owner].name
-        ));
-        true
-    }
-
-    pub(in crate::sim) fn buy_map(&mut self, seller: usize, map: TreatyMap) -> bool {
-        if !self.can_negotiate(seller) {
-            return false;
-        }
-        let price = self.map_trade_price(seller, HUMAN, map, self.pact(HUMAN, seller));
-        let mut offer = TreatyOffer::default();
-        offer.terms[0].gold = price;
-        offer.terms[1].access = map.flag();
-        let key = Self::relation_key(HUMAN, seller);
-        let pending = self.diplomacy.get(&key).and_then(|relation| relation.offer);
-        if !self.execute_offer(HUMAN, seller, offer) {
-            self.add_event("The map trade could not be completed.");
-            return false;
-        }
-        self.diplomacy.get_mut(&key).unwrap().offer = pending;
-        self.add_event(format!(
-            "Received the {:?} map from {} for {price} gold.",
-            map, self.players[seller].name
-        ));
-        true
-    }
-
-    pub(super) fn execute_offer(&mut self, a: usize, b: usize, offer: TreatyOffer) -> bool {
+    pub(super) fn execute_offer(&mut self, a: usize, b: usize, offer: &TreatyOffer) -> bool {
         if offer
             .pact
             .is_some_and(|pact| self.pact_refusal(b, a, pact).is_some())
@@ -284,16 +217,16 @@ impl Simulation {
         let key = Self::relation_key(a, b);
         let after = offer.pact.unwrap_or_else(|| self.pact(a, b));
         for (index, (giver, receiver)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {
-            let terms = offer.terms[index];
+            let terms = &offer.terms[index];
             if !terms.valid_access()
-                || terms.city().is_some_and(|id| {
-                    !matches!(after, Pact::Peace | Pact::Alliance)
-                        || self.cities.iter().all(|city| {
-                            city.id != id
-                                || city.owner != giver
-                                || city.has_building(Building::PALACE)
-                                || city.has_building(Building::ECCLESIASTICAL_PALACE)
-                        })
+                || !terms.cities_are_unique()
+                || terms.cities().iter().any(|&id| {
+                    self.cities.iter().all(|city| {
+                        city.id != id
+                            || city.owner != giver
+                            || city.has_building(Building::PALACE)
+                            || city.has_building(Building::ECCLESIASTICAL_PALACE)
+                    })
                 })
                 || terms.gold < 0
                 || self.players[giver].gold < terms.gold
@@ -313,8 +246,8 @@ impl Simulation {
             let Some((mut balance, mut gift)) = self.ai_treaty_clause_balance(
                 owner,
                 other,
-                offer.terms[side],
-                offer.terms[1 - side],
+                &offer.terms[side],
+                &offer.terms[1 - side],
                 after,
             ) else {
                 return false;
@@ -340,7 +273,7 @@ impl Simulation {
         let relation = self.diplomacy.entry(key).or_default();
         relation.offer = None;
         for (index, (giver, receiver)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {
-            let terms = offer.terms[index];
+            let terms = &offer.terms[index];
             relation.vision[index] |= terms.shared_vision();
             relation.embassy[1 - index] |= terms.embassy();
             self.players[giver].gold -= terms.gold;
@@ -352,12 +285,12 @@ impl Simulation {
             }
         }
         for (index, (giver, receiver)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {
-            if let Some(map) = offer.terms[index].map() {
+            for map in offer.terms[index].maps() {
                 self.transfer_treaty_map(giver, receiver, map);
             }
         }
         for (index, receiver) in [key.1, key.0].into_iter().enumerate() {
-            if let Some(id) = offer.terms[index].city() {
+            for &id in offer.terms[index].cities() {
                 let city = self.city_index_by_id(id).unwrap();
                 self.transfer_traded_city(city, receiver);
             }
@@ -438,7 +371,7 @@ impl Simulation {
             for &(given, outgoing_value) in &outgoing {
                 let balance = incoming_value - outgoing_value;
                 let giver = usize::from(proposer != a);
-                let mut terms = [Concessions::default(); 2];
+                let mut terms = [Concessions::default(), Concessions::default()];
                 terms[giver].technology = Some(given);
                 terms[1 - giver].technology = Some(received);
                 terms[giver].gold = balance.max(0);
@@ -491,51 +424,6 @@ impl Simulation {
             let proposer = if a == HUMAN { b } else { a };
             let recipient = if proposer == a { b } else { a };
             offer.terms = self.technology_exchange_terms(proposer, recipient, after);
-        }
-        // Freeciv values map clauses, but its default AI does not originate
-        // them. Use those values when CivCraft proposes a useful map.
-        if a == HUMAN && (after == Pact::Alliance || (after == Pact::Peace && pact.is_none())) {
-            for map in [TreatyMap::World, TreatyMap::Sea] {
-                let useful = self.tiles.iter().any(|tile| {
-                    tile.known_by[b]
-                        && !tile.known_by[a]
-                        && (map == TreatyMap::World || tile.terrain.is_water())
-                });
-                if !useful {
-                    continue;
-                }
-                let price = self.map_trade_price(b, a, map, after);
-                let mut terms = offer.terms;
-                terms[0].gold += price;
-                terms[1].access |= map.flag();
-                if self.players[a].gold >= terms[0].gold
-                    && self.ai_accepts_treaty_exchange(a, b, &terms, after)
-                {
-                    offer.terms = terms;
-                    break;
-                }
-            }
-        }
-        if a == HUMAN && matches!(after, Pact::Peace | Pact::Alliance) && pact != Some(Pact::Peace)
-        {
-            for city in self
-                .cities
-                .iter()
-                .filter(|city| city.owner == b && self.city_founders.get(&city.id) == Some(&a))
-            {
-                let Some(price) = self.city_trade_price(city) else {
-                    continue;
-                };
-                let mut terms = offer.terms;
-                terms[0].gold += price;
-                terms[1] = terms[1].with_city(city.id);
-                if self.players[a].gold >= terms[0].gold
-                    && self.ai_accepts_treaty_exchange(a, b, &terms, after)
-                {
-                    offer.terms = terms;
-                    break;
-                }
-            }
         }
         if after == Pact::Alliance {
             let existing = self
@@ -717,7 +605,7 @@ impl Simulation {
                     }
                 }
                 if other == HUMAN {
-                    self.diplomacy.get_mut(&key).unwrap().offer = Some(offer);
+                    self.diplomacy.get_mut(&key).unwrap().offer = Some(offer.clone());
                     let what = if offer.bundled() {
                         "a treaty bundle".to_owned()
                     } else {
@@ -725,7 +613,7 @@ impl Simulation {
                     };
                     self.add_event(format!("{} offers {what}.", self.players[owner].name));
                 } else {
-                    self.execute_offer(key.0, key.1, offer);
+                    self.execute_offer(key.0, key.1, &offer);
                 }
             }
         }

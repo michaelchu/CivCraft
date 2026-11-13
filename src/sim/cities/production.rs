@@ -150,7 +150,6 @@ impl Simulation {
             self.lose_spaceship(self.cities[index].owner);
         }
         let removed = self.cities.remove(index);
-        self.archive_city_culture(&removed);
         self.city_founders.remove(&removed.id);
         self.city_rapture.remove(&removed.id);
         self.rebuild_city_ownership_for_city_event(removed.id);
@@ -208,6 +207,8 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn process_cities(&mut self) {
+        self.reconcile_trade_routes();
+        self.establish_connected_trade_routes();
         for owner in 0..self.players.len() {
             let income = self.process_player_cities(owner);
             self.finish_player_national_activities(owner, income);
@@ -215,22 +216,21 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn process_player_cities(&mut self, owner: usize) -> (i32, Vec<(u32, i32)>) {
-        self.resolve_resistance_for_owner(owner);
-        self.reconcile_city_workers();
-        let mut science_income = 0;
-        let mut gold_paid = Vec::new();
         let mut city_ids: Vec<u32> = self
             .player_cities_ordered(owner)
             .map(|city| city.id)
             .collect();
-        // cityturn.c:update_city_activities converts citizens in player
-        // list order before randomizing the city activity order.
-        for &id in &city_ids {
-            if let Some(index) = self.city_index_by_id(id) {
-                self.advance_foreign_nationality_tenure(index);
-                self.assimilate_citizen(index);
+        // cityturn.c:update_city_activities converts citizens in stable city
+        // list order before canceling routes and randomizing city activities.
+        for &city_id in &city_ids {
+            if let Some(index) = self.city_index_by_id(city_id) {
+                self.convert_city_citizen_for_turn(index);
             }
         }
+        self.reconcile_trade_routes();
+        self.reconcile_city_workers();
+        let mut science_income = 0;
+        let mut gold_paid = Vec::new();
         while !city_ids.is_empty() {
             let selected = self.rand_below(city_ids.len() as i32) as usize;
             let city_id = city_ids.swap_remove(selected);
@@ -309,8 +309,7 @@ impl Simulation {
                         self.choose_ai_production(snapshot.owner, city_id);
                 }
             }
-            self.record_history(index);
-            self.record_city_culture(index);
+            self.record_city_history(index);
             // Buildings and population-cost units refresh city output before growth.
             let refreshed = self.cities[index].size != snapshot.size
                 || matches!(finished, Some((Production::Building(building), _))
@@ -365,7 +364,7 @@ impl Simulation {
                 rapture_growth,
             );
             if growth == Growth::Starved {
-                self.remove_resisters_first_nationalities(index, 1);
+                self.remove_citizen_nationalities(index, 1);
             }
             if growth == Growth::Destroyed {
                 self.release_city_support(city_id);
@@ -373,7 +372,6 @@ impl Simulation {
                     self.lose_spaceship(snapshot.owner);
                 }
                 let removed = self.cities.remove(index);
-                self.archive_city_culture(&removed);
                 self.city_founders.remove(&removed.id);
                 self.city_rapture.remove(&removed.id);
                 self.rebuild_city_ownership_for_city_event(removed.id);
@@ -455,6 +453,7 @@ impl Simulation {
             if style == GoldUpkeepStyle::Nation {
                 self.balance_national_building_upkeep(owner);
             }
+            self.record_player_history(owner);
             if style == GoldUpkeepStyle::Nation {
                 self.players[owner].gold -= income.1.iter().map(|(_, cost)| cost).sum::<i32>();
             }

@@ -34,9 +34,9 @@ pub(crate) enum Command {
     Mobilize,
     Negotiate(usize, super::Pact),
     ProposeTreaty(usize, super::TreatyOffer),
-    BuyMap(usize, super::TreatyMap),
-    BuyCity(u32, i32),
+    ShareTreatyCityMap(usize, u32),
     CancelPact(usize),
+    CancelSharedVision(usize),
     DeclineOffer(usize),
     AcceptOffer(usize, super::TreatyOffer),
     Specialist(u32, usize, i32),
@@ -173,11 +173,11 @@ impl Simulation {
                 self.add_event(format!("{name} now produces {}.", kind.name()));
                 true
             }
-            BuyCity(city, price) => self.buy_city(city, price),
-            BuyMap(other, map) => self.buy_map(other, map),
             Negotiate(other, pact) => self.negotiate(other, pact),
             ProposeTreaty(other, offer) => self.propose_treaty(other, offer),
+            ShareTreatyCityMap(other, city) => self.share_treaty_city_map(other, city),
             CancelPact(other) => self.cancel_pact(HUMAN, other),
+            CancelSharedVision(other) => self.cancel_shared_vision(HUMAN, other),
             AcceptOffer(other, offer) => self.accept_offer(other, offer),
             DeclineOffer(other) => self.decline_offer(other),
             Government(target) => self.change_government(HUMAN, target),

@@ -448,8 +448,8 @@ impl Simulation {
     }
 
     /// Apply Freeciv's city-wide bonus-before-waste ordering to the three
-    /// worked-tile outputs. Trade routes are handled separately when that
-    /// state is ported; C2C3's size penalty and local tax split are retained.
+    /// worked-tile outputs after route trade has joined gross trade. C2C3's
+    /// size penalty and local tax split are retained.
     pub(in crate::sim) fn c2c3_finalize_city_outputs(
         &self,
         city: &City,

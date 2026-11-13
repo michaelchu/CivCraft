@@ -93,21 +93,12 @@ pub(crate) struct DiplomacyRivalView {
     pub(crate) pact: Pact,
     pub(crate) pact_turns: i32,
     pub(crate) has_embassy: bool,
+    pub(crate) gives_shared_vision: bool,
     pub(crate) senate_veto: bool,
     pub(crate) pact_offer: Option<Pact>,
     pub(crate) next_pact: Option<Pact>,
     pub(crate) can_negotiate: bool,
     pub(crate) treaty_offer: Option<TreatyOffer>,
-    pub(crate) world_map_price: i32,
-    pub(crate) sea_map_price: i32,
-    pub(crate) has_city_deals: bool,
-}
-
-pub(crate) struct CityDealView {
-    pub(crate) id: u32,
-    pub(crate) name: String,
-    pub(crate) price: i32,
-    pub(crate) affordable: bool,
 }
 
 pub(crate) struct DiplomacyMeetingView {

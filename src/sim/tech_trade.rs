@@ -180,23 +180,33 @@ impl Simulation {
         &self,
         owner: usize,
         other: usize,
-        give: diplomacy::Concessions,
-        receive: diplomacy::Concessions,
+        give: &diplomacy::Concessions,
+        receive: &diplomacy::Concessions,
         after: Pact,
     ) -> Option<(i64, bool)> {
-        if (after == Pact::War
-            && (give.city().is_some()
-                || receive.city().is_some()
-                || give.embassy()
-                || receive.embassy()))
-            || (give.city().is_some()
-                && self
-                    .cities
-                    .iter()
-                    .filter(|city| city.owner == owner)
-                    .count()
-                    <= 3)
+        // Native daidiplomacy.c treats city clauses as more than gifts, even
+        // when a city is offered for free. Its at-war filter rejects them
+        // unless a peace clause moves the resulting state out of war.
+        if after == Pact::War
+            && (give.embassy()
+                || receive.embassy()
+                || !give.cities().is_empty()
+                || !receive.cities().is_empty()
+                // C2C3 uses Linear tech costs, so the default AI does not
+                // classify advance clauses as harmless gifts while at war.
+                || give.technology.is_some()
+                || receive.technology.is_some())
         {
+            return None;
+        }
+        let owner_city_count = self
+            .cities
+            .iter()
+            .filter(|city| city.owner == owner)
+            .count();
+        if !give.cities().is_empty() && owner_city_count.saturating_sub(give.cities().len()) <= 2 {
+            // daidiplomacy.c::dai_treaty_evaluate always keeps at least two
+            // cities when the AI is the giver.
             return None;
         }
         if give.shared_vision() && (after != Pact::Alliance || !self.vision_safe(owner, other)) {
@@ -216,17 +226,17 @@ impl Simulation {
             // Civ2Civ3 uses Embassies leakage, with the default techleak=100.
             clauses.push(10);
         }
-        if let Some(map) = give.map() {
-            clauses.push(-i64::from(self.map_trade_price(owner, other, map, after)));
+        for map in give.maps() {
+            clauses.push(self.ai_treaty_map_clause_value(owner, other, map, after));
         }
-        if let Some(id) = give.city() {
+        for &id in give.cities() {
             let city = self
                 .cities
                 .iter()
                 .find(|city| city.id == id && city.owner == owner)?;
-            clauses.push(-i64::from(self.city_sale_value(city, other)));
+            clauses.push(-i64::from(self.city_clause_value(city, other)));
         }
-        if let Some(id) = receive.city() {
+        for &id in receive.cities() {
             let city = self
                 .cities
                 .iter()
@@ -257,6 +267,35 @@ impl Simulation {
         ))
     }
 
+    fn ai_treaty_map_clause_value(
+        &self,
+        owner: usize,
+        other: usize,
+        map: TreatyMap,
+        after: Pact,
+    ) -> i64 {
+        if after == Pact::Alliance {
+            // The default AI treats both maps as useless to an ally.
+            return 0;
+        }
+        let city_count = self
+            .cities
+            .iter()
+            .filter(|city| city.owner == owner)
+            .count() as i64;
+        let base_cost = match map {
+            TreatyMap::Sea => 15 * city_count,
+            TreatyMap::World => 40 * city_count.max(1) * if after == Pact::War { 2 } else { 1 },
+        };
+        let love = i64::from(self.diplomatic_love(owner, other));
+        let love_limit = match map {
+            TreatyMap::Sea => 7 * love,
+            TreatyMap::World => 10 * love,
+        };
+        // Freeciv clips the negative map value with MIN(love * scale, -cost).
+        love_limit.min(-base_cost)
+    }
+
     pub(super) fn ai_accepts_treaty_exchange(
         &self,
         a: usize,
@@ -270,7 +309,13 @@ impl Simulation {
             .all(|(side, (owner, other))| {
                 !self.players[owner].ai
                     || self
-                        .ai_treaty_clause_balance(owner, other, terms[side], terms[1 - side], after)
+                        .ai_treaty_clause_balance(
+                            owner,
+                            other,
+                            &terms[side],
+                            &terms[1 - side],
+                            after,
+                        )
                         .is_some_and(|(value, _)| value >= 0)
             })
     }

@@ -53,99 +53,133 @@ impl TreatyMap {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Concessions {
     pub(crate) gold: i32,
     pub(crate) technology: Option<Tech>,
-    // Preserve the legacy u64 wire: flags0..2, city ID3..34. Embassy35
-    // extends it without changing legacy fields or city identifiers.
+    // Shared-vision, map, and embassy flags remain packed; city clauses are a
+    // list because Freeciv permits several distinct cities in one treaty.
     access: u64,
+    cities: Vec<u32>,
 }
 
 impl Concessions {
-    const CITY_SHIFT: u32 = 3;
-    const CITY_MASK: u64 = (u32::MAX as u64) << Self::CITY_SHIFT;
     const EMBASSY_FLAG: u64 = 1 << 35;
-    const VALID_MASK: u64 = 7 | Self::CITY_MASK | Self::EMBASSY_FLAG;
+    const VALID_MASK: u64 = 7 | Self::EMBASSY_FLAG;
 
-    pub(crate) fn shared_vision(self) -> bool {
+    pub(crate) fn shared_vision(&self) -> bool {
         self.access & 1 != 0
     }
 
-    pub(crate) fn set_gold(mut self, gold: i32) -> Self {
-        self.gold = gold.max(0);
-        self
+    pub(crate) fn set_gold(&self, gold: i32) -> Self {
+        Self {
+            gold: gold.max(0),
+            ..self.clone()
+        }
     }
 
-    pub(crate) fn set_technology(mut self, technology: Option<Tech>) -> Self {
-        self.technology = technology;
-        self
+    pub(crate) fn set_technology(&self, technology: Option<Tech>) -> Self {
+        Self {
+            technology,
+            ..self.clone()
+        }
     }
 
-    pub(crate) fn set_shared_vision(mut self, enabled: bool) -> Self {
-        self.access = if enabled {
+    pub(crate) fn set_shared_vision(&self, enabled: bool) -> Self {
+        let access = if enabled {
             self.access | 1
         } else {
             self.access & !1
         };
-        self
+        Self {
+            access,
+            ..self.clone()
+        }
     }
 
-    pub(crate) fn set_map(mut self, map: Option<TreatyMap>) -> Self {
-        self.access &= !(TreatyMap::World.flag() | TreatyMap::Sea.flag());
+    pub(crate) fn set_map(&self, map: Option<TreatyMap>) -> Self {
+        let mut access = self.access;
         if let Some(map) = map {
-            self.access |= map.flag();
-        }
-        self
-    }
-
-    pub(crate) fn set_embassy(mut self, enabled: bool) -> Self {
-        if enabled {
-            self.access |= Self::EMBASSY_FLAG;
+            access |= map.flag();
         } else {
-            self.access &= !Self::EMBASSY_FLAG;
+            access &= !(TreatyMap::World.flag() | TreatyMap::Sea.flag());
         }
-        self
+        Self {
+            access,
+            ..self.clone()
+        }
     }
 
-    pub(crate) fn set_city(mut self, city: Option<u32>) -> Self {
-        self.access = city.map_or(self.access & !Self::CITY_MASK, |id| {
-            (self.access & !Self::CITY_MASK) | (u64::from(id) << Self::CITY_SHIFT)
-        });
-        self
+    pub(crate) fn remove_map(&self, map: TreatyMap) -> Self {
+        Self {
+            access: self.access & !map.flag(),
+            ..self.clone()
+        }
     }
 
-    pub(crate) fn embassy(self) -> bool {
+    pub(crate) fn set_embassy(&self, enabled: bool) -> Self {
+        let access = if enabled {
+            self.access | Self::EMBASSY_FLAG
+        } else {
+            self.access & !Self::EMBASSY_FLAG
+        };
+        Self {
+            access,
+            ..self.clone()
+        }
+    }
+
+    pub(crate) fn set_city(&self, city: Option<u32>) -> Self {
+        let mut changed = self.clone();
+        if let Some(id) = city {
+            if !changed.cities.contains(&id) {
+                changed.cities.push(id);
+            }
+        } else {
+            changed.cities.clear();
+        }
+        changed
+    }
+
+    pub(crate) fn remove_city(&self, city: u32) -> Self {
+        let mut changed = self.clone();
+        changed.cities.retain(|&id| id != city);
+        changed
+    }
+
+    pub(crate) fn cities(&self) -> &[u32] {
+        &self.cities
+    }
+
+    pub(crate) fn cities_are_unique(&self) -> bool {
+        let mut ids = std::collections::BTreeSet::new();
+        self.cities.iter().all(|&id| ids.insert(id))
+    }
+
+    pub(crate) fn embassy(&self) -> bool {
         self.access & Self::EMBASSY_FLAG != 0
     }
 
-    fn with_embassy(mut self) -> Self {
-        self.access |= Self::EMBASSY_FLAG;
-        self
+    fn with_embassy(&self) -> Self {
+        self.set_embassy(true)
     }
 
-    pub(crate) fn city(self) -> Option<u32> {
-        let id = ((self.access & Self::CITY_MASK) >> Self::CITY_SHIFT) as u32;
-        (id != 0).then_some(id)
+    fn with_city(&self, id: u32) -> Self {
+        self.set_city(Some(id))
     }
 
-    fn with_city(mut self, id: u32) -> Self {
-        self.access = (self.access & !Self::CITY_MASK) | (u64::from(id) << Self::CITY_SHIFT);
-        self
+    fn valid_access(&self) -> bool {
+        self.access & !Self::VALID_MASK == 0
     }
 
-    fn valid_access(self) -> bool {
-        self.access & 7 <= 5 && self.access & !Self::VALID_MASK == 0
-    }
-
-    pub(crate) fn map(self) -> Option<TreatyMap> {
+    pub(crate) fn maps(&self) -> impl Iterator<Item = TreatyMap> + '_ {
         [TreatyMap::World, TreatyMap::Sea]
             .into_iter()
-            .find(|map| self.access & map.flag() != 0)
+            .filter(|map| self.access & map.flag() != 0)
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct TreatyOffer {
     pub(crate) pact: Option<Pact>,
     // Terms are ordered by player ID.
@@ -153,8 +187,8 @@ pub(crate) struct TreatyOffer {
 }
 
 impl TreatyOffer {
-    pub(crate) fn bundled(self) -> bool {
-        self.terms != [Concessions::default(); 2]
+    pub(crate) fn bundled(&self) -> bool {
+        self.terms != [Concessions::default(), Concessions::default()]
     }
 }
 
@@ -239,6 +273,16 @@ pub(super) struct Relation {
 }
 
 impl Simulation {
+    /// Returns a treaty only after first contact. Freeciv's no-contact
+    /// diplomatic state is distinct from an explicit war despite both using
+    /// `Pact::War` as this model's default storage value.
+    pub(super) fn contacted_pact(&self, a: usize, b: usize) -> Option<Pact> {
+        self.diplomacy
+            .get(&Self::relation_key(a, b))
+            .filter(|relation| relation.first_contact.is_some())
+            .map(|relation| relation.pact)
+    }
+
     pub(super) fn relation_key(a: usize, b: usize) -> (usize, usize) {
         (a.min(b), a.max(b))
     }
@@ -416,6 +460,10 @@ impl Simulation {
             }
         }
         for (a, b, pact) in transitions {
+            if pact == Pact::War {
+                self.break_mutual_alliances_after_war(a, b);
+                self.refresh_visibility();
+            }
             if pact == Pact::Peace {
                 let expelled: Vec<_> = self
                     .units

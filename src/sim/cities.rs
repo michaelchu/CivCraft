@@ -120,7 +120,6 @@ impl Simulation {
         city.specialists = [0, 0, 1];
         if first_city && owner != BARBARIANS {
             city.buildings.push(Building::PALACE);
-            city.record_culture_building_completion(Building::PALACE, owner, self.year);
         }
         self.cities.push(city);
         self.list_order.city(self.cities.last().unwrap());
@@ -244,7 +243,6 @@ impl Simulation {
         if removed.has_building(Building::PALACE) {
             self.lose_spaceship(removed.owner);
         }
-        self.archive_city_culture(&removed);
         self.city_founders.remove(&removed.id);
         self.city_rapture.remove(&removed.id);
         self.rebuild_city_ownership_for_city_event(removed.id);
@@ -265,7 +263,6 @@ impl Simulation {
         let id = self.cities[index].id;
         let center = (self.cities[index].x, self.cities[index].y);
         let first_city = !self.cities.iter().any(|city| city.owner == buyer);
-        self.cities[index].assign_culture_building_ownership(buyer);
         self.cities[index].transfer_citizens(buyer);
         self.list_order.city(&self.cities[index]);
         self.cities[index]
@@ -273,11 +270,6 @@ impl Simulation {
             .retain(|building| building.data().genus != Genus::SmallWonder);
         if first_city {
             self.cities[index].buildings.push(Building::PALACE);
-            self.cities[index].record_culture_building_completion(
-                Building::PALACE,
-                buyer,
-                self.year,
-            );
         }
 
         let mut affected = std::collections::BTreeSet::from([center]);
@@ -473,12 +465,11 @@ impl Simulation {
         let first_city_for_taker = !self.cities.iter().any(|city| city.owner == unit.owner);
         let center = (x, y);
 
-        // C2C3 sets conquest_convert_pct to zero. Keep local culture ledgers,
-        // but transfer the city and its current population ownership.
-        self.cities[city_index].assign_culture_building_ownership(unit.owner);
+        // City history remains with the city and is scored for its new owner.
+        // Freeciv applies the selected conquest_convert_pct after transfer;
+        // C2C3 sets that value to zero.
         self.cities[city_index].transfer_citizens(unit.owner);
-        self.cities[city_index].resisting_citizens.clear();
-        self.cities[city_index].culture_suppressed_until_majority_assimilated = false;
+        self.convert_conquest_citizens(city_index);
         self.cities[city_index]
             .buildings
             .retain(|building| building.data().genus != Genus::SmallWonder);
@@ -509,11 +500,6 @@ impl Simulation {
         // small-wonder save flags are not present in this catalog.
         if first_city_for_taker && unit.owner != BARBARIANS {
             self.cities[city_index].buildings.push(Building::PALACE);
-            self.cities[city_index].record_culture_building_completion(
-                Building::PALACE,
-                unit.owner,
-                self.year,
-            );
         }
         if had_palace && crate::sim::combat_rules::selected().savepalace {
             let old_city_ids = self
@@ -526,7 +512,6 @@ impl Simulation {
                     && !city.has_building(Building::PALACE)
                 {
                     city.buildings.push(Building::PALACE);
-                    city.record_culture_building_completion(Building::PALACE, old_owner, self.year);
                 }
             }
         }
@@ -891,6 +876,23 @@ impl Simulation {
         city: &City,
         granted: Option<Tech>,
     ) -> (i32, i32, i32) {
+        let (food, shields, mut trade) = self.city_gross_yields_with_tech(city, granted);
+        trade += self.trade_route_income(city, granted);
+        self.c2c3_finalize_city_outputs(
+            city,
+            (food, shields, trade),
+            self.players[city.owner].government,
+            granted,
+        )
+    }
+
+    /// Worked-tile output before city-wide output effects and trade routes.
+    /// Freeciv's Simple route-revenue setting uses this citizen-base trade.
+    pub(super) fn city_gross_yields_with_tech(
+        &self,
+        city: &City,
+        granted: Option<Tech>,
+    ) -> (i32, i32, i32) {
         let (mut food, mut shields, mut trade) =
             self.city_tile_yields(city, city.x, city.y, true, granted);
         for &(x, y) in city.worked_tiles.iter().take(city.tile_workers() as usize) {
@@ -899,12 +901,6 @@ impl Simulation {
             shields += s;
             trade += t;
         }
-        (food, shields, trade) = self.c2c3_finalize_city_outputs(
-            city,
-            (food, shields, trade),
-            self.players[city.owner].government,
-            granted,
-        );
         (food, shields, trade)
     }
 

@@ -2,6 +2,9 @@
 
 use super::*;
 
+const DEFAULT_CEASEFIRE_LENGTH: i32 = 16;
+const DEFAULT_ARMISTICE_LENGTH: i32 = 16;
+
 impl Simulation {
     pub(crate) fn pact(&self, a: usize, b: usize) -> Pact {
         self.diplomacy
@@ -33,25 +36,12 @@ impl Simulation {
     }
 
     pub(crate) fn has_senate(&self, owner: usize) -> bool {
-        if self.has_active_wonder(owner, Building::STATUE_OF_LIBERTY) {
-            return false;
-        }
-        matches!(
-            self.players[owner].government,
-            Government::Feudalism | Government::Democracy
-        ) || (self
-            .cities
-            .iter()
-            .any(|city| city.has_building(Building::UNITED_NATIONS))
-            && self
-                .completed_wonders
-                .contains(&Building::MANHATTAN_PROJECT)
-            && !self.apollo_completed
-            && self.players[owner].known.contains(&Tech::NUCLEAR_FISSION))
+        owner < self.players.len() && self.diplomacy_effect_value(owner, "Has_Senate") > 0
     }
 
     pub(crate) fn senate_blocks_cancellation(&self, owner: usize, other: usize) -> bool {
         self.has_senate(owner)
+            && self.diplomacy_effect_value(owner, "No_Anarchy") <= 0
             && self
                 .diplomacy
                 .get(&Self::relation_key(owner, other))
@@ -66,6 +56,14 @@ impl Simulation {
         proposer: usize,
         proposed: Pact,
     ) -> Option<&'static str> {
+        if receiver >= self.players.len()
+            || proposer >= self.players.len()
+            || receiver == proposer
+            || self.player_has_no_diplomacy(receiver)
+            || self.player_has_no_diplomacy(proposer)
+        {
+            return Some("We cannot conduct diplomacy with you.");
+        }
         if self.players[receiver].ai
             && proposed != Pact::Ceasefire
             && self.ai_war_countdown(receiver, proposer) != -1
@@ -179,7 +177,7 @@ impl Simulation {
             pact: Some(proposed),
             ..TreatyOffer::default()
         };
-        if !self.execute_offer(HUMAN, other, offer) {
+        if !self.execute_offer(HUMAN, other, &offer) {
             self.add_event(format!(
                 "{} requires compensation for that treaty.",
                 self.players[other].name
@@ -190,8 +188,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn sign_pact(&mut self, a: usize, b: usize, proposed: Pact) {
-        let ends_war =
-            matches!(self.pact(a, b), Pact::War | Pact::Ceasefire) && proposed == Pact::Peace;
+        let treaty_length = self.treaty_length(a, b, proposed);
         let relation = self.diplomacy.entry(Self::relation_key(a, b)).or_default();
         relation.pact = if proposed == Pact::Peace {
             Pact::Armistice
@@ -199,26 +196,11 @@ impl Simulation {
             proposed
         };
         relation.until = if matches!(proposed, Pact::Peace | Pact::Ceasefire) {
-            self.turn + 16
+            self.turn.saturating_add(treaty_length)
         } else {
             0
         };
         relation.offer = None;
-        if ends_war {
-            for city in &mut self.cities {
-                let nationality = if city.owner == a {
-                    Some(b)
-                } else if city.owner == b {
-                    Some(a)
-                } else {
-                    None
-                };
-                if let Some(nationality) = nationality {
-                    city.resisting_citizens
-                        .retain(|&(owner, _)| owner != nationality);
-                }
-            }
-        }
         // Native diplomacy has a permanent state independently of physical
         // contact; a treaty through an embassy can change NO_CONTACT without
         // calling first_contact. Its untouched first_contact_turn is zero.
@@ -267,11 +249,21 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn cancel_pact(&mut self, owner: usize, other: usize) -> bool {
+        self.cancel_pact_inner(owner, other, false)
+    }
+
+    fn cancel_pact_inner(&mut self, owner: usize, other: usize, forced: bool) -> bool {
         let pact = self.pact(owner, other);
-        if pact == Pact::War || !self.player_alive(other) {
+        if owner == other
+            || owner >= self.players.len()
+            || other >= self.players.len()
+            || pact == Pact::War
+            || !self.player_alive(owner)
+            || !self.player_alive(other)
+        {
             return false;
         }
-        if self.senate_blocks_cancellation(owner, other) {
+        if !forced && self.senate_blocks_cancellation(owner, other) {
             if owner == HUMAN {
                 self.add_event(format!(
                     "The Senate refuses to break the {} with {}.",
@@ -316,7 +308,7 @@ impl Simulation {
                 .collect();
             for ally in mutual_allies {
                 self.record_provocation(ally, owner);
-                self.cancel_pact(ally, owner);
+                self.cancel_pact_inner(ally, owner, true);
             }
         }
         self.add_event(format!(
@@ -326,5 +318,40 @@ impl Simulation {
             self.players[other].name
         ));
         true
+    }
+
+    pub(super) fn break_mutual_alliances_after_war(&mut self, a: usize, b: usize) {
+        let mutual_allies: Vec<_> = (0..self.players.len())
+            .filter(|&ally| {
+                ally != a
+                    && ally != b
+                    && self.player_alive(ally)
+                    && self.allied(ally, a)
+                    && self.allied(ally, b)
+            })
+            .collect();
+        for ally in mutual_allies {
+            // Freeciv marks the alliance breakup as justified by the new war,
+            // so the Senate cannot prevent this automatic treaty change.
+            self.cancel_pact_inner(ally, a, true);
+            self.cancel_pact_inner(ally, b, true);
+        }
+    }
+
+    fn treaty_length(&self, a: usize, b: usize, proposed: Pact) -> i32 {
+        let (effect, default_length, take_minimum) = match proposed {
+            Pact::Ceasefire => ("Ceasefire_Length_Pct", DEFAULT_CEASEFIRE_LENGTH, true),
+            Pact::Peace => ("Armistice_Length_Pct", DEFAULT_ARMISTICE_LENGTH, false),
+            _ => return 0,
+        };
+        let percent_a = self.diplomacy_effect_value(a, effect);
+        let percent_b = self.diplomacy_effect_value(b, effect);
+        let percent = if take_minimum {
+            percent_a.min(percent_b)
+        } else {
+            percent_a.max(percent_b)
+        };
+        let length = (i64::from(default_length).saturating_mul(percent) / 100).max(1);
+        i32::try_from(length).unwrap_or(i32::MAX)
     }
 }

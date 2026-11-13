@@ -106,7 +106,7 @@ impl Playtest {
 
         if frame == 803 && self.act_passed {
             let close = buttons.iter().find_map(|(_, action)| {
-                matches!(action, UiAction::CloseResearch).then_some(*action)
+                matches!(action, UiAction::CloseResearch).then_some(action.clone())
             });
             let current = buttons.iter().any(|(_, action)| {
                 matches!(action,
