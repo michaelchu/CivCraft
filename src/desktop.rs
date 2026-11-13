@@ -117,6 +117,18 @@ pub async fn run_desktop() {
     let screenshot_path = argument_value("--screenshot");
     let self_test_path = argument_value("--self-test");
     let ui_review = argument_value("--ui-review");
+    let ui_baseline = argument_value("--ui-baseline");
+    let similarity_argument = argument_value("--ui-min-similarity");
+    let ui_min_similarity = similarity_argument
+        .as_deref()
+        .unwrap_or("0.99")
+        .parse::<f64>()
+        .ok()
+        .filter(|score| (0.0..=1.0).contains(score))
+        .unwrap_or_else(|| {
+            eprintln!("--ui-min-similarity must be a number from 0 to 1");
+            std::process::exit(2);
+        });
     let single_scene = argument_value("--ui-scene");
     if ui_review.is_some() && (self_test_path.is_some() || screenshot_path.is_some()) {
         eprintln!("--ui-review must run separately from --self-test and --screenshot");
@@ -124,6 +136,10 @@ pub async fn run_desktop() {
     }
     if single_scene.is_some() && ui_review.is_none() {
         eprintln!("--ui-scene requires --ui-review");
+        std::process::exit(2);
+    }
+    if (ui_baseline.is_some() || similarity_argument.is_some()) && ui_review.is_none() {
+        eprintln!("--ui-baseline and --ui-min-similarity require --ui-review");
         std::process::exit(2);
     }
     let review_scenes: Vec<usize> = if let Some(name) = single_scene {
@@ -370,13 +386,49 @@ pub async fn run_desktop() {
                     client::UI_REVIEW_SCENES[scene],
                     if next { "-next" } else { "" }
                 );
-                image.export_png(
-                    Path::new(dir)
-                        .join(&file)
-                        .to_str()
-                        .expect("UTF-8 gallery path"),
-                );
+                let output = Path::new(dir).join(&file);
+                image.export_png(output.to_str().expect("UTF-8 gallery path"));
                 let profile = ui_profile.as_mut().unwrap();
+                let similarity = ui_baseline.as_ref().map(|baseline_dir| {
+                    let baseline = Path::new(baseline_dir).join(&file);
+                    let diff = Path::new(dir).join(format!(
+                        "{}-diff.png",
+                        file.strip_suffix(".png").unwrap_or(&file)
+                    ));
+                    visual_test::compare_capture(&output, &baseline, &diff).unwrap_or_else(
+                        |error| {
+                            profile.check(scene, "baseline_similarity", false);
+                            let _ = profile.finish(dir);
+                            eprintln!(
+                                "Could not compare UI baseline for {}: {error}",
+                                client::UI_REVIEW_SCENES[scene]
+                            );
+                            std::process::exit(1);
+                        },
+                    )
+                });
+                if let Some(score) = similarity {
+                    let passed = score >= ui_min_similarity;
+                    profile.check(scene, "baseline_similarity", passed);
+                    if !passed {
+                        let _ = profile.capture(
+                            scene,
+                            file,
+                            started.elapsed().as_secs_f64() * 1000.0,
+                            hasher.finish(),
+                            next,
+                            Some(score),
+                        );
+                        let _ = profile.finish(dir);
+                        eprintln!(
+                            "UI baseline similarity {:.6} is below {:.6}: {}",
+                            score,
+                            ui_min_similarity,
+                            client::UI_REVIEW_SCENES[scene]
+                        );
+                        std::process::exit(1);
+                    }
+                }
                 if matches!(scene, 31 | 32) {
                     let polar_edge_has_no_black_gaps =
                         game.ui_review_polar_edge_has_no_black_gaps(&image, scene == 31);
@@ -400,6 +452,7 @@ pub async fn run_desktop() {
                     started.elapsed().as_secs_f64() * 1000.0,
                     hasher.finish(),
                     next,
+                    similarity,
                 ) {
                     let _ = profile.finish(dir);
                     eprintln!(

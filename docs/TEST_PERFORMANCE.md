@@ -133,6 +133,18 @@ For a full result even when known assertions fail:
 cargo test --offline --no-fail-fast -- --test-threads=4
 ```
 
+CI uses `cargo-nextest` with the repository profile in
+`.config/nextest.toml`:
+
+```sh
+cargo nextest run --profile ci --all-targets
+```
+
+Nextest provides process isolation, bounded slow-test handling, one CI retry,
+and clearer per-test reporting. `cargo test --doc` remains a separate CI step
+because nextest does not execute documentation tests. Headless executable
+contracts are covered through `assert_cmd` integration tests.
+
 ### Measured results after consolidation
 
 On the same Rust 1.100.0 Linux environment, with four test threads and test
