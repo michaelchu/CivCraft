@@ -165,25 +165,11 @@ impl Simulation {
         let Some(unit) = self.unit_by_id(id) else {
             return;
         };
-        let center = self
-            .cities
-            .iter()
-            .find(|city| (city.x, city.y) == (unit.x, unit.y));
-        let repair = center.is_some_and(|city| {
-            if unit.kind.is_naval() {
-                city.has_building(Building::PORT_FACILITY)
-            } else {
-                self.active_barracks(city)
-            }
-        });
-        let hp = if !unit.moved && repair {
-            unit.max_hit_points()
-        } else {
-            unit.hp + Self::hitpoint_gain(unit, center.is_some())
-        };
+        let hp = unit.hp + self.unit_hitpoint_gain_at(unit, unit.x, unit.y);
         let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
         unit.hp = hp;
         unit.moved = false;
+        unit.paradropped = false;
         if hp <= 0 {
             self.remove_units_with_cargo(vec![id]);
         }

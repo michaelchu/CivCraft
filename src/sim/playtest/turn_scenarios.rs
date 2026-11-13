@@ -47,7 +47,8 @@ impl Simulation {
             .unwrap();
         unit.hp = 1;
         unit.moved = false;
-        let expected = unit.hp + Self::hitpoint_gain(unit, true);
+        let unit = unit.clone();
+        let expected = unit.hp + self.unit_hitpoint_gain_at(&unit, unit.x, unit.y);
         self.restore_player_units(HUMAN);
         barracks_healed
             && self

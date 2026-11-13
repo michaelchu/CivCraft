@@ -281,12 +281,14 @@ impl Simulation {
                         let nationality =
                             self.remove_citizen_nationalities(index, kind.stats().pop_cost);
                         let rank = self.trained_rank(&snapshot, kind);
+                        let c2c3_veteran = self.trained_c2c3_veteran(&snapshot, kind);
                         let id = self.spawn_unit(snapshot.owner, kind, snapshot.x, snapshot.y);
                         let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
                         unit.nationality = nationality;
                         unit.home_city = Some(city_id);
                         unit.home_order = id;
                         unit.veteran = rank;
+                        unit.c2c3_veteran = c2c3_veteran;
                         unit.hp = unit.max_hit_points();
                         if kind.stats().pop_cost > 0 {
                             self.rebuild_city_ownership_for_city_event(city_id);

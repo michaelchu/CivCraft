@@ -70,6 +70,8 @@ impl Simulation {
         gained.nationality = victim.nationality;
         gained.fuel = victim.fuel;
         gained.veteran = victim.veteran;
+        gained.c2c3_veteran = victim.c2c3_veteran;
+        gained.paradropped = victim.paradropped;
         gained.moves_left = victim.moves_left;
         gained.home_city = home;
         gained.home_order = gained.id;
@@ -84,7 +86,7 @@ impl Simulation {
         let class = movement_rules
             .unit_class_movement_data_for_kind(unit.kind)
             .expect("campaign C2C3 unit-class movement data");
-        let base = unit.kind.stats().moves * fragments;
+        let base = unit.kind.stats().moves * fragments + unit.veteran_move_bonus();
         let mut rate = if class.damage_slows {
             base * unit.hp / unit.max_hit_points()
         } else {
@@ -572,14 +574,7 @@ impl Simulation {
         self.zone_blocks_step_with_observation(unit, from, to, observed)
     }
 
-    fn try_capture_units(
-        &mut self,
-        actor: &Unit,
-        x: i32,
-        y: i32,
-        movement_cost: i32,
-        facing: Option<u8>,
-    ) -> bool {
+    fn try_capture_units(&mut self, actor: &Unit, x: i32, y: i32) -> bool {
         if !self.can_capture_units_at(actor, x, y) {
             return false;
         }
@@ -589,36 +584,36 @@ impl Simulation {
             .filter(|unit| (unit.x, unit.y) == (x, y))
             .cloned()
             .collect();
-        let home = actor.home_city.filter(|&id| {
-            self.cities
-                .iter()
-                .any(|city| city.id == id && city.owner == actor.owner)
-        });
+        // Freeciv validates every unit in the stack before transferring any
+        // of them. In particular, Unique units cannot duplicate an existing
+        // unit owned by the capturer or another Unique unit in the stack.
+        if !self.capture_units_unique_preflight(actor.owner, &targets) {
+            return false;
+        }
+        let target_ids: Vec<_> = targets.iter().map(|unit| unit.id).collect();
+        let home = if crate::sim::combat_rules::selected().homecaughtunits {
+            actor.home_city.filter(|&id| {
+                self.cities
+                    .iter()
+                    .any(|city| city.id == id && city.owner == actor.owner)
+            })
+        } else {
+            None
+        };
         let mut captured_count = 0;
-        for target in &targets {
-            if target.kind == UnitKind::Settler {
-                self.remove_units_with_cargo(vec![target.id]);
-                for _ in 0..2 {
-                    let captured_id = self.spawn_unit(actor.owner, UnitKind::Worker, x, y);
-                    let captured = {
-                        let captured = self
-                            .units
-                            .iter_mut()
-                            .find(|unit| unit.id == captured_id)
-                            .unwrap();
-                        captured.nationality = target.nationality;
-                        captured.home_city = home;
-                        captured.clone()
-                    };
-                    captured_count += 1;
-                    self.publish_visual_event(VisualEvent::Capture { unit: captured });
-                }
-            } else {
-                let captured_id = self.transfer_unit(target, actor.owner, home);
-                if let Some(captured) = self.unit_by_id(captured_id).cloned() {
-                    captured_count += 1;
-                    self.publish_visual_event(VisualEvent::Capture { unit: captured });
-                }
+        for (index, listed_target) in targets.iter().enumerate() {
+            let Some(target) = self.unit_by_id(listed_target.id).cloned() else {
+                continue;
+            };
+            // The source action skips units that already belong to the actor.
+            if target.owner == actor.owner {
+                continue;
+            }
+            let captured_id = self.transfer_unit(&target, actor.owner, home);
+            if let Some(captured) = self.unit_by_id(captured_id).cloned() {
+                captured_count += 1;
+                self.publish_visual_event(VisualEvent::Capture { unit: captured });
+                self.bounce_captured_unit_if_needed(captured_id, &target_ids[index + 1..]);
             }
         }
         if actor.owner == HUMAN || targets.iter().any(|unit| unit.owner == HUMAN) {
@@ -628,17 +623,137 @@ impl Simulation {
                 captured_count
             ));
         }
-        self.enter_tile(actor.id, x, y, movement_cost, facing);
+        // Action_Success_Actor_Move_Cost is expressed in movement fragments
+        // and selected C2C3 charges six fragments for Capture Units.
+        self.spend_action_success_move_cost(actor, "Capture Units");
         self.refresh_visibility();
         self.check_game_over();
         true
     }
 
-    fn can_capture_units_at(&self, actor: &Unit, x: i32, y: i32) -> bool {
-        if !actor.kind.can_capture_units()
-            || self.tile(x, y).terrain.is_water()
-            || self.cities.iter().any(|city| (city.x, city.y) == (x, y))
+    fn spend_action_success_move_cost(&mut self, actor: &Unit, action: &str) -> i32 {
+        let cost = effect_value(
+            &RulesetData::campaign_default().effects,
+            "Action_Success_Actor_Move_Cost",
+            &super::action_rules::SimulationRequirementContext::for_unit(self, actor)
+                .with_action(action),
+        )
+        .expect("campaign C2C3 action movement-cost requirements are supported");
+        let cost = i32::try_from(cost).expect("campaign C2C3 action movement cost fits in i32");
+        if let Some(live_actor) = self.units.iter_mut().find(|unit| unit.id == actor.id) {
+            live_actor.moves_left = (live_actor.moves_left - cost).max(0);
+        }
+        cost
+    }
+
+    fn capture_units_unique_preflight(&self, owner: usize, targets: &[Unit]) -> bool {
+        let mut unique_types = Vec::new();
+        for target in targets {
+            if !super::action_rules::freeciv_unit_type_flag(target.kind, "Unique")
+                .expect("campaign C2C3 unit-type Unique binding")
+            {
+                continue;
+            }
+            if self
+                .units
+                .iter()
+                .any(|unit| unit.owner == owner && unit.kind == target.kind)
+                || unique_types.contains(&target.kind)
+            {
+                return false;
+            }
+            unique_types.push(target.kind);
+        }
+        true
+    }
+
+    fn bounce_captured_unit_if_needed(&mut self, id: u32, remaining_capture_ids: &[u32]) {
+        let Some(unit) = self.unit_by_id(id).cloned() else {
+            return;
+        };
+        let city_tile = self.city_at(unit.x, unit.y).is_some();
+        let hostile_city = self.cities.iter().any(|city| {
+            (city.x, city.y) == (unit.x, unit.y) && !self.allied(unit.owner, city.owner)
+        });
+        let hostile_unlisted_unit = self.units.iter().any(|other| {
+            other.id != id
+                && (other.x, other.y) == (unit.x, unit.y)
+                && !self.allied(unit.owner, other.owner)
+                && !remaining_capture_ids.contains(&other.id)
+        });
+        if city_tile || hostile_city || hostile_unlisted_unit {
+            self.bounce_unit_freeciv(id);
+        }
+    }
+
+    pub(super) fn bounce_unit_freeciv(&mut self, id: u32) {
+        let Some(unit) = self.unit_by_id(id).cloned() else {
+            return;
+        };
+        let mut destinations = Vec::new();
+        for (x, y) in self.map_wrap.freeciv_square_radius(unit.x, unit.y, 2) {
+            if (x, y) == (unit.x, unit.y) {
+                continue;
+            }
+            if self.unit_can_survive_at_tile(&unit, x, y)
+                && self
+                    .cities
+                    .iter()
+                    .all(|city| (city.x, city.y) != (x, y) || self.allied(unit.owner, city.owner))
+                && self.units.iter().all(|other| {
+                    (other.x, other.y) != (x, y) || !self.unit_is_nonallied_to(other, unit.owner)
+                })
+            {
+                destinations.push((x, y));
+            }
+        }
+        if destinations.is_empty() {
+            let cargo: Vec<_> = self
+                .units
+                .iter()
+                .filter(|other| other.transport == Some(id))
+                .map(|other| other.id)
+                .collect();
+            for passenger in cargo {
+                if self.unit_by_id(passenger).is_some() {
+                    self.bounce_unit_freeciv(passenger);
+                }
+            }
+            self.remove_units_with_cargo(vec![id]);
+            return;
+        }
+        let (x, y) = destinations[self.rand_below(destinations.len() as i32) as usize];
+        if self
+            .unit_by_id(id)
+            .is_some_and(|unit| unit.transport.is_some())
+            && let Some(index) = self.unit_index_by_id(id)
         {
+            self.set_transport(index, None);
+        }
+        if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == id) {
+            (unit.x, unit.y) = (x, y);
+            unit.clear_work();
+            self.list_order.unit(unit);
+        }
+        self.move_cargo(id, x, y);
+    }
+
+    pub(super) fn unit_is_nonallied_to(&self, unit: &Unit, owner: usize) -> bool {
+        unit.owner != owner
+            && (!self.allied(owner, unit.owner)
+                || crate::sim::action_rules::freeciv_unit_type_flag(unit.kind, "Flagless")
+                    .expect("campaign C2C3 unit-type Flagless binding"))
+    }
+
+    pub(super) fn try_capture_units_by_id(&mut self, actor_id: u32, x: i32, y: i32) -> bool {
+        let Some(actor) = self.unit_by_id(actor_id).cloned() else {
+            return false;
+        };
+        self.try_capture_units(&actor, x, y)
+    }
+
+    fn can_capture_units_at(&self, actor: &Unit, x: i32, y: i32) -> bool {
+        if self.map_wrap.civ3_distance(actor.x, actor.y, x, y) != 1 {
             return false;
         }
         let targets = self
@@ -647,15 +762,18 @@ impl Simulation {
             .filter(|unit| (unit.x, unit.y) == (x, y))
             .collect::<Vec<_>>();
         !targets.is_empty()
-            && targets.iter().all(|unit| {
-                self.at_war(actor.owner, unit.owner)
-                    && unit.kind.is_capturable()
-                    && unit
-                        .kind
-                        .required_tech()
-                        .is_none_or(|tech| self.has_tech(actor.owner, tech))
-                    && unit.transport.is_none()
-                    && self.cargo_count(unit.id) == 0
+            && targets.iter().any(|target| {
+                self.action_available_for_unit_against_unit(actor, "Capture Units", target)
+                    .unwrap_or(false)
+            })
+    }
+
+    pub(crate) fn can_begin_capture_units(&self, actor: &Unit) -> bool {
+        actor.moves_left > 0
+            && self.units.iter().any(|target| {
+                target.owner != actor.owner
+                    && self.tile(target.x, target.y).visible
+                    && self.can_capture_units_at(actor, target.x, target.y)
             })
     }
 
@@ -753,33 +871,17 @@ impl Simulation {
             }
             None => return MoveResult::Blocked,
         };
-        if self.can_capture_units_at(&unit, nx, ny) {
-            if !self.resolve_zoc_attacks(unit_id, nx, ny) {
-                return MoveResult::Fought;
-            }
-            if !self.ai_guard_allows_step(&unit, (nx, ny)) {
-                return MoveResult::Blocked;
-            }
-            self.try_capture_units(&unit, nx, ny, cost, facing);
-            return MoveResult::Moved;
-        }
-        if unit.kind.bombard_rate() > 0
-            && !self.tile(nx, ny).terrain.is_water()
-            && (self.units.iter().any(|other| {
-                (other.x, other.y) == (nx, ny) && self.at_war(unit.owner, other.owner)
-            }) || self.cities.iter().any(|city| {
-                !self.class_can_occupy_city(unit.kind)
-                    && (city.x, city.y) == (nx, ny)
-                    && self.at_war(unit.owner, city.owner)
-            }))
-        {
-            if unit.transport.is_some() {
-                return MoveResult::Blocked;
-            }
-            return self.try_bombard(&unit, nx, ny);
-        }
         let defender = self.best_defender_id(&unit, nx, ny);
         if let Some(defender_id) = defender {
+            let Some(defender) = self.unit_by_id(defender_id).cloned() else {
+                return MoveResult::Blocked;
+            };
+            let action = self.combat_action_for_unit(&unit);
+            if !self.action_available_for_unit_against_unit_fail_closed(&unit, action, &defender)
+                || !self.physical_attack_stack_allowed(&unit, nx, ny)
+            {
+                return MoveResult::Blocked;
+            }
             if unit.kind.stats().attack <= 0
                 || unit.kind.is_nuclear_weapon()
                 || (unit.kind == UnitKind::Submarine && !self.tile(nx, ny).terrain.is_water())
@@ -833,7 +935,9 @@ impl Simulation {
             .is_aircraft()
             .then(|| self.boarding_target(&unit, nx, ny))
             .flatten();
-        self.enter_tile(unit_id, nx, ny, cost, facing);
+        if !self.enter_tile(unit_id, nx, ny, cost, facing) {
+            return MoveResult::Blocked;
+        }
         if let Some(ship) = carrier
             && let Some(mover) = self.units.iter_mut().find(|unit| unit.id == unit_id)
         {
@@ -855,7 +959,21 @@ impl Simulation {
         ny: i32,
         cost: i32,
         facing: Option<u8>,
-    ) {
+    ) -> bool {
+        let entering_city = self
+            .unit_by_id(unit_id)
+            .and_then(|unit| {
+                self.cities
+                    .iter()
+                    .find(|city| {
+                        (city.x, city.y) == (nx, ny) && self.at_war(city.owner, unit.owner)
+                    })
+                    .map(|city| (unit.clone(), city))
+            })
+            .map(|(unit, city)| self.city_conquest_action_for_unit(&unit, city));
+        if entering_city.is_some_and(|action| action.is_none()) {
+            return false;
+        }
         let old_position = self
             .units
             .iter()
@@ -906,7 +1024,9 @@ impl Simulation {
                 to: (nx, ny),
             });
         }
-        self.capture_city_if_needed(unit_id, nx, ny);
+        if entering_city.is_some_and(|action| action.is_some()) {
+            self.capture_city_if_needed(unit_id, nx, ny);
+        }
         if let Some(owner) = owner {
             self.refresh_diplomatic_contact_at(owner, nx, ny);
         }
@@ -914,6 +1034,7 @@ impl Simulation {
         if let Some(old_position) = old_position {
             self.ai_guard_follow_step(unit_id, old_position);
         }
+        true
     }
 
     pub(super) fn player_goto(&mut self, id: u32, x: i32, y: i32) -> bool {

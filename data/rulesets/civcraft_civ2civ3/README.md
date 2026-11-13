@@ -67,6 +67,24 @@ and Civ III unit identities match. Civ III identity, combat values, movement,
 and presentation remain on the Civ III catalog; the adapter consumes C2C3
 `uk_*` values and effects. Each bridge rationale is recorded in the table.
 
+For P9, the selected C2C3 `[combat_rules]` values are loaded as required typed
+inputs. Its explicit `occupychance = 100` is retained. `killstack = TRUE` and
+`killcitizen = TRUE` are recorded in the derivative using the pinned engine
+defaults `common/game.h::GAME_DEFAULT_KILLSTACK` and
+`common/game.h::GAME_DEFAULT_KILLCITIZEN`; no combat value is borrowed from
+another Freeciv ruleset. `unreachableprotects = ENABLED` records
+`common/game.h::GAME_DEFAULT_UNRPROTECTS` so a unit that cannot reach one
+member of a stack prevents an attack unless that unit has `NeverProtects`.
+`razechance = 10` is the C2C3 value;
+`savepalace = TRUE` and `homecaughtunits = TRUE` are explicit pinned engine
+defaults. The `units.ruleset` derivative also records
+`non_native_def_pct = 100` for each unit class, preserving the pinned
+`server/ruleset/ruleload.c` engine default as editable selected-ruleset data.
+Airlift source and destination capacity overrides remain explicit in
+`game.ruleset`: `airlift_from_always_enabled = FALSE` and
+`airlift_to_always_enabled = TRUE`; the action adapter reads both settings
+alongside the selected `Airlift` effect and action range.
+
 The included Freeciv nation files preserve the native ruleset's include graph.
 CivCraft's playable civilization roster remains the Civ III catalog in
 `../civ3_conquests/civilizations.tsv`; the future content adapter must keep

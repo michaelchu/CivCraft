@@ -19,18 +19,18 @@ impl Game {
                         affordable,
                     ));
                 }
-                if view.air_superiority {
-                    entries.push((
-                        "Air Superiority [S]".to_owned(),
-                        UiAction::AirSuperiority,
-                        true,
-                    ));
-                }
-                if view.rebase {
-                    entries.push(("Re-base [Ctrl-R]".to_owned(), UiAction::BeginRebase, true));
-                }
                 if view.paradrop {
                     entries.insert(0, ("Paradrop".to_owned(), UiAction::BeginParadrop, true));
+                }
+                if view.capture_units {
+                    entries.insert(
+                        0,
+                        (
+                            "Capture Units".to_owned(),
+                            UiAction::BeginCaptureUnits,
+                            true,
+                        ),
+                    );
                 }
                 if view.bombard {
                     entries.insert(0, ("Bombard".to_owned(), UiAction::BeginBombard, true));
@@ -248,7 +248,6 @@ pub(super) fn unit_action_icon(action: UiAction) -> HudIcon {
         UiAction::BeginParadrop => HudIcon::Parachute,
         UiAction::BeginBombard => HudIcon::Target,
         UiAction::Airlift(_) => HudIcon::Plane,
-        UiAction::BeginRebase => HudIcon::Plane,
         UiAction::BoardOrDeboard => HudIcon::Boat,
         UiAction::HelpWonder(_) => HudIcon::Wonder,
         UiAction::Disband(None) => HudIcon::Cross,

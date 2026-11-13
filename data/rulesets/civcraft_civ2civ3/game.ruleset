@@ -817,9 +817,14 @@ colorlist =
 ; `specials` and `huts` retain the pinned server defaults from common/map.h.
 ; The research defaults below come from common/game.h; they are explicit so
 ; research progression and revolution behavior are ruleset-owned as well.
+; killstack records the pinned engine default so stack-loss behavior is
+; explicit in the editable campaign ruleset.
+; Civil war uses the Freeciv server defaults and remains tunable here.
 set =
     { "name", "value"
       "aifill", 6
+      "civilwarsize", 10
+      "maxplayers", 500
       "victories", "SPACERACE|ALLIED"
       "generator", "FRACTAL"
       "landmass", 30
@@ -838,6 +843,10 @@ set =
       "startunits", "cwsx"
       "citymindist", 3
       "techlevel", 1
+      "killstack", TRUE
+      "killcitizen", TRUE
+      "savepalace", TRUE
+      "homecaughtunits", TRUE
       "sciencebox", 100
       "techpenalty", 100
       "techleak", 100
@@ -848,7 +857,7 @@ set =
       "happyborders", "NATIONAL"
       "foggedborders", "ENABLED"
       "restrictinfra", "ENABLED"
-      "unreachableprotects", "DISABLED"
+      "unreachableprotects", "ENABLED"
       "onsetbarbs", 120
       "occupychance", 100
       "razechance", 10

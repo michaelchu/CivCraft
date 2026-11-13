@@ -144,11 +144,10 @@ pub(crate) enum UiAction {
     HelpWonder(u32),
     JoinCity(u32),
     Airlift(u32),
-    AirSuperiority,
-    BeginRebase,
-    RebaseTo(i32, i32),
     BeginParadrop,
     ParadropTo(i32, i32),
+    BeginCaptureUnits,
+    CaptureUnitsTo(i32, i32),
     BeginBombard,
     BombardTo(i32, i32),
     NuclearStrikeTo(i32, i32),
@@ -223,9 +222,9 @@ pub(crate) struct Game {
     zoom: f32,
     goto_mode: bool,
     paradrop_mode: bool,
+    capture_units_mode: bool,
     bombard_mode: bool,
     nuclear_mode: bool,
-    rebase_mode: bool,
     research_open: bool,
     government_open: bool,
     spaceship_open: bool,
@@ -293,9 +292,9 @@ impl Game {
             zoom: START_ZOOM,
             goto_mode: false,
             paradrop_mode: false,
+            capture_units_mode: false,
             bombard_mode: false,
             nuclear_mode: false,
-            rebase_mode: false,
             research_open: false,
             government_open: false,
             spaceship_open: false,
@@ -467,19 +466,19 @@ impl Game {
         }
         if self.goto_mode
             || self.paradrop_mode
+            || self.capture_units_mode
             || self.bombard_mode
             || self.nuclear_mode
-            || self.rebase_mode
         {
             let viewport = Self::viewport_rect();
             let text = if self.paradrop_mode {
                 "PARADROP: choose a landing tile"
+            } else if self.capture_units_mode {
+                "CAPTURE UNITS: choose an adjacent enemy stack"
             } else if self.bombard_mode {
                 "BOMBARD: choose an enemy tile"
             } else if self.nuclear_mode {
                 "NUCLEAR STRIKE: choose a target"
-            } else if self.rebase_mode {
-                "RE-BASE: choose a city, airfield, or carrier"
             } else {
                 "GO-TO: choose a destination"
             };
@@ -553,10 +552,7 @@ impl Game {
         };
         if self.playback.is_active(id)
             || unit.working
-            || !matches!(
-                unit.state,
-                UnitState::Idle | UnitState::Sentry | UnitState::AirSuperiority
-            )
+            || !matches!(unit.state, UnitState::Idle | UnitState::Sentry)
         {
             self.fidget_sound_cycle = None;
             return;
@@ -765,15 +761,16 @@ mod tests {
 
         game.selected_city = None;
         game.selected_unit = Some(garrison);
-        assert!(game
-            .sim
-            .review_simulation()
-            .units()
-            .iter()
-            .find(|unit| unit.id == garrison)
-            .unwrap()
-            .moves_left
-            > 0);
+        assert!(
+            game.sim
+                .review_simulation()
+                .units()
+                .iter()
+                .find(|unit| unit.id == garrison)
+                .unwrap()
+                .moves_left
+                > 0
+        );
         game.select_at(city.x, city.y);
 
         assert_eq!(game.selected_city, Some(city.id));

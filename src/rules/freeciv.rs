@@ -16,16 +16,27 @@ use super::freeciv_ini::{Entry, Section, SectionFile, Value};
 
 #[path = "freeciv/civ3_content.rs"]
 mod civ3_content;
+#[path = "freeciv/civil_war.rs"]
+mod civil_war;
+#[path = "freeciv/combat.rs"]
+mod combat;
 #[path = "freeciv/identifiers.rs"]
 mod identifiers;
 #[path = "freeciv/loader.rs"]
 mod loader;
+#[path = "freeciv/veterancy.rs"]
+mod veterancy;
 #[allow(unused_imports)]
 pub(crate) use civ3_content::{
     Civ3ContentCatalog, SourceContentRecord, SourceField, SourceRecordIdentity,
 };
+pub(crate) use civil_war::CivilWarRulesetSettings;
+pub(crate) use combat::{
+    CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
+};
 #[cfg(test)]
 pub(crate) use loader::RULESET_FILES;
+pub(crate) use veterancy::{VeteranLevel, VeteranSystem, VeterancySettings};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LoadedRuleFile {

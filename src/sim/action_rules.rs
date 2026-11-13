@@ -11,7 +11,7 @@ use super::{
 use crate::rules::freeciv::{
     ActionEvaluationError, ContentKind, EffectContext, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, RuleRecord, RulesetData,
-    action_enabled, requirements_met,
+    action_enabled, effect_value, requirements_met,
 };
 use crate::rules::{Building, Genus, Tech};
 use crate::world::{Resource, Terrain};
@@ -29,6 +29,8 @@ pub(crate) struct SimulationRequirementContext<'a> {
     city: Option<&'a super::City>,
     tile: Option<(i32, i32)>,
     tile_override: Option<((i32, i32), Tile)>,
+    city_tile_center_override: Option<((i32, i32), bool)>,
+    building_override: Option<Building>,
     relation_target: Option<usize>,
     output_type: Option<String>,
     specialist: Option<String>,
@@ -36,6 +38,7 @@ pub(crate) struct SimulationRequirementContext<'a> {
     government: Option<super::Government>,
     granted_tech: Option<Tech>,
     celebrating: Option<bool>,
+    disordered: Option<bool>,
     unit_type_flag_record: Option<&'static crate::rules::freeciv::ContentRecord>,
     unbound_content_is_absent: bool,
 }
@@ -58,6 +61,8 @@ impl<'a> SimulationRequirementContext<'a> {
             city: None,
             tile: Some(tile),
             tile_override: None,
+            city_tile_center_override: None,
+            building_override: None,
             relation_target: None,
             output_type: None,
             specialist: None,
@@ -65,6 +70,7 @@ impl<'a> SimulationRequirementContext<'a> {
             government: None,
             granted_tech: None,
             celebrating: None,
+            disordered: None,
             unit_type_flag_record: None,
             unbound_content_is_absent: false,
         }
@@ -83,6 +89,8 @@ impl<'a> SimulationRequirementContext<'a> {
             city: None,
             tile,
             tile_override: None,
+            city_tile_center_override: None,
+            building_override: None,
             relation_target: None,
             output_type: None,
             specialist: None,
@@ -90,6 +98,7 @@ impl<'a> SimulationRequirementContext<'a> {
             government: None,
             granted_tech: None,
             celebrating: None,
+            disordered: None,
             unit_type_flag_record: None,
             unbound_content_is_absent: false,
         }
@@ -108,6 +117,8 @@ impl<'a> SimulationRequirementContext<'a> {
             city: Some(city),
             tile,
             tile_override: None,
+            city_tile_center_override: None,
+            building_override: None,
             relation_target: None,
             output_type: None,
             specialist: None,
@@ -115,6 +126,7 @@ impl<'a> SimulationRequirementContext<'a> {
             government: None,
             granted_tech: None,
             celebrating: None,
+            disordered: None,
             unit_type_flag_record: None,
             unbound_content_is_absent: true,
         }
@@ -133,8 +145,21 @@ impl<'a> SimulationRequirementContext<'a> {
         self
     }
 
+    pub(crate) fn with_building_override(mut self, building: Option<Building>) -> Self {
+        self.building_override = building;
+        self
+    }
+
     pub(crate) fn with_unit(mut self, unit: &'a Unit) -> Self {
         self.owner = unit.owner;
+        self.unit = Some(unit);
+        self
+    }
+
+    /// Attach an actor unit while preserving the target-owner scope of a city
+    /// or player context. Effects such as Unit_No_Lose_Pop evaluate both the
+    /// target city's buildings and the attacking unit's class/type.
+    pub(crate) fn with_unit_preserving_owner(mut self, unit: &'a Unit) -> Self {
         self.unit = Some(unit);
         self
     }
@@ -164,7 +189,12 @@ impl<'a> SimulationRequirementContext<'a> {
         self
     }
 
-    fn with_relation_target(mut self, owner: Option<usize>) -> Self {
+    pub(crate) fn with_disordered(mut self, disordered: bool) -> Self {
+        self.disordered = Some(disordered);
+        self
+    }
+
+    pub(crate) fn with_relation_target(mut self, owner: Option<usize>) -> Self {
         self.relation_target = owner;
         self
     }
@@ -178,6 +208,8 @@ impl<'a> SimulationRequirementContext<'a> {
             city: self.city,
             tile: Some(tile),
             tile_override: self.tile_override.clone(),
+            city_tile_center_override: self.city_tile_center_override,
+            building_override: self.building_override,
             relation_target: self.relation_target,
             output_type: self.output_type.clone(),
             specialist: self.specialist.clone(),
@@ -185,6 +217,7 @@ impl<'a> SimulationRequirementContext<'a> {
             government: self.government,
             granted_tech: self.granted_tech,
             celebrating: self.celebrating,
+            disordered: self.disordered,
             unit_type_flag_record: self.unit_type_flag_record,
             unbound_content_is_absent: self.unbound_content_is_absent,
         }
@@ -192,6 +225,11 @@ impl<'a> SimulationRequirementContext<'a> {
 
     fn with_tile_override(mut self, tile: (i32, i32), state: &Tile) -> Self {
         self.tile_override = Some((tile, state.clone()));
+        self
+    }
+
+    fn with_city_tile_center_override(mut self, tile: (i32, i32), is_city_center: bool) -> Self {
+        self.city_tile_center_override = Some((tile, is_city_center));
         self
     }
 
@@ -431,16 +469,7 @@ impl<'a> SimulationRequirementContext<'a> {
                             .is_some_and(|display| display.eq_ignore_ascii_case(name)))
             })
             .ok_or_else(|| Self::unsupported(requirement))?;
-        let Some(building) = Building::all().find(|building| {
-            building.data().name.eq_ignore_ascii_case(&record.rule_name)
-                || record
-                    .display_name
-                    .as_deref()
-                    .is_some_and(|display| building.data().name.eq_ignore_ascii_case(display))
-                || c2c3_building_name_aliases(building.data().name)
-                    .iter()
-                    .any(|alias| alias.eq_ignore_ascii_case(&record.rule_name))
-        }) else {
+        let Some(building) = self.runtime_building_for_record(record) else {
             return if self.unbound_content_is_absent {
                 Ok(false)
             } else {
@@ -451,11 +480,15 @@ impl<'a> SimulationRequirementContext<'a> {
         let local_city = self
             .city
             .or_else(|| self.tile.and_then(|(x, y)| self.simulation.city_at(x, y)));
+        let hypothetical_here = self.building_override == Some(building)
+            && local_city.is_some_and(|city| city.owner == self.owner);
         match requirement.range {
-            RequirementRange::City => {
-                Ok(local_city.is_some_and(|city| city.buildings.contains(&building)))
-            }
+            RequirementRange::City => Ok(hypothetical_here
+                || local_city.is_some_and(|city| city.buildings.contains(&building))),
             RequirementRange::Player => {
+                if hypothetical_here {
+                    return Ok(true);
+                }
                 if matches!(
                     building.data().genus,
                     Genus::GreatWonder | Genus::SmallWonder
@@ -469,12 +502,104 @@ impl<'a> SimulationRequirementContext<'a> {
                         .any(|city| city.owner == self.owner && city.buildings.contains(&building)))
                 }
             }
+            RequirementRange::World => Ok(hypothetical_here
+                || self.simulation.cities.iter().any(|city| {
+                    city.buildings.contains(&building)
+                        && (!matches!(
+                            building.data().genus,
+                            Genus::GreatWonder | Genus::SmallWonder
+                        ) || self.simulation.has_active_wonder(city.owner, building))
+                })),
+            _ => Err(Self::unsupported(requirement)),
+        }
+    }
+
+    fn runtime_building_for_record(
+        &self,
+        record: &crate::rules::freeciv::ContentRecord,
+    ) -> Option<Building> {
+        Building::all().find(|building| {
+            building.data().name.eq_ignore_ascii_case(&record.rule_name)
+                || record
+                    .display_name
+                    .as_deref()
+                    .is_some_and(|display| building.data().name.eq_ignore_ascii_case(display))
+                || c2c3_building_name_aliases(building.data().name)
+                    .iter()
+                    .any(|alias| alias.eq_ignore_ascii_case(&record.rule_name))
+        })
+    }
+
+    fn building_flag_present(
+        &self,
+        requirement: &Requirement,
+    ) -> Result<bool, RequirementEvaluationError> {
+        let flag = Self::string_name(requirement)?;
+        let mut records = Vec::new();
+        for record in self
+            .ruleset
+            .content
+            .iter()
+            .filter(|record| record.kind == ContentKind::Building)
+        {
+            let flags = record
+                .string_list_field("flags")
+                .map_err(|_| Self::unsupported(requirement))?;
+            if flags.is_some_and(|flags| {
+                flags
+                    .iter()
+                    .any(|candidate| candidate.eq_ignore_ascii_case(flag))
+            }) {
+                records.push(record);
+            }
+        }
+        if records.is_empty() {
+            return Err(Self::unsupported(requirement));
+        }
+
+        let mut mapped = Vec::new();
+        for record in records {
+            if let Some(building) = self.runtime_building_for_record(record) {
+                mapped.push(building);
+            } else if !self.unbound_content_is_absent {
+                return Err(Self::unsupported(requirement));
+            }
+        }
+
+        let local_city = self
+            .city
+            .or_else(|| self.tile.and_then(|(x, y)| self.simulation.city_at(x, y)));
+        let building_is_owned = |building: Building, city: &super::City| {
+            city.buildings.contains(&building)
+                && (!matches!(
+                    building.data().genus,
+                    Genus::GreatWonder | Genus::SmallWonder
+                ) || self.simulation.has_active_wonder(city.owner, building))
+        };
+        let in_city = |building: Building, city: &super::City| {
+            (self.building_override == Some(building) && city.owner == self.owner)
+                || building_is_owned(building, city)
+        };
+
+        match requirement.range {
+            RequirementRange::City => Ok(local_city.is_some_and(|city| {
+                mapped
+                    .iter()
+                    .copied()
+                    .any(|building| in_city(building, city))
+            })),
+            RequirementRange::Player => Ok(self.simulation.cities.iter().any(|city| {
+                city.owner == self.owner
+                    && mapped
+                        .iter()
+                        .copied()
+                        .any(|building| in_city(building, city))
+            })),
             RequirementRange::World => Ok(self.simulation.cities.iter().any(|city| {
-                city.buildings.contains(&building)
-                    && (!matches!(
-                        building.data().genus,
-                        Genus::GreatWonder | Genus::SmallWonder
-                    ) || self.simulation.has_active_wonder(city.owner, building))
+                mapped
+                    .iter()
+                    .copied()
+                    .any(|building| in_city(building, city))
             })),
             _ => Err(Self::unsupported(requirement)),
         }
@@ -536,9 +661,15 @@ impl<'a> SimulationRequirementContext<'a> {
             "river" => state.river,
             "pollution" => state.pollution,
             "fallout" => state.fallout,
-            "fort" => state.base == Some(Base::Fort),
+            "fort" => {
+                state.base == Some(Base::Fort)
+                    || state.base.and_then(Base::underlying_after_removal) == Some(Base::Fort)
+            }
             "fortress" => state.base == Some(Base::Fortress),
-            "airstrip" => state.base == Some(Base::Airstrip),
+            "airstrip" => {
+                state.base == Some(Base::Airstrip)
+                    || state.base.and_then(Base::underlying_after_removal) == Some(Base::Airstrip)
+            }
             "airbase" => state.base == Some(Base::Airbase),
             "minor tribe village" | "ruins" => state.hut,
             // CivCraft's campaign tile model has no Buoy extra or source
@@ -732,32 +863,67 @@ impl<'a> SimulationRequirementContext<'a> {
         }) else {
             return Err(Self::unsupported(requirement));
         };
-        let same = self.owner == other;
-        let key = Simulation::relation_key(self.owner, other);
+        self.diplomatic_relation_between(self.owner, other, name, requirement)
+    }
+
+    fn diplomatic_relation_tile_other(
+        &self,
+        requirement: &Requirement,
+    ) -> Result<bool, RequirementEvaluationError> {
+        let name = Self::string_name(requirement)?;
+        let Some(tile) = self.tile else {
+            return Err(Self::unsupported(requirement));
+        };
+        let Some(tile_owner) = self.tile_state(tile).owner else {
+            return Ok(false);
+        };
+        let Some(other) = self.relation_target else {
+            return Ok(false);
+        };
+        self.diplomatic_relation_between(tile_owner, other, name, requirement)
+    }
+
+    fn diplomatic_relation_between(
+        &self,
+        owner: usize,
+        other: usize,
+        name: &str,
+        requirement: &Requirement,
+    ) -> Result<bool, RequirementEvaluationError> {
+        let same = owner == other;
+        let key = Simulation::relation_key(owner, other);
         // Contact timer entries are retained after their current contact
         // expires, so entry presence records that the civilizations have met
         // at least once. If diplomacy begins pruning those entries, it needs
         // a separate persistent first-contact query for this universal.
         let met = same
             || self.simulation.diplomatic_contact_until.contains_key(&key)
-            || self.simulation.has_embassy(self.owner, other)
-            || self.simulation.has_embassy(other, self.owner)
-            || self.simulation.pact(self.owner, other) != Pact::War;
+            || self.simulation.has_embassy(owner, other)
+            || self.simulation.has_embassy(other, owner)
+            || self.simulation.pact(owner, other) != Pact::War;
         let pact = if same {
             Pact::Alliance
         } else {
-            self.simulation.pact(self.owner, other)
+            self.simulation.pact(owner, other)
         };
         Ok(match name.to_ascii_lowercase().as_str() {
             "foreign" => !same,
             "domestic" => same,
             "never met" => !met,
-            "war" => met && pact == Pact::War,
+            // Freeciv DiplRel=War asks for the diplomatic state itself; the
+            // `Never Met` relation is a separate universal. Players may be at
+            // war before the campaign has recorded a contact event.
+            "war" => pact == Pact::War,
             "cease-fire" | "ceasefire" => pact == Pact::Ceasefire,
             "armistice" => pact == Pact::Armistice,
             "peace" => pact == Pact::Peace,
             "alliance" => pact == Pact::Alliance,
-            "has real embassy" => self.simulation.has_embassy(self.owner, other),
+            "has real embassy" => self.simulation.has_embassy(owner, other),
+            // The current single-player model has no team assignment state;
+            // each player is its own Freeciv team. This is centralized here
+            // so future explicit teams can replace the policy for every
+            // shared requirement/effect/action consumer.
+            "team" => same,
             _ => return Err(Self::unsupported(requirement)),
         })
     }
@@ -782,6 +948,14 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 ) =>
             {
                 self.building_present(requirement)
+            }
+            "buildingflag"
+                if matches!(
+                    requirement.range,
+                    RequirementRange::City | RequirementRange::Player | RequirementRange::World
+                ) =>
+            {
+                self.building_flag_present(requirement)
             }
             "buildinggenus" if requirement.range == RequirementRange::Local => {
                 self.building_genus_present(requirement)
@@ -836,7 +1010,10 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
             }
             "minsize" if requirement.range == RequirementRange::City => {
-                let Some(city) = self.city else {
+                let city = self
+                    .city
+                    .or_else(|| self.tile.and_then(|(x, y)| self.simulation.city_at(x, y)));
+                let Some(city) = city else {
                     return Ok(false);
                 };
                 let minimum = match &requirement.name {
@@ -849,19 +1026,33 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             }
             "citystatus" if requirement.range == RequirementRange::City => {
                 let name = Self::string_name(requirement)?;
-                if !name.eq_ignore_ascii_case("Celebration") {
-                    return Err(unsupported());
+                match name.to_ascii_lowercase().as_str() {
+                    "celebration" => Ok(self.celebrating.unwrap_or(false)),
+                    "disorder" => Ok(self.disordered.unwrap_or(false)),
+                    _ => Err(unsupported()),
                 }
-                Ok(self.celebrating.unwrap_or(false))
             }
             "citytile" if requirement.range == RequirementRange::Tile => {
                 let name = Self::string_name(requirement)?;
                 let tile = self.tile.ok_or_else(unsupported)?;
-                let city = self
-                    .city
-                    .or_else(|| self.simulation.city_at(tile.0, tile.1));
                 match name.to_ascii_lowercase().as_str() {
-                    "center" => Ok(city.is_some_and(|city| (city.x, city.y) == tile)),
+                    "center" => {
+                        if let Some((_, is_city_center)) = self
+                            .city_tile_center_override
+                            .filter(|(position, _)| *position == tile)
+                        {
+                            Ok(is_city_center)
+                        } else {
+                            let city = self
+                                .city
+                                .or_else(|| self.simulation.city_at(tile.0, tile.1));
+                            Ok(city.is_some_and(|city| (city.x, city.y) == tile))
+                        }
+                    }
+                    // common/requirements.c::is_citytile_req_active defines
+                    // CITYT_CLAIMED as tile ownership being present, including
+                    // the negated/unclaimed form used by C2C3 paradrop.
+                    "claimed" => Ok(self.tile_state(tile).owner.is_some()),
                     _ => Err(unsupported()),
                 }
             }
@@ -957,6 +1148,16 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 }
                 Ok(self.owner == super::BARBARIANS)
             }
+            "nation" if requirement.range == RequirementRange::Player => {
+                let name = Self::string_name(requirement)?;
+                if !name.eq_ignore_ascii_case("Animal Kingdom") {
+                    return Err(unsupported());
+                }
+                // The campaign uses the fixed Civ III roster and has no
+                // Animal Kingdom nation. Its barbarian player is distinct
+                // from Freeciv's Animal Kingdom nation as well.
+                Ok(false)
+            }
             "extra" if requirement.range == RequirementRange::Tile => {
                 let name = Self::string_name(requirement)?;
                 let tile = self.tile.ok_or_else(unsupported)?;
@@ -997,8 +1198,29 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 .ok_or_else(unsupported)?;
                 Ok(unit.moves_left >= threshold)
             }
+            "maxunitsontile" if requirement.range == RequirementRange::Tile => {
+                let tile = self.tile.ok_or_else(unsupported)?;
+                let maximum = match &requirement.name {
+                    RequirementValue::String(value) => value.parse::<usize>().ok(),
+                    RequirementValue::Integer(value) => usize::try_from(*value).ok(),
+                    _ => None,
+                }
+                .ok_or_else(unsupported)?;
+                let count = self
+                    .simulation
+                    .units
+                    .iter()
+                    .filter(|unit| (unit.x, unit.y) == tile)
+                    .count();
+                // common/requirements.c::is_maxtotalunitsontile_req_active
+                // compares the total tile-unit count with this maximum.
+                Ok(count <= maximum)
+            }
             "diplrel" if requirement.range == RequirementRange::Local => {
                 self.diplomatic_relation(requirement)
+            }
+            "diplreltileother" if requirement.range == RequirementRange::Local => {
+                self.diplomatic_relation_tile_other(requirement)
             }
             _ => Err(unsupported()),
         }
@@ -1078,6 +1300,56 @@ impl Simulation {
         }
     }
 
+    /// Evaluate an action from the player's remembered target tile. When a
+    /// tile snapshot is supplied, its owner is authoritative even when it is
+    /// `None`; consulting the live tile in that case would leak unseen state.
+    pub(crate) fn action_available_for_unit_with_target_state_fail_closed(
+        &self,
+        actor: &Unit,
+        action: &str,
+        target_xy: (i32, i32),
+        target_state: &Tile,
+    ) -> bool {
+        match self.action_available_for_unit_with_tile(actor, action, target_xy, Some(target_state))
+        {
+            Ok(available) => available,
+            Err(error) => {
+                Self::report_action_evaluation_error(action, &error);
+                false
+            }
+        }
+    }
+
+    /// Evaluate an action using the player's remembered tile and city-site
+    /// state. Both snapshots are authoritative for target requirements, so
+    /// hidden live ownership or city presence cannot affect action selection.
+    pub(crate) fn action_available_for_unit_with_known_target_state_fail_closed(
+        &self,
+        actor: &Unit,
+        action: &str,
+        target_xy: (i32, i32),
+        target_state: &Tile,
+        target_is_city_center: bool,
+    ) -> bool {
+        match self.action_available_for_unit_with_context(
+            actor,
+            action,
+            target_xy,
+            (actor.x, actor.y),
+            Some(target_state),
+            None,
+            None,
+            None,
+            Some((target_xy, target_is_city_center)),
+        ) {
+            Ok(available) => available,
+            Err(error) => {
+                Self::report_action_evaluation_error(action, &error);
+                false
+            }
+        }
+    }
+
     /// Evaluate a Freeciv action's ruleset enablers at a target tile. This is
     /// the enabler layer only; movement geometry, target-extra presence,
     /// project conflicts and action-result handlers remain separate checks.
@@ -1104,6 +1376,65 @@ impl Simulation {
         self.action_available_for_unit_with_tile(actor, action, target_xy, None)
     }
 
+    /// Evaluate an action against a specific unit in the target stack. This
+    /// keeps the actor and target requirement contexts shared while allowing
+    /// callers such as bombardment to check each actual defender.
+    pub(crate) fn action_available_for_unit_against_unit(
+        &self,
+        actor: &Unit,
+        action: &str,
+        target: &Unit,
+    ) -> Result<bool, ActionEvaluationError> {
+        self.action_available_for_unit_with_context(
+            actor,
+            action,
+            (target.x, target.y),
+            (actor.x, actor.y),
+            None,
+            None,
+            Some(target),
+            None,
+            None,
+        )
+    }
+
+    pub(crate) fn action_available_for_unit_against_unit_fail_closed(
+        &self,
+        actor: &Unit,
+        action: &str,
+        target: &Unit,
+    ) -> bool {
+        match self.action_available_for_unit_against_unit(actor, action, target) {
+            Ok(available) => available,
+            Err(error) => {
+                Self::report_action_evaluation_error(action, &error);
+                false
+            }
+        }
+    }
+
+    /// Evaluate an action against one specific city target. The target city
+    /// supplies the diplomatic owner and city-range requirements even when
+    /// the tile ownership cache has not yet been refreshed.
+    pub(crate) fn action_available_for_unit_against_city(
+        &self,
+        actor: &Unit,
+        action: &str,
+        target: &super::City,
+    ) -> Result<bool, ActionEvaluationError> {
+        self.action_available_for_unit_with_context(
+            actor,
+            action,
+            (target.x, target.y),
+            (actor.x, actor.y),
+            None,
+            None,
+            None,
+            Some(target),
+            None,
+        )
+    }
+
     /// Evaluate an action for a Civ III actor using the selected Freeciv
     /// unit record that supplies its ruleset flags. Automatic upkeep actions
     /// use this path because their identities come from the explicit
@@ -1123,7 +1454,9 @@ impl Simulation {
             (actor.x, actor.y),
             None,
             Some(unit_record),
+            None,
             target_city,
+            None,
         )
     }
 
@@ -1159,6 +1492,8 @@ impl Simulation {
             target_state,
             None,
             None,
+            None,
+            None,
         )
     }
 
@@ -1170,14 +1505,25 @@ impl Simulation {
         actor_tile_xy: (i32, i32),
         target_state: Option<&Tile>,
         unit_record: Option<&'static crate::rules::freeciv::ContentRecord>,
+        target_unit_override: Option<&Unit>,
         target_city: Option<&super::City>,
+        city_tile_center_override: Option<((i32, i32), bool)>,
     ) -> Result<bool, ActionEvaluationError> {
-        let target_unit = self.action_target_unit(actor, action, target_xy);
+        if target_unit_override.is_some_and(|unit| (unit.x, unit.y) != target_xy) {
+            return Ok(false);
+        }
+        let target_unit =
+            target_unit_override.or_else(|| self.action_target_unit(actor, action, target_xy));
         let target_city = target_city.filter(|city| (city.x, city.y) == target_xy);
         let target_owner = target_unit
             .map(|unit| unit.owner)
             .or_else(|| target_city.map(|city| city.owner))
-            .or_else(|| self.tile(target_xy.0, target_xy.1).owner);
+            .or_else(|| {
+                target_state.map_or_else(
+                    || self.tile(target_xy.0, target_xy.1).owner,
+                    |state| state.owner,
+                )
+            });
         let mut actor_context =
             SimulationRequirementContext::for_unit_at(self, actor, actor_tile_xy)
                 .with_relation_target(Some(target_owner.unwrap_or(actor.owner)))
@@ -1189,6 +1535,11 @@ impl Simulation {
             && actor_tile_xy == target_xy
         {
             actor_context = actor_context.with_tile_override(target_xy, state);
+        }
+        if let Some((position, is_city_center)) = city_tile_center_override
+            && actor_tile_xy == position
+        {
+            actor_context = actor_context.with_city_tile_center_override(position, is_city_center);
         }
         let target_context = if let Some(unit) = target_unit {
             SimulationRequirementContext::for_unit_at(self, unit, target_xy)
@@ -1205,6 +1556,11 @@ impl Simulation {
         .with_action(action);
         let target_context = if let Some(state) = target_state {
             target_context.with_tile_override(target_xy, state)
+        } else {
+            target_context
+        };
+        let target_context = if let Some((position, is_city_center)) = city_tile_center_override {
+            target_context.with_city_tile_center_override(position, is_city_center)
         } else {
             target_context
         };
@@ -2220,6 +2576,13 @@ pub(crate) fn freeciv_unit_class_rule_name(unit: UnitKind) -> Option<String> {
     None
 }
 
+/// Return the selected C2C3 unit section bound to a Civ III runtime identity.
+/// Units on the explicit no-type-record ledger have no selected unit-type
+/// combat-bonus table.
+pub(crate) fn freeciv_unit_type_section(unit: UnitKind) -> Option<String> {
+    direct_c2c3_unit_record(unit).map(|record| record.section.clone())
+}
+
 fn direct_c2c3_unit_record(
     unit: UnitKind,
 ) -> Option<&'static crate::rules::freeciv::ContentRecord> {
@@ -2245,6 +2608,18 @@ fn direct_c2c3_unit_record(
 /// `Some(false)` for a roster ID in the audited no-type-flag ledger and
 /// `None` when the ID or selected unit record has no declared binding.
 pub(crate) fn freeciv_unit_type_flag(unit: UnitKind, flag: &str) -> Option<bool> {
+    if flag.eq_ignore_ascii_case("Nuclear") && unit.is_nuclear_weapon() {
+        let rules = RulesetData::campaign_default();
+        let record = rules.content.iter().find(|record| {
+            record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case("unit_nuclear")
+        })?;
+        let flags = record.string_list_field("flags").ok().flatten()?;
+        return Some(
+            flags
+                .iter()
+                .any(|candidate| candidate.eq_ignore_ascii_case("Nuclear")),
+        );
+    }
     let conquests_id = unit.conquests_id()?;
     if let Some(record) = direct_c2c3_unit_record(unit) {
         let flags = record.string_list_field("flags").ok().flatten()?;
@@ -2261,6 +2636,50 @@ pub(crate) fn freeciv_unit_type_flag(unit: UnitKind, flag: &str) -> Option<bool>
     } else {
         None
     }
+}
+
+/// Resolve whether a selected C2C3 unit record can attack a defender's class.
+/// Freeciv targets every reachable unit class by default and only requires an
+/// explicit `targets` entry for classes marked `Unreachable`.
+pub(crate) fn freeciv_unit_can_target_class(
+    attacker: UnitKind,
+    defender: UnitKind,
+) -> Option<bool> {
+    // Requiring both mappings keeps Civ III catalog identities explicit. Units
+    // without a direct type record use their already-audited C2C3 class alias
+    // and the engine's default target behavior.
+    freeciv_unit_class_rule_name(attacker)?;
+    let target_class = freeciv_unit_class_rule_name(defender)?;
+    let unreachable = freeciv_unit_class_flag(defender, "Unreachable")?;
+    let explicitly_targeted = if let Some(record) = direct_c2c3_unit_record(attacker) {
+        record
+            .string_list_field("targets")
+            .ok()?
+            .unwrap_or_default()
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(&target_class))
+    } else {
+        false
+    };
+    Some(explicitly_targeted || !unreachable)
+}
+
+/// Resolve one selected C2C3 class flag through the Civ III unit-class
+/// crosswalk. Callers receive `None` when the runtime identity has no explicit
+/// class mapping or the selected ruleset omits the mapped record.
+pub(crate) fn freeciv_unit_class_flag(unit: UnitKind, flag: &str) -> Option<bool> {
+    let class_name = freeciv_unit_class_rule_name(unit)?;
+    let rules = RulesetData::campaign_default();
+    let class = rules.rule_records.iter().find(|record| {
+        record.namespace.eq_ignore_ascii_case("unit_class")
+            && record.rule_name.eq_ignore_ascii_case(&class_name)
+    })?;
+    let flags = class.string_list_field("flags").ok()??;
+    Some(
+        flags
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(flag)),
+    )
 }
 
 #[cfg(test)]
@@ -2289,6 +2708,37 @@ mod tests {
             tile.owner = None;
         }
         game
+    }
+
+    #[test]
+    fn citytile_claimed_uses_tile_ownership_and_supports_negation() {
+        let mut game = flat_game();
+        let position = (10, 20);
+        let requirement = |present| Requirement {
+            kind: "CityTile".to_owned(),
+            name: RequirementValue::String("Claimed".to_owned()),
+            range: RequirementRange::Tile,
+            present,
+            survives: false,
+            quiet: false,
+            source: crate::rules::freeciv::RuleSourceLocation {
+                file: std::path::PathBuf::new(),
+                section: "fixture".to_owned(),
+                key: "target_reqs".to_owned(),
+                line: 1,
+            },
+        };
+
+        let unclaimed =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some(position));
+        assert!(!unclaimed.is_present(&requirement(true)).unwrap());
+        assert!(requirements_met(&[requirement(false)], &unclaimed).unwrap());
+
+        game.tile_mut(position.0, position.1).owner = Some(crate::sim::HUMAN);
+        let claimed =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some(position));
+        assert!(claimed.is_present(&requirement(true)).unwrap());
+        assert!(!requirements_met(&[requirement(false)], &claimed).unwrap());
     }
 
     #[test]
@@ -2596,6 +3046,153 @@ mod tests {
     }
 
     #[test]
+    fn local_team_relation_uses_the_campaigns_single_player_team_mapping() {
+        let game = flat_game();
+        let context = || {
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some((10, 20)))
+        };
+        let requirement = |name: &str| Requirement {
+            kind: "DiplRel".to_owned(),
+            name: RequirementValue::String(name.to_owned()),
+            range: RequirementRange::Local,
+            present: true,
+            survives: false,
+            quiet: false,
+            source: crate::rules::freeciv::RuleSourceLocation {
+                file: "effects.ruleset".into(),
+                section: "test_team_relation".to_owned(),
+                key: "reqs".to_owned(),
+                line: 1,
+            },
+        };
+
+        assert!(
+            context()
+                .with_relation_target(Some(crate::sim::HUMAN))
+                .is_present(&requirement("Team"))
+                .unwrap()
+        );
+        assert!(
+            !context()
+                .with_relation_target(Some(1))
+                .is_present(&requirement("Team"))
+                .unwrap()
+        );
+        assert!(
+            context()
+                .with_relation_target(Some(1))
+                .is_present(&requirement("Foreign"))
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn shared_effect_evaluator_resolves_sdi_nuke_proof_target_and_actor_contexts() {
+        let mut game = flat_game();
+        let (x, y) = (10, 20);
+        let mut city = super::super::City::new(1, 1, x, y, "SDI City".to_owned(), 0);
+        city.buildings.push(Building::SDI_DEFENSE);
+        game.cities.push(city);
+        let rules = RulesetData::campaign_default();
+
+        let city_context = SimulationRequirementContext::for_city_at(
+            &game,
+            game.cities.last().unwrap(),
+            Some((x, y)),
+        )
+        .with_relation_target(Some(crate::sim::HUMAN));
+        assert_eq!(
+            effect_value(&rules.effects, "Nuke_Proof", &city_context).unwrap(),
+            100
+        );
+
+        let same_player_context = SimulationRequirementContext::for_city_at(
+            &game,
+            game.cities.last().unwrap(),
+            Some((x, y)),
+        )
+        .with_relation_target(Some(1));
+        assert_eq!(
+            effect_value(&rules.effects, "Nuke_Proof", &same_player_context).unwrap(),
+            0
+        );
+
+        game.cities.last_mut().unwrap().buildings.clear();
+        let no_sdi_context = SimulationRequirementContext::for_city_at(
+            &game,
+            game.cities.last().unwrap(),
+            Some((x, y)),
+        )
+        .with_relation_target(Some(crate::sim::HUMAN));
+        assert_eq!(
+            effect_value(&rules.effects, "Nuke_Proof", &no_sdi_context).unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn borrowed_target_action_context_uses_specific_enemy_on_an_unowned_tile() {
+        let mut game = flat_game();
+        let (x, y) = (10, 20);
+        let target_xy = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        game.sign_pact(crate::sim::HUMAN, 1, Pact::War);
+        game.tile_mut(target_xy.0, target_xy.1).owner = None;
+        let actor_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::Bomber, x, y);
+        let target_id = game.spawn_unit(1, UnitKind::Warrior, target_xy.0, target_xy.1);
+        let actor = game.unit_by_id(actor_id).unwrap().clone();
+        let target = game.unit_by_id(target_id).unwrap().clone();
+
+        assert!(
+            game.action_available_for_unit_against_unit(&actor, "Bombard", &target)
+                .unwrap()
+        );
+        assert!(
+            !game
+                .action_available_for_unit(&actor, "Bombard", target_xy)
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn retained_nuclear_units_map_the_selected_nuclear_flag_explicitly() {
+        assert_eq!(
+            freeciv_unit_type_flag(UnitKind::ICBM, "Nuclear"),
+            Some(true)
+        );
+        assert_eq!(
+            freeciv_unit_type_flag(UnitKind::TacticalNuke, "Nuclear"),
+            Some(true)
+        );
+        assert_ne!(
+            freeciv_unit_type_flag(UnitKind::CruiseMissile, "Nuclear"),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn borrowed_city_action_context_uses_city_owner_when_tile_owner_is_unset() {
+        let mut game = flat_game();
+        let (x, y) = (10, 20);
+        let target_xy = game.map_wrap.civ3_offset(x, y, 2, 0).unwrap();
+        game.sign_pact(crate::sim::HUMAN, 1, Pact::War);
+        let actor_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::ICBM, x, y);
+        game.create_city(1, target_xy.0, target_xy.1);
+        game.tile_mut(target_xy.0, target_xy.1).owner = None;
+        let actor = game.unit_by_id(actor_id).unwrap().clone();
+        let city = game.city_at(target_xy.0, target_xy.1).unwrap();
+
+        assert!(
+            !game
+                .action_available_for_unit(&actor, "Nuke City", target_xy)
+                .unwrap()
+        );
+        assert!(
+            game.action_available_for_unit_against_city(&actor, "Nuke City", city)
+                .unwrap()
+        );
+    }
+
+    #[test]
     fn world_tech_requirement_uses_selected_catalog_binding_and_living_players() {
         let mut game = flat_game();
         game.players[crate::sim::HUMAN].known.clear();
@@ -2807,6 +3404,34 @@ mod tests {
             DIRECT_C2C3_UNIT_RECORDS.len()
                 + C2C3_UNIT_RECORD_ALIASES.len()
                 + C2C3_DEFAULT_NO_TYPE_FLAGS.len()
+        );
+    }
+
+    #[test]
+    fn combat_target_classes_follow_selected_c2c3_rules() {
+        assert_eq!(
+            freeciv_unit_can_target_class(UnitKind::Warrior, UnitKind::Worker),
+            Some(true)
+        );
+        assert_eq!(
+            freeciv_unit_can_target_class(UnitKind::Warrior, UnitKind::Fighter),
+            Some(false)
+        );
+        assert_eq!(
+            freeciv_unit_can_target_class(UnitKind::Fighter, UnitKind::Fighter),
+            Some(true)
+        );
+        assert_eq!(
+            freeciv_unit_can_target_class(UnitKind::Fighter, UnitKind::Warrior),
+            Some(true)
+        );
+        assert_eq!(
+            freeciv_unit_class_flag(UnitKind::Fighter, "Unreachable"),
+            Some(true)
+        );
+        assert_eq!(
+            freeciv_unit_class_flag(UnitKind::Warrior, "AttackNonNative"),
+            Some(false)
         );
     }
 

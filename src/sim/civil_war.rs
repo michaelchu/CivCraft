@@ -1,7 +1,11 @@
 //! Civil war and civilization split resolution.
 
 use super::*;
+use crate::rules::freeciv::{RulesetData, action_enabled, effect_value};
 
+// Retained for the existing Civ III uprising path, which is scheduled for
+// the P12 world-events migration. The capital-capture path below uses C2C3
+// effects directly and does not call this compatibility helper.
 impl Government {
     pub(super) fn civil_war_chance(self) -> i32 {
         if let Some(value) = self.ruleset_effect_value("Civil_War_Chance") {
@@ -17,33 +21,101 @@ impl Government {
 
 impl Simulation {
     pub(super) fn capital_loss_triggers_civil_war(&mut self, owner: usize) -> bool {
-        if owner == BARBARIANS || self.players.len() >= PLAYER_SLOTS {
+        if owner == BARBARIANS || owner >= self.players.len() {
             return false;
         }
-        let cities: Vec<_> = self
-            .cities
-            .iter()
-            .filter(|city| city.owner == owner)
-            .collect();
-        if cities.len() < 10 {
+
+        let rules = RulesetData::campaign_default();
+        let normal_player_count = self.players.len().saturating_sub(1);
+        if normal_player_count >= PLAYER_SLOTS - 12 || !self.civil_war_possible(owner, true, true) {
             return false;
         }
-        let base = self.players[owner].government.civil_war_chance();
-        let modifier: i32 = cities
-            .into_iter()
+
+        // plrhand.c::civil_war_triggered consumes the trigger draw before
+        // evaluating either the government effect or city-status effects.
+        let dice = self.rand_below(100);
+        let player_context =
+            super::action_rules::SimulationRequirementContext::for_player_at(self, owner, None)
+                .with_government(self.players[owner].government);
+        let base_chance = effect_value(&rules.effects, "Civil_War_Chance", &player_context)
+            .expect("campaign C2C3 Civil_War_Chance requirements are supported");
+        let city_bonus: i64 = self
+            .player_cities_ordered(owner)
+            .cloned()
             .map(|city| {
-                let luxury = self.city_trade(city, self.city_yields(city).2)[2];
-                let (disorder, happy) = self.city_mood(city, luxury);
-                5 * (i32::from(disorder) - i32::from(city.was_happy && happy))
+                let luxury = self.city_trade(&city, self.city_yields(&city).2)[2];
+                let (disorder, happy) = self.city_mood(&city, luxury);
+                let context = super::action_rules::SimulationRequirementContext::for_city_at(
+                    self,
+                    &city,
+                    Some((city.x, city.y)),
+                )
+                .with_disordered(disorder)
+                .with_celebrating(city.was_happy && happy);
+                effect_value(&rules.effects, "Civil_War_City_Bonus", &context)
+                    .expect("campaign C2C3 Civil_War_City_Bonus requirements are supported")
             })
             .sum();
-        self.rand_below(100) < base + modifier
+        i64::from(dice) < base_chance - city_bonus
+    }
+
+    fn civil_war_possible(
+        &self,
+        owner: usize,
+        conquering_city: bool,
+        honour_server_option: bool,
+    ) -> bool {
+        let rules = RulesetData::campaign_default();
+        let player_context =
+            super::action_rules::SimulationRequirementContext::for_player_at(self, owner, None)
+                .with_action("Civil War")
+                .with_relation_target(Some(owner));
+        let action_enabled = action_enabled(
+            &rules.action_enablers,
+            "Civil War",
+            &player_context,
+            &player_context,
+        )
+        .expect("campaign C2C3 Civil War action requirements are supported");
+        if !action_enabled {
+            return false;
+        }
+
+        let city_count = self.player_cities_ordered(owner).count();
+        let remaining = city_count.saturating_sub(if conquering_city { 1 } else { 0 });
+        if remaining < 2 {
+            return false;
+        }
+        if !honour_server_option {
+            return true;
+        }
+        let settings: crate::rules::freeciv::CivilWarRulesetSettings = rules
+            .civil_war_settings()
+            .expect("selected C2C3 civil-war settings are valid");
+        settings.city_threshold < 1000 && city_count >= settings.city_threshold
     }
 
     pub(super) fn split_civil_war(&mut self, owner: usize) {
+        let rules = RulesetData::campaign_default();
+        let settings = rules
+            .civil_war_settings()
+            .expect("selected C2C3 civil-war settings are valid");
+        let normal_player_count = self.players.len().saturating_sub(1);
+        let playable_nations = rules
+            .content
+            .iter()
+            .filter(|record| record.kind == crate::rules::freeciv::ContentKind::Nation)
+            .count();
+        if normal_player_count >= settings.max_players
+            || normal_player_count >= playable_nations
+            || normal_player_count >= PLAYER_SLOTS - 12
+        {
+            return;
+        }
         let candidates: Vec<_> = self
             .player_cities_ordered(owner)
             .filter(|city| !city.buildings.contains(&Building::PALACE))
+            .filter(|city| !self.city_hosts_game_loss_unit(city, owner))
             .filter_map(|city| {
                 self.cities
                     .iter()
@@ -154,6 +226,15 @@ impl Simulation {
             self.players[rebel].name,
             defectors.len()
         ));
+    }
+
+    fn city_hosts_game_loss_unit(&self, city: &City, owner: usize) -> bool {
+        self.units.iter().any(|unit| {
+            unit.owner == owner
+                && (unit.x, unit.y) == (city.x, city.y)
+                && super::action_rules::freeciv_unit_type_flag(unit.kind, "GameLoss")
+                    .expect("campaign C2C3 GameLoss flags are explicitly mapped")
+        })
     }
 
     pub(super) fn resolve_split_stacks(&mut self, original: usize, rebel: usize) {

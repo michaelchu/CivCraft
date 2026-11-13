@@ -313,6 +313,39 @@ impl MapWrap {
         }
         tiles
     }
+
+    /// Return the selected Freeciv map's `square_iterate` neighborhood in its
+    /// deterministic order, adapted to CivCraft's X-wrapped, bounded-Y map.
+    /// Freeciv sorts the map-space offsets by real topology distance, then
+    /// `dx`, then `dy`; preserving that order keeps bounce RNG outcomes stable.
+    pub(crate) fn freeciv_square_radius(self, x: i32, y: i32, radius: i32) -> Vec<(i32, i32)> {
+        let (center_map_x, center_map_y) = native_to_map(x, y);
+        let mut offsets = Vec::new();
+        for dx in -radius..=radius {
+            for dy in -radius..=radius {
+                let distance = isohex_vector_distance(dx, dy);
+                if distance <= radius {
+                    offsets.push((distance, dx, dy));
+                }
+            }
+        }
+        offsets.sort_unstable();
+
+        let mut seen = HashSet::new();
+        offsets
+            .into_iter()
+            .filter_map(|(_, dx, dy)| {
+                let (native_x, native_y) = map_to_native(center_map_x + dx, center_map_y + dy);
+                if !(0..self.height()).contains(&native_y) {
+                    return None;
+                }
+                let native_x = native_x.rem_euclid(self.width());
+                let index = self.index(native_x, native_y);
+                seen.insert(index).then_some((native_x, native_y))
+            })
+            .collect()
+    }
+
     /// Neighbor in Civ III's eight-direction grid, adapting the current
     /// rectangular tile storage to occupied staggered coordinates.
     pub(crate) fn civ3_neighbor(self, x: i32, y: i32, direction: usize) -> Option<(i32, i32)> {
@@ -497,6 +530,25 @@ mod wrap_tests {
             assert_eq!(neighbors, expected);
             assert_eq!(neighbors.len(), 8);
         }
+    }
+
+    #[test]
+    fn freeciv_square_radius_keeps_source_order_and_adapts_horizontal_seams() {
+        let wrap = MapWrap::X;
+        let center = (wrap.width() / 2, wrap.height() / 2);
+        let tiles = wrap.freeciv_square_radius(center.0, center.1, 2);
+        assert_eq!(tiles.len(), 19, "ISO|HEX radius two contains 19 tiles");
+        let (map_x, map_y) = native_to_map(center.0, center.1);
+        let expected_prefix =
+            [(0, 0), (-1, -1), (-1, 0), (0, -1), (0, 1), (1, 0), (1, 1)].map(|(dx, dy)| {
+                let (x, y) = map_to_native(map_x + dx, map_y + dy);
+                (x.rem_euclid(wrap.width()), y)
+            });
+        assert_eq!(&tiles[..expected_prefix.len()], expected_prefix);
+
+        let seam = wrap.freeciv_square_radius(0, center.1, 2);
+        assert!(seam.contains(&(wrap.width() - 1, center.1)));
+        assert_eq!(seam, wrap.freeciv_square_radius(0, center.1, 2));
     }
 
     #[test]

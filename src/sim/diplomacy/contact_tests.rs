@@ -47,6 +47,16 @@ fn ordinary_combat_and_city_conquest_do_not_fabricate_incidents() {
     game.diplomatic_contact_until.clear();
     assert!(!game.diplomacy.contains_key(&(HUMAN, 2)));
     game.set_random_seed(1);
+    let attacker = game.unit_by_id(actor).unwrap().clone();
+    let defender_id = game
+        .best_defender_id(&attacker, target.0, target.1)
+        .unwrap();
+    let defender = game.unit_by_id(defender_id).unwrap();
+    assert!(
+        game.action_available_for_unit_against_unit(&attacker, "Attack", defender)
+            .unwrap()
+    );
+    assert!(game.physical_attack_stack_allowed(&attacker, target.0, target.1));
     assert!(game.apply(Command::Move(actor, 1, 0)));
     assert_eq!(
         game.cities
@@ -90,7 +100,7 @@ fn a_lost_attack_does_not_refresh_contact_without_actual_movement() {
 }
 
 #[test]
-fn intercepted_nuclear_action_has_no_incident_but_a_successful_strike_does() {
+fn nuclear_actions_apply_selected_success_casus_belli_after_the_blast() {
     for intercepted in [true, false] {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let (missile, _, city_id) = game.nuclear_playtest_setup(intercepted);
@@ -113,7 +123,9 @@ fn intercepted_nuclear_action_has_no_incident_but_a_successful_strike_does() {
                 4
             );
         } else {
-            assert_eq!(relation.trust[1], -3000);
+            // C2C3 grants a casus belli for successful nuclear actions; it
+            // does not define a trust penalty or a caught-action consequence.
+            assert_eq!(relation.trust[1], 0);
             assert_eq!(relation.cause_until[1], game.turn + 2);
             assert_eq!(
                 game.cities

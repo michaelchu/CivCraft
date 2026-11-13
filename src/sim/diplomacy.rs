@@ -357,6 +357,50 @@ impl Simulation {
         }
     }
 
+    pub(super) fn action_success_casus_belli(
+        &mut self,
+        actor: &Unit,
+        action: &str,
+        victim: Option<usize>,
+        target: (i32, i32),
+    ) {
+        let rules = crate::rules::freeciv::RulesetData::campaign_default();
+        let context =
+            super::action_rules::SimulationRequirementContext::for_unit_at(self, actor, target)
+                .with_action(action)
+                .with_relation_target(victim);
+        let value =
+            crate::rules::freeciv::effect_value(&rules.effects, "Casus_Belli_Success", &context)
+                .expect("selected C2C3 Casus_Belli_Success requirements are supported");
+        if value > 0
+            && let Some(victim) = victim
+        {
+            self.record_provocation(victim, actor.owner);
+        }
+    }
+
+    pub(super) fn action_caught_casus_belli(
+        &mut self,
+        actor: &Unit,
+        action: &str,
+        victim: Option<usize>,
+        target: (i32, i32),
+    ) {
+        let rules = crate::rules::freeciv::RulesetData::campaign_default();
+        let context =
+            super::action_rules::SimulationRequirementContext::for_unit_at(self, actor, target)
+                .with_action(action)
+                .with_relation_target(victim);
+        let value =
+            crate::rules::freeciv::effect_value(&rules.effects, "Casus_Belli_Caught", &context)
+                .expect("selected C2C3 Casus_Belli_Caught requirements are supported");
+        if value > 0
+            && let Some(victim) = victim
+        {
+            self.record_provocation(victim, actor.owner);
+        }
+    }
+
     pub(super) fn advance_diplomacy(&mut self) {
         let mut transitions = Vec::new();
         for (&(a, b), relation) in &mut self.diplomacy {

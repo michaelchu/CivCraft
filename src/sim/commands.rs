@@ -15,6 +15,7 @@ use crate::rules::{Building, Tech};
 pub(crate) enum Command {
     Move(u32, i32, i32),
     MoveCiv3(u32, usize),
+    CaptureUnits(u32, i32, i32),
     Bombard(u32, i32, i32),
     GoTo(u32, i32, i32),
     FoundCity(u32),
@@ -47,8 +48,6 @@ pub(crate) enum Command {
     HelpWonder(u32, u32),
     JoinCity(u32, u32),
     Airlift(u32, u32),
-    AirSuperiority(u32),
-    Rebase(u32, i32, i32),
     Paradrop(u32, i32, i32),
     UpgradeUnit(u32, UnitKind, i32),
     LaunchSpaceship,
@@ -68,6 +67,7 @@ impl Simulation {
         let unit_id = match command {
             Move(id, ..)
             | MoveCiv3(id, _)
+            | CaptureUnits(id, ..)
             | Bombard(id, ..)
             | GoTo(id, ..)
             | FoundCity(id)
@@ -85,8 +85,6 @@ impl Simulation {
             | JoinCity(id, _)
             | Paradrop(id, ..)
             | Airlift(id, _) => Some(id),
-            AirSuperiority(id) => Some(id),
-            Rebase(id, ..) => Some(id),
             _ => None,
         };
         let unit_index = unit_id.and_then(|id| {
@@ -102,6 +100,7 @@ impl Simulation {
             MoveCiv3(id, direction) => {
                 self.try_move_unit_civ3(id, direction) != MoveResult::Blocked
             }
+            CaptureUnits(id, x, y) => self.try_capture_units_by_id(id, x, y),
             Bombard(id, x, y) => self.try_ranged_bombard(id, x, y) != MoveResult::Blocked,
             GoTo(id, x, y) => {
                 (0..self.map_wrap.width()).contains(&x)
@@ -118,8 +117,6 @@ impl Simulation {
             JoinCity(id, city) => self.join_city(id, city),
             Paradrop(id, x, y) => self.paradrop(id, x, y),
             Airlift(id, city) => self.airlift(id, city),
-            AirSuperiority(id) => self.assign_air_superiority(id),
-            Rebase(id, x, y) => self.rebase_aircraft(id, x, y),
             Work(id, kind) => self.begin_work(id, kind),
             Fortify(id) => self.fortify_unit(id),
             Wait(_) | Sentry(_) => {

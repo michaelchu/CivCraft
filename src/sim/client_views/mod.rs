@@ -153,10 +153,9 @@ pub(crate) struct UnitActionView {
     pub(crate) moves_left: i32,
     pub(crate) work_left: i32,
     pub(crate) upgrade: Option<(UnitKind, i32, bool)>,
-    pub(crate) air_superiority: bool,
-    pub(crate) rebase: bool,
     pub(crate) paradrop: bool,
     pub(crate) bombard: bool,
+    pub(crate) capture_units: bool,
     pub(crate) cities: Vec<UnitCityActionView>,
     pub(crate) nuclear_weapon: bool,
     pub(crate) nuclear_strike: bool,
@@ -484,10 +483,18 @@ mod tests {
         }
 
         let automated = sim.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
-        sim.units.iter_mut().find(|unit| unit.id == automated).unwrap().automated = true;
+        sim.units
+            .iter_mut()
+            .find(|unit| unit.id == automated)
+            .unwrap()
+            .automated = true;
 
         let sentry = sim.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
-        sim.units.iter_mut().find(|unit| unit.id == sentry).unwrap().state = UnitState::Sentry;
+        sim.units
+            .iter_mut()
+            .find(|unit| unit.id == sentry)
+            .unwrap()
+            .state = UnitState::Sentry;
 
         let fortified_military = sim.spawn_unit(HUMAN, UnitKind::Warrior, 12, 20);
         sim.units

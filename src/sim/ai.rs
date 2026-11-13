@@ -177,28 +177,6 @@ impl Simulation {
                 self.run_ai_nuclear_strike(id);
                 continue;
             }
-            if unit.state == UnitState::AirSuperiority {
-                // Air Superiority is a stationary defense mission. Incoming
-                // enemy air missions trigger its interception hook.
-                continue;
-            }
-            if owner != HUMAN
-                && unit.kind.can_attack_aircraft()
-                && unit
-                    .kind
-                    .has_ai_strategy(super::unit_catalog::UnitAiStrategy::AirDefense)
-                && self.units.iter().any(|enemy| {
-                    self.at_war(owner, enemy.owner)
-                        && (enemy.kind.is_aircraft() || enemy.kind.is_missile())
-                        && self
-                            .map_wrap
-                            .civ3_distance(unit.x, unit.y, enemy.x, enemy.y)
-                            <= i32::from(unit.kind.fuel_capacity()) / 2
-                })
-                && self.assign_ai_air_superiority(id)
-            {
-                continue;
-            }
             if self.ai_guard_targets.contains_key(&id) && self.run_ai_guard(id) {
                 continue;
             }

@@ -13,7 +13,7 @@ pub(super) struct UnitRule {
     pub(super) category: &'static str,
     /// All original PRTO prototype indices represented by this campaign identity.
     /// Multiple indices occur when the same unit identity appears in more than
-    /// one installed BIQ; stealth target lists refer to these numeric indices.
+    /// one installed BIQ.
     pub(super) source_prototypes: &'static str,
     pub(super) required_technology: &'static str,
     pub(super) required_resources: [&'static str; 3],
@@ -41,8 +41,6 @@ pub(super) struct UnitRule {
     #[allow(dead_code)]
     pub(super) require_support: i32,
     pub(super) enslave_result_prototype_index: i32,
-    #[allow(dead_code)]
-    pub(super) stealth_target_prototype_indices: &'static str,
     pub(super) create_craters: i32,
     pub(super) worker_strength: f32,
     #[allow(dead_code)]
@@ -131,27 +129,6 @@ pub(super) fn experience_rank(rank: usize) -> &'static ExperienceRule {
 }
 
 impl UnitRule {
-    pub(super) fn can_stealth_target(&self, defender: &UnitRule) -> bool {
-        if self.stealth_target_prototype_indices.is_empty() {
-            return true;
-        }
-
-        self.stealth_target_prototype_indices
-            .split(';')
-            .map(|index| {
-                index
-                    .parse::<u16>()
-                    .expect("valid stealth target PRTO index")
-            })
-            .any(|target_index| {
-                defender
-                    .source_prototypes
-                    .split(';')
-                    .map(|index| index.parse::<u16>().expect("valid source PRTO index"))
-                    .any(|defender_index| defender_index == target_index)
-            })
-    }
-
     pub(super) fn has_flag_1(&self, byte: usize, bit: u8) -> bool {
         self.flags_1
             .get(byte)
@@ -510,7 +487,6 @@ fn rules() -> &'static [UnitRule] {
                 bombard_effects: number(35),
                 require_support: number(36),
                 enslave_result_prototype_index: number(37),
-                stealth_target_prototype_indices: fields[38],
                 create_craters: number(39),
                 worker_strength: fields[40].parse::<f32>().unwrap_or_else(|error| {
                     panic!(

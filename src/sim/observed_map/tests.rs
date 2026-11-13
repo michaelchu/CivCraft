@@ -547,6 +547,53 @@ fn vision_uses_c2c3_effects_for_units_cities_and_reveal() {
 }
 
 #[test]
+fn map_show_circle_uses_base_unit_radius_without_revealing_units() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.visible = false;
+        tile.seen = false;
+        tile.known_by.fill(false);
+    }
+
+    let center = (10, 20);
+    game.tile_mut(center.0, center.1).base = Some(Base::Airbase);
+    let unit_type_radius =
+        ruleset_unit_vision_radius_sq(RulesetData::campaign_default(), UnitKind::Fighter);
+    let effect_radius =
+        game.unit_vision_radius_sq_for(HUMAN, UnitKind::Fighter, center.0, center.1);
+    assert!(
+        effect_radius > unit_type_radius,
+        "Airbase adds normal unit sight"
+    );
+
+    let hidden_unit_tile = game.map_wrap.civ3_neighbor(center.0, center.1, 2).unwrap();
+    let hidden_unit = game.spawn_unit(1, UnitKind::Warrior, hidden_unit_tile.0, hidden_unit_tile.1);
+    let outside_radius = (unit_type_radius as f64).sqrt().ceil() as i32 + 1;
+    let outside_base_circle = (0..outside_radius).fold(center, |position, _| {
+        game.map_wrap
+            .civ3_neighbor(position.0, position.1, 2)
+            .unwrap()
+    });
+    assert!(!game.unit_visible_to_human(game.unit_by_id(hidden_unit).unwrap()));
+
+    game.show_map_circle_to_player(HUMAN, center.0, center.1, UnitKind::Fighter);
+
+    assert!(game.tile(hidden_unit_tile.0, hidden_unit_tile.1).seen);
+    assert!(!game.tile(hidden_unit_tile.0, hidden_unit_tile.1).visible);
+    assert!(!game.unit_visible_to_human(game.unit_by_id(hidden_unit).unwrap()));
+    assert!(!game.tile(outside_base_circle.0, outside_base_circle.1).seen);
+    assert!(
+        !game
+            .tile(outside_base_circle.0, outside_base_circle.1)
+            .known_by[HUMAN]
+    );
+}
+
+#[test]
 fn c2c3_hex_radius_sq_uses_civ3_steps_without_crossing_poles() {
     let game = Simulation::new(crate::mapgen::generate(42));
     let origin = (20, 20);

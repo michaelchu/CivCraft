@@ -147,10 +147,9 @@ impl Simulation {
             moves_left: unit.moves_left,
             work_left,
             upgrade,
-            air_superiority: self.can_assign_air_superiority(unit),
-            rebase: self.can_begin_rebase(unit),
             paradrop: self.can_begin_paradrop(unit),
             bombard: self.can_begin_bombard(unit),
+            capture_units: self.can_begin_capture_units(unit),
             cities,
             nuclear_weapon: unit.kind.is_nuclear_weapon(),
             nuclear_strike: self.can_begin_nuclear_strike(unit),
@@ -269,7 +268,6 @@ impl Simulation {
                 UnitState::Fortifying => "Fortifying".to_owned(),
                 UnitState::Fortified => "Fortified (+50% defense)".to_owned(),
                 UnitState::Sentry => "Sentry".to_owned(),
-                UnitState::AirSuperiority => "Air Superiority".to_owned(),
             }
         };
         let status = if unit.kind.is_aircraft() {

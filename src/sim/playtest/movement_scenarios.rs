@@ -519,7 +519,11 @@ impl Simulation {
         game.fortify_unit(guard);
         let retained = game.units.last().unwrap().moves_left == old_mp;
         let guard_before_heal = game.unit_by_id(guard).unwrap().clone();
-        let field_hp = 1 + Self::hitpoint_gain(&guard_before_heal, false);
+        let field_hp = 1 + game.unit_hitpoint_gain_at(
+            &guard_before_heal,
+            guard_before_heal.x,
+            guard_before_heal.y,
+        );
         game.restore_player_units(HUMAN);
         let unfortified_hp = game.units.last().unwrap().hp == field_hp;
         game.progress_player_unit_activities(HUMAN);

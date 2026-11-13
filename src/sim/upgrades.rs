@@ -60,7 +60,12 @@ impl Simulation {
             return false;
         }
         self.players[owner].gold -= quoted_price;
-        self.transform_upgraded_unit(index, target, quoted_price);
+        let settings: crate::rules::freeciv::VeterancySettings =
+            crate::rules::freeciv::RulesetData::campaign_default()
+                .veterancy_settings()
+                .expect("campaign C2C3 veterancy settings are valid");
+        let veteran_loss = settings.upgrade_veteran_loss;
+        self.transform_upgraded_unit(index, target, quoted_price, veteran_loss);
         self.refresh_visibility();
         true
     }
@@ -83,11 +88,22 @@ impl Simulation {
         if !candidates.is_empty() {
             let (id, target) = candidates[self.rand_below(candidates.len() as i32) as usize];
             let index = self.unit_index_by_id(id).unwrap();
-            self.transform_upgraded_unit(index, target, 0);
+            let settings: crate::rules::freeciv::VeterancySettings =
+                crate::rules::freeciv::RulesetData::campaign_default()
+                    .veterancy_settings()
+                    .expect("campaign C2C3 veterancy settings are valid");
+            let veteran_loss = settings.autoupgrade_veteran_loss;
+            self.transform_upgraded_unit(index, target, 0, veteran_loss);
         }
     }
 
-    fn transform_upgraded_unit(&mut self, index: usize, target: UnitKind, price: i32) {
+    fn transform_upgraded_unit(
+        &mut self,
+        index: usize,
+        target: UnitKind,
+        price: i32,
+        veteran_loss: usize,
+    ) {
         let unit = &mut self.units[index];
         let original = unit.kind;
         let old_max_hp = unit.max_hit_points();
@@ -95,6 +111,14 @@ impl Simulation {
         let to = target.stats();
         unit.kind = target;
         unit.veteran = unit.veteran.saturating_sub(1);
+        let max_c2c3_veteran = super::veterancy::selected_veteran_system(target)
+            .levels
+            .len()
+            .saturating_sub(1);
+        unit.c2c3_veteran = unit
+            .c2c3_veteran
+            .min(max_c2c3_veteran)
+            .saturating_sub(veteran_loss);
         let new_max_hp = unit.max_hit_points();
         unit.hp = (unit.hp * new_max_hp / old_max_hp).clamp(1, new_max_hp);
         unit.moves_left = unit.moves_left * to.moves / from.moves;
@@ -114,10 +138,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn paid_upgrades_scale_health_and_reduce_rank_and_require_own_city() {
+    fn paid_upgrades_apply_selected_veteran_loss_and_require_own_city() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.create_city(HUMAN, 10, 20);
         let id = game.upgrade_playtest_setup();
+        game.units.last_mut().unwrap().c2c3_veteran = 3;
         let original = game.units.last().unwrap().clone();
         let cost = UnitKind::Legionary.stats().cost - UnitKind::Warrior.stats().cost / 2;
         let price = (2 * cost + cost * cost / 20) / 2;
@@ -137,6 +162,7 @@ mod tests {
         assert!(game.apply(Command::UpgradeUnit(id, UnitKind::Legionary, price)));
         let unit = game.units.last().unwrap();
         assert_eq!(unit.veteran, 1);
+        assert_eq!(unit.c2c3_veteran, 2);
         assert_eq!(unit.hp, expected_hp);
         assert_eq!(game.players[HUMAN].gold, gold - price);
         let field = game.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
@@ -197,5 +223,21 @@ mod tests {
         game.apply_workshop_upgrades();
         assert!(game.units.iter().all(|unit| unit.kind == UnitKind::Worker));
         assert_eq!(game.players[HUMAN].gold, gold);
+    }
+
+    #[test]
+    fn workshop_upgrades_apply_selected_automatic_veteran_loss() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.create_city(HUMAN, 10, 20);
+        let id = game.upgrade_playtest_setup();
+        game.units.last_mut().unwrap().c2c3_veteran = 3;
+        game.cities[0].buildings.push(Building::LEONARDOS_WORKSHOP);
+
+        game.apply_workshop_upgrades_for(HUMAN);
+
+        let unit = game.unit_by_id(id).unwrap();
+        assert_eq!(unit.kind, UnitKind::Legionary);
+        assert_eq!(unit.veteran, 1);
+        assert_eq!(unit.c2c3_veteran, 2);
     }
 }

@@ -1,0 +1,19 @@
+# Freeciv source-derived combat attacker-win probabilities.
+# Source revision: 9ff184b6eb128ca636c7ad6269e27aa959600006
+# Source function: common/combat.c::win_chance(int as, int ahp, int afp, int ds, int dhp, int dfp)
+# Extracted function SHA-256: 3a9a66e25820d6732e6b217fc4797c85bffe1ff3266cccc69be695b7de59d97b
+# Inputs: as=attacker strength, ahp=attacker HP, afp=attacker firepower; ds/dhp/dfp are defender values.
+# Output: probability that the attacker wins, from the unmodified C function.
+# case	as	ahp	afp	ds	dhp	dfp	attacker_win_probability
+symmetric_one_hp_per_round	10	10	1	10	10	1	0.5
+attacker_strength_advantage	20	10	1	10	10	1	0.93523382720903792
+defender_strength_advantage	10	10	1	20	10	1	0.064766172790962931
+attacker_extra_hit_points	10	20	1	10	10	1	0.96928582713007927
+defender_extra_hit_points	10	10	1	10	20	1	0.030714172869920731
+attacker_higher_firepower	10	10	2	10	10	1	0.91021728515625
+defender_higher_firepower	10	10	1	10	10	2	0.08978271484375
+asymmetric_strength_hp_firepower	12	10	3	8	7	2	0.90374400000000021
+single_hit_attacker	10	1	1	10	10	1	0.0009765625
+zero_strength_uses_equal_round_odds	0	10	1	0	10	1	0.5
+extreme_attacker_advantage	1000	1	1	1	1	1	0.99900099900099903
+extreme_defender_advantage	1	1	1	1000	20	3	9.8020846881200859e-61

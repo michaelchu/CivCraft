@@ -153,6 +153,7 @@ veteran_move_bonus = 0, 0, 0, 0
 ; /* TRANS: Unit class: used adjectivally */
 name          = _("?unitclass:Missile")
 min_speed     = 0
+non_native_def_pct = 100
 hp_loss_pct   = 0
 flags         = "Missile", "Unreachable", "DoesntOccupyTile", "Airliftable",
                 "HutFrighten", "Aerial"
@@ -161,6 +162,7 @@ flags         = "Missile", "Unreachable", "DoesntOccupyTile", "Airliftable",
 ; /* TRANS: Unit class: used adjectivally */
 name          = _("?unitclass:Land")
 min_speed     = 1
+non_native_def_pct = 100
 hp_loss_pct   = 0
 flags         = "TerrainSpeed", "DamageSlows", "CanOccupyCity", "BuildAnywhere",
                 "CollectRansom", "ZOC", "CanFortify", "CanPillage",
@@ -171,6 +173,7 @@ flags         = "TerrainSpeed", "DamageSlows", "CanOccupyCity", "BuildAnywhere",
 ; /* TRANS: Unit class: used adjectivally */
 name          = _("?unitclass:Small Land")
 min_speed     = 1
+non_native_def_pct = 100
 hp_loss_pct   = 0
 flags         = "TerrainSpeed", "DamageSlows", "BuildAnywhere", "CollectRansom",
                 "ZOC", "CanFortify", "TerrainDefense", "DoesntOccupyTile",
@@ -180,6 +183,7 @@ flags         = "TerrainSpeed", "DamageSlows", "BuildAnywhere", "CollectRansom",
 ; /* TRANS: Unit class: used adjectivally */
 name          = _("?unitclass:Big Land")
 min_speed     = 1
+non_native_def_pct = 100
 hp_loss_pct   = 0
 flags         = "TerrainSpeed", "DamageSlows", "CanOccupyCity", "BuildAnywhere",
                 "CollectRansom","ZOC", "CanFortify", "KillCitizen", "Airliftable",
@@ -189,6 +193,7 @@ flags         = "TerrainSpeed", "DamageSlows", "CanOccupyCity", "BuildAnywhere",
 ; /* TRANS: Unit class: used adjectivally */
 name          = _("?unitclass:Merchant")
 min_speed     = 1
+non_native_def_pct = 100
 hp_loss_pct   = 0
 flags         = "BuildAnywhere", "DoesntOccupyTile",
                 "ZOC", "TerrainDefense", "TerrainSpeed", "Airliftable",
@@ -198,6 +203,7 @@ flags         = "BuildAnywhere", "DoesntOccupyTile",
 ; /* TRANS: Unit class: used adjectivally */
 name          = _("?unitclass:Sea")
 min_speed     = 2
+non_native_def_pct = 100
 hp_loss_pct   = 0
 flags         = "DamageSlows", "AttackNonNative", "AttFromNonNative"
 
@@ -205,6 +211,7 @@ flags         = "DamageSlows", "AttackNonNative", "AttFromNonNative"
 ; /* TRANS: Unit class: used adjectivally */
 name          = _("?unitclass:Trireme")
 min_speed     = 2
+non_native_def_pct = 100
 hp_loss_pct   = 0
 flags         = "ZOC", "DamageSlows", "AttFromNonNative"
 
@@ -212,6 +219,7 @@ flags         = "ZOC", "DamageSlows", "AttFromNonNative"
 ; /* TRANS: Unit class: used adjectivally */
 name          = _("?unitclass:Helicopter")
 min_speed     = 1
+non_native_def_pct = 100
 hp_loss_pct   = 10
 flags         = "Unreachable", "DoesntOccupyTile", "CanOccupyCity", "CollectRansom", "Airliftable",
                 "Aerial"
@@ -220,6 +228,7 @@ flags         = "Unreachable", "DoesntOccupyTile", "CanOccupyCity", "CollectRans
 ; /* TRANS: Unit class: used adjectivally */
 name          = _("?unitclass:Air")
 min_speed     = 1
+non_native_def_pct = 100
 hp_loss_pct   = 10
 flags         = "Unreachable", "DoesntOccupyTile", "CanPillage",
                 "Airliftable", "HutFrighten", "Aerial"

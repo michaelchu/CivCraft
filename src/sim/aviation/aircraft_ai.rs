@@ -235,36 +235,7 @@ impl Simulation {
     }
 
     pub(super) fn aircraft_repair_gain(&self, plane: &Unit, x: i32, y: i32) -> i32 {
-        let carrier = plane.transport.is_some_and(|id| {
-            self.units.iter().any(|ship| {
-                ship.id == id
-                    && ship.kind == UnitKind::Carrier
-                    && (ship.x, ship.y) == (x, y)
-                    && self.allied(plane.owner, ship.owner)
-            })
-        }) || self.units.iter().any(|ship| {
-            ship.kind == UnitKind::Carrier
-                && (ship.x, ship.y) == (x, y)
-                && self.allied(plane.owner, ship.owner)
-                && self
-                    .cargo_units_ordered(ship.id)
-                    .any(|cargo| cargo.id == plane.id)
-        });
-        let full_repair = carrier
-            || self
-                .city_at(x, y)
-                .is_some_and(|city| city.has_building(Building::AIRPORT))
-            || self.tile(x, y).base == Some(Base::Airbase);
-        if full_repair {
-            plane.max_hit_points()
-        } else if self.refuel_site(plane.owner, x, y) {
-            // The Civilopedia says damaged units heal one health bar per turn;
-            // faster one-turn recovery is explicitly granted to Airports,
-            // Airfields, and aircraft aboard Carriers.
-            (plane.max_hit_points() / 10).max(1)
-        } else {
-            0
-        }
+        self.stationary_unit_hp_recovery_at(plane, x, y)
     }
 
     pub(super) fn aircraft_regen_turns(&self, plane: &Unit, x: i32, y: i32) -> i32 {

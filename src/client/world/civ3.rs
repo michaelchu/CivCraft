@@ -48,7 +48,7 @@ fn unit_animation_action(unit: &RenderedUnitView) -> super::super::tileset::Civ3
     match unit.state {
         UnitState::Fortifying => Action::Fortify,
         UnitState::Fortified => Action::FortifyHold,
-        UnitState::Idle | UnitState::Sentry | UnitState::AirSuperiority => Action::Fidget,
+        UnitState::Idle | UnitState::Sentry => Action::Fidget,
     }
 }
 

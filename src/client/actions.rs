@@ -78,6 +78,7 @@ impl Game {
                     .and_then(|id| self.sim.unit_action_view(id))
                     .is_some_and(|view| view.paradrop);
                 self.goto_mode = false;
+                self.capture_units_mode = false;
                 self.bombard_mode = false;
                 self.nuclear_mode = false;
             }
@@ -89,9 +90,28 @@ impl Game {
                 }
                 self.paradrop_mode = false;
             }
+            UiAction::BeginCaptureUnits => {
+                self.capture_units_mode = self
+                    .selected_unit
+                    .and_then(|id| self.sim.unit_action_view(id))
+                    .is_some_and(|view| view.capture_units);
+                self.goto_mode = false;
+                self.paradrop_mode = false;
+                self.bombard_mode = false;
+                self.nuclear_mode = false;
+            }
+            UiAction::CaptureUnitsTo(x, y) => {
+                if self.capture_units_mode
+                    && let Some(id) = self.selected_unit
+                {
+                    self.move_selected(Command::CaptureUnits(id, x, y), id);
+                }
+                self.capture_units_mode = false;
+            }
             UiAction::BeginBombard => {
                 self.goto_mode = false;
                 self.paradrop_mode = false;
+                self.capture_units_mode = false;
                 self.nuclear_mode = false;
                 self.bombard_mode = self
                     .selected_unit
@@ -123,29 +143,6 @@ impl Game {
                     self.focus_camera_on(unit.x, unit.y);
                 }
             }
-            UiAction::AirSuperiority => {
-                if let Some(id) = self.selected_unit {
-                    self.move_selected(Command::AirSuperiority(id), id);
-                }
-            }
-            UiAction::BeginRebase => {
-                self.goto_mode = false;
-                self.paradrop_mode = false;
-                self.bombard_mode = false;
-                self.nuclear_mode = false;
-                self.rebase_mode = self
-                    .selected_unit
-                    .and_then(|id| self.sim.unit_action_view(id))
-                    .is_some_and(|view| view.rebase);
-            }
-            UiAction::RebaseTo(x, y) => {
-                if self.rebase_mode
-                    && let Some(id) = self.selected_unit
-                {
-                    self.move_selected(Command::Rebase(id, x, y), id);
-                }
-                self.rebase_mode = false;
-            }
             UiAction::JoinCity(city) => {
                 if let Some(id) = self.selected_unit
                     && self.sim.apply(Command::JoinCity(id, city))
@@ -156,6 +153,7 @@ impl Game {
             UiAction::BeginNuclearStrike => {
                 self.goto_mode = false;
                 self.paradrop_mode = false;
+                self.capture_units_mode = false;
                 self.bombard_mode = false;
                 self.nuclear_mode = self
                     .selected_unit

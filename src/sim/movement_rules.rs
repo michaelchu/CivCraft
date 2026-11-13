@@ -280,6 +280,23 @@ impl<'a> MovementRules<'a> {
         Ok(has_flag(&flags, flag.rule_name()))
     }
 
+    /// Freeciv `common/combat.c::get_defense_power` terrain stage. Volcano has
+    /// no C2C3 terrain identity; its combat terrain bonus is explicitly mapped
+    /// to Mountains, matching CivCraft's existing rugged-terrain movement
+    /// adapter while keeping that adaptation scoped to this mechanic.
+    pub(super) fn terrain_defense_bonus(
+        &self,
+        terrain: Terrain,
+    ) -> Result<i32, MovementRulesError> {
+        let rule_name = match terrain {
+            Terrain::Volcano => "Mountains",
+            terrain => c2c3_terrain_rule_name(terrain)
+                .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?,
+        };
+        let record = unique_content_record(self.rules, ContentKind::Terrain, rule_name, "terrain")?;
+        required_nonnegative_integer(record, "defense_bonus")
+    }
+
     pub(super) fn terrain_is_native_to_class(
         &self,
         terrain: Terrain,
@@ -503,9 +520,12 @@ impl<'a> MovementRules<'a> {
         Ok(UnitClassMovementData {
             rule_name: record.rule_name.clone(),
             min_speed: required_nonnegative_rule_integer(record, "min_speed")?,
+            non_native_def_pct: required_nonnegative_rule_integer(record, "non_native_def_pct")?,
             build_anywhere: has_flag(&flags, "BuildAnywhere"),
             can_occupy_city: has_flag(&flags, "CanOccupyCity"),
+            kills_citizens: has_flag(&flags, "KillCitizen"),
             missile: has_flag(&flags, "Missile"),
+            terrain_defense: has_flag(&flags, "TerrainDefense"),
             terrain_speed: has_flag(&flags, "TerrainSpeed"),
             zoc: has_flag(&flags, "ZOC"),
             damage_slows: has_flag(&flags, "DamageSlows"),
@@ -594,6 +614,20 @@ impl<'a> MovementRules<'a> {
     ) -> Result<bool, MovementRulesError> {
         let classes = self.extra_native_classes(extra_rule_name)?;
         Ok(has_flag(&classes, c2c3_unit_class_rule_name(class)))
+    }
+
+    /// Read a selected extra's defender bonus after checking its native unit
+    /// classes, as `tile_extras_class_defense_bonus` does for natural extras.
+    pub(super) fn extra_class_defense_bonus(
+        &self,
+        extra_rule_name: &str,
+        class: UnitClass,
+    ) -> Result<i32, MovementRulesError> {
+        let record = unique_rule_record(self.rules, "extra", extra_rule_name)?;
+        if !self.extra_is_native_to_class(extra_rule_name, class)? {
+            return Ok(0);
+        }
+        optional_nonnegative_rule_integer(record, "defense_bonus", 0)
     }
 
     pub(super) fn road_move_cost(&self, road: RoadType) -> Result<i32, MovementRulesError> {
@@ -719,9 +753,13 @@ pub(super) struct UnitClassMovementData {
     pub(super) rule_name: String,
     /// Minimum speed in whole movement points after damage and effects.
     pub(super) min_speed: i32,
+    /// Selected class defense percentage while defending off native terrain.
+    pub(super) non_native_def_pct: i32,
     pub(super) build_anywhere: bool,
     pub(super) can_occupy_city: bool,
+    pub(super) kills_citizens: bool,
     pub(super) missile: bool,
+    pub(super) terrain_defense: bool,
     pub(super) terrain_speed: bool,
     pub(super) zoc: bool,
     pub(super) damage_slows: bool,
@@ -1334,6 +1372,11 @@ mod tests {
                 raw_integer(record, "movement_cost"),
                 "{terrain:?}"
             );
+            assert_eq!(
+                adapter.terrain_defense_bonus(terrain).unwrap(),
+                raw_integer(record, "defense_bonus"),
+                "{terrain:?}.defense_bonus"
+            );
             for (field, read) in ACTIVITY_TIME_FIELDS {
                 assert_eq!(
                     read(adapted.activity_times),
@@ -1468,6 +1511,10 @@ mod tests {
             assert_eq!(adapted.rule_name, record.rule_name);
             assert_eq!(adapted.min_speed, raw_rule_integer(record, "min_speed"));
             assert_eq!(
+                adapted.non_native_def_pct,
+                raw_rule_integer(record, "non_native_def_pct")
+            );
+            assert_eq!(
                 adapted.build_anywhere,
                 flags
                     .iter()
@@ -1486,6 +1533,12 @@ mod tests {
                     .any(|flag| flag.eq_ignore_ascii_case("Missile"))
             );
             assert_eq!(
+                adapted.terrain_defense,
+                flags
+                    .iter()
+                    .any(|flag| flag.eq_ignore_ascii_case("TerrainDefense"))
+            );
+            assert_eq!(
                 adapted.terrain_speed,
                 flags
                     .iter()
@@ -1500,6 +1553,27 @@ mod tests {
                 flags
                     .iter()
                     .any(|flag| flag.eq_ignore_ascii_case("DamageSlows"))
+            );
+        }
+    }
+
+    #[test]
+    fn river_combat_bonus_uses_the_selected_extra_and_unit_class() {
+        let adapter = MovementRules::campaign();
+        for (class, expected) in [
+            (UnitClass::Land, 25),
+            (UnitClass::SmallLand, 25),
+            (UnitClass::BigLand, 0),
+            (UnitClass::Trireme, 25),
+            (UnitClass::Sea, 0),
+            (UnitClass::Air, 0),
+            (UnitClass::Helicopter, 0),
+            (UnitClass::Missile, 0),
+        ] {
+            assert_eq!(
+                adapter.extra_class_defense_bonus("River", class).unwrap(),
+                expected,
+                "{class:?}"
             );
         }
     }
@@ -1809,6 +1883,10 @@ mod tests {
         assert_eq!(
             adapter.terrain_movement_cost(Terrain::Volcano).unwrap(),
             adapter.terrain_movement_cost(Terrain::Mountains).unwrap()
+        );
+        assert_eq!(
+            adapter.terrain_defense_bonus(Terrain::Volcano).unwrap(),
+            adapter.terrain_defense_bonus(Terrain::Mountains).unwrap()
         );
         assert!(matches!(
             adapter.terrain_data(Terrain::Volcano),

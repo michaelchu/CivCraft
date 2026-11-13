@@ -105,7 +105,7 @@ that code has been added.
 | P6 | Port movement, pathfinding, and unit actions | Ruleset-driven movement legality, costs, transport, exploration, worker actions, and action enablers; no parallel hardcoded rule paths remain for migrated behavior. | Complete |
 | P7 | Port cities and economy | Ruleset-driven tile output, citizen mood/assignment, growth, production, upkeep, trade allocation, and city management. | Complete |
 | P8 | Port research, government, and technology trade | Research progression, government effects, upkeep, revolution, and tech exchange use the shared ruleset model. | Complete |
-| P9 | Port combat and military actions | Defender choice, combat, capture, bombardment, aviation, nuclear actions, and veterancy match Freeciv behavior under the CivCraft content mapping. | Not started |
+| P9 | Port combat and military actions | Defender choice, combat, capture, bombardment, aviation, nuclear actions, and veterancy match Freeciv behavior under the CivCraft content mapping. | Complete |
 | P10 | Port diplomacy and culture | Treaties, contact, espionage/city actions, culture, borders, migration, conversions, and victory use the Freeciv model and `civ2civ3` settings/effects. This replaces the custom culture path unless a specific CivCraft extension is approved and documented. | Not started |
 | P11 | Port AI | City, tax, research, diplomacy, settlement, worker, and military planning use Freeciv behavior adapted to CivCraft state and the Civ III content catalog. | Not started |
 | P12 | Port remaining campaign systems | Disasters, climate, villages, spaceship, score, achievements, and endgame behavior match the selected baseline where in campaign scope. | Not started |
@@ -333,6 +333,56 @@ that code has been added.
   edits but remained silent for several minutes and was interrupted; there is
   no final full-suite result for P8.
 
+### P9 evidence (complete)
+
+- Source comparison uses pinned Freeciv revision
+  `9ff184b6eb128ca636c7ad6269e27aa959600006`: `common/combat.c`,
+  `common/actions.c`, `common/unit.c`, `server/unithand.c`,
+  `server/unittools.c`, `server/citytools.c`, `server/maphand.c`, and the
+  selected C2C3 `game.ruleset`, `units.ruleset`, `terrain.ruleset`,
+  `actions.ruleset`, and `effects.ruleset`.
+- Combat reads selected ruleset settings for tired attack, firepower,
+  fortification, defense, target reachability, stack vulnerability,
+  `killstack`, and `occupychance`. Defender choice preserves Civ III unit
+  identities and costs, as required by the content mapping. The pinned C
+  `win_chance` oracle has 12 checked vectors. The C2C3 unit catalog has no
+  `CanEscape` units, `NoStackDeath` extras, or stack-death auto-performer, so
+  the escape RNG path is unreachable for this ruleset.
+- Conquest now checks the selected conquer action before entry and follows
+  Freeciv's capital/civil-war, size-one destruction, loot, conquest technology,
+  city transfer, stack resolution, building raze/Palace, and population-loss
+  order. Supported units are rehomed, destroyed, or bounced according to
+  C2C3 flags and the selected `kill_outside` behavior. City transfer resolves
+  illegal city occupants and mixed hostile stacks after unit transfer.
+- Bombardment, air missions, paradrop, and airlift evaluate selected C2C3
+  actions, requirements, unit classes, ranges, effects, and movement costs.
+  Paradrop state is distinct from `moved`, persisted in saves, and reset at
+  Freeciv's unit-restoration boundary. Blind landings use remembered tile and
+  city state; failed landings resolve actual terrain/occupants, apply action
+  consequences, and update the revealed map circle without exposing unseen
+  units. Air recovery and attrition use selected effects and class percentages.
+- Nuclear actions use remembered target city state, selected action/range and
+  blast effects, SDI `Nuke_Proof` checks and RNG order, population loss, unit
+  survival, and fallout placement. SDI interception evaluates the caught-action
+  consequence before consuming the weapon. C2C3 defines no caught casus belli
+  for nuclear actions, so that consequence has no current diplomatic effect.
+- C2C3 veterancy uses its own persisted level while retaining Civ III rank for
+  HP/display mapping; combat promotion and occupation RNG follow Freeciv order.
+  The save header advances to `\x1E`. Round-trip validation also now accepts
+  the legitimate `Tech::UNSET` current-research state.
+- Validation: `cargo check --offline --tests`, formatting of the P9-modified
+  Rust files, and `git diff --check`, plus focused combat, defender-choice, veterancy, conquest, bounce,
+  bombardment, aviation, airlift, paradrop, nuclear/SDI, recovery, and save
+  round-trip checks passed. The aviation module passed 39/39; the broad Rust
+  suite was not run for P9. Repository-wide `cargo fmt --check` still reports
+  existing formatting differences in the untouched
+  `src/client/research_view.rs` and `src/sim/research/tests.rs` files.
+- P9 keeps Civ III unit/building/technology identities and uses explicit
+  C2C3 mappings. Freeciv relocation/loss notifications and bombardment facing
+  presentation are not modeled. The global city-transfer stack resolver is
+  wired for conquest; other transfer paths such as incitement and diplomacy
+  remain in their later plan items.
+
 ## Subsystem comparison ledger
 
 Fill this in from current implementation code and the pinned Freeciv source,
@@ -349,7 +399,7 @@ mechanics that need separate cutover or verification.
 | Production and upkeep | `src/sim/cities/production.rs`, `src/sim/economy.rs`, `src/sim/economy/ruleset.rs`, `src/sim/upkeep.rs`, `src/sim/buildings.rs` | Pinned `server/cityturn.c::update_city_activity`, `city_populate`, `city_distribute_surplus_shields`; `server/plrhand.c::update_national_activities`; `common/city.c::city_support`, `city_total_impr_gold_upkeep`; `common/unit.c::unit_upkeep_cost`; selected `game.ruleset`, `buildings.ruleset`, `units.ruleset`, `effects.ruleset`, `cities.ruleset` | Complete for production/growth order, building relief, city free support, per-unit raw/net food/shield/gold upkeep, military unhappiness, missing-upkeep actions, and City/Mixed/Nation accounting. Civ III unit/building identities and values remain authoritative content; the C2C3 unit-economics crosswalk only supplies mechanics and upkeep data. | Complete | P7 and P8 evidence above. Current test-code compilation and formatting checks pass; focused upkeep tests passed before the final extraction into `src/sim/upkeep.rs`. The full P8 suite did not complete. |
 | Research and government | `src/sim/research.rs`, `src/sim/government.rs`, `src/sim/government/advisor.rs`, `src/rules/research.rs`, `src/sim/tech_trade.rs` | `common/research.c::research_allowed`, `research_update`; `server/techtools.c::init_tech`, research/technology transfer; `server/plrhand.c::handle_player_change_government`, `update_national_activities`; `common/unit.c::unit_upkeep_cost`; selected `game.ruleset`, `techs.ruleset`, `governments.ruleset`, `effects.ruleset`, `units.ruleset`, `cities.ruleset`, `actions.ruleset` | Complete for Civ III BIQ research prerequisites plus Freeciv research progression, selected-ruleset government availability/effects/revolutions, unit upkeep, and technology exchange/loss. The government desirability advisor retains a fixed revolution-unhappiness estimate for P11. Revolution and research turn logic use the shared ruleset/effect model; Civ III content identities and tech graph stay authoritative. | Complete | P8 evidence above; 83 researchable BIQ advances and 92 unit-economics mappings are checked in. Focused research/government/trade checks passed during implementation. The current code/test targets compile; full-suite result is unavailable because the diagnostic run was interrupted. |
 | Movement and actions | `src/sim/movement.rs`, `src/sim/movement/`, `src/sim/pf_actions.rs`, `src/sim/commands.rs`, `src/sim/normal_paths.rs`, `src/sim/exploration.rs`, `src/sim/workers.rs`, `src/sim/action_rules.rs`, `src/sim/movement_rules.rs` | `common/movement.c::unit_move_to_tile_test`, `can_step_taken_wrt_to_zoc`; `common/map.c::tile_move_cost_ptrs`; `common/unit.c::get_activity_rate`, `tile_activity_time`; `common/actions.c`; `common/aicore/pf_tools.c`; `server/advisors/autoexplorer.c`; `actions.ruleset`, `units.ruleset`, `terrain.ruleset`, `effects.ruleset` | Complete: C2C3-backed action requirements, movement costs and legality, transport roles, worker extras, exploration and ZOC are routed through shared ruleset adapters. Civ III catalog identities and X-wrap/bounded-Y topology remain explicit mappings/adaptations; the compact base model retains one represented underlay when pillaging. | Complete | Full offline suite passed 810/810. Focused checks cover ruleset conflict replacement and distant-goto ZOC pruning. |
-| Combat and military | `src/sim/movement/combat.rs`, `src/sim/aviation.rs`, `src/sim/nuclear.rs` | `common/combat.c::unit_win_chance`, `get_defender`, `get_modified_firepower`; `server/unittools.c`; `actions.ruleset`, `units.ruleset`, combat settings | Current: Freeciv battle odds/defender selection with Civ III HP, data, and special effects; stack losses differ under Freeciv default `killstack`. Keep Civ III unit records, use ruleset mechanics. | Not started |  |
+| Combat and military | `src/sim/movement/combat.rs`, `src/sim/aviation.rs`, `src/sim/aviation/paradrop.rs`, `src/sim/nuclear.rs`, `src/sim/veterancy.rs`, `src/sim/unit_recovery.rs`, `src/sim/combat_rules.rs`, `src/sim/cities.rs` | Pinned `common/combat.c::win_chance`, `get_defender`, `get_total_attack_power`, `get_total_defense_power`, `get_modified_firepower`, `is_stack_vulnerable`; `common/actions.c`; `server/unithand.c`, `server/unittools.c`, `server/citytools.c`, `server/maphand.c`; selected C2C3 `game.ruleset`, `actions.ruleset`, `units.ruleset`, `terrain.ruleset`, `effects.ruleset` | Complete for selected C2C3 combat, conquest, stack resolution, bombardment, air actions, nuclear actions, hitpoint recovery/attrition, and veterancy under the Civ III content mapping. Ruleset requirements/effects drive action eligibility and formulas; Civ III catalog identities/values and horizontal-wrap topology remain explicit adaptations. Other city-transfer call sites and notification/presentation details remain later-scope or unmodeled. | Complete | Twelve pinned C `win_chance` vectors; focused combat/veterancy, conquest 12/12, bounce 6/6, aviation 39/39, airlift 3/3, paradrop, nuclear/SDI, bombardment, unit recovery, and save round-trip checks passed. `cargo check --offline --tests` and formatting/whitespace checks passed; P9 full suite not run. |
 | Diplomacy, espionage, and trade | `src/sim/diplomacy/`, `src/sim/tech_trade.rs` | `server/diplhand.c`, `server/diplomats.c`, `server/techtools.c::tech_transfer`; `common/diptreaty.c`; `ai/default/daidiplomacy.c`; `actions.ruleset`, `effects.ruleset` | P8 technology exchange now uses Freeciv's advance clause and selected tech-loss settings. Remaining treaty, contact, espionage, and city-action parity is P10; Civ III unit identities remain in use. | P8 complete; remainder P10 | P8 focused tech-trade checks passed. Remaining P10 work stays not started. |
 | Culture, borders, and migration | `src/sim/culture.rs`, `src/sim/borders.rs`, `src/sim/citizens.rs` | `common/culture.c::city_culture`, `city_history_gain`, `player_culture`; `common/borders.c::tile_border_source_radius_sq`, `tile_border_source_strength`; `server/cityturn.c::city_migration_score`, `do_city_migration`; `server/maphand.c::map_update_border`, `map_claim_border`; `game.ruleset`, `effects.ruleset`, inherited default Lua | Current: Civ III building culture, culture-ranked borders, capture history, and flip candidate. Replace with Freeciv culture scores, radius/strength borders, citizen migration, and configured victory. | Not started |  |
 | AI | `src/sim/ai.rs`, `src/sim/ai_economy.rs`, `src/sim/workers.rs`, `src/sim/settlement.rs`, `src/sim/ai/` | `ai/default/daihand.c::dai_manage_taxes`, `daicity.c::dai_manage_cities`, `daiunit.c::dai_manage_units`, `server/advisors/autoworkers.c`, `common/aicore/` | Current: tax, wants, and diplomacy include Freeciv ports; assault fleets, settlement reservations, hunter/guard behavior are CivCraft-specific. Port after mechanics and rule data stabilize. | Not started |  |

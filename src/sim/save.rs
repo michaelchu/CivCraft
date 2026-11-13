@@ -32,9 +32,12 @@ where
 
 // P8 adds suspended research state, C3 technology catalog IDs, C2C3
 // government identities, the expanded government adoption/cache state, and
-// per-city disorder duration for Freeciv's revolution threshold.
+// per-city disorder duration for Freeciv's revolution threshold. P9 adds a
+// separate selected-ruleset veterancy level to each unit while retaining its
+// Civ III experience rank for source HP and display behavior, then a distinct
+// per-turn paradrop-used flag matching Freeciv's unit state.
 // Earlier save versions remain unsupported rather than silently discarding it.
-const HEADER: &[u8] = b"CIVCRAFT\0\x1C";
+const HEADER: &[u8] = b"CIVCRAFT\0\x1E";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
@@ -477,7 +480,7 @@ impl Simulation {
             })
             || self.completed_wonders.iter().any(|&item| !building(item))
             || self.players.iter().any(|player| {
-                !tech(player.researching)
+                (player.researching != Tech::UNSET && !tech(player.researching))
                     || (player.research_goal != Tech::UNSET && !tech(player.research_goal))
                     || player.known.iter().any(|&item| !tech(item))
             })

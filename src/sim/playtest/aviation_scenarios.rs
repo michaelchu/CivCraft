@@ -5,12 +5,12 @@ use super::*;
 impl Simulation {
     pub(crate) fn nuclear_playtest_setup(&mut self, intercepted: bool) -> (u32, u32, u32) {
         // Civ III's normal opening has a Settler and Worker, not a founded
-        // city. Stage both ICBM launch and target cities explicitly so this
-        // incident scenario does not depend on a legacy Freeciv opening.
+        // city. Stage both launch and target cities explicitly; C2C3 nuclear
+        // city actions can target only an adjacent city.
         self.units.clear();
         self.cities.clear();
         let (sx, sy) = (10, 20);
-        let target = offset_native_by_map(sx, sy, 7, 0);
+        let target = self.map_wrap.civ3_offset(sx, sy, 2, 0).unwrap();
         for (x, y) in [(sx, sy), target] {
             let tile = self.tile_mut(x, y);
             tile.terrain = Terrain::Grassland;
@@ -32,10 +32,10 @@ impl Simulation {
         self.completed_wonders.push(Building::MANHATTAN_PROJECT);
         let missile = self.spawn_unit(HUMAN, UnitKind::ICBM, sx, sy);
         let defender = self.spawn_unit(1, UnitKind::Musketman, target.0, target.1);
-        // The nuclear interception roll uses the simulation RNG. These seeds
-        // put the first xorshift draw on the desired side of the 75% threshold.
+        // Nuke_Proof consumes a Freeciv RNG draw for each nearby city. An SDI
+        // city has 100% protection in the selected C2C3 ruleset.
         self.native_random = None;
-        self.rng = if intercepted { 2 } else { 3 };
+        self.rng = 2;
         (missile, defender, city_id)
     }
 

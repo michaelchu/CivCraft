@@ -294,6 +294,13 @@ impl Simulation {
         }
     }
 
+    pub(crate) fn remembered_tile(&self, owner: usize, x: i32, y: i32) -> Option<&Tile> {
+        self.observed_map
+            .tiles
+            .get(&(owner, self.map_wrap.index(x, y)))
+            .map(|(_, tile)| tile)
+    }
+
     pub(crate) fn observed_city(&self, city: &City) -> ObservedCity {
         self.observed_city_with_occupancy(
             city,
@@ -383,18 +390,26 @@ impl Simulation {
     }
 
     pub(super) fn remember_render_map(&mut self, visible: &[Vec<bool>]) {
+        self.remember_render_positions(visible, None);
+    }
+
+    fn remember_render_positions(&mut self, visible: &[Vec<bool>], scope: Option<&[usize]>) {
         self.observed_map.revision = self.observed_map.revision.saturating_add(1);
         let revision = self.observed_map.revision;
+        let indices = scope
+            .map(|scope| scope.to_vec())
+            .unwrap_or_else(|| (0..self.tiles.len()).collect());
         for (owner, visible) in visible.iter().enumerate() {
             if owner == BARBARIANS {
                 continue;
             }
             // Looking at a now-empty city tile removes only that observer's memory.
             self.observed_map.cities.retain(|(viewer, _), (_, c)| {
-                *viewer != owner || !visible[self.map_wrap.index(c.city.x, c.city.y)]
+                let index = self.map_wrap.index(c.city.x, c.city.y);
+                *viewer != owner || !indices.contains(&index) || !visible[index]
             });
-            for (index, &seen) in visible.iter().enumerate() {
-                if seen {
+            for &index in &indices {
+                if visible[index] {
                     let mut tile = self.tiles[index].clone();
                     tile.seen = true;
                     tile.visible = false;
@@ -405,12 +420,81 @@ impl Simulation {
                 }
             }
             for city in &self.cities {
-                if visible[self.map_wrap.index(city.x, city.y)] || self.reveals_cities(owner) {
-                    let mut observed = self.observed_city(city);
+                let index = self.map_wrap.index(city.x, city.y);
+                if indices.contains(&index) && (visible[index] || self.reveals_cities(owner)) {
+                    // City visibility and unit visibility are independent.
+                    // A map-show operation can reveal a city site while its
+                    // garrison remains hidden.
+                    let occupied = self.has_main_sight_at(owner, city.x, city.y)
+                        && self
+                            .units
+                            .iter()
+                            .any(|unit| (unit.x, unit.y) == (city.x, city.y));
+                    let mut observed = self.observed_city_with_occupancy(city, occupied);
                     observed.remembered = true;
                     self.observed_map
                         .cities
                         .insert((owner, city.id), (revision, observed));
+                }
+            }
+        }
+    }
+
+    /// Reveal a remembered map circle without granting current sight or unit
+    /// vision. Freeciv's `server/maphand.c::map_show_circle` updates tile and
+    /// city memories while leaving off-screen units hidden.
+    pub(in crate::sim) fn show_map_circle_to_player(
+        &mut self,
+        owner: usize,
+        x: i32,
+        y: i32,
+        unit_kind: UnitKind,
+    ) {
+        if owner >= self.players.len() || owner == BARBARIANS {
+            return;
+        }
+        // Freeciv map_show_circle receives the unit type's base
+        // vision_radius_sq, not the effect-adjusted sight used for normal
+        // vision updates.
+        let radius_sq = ruleset_unit_vision_radius_sq(RulesetData::campaign_default(), unit_kind);
+        let radius = (radius_sq.max(0) as f64).sqrt().ceil() as i32;
+        let indices = self
+            .map_wrap
+            .civ3_radius(x, y, radius)
+            .into_iter()
+            .filter(|(_, _, distance)| distance * distance <= radius_sq.max(0))
+            .map(|(tx, ty, _)| self.map_wrap.index(tx, ty))
+            .collect::<Vec<_>>();
+        let recipients = self.vision_recipients(owner);
+        let mut remembered = vec![vec![false; self.tiles.len()]; self.players.len()];
+        for &index in &indices {
+            let (tx, ty) = self.map_wrap.position(index);
+            for &recipient in &recipients {
+                if recipient == BARBARIANS || self.has_main_sight_at(recipient, tx, ty) {
+                    continue;
+                }
+                let tile = &mut self.tiles[index];
+                tile.known_by[recipient] = true;
+                if recipient == HUMAN {
+                    tile.seen = true;
+                }
+                remembered[recipient][index] = true;
+            }
+        }
+        self.remember_render_positions(&remembered, Some(&indices));
+        for &index in &indices {
+            for &recipient in &recipients {
+                if !remembered[recipient][index] {
+                    continue;
+                }
+                let owner = self.tiles[index].owner;
+                let route = movement::RouteTile::from(&self.tiles[index]);
+                if recipient == HUMAN {
+                    self.tiles[index].last_seen_owner = owner;
+                    self.route_memory[index] = Some(route);
+                } else {
+                    self.ai_map_memory
+                        .insert((recipient, index), self.live_map_observation(index));
                 }
             }
         }

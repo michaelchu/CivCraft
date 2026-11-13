@@ -85,9 +85,9 @@ impl Game {
             } else {
                 self.goto_mode = false;
                 self.paradrop_mode = false;
+                self.capture_units_mode = false;
                 self.bombard_mode = false;
                 self.nuclear_mode = false;
-                self.rebase_mode = false;
             }
         }
         if is_key_pressed(KeyCode::Tab) {
@@ -111,9 +111,7 @@ impl Game {
                 UiAction::FoundCity
             });
         }
-        if is_key_down(KeyCode::LeftControl) && is_key_pressed(KeyCode::R) {
-            self.perform_action(UiAction::BeginRebase);
-        } else if is_key_pressed(KeyCode::R) {
+        if is_key_pressed(KeyCode::R) {
             self.perform_action(UiAction::Road);
         }
         if is_key_pressed(KeyCode::I) {
@@ -141,6 +139,7 @@ impl Game {
         }
         if is_key_pressed(KeyCode::G) {
             self.paradrop_mode = false;
+            self.capture_units_mode = false;
             self.bombard_mode = false;
             self.nuclear_mode = false;
             self.goto_mode = !self.goto_mode;
@@ -149,14 +148,6 @@ impl Game {
             } else {
                 "Go-to cancelled."
             });
-        }
-        if is_key_pressed(KeyCode::S)
-            && self
-                .selected_unit
-                .and_then(|id| self.sim.unit_action_view(id))
-                .is_some_and(|view| view.air_superiority)
-        {
-            self.perform_action(UiAction::AirSuperiority);
         }
         if is_key_pressed(KeyCode::Y)
             && let Some(id) = self.selected_unit
@@ -445,12 +436,12 @@ impl Game {
             self.perform_action(UiAction::NuclearStrikeTo(x, y));
             return;
         }
-        if self.bombard_mode {
-            self.perform_action(UiAction::BombardTo(x, y));
+        if self.capture_units_mode {
+            self.perform_action(UiAction::CaptureUnitsTo(x, y));
             return;
         }
-        if self.rebase_mode {
-            self.perform_action(UiAction::RebaseTo(x, y));
+        if self.bombard_mode {
+            self.perform_action(UiAction::BombardTo(x, y));
             return;
         }
         if self.goto_mode {
@@ -468,9 +459,7 @@ impl Game {
             .selected_unit
             .and_then(|unit_id| self.sim.unit_position_view(unit_id))
             == Some((x, y));
-        if !clicked_selected_unit
-            && let Some(unit_id) = self.selected_unit.take()
-        {
+        if !clicked_selected_unit && let Some(unit_id) = self.selected_unit.take() {
             self.sim.apply(Command::Wait(unit_id));
         }
 

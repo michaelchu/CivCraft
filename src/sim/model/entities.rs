@@ -9,7 +9,6 @@ pub(crate) enum UnitState {
     Fortifying,
     Fortified,
     Sentry,
-    AirSuperiority,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -56,7 +55,10 @@ pub(crate) struct Unit {
     pub(crate) transport: Option<u32>,
     pub(crate) home_city: Option<u32>,
     pub(in crate::sim) home_order: u32,
+    /// Civ III experience rank retained for source HP and display behavior.
     pub(crate) veteran: usize,
+    /// Selected Freeciv ruleset veterancy level used for campaign mechanics.
+    pub(crate) c2c3_veteran: usize,
     pub(crate) fuel: u8,
     /// OpenCiv3 FLC direction row: SW, S, SE, E, NE, N, NW, W.
     pub(crate) facing: u8,
@@ -70,6 +72,10 @@ pub(crate) struct Unit {
     pub(crate) work_kind: Option<WorkKind>,
     pub(crate) work_left: i32,
     pub(in crate::sim) work_done: i32,
+    /// Freeciv's per-turn paradrop guard. This is independent of `moved`:
+    /// units can move before paradropping, but may only paradrop once.
+    #[serde(default)]
+    pub(crate) paradropped: bool,
 }
 
 impl Unit {
@@ -88,6 +94,7 @@ impl Unit {
             home_city: None,
             home_order: 0,
             veteran,
+            c2c3_veteran: 0,
             fuel: kind.fuel_capacity(),
             facing: 2,
             x,
@@ -100,6 +107,7 @@ impl Unit {
             work_kind: None,
             work_left: 0,
             work_done: 0,
+            paradropped: false,
         }
     }
 

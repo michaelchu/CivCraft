@@ -15,6 +15,18 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     let path = temporary_save("save-round-trip");
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.create_city(HUMAN, 10, 20);
+    game.cities[0].size = 2;
+    let veteran_unit = game.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == veteran_unit)
+        .unwrap()
+        .c2c3_veteran = 2;
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == veteran_unit)
+        .unwrap()
+        .paradropped = true;
     game.cities[0].add_culture(HUMAN, 375);
     game.cities[0].add_culture(2, 125);
     game.cities[0].record_culture_building_completion(Building::TEMPLE, HUMAN, -4000);
@@ -44,6 +56,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     game.year_0_hack = true;
     game.set_random_seed(42);
     game.rand_below(1000);
+    game.validate_campaign().unwrap();
     game.save_campaign(&path).unwrap();
 
     let loaded = Simulation::load_campaign(&path).unwrap();
@@ -52,6 +65,8 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.map_seed, game.map_seed);
     assert_eq!(loaded.random_snapshot(), game.random_snapshot());
     assert_eq!(loaded.turn, game.turn);
+    assert_eq!(loaded.unit_by_id(veteran_unit).unwrap().c2c3_veteran, 2);
+    assert!(loaded.unit_by_id(veteran_unit).unwrap().paradropped);
     assert_eq!(loaded.global_advances, game.global_advances);
     assert_eq!(loaded.year, game.year);
     assert_eq!(loaded.year_0_hack, game.year_0_hack);
@@ -191,6 +206,8 @@ fn old_save_headers_and_corrupt_current_payloads_are_rejected() {
         b"CIVCRAFT\0\x19".as_slice(),
         b"CIVCRAFT\0\x1A".as_slice(),
         b"CIVCRAFT\0\x1B".as_slice(),
+        b"CIVCRAFT\0\x1C".as_slice(),
+        b"CIVCRAFT\0\x1D".as_slice(),
     ] {
         fs::write(&path, [header, b"previous payload"].concat()).unwrap();
         assert!(Simulation::load_campaign(&path).is_err());

@@ -21,7 +21,6 @@ mod action_rules;
 mod advisors;
 mod ai;
 mod ai_economy;
-mod air_mission_rules;
 mod aviation;
 mod bases;
 mod borders;
@@ -44,6 +43,7 @@ pub(crate) use client_views::{
     ResearchProgressView, SelectableUnitView, SpaceshipAssemblyView, TechnologyResearchView,
     TopBarView, UnitActionView, UnitContextView, UnitFidgetView,
 };
+mod combat_rules;
 mod commands;
 mod diplomacy;
 mod tech_trade;
@@ -91,6 +91,7 @@ mod spaceship;
 use score::NationScore;
 mod turn;
 mod unit_lifecycle;
+mod unit_recovery;
 use climate::ClimatePressure;
 pub(crate) use pillage::PillageTarget;
 pub(crate) use pollution::Contamination;
@@ -140,9 +141,6 @@ const CITY_DEFEND_BONUS: i32 = 50;
 const LARGE_CITY_DEFEND_BONUS: i32 = 50;
 const LARGE_CITY_SIZE: i32 = 9;
 const FORTIFY_DEFENSE_BONUS: i32 = 50;
-const CITY_MIN_HP_PERCENT: i32 = 33;
-const BASE_HP_REGEN_2: i32 = 10;
-const FORTIFIED_HP_REGEN_2: i32 = 10;
 
 /// Advances the gameplay stream through `shuffle_players()` after mapgen.
 fn apply_player_shuffle_randomness(rng: &mut crate::random::FreecivRng) {

@@ -4,122 +4,170 @@ use super::*;
 
 mod aircraft_ai;
 mod paradrop;
-mod rebase;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SelectedBombardUnit {
+    can_bombard: bool,
+    kills_citizens: bool,
+    attack: i32,
+    bombard_rate: i32,
+}
+
+fn selected_unit_class_flag(kind: UnitKind, flag: &str) -> Option<bool> {
+    let section = crate::sim::action_rules::freeciv_unit_type_section(kind)?;
+    let rules = crate::rules::freeciv::RulesetData::campaign_default();
+    let mut units = rules.content.iter().filter(|record| {
+        record.kind == crate::rules::freeciv::ContentKind::Unit
+            && record.section.eq_ignore_ascii_case(&section)
+    });
+    let unit = units.next()?;
+    if units.next().is_some() {
+        return None;
+    }
+    let class_name = unit.string_field("class").ok()??;
+    let mut classes = rules.rule_records.iter().filter(|record| {
+        record.namespace.eq_ignore_ascii_case("unit_class")
+            && record.rule_name.eq_ignore_ascii_case(class_name)
+    });
+    let class = classes.next()?;
+    if classes.next().is_some() {
+        return None;
+    }
+    let flags = class.string_list_field("flags").ok()??;
+    Some(
+        flags
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(flag)),
+    )
+}
+
+fn selected_bombard_unit(kind: UnitKind) -> Option<SelectedBombardUnit> {
+    let section = crate::sim::action_rules::freeciv_unit_type_section(kind)?;
+    let rules = crate::rules::freeciv::RulesetData::campaign_default();
+    let mut records = rules.content.iter().filter(|record| {
+        record.kind == crate::rules::freeciv::ContentKind::Unit
+            && record.section.eq_ignore_ascii_case(&section)
+    });
+    let record = records.next()?;
+    if records.next().is_some() {
+        return None;
+    }
+
+    let flags = record.string_list_field("flags").ok()??;
+    let attack = i32::try_from(record.integer_field("attack").ok()??).ok()?;
+    let bombard_rate = match record.integer_field("bombard_rate").ok()? {
+        Some(rate) => i32::try_from(rate).ok()?,
+        None => 0,
+    };
+    if attack < 0 || bombard_rate < 0 {
+        return None;
+    }
+
+    Some(SelectedBombardUnit {
+        can_bombard: flags
+            .iter()
+            .any(|flag| flag.eq_ignore_ascii_case("Bombarder")),
+        kills_citizens: selected_unit_class_flag(kind, "KillCitizen")?,
+        attack,
+        bombard_rate,
+    })
+}
+
+fn selected_bombard_max_range() -> Option<i32> {
+    let rules = crate::rules::freeciv::RulesetData::campaign_default();
+    let mut parameters = rules.parameters.iter().filter(|parameter| {
+        parameter.file.eq_ignore_ascii_case("actions.ruleset")
+            && parameter.section.eq_ignore_ascii_case("actions")
+            && parameter.key.eq_ignore_ascii_case("bombard_max_range")
+    });
+    let parameter = parameters.next()?;
+    if parameters.next().is_some() {
+        return None;
+    }
+    let range = i32::try_from(parameter.integer_value().ok()??).ok()?;
+    (range >= 0).then_some(range)
+}
+
+fn selected_bombard_blocking_actions() -> Option<Vec<String>> {
+    let rules = crate::rules::freeciv::RulesetData::campaign_default();
+    let mut parameters = rules.parameters.iter().filter(|parameter| {
+        parameter.file.eq_ignore_ascii_case("actions.ruleset")
+            && parameter.section.eq_ignore_ascii_case("actions")
+            && parameter.key.eq_ignore_ascii_case("bombard_blocked_by")
+    });
+    let parameter = parameters.next()?;
+    if parameters.next().is_some() {
+        return None;
+    }
+    let actions = parameter.string_list_value().ok()??;
+    (!actions.is_empty()).then_some(actions)
+}
 
 impl Simulation {
-    pub(crate) fn can_assign_air_superiority(&self, unit: &Unit) -> bool {
-        unit.owner == HUMAN
-            && unit.kind.is_aircraft()
-            && unit.kind.can_attack_aircraft()
-            && unit.kind.fuel_capacity() > 0
-            && unit.moves_left > 0
-            && !unit.moved
-            && (self.refuel_site(unit.owner, unit.x, unit.y)
-                || self.aboard_refueling_transport(unit))
+    /// Whether this Civ III identity is explicitly mapped to a selected C2C3
+    /// Bombarder with a valid Civ III bombard-strength content value.
+    pub(super) fn has_selected_bombard_capability(&self, kind: UnitKind) -> bool {
+        selected_bombard_unit(kind).is_some_and(|rules| {
+            rules.can_bombard
+                && rules.attack > 0
+                && rules.bombard_rate > 0
+                && kind.bombard_strength() > 0
+        })
     }
 
-    pub(crate) fn assign_air_superiority(&mut self, id: u32) -> bool {
-        let Some(unit) = self.unit_by_id(id).cloned() else {
-            return false;
-        };
-        if !self.can_assign_air_superiority(&unit) {
-            return false;
-        }
-        let Some(actor) = self.units.iter_mut().find(|actor| actor.id == id) else {
-            return false;
-        };
-        actor.state = UnitState::AirSuperiority;
-        actor.moves_left = 0;
-        actor.moved = true;
-        self.add_event(format!("{} assigned to Air Superiority.", unit.kind.name()));
-        true
-    }
-
-    pub(super) fn assign_ai_air_superiority(&mut self, id: u32) -> bool {
-        let Some(unit) = self.unit_by_id(id).cloned() else {
-            return false;
-        };
-        if unit.kind.is_missile()
-            || !unit.kind.is_aircraft()
-            || !unit.kind.can_attack_aircraft()
-            || unit.kind.fuel_capacity() == 0
-            || unit.moves_left <= 0
-            || unit.moved
-            || !(self.refuel_site(unit.owner, unit.x, unit.y)
-                || self.aboard_refueling_transport(&unit))
-        {
-            return false;
-        }
-        let Some(actor) = self.units.iter_mut().find(|actor| actor.id == id) else {
-            return false;
-        };
-        actor.state = UnitState::AirSuperiority;
-        actor.moves_left = 0;
-        actor.moved = true;
-        true
-    }
-
-    fn air_superiority_interceptors(&self, enemy_owner: usize, x: i32, y: i32) -> Vec<Unit> {
-        self.units
-            .iter()
-            .filter(|unit| {
-                unit.state == UnitState::AirSuperiority
-                    && unit.kind.can_attack_aircraft()
-                    && unit.kind.is_aircraft()
-                    && unit.owner != enemy_owner
-                    && self.at_war(unit.owner, enemy_owner)
-                    && (self.refuel_site(unit.owner, unit.x, unit.y)
-                        || self.aboard_refueling_transport(unit))
-                    && self.map_wrap.civ3_distance(unit.x, unit.y, x, y)
-                        <= i32::from(unit.kind.fuel_capacity()) / 2
+    fn bombard_blocked_by_action(
+        &self,
+        actor: &Unit,
+        x: i32,
+        y: i32,
+        blocked_by: &[String],
+    ) -> bool {
+        self.tile_units_ordered(x, y).any(|target| {
+            blocked_by.iter().any(|action| {
+                self.action_available_for_unit_against_unit(actor, action, target)
+                    .unwrap_or(true)
             })
-            .cloned()
-            .collect()
-    }
-
-    fn intercept_air_mission(&mut self, aircraft: &Unit, x: i32, y: i32) -> bool {
-        if !aircraft.kind.is_aircraft() && !aircraft.kind.is_missile() {
-            return false;
-        }
-        let chance = Self::air_mission_interception_chance(aircraft.kind);
-        for interceptor in self.air_superiority_interceptors(aircraft.owner, x, y) {
-            if self.rand_below(100) >= chance {
-                continue;
-            }
-            if !self.units.iter().any(|unit| unit.id == aircraft.id) {
-                return true;
-            }
-            if let Some(actor) = self.units.iter_mut().find(|unit| unit.id == interceptor.id) {
-                // Air Superiority remains the assigned mission after a sortie;
-                // provide a full attack roll while the aircraft is on patrol.
-                actor.moves_left = MOVE_FRAGMENTS;
-            } else {
-                continue;
-            }
-            self.resolve_combat(interceptor.id, aircraft.id, x, y, None);
-            return true;
-        }
-        false
-    }
-
-    fn air_mission_interception_chance(kind: UnitKind) -> i32 {
-        let rules = *super::air_mission_rules::air_mission_rules();
-        if kind.uses_stealth_vision() {
-            rules.chance_to_intercept_stealth_missions
-        } else {
-            rules.chance_to_intercept_air_missions
-        }
+        })
     }
 
     pub(crate) fn can_begin_bombard(&self, unit: &Unit) -> bool {
         unit.owner == HUMAN
-            && unit.kind.bombard_range() > 0
-            && !unit.kind.is_aircraft()
-            && !unit.kind.is_nuclear_weapon()
+            && self.has_selected_bombard_capability(unit.kind)
             && unit.transport.is_none()
             && unit.moves_left > 0
-            && unit.work_left == 0
-            && unit.state != UnitState::Sentry
+    }
+
+    fn bombard_action_available_at_tile(&self, unit: &Unit, x: i32, y: i32) -> bool {
+        let city_action = self.city_at(x, y).is_some_and(|city| {
+            self.action_available_for_unit_against_city(unit, "Bombard", city)
+                .unwrap_or(false)
+        });
+        let unit_action = self.tile_units_ordered(x, y).any(|target| {
+            self.combat_target_reachable(unit.kind, target.kind, x, y)
+                && self
+                    .action_available_for_unit_against_unit(unit, "Bombard", target)
+                    .unwrap_or(false)
+        });
+        city_action || unit_action
+    }
+
+    fn bombard_action_available_for_tile(&self, unit: &Unit, x: i32, y: i32) -> bool {
+        if !self.has_selected_bombard_capability(unit.kind)
+            || unit.transport.is_some()
+            || unit.moves_left < 1
+            || !(0..self.map_wrap.width()).contains(&x)
+            || !(0..self.map_wrap.height()).contains(&y)
+            || (x, y) == (unit.x, unit.y)
+            || selected_bombard_max_range()
+                .is_none_or(|range| self.map_wrap.civ3_distance(unit.x, unit.y, x, y) > range)
+        {
+            return false;
+        }
+        let Some(blocked_by) = selected_bombard_blocking_actions() else {
+            return false;
+        };
+        !self.bombard_blocked_by_action(unit, x, y, &blocked_by)
+            && self.bombard_action_available_at_tile(unit, x, y)
     }
 
     pub(crate) fn can_bombard_tile(&self, unit: &Unit, x: i32, y: i32) -> bool {
@@ -127,27 +175,10 @@ impl Simulation {
             || !(0..self.map_wrap.width()).contains(&x)
             || !(0..self.map_wrap.height()).contains(&y)
             || !self.tile(x, y).visible
-            || (x, y) == (unit.x, unit.y)
-            || self.map_wrap.civ3_distance(unit.x, unit.y, x, y) > unit.kind.bombard_range()
         {
             return false;
         }
-        if self
-            .cities
-            .iter()
-            .any(|city| (city.x, city.y) == (x, y) && !self.at_war(unit.owner, city.owner))
-            || self.units.iter().any(|target| {
-                (target.x, target.y) == (x, y) && !self.at_war(unit.owner, target.owner)
-            })
-        {
-            return false;
-        }
-        self.units.iter().any(|target| {
-            (target.x, target.y) == (x, y)
-                && target.transport.is_none()
-                && !target.kind.is_aircraft()
-                && self.at_war(unit.owner, target.owner)
-        })
+        self.bombard_action_available_for_tile(unit, x, y)
     }
 
     pub(super) fn try_ranged_bombard(&mut self, id: u32, x: i32, y: i32) -> MoveResult {
@@ -247,167 +278,127 @@ impl Simulation {
         }
     }
 
-    fn air_defense_stops_bomber(&mut self, bomber: &Unit, x: i32, y: i32) -> bool {
-        // The Conquests editor's Air Defense strength acts as an attack value
-        // against the bombarding aircraft's base defense. Community test
-        // results report this value at one tenth of its editor number, so in
-        // the sim's POWER_FACTOR scale the attack is the raw BIQ value while
-        // the aircraft defense is multiplied by POWER_FACTOR. No terrain,
-        // veteran, or fortification modifiers apply to this interception.
-        // (CivFanatics editor/combat references linked from the rules README.)
-        if !bomber.kind.is_aircraft() && !bomber.kind.is_missile() {
-            return false;
-        }
-        let aircraft_defense = bomber.kind.stats().defense * POWER_FACTOR;
-        if aircraft_defense <= 0 {
-            return false;
-        }
-        let defenses: Vec<_> = self
-            .tile_units_ordered(x, y)
-            .filter(|unit| unit.transport.is_none() && self.at_war(unit.owner, bomber.owner))
-            .filter_map(|unit| {
-                let rule = unit
-                    .kind
-                    .conquests_id()
-                    .and_then(crate::sim::civ3_unit_rules::get)?;
-                (rule.air_defense > 0).then_some((unit.owner, unit.kind, rule.air_defense))
-            })
-            .take(4)
-            .collect();
-
-        for (owner, kind, attack) in defenses {
-            if self.rand_below(attack + aircraft_defense) < attack {
-                self.remove_units_with_cargo(vec![bomber.id]);
-                self.nation_scores[owner].units_killed += 1;
-                self.refresh_visibility();
-                if bomber.owner == HUMAN {
-                    self.add_event(format!(
-                        "Your {} was shot down by a {}.",
-                        bomber.kind.name(),
-                        kind.name()
-                    ));
-                } else if owner == HUMAN {
-                    self.add_event(format!(
-                        "An enemy {} was shot down by your {}.",
-                        bomber.kind.name(),
-                        kind.name()
-                    ));
-                }
-                return true;
-            }
-        }
-        false
-    }
-
-    // daiair.c: find_something_to_bomb, dai_evaluate_tile_for_air_attack.
-    // All legally attackable enemy stacks compete, not just aircraft for fighters.
     pub(super) fn try_bombard(&mut self, attacker: &Unit, x: i32, y: i32) -> MoveResult {
-        if self
-            .cities
-            .iter()
-            .any(|city| (city.x, city.y) == (x, y) && !self.at_war(attacker.owner, city.owner))
-            || self
-                .units
-                .iter()
-                .any(|unit| (unit.x, unit.y) == (x, y) && !self.at_war(attacker.owner, unit.owner))
-        {
+        let Some(actor_rules) = selected_bombard_unit(attacker.kind) else {
+            return MoveResult::Blocked;
+        };
+        if !self.bombard_action_available_for_tile(attacker, x, y) {
             return MoveResult::Blocked;
         }
+        let mapped_bombard_strength = attacker.kind.bombard_strength();
+
         let targets: Vec<_> = self
-            .units
-            .iter()
-            .filter(|unit| {
-                (unit.x, unit.y) == (x, y) && !unit.kind.is_aircraft() && unit.transport.is_none()
+            .tile_units_ordered(x, y)
+            .filter(|target| {
+                self.combat_target_reachable(attacker.kind, target.kind, x, y)
+                    && self
+                        .action_available_for_unit_against_unit(attacker, "Bombard", target)
+                        .unwrap_or(false)
             })
             .cloned()
             .collect();
-        if targets.is_empty() {
+        let city_action = self.city_at(x, y).is_some_and(|city| {
+            self.action_available_for_unit_against_city(attacker, "Bombard", city)
+                .unwrap_or(false)
+        });
+        if targets.is_empty() && !city_action {
             return MoveResult::Blocked;
         }
-        if self.intercept_air_mission(attacker, x, y) {
-            return MoveResult::Fought;
-        }
-        if self.air_defense_stops_bomber(attacker, x, y) {
-            return MoveResult::Fought;
-        }
-        let target = targets[self.rand_below(targets.len() as i32) as usize].clone();
-        let bombard_strength = attacker.kind.bombard_strength();
-        let attack = if bombard_strength > 0 {
-            bombard_strength * POWER_FACTOR
+        // The preserved Civ III unit record stores bombard strength separately
+        // from its ordinary attack value (a Bomber has attack 0 and bombard
+        // strength 12). Feed that explicit content mapping through the shared
+        // selected-ruleset tired-attack/effect pipeline.
+        let attack = self.attack_power_against_with_base_for_action(
+            attacker,
+            x,
+            y,
+            mapped_bombard_strength,
+            "Bombard",
+        );
+        let base_rate = actor_rules.bombard_rate;
+        let rate = if crate::sim::combat_rules::selected().damage_reduces_bombard_rate {
+            (base_rate * attacker.hp / attacker.max_hit_points()).max(1)
         } else {
-            Self::attack_power(attacker)
+            base_rate
         };
-        let defense = self.defense_power_against(&target, x, y, attacker.kind);
-        let hits = (0..attacker.kind.bombard_rate())
-            .filter(|_| attack > 0 && self.rand_below(attack + defense) < attack)
-            .count() as i32;
-        let (firepower, _) = self.combat_firepower(attacker, &target);
-        let lethal = attacker.kind.has_lethal_bombard_against(target.kind);
-        let defender = self
-            .units
-            .iter_mut()
-            .find(|unit| unit.id == target.id)
-            .unwrap();
-        let hp = (defender.hp - hits * firepower).max(i32::from(!lethal));
-        let damage = defender.hp - hp;
-        defender.hp = hp;
-        if self.visual_events.enabled {
-            let hp_steps = (hp..=target.hp).rev().map(|hp| (attacker.hp, hp)).collect();
-            self.publish_visual_event(VisualEvent::Combat(Box::new(presentation::CombatVisual {
-                attacker: attacker.clone(),
-                defender: target.clone(),
-                hp: hp_steps,
-                city: self.city_at(x, y).cloned(),
-                bombard_effects: attacker.kind.conquests_rule().bombard_effects > 0,
-                territory: (0..self.map_wrap.width() * self.map_wrap.height())
-                    .map(|i| {
-                        self.displayed_tile_owner(
-                            i % self.map_wrap.width(),
-                            i / self.map_wrap.width(),
-                        )
-                    })
-                    .collect(),
-            })));
-        }
-        let destroyed = hp == 0;
-        if destroyed {
-            self.remove_units_with_cargo(vec![target.id]);
-            // GCON_Craters: a unit with Create Craters may leave damage when
-            // bombardment clears the last unit from a non-city tile. This
-            // pipeline does not yet destroy terrain improvements, so preserve
-            // them as an eligibility blocker instead of pretending they were
-            // removed by the attack.
-            let crater_rule = attacker.kind.conquests_rule().create_craters > 0;
-            let tile = self.tile(x, y);
-            let has_terrain_improvement = tile.road
-                || tile.railroad
-                || tile.irrigation
-                || tile.farmland
-                || tile.base.is_some()
-                || tile.mine
-                || tile.oil_well
-                || tile.oil_platform;
-            let has_city = self.city_at(x, y).is_some();
-            let has_units = self.tile_units_ordered(x, y).next().is_some();
-            if crater_rule && !has_city && !has_units && !has_terrain_improvement {
-                self.tile_mut(x, y).craters = true;
+        let mut total_damage = 0;
+        let mut observed_targets = Vec::new();
+
+        // Freeciv's unit_bombard() walks every unit on the target tile and
+        // fires one rate of attacks at each reachable defender. ACTION_BOMBARD
+        // is marked non-lethal by the pinned engine's ruleset loader.
+        for target in targets {
+            let defense = self.defense_power_against(&target, x, y, attacker.kind);
+            let (attack_firepower, _) = self.combat_firepower(attacker, &target);
+            let mut hp = target.hp;
+            let mut hp_steps = vec![(attacker.hp, hp)];
+            for _ in 0..rate {
+                if self.rand_below(attack + defense) < attack {
+                    hp = (hp - attack_firepower).max(1);
+                    hp_steps.push((attacker.hp, hp));
+                }
             }
-            self.refresh_visibility();
+            total_damage += target.hp - hp;
+            if let Some(defender) = self.units.iter_mut().find(|unit| unit.id == target.id) {
+                defender.hp = hp;
+            }
+            if self.visual_events.enabled {
+                self.publish_visual_event(VisualEvent::Combat(Box::new(
+                    presentation::CombatVisual {
+                        attacker: attacker.clone(),
+                        defender: target.clone(),
+                        hp: hp_steps,
+                        city: self.city_at(x, y).cloned(),
+                        bombard_effects: true,
+                        territory: (0..self.map_wrap.width() * self.map_wrap.height())
+                            .map(|i| {
+                                self.displayed_tile_owner(
+                                    i % self.map_wrap.width(),
+                                    i / self.map_wrap.width(),
+                                )
+                            })
+                            .collect(),
+                    },
+                )));
+            }
+            observed_targets.push((target.kind, target.owner));
         }
-        let bomber = self
-            .units
-            .iter_mut()
-            .find(|unit| unit.id == attacker.id)
-            .unwrap();
-        bomber.moves_left = 0;
-        bomber.moved = true;
-        bomber.state = UnitState::Idle;
-        if attacker.owner == HUMAN || targets.iter().any(|unit| unit.owner == HUMAN) {
-            self.add_event(format!(
-                "A {} dealt {damage} damage to a {}.",
-                attacker.kind.name(),
-                target.kind.name()
-            ));
+
+        // Freeciv calls unit_attack_civilian_casualties once after all unit
+        // targets have been processed, including bombardments on empty city
+        // tiles. C2C3's selected unit class and city-effect adapter determine
+        // whether a citizen can be lost (Big Land KillCitizen, walls, and
+        // Great Wall protection).
+        if actor_rules.kills_citizens && self.city_at(x, y).is_some() {
+            self.apply_bombard_population_loss(attacker, x, y);
+        }
+
+        if let Some(bomber) = self.units.iter_mut().find(|unit| unit.id == attacker.id) {
+            bomber.moves_left = 0;
+            bomber.moved = true;
+            bomber.state = UnitState::Idle;
+            bomber.work_left = 0;
+        }
+        if attacker.owner == HUMAN || observed_targets.iter().any(|(_, owner)| *owner == HUMAN) {
+            if observed_targets.is_empty() {
+                if let Some(city) = self.city_at(x, y) {
+                    self.add_event(format!(
+                        "A {} bombarded {}.",
+                        attacker.kind.name(),
+                        city.name
+                    ));
+                }
+            } else {
+                let names = observed_targets
+                    .iter()
+                    .map(|(kind, _)| kind.name())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                self.add_event(format!(
+                    "A {} dealt {total_damage} damage to {names}.",
+                    attacker.kind.name(),
+                ));
+            }
         }
         MoveResult::Fought
     }
@@ -444,47 +435,35 @@ impl Simulation {
     }
 
     pub(super) fn restore_aircraft_unit(&mut self, id: u32) {
-        let unit = self.unit_by_id(id).cloned();
-        let Some(mut unit) = unit else { return };
-        let max_fuel = unit.kind.fuel_capacity();
-        let max_hp = unit.max_hit_points();
-        let airborne_loss = if unit.kind.is_missile() {
-            0
-        } else {
-            percent_of(max_hp, 10).max(1)
-        };
-        let site = self.refuel_site(unit.owner, unit.x, unit.y);
-        if site || self.aboard_refueling_transport(&unit) {
-            let gain = self.aircraft_repair_gain(&unit, unit.x, unit.y);
-            let bomber = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
-            bomber.fuel = max_fuel;
-            bomber.moved = false;
-            if !unit.moved {
-                bomber.hp = (bomber.hp + gain).min(max_hp);
-            }
+        let Some(unit) = self.unit_by_id(id).cloned() else {
             return;
+        };
+        let max_fuel = unit.kind.fuel_capacity();
+        let site = self.refuel_site(unit.owner, unit.x, unit.y);
+        let refueled = site || self.aboard_refueling_transport(&unit);
+        // player_restore_units calls unit_gain_hitpoints before refueling.
+        // The same ruleset effects now drive aircraft and other unit recovery.
+        let hp = unit.hp + self.unit_hitpoint_gain_at(&unit, unit.x, unit.y);
+        if let Some(live) = self.units.iter_mut().find(|actor| actor.id == id) {
+            live.hp = hp;
+            live.moved = false;
+            live.paradropped = false;
+            if refueled {
+                live.fuel = max_fuel;
+            }
         }
-        // player_restore_units restores hit points (including airborne
-        // loss), kills dead actors, then attempts last-fuel rescue.
-        unit.hp -= airborne_loss;
-        self.units
-            .iter_mut()
-            .find(|actor| actor.id == id)
-            .unwrap()
-            .hp = unit.hp;
-        self.units
-            .iter_mut()
-            .find(|actor| actor.id == id)
-            .unwrap()
-            .moved = false;
-        if unit.hp <= 0 {
+        if hp <= 0 {
             self.remove_units_with_cargo(vec![id]);
             if unit.owner == HUMAN {
                 self.add_event(format!("Your {} crashed.", unit.kind.name()));
             }
             return;
         }
-        if max_fuel > 0 && unit.fuel <= 1 && self.boarding_target(&unit, unit.x, unit.y).is_some() {
+        if !refueled
+            && max_fuel > 0
+            && unit.fuel <= 1
+            && self.boarding_target(&unit, unit.x, unit.y).is_some()
+        {
             self.board_or_deboard(id);
             self.units
                 .iter_mut()
@@ -493,7 +472,8 @@ impl Simulation {
                 .fuel = max_fuel;
             return;
         }
-        if max_fuel > 0
+        if !refueled
+            && max_fuel > 0
             && unit.fuel <= 1
             && unit.moves_left > 0
             && let Some(mut map) =

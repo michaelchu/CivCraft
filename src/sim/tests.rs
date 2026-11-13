@@ -328,8 +328,10 @@ fn wrapped_path_uses_one_legal_civ3_step() {
 
 #[test]
 fn healing_uses_city_minimum_and_fortified_regeneration() {
-    let game = Simulation::new(crate::mapgen::generate(42));
-    let (x, y) = crate::mapgen::generate(42).starts[0];
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let (x, y) = (10, 20);
+    game.tile_mut(x, y).terrain = Terrain::Grassland;
+    game.tile_mut(x, y).base = None;
     let mut unit = game
         .units
         .iter()
@@ -345,15 +347,87 @@ fn healing_uses_city_minimum_and_fortified_regeneration() {
     unit.moved = false;
     unit.state = UnitState::Idle;
     assert_eq!(unit.max_hit_points(), 5);
-    // The imported Conquests rank table gives an Elite 5 HP. RULE's regen
-    // percentages are calculated on those raw HP integers, so the 10% field
-    // increment truncates to zero and the 33% city minimum truncates to one.
-    assert_eq!(Simulation::hitpoint_gain(&unit, false), 0);
-    assert_eq!(Simulation::hitpoint_gain(&unit, true), 1);
+    // The imported Conquests rank table gives an Elite 5 HP. C2C3's generic
+    // HP_Regen_2 rounds base/10 up to one HP; a city adds its 33% minimum, and
+    // Fortified adds another HP_Regen_2 effect.
+    assert_eq!(game.unit_hitpoint_gain_at(&unit, x, y), 1);
+    game.create_city(HUMAN, x, y);
+    assert_eq!(game.unit_hitpoint_gain_at(&unit, x, y), 2);
     unit.state = UnitState::Fortified;
-    assert_eq!(Simulation::hitpoint_gain(&unit, true), 1);
+    assert_eq!(game.unit_hitpoint_gain_at(&unit, x, y), 3);
     unit.moved = true;
-    assert_eq!(Simulation::hitpoint_gain(&unit, true), 0);
+    assert_eq!(game.unit_hitpoint_gain_at(&unit, x, y), 0);
+}
+
+#[test]
+fn player_restore_wires_selected_aircraft_recovery_and_fuel_sites() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.known_by[HUMAN] = false;
+    }
+
+    let airstrip = (5, 20);
+    let airbase = (8, 20);
+    let airport = (11, 20);
+    let ordinary_city = (14, 20);
+    let carrier_tile = (17, 20);
+    for (position, base) in [(airstrip, Base::Airstrip), (airbase, Base::Airbase)] {
+        let tile = game.tile_mut(position.0, position.1);
+        tile.base = Some(base);
+        tile.known_by[HUMAN] = true;
+    }
+    game.create_city(HUMAN, airport.0, airport.1);
+    let airport_city = game.city_index_at(airport.0, airport.1).unwrap();
+    game.cities[airport_city].buildings.push(Building::AIRPORT);
+    game.create_city(HUMAN, ordinary_city.0, ordinary_city.1);
+    game.tile_mut(carrier_tile.0, carrier_tile.1).terrain = Terrain::Ocean;
+
+    let carrier = game.spawn_unit(HUMAN, UnitKind::Carrier, carrier_tile.0, carrier_tile.1);
+    let mut aircraft = Vec::new();
+    for (position, moved) in [
+        (airstrip, false),
+        (airbase, false),
+        (airport, false),
+        (ordinary_city, false),
+        (carrier_tile, false),
+        (airstrip, true),
+    ] {
+        let id = game.spawn_unit(HUMAN, UnitKind::Fighter, position.0, position.1);
+        {
+            let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
+            unit.hp = 1;
+            unit.fuel = 0;
+            unit.moved = moved;
+            unit.moves_left = 0;
+            if position == carrier_tile {
+                unit.transport = Some(carrier);
+            }
+        }
+        let unit = game.unit_by_id(id).unwrap().clone();
+        let expected_hp = unit.hp + game.unit_hitpoint_gain_at(&unit, position.0, position.1);
+        aircraft.push((id, expected_hp, moved));
+    }
+
+    game.restore_player_units(HUMAN);
+
+    for (id, expected_hp, started_moved) in aircraft {
+        let unit = game.unit_by_id(id).unwrap();
+        assert_eq!(
+            unit.hp,
+            expected_hp,
+            "HP recovery at {:?}",
+            (unit.x, unit.y)
+        );
+        assert_eq!(unit.fuel, unit.kind.fuel_capacity());
+        assert!(!unit.moved, "restoration resets movement after HP recovery");
+        if started_moved {
+            assert_eq!(unit.hp, 1, "HP recovery uses the pre-reset moved state");
+        }
+    }
 }
 
 #[test]
@@ -413,6 +487,39 @@ fn combat_odds_and_defender_selection_match_native_rules() {
     game.tile_mut(1, 0).terrain = Terrain::Grassland;
 
     assert_eq!(game.best_defender_id(&attacker, 1, 0), Some(3));
+}
+
+#[test]
+fn combat_win_chance_matches_pinned_freeciv_source_vectors() {
+    for line in include_str!("../../tests/fixtures/freeciv_combat_vectors.tsv").lines() {
+        if line.starts_with('#') || line.trim().is_empty() {
+            continue;
+        }
+        let fields = line.split('\t').collect::<Vec<_>>();
+        assert_eq!(fields.len(), 8, "invalid vector row: {line}");
+        let integer = |index: usize| {
+            fields[index]
+                .parse::<i32>()
+                .unwrap_or_else(|error| panic!("invalid vector input on row {line:?}: {error}"))
+        };
+        let expected = fields[7]
+            .parse::<f64>()
+            .unwrap_or_else(|error| panic!("invalid vector output on row {line:?}: {error}"));
+        let actual = combat_win_chance(
+            integer(1),
+            integer(2),
+            integer(3),
+            integer(4),
+            integer(5),
+            integer(6),
+        );
+        let relative_error = (actual - expected).abs() / expected.abs().max(f64::MIN_POSITIVE);
+        assert!(
+            relative_error <= 5.0e-14,
+            "Freeciv win_chance vector {} differs: expected {expected:.17e}, got {actual:.17e} (relative error {relative_error:.3e})",
+            fields[0]
+        );
+    }
 }
 
 #[test]

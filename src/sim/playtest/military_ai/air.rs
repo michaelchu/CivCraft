@@ -105,7 +105,6 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         self.sign_pact(HUMAN, 1, Pact::War);
-        self.sign_pact(HUMAN, BARBARIANS, Pact::War);
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
             tile.base = None;
@@ -113,7 +112,7 @@ impl Simulation {
             tile.known_by[1] = true;
         }
         let home = (10, 24);
-        let near = offset_native_by_map(home.0, home.1, 2, 0);
+        let near = offset_native_by_map(home.0, home.1, 1, 0);
         let far = offset_native_by_map(home.0, home.1, 8, 0);
         self.create_city(1, home.0, home.1);
         self.tile_mut(near.0, near.1).known_by[1] = true;
@@ -124,28 +123,29 @@ impl Simulation {
         let close = self.spawn_unit(HUMAN, UnitKind::Bomber, near.0, near.1);
         self.units.last_mut().unwrap().hp = 1;
         self.units.last_mut().unwrap().moves_left = UnitKind::Bomber.stats().moves * MOVE_FRAGMENTS;
-        self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         self.refresh_visibility();
-        self.run_ai_player(1);
-        let assigned = self
-            .unit_by_id(fighter)
-            .is_some_and(|unit| unit.state == UnitState::AirSuperiority);
         self.native_random = None;
-        self.rng = 2; // 22% interception roll, below the stock 50% chance.
-        let bomber = self.unit_by_id(close).unwrap().clone();
-        self.try_bombard(&bomber, home.0, home.1);
-        let intercepted = assigned && self.units.iter().all(|unit| unit.id != close);
-        self.restore_aircraft();
-        let refueled = self.units.iter().any(|unit| {
-            unit.id == fighter
-                && (unit.x, unit.y) == home
-                && unit.fuel == UnitKind::Fighter.fuel_capacity()
-        });
+        self.rng = 1;
+        self.run_ai_player(1);
+        // Freeciv has no Air Superiority patrol mission or automatic
+        // interception. The AI should leave this fighter on its base; the
+        // ruleset target-tile attack path is covered by the aviation combat
+        // scenario, where combat is an explicit move into the target tile.
+        let no_unsupported_interception = self.unit_by_id(close).is_some()
+            && self.unit_by_id(fighter).is_some_and(|plane| {
+                plane.moves_left == UnitKind::Fighter.stats().moves * MOVE_FRAGMENTS
+            });
         self.update_activities_and_restore();
-        if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == fighter) {
-            unit.fuel = 1;
-            unit.state = UnitState::Idle;
-        }
+        let refuel_test = self.spawn_unit(1, UnitKind::Fighter, home.0, home.1);
+        self.units
+            .iter_mut()
+            .find(|unit| unit.id == refuel_test)
+            .unwrap()
+            .fuel = 1;
+        self.restore_aircraft();
+        let refueled = self
+            .unit_by_id(refuel_test)
+            .is_some_and(|unit| unit.fuel == UnitKind::Fighter.fuel_capacity());
         let distant = self.spawn_unit(HUMAN, UnitKind::Bomber, far.0, far.1);
         self.units.last_mut().unwrap().hp = 1;
         let plane = self.unit_by_id(fighter).unwrap();
@@ -155,7 +155,7 @@ impl Simulation {
             && self
                 .route_cost_within(plane, target.x, target.y, plane.moves_left)
                 .is_none();
-        (intercepted, skipped, refueled)
+        (no_unsupported_interception, skipped, refueled)
     }
 
     pub(crate) fn ai_embarked_paradrop_danger_playtest(&mut self) -> bool {

@@ -3,196 +3,525 @@
 use super::production::Growth;
 use super::*;
 
+fn kill_citizen_unit_kind() -> UnitKind {
+    UnitKind::ALL_NATIVE
+        .into_iter()
+        .find(|&kind| {
+            crate::sim::movement_rules::MovementRules::campaign()
+                .unit_class_movement_data_for_kind(kind)
+                .expect("campaign unit class is mapped")
+                .kills_citizens
+        })
+        .expect("C2C3 has a KillCitizen unit class")
+}
+
 #[test]
-fn standard_conquests_capture_drops_city_culture_without_crediting_the_captor() {
+fn combat_population_loss_uses_killcitizen_and_selected_protection_effects() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(1, 20, 24);
+    game.cities[0].size = 3;
+    game.cities[0].buildings.push(Building::CITY_WALLS);
+    let attacker_id = game.spawn_unit(HUMAN, kill_citizen_unit_kind(), 19, 24);
+    let attacker = game.unit_by_id(attacker_id).unwrap().clone();
+
+    game.apply_combat_population_loss(&attacker, 20, 24);
+    assert_eq!(game.cities[0].size, 3, "City Walls protect the population");
+
+    game.cities[0]
+        .buildings
+        .retain(|&building| building != Building::CITY_WALLS);
+    game.cities[0].buildings.push(Building::GREAT_WALL);
+    game.apply_combat_population_loss(&attacker, 20, 24);
+    assert_eq!(game.cities[0].size, 3, "Great Wall protects the population");
+
+    game.cities[0]
+        .buildings
+        .retain(|&building| building != Building::GREAT_WALL);
+    game.apply_combat_population_loss(&attacker, 20, 24);
+    assert_eq!(game.cities[0].size, 2);
+
+    game.cities[0].size = 1;
+    game.apply_combat_population_loss(&attacker, 20, 24);
+    assert_eq!(game.cities[0].size, 1, "C2C3 protects size-one cities");
+}
+
+#[test]
+fn combat_population_loss_respects_class_flags_and_bombard_effect_context() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(1, 20, 24);
+    game.cities[0].size = 3;
+    let warrior_id = game.spawn_unit(HUMAN, UnitKind::Warrior, 19, 24);
+    let warrior = game.unit_by_id(warrior_id).unwrap().clone();
+    assert!(
+        !crate::sim::movement_rules::MovementRules::campaign()
+            .unit_class_movement_data_for_kind(warrior.kind)
+            .unwrap()
+            .kills_citizens
+    );
+    game.apply_combat_population_loss(&warrior, 20, 24);
+    assert_eq!(game.cities[0].size, 3, "Land has no KillCitizen flag");
+
+    let bombard_id = game.spawn_unit(HUMAN, kill_citizen_unit_kind(), 19, 24);
+    let bombard = game.unit_by_id(bombard_id).unwrap().clone();
+    game.apply_bombard_population_loss(&bombard, 20, 24);
+    assert_eq!(game.cities[0].size, 2);
+
+    game.cities[0].size = 1;
+    game.apply_bombard_population_loss(&bombard, 20, 24);
+    assert_eq!(
+        game.cities[0].size, 1,
+        "Bombard cannot destroy a size-one city"
+    );
+}
+
+#[test]
+fn conquest_destroys_size_one_city_without_loot_or_transfer() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
     game.create_city(1, 20, 24);
-    game.create_city(HUMAN, 30, 24);
+    game.cities[1].size = 1;
+    game.players[1].gold = 500;
+    game.players[HUMAN].gold = 50;
     let city_id = game.cities[1].id;
-    game.cities[1].add_culture(1, 300);
-    game.cities[1].add_culture(HUMAN, 75);
-    game.cities[2].add_culture(HUMAN, 500);
-    assert_eq!(game.civilization_culture(1), 300);
-    assert_eq!(game.civilization_culture(HUMAN), 575);
     game.sign_pact(HUMAN, 1, Pact::War);
-    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Swordsman, 20, 24);
 
     game.capture_city_if_needed(attacker, 20, 24);
 
-    let city = &game.cities[game.city_index_by_id(city_id).unwrap()];
-    assert_eq!(city.owner, HUMAN);
-    assert_eq!(city.culture_for_civilization(1), 0);
-    assert_eq!(city.culture_for_civilization(HUMAN), 0);
-    assert_eq!(city.culture_by_civilization, [(HUMAN, 0)]);
-    assert_eq!(city.historical_culture_for_civilization(1), 300);
-    assert_eq!(city.historical_culture_for_civilization(HUMAN), 75);
-    assert_eq!(
-        game.civilization_culture(1),
-        300,
-        "capturing the city must not subtract culture the former owner already earned"
-    );
-    assert_eq!(
-        game.civilization_culture(HUMAN),
-        575,
-        "the captor keeps culture it had already earned in the city, but receives none of the former owner's 300 points"
-    );
+    assert!(game.city_index_by_id(city_id).is_none());
+    assert_eq!(game.players[1].gold, 500);
+    assert_eq!(game.players[HUMAN].gold, 50);
 }
 
 #[test]
-fn retain_culture_capture_keeps_city_culture_and_its_border_reach() {
+fn conquest_transfers_city_loots_gold_raze_and_savepalace_by_selected_rules() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
-    for tile in &mut game.tiles {
-        tile.terrain = Terrain::Grassland;
-        tile.owner = None;
-        tile.border_city = None;
-        tile.known_by[HUMAN] = true;
-    }
-    game.create_city(1, 2, 24);
     game.create_city(1, 10, 24);
+    game.create_city(1, 20, 24);
+    game.create_city(1, 30, 24);
     let city_id = game.cities[1].id;
-    game.cities[1].add_culture(1, 1_000);
-    game.sign_pact(HUMAN, 1, Pact::War);
-    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
-
-    game.capture_city_with_culture_retention(attacker, 10, 24, true);
-
-    let city = &game.cities[game.city_index_by_id(city_id).unwrap()];
-    assert_eq!(city.owner, HUMAN);
-    assert_eq!(city.culture_for_civilization(1), 1_000);
-    assert_eq!(city.culture_for_civilization(HUMAN), 0);
-    assert_eq!(city.total_culture(), 1_000);
-    assert_eq!(city.historical_culture_for_civilization(1), 1_000);
-    assert_eq!(city.historical_culture_for_civilization(HUMAN), 0);
-
-    let mut ring_tile = (10, 24);
-    for _ in 0..4 {
-        ring_tile = game
-            .map_wrap
-            .civ3_neighbor(ring_tile.0, ring_tile.1, 0)
-            .expect("retained culture ring stays inside the map");
+    let old_owner_cities = game
+        .player_cities_ordered(1)
+        .filter(|city| city.id != city_id)
+        .map(|city| city.id)
+        .collect::<Vec<_>>();
+    game.cities[0]
+        .buildings
+        .retain(|&building| building != Building::PALACE);
+    game.cities[1].size = 4;
+    game.cities[1].food = 7;
+    game.cities[1].shields = 30;
+    game.cities[1].buildings.extend([
+        Building::PALACE,
+        Building::TEMPLE,
+        Building::GREAT_LIBRARY,
+        Building::LIBRARY,
+        Building::CITY_WALLS,
+    ]);
+    game.players[1].gold = 200;
+    game.players[HUMAN].gold = 0;
+    for player in &mut game.players {
+        player.known.clear();
+        player.future_techs = 0;
     }
+    game.set_random_seed(42);
+    let mut expected_random = game.clone();
+    let loot = expected_random.rand_below(11) + 200 * 4 / 200;
+    expected_random.rand_below(100); // Conquest_Tech_Pct = 100.
+    let razechance = crate::sim::combat_rules::selected().razechance;
+    let city_walls_razed = expected_random.rand_below(100) < razechance;
+    let library_razed = expected_random.rand_below(100) < razechance;
+    let temple_razed = expected_random.rand_below(100) < razechance;
+    let saved_palace_city = old_owner_cities[expected_random.rand_below(2) as usize];
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Swordsman, 20, 24);
+
+    game.capture_city_if_needed(attacker, 20, 24);
+
+    let captured_index = game.city_index_by_id(city_id).unwrap();
+    let captured = &game.cities[captured_index];
+    assert_eq!(captured.owner, HUMAN);
+    assert_eq!(captured.size, 3);
+    assert_eq!(captured.food, 7, "conquest preserves stored food");
+    assert_eq!(captured.shields, 0, "C2C3 razing clears shield stock");
+    assert_eq!(game.players[HUMAN].gold, loot);
+    assert_eq!(game.players[1].gold, 200 - loot);
+    assert_eq!(game.players[HUMAN].gold + game.players[1].gold, 200);
+    assert_eq!(captured.has_building(Building::PALACE), true);
+    assert_eq!(captured.has_building(Building::GREAT_LIBRARY), true);
     assert_eq!(
+        captured.has_building(Building::CITY_WALLS),
+        !city_walls_razed
+    );
+    assert_eq!(captured.has_building(Building::LIBRARY), !library_razed);
+    assert_eq!(captured.has_building(Building::TEMPLE), !temple_razed);
+    assert!(
+        game.city_by_id(saved_palace_city)
+            .unwrap()
+            .has_building(Building::PALACE)
+    );
+    assert_eq!(crate::sim::combat_rules::selected().razechance, 10);
+    assert!(crate::sim::combat_rules::selected().savepalace);
+    assert_eq!(game.random_snapshot(), expected_random.random_snapshot());
+}
+
+#[test]
+fn conquest_steals_an_available_technology_using_selected_effect_and_transfer_settings() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(1, 20, 24);
+    game.cities[0].size = 3;
+    game.players[1].gold = 0;
+    game.players[HUMAN].gold = 0;
+    for player in &mut game.players {
+        player.known.clear();
+        player.future_techs = 0;
+    }
+    let tech = Tech::all()
+        .find(|&tech| {
+            tech.is_civ3_advance()
+                && tech
+                    .civ3_prerequisites()
+                    .is_some_and(|prerequisites| prerequisites.is_empty())
+        })
+        .expect("the C2C3 tree has a root technology");
+    game.players[1].known.push(tech);
+    let mut expected_random = game.clone();
+    expected_random.rand_below(1); // Zero-loot roll does not advance Freeciv RNG.
+    expected_random.rand_below(100); // Conquest_Tech_Pct roll.
+    expected_random.rand_below(1); // Exactly one eligible advance.
+    expected_random.rand_below(100); // tech_transfer always rolls receiver loss.
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Swordsman, 20, 24);
+
+    game.capture_city_if_needed(attacker, 20, 24);
+
+    assert!(game.has_tech(HUMAN, tech));
+    assert!(game.has_tech(1, tech), "default donor loss chance is zero");
+    assert_eq!(game.random_snapshot(), expected_random.random_snapshot());
+}
+
+fn conquest_fixture() -> (Simulation, u32, u32, (i32, i32)) {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let center = (20, 24);
+    let mut bounce_area = game
+        .map_wrap
+        .freeciv_square_radius(center.0, center.1, 2)
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    bounce_area.extend(
         game.map_wrap
-            .civ3_distance(10, 24, ring_tile.0, ring_tile.1),
-        4
+            .civ3_radius(center.0, center.1, 2)
+            .into_iter()
+            .map(|(x, y, _)| (x, y)),
     );
-    assert_eq!(game.tile(ring_tile.0, ring_tile.1).owner, Some(HUMAN));
+    for (x, y) in bounce_area {
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.road = false;
+        tile.railroad = false;
+        tile.river = false;
+    }
+    game.create_city(1, center.0, center.1);
+    game.cities[0].size = 3;
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let city_id = game.cities[0].id;
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Swordsman, center.0, center.1);
+    (game, city_id, attacker, center)
 }
 
 #[test]
-fn fascist_capture_suppresses_culture_until_owner_nation_is_a_majority() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.units.clear();
-    game.cities.clear();
-    game.players[HUMAN].government = Government::Fascism;
-    game.create_city(1, 10, 24);
-    game.create_city(1, 20, 24);
-    let city_id = game.cities[1].id;
-    game.cities[1].size = 5;
-    game.cities[1].buildings.push(Building::TEMPLE);
-    game.cities[1].record_culture_building_completion(Building::TEMPLE, 1, game.year);
-    game.sign_pact(HUMAN, 1, Pact::War);
-    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+fn conquest_transfers_center_garrison_and_resolves_unique_game_loss_conflicts() {
+    let (mut game, city_id, attacker, center) = conquest_fixture();
+    let garrison_id = game.spawn_unit(1, UnitKind::Warrior, center.0, center.1);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == garrison_id)
+        .unwrap()
+        .home_city = Some(city_id);
+
+    game.capture_city_if_needed(attacker, center.0, center.1);
+
+    let transferred = game
+        .unit_by_id(garrison_id)
+        .expect("city transfer preserves the unit identity");
+    assert_eq!(transferred.owner, HUMAN);
+    assert_eq!((transferred.x, transferred.y), center);
+    assert_eq!(transferred.home_city, Some(city_id));
+
+    let (mut game, _city_id, attacker, center) = conquest_fixture();
+    assert_eq!(
+        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
+        Some(true)
+    );
+    assert_eq!(
+        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "GameLoss"),
+        Some(true)
+    );
+    let existing_unique = game.spawn_unit(HUMAN, UnitKind::Leader, 5, 20);
+    let conflicting_unique = game.spawn_unit(1, UnitKind::Leader, center.0, center.1);
+
+    game.capture_city_if_needed(attacker, center.0, center.1);
+
+    assert!(game.unit_by_id(existing_unique).is_some());
+    assert_eq!(
+        game.unit_by_id(conflicting_unique).map(|unit| unit.owner),
+        Some(1),
+        "a conflicting GameLoss unit is bounced, not transferred or destroyed"
+    );
+    assert_ne!(
+        game.unit_by_id(conflicting_unique)
+            .map(|unit| (unit.x, unit.y)),
+        Some(center)
+    );
+    assert!(game.units.iter().all(|unit| {
+        !(unit.owner == HUMAN && unit.kind == UnitKind::Leader && unit.id != existing_unique)
+    }));
+}
+
+#[test]
+fn conquest_bounces_hostile_third_party_units_but_keeps_allied_units_at_center() {
+    let (mut hostile_game, _, attacker, center) = conquest_fixture();
+    let hostile_id = hostile_game.spawn_unit(2, UnitKind::Warrior, center.0, center.1);
+
+    hostile_game.capture_city_if_needed(attacker, center.0, center.1);
+
+    let hostile = hostile_game.unit_by_id(hostile_id).unwrap();
+    assert_eq!(hostile.owner, 2);
+    assert_ne!((hostile.x, hostile.y), center);
+
+    let (mut allied_game, _city_id, attacker, center) = conquest_fixture();
+    allied_game.sign_pact(HUMAN, 2, Pact::Alliance);
+    let allied_id = allied_game.spawn_unit(2, UnitKind::Warrior, center.0, center.1);
+
+    allied_game.capture_city_if_needed(attacker, center.0, center.1);
+
+    let allied = allied_game.unit_by_id(allied_id).unwrap();
+    assert_eq!(allied.owner, 2);
+    assert_eq!((allied.x, allied.y), center);
+}
+
+#[test]
+fn conquest_transfer_bounces_units_from_other_nonallied_cities() {
+    let (mut game, _, attacker, _) = conquest_fixture();
+    let foreign_city = (10, 24);
+    let mut bounce_area = game
+        .map_wrap
+        .freeciv_square_radius(foreign_city.0, foreign_city.1, 2)
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    bounce_area.extend(
+        game.map_wrap
+            .civ3_radius(foreign_city.0, foreign_city.1, 2)
+            .into_iter()
+            .map(|(x, y, _)| (x, y)),
+    );
+    for (x, y) in bounce_area {
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.road = false;
+        tile.railroad = false;
+        tile.river = false;
+    }
+    game.create_city(2, foreign_city.0, foreign_city.1);
+    let illegal_city_unit =
+        game.spawn_unit(HUMAN, UnitKind::Worker, foreign_city.0, foreign_city.1);
 
     game.capture_city_if_needed(attacker, 20, 24);
 
-    let index = game.city_index_by_id(city_id).unwrap();
-    assert_eq!(game.cities[index].owner, HUMAN);
-    assert!(game.cities[index].culture_suppressed_until_majority_assimilated);
-    game.record_city_culture(index);
-    assert_eq!(game.cities[index].culture_for_civilization(HUMAN), 0);
-
-    game.cities[index].foreign_citizens[0].1 = 1;
-    game.record_city_culture(index);
-    assert!(!game.cities[index].culture_suppressed_until_majority_assimilated);
-    assert_eq!(game.cities[index].culture_for_civilization(HUMAN), 0);
-    game.cities[index].buildings.push(Building::LIBRARY);
-    game.cities[index].record_culture_building_completion(Building::LIBRARY, HUMAN, game.year);
-    game.record_city_culture(index);
-    assert_eq!(game.cities[index].culture_for_civilization(HUMAN), 3);
+    let relocated = game
+        .unit_by_id(illegal_city_unit)
+        .expect("an illegal city occupant with a safe tile keeps its ID");
+    assert_eq!(relocated.owner, HUMAN);
+    assert_ne!((relocated.x, relocated.y), foreign_city);
+    assert!(
+        game.city_at(relocated.x, relocated.y)
+            .is_none_or(|city| { game.allied(HUMAN, city.owner) })
+    );
 }
 
 #[test]
-fn captured_culture_buildings_wait_for_their_builder_and_restart_age_after_recapture() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.units.clear();
-    game.cities.clear();
-    game.year = 0;
-    game.create_city(1, 10, 24);
-    game.create_city(1, 20, 24);
-    let city_id = game.cities[1].id;
-    game.cities[1].buildings.push(Building::TEMPLE);
-    game.cities[1].record_culture_building_completion(Building::TEMPLE, 1, -1500);
-    game.sign_pact(HUMAN, 1, Pact::War);
-    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+fn conquest_transfer_unloads_unallied_cargo_before_bouncing_illegal_city_occupants() {
+    let (mut game, _, attacker, _) = conquest_fixture();
+    let foreign_city = (10, 24);
+    let mut bounce_area = game
+        .map_wrap
+        .freeciv_square_radius(foreign_city.0, foreign_city.1, 2)
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    bounce_area.extend(
+        game.map_wrap
+            .civ3_radius(foreign_city.0, foreign_city.1, 2)
+            .into_iter()
+            .map(|(x, y, _)| (x, y)),
+    );
+    for (x, y) in bounce_area {
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.road = false;
+        tile.railroad = false;
+        tile.river = false;
+    }
+    game.tile_mut(11, 24).terrain = Terrain::Coast;
+    game.create_city(2, foreign_city.0, foreign_city.1);
+    let carrier_id = game.spawn_unit(HUMAN, UnitKind::Transport, foreign_city.0, foreign_city.1);
+    let cargo_id = game.spawn_unit(1, UnitKind::Warrior, foreign_city.0, foreign_city.1);
+    let cargo_index = game.unit_index_by_id(cargo_id).unwrap();
+    game.units[cargo_index].transport = Some(carrier_id);
+    game.record_transport_change(cargo_id, Some(carrier_id));
+
     game.capture_city_if_needed(attacker, 20, 24);
 
-    let index = game.city_index_by_id(city_id).unwrap();
-    assert_eq!(
-        game.cities[index].culture_building_owners,
-        [(Building::TEMPLE.0, 1)]
-    );
-    assert_eq!(
-        game.cities[index].culture_building_year(Building::TEMPLE, 0),
-        0
-    );
-    game.record_city_culture(index);
-    assert_eq!(game.cities[index].culture_for_civilization(HUMAN), 0);
-
-    game.year = 100;
-    let recapturer = game.spawn_unit(1, UnitKind::Warrior, 20, 24);
-    game.capture_city_if_needed(recapturer, 20, 24);
-    game.record_city_culture(index);
-    assert_eq!(game.cities[index].culture_for_civilization(1), 2);
-
-    game.year = 1100;
-    game.record_city_culture(index);
-    assert_eq!(game.cities[index].culture_for_civilization(1), 6);
+    let carrier = game
+        .unit_by_id(carrier_id)
+        .expect("the illegal-city carrier has a survivable bounce destination");
+    let cargo = game
+        .unit_by_id(cargo_id)
+        .expect("unloaded cargo is separately bounced and keeps its identity");
+    assert_ne!((carrier.x, carrier.y), foreign_city);
+    assert_ne!((cargo.x, cargo.y), foreign_city);
+    assert_eq!(cargo.owner, 1);
+    assert_eq!(cargo.transport, None);
 }
 
 #[test]
-fn capture_initializes_deterministic_resistance_from_foreign_population() {
-    fn capture_with_seed(seed: u64, captor_culture: i64) -> (Vec<(usize, i32)>, Vec<(usize, i32)>) {
-        let mut game = Simulation::new(crate::mapgen::generate(seed));
-        game.units.clear();
-        game.cities.clear();
-        game.create_city(1, 10, 24);
-        game.create_city(1, 20, 24);
-        game.create_city(HUMAN, 30, 24);
-        game.cities[1].size = 6;
-        game.cities[1].add_culture(1, 100);
-        game.cities[2].add_culture(HUMAN, captor_culture);
-        game.sign_pact(HUMAN, 1, Pact::War);
-        let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
-        game.capture_city_if_needed(attacker, 20, 24);
-        (
-            game.cities[1].foreign_citizens.clone(),
-            game.cities[1].resisting_citizens.clone(),
-        )
+fn conquest_transfer_bounces_both_players_from_newly_hostile_mixed_stacks() {
+    let (mut game, _, attacker, _) = conquest_fixture();
+    let stack = (18, 24);
+    let giver_unit = game.spawn_unit(1, UnitKind::Warrior, stack.0, stack.1);
+    let taker_unit = game.spawn_unit(HUMAN, UnitKind::Worker, stack.0, stack.1);
+
+    game.capture_city_if_needed(attacker, 20, 24);
+
+    assert!(game.unit_by_id(giver_unit).is_some());
+    assert!(game.unit_by_id(taker_unit).is_some());
+    assert!(game.units.iter().all(|left| {
+        game.units.iter().all(|right| {
+            left.id == right.id
+                || (left.x, left.y) != (right.x, right.y)
+                || game.allied(left.owner, right.owner)
+        })
+    }));
+    assert_ne!(
+        game.unit_by_id(giver_unit).map(|unit| (unit.x, unit.y)),
+        Some(stack)
+    );
+    assert_ne!(
+        game.unit_by_id(taker_unit).map(|unit| (unit.x, unit.y)),
+        Some(stack)
+    );
+}
+
+#[test]
+fn conquest_city_transfer_bounce_uses_freeciv_order_and_preserves_unit_id() {
+    let (mut game, city_id, _attacker, center) = conquest_fixture();
+    let bounced_id = game.spawn_unit(2, UnitKind::Worker, center.0, center.1);
+    let bounced = game.unit_by_id(bounced_id).unwrap().clone();
+
+    let allied_destination =
+        |simulation: &Simulation, x, y| {
+            simulation.cities.iter().all(|city| {
+                (city.x, city.y) != (x, y) || simulation.allied(bounced.owner, city.owner)
+            }) && simulation.units.iter().all(|other| {
+                (other.x, other.y) != (x, y) || simulation.allied(bounced.owner, other.owner)
+            })
+        };
+    let freeciv_destinations = game
+        .map_wrap
+        .freeciv_square_radius(center.0, center.1, 2)
+        .into_iter()
+        .filter(|&(x, y)| (x, y) != center)
+        .filter(|&(x, y)| game.unit_can_survive_at_tile(&bounced, x, y))
+        .filter(|&(x, y)| allied_destination(&game, x, y))
+        .collect::<Vec<_>>();
+    let old_civ3_destinations = game
+        .map_wrap
+        .civ3_radius(center.0, center.1, 2)
+        .into_iter()
+        .filter(|&(_, _, distance)| distance != 0)
+        .filter(|&(x, y, _)| game.movement_cost_for(&bounced, x, y).is_some())
+        .filter(|&(x, y, _)| allied_destination(&game, x, y))
+        .map(|(x, y, _)| (x, y))
+        .collect::<Vec<_>>();
+    assert!(!freeciv_destinations.is_empty());
+    assert!(!old_civ3_destinations.is_empty());
+
+    // Choose a stable seed that distinguishes Freeciv's survivability and
+    // square-iteration results from the former Civ III radius/movement-cost
+    // candidates, so this catches routing back through the old helper.
+    let (seed, expected_destination) = (1..=1024)
+        .find_map(|seed| {
+            let mut freeciv_rng = game.clone();
+            freeciv_rng.set_random_seed(seed);
+            let freeciv_destination = freeciv_destinations
+                [freeciv_rng.rand_below(freeciv_destinations.len() as i32) as usize];
+
+            let mut old_rng = game.clone();
+            old_rng.set_random_seed(seed);
+            let old_destination = old_civ3_destinations
+                [old_rng.rand_below(old_civ3_destinations.len() as i32) as usize];
+            (freeciv_destination != old_destination).then_some((seed, freeciv_destination))
+        })
+        .expect("some seed distinguishes Freeciv and Civ III bounce iteration order");
+
+    game.set_random_seed(seed);
+    let mut expected_rng = game.clone();
+    expected_rng.rand_below(freeciv_destinations.len() as i32);
+    let expected_random = expected_rng.random_snapshot();
+
+    game.transfer_conquered_city_units(city_id, 1, HUMAN, center);
+
+    let bounced = game
+        .unit_by_id(bounced_id)
+        .expect("bouncing preserves the unit's identity");
+    assert_eq!((bounced.x, bounced.y), expected_destination);
+    assert_eq!(bounced.owner, 2);
+    assert_eq!(bounced.transport, None);
+    assert_eq!(game.random_snapshot(), expected_random);
+}
+
+#[test]
+fn conquest_rehomes_supported_units_in_old_cities_and_removes_other_outside_units() {
+    let (mut game, city_id, attacker, center) = conquest_fixture();
+    let old_owner_city = (10, 24);
+    game.create_city(1, old_owner_city.0, old_owner_city.1);
+    let home_city_id = game
+        .cities
+        .iter()
+        .find(|city| (city.x, city.y) == old_owner_city)
+        .unwrap()
+        .id;
+    let at_old_city = game.spawn_unit(1, UnitKind::Warrior, old_owner_city.0, old_owner_city.1);
+    let outside = game.spawn_unit(1, UnitKind::Warrior, 14, 24);
+    for id in [at_old_city, outside] {
+        let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
+        unit.home_city = Some(city_id);
     }
 
-    let (foreign, resisting) = capture_with_seed(42, 0);
-    assert_eq!(foreign, [(1, 5)]);
-    assert!(!resisting.is_empty());
-    assert_eq!(resisting, capture_with_seed(42, 0).1);
-    let culturally_stronger_captor = capture_with_seed(42, 300).1;
+    game.capture_city_if_needed(attacker, center.0, center.1);
+
+    let rehomed = game
+        .unit_by_id(at_old_city)
+        .expect("unit in old city survives");
+    assert_eq!(rehomed.owner, 1);
+    assert_eq!(rehomed.home_city, Some(home_city_id));
     assert!(
-        resisting.iter().map(|&(_, count)| count).sum::<i32>()
-            >= culturally_stronger_captor
-                .iter()
-                .map(|&(_, count)| count)
-                .sum::<i32>(),
-        "higher pre-capture captor culture should not increase resistance under the BIQ-derived bands"
-    );
-    assert!(
-        resisting
-            .iter()
-            .all(|&(nationality, count)| { nationality == 1 && count > 0 && count <= 5 })
+        game.unit_by_id(outside).is_none(),
+        "kill_outside=0 removes supported units outside another city"
     );
 }
 

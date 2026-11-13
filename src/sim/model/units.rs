@@ -436,10 +436,6 @@ impl UnitKind {
         self.metadata().attacks_air
     }
 
-    pub(in crate::sim) fn can_rebase(self) -> bool {
-        self.conquests_rule().has_flag_3(12, 3)
-    }
-
     pub(in crate::sim) fn bombard_rate(self) -> i32 {
         self.conquests_rule().rate_of_fire
     }
