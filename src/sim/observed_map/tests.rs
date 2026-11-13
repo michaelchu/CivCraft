@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn filtered_city_rendering_and_markers_preserve_live_and_remembered_state() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
     for reobserved in [false, true] {
         if reobserved {
@@ -37,7 +37,7 @@ fn filtered_city_rendering_and_markers_preserve_live_and_remembered_state() {
 
 #[test]
 fn city_appearance_disorder_matches_full_forecast_after_policy_changes() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
     crate::sim::scenarios::ui_review::ui_review_reobserve_map(&mut game);
     let guard = game.spawn_unit(1, UnitKind::Warrior, 20, 24);
@@ -72,7 +72,7 @@ fn city_appearance_disorder_matches_full_forecast_after_policy_changes() {
 
 #[test]
 fn fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
     assert!(crate::sim::scenarios::ui_review::ui_review_observed_map_valid(&game, false));
     let owner = game.city_at(20, 24).unwrap().owner;
@@ -111,7 +111,7 @@ fn fog_preserves_terrain_extras_and_civ3_city_appearance_until_reobserved() {
 
 #[test]
 fn destroyed_or_captured_cities_remain_at_last_observed_state() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
     let id = game.cities[0].id;
     game.cities[0].owner = 2;
@@ -134,7 +134,7 @@ fn destroyed_or_captured_cities_remain_at_last_observed_state() {
 
 #[test]
 fn sea_map_copies_the_sellers_visual_snapshot_not_live_world() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.map_snapshot_playtest());
     assert_eq!(game.render_tile(23, 36).terrain, Terrain::Sea);
     assert_eq!(game.tile(23, 36).terrain, Terrain::Grassland);
@@ -142,7 +142,7 @@ fn sea_map_copies_the_sellers_visual_snapshot_not_live_world() {
 
 #[test]
 fn improvements_and_occupancy_are_frozen_outside_sight() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
     crate::sim::scenarios::ui_review::ui_review_reobserve_map(&mut game);
     let guard = game.spawn_unit(1, UnitKind::Warrior, 20, 24);
@@ -186,7 +186,7 @@ fn improvements_and_occupancy_are_frozen_outside_sight() {
 
 #[test]
 fn an_older_trade_map_does_not_replace_a_newer_observation() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.observed_map = Default::default();
@@ -209,7 +209,7 @@ fn an_older_trade_map_does_not_replace_a_newer_observation() {
 
 #[test]
 fn newer_trade_maps_update_existing_visual_and_movement_knowledge_together() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.observed_map = Default::default();
@@ -266,7 +266,7 @@ fn newer_trade_maps_update_existing_visual_and_movement_knowledge_together() {
 
 #[test]
 fn observed_map_round_trips_and_rejects_corrupt_owners() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     crate::sim::scenarios::ui_review::ui_review_observed_map(&mut game);
     let path =
         std::env::temp_dir().join(format!("civcraft-observed-map-{}.save", std::process::id()));
@@ -393,7 +393,7 @@ fn c2c3_unit_sight_values_resolve_through_civ3_sight_bindings() {
 
 #[test]
 fn c2c3_vision_layers_bind_stealth_and_subsurface_units() {
-    let game = Simulation::new(crate::mapgen::generate(42));
+    let game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.unit_vision_layer_for(UnitKind::StealthFighter),
         UnitVisionLayer::Stealth
@@ -428,7 +428,7 @@ fn mapped_hidden_layers_need_short_range_detection_inside_main_sight() {
         UnitKind::StealthBomber,
         UnitKind::Submarine,
     ] {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         for tile in &mut game.tiles {
@@ -468,7 +468,7 @@ fn mapped_hidden_layers_need_short_range_detection_inside_main_sight() {
 
 #[test]
 fn vision_uses_c2c3_effects_for_units_cities_and_reveal() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -548,7 +548,7 @@ fn vision_uses_c2c3_effects_for_units_cities_and_reveal() {
 
 #[test]
 fn map_show_circle_uses_base_unit_radius_without_revealing_units() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -595,7 +595,7 @@ fn map_show_circle_uses_base_unit_radius_without_revealing_units() {
 
 #[test]
 fn c2c3_hex_radius_sq_uses_civ3_steps_without_crossing_poles() {
-    let game = Simulation::new(crate::mapgen::generate(42));
+    let game = Simulation::new(crate::test_support::seeded_map());
     let origin = (20, 20);
     let one_step = game.map_wrap.civ3_neighbor(origin.0, origin.1, 2).unwrap();
     let two_steps = game

@@ -9,7 +9,7 @@ fn remember_all_tiles_for_human(game: &mut Simulation) {
 
 #[test]
 fn nuclear_submarines_use_the_selected_submarine_transport_role() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (submarine, missile, _) = game.cruise_missile_playtest_setup();
     let sub = game
         .units
@@ -55,7 +55,7 @@ fn nuclear_submarines_use_the_selected_submarine_transport_role() {
 
 #[test]
 fn airlift_uses_airport_capacity_and_resets_next_turn() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
     let (first, second, destination) = game.airlift_playtest_setup();
     assert!(game.apply(Command::Airlift(first, destination)));
@@ -66,7 +66,7 @@ fn airlift_uses_airport_capacity_and_resets_next_turn() {
 
 #[test]
 fn airlift_uses_selected_action_and_airlift_effect() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
     let (unit_id, _, destination_id) = game.airlift_playtest_setup();
     let unit = game.unit_by_id(unit_id).unwrap().clone();
@@ -109,7 +109,7 @@ fn airlift_uses_selected_action_and_airlift_effect() {
 
 #[test]
 fn paradrop_uses_selected_actions_minimum_moves_and_unit_range() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -186,7 +186,7 @@ fn paradrop_uses_selected_actions_minimum_moves_and_unit_range() {
 
 #[test]
 fn blind_paradrop_uses_remembered_land_then_resolves_actual_water_death() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -235,7 +235,7 @@ fn blind_paradrop_uses_remembered_land_then_resolves_actual_water_death() {
 
 #[test]
 fn paradrop_action_enablers_use_remembered_target_ownership() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -272,7 +272,7 @@ fn paradrop_action_enablers_use_remembered_target_ownership() {
 
 #[test]
 fn captured_paratrooper_keeps_used_this_turn_state() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     let id = game.spawn_unit(HUMAN, UnitKind::Paratrooper, 10, 20);
     game.units
@@ -290,7 +290,7 @@ fn captured_paratrooper_keeps_used_this_turn_state() {
 
 #[test]
 fn cruise_missile_uses_missile_class_city_defense_and_sdi_bonus() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (bomber, defender) = game.sam_battery_playtest_setup(true);
     let attacker = game
         .units
@@ -330,7 +330,7 @@ fn cruise_missile_uses_missile_class_city_defense_and_sdi_bonus() {
 
 #[test]
 fn aegis_cruisers_defend_against_air_attackers_and_sail_without_cargo() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (_, id) = game.aegis_playtest_setup();
     let cruiser = game.unit_by_id(id).unwrap();
     let (x, y) = (cruiser.x, cruiser.y);
@@ -350,7 +350,7 @@ fn aegis_cruisers_defend_against_air_attackers_and_sail_without_cargo() {
 
 #[test]
 fn legacy_air_defense_strength_does_not_intercept_selected_ruleset_bombard() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (sx, sy) = (10, 20);
@@ -378,7 +378,7 @@ fn legacy_air_defense_strength_does_not_intercept_selected_ruleset_bombard() {
 
 #[test]
 fn city_defenses_use_the_attacking_units_class_with_imported_defender_stats() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (_, defender_id) = game.sam_battery_playtest_setup(true);
     let defender = game
         .units
@@ -412,7 +412,7 @@ fn city_defenses_use_the_attacking_units_class_with_imported_defender_stats() {
 
 #[test]
 fn helicopter_transport_uses_selected_ruleset_cargo_and_city_access() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (10, 20);
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
     for (tx, ty) in [(x, y), (nx, ny)] {
@@ -434,7 +434,7 @@ fn helicopter_transport_uses_selected_ruleset_cargo_and_city_access() {
 
 #[test]
 fn c2c3_bombard_hits_each_reachable_target_and_keeps_them_alive() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (bomber, targets) = game.bombard_playtest_setup();
     let (tx, ty) = {
         let target = game.unit_by_id(targets[0]).unwrap();
@@ -476,7 +476,7 @@ fn c2c3_bombard_hits_each_reachable_target_and_keeps_them_alive() {
 
 #[test]
 fn c2c3_bombard_uses_selected_action_range_and_unit_mapping() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (10, 20);
     let (tx, ty) = game.map_wrap.offset(x, y, 1, 0).unwrap();
     let (far_x, far_y) = game.map_wrap.offset(x, y, 2, 0).unwrap();
@@ -512,7 +512,7 @@ fn c2c3_bombard_uses_selected_action_range_and_unit_mapping() {
 
 #[test]
 fn c2c3_bombard_can_target_an_empty_enemy_city_and_uses_selected_citizen_class_rules() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (sx, sy) = (10, 20);
@@ -561,7 +561,7 @@ fn c2c3_bombard_can_target_an_empty_enemy_city_and_uses_selected_citizen_class_r
 
 #[test]
 fn c2c3_bombard_damage_scales_rate_and_matches_per_target_rng_draws() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (sx, sy) = (10, 20);
@@ -628,7 +628,7 @@ fn c2c3_bombard_damage_scales_rate_and_matches_per_target_rng_draws() {
 
 #[test]
 fn aircraft_can_return_to_airstrips_or_crash_when_out_of_fuel() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (10, 20);
     let (nx, ny) = offset_native_by_map(x, y, -1, 0);
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
@@ -658,7 +658,7 @@ mod fighter_tests {
 
     #[test]
     fn fighter_attacks_an_aircraft_through_ruleset_target_tile_combat() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         let (x, y) = (10, 20);
@@ -701,7 +701,7 @@ mod carrier_tests {
 
     #[test]
     fn carrier_production_and_emergency_landing_follow_aircraft_cargo_rules() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let (carrier, fighter) = game.carrier_playtest_setup();
         let port = Production::Unit(UnitKind::Carrier);
         let (x, y) = (10, 20);
@@ -744,7 +744,7 @@ mod stealth_tests {
 
     #[test]
     fn fighter_operational_range_and_city_base_are_source_defined() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let (id, target) = game.ai_aircraft_advisor_playtest_setup();
         let plane = game.unit_by_id(id).unwrap().clone();
         let target = game.unit_by_id(target).unwrap();
@@ -763,7 +763,7 @@ mod stealth_tests {
         kind: UnitKind,
         platform: UnitKind,
     ) -> (Simulation, u32, u32, u32) {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         game.prune_unit_ai_state();
@@ -973,7 +973,7 @@ mod stealth_tests {
 
     #[test]
     fn known_refuel_extras_work_on_enemy_owned_tiles() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         let point = (10, 20);
@@ -1000,7 +1000,7 @@ mod stealth_tests {
 
     #[test]
     fn stealth_aircraft_replace_older_models_and_need_close_detection() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let (_, hidden) = game.stealth_aircraft_playtest_setup();
         // Keep the source city's ordinary vision, but avoid unrelated starting
         // units providing stealth detection at the relocated target tile.
@@ -1040,7 +1040,7 @@ mod stealth_tests {
     }
     #[test]
     fn fighter_uses_the_selected_attack_action_instead_of_civ3_bombard() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         let (x, y) = (10, 20);
@@ -1057,7 +1057,7 @@ mod stealth_tests {
 
     #[test]
     fn airborne_plane_refuels_before_attacking_and_waits_for_full_fuel() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
         let home = (game.cities[0].x, game.cities[0].y);
         let open = offset_native_by_map(home.0, home.1, 1, 0);
@@ -1075,7 +1075,7 @@ mod stealth_tests {
 
     #[test]
     fn tactical_nuke_uses_imported_blast_radius_and_is_one_shot() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         game.sign_pact(HUMAN, 1, Pact::War);
@@ -1096,7 +1096,7 @@ mod stealth_tests {
     }
     #[test]
     fn city_air_raids_need_occupiers_but_virtual_production_can_plan_ahead() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
         let plane = game.unit_by_id(id).unwrap().clone();
         let enemy = game.units.iter_mut().find(|u| u.id == victim).unwrap();
@@ -1122,7 +1122,7 @@ mod stealth_tests {
     }
     #[test]
     fn aircraft_healing_rate_uses_selected_c2c3_hp_effects() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let home = (10, 20);
         game.create_city(HUMAN, home.0, home.1);
         let airport = (12, 20);
@@ -1158,7 +1158,7 @@ mod stealth_tests {
 
     #[test]
     fn airborne_damaged_plane_selects_repair_time_before_distance() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let (id, victim) = game.ai_aircraft_advisor_playtest_setup();
         game.units.retain(|u| u.id != victim);
         let home = (game.cities[0].x, game.cities[0].y);
@@ -1182,7 +1182,7 @@ mod stealth_tests {
 
     #[test]
     fn airfields_are_owned_aircraft_refuel_bases() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let start = (10, 20);
         let field = (12, 20);
         game.create_city(HUMAN, start.0, start.1);
@@ -1194,7 +1194,7 @@ mod stealth_tests {
     }
     #[test]
     fn airlift_refreshes_contact_but_stationary_bombardment_does_not() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         for tile in &mut game.tiles {
@@ -1257,7 +1257,7 @@ mod stealth_tests {
 
     #[test]
     fn lost_paradrop_establishes_contact_at_the_actual_landing() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         for tile in &mut game.tiles {
@@ -1285,7 +1285,7 @@ mod stealth_tests {
 
     #[test]
     fn failed_paradrop_reveals_remembered_circle_but_hides_unseen_units() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         for tile in &mut game.tiles {

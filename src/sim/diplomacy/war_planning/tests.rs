@@ -135,7 +135,7 @@ fn aggression_threshold_matches_reference_clipping_and_love_rounding() {
 
 #[test]
 fn spaceship_construction_warns_before_launch_without_breaking_alliance() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_space_strategy_playtest());
 }
 

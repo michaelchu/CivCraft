@@ -4,13 +4,13 @@ use super::*;
 
 #[test]
 fn happiness_effects_are_independent_stage_capped_and_range_aware() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_happiness_effects_playtest());
 }
 
 #[test]
 fn aqueduct_health_has_value_and_science_fraction_is_preserved() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
@@ -34,7 +34,7 @@ fn aqueduct_health_has_value_and_science_fraction_is_preserved() {
 
 #[test]
 fn science_priority_truncates_to_twenty_one_before_source_float_accumulation() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let tile = game.tile_mut(10, 24);
@@ -58,7 +58,7 @@ fn science_priority_truncates_to_twenty_one_before_source_float_accumulation() {
 
 #[test]
 fn research_effect_wants_use_freeciv_vision_and_illness_formulas() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
@@ -86,7 +86,7 @@ fn research_effect_wants_use_freeciv_vision_and_illness_formulas() {
 
 #[test]
 fn research_movement_and_upgrade_effects_count_current_civ_iii_units() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
@@ -126,7 +126,7 @@ fn research_movement_and_upgrade_effects_count_current_civ_iii_units() {
 
 #[test]
 fn research_make_content_effects_use_stage_specific_unhappiness() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);

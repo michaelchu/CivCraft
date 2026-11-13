@@ -85,7 +85,7 @@ fn profitable_tactical_aircraft_are_excluded_from_production_by_native_hp_loss()
 
 #[test]
 fn military_training_scales_with_army_but_not_when_next_tech_obsoletes_it() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.create_city(1, 10, 24);
     let city = game.cities[0].clone();
@@ -112,7 +112,7 @@ fn military_training_scales_with_army_but_not_when_next_tech_obsoletes_it() {
 
 #[test]
 fn native_production_defender_keeps_source_cost_fallback_order_and_ignores_training() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {

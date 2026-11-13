@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn native_defense_effects_and_static_research_match_independent_numeric_cases() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.native_defensive_effects_playtest(),
         (true, true, true, true)
@@ -45,7 +45,7 @@ fn defense_effect_capital_and_ocean_city_preserve_native_integer_divisions() {
 
 #[test]
 fn static_defender_research_is_gated_by_real_production_need_and_keeps_police_value() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.native_defensive_effects_playtest(),
         (true, true, true, true)
@@ -72,7 +72,7 @@ fn static_defender_research_is_gated_by_real_production_need_and_keeps_police_va
 
 #[test]
 fn city_defense_fixture_uses_selected_c2c3_treasury_support_allowance() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -97,7 +97,7 @@ fn city_defense_fixture_uses_selected_c2c3_treasury_support_allowance() {
 
 #[test]
 fn defense_baseline_counts_untrusted_armistice_and_trusted_ceasefire_cities() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.native_defensive_effects_playtest(),
         (true, true, true, true)
@@ -132,7 +132,7 @@ fn defense_baseline_counts_untrusted_armistice_and_trusted_ceasefire_cities() {
 
 #[test]
 fn desktop_city_defense_fixture_uses_imported_unit_classes() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.native_city_defense_advisor_playtest(),
         (true, true, true, true)
@@ -176,7 +176,7 @@ fn city_defense_percent_matches_literal_native_feedback_and_urgency() {
 
 #[test]
 fn quiet_empty_city_has_no_defense_bid_but_entertainer_can_request_police() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.players[1].government = Government::Despotism;
@@ -206,7 +206,7 @@ fn quiet_empty_city_has_no_defense_bid_but_entertainer_can_request_police() {
 
 #[test]
 fn defense_building_uses_native_provider_order_and_counts_all_tile_units() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.native_city_defense_advisor_playtest(),
         (true, true, true, true)
@@ -240,7 +240,7 @@ fn defense_building_uses_native_provider_order_and_counts_all_tile_units() {
 
 #[test]
 fn big_land_city_defense_does_not_receive_terrain_defense() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
@@ -266,7 +266,7 @@ fn big_land_city_defense_does_not_receive_terrain_defense() {
 
 #[test]
 fn direct_attack_forecasts_use_attack_stats_and_sam_excludes_missiles() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.diplomacy.clear();

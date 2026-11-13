@@ -3,7 +3,7 @@
 use super::*;
 
 fn approach(roll: i32) -> (Simulation, u32, (i32, i32)) {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     // Explorer is not a starting unit; turn a guaranteed founder into an
     // explicit scenario Explorer so these tests keep probing hut exploration.
     let explorer = game

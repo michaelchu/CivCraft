@@ -2,7 +2,7 @@
 
 use super::*;
 fn island_fixture() -> (Simulation, City, Unit, (i32, i32)) {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.prune_unit_ai_state();
@@ -201,7 +201,7 @@ fn literal_c_kill_desire_and_amortization_vectors_preserve_float_assignments() {
     // double pow, MORT24), not values calculated by the Rust routine.
     assert_eq!(kill_desire(80.25, 1600, 40, 625, 3).to_bits(), 1153282254);
     assert_eq!(kill_desire(30.0, 400, 20, 225, 1).to_bits(), 1129054208);
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(1, 10, 24);
     let city = game.cities.last().unwrap();
     assert_eq!(
@@ -211,6 +211,6 @@ fn literal_c_kill_desire_and_amortization_vectors_preserve_float_assignments() {
 }
 #[test]
 fn offensive_target_feedback_respects_visibility_and_ends_after_learning_the_tech() {
-    let game = Simulation::new(crate::mapgen::generate(42));
+    let game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(game.offensive_research_playtest(), (true, true));
 }
