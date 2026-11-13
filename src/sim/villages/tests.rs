@@ -93,6 +93,7 @@ fn villages_offer_nomads_or_leave_a_city_nearby_unharmed() {
 #[test]
 fn late_hostile_village_spawns_land_raiders() {
     let (mut game, id, (x, y)) = approach(10);
+    assert_eq!(BARBARIAN_ONSET, 60);
     game.turn = BARBARIAN_ONSET;
     for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
         game.tile_mut(nx, ny).terrain = Terrain::Plains;
@@ -107,6 +108,20 @@ fn late_hostile_village_spawns_land_raiders() {
     assert!((3..=6).contains(&raiders.count()));
     assert!(game.units.iter().any(|unit| unit.id == id));
 }
+
+#[test]
+fn hostile_village_uses_the_freeciv_onset_boundary() {
+    let (mut game, id, (x, y)) = approach(10);
+    game.turn = BARBARIAN_ONSET - 1;
+    for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
+        game.tile_mut(nx, ny).terrain = Terrain::Plains;
+    }
+
+    assert!(game.apply(Command::Move(id, 0, -1)));
+    assert!(game.units.iter().all(|unit| unit.id != id));
+    assert!(game.units.iter().all(|unit| unit.owner != BARBARIANS));
+}
+
 #[test]
 fn advanced_raiders_require_three_civilizations_with_the_technology() {
     for civilizations in [2, 3] {

@@ -143,7 +143,7 @@ impl Simulation {
         let lead_percent = culture_parameter("victory_lead_pct");
         let cultures = (0..self.players.len())
             .filter(|&owner| owner != BARBARIANS && self.player_alive(owner))
-            .map(|owner| (owner, self.civilization_culture(owner)));
+            .map(|owner| (owner, self.nation_scores[owner].score_culture));
         if let Some(winner) = cultural_victory_winner(cultures, minimum, lead_percent) {
             self.game_over = Some(format!(
                 "{} wins a cultural domination victory.",

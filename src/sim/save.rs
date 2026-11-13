@@ -32,9 +32,14 @@ where
 
 // P10 replaces Civ III's culture ledger with Freeciv city/player history,
 // persists city-pair trade routes, and stores multi-city/multi-map treaty
-// clauses in pending offers.
+// clauses in pending offers. P12 changes achievement claim IDs from a
+// compact enum bitmask to stable ruleset names (supporting Freeciv's 40-record
+// limit), and persists the Freeciv begin-turn culture/literacy score snapshot.
+// P11-format saves are rejected because their NationScore encoding is
+// incompatible. Achievement culture now goes directly into Player.history,
+// matching Freeciv's persisted player-history field.
 // Earlier save versions remain unsupported rather than silently discarding it.
-const HEADER: &[u8] = b"CIVCRAFT\0\x23";
+const HEADER: &[u8] = b"CIVCRAFT\0\x22";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;

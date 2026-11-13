@@ -1188,10 +1188,22 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 // from Freeciv's Animal Kingdom nation as well.
                 Ok(false)
             }
-            "extra" if requirement.range == RequirementRange::Tile => {
+            "extra"
+                if matches!(
+                    requirement.range,
+                    RequirementRange::Tile
+                        | RequirementRange::Adjacent
+                        | RequirementRange::CAdjacent
+                ) =>
+            {
                 let name = Self::string_name(requirement)?;
-                let tile = self.tile.ok_or_else(unsupported)?;
-                self.extra_present(name, tile, requirement)
+                let positions = self.tile_positions(requirement)?;
+                for tile in positions {
+                    if self.extra_present(name, tile, requirement)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
             }
             "extraflag"
                 if matches!(
@@ -1704,6 +1716,26 @@ impl Simulation {
         };
         let requirement = SimulationRequirementContext::extra_requirement(extra_name);
         Ok(context.build_extra_requirements_met(extra_name, target_xy, &requirement)?)
+    }
+
+    /// Check the selected ruleset extra's placement requirements at a tile.
+    /// This is used by non-worker outcomes, such as Freeciv city pollution,
+    /// that create an extra without an actor or worker action.
+    pub(crate) fn extra_requirements_met_at(
+        &self,
+        owner: usize,
+        extra_name: &str,
+        tile: (i32, i32),
+        tile_state: Option<&Tile>,
+    ) -> Result<bool, ActionEvaluationError> {
+        let context = SimulationRequirementContext::for_player_at(self, owner, Some(tile));
+        let context = if let Some(state) = tile_state {
+            context.with_tile_override(tile, state)
+        } else {
+            context
+        };
+        let requirement = SimulationRequirementContext::extra_requirement(extra_name);
+        Ok(context.build_extra_requirements_met(extra_name, tile, &requirement)?)
     }
 
     pub(crate) fn work_action_available_for_unit_with_tile_fail_closed(
@@ -2766,6 +2798,61 @@ mod tests {
             SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some(position));
         assert!(claimed.is_present(&requirement(true)).unwrap());
         assert!(!requirements_met(&[requirement(false)], &claimed).unwrap());
+    }
+
+    #[test]
+    fn extra_requirements_support_adjacent_and_center_adjacent_ranges() {
+        let mut game = flat_game();
+        let center = (10, 20);
+        let adjacent = game.map_wrap.civ3_neighbor(center.0, center.1, 0).unwrap();
+        game.tile_mut(adjacent.0, adjacent.1).river = true;
+        let requirement = |range| Requirement {
+            kind: "Extra".to_owned(),
+            name: RequirementValue::String("River".to_owned()),
+            range,
+            present: true,
+            survives: false,
+            quiet: false,
+            source: crate::rules::freeciv::RuleSourceLocation {
+                file: std::path::PathBuf::new(),
+                section: "fixture".to_owned(),
+                key: "reqs".to_owned(),
+                line: 1,
+            },
+        };
+        let context =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some(center));
+
+        assert!(
+            context
+                .is_present(&requirement(RequirementRange::Adjacent))
+                .unwrap()
+        );
+        assert!(
+            context
+                .is_present(&requirement(RequirementRange::CAdjacent))
+                .unwrap()
+        );
+        assert!(
+            !context
+                .is_present(&requirement(RequirementRange::Tile))
+                .unwrap()
+        );
+
+        game.tile_mut(adjacent.0, adjacent.1).river = false;
+        game.tile_mut(center.0, center.1).river = true;
+        let context =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some(center));
+        assert!(
+            !context
+                .is_present(&requirement(RequirementRange::Adjacent))
+                .unwrap()
+        );
+        assert!(
+            context
+                .is_present(&requirement(RequirementRange::CAdjacent))
+                .unwrap()
+        );
     }
 
     #[test]

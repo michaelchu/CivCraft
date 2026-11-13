@@ -266,7 +266,8 @@ impl Simulation {
         let years = self.spaceships[owner].flight().unwrap().0;
         let arrival = f64::from(self.year) + years;
         self.spaceships[owner].arrival = Some(arrival);
-        self.award_achievement(owner, super::achievements::Achievement::Spaceship);
+        // Freeciv awards the Spaceship achievement in the all-player
+        // end-turn achievement cohort, not synchronously with this request.
         self.add_event(format!(
             "{} launched a spaceship. Arrival expected in {}.",
             self.players[owner].name,
@@ -285,14 +286,33 @@ impl Simulation {
         }
     }
 
-    pub(super) fn advance_space_race(&mut self) {
-        if !self.victory_enabled(crate::rules::freeciv::VictoryCondition::SpaceRace) {
+    /// Mirrors `dai_manage_spaceship()` in Freeciv's AI last-activities phase.
+    /// This runs before city production, so parts completed by this turn's city
+    /// processing are not eligible for launch until the next AI last-activities
+    /// phase.
+    pub(super) fn auto_launch_ai_spaceship(&mut self, owner: usize) {
+        if owner >= self.civilization_count
+            || !self.players[owner].ai
+            || !self.victory_enabled(crate::rules::freeciv::VictoryCondition::SpaceRace)
+        {
             return;
         }
-        for owner in 1..self.players.len() {
-            if self.players[owner].ai && self.spaceships[owner].built == [32, 16, 12] {
-                self.launch_spaceship(owner);
-            }
+
+        let ship = &mut self.spaceships[owner];
+        if ship.launched() || ship.built == [0; 3] {
+            return;
+        }
+        ship.autoplace();
+        if ship.built == [32, 16, 12] {
+            self.launch_spaceship(owner);
+        }
+    }
+
+    /// Checks completed arrivals after end-turn processing and the calendar
+    /// advances, matching Freeciv's `check_for_game_over()` timing.
+    pub(super) fn check_space_race_arrivals(&mut self) {
+        if !self.victory_enabled(crate::rules::freeciv::VictoryCondition::SpaceRace) {
+            return;
         }
         let arrivals: Vec<_> = self
             .spaceships
@@ -323,6 +343,31 @@ impl Simulation {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn launch_ready_human_ship(game: &mut Simulation) {
+        game.create_city(HUMAN, 10, 20);
+        game.apollo_completed = true;
+        for (kind, count) in [(2, 12), (1, 16), (0, 32)] {
+            for _ in 0..count {
+                game.spaceships[HUMAN].add_part(kind);
+            }
+        }
+        assert!(game.can_launch_spaceship(HUMAN));
+        assert!(game.launch_spaceship(HUMAN));
+    }
+
+    fn prepare_ai_ship_missing_last_structure(game: &mut Simulation) {
+        let owner = 1;
+        game.players[owner].ai = true;
+        game.create_city(owner, 10, 20);
+        game.apollo_completed = true;
+        for (kind, count) in [(2, 12), (1, 16), (0, 31)] {
+            for _ in 0..count {
+                game.spaceships[owner].add_part(kind);
+            }
+        }
+        assert!(!game.spaceships[owner].launched());
+    }
 
     #[test]
     fn manual_placement_enforces_dependencies_inventory_and_launch_lock() {
@@ -369,5 +414,72 @@ mod tests {
         }
         assert_eq!(ship.modules, [4; 3]);
         assert_eq!(ship.flight(), Some((24600.0 / 1620.0, 1.0)));
+    }
+
+    #[test]
+    fn spaceship_achievement_is_awarded_at_the_end_turn_cohort() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        launch_ready_human_ship(&mut game);
+        assert!(
+            game.events
+                .iter()
+                .all(|event| { !event.contains("Achievement earned: Spaceship Launch") })
+        );
+
+        assert!(game.apply(Command::EndTurn));
+        assert!(
+            game.events
+                .iter()
+                .any(|event| { event.contains("Achievement earned: Spaceship Launch") })
+        );
+    }
+
+    #[test]
+    fn spaceship_achievement_check_does_not_consume_a_random_draw() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        launch_ready_human_ship(&mut game);
+        let mut without_check = game.clone();
+
+        game.check_achievements();
+
+        assert_eq!(game.rand_below(1_000), without_check.rand_below(1_000));
+    }
+
+    #[test]
+    fn ai_ship_waits_for_next_last_activities_after_final_part_is_produced() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let owner = 1;
+        prepare_ai_ship_missing_last_structure(&mut game);
+
+        // This is the AI last-activities hook, before city production.
+        game.auto_launch_ai_spaceship(owner);
+        assert!(!game.spaceships[owner].launched());
+
+        // City processing completes the final part after that hook.
+        game.spaceships[owner].add_part(0);
+        assert_eq!(game.spaceships[owner].built, [32, 16, 12]);
+        assert!(!game.spaceships[owner].launched());
+
+        // Freeciv checks the newly completed inventory at the next AI hook.
+        game.auto_launch_ai_spaceship(owner);
+        assert!(game.spaceships[owner].launched());
+    }
+
+    #[test]
+    fn arrival_check_does_not_launch_ai_ships() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let owner = 1;
+        game.players[owner].ai = true;
+        game.create_city(owner, 10, 20);
+        game.apollo_completed = true;
+        for (kind, count) in [(2, 12), (1, 16), (0, 32)] {
+            for _ in 0..count {
+                game.spaceships[owner].add_part(kind);
+            }
+        }
+
+        game.check_space_race_arrivals();
+
+        assert!(!game.spaceships[owner].launched());
     }
 }

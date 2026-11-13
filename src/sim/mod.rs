@@ -615,6 +615,9 @@ impl Simulation {
         }
         game.sync_list_order();
         game.refresh_visibility();
+        // Freeciv's initial begin_turn() calculates score before any player
+        // or AI activity, just as every later turn does.
+        game.refresh_score_snapshot();
         game
     }
 
@@ -754,6 +757,7 @@ impl Simulation {
         self.spend_ai_defense_gold(owner);
         self.record_ai_tech_effect_wants(owner);
         self.manage_ai_research(owner);
+        self.auto_launch_ai_spaceship(owner);
     }
 }
 

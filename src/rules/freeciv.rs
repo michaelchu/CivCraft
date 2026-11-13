@@ -729,6 +729,25 @@ impl RuleRecord {
         }
     }
 
+    /// Read a scalar boolean field without exposing the native parser's
+    /// value representation to gameplay adapters.
+    pub(crate) fn boolean_field(&self, key: &str) -> Result<Option<bool>, String> {
+        let Some(entry) = self
+            .fields
+            .iter()
+            .find(|entry| entry.key.eq_ignore_ascii_case(key))
+        else {
+            return Ok(None);
+        };
+        match &entry.value {
+            Value::Bool(value) => Ok(Some(*value)),
+            other => Err(format!(
+                "{}.{} must be a boolean, found {other:?}",
+                self.section, key
+            )),
+        }
+    }
+
     /// Read a string-list field without exposing the native parser's value
     /// representation to gameplay adapters. A single quoted string is
     /// normalized to a one-item list, as several ruleset fields permit either
@@ -1508,6 +1527,24 @@ impl RulesetData {
         })
     }
 
+    /// Read a named integer server setting from the selected ruleset's
+    /// explicit campaign defaults. Reject absent, duplicate, malformed, or
+    /// out-of-range values instead of falling back to an engine constant.
+    pub(crate) fn integer_setting_value(&self, name: &str) -> Result<i32, LoadError> {
+        let setting = required_setting(self, name)?;
+        let Value::Integer(value) = &setting.value else {
+            return Err(LoadError::new(format!(
+                "campaign `{name}` setting must be an integer, found {:?}",
+                setting.value
+            )));
+        };
+        i32::try_from(*value).map_err(|_| {
+            LoadError::new(format!(
+                "campaign `{name}` setting is outside the supported integer range"
+            ))
+        })
+    }
+
     /// Read Freeciv's bitwise `victories` server setting from the selected
     /// ruleset's explicit campaign defaults. The engine default is not a
     /// ruleset value, so the CivCraft derivative records it instead of
@@ -2195,6 +2232,25 @@ mod tests {
     }
 
     #[test]
+    fn campaign_disaster_frequency_is_read_from_the_selected_ruleset_setting() {
+        let mut rules = RulesetData::campaign_default().clone();
+        assert_eq!(rules.integer_setting_value("disasters").unwrap(), 100);
+
+        let index = rules
+            .settings
+            .iter()
+            .position(|setting| setting.name.eq_ignore_ascii_case("disasters"))
+            .unwrap();
+        rules.settings[index].value = Value::String("100".to_owned());
+        assert!(rules.integer_setting_value("disasters").is_err());
+
+        rules.settings[index].value = Value::Integer(0);
+        assert_eq!(rules.integer_setting_value("DISASTERS").unwrap(), 0);
+        rules.settings.push(rules.settings[index].clone());
+        assert!(rules.integer_setting_value("disasters").is_err());
+    }
+
+    #[test]
     fn campaign_map_generation_settings_are_explicit_and_validated() {
         let mut rules = RulesetData::campaign_default().clone();
         assert_eq!(rules.settings.len(), 40);
@@ -2793,6 +2849,26 @@ mod tests {
                 .string_integer_table_field("extra_settings", "extra", "missing")
                 .is_err()
         );
+    }
+
+    #[test]
+    fn rule_record_reads_validated_boolean_fields() {
+        let record = super::RuleRecord {
+            file: "game.ruleset".to_owned(),
+            namespace: "disaster".to_owned(),
+            section: "disaster_test".to_owned(),
+            rule_name: "Test".to_owned(),
+            display_name: Some("Test".to_owned()),
+            requirements: vec![],
+            fields: vec![Entry {
+                key: "enabled".to_owned(),
+                value: Value::Bool(true),
+                line: 1,
+            }],
+        };
+        assert_eq!(record.boolean_field("enabled").unwrap(), Some(true));
+        assert_eq!(record.boolean_field("missing").unwrap(), None);
+        assert!(record.string_field("enabled").is_err());
     }
 
     #[test]

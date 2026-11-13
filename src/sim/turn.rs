@@ -100,11 +100,40 @@ impl Simulation {
         self.summon_barbarians();
         self.check_city_migrations(crate::sim::migration::MigrationSettings::c2c3_default());
         self.check_disasters();
+        // srv_main.c::end_turn evaluates achievement cohorts after disasters
+        // and before the global-warming/nuclear-winter phase.
+        self.check_achievements();
         self.update_climate();
         self.refresh_diplomatic_contact_effects();
-        // srv_main:end_phase updates diplomacy before game_advance_year bumps
-        // the displayed year and turn. Pact expiry must see the current turn.
+        // srv_main.c::end_turn advances diplomacy and the calendar after
+        // migrations, disasters, achievements, climate, and other world
+        // changes. check_for_game_over() runs immediately after end_turn().
         self.advance_turn_clock();
+        // srv_main.c::check_for_game_over runs after end_turn() but before the
+        // next begin_turn() refreshes score. Preserve its precedence: game
+        // state, allied victory, culture victory, turn limit, spaceship.
+        self.check_game_over();
+        if self.game_over.is_some() {
+            return;
+        }
+        if self.check_allied_victory() {
+            return;
+        }
+        if self.victory_enabled(VictoryCondition::Culture) {
+            self.check_cultural_victory();
+        }
+        if self.game_over.is_some() {
+            return;
+        }
+        if self.check_turn_limit() {
+            return;
+        }
+        self.check_space_race_arrivals();
+        if self.game_over.is_some() {
+            return;
+        }
+        // begin_turn() calculates score before begin-phase activities and AI.
+        self.refresh_score_snapshot();
         // srv_main:begin_phase progresses activities with the previous
         // movement budget, then refills MP. Revolution completion is also
         // checked here, after activities (update_revolution at line 1381).
@@ -131,19 +160,11 @@ impl Simulation {
             self.previous_naval_positions.contains_key(hunter)
                 && self.previous_naval_positions.contains_key(target)
         });
-        self.check_achievements();
         self.add_event(format!(
             "Turn {} begins - {}.",
             self.turn,
             year_label(self.year)
         ));
-        if self.victory_enabled(VictoryCondition::Culture) {
-            self.check_cultural_victory();
-        }
-        self.check_game_over();
-        if self.game_over.is_none() && !self.check_ranked_endgame() {
-            self.advance_space_race();
-        }
     }
 
     /// Runs Freeciv's `ai_start_phase()` for the campaign civilizations after

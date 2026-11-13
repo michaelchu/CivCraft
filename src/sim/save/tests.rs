@@ -46,6 +46,22 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         .paradropped = true;
     game.cities[0].history = 375;
     game.players[HUMAN].history = 125;
+    let culture_without_achievement = game.civilization_culture(HUMAN);
+    game.nation_scores[HUMAN]
+        .achievements
+        .insert("Spaceship Launch".to_owned());
+    for index in 1..40 {
+        game.nation_scores[HUMAN]
+            .achievements
+            .insert(format!("test-achievement-{index}"));
+    }
+    game.players[HUMAN].history += 5000;
+    assert_eq!(
+        game.civilization_culture(HUMAN),
+        culture_without_achievement + 5000
+    );
+    game.refresh_score_snapshot();
+    game.nation_scores[HUMAN].score_literacy = 67;
     game.cities[0].foreign_citizens = vec![(2, 1)];
     game.players[HUMAN].mobilized = true;
     game.players[HUMAN].government = Government::Fundamentalism;
@@ -104,7 +120,40 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         17.5
     );
     assert_eq!(loaded.cities[0].history, 375);
-    assert_eq!(loaded.players[HUMAN].history, 125);
+    assert_eq!(loaded.players[HUMAN].history, 5125);
+    assert_eq!(
+        loaded.nation_scores[HUMAN].achievements,
+        game.nation_scores[HUMAN].achievements
+    );
+    assert_eq!(loaded.nation_scores[HUMAN].achievements.len(), 40);
+    assert_eq!(
+        loaded.nation_scores[HUMAN].score_culture,
+        game.nation_scores[HUMAN].score_culture
+    );
+    assert_eq!(
+        loaded.nation_scores[HUMAN].score_literacy,
+        game.nation_scores[HUMAN].score_literacy
+    );
+    assert_eq!(
+        loaded.nation_scores[HUMAN].score_population,
+        game.nation_scores[HUMAN].score_population
+    );
+    assert_eq!(
+        loaded.nation_scores[HUMAN].score_technologies,
+        game.nation_scores[HUMAN].score_technologies
+    );
+    assert_eq!(
+        loaded.nation_scores[HUMAN].score_wonders,
+        game.nation_scores[HUMAN].score_wonders
+    );
+    assert_eq!(
+        loaded.nation_scores[HUMAN].score_spaceship,
+        game.nation_scores[HUMAN].score_spaceship
+    );
+    assert_eq!(
+        loaded.civilization_culture(HUMAN),
+        game.civilization_culture(HUMAN)
+    );
     assert_eq!(loaded.cities[0].foreign_citizens, [(2, 1)]);
     assert_eq!(loaded.trade_routes, game.trade_routes);
     let loaded_offer = loaded.diplomacy[&(HUMAN, 1)].offer.as_ref().unwrap();
@@ -120,6 +169,24 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(
         bincode::serialize(&loaded.tiles).unwrap(),
         bincode::serialize(&game.tiles).unwrap()
+    );
+}
+
+#[test]
+fn rejects_pre_p12_header_after_achievement_identity_format_change() {
+    let path = temporary_save("pre-p12-header");
+    fs::write(&path, b"CIVCRAFT\0\x21").unwrap();
+
+    let error = match Simulation::load_campaign(&path) {
+        Ok(_) => panic!("previous save header unexpectedly loaded"),
+        Err(error) => error,
+    };
+
+    fs::remove_file(path).unwrap();
+    assert!(
+        error
+            .to_string()
+            .contains("Unsupported CivCraft save format")
     );
 }
 

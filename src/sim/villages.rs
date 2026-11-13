@@ -2,7 +2,9 @@
 
 use super::*;
 
-pub(super) const BARBARIAN_ONSET: i32 = 120;
+// Freeciv common/game.h::GAME_DEFAULT_ONSETBARBARIAN. C2C3 does not override
+// the engine setting, so both hut barbarians and uprisings start on turn 60.
+pub(super) const BARBARIAN_ONSET: i32 = 60;
 
 impl Simulation {
     pub(super) fn enter_village(&mut self, unit_id: u32, x: i32, y: i32) {
