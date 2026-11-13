@@ -8,7 +8,7 @@ use crate::{mapgen, sim::Simulation};
 use serde::Serialize;
 use std::path::Path;
 
-pub(crate) const IDS: &[&str] = &["generated-ai", "city-healing"];
+pub(crate) const IDS: &[&str] = &["generated-ai", "city-healing", "settlement-ferry"];
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct Check {
@@ -65,6 +65,33 @@ pub(crate) fn build(
                     passed: healed,
                     detail: "Barracks and ordinary city recovery used their expected rules".into(),
                 }],
+            )
+        }
+        "settlement-ferry" => {
+            // Pin the historical fixture used by the original desktop
+            // regression rather than inheriting campaign map options.
+            let mut game = Simulation::new(mapgen::generate(seed));
+            let (queued, sequenced, founded) = game.settlement_ferry_production_playtest();
+            game.enable_all_civilizations_as_ai();
+            (
+                game,
+                vec![
+                    Check {
+                        name: "ferry_queued",
+                        passed: queued,
+                        detail: "AI selected a ferry for an overseas settlement plan".into(),
+                    },
+                    Check {
+                        name: "settler_sequenced",
+                        passed: sequenced,
+                        detail: "AI sequenced a Settler after completing the ferry".into(),
+                    },
+                    Check {
+                        name: "island_founded",
+                        passed: founded,
+                        detail: "AI transported its founder and established the island city".into(),
+                    },
+                ],
             )
         }
         _ => {

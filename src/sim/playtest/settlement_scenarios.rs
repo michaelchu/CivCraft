@@ -39,6 +39,12 @@ impl Simulation {
 
     pub(crate) fn settlement_ferry_production_playtest(&mut self) -> (bool, bool, bool) {
         self.units.clear();
+        // Keep this fixture focused on settlement sequencing. Otherwise the
+        // sole productive city is also the wonder city, and an available
+        // Great Wonder can legitimately outscore both the ferry and Settler.
+        self.completed_wonders = Building::all()
+            .filter(|building| building.data().genus == crate::rules::Genus::GreatWonder)
+            .collect();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Sea;
             tile.resource = None;

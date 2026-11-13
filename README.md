@@ -68,6 +68,8 @@ cargo run --offline --release --bin headless_sim -- --list-scenarios
 cargo run --offline --release --bin headless_sim -- \
   --scenario city-healing --turns 10 --report /tmp/healing.json
 cargo run --offline --release --bin headless_sim -- \
+  --scenario settlement-ferry --turns 1 --report /tmp/ferry.json
+cargo run --offline --release --bin headless_sim -- \
   --load-campaign /path/to/campaign.save --turns 10 --report /tmp/resumed.json
 ```
 

@@ -165,6 +165,15 @@ mod ai_integration_tests {
     }
 
     #[test]
+    fn settlement_ferry_fixture_isolates_and_completes_the_overseas_sequence() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        assert_eq!(
+            game.settlement_ferry_production_playtest(),
+            (true, true, true)
+        );
+    }
+
+    #[test]
     fn despotism_upkeep_playtest_charges_gold_in_isolated_state() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         let settler = game
