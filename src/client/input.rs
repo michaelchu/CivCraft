@@ -88,6 +88,8 @@ impl Game {
                 self.capture_units_mode = false;
                 self.bombard_mode = false;
                 self.nuclear_mode = false;
+                self.connect_mode = false;
+                self.patrol_mode = false;
             }
         }
         if is_key_pressed(KeyCode::Tab) {
@@ -142,6 +144,8 @@ impl Game {
             self.capture_units_mode = false;
             self.bombard_mode = false;
             self.nuclear_mode = false;
+            self.connect_mode = false;
+            self.patrol_mode = false;
             self.goto_mode = !self.goto_mode;
             self.notify(if self.goto_mode {
                 "Go-to active: choose a destination tile."
@@ -437,6 +441,14 @@ impl Game {
             self.perform_action(UiAction::NuclearStrikeTo(x, y));
             return;
         }
+        if self.connect_mode {
+            self.perform_action(UiAction::ConnectTo(x, y));
+            return;
+        }
+        if self.patrol_mode {
+            self.perform_action(UiAction::PatrolTo(x, y));
+            return;
+        }
         if self.capture_units_mode {
             self.perform_action(UiAction::CaptureUnitsTo(x, y));
             return;
@@ -447,7 +459,9 @@ impl Game {
         }
         if self.goto_mode {
             if let Some(id) = self.selected_unit {
-                self.move_selected(Command::GoTo(id, x, y), id);
+                if self.move_selected(Command::GoTo(id, x, y), id) {
+                    self.select_next_unit();
+                }
             }
             self.goto_mode = false;
             return;
@@ -461,14 +475,14 @@ impl Game {
             .and_then(|unit_id| self.sim.unit_position_view(unit_id))
             == Some((x, y));
         if !clicked_selected_unit && let Some(unit_id) = self.selected_unit.take() {
-            self.sim.apply(Command::Wait(unit_id));
+            self.waiting_units.insert(unit_id);
         }
 
         // Cities take click priority over their garrisons. Units stationed in
         // a city remain selectable from the city manager.
         if let Some(city_id) = self.sim.human_city_at_view(x, y) {
             if let Some(unit_id) = self.selected_unit.take() {
-                self.sim.apply(Command::Wait(unit_id));
+                self.waiting_units.insert(unit_id);
             }
             self.production_page = 0;
             self.unit_production_page = 0;
@@ -487,11 +501,12 @@ impl Game {
             .and_then(|index| stack.get(index + 1))
             .or_else(|| stack.first());
         if let Some(unit) = next {
+            self.waiting_units.remove(&unit.id);
             self.action_page = 0;
             self.selected_unit = Some(unit.id);
             self.selected_city = None;
         } else if let Some(unit_id) = self.selected_unit.take() {
-            self.sim.apply(Command::Wait(unit_id));
+            self.waiting_units.insert(unit_id);
         }
     }
 }

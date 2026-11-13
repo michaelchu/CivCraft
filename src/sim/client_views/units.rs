@@ -154,6 +154,9 @@ impl Simulation {
             nuclear_weapon: unit.kind.is_nuclear_weapon(),
             nuclear_strike: self.can_begin_nuclear_strike(unit),
             transport_action: self.transport_action(unit).map(str::to_owned),
+            unload_all: self.can_unload_all(unit),
+            can_connect: unit.kind.stats().can_work && unit.order.is_none(),
+            can_patrol: unit.kind.is_military() && unit.order.is_none(),
             found_city: (stats.can_found && unit.transport.is_none())
                 .then(|| self.can_found_at(unit.x, unit.y)),
             road_action,
@@ -206,6 +209,8 @@ impl Simulation {
                     && unit.moves_left > 0
                     && unit.work_left == 0
                     && !unit.automated
+                    && !self.unit_goto_tiles.contains_key(&unit.id)
+                    && unit.order.is_none()
                     && unit.state != UnitState::Sentry
                     && !(unit.kind.is_military() && unit.state == UnitState::Fortified)
             })

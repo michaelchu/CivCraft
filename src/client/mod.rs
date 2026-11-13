@@ -139,8 +139,13 @@ pub(crate) enum UiAction {
     WorkCityTile(u32, i32, i32),
     HomeCity,
     BoardOrDeboard,
+    UnloadAll,
     Disband(Option<u32>),
     BeginNuclearStrike,
+    BeginConnect,
+    ConnectTo(i32, i32),
+    BeginPatrol,
+    PatrolTo(i32, i32),
     HelpWonder(u32),
     JoinCity(u32),
     Airlift(u32),
@@ -210,6 +215,7 @@ pub(crate) struct Game {
     pub(crate) sfx_volume: u8,
     pub(crate) selected_unit: Option<u32>,
     selected_city: Option<u32>,
+    waiting_units: std::collections::BTreeSet<u32>,
     pending_city_view: Option<u32>,
     action_page: usize,
     production_page: usize,
@@ -219,6 +225,8 @@ pub(crate) struct Game {
     camera: Vec2,
     zoom: f32,
     goto_mode: bool,
+    connect_mode: bool,
+    patrol_mode: bool,
     paradrop_mode: bool,
     capture_units_mode: bool,
     bombard_mode: bool,
@@ -279,6 +287,7 @@ impl Game {
             sfx_volume: 50,
             selected_unit,
             selected_city: None,
+            waiting_units: Default::default(),
             pending_city_view: None,
             action_page: 0,
             production_page: 0,
@@ -288,6 +297,8 @@ impl Game {
             camera: vec2(x as f32, y as f32),
             zoom: START_ZOOM,
             goto_mode: false,
+            connect_mode: false,
+            patrol_mode: false,
             paradrop_mode: false,
             capture_units_mode: false,
             bombard_mode: false,
@@ -391,11 +402,24 @@ impl Game {
             .map(|unit| unit.id)
             .collect();
         candidates.sort_unstable();
-        let next = candidates
+        let available: Vec<_> = candidates
+            .iter()
+            .copied()
+            .filter(|id| !self.waiting_units.contains(id))
+            .collect();
+        let next = available
             .iter()
             .copied()
             .find(|id| *id > current)
-            .or_else(|| candidates.first().copied());
+            .or_else(|| available.first().copied())
+            .or_else(|| {
+                self.waiting_units.clear();
+                candidates
+                    .iter()
+                    .copied()
+                    .find(|id| *id > current)
+                    .or_else(|| candidates.first().copied())
+            });
         self.action_page = 0;
         self.selected_unit = next;
         self.selected_city = None;
@@ -403,6 +427,13 @@ impl Game {
             && let Some((x, y)) = self.sim.unit_position_view(id)
         {
             self.focus_camera_on(x, y);
+        }
+    }
+
+    fn wait_selected_unit(&mut self) {
+        if let Some(id) = self.selected_unit {
+            self.waiting_units.insert(id);
+            self.select_next_unit();
         }
     }
 }
@@ -778,7 +809,7 @@ mod tests {
             .iter()
             .find(|unit| unit.id == garrison)
             .unwrap();
-        assert_eq!(waited.moves_left, 0);
+        assert!(waited.moves_left > 0);
         assert_eq!(waited.state, UnitState::Idle);
     }
 
@@ -814,7 +845,35 @@ mod tests {
             .iter()
             .find(|unit| unit.id == unit_id)
             .unwrap();
-        assert_eq!(waited.moves_left, 0);
+        assert!(waited.moves_left > 0);
         assert_eq!(waited.state, UnitState::Idle);
+        assert!(game.waiting_units.contains(&unit_id));
+    }
+
+    #[test]
+    fn waiting_defers_focus_until_other_active_units_are_handled() {
+        let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
+        let mut units: Vec<_> = game
+            .sim
+            .selectable_units_view()
+            .into_iter()
+            .map(|unit| unit.id)
+            .collect();
+        units.sort_unstable();
+        assert!(units.len() >= 2);
+        game.selected_unit = Some(units[0]);
+
+        game.wait_selected_unit();
+        assert_eq!(game.selected_unit, Some(units[1]));
+        assert!(game.waiting_units.contains(&units[0]));
+        assert!(
+            game.sim
+                .unit_action_view(units[0])
+                .is_some_and(|unit| unit.moves_left > 0)
+        );
+
+        game.wait_selected_unit();
+        assert_eq!(game.selected_unit, Some(units[0]));
+        assert!(game.waiting_units.is_empty());
     }
 }

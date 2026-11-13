@@ -18,10 +18,11 @@ pub(crate) enum Command {
     CaptureUnits(u32, i32, i32),
     Bombard(u32, i32, i32),
     GoTo(u32, i32, i32),
+    Connect(u32, i32, i32),
+    Patrol(u32, i32, i32),
     FoundCity(u32),
     Work(u32, WorkKind),
     Fortify(u32),
-    Wait(u32),
     Sentry(u32),
     Automate(u32),
     Produce(u32, Production),
@@ -43,6 +44,7 @@ pub(crate) enum Command {
     WorkCityTile(u32, i32, i32),
     HomeCity(u32),
     BoardOrDeboard(u32),
+    UnloadAll(u32),
     Disband(u32, Option<u32>),
     NuclearStrike(u32, i32, i32),
     HelpWonder(u32, u32),
@@ -70,16 +72,18 @@ impl Simulation {
             | CaptureUnits(id, ..)
             | Bombard(id, ..)
             | GoTo(id, ..)
+            | Connect(id, ..)
+            | Patrol(id, ..)
             | FoundCity(id)
             | Work(id, ..)
             | Fortify(id)
-            | Wait(id)
             | Sentry(id)
             | Automate(id)
             | HomeCity(id)
             | UpgradeUnit(id, _, _)
             | Disband(id, _)
             | BoardOrDeboard(id)
+            | UnloadAll(id)
             | NuclearStrike(id, ..)
             | HelpWonder(id, _)
             | JoinCity(id, _)
@@ -103,10 +107,20 @@ impl Simulation {
             CaptureUnits(id, x, y) => self.try_capture_units_by_id(id, x, y),
             Bombard(id, x, y) => self.try_ranged_bombard(id, x, y) != MoveResult::Blocked,
             GoTo(id, x, y) => {
-                (0..self.map_wrap.width()).contains(&x)
-                    && (0..self.map_wrap.height()).contains(&y)
-                    && self.player_goto(id, x, y)
+                if !(0..self.map_wrap.width()).contains(&x)
+                    || !(0..self.map_wrap.height()).contains(&y)
+                {
+                    return false;
+                }
+                if let Some(index) = self.unit_index_by_id(id) {
+                    self.units[index].order = None;
+                    self.units[index].clear_work();
+                }
+                self.unit_goto_tiles.remove(&id);
+                self.player_goto(id, x, y)
             }
+            Connect(id, x, y) => self.start_connect_order(id, x, y),
+            Patrol(id, x, y) => self.start_patrol_order(id, x, y),
             FoundCity(id) => self.found_city(id),
             LaunchSpaceship => self.launch_spaceship(HUMAN),
             ToggleManualAssembly => self.toggle_manual_assembly(),
@@ -119,13 +133,6 @@ impl Simulation {
             Airlift(id, city) => self.airlift(id, city),
             Work(id, kind) => self.begin_work(id, kind),
             Fortify(id) => self.fortify_unit(id),
-            Wait(_) => {
-                let unit = &mut self.units[unit_index.unwrap()];
-                unit.moves_left = 0;
-                unit.state = UnitState::Idle;
-                self.add_event("Unit waits until next turn.");
-                true
-            }
             Sentry(id) => self.set_unit_sentry(id),
             Automate(_) => {
                 let unit = &mut self.units[unit_index.unwrap()];
@@ -181,6 +188,7 @@ impl Simulation {
             WorkCityTile(id, x, y) => self.toggle_city_tile(id, x, y),
             Specialist(id, index, delta) => self.assign_specialist(id, index, delta),
             BoardOrDeboard(id) => self.board_or_deboard(id),
+            UnloadAll(id) => self.unload_all(id),
             UpgradeUnit(id, target, price) => self.upgrade_unit(id, target, price),
             HomeCity(_) => self.change_home_city(unit_index.unwrap()),
             Research(goal) => {

@@ -12,7 +12,7 @@ mod unit_stats;
 mod units;
 
 pub(crate) use crate::world::{Resource, Terrain, TerrainBase};
-pub(crate) use entities::{City, Player, Production, Unit, UnitState, WorkKind};
+pub(crate) use entities::{City, Player, Production, Unit, UnitOrder, UnitState, WorkKind};
 pub(crate) use terrain::Tile;
 pub(crate) use units::UnitKind;
 

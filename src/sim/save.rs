@@ -34,7 +34,7 @@ where
 // persists city-pair trade routes, and stores multi-city/multi-map treaty
 // clauses in pending offers.
 // Earlier save versions remain unsupported rather than silently discarding it.
-const HEADER: &[u8] = b"CIVCRAFT\0\x21";
+const HEADER: &[u8] = b"CIVCRAFT\0\x23";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
