@@ -22,3 +22,8 @@ miniquad = { path = "vendor/miniquad" }
 opt-level = 2
 lto = "thin"
 
+# Simulation searches are CPU-bound; keep debug assertions and symbols while
+# reducing the cost of repeated ruleset lookups in unoptimized builds.
+[profile.test]
+opt-level = 1
+

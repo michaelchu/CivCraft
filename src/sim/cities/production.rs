@@ -210,6 +210,12 @@ impl Simulation {
         self.reconcile_trade_routes();
         self.establish_connected_trade_routes();
         for owner in 0..self.players.len() {
+            // Match end_turn: unused civilization slots have no active
+            // research target and must not receive national activities.
+            if !self.player_alive(owner) || (owner < BARBARIANS && owner >= self.civilization_count)
+            {
+                continue;
+            }
             let income = self.process_player_cities(owner);
             self.finish_player_national_activities(owner, income);
         }
@@ -607,6 +613,24 @@ mod upkeep_tests {
         unit.home_city = Some(city_id);
         unit.home_order = id;
         id
+    }
+
+    #[test]
+    fn city_processing_skips_unused_player_slots_with_unset_research() {
+        let mut game = flat_game();
+        let inactive = game.civilization_count;
+        assert_eq!(game.players[inactive].researching, Tech::UNSET);
+        let before = bincode::serialize(&game.players[inactive]).unwrap();
+        game.cities[0].production = Production::Unit(UnitKind::Warrior);
+        game.cities[0].shields = game.cities[0].production.cost();
+        let city_id = game.cities[0].id;
+
+        game.process_cities();
+
+        assert_eq!(bincode::serialize(&game.players[inactive]).unwrap(), before);
+        assert!(game.units.iter().any(|unit| {
+            unit.owner == HUMAN && unit.kind == UnitKind::Warrior && unit.home_city == Some(city_id)
+        }));
     }
 
     #[test]
