@@ -1,0 +1,97 @@
+# CivCraft bridge decisions for upkeep and supported-unit happiness only.
+# Direct rows reuse the existing identity crosswalk. Alias rows intentionally
+# borrow only the selected C2C3 record uk_* fields and relevant unit flags.
+# Unsupported rows have no inferred Civ III fallback.
+civ3_unit_id	c2c3_record	mapping_kind	basis
+settler	unit_settlers	direct	Existing CivCraft exact-identity C2C3 adapter.
+worker	unit_worker	direct	Existing CivCraft exact-identity C2C3 adapter.
+scout	unit_explorer	alias	BIQ scout/exploration role maps to the selected C2C3 Explorer archetype.
+explorer	unit_explorer	direct	Existing CivCraft exact-identity C2C3 adapter.
+marine	unit_marines	direct	Existing CivCraft exact-identity C2C3 adapter.
+modern_paratrooper	unit_paratroopers	alias	BIQ paratrooper role maps to the selected C2C3 Paratroopers archetype.
+warrior	unit_warriors	direct	Existing CivCraft exact-identity C2C3 adapter.
+archer	unit_archers	direct	Existing CivCraft exact-identity C2C3 adapter.
+spearman	unit_phalanx	alias	BIQ Land unit attack/defense/move 1/2/1 matches the C2C3 Phalanx archetype.
+swordsman	unit_legion	alias	BIQ Land melee infantry role maps to the selected C2C3 Legion archetype.
+chariot	unit_chariot	direct	Existing CivCraft exact-identity C2C3 adapter.
+horseman	unit_horsemen	alias	BIQ attack/defense/move 2/1/2 matches the C2C3 Horsemen archetype.
+pikeman	unit_pikemen	alias	BIQ anti-cavalry Land unit maps to the selected C2C3 Pikemen archetype.
+longbowman	unit_archers	alias	BIQ ranged infantry role maps to the selected C2C3 Archers archetype.
+musketman	unit_musketeers	alias	BIQ gunpowder infantry role maps to the selected C2C3 Musketeers archetype.
+knight	unit_knights	direct	Existing CivCraft exact-identity C2C3 adapter.
+rifleman	unit_riflemen	alias	BIQ rifle infantry role maps to the selected C2C3 Riflemen archetype.
+cavalry	unit_cavalry	direct	Existing CivCraft exact-identity C2C3 adapter.
+infantry	unit_riflemen	alias	BIQ Rifleman-to-Infantry upgrade line keeps the C2C3 Riflemen infantry economics archetype.
+tank	unit_armor	alias	BIQ armored-vehicle role maps to the selected C2C3 Armor archetype.
+mech_infantry	unit_mech_inf	alias	BIQ mechanized infantry role maps to the selected C2C3 Mech Inf. archetype.
+modern_armor	unit_armor	alias	BIQ modern armored-vehicle role maps to the selected C2C3 Armor archetype.
+catapult	unit_catapult	direct	Existing CivCraft exact-identity C2C3 adapter.
+cannon	unit_cannon	direct	Existing CivCraft exact-identity C2C3 adapter.
+artillery	unit_artillery	direct	Existing CivCraft exact-identity C2C3 adapter.
+radar_artillery	unit_howitzer	alias	BIQ bombard-only artillery (strength 16, range 2) maps to the selected C2C3 Howitzer archetype.
+cruise_missile	unit_cruise_missile	direct	Existing CivCraft exact-identity C2C3 adapter.
+tactical_nuke	unit_nuclear	alias	BIQ nuclear-weapon type maps to C2C3 single Nuclear archetype.
+icbm	unit_nuclear	alias	BIQ nuclear-weapon type maps to C2C3 single Nuclear archetype.
+galley	unit_trireme	alias	Existing CivCraft gameplay-role alias, explicitly extended to economics.
+caravel	unit_caravel	direct	Existing CivCraft exact-identity C2C3 adapter.
+frigate	unit_frigate	direct	Existing CivCraft exact-identity C2C3 adapter.
+galleon	unit_galleon	direct	Existing CivCraft exact-identity C2C3 adapter.
+ironclad	unit_ironclad	direct	Existing CivCraft exact-identity C2C3 adapter.
+transport	unit_transport	direct	Existing CivCraft exact-identity C2C3 adapter.
+carrier	unit_carrier	direct	Existing CivCraft exact-identity C2C3 adapter.
+submarine	unit_submarine	direct	Existing CivCraft exact-identity C2C3 adapter.
+destroyer	unit_destroyer	direct	Existing CivCraft exact-identity C2C3 adapter.
+battleship	unit_battleship	direct	Existing CivCraft exact-identity C2C3 adapter.
+aegis_cruiser	unit_aegis_cruiser	direct	Existing CivCraft exact-identity C2C3 adapter.
+nuclear_submarine	unit_submarine	alias	Existing CivCraft transport-role alias, explicitly extended to economics.
+fighter	unit_fighter	direct	Existing CivCraft exact-identity C2C3 adapter.
+bomber	unit_bomber	direct	Existing CivCraft exact-identity C2C3 adapter.
+helicopter	unit_helicopter	direct	Existing CivCraft exact-identity C2C3 adapter.
+jet_fighter	unit_fighter	alias	BIQ air fighter role maps to the selected C2C3 Fighter archetype.
+stealth_fighter	unit_stealth_fighter	direct	Existing CivCraft exact-identity C2C3 adapter.
+stealth_bomber	unit_stealth_bomber	direct	Existing CivCraft exact-identity C2C3 adapter.
+leader	unit_leader	direct	Existing CivCraft exact-identity C2C3 adapter.
+army	unit_warriors	alias	Civ III Army is an aggregate combat unit with no C2C3 counterpart; use the generic Land combat upkeep profile only. This is an economics adaptation, not an identity match.
+jaguar_warrior	unit_warriors	alias	BIQ replaces=Warrior; inherit that selected base archetype for economics.
+bowman	unit_archers	alias	BIQ replaces=Archer; inherit that selected base archetype for economics.
+hoplite	unit_phalanx	alias	BIQ replaces=Spearman; inherit that selected base archetype for economics.
+impi	unit_phalanx	alias	BIQ replaces=Spearman; inherit that selected base archetype for economics.
+legionary	unit_legion	alias	BIQ replaces=Swordsman; inherit that selected base archetype for economics.
+immortals	unit_legion	alias	BIQ replaces=Swordsman; inherit that selected base archetype for economics.
+war_chariot	unit_chariot	alias	BIQ replaces=Chariot; inherit that selected base archetype for economics.
+rider	unit_knights	alias	BIQ replaces=Knight; inherit that selected base archetype for economics.
+mounted_warrior	unit_horsemen	alias	BIQ replaces=Horseman; inherit that selected base archetype for economics.
+musketeer	unit_musketeers	direct	Existing CivCraft exact-identity C2C3 adapter.
+samurai	unit_knights	alias	BIQ replaces=Knight; inherit that selected base archetype for economics.
+war_elephant	unit_knights	alias	BIQ replaces=Knight; inherit that selected base archetype for economics.
+cossack	unit_cavalry	alias	BIQ replaces=Cavalry; inherit that selected base archetype for economics.
+panzer	unit_armor	alias	BIQ replaces=Tank; inherit that selected base archetype for economics.
+man_o_war	unit_frigate	alias	BIQ replaces=Frigate; inherit that selected base archetype for economics.
+f_15	unit_fighter	alias	BIQ replaces=Jet Fighter; inherit that selected base archetype for economics.
+privateer	unit_frigate	alias	C2C3 has no Privateer archetype; use the selected Frigate combat-ship upkeep profile only. Civ III attack values and naval-raider identity remain unchanged.
+keshik	unit_knights	alias	BIQ replaces=Knight; inherit that selected base archetype for economics.
+conquistador	unit_explorer	alias	BIQ replaces=Explorer; inherit that selected base archetype for economics.
+berserk	unit_archers	alias	BIQ replaces=Longbowman; inherit that selected base archetype for economics.
+sipahi	unit_cavalry	alias	BIQ replaces=Cavalry; inherit that selected base archetype for economics.
+gallic_swordsman	unit_legion	alias	BIQ replaces=Swordsman; inherit that selected base archetype for economics.
+ansar_warrior	unit_knights	alias	BIQ replaces=Knight; inherit that selected base archetype for economics.
+numidian_mercenary	unit_phalanx	alias	BIQ replaces=Spearman; inherit that selected base archetype for economics.
+hwach_a	unit_cannon	alias	BIQ replaces=Cannon; inherit that selected base archetype for economics.
+medieval_infantry	unit_legion	alias	BIQ Land combat profile 4/2/1 matches the C2C3 Legion archetype.
+guerilla	unit_partisan	alias	BIQ Guerilla role maps to the selected C2C3 Partisan archetype.
+enkidu_warrior	unit_warriors	alias	BIQ replaces=Warrior; inherit that selected base archetype for economics.
+three_man_chariot	unit_chariot	alias	BIQ replaces=Chariot; inherit that selected base archetype for economics.
+carrack	unit_caravel	alias	BIQ replaces=Caravel; inherit that selected base archetype for economics.
+swiss_mercenary	unit_pikemen	alias	BIQ replaces=Pikeman; inherit that selected base archetype for economics.
+trebuchet	unit_catapult	alias	BIQ bombard-only siege role maps to the selected C2C3 Catapult archetype.
+chasqui_scout	unit_explorer	alias	BIQ replaces=Scout; inherit that selected base archetype for economics.
+javelin_thrower	unit_archers	alias	BIQ replaces=Archer; inherit that selected base archetype for economics.
+dromon	unit_trireme	alias	BIQ replaces=Galley; inherit that selected base archetype for economics.
+cruiser	unit_cruiser	direct	Existing CivCraft exact-identity C2C3 adapter.
+crusader	unit_crusaders	direct	Existing CivCraft exact-identity C2C3 adapter.
+ancient_cavalry	unit_elephants	alias	BIQ combat profile 3/2/2 matches the C2C3 Elephants archetype.
+curragh	unit_trireme	alias	BIQ replaces=Galley and the existing Galley adapter uses C2C3 Trireme; extend that early coastal-vessel mapping to upkeep fields only.
+paratrooper	unit_paratroopers	direct	Existing CivCraft exact-identity C2C3 adapter.
+tow_infantry	unit_mech_inf	alias	C2C3 has no TOW or anti-tank infantry type; use its modern mechanized infantry upkeep profile only. Civ III attack/defense/movement remain authoritative.
+flak	unit_riflemen	alias	C2C3 has no land-based anti-air type; use the Land infantry upkeep profile only. Civ III attack values remain authoritative.
+mobile_sam	unit_mech_inf	alias	C2C3 has no mobile anti-air type; use the modern mechanized Land upkeep profile only. Civ III attack values remain authoritative.

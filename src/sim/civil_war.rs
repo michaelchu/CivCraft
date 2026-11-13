@@ -4,15 +4,13 @@ use super::*;
 
 impl Government {
     pub(super) fn civil_war_chance(self) -> i32 {
+        if let Some(value) = self.ruleset_effect_value("Civil_War_Chance") {
+            return i32::try_from(value).expect("government civil-war chance fits i32");
+        }
         match self {
-            Government::Anarchy => 99,
-            Government::Despotism => 80,
-            Government::Monarchy => 70,
-            Government::Communism => 50,
             Government::Fascism => 60,
             Government::Feudalism => 20,
-            Government::Republic => 40,
-            Government::Democracy => 30,
+            _ => unreachable!("selected government has a ruleset civil-war effect"),
         }
     }
 }
@@ -84,6 +82,8 @@ impl Simulation {
             mobilized: false,
             known: original.known.clone(),
             researching: original.researching,
+            researching_saved: original.researching_saved,
+            research_saved: original.research_saved,
             research_goal: original.research_goal,
             future_techs: original.future_techs,
             research: 0,

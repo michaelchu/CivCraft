@@ -104,7 +104,6 @@ mod research_phase;
 pub(crate) mod scenarios;
 mod terrain_work;
 pub(crate) use commands::Command;
-use model::research_cost;
 mod military_research;
 mod model;
 mod offense;
@@ -137,11 +136,6 @@ const CITY_MIN_DISTANCE: i32 = 3;
 pub(crate) const MOVE_FRAGMENTS: i32 = 6;
 const ACTIVITY_FACTOR: i32 = 10;
 const POWER_FACTOR: i32 = 10;
-const BASE_TECH_COST: i32 = 10;
-const MIN_TECH_COST: i32 = 10;
-const TECH_COST_PERCENT: i32 = 300;
-const SCIENCEBOX_PERCENT: i32 = 100;
-
 const CITY_DEFEND_BONUS: i32 = 50;
 const LARGE_CITY_DEFEND_BONUS: i32 = 50;
 const LARGE_CITY_SIZE: i32 = 9;
@@ -150,22 +144,23 @@ const CITY_MIN_HP_PERCENT: i32 = 33;
 const BASE_HP_REGEN_2: i32 = 10;
 const FORTIFIED_HP_REGEN_2: i32 = 10;
 
-/// Advances the gameplay stream through Freeciv's post-mapgen new-game setup.
-///
-/// Freeciv shuffles all player slots, generates a random game identifier, and
-/// shuffles the unrestricted start-position list before assigning players.
+/// Advances the gameplay stream through `shuffle_players()` after mapgen.
+fn apply_player_shuffle_randomness(rng: &mut crate::random::FreecivRng) {
+    consume_shuffle_draws(rng, PLAYER_SLOTS);
+}
+
+/// Advances the stream through `init_new_game()`'s game identifier and start
+/// assignment. Freeciv randomizes the identifier before shuffling starts.
 /// CivCraft retains its Civ III roster and player identities. Freeciv's
 /// `map_startpos_iterate` supplies starts in process-address-dependent hash
 /// order; `GeneratedMap::starts` instead has deterministic map-generator
 /// order. Apply the same Fisher-Yates shuffle to that deterministic order as
-/// an explicit adaptation. Pre-map nation/leader draws and later
-/// content-driven draws are separate parity gaps.
-fn apply_post_mapgen_setup_randomness(
+/// an explicit adaptation. Pre-map nation/leader draws remain a separate
+/// parity gap.
+fn apply_start_assignment_randomness(
     rng: &mut crate::random::FreecivRng,
     starts: &mut [(i32, i32)],
 ) {
-    consume_shuffle_draws(rng, PLAYER_SLOTS);
-
     // MAX_LEN_GAME_IDENTIFIER is 33, so randomize_base64url_string() draws
     // once for each of the 32 non-terminator characters from a 64-char set.
     for _ in 0..FREECIV_GAME_IDENTIFIER_DRAWS {
@@ -240,7 +235,7 @@ pub(crate) struct Simulation {
     /// this monotonic campaign history.
     global_advances: Vec<Tech>,
     players: Vec<Player>,
-    government_adoptions: [i32; 9],
+    government_adoptions: [i32; 11],
     turn: i32,
     year: i32,
     /// Freeciv's one-turn state after skipping year zero.
@@ -420,7 +415,7 @@ impl Simulation {
             mut game_random,
         } = map;
 
-        apply_post_mapgen_setup_randomness(&mut game_random, &mut starts);
+        apply_player_shuffle_randomness(&mut game_random);
 
         let tiles = generated_tiles
             .into_iter()
@@ -467,8 +462,10 @@ impl Simulation {
                 revolution_turn: None,
                 mobilized: false,
                 known: civilization.starting_techs.to_vec(),
-                researching: Tech::IRON_WORKING,
-                research_goal: Tech::IRON_WORKING,
+                researching: Tech::UNSET,
+                researching_saved: None,
+                research_saved: 0,
+                research_goal: Tech::UNSET,
                 future_techs: 0,
                 research: 0,
                 last_science: 0,
@@ -487,6 +484,8 @@ impl Simulation {
             mobilized: false,
             known: Vec::new(),
             researching: Tech::FUTURE,
+            researching_saved: None,
+            research_saved: 0,
             research_goal: Tech::FUTURE,
             future_techs: 0,
             research: 0,
@@ -509,36 +508,13 @@ impl Simulation {
             .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
         let start_year = calendar.start_year;
 
-        let mut units = Vec::new();
-        let mut next_unit_id = 1;
-        for (owner, start) in starts.iter().take(civilization_count).enumerate() {
-            let profile =
-                civilization_start_rules::get(&players[owner].name).unwrap_or_else(|| {
-                    panic!("missing Civ III start profile for {}", players[owner].name)
-                });
-            for (name, count) in profile.units() {
-                let kind = UnitKind::from_civ3_name(name).unwrap_or_else(|| {
-                    panic!(
-                        "unsupported Civ III starting unit {name} for {}",
-                        players[owner].name
-                    )
-                });
-                for _ in 0..count {
-                    let mut unit = Unit::new(next_unit_id, owner, kind, start.0, start.1);
-                    unit.moves_left = kind.stats().moves * MOVE_FRAGMENTS;
-                    units.push(unit);
-                    next_unit_id += 1;
-                }
-            }
-        }
-
         let mut game = Self {
             world_seed: seed,
             map_seed,
             civilization_count,
             map_wrap,
             tiles,
-            units,
+            units: Vec::new(),
             cities: Vec::new(),
             retired_city_culture: Default::default(),
             completed_wonders: Vec::new(),
@@ -550,11 +526,11 @@ impl Simulation {
             apollo_completed: false,
             global_advances,
             players,
-            government_adoptions: [0; 9],
+            government_adoptions: [0; 11],
             turn: 1,
             year: start_year,
             year_0_hack: false,
-            next_unit_id,
+            next_unit_id: 1,
             next_city_id: 1,
             rng: 0x9e37_79b9_7f4a_7c15,
             native_random: Some(game_random),
@@ -596,7 +572,37 @@ impl Simulation {
             diplomatic_contact_until: Default::default(),
         };
         for owner in 0..civilization_count {
-            game.players[owner].researching = game.research_target(owner);
+            game.players[owner].researching = game.choose_research_target(owner);
+        }
+        let mut game_random = game
+            .native_random
+            .take()
+            .expect("new campaign has an initialized Freeciv random stream");
+        apply_start_assignment_randomness(&mut game_random, &mut starts);
+        game.native_random = Some(game_random);
+
+        for (owner, start) in starts.iter().take(civilization_count).enumerate() {
+            let profile =
+                civilization_start_rules::get(&game.players[owner].name).unwrap_or_else(|| {
+                    panic!(
+                        "missing Civ III start profile for {}",
+                        game.players[owner].name
+                    )
+                });
+            for (name, count) in profile.units() {
+                let kind = UnitKind::from_civ3_name(name).unwrap_or_else(|| {
+                    panic!(
+                        "unsupported Civ III starting unit {name} for {}",
+                        game.players[owner].name
+                    )
+                });
+                for _ in 0..count {
+                    let mut unit = Unit::new(game.next_unit_id, owner, kind, start.0, start.1);
+                    unit.moves_left = kind.stats().moves * MOVE_FRAGMENTS;
+                    game.units.push(unit);
+                    game.next_unit_id += 1;
+                }
+            }
         }
         let initial_contacts: Vec<_> = game
             .units

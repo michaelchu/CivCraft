@@ -170,11 +170,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 // masks. Use Civ III's staggered-grid directions here: the
                 // legacy render_neighbor offsets resolve to different tiles.
                 for (bit, direction) in [7, 1, 5, 3].into_iter().enumerate() {
-                    let Some((nx, ny)) = self
-                        .game
-                        .sim
-                        .map_wrap()
-                        .civ3_neighbor(x, y, direction)
+                    let Some((nx, ny)) = self.game.sim.map_wrap().civ3_neighbor(x, y, direction)
                     else {
                         continue;
                     };

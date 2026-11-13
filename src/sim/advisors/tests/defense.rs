@@ -71,7 +71,7 @@ fn static_defender_research_is_gated_by_real_production_need_and_keeps_police_va
 }
 
 #[test]
-fn city_defense_fixture_uses_conquests_treasury_support_allowance() {
+fn city_defense_fixture_uses_selected_c2c3_treasury_support_allowance() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
@@ -90,9 +90,9 @@ fn city_defense_fixture_uses_conquests_treasury_support_allowance() {
         game.spawn_unit(1, UnitKind::Warrior, 10, 24);
         game.units.last_mut().unwrap().home_city = Some(city.id);
     }
-    // Despotism grants four free supported units per town. All twenty
-    // Warriors are homed here, so sixteen owe gold.
-    assert_eq!(game.city_gold_upkeep(&city).len(), 16);
+    // Warriors have one shield upkeep and ShieldToGold. C2C3 Despotism
+    // converts that to one gold and grants two free units per city.
+    assert_eq!(game.city_gold_upkeep(&city).paid.len(), 18);
 }
 
 #[test]

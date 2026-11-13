@@ -122,6 +122,24 @@ impl Simulation {
             }
         }
 
+        // city.c:citizen_happy_units applies unit unrest after martial law.
+        // The conversion also runs when martial law is disabled by government.
+        let mut unit_unhappiness = self.city_unit_upkeep(city).unit_happiness;
+        while unit_unhappiness > 0 && content > 0 {
+            content -= 1;
+            unhappy += 1;
+            unit_unhappiness -= 1;
+        }
+        while unit_unhappiness > 1 && happy > 0 {
+            happy -= 1;
+            unhappy += 1;
+            unit_unhappiness -= 2;
+        }
+        while unit_unhappiness > 0 && happy > 0 {
+            happy -= 1;
+            content += 1;
+            unit_unhappiness -= 1;
+        }
         // Make_Happy precedes No_Unhappy and Force_Content in the final mood
         // stage; these effects are data-driven and also cover wonders.
         let mut happy_faces = effect("Make_Happy").max(0);

@@ -56,6 +56,40 @@ fn actual_human_science_completion_clears_goal_and_retains_valid_automatic_targe
 }
 
 #[test]
+fn goal_less_research_matches_freeciv_random_frontier_and_draw_order() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.players[HUMAN].research_goal = Tech::UNSET;
+    game.players[HUMAN].researching = Tech::UNSET;
+
+    let mut expected = game.clone();
+    let mut expected_choice = Tech::FUTURE;
+    let mut count = 0;
+    for tech in Tech::all() {
+        if expected.tech_available(HUMAN, tech) {
+            count += 1;
+            if expected.rand_below(count) == 0 {
+                expected_choice = tech;
+            }
+        }
+    }
+
+    let actual = game.choose_research_target(HUMAN);
+
+    assert_eq!(actual, expected_choice);
+    assert!(game.tech_available(HUMAN, actual));
+    assert_eq!(game.random_snapshot(), expected.random_snapshot());
+}
+
+#[test]
+fn campaign_starts_with_no_hard_coded_goal_and_a_ruleset_progression_target() {
+    let game = Simulation::new(crate::mapgen::generate(42));
+    for owner in 0..game.civilization_count {
+        assert_eq!(game.players[owner].research_goal, Tech::UNSET);
+        assert!(game.tech_available(owner, game.players[owner].researching));
+    }
+}
+
+#[test]
 fn future_research_retains_its_project_but_clears_its_advisor_goal() {
     let mut sim = Simulation::new(crate::mapgen::generate(42));
     sim.players[1].known = Tech::all().collect();
@@ -122,27 +156,94 @@ fn switching_respects_investment_and_exempts_discovery_overflow() {
 }
 
 #[test]
-fn blocked_advisor_choice_is_rejected_without_a_frontier_substitute() {
+fn c2c3_tech_switch_suspends_one_project_and_restores_its_bulbs() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    game.units.clear();
-    game.tile_mut(10, 24).terrain = Terrain::Grassland;
-    game.create_city(1, 10, 24);
+    game.players[HUMAN].known.clear();
+    game.players[HUMAN].researching = Tech::ALPHABET;
+    game.players[HUMAN].research = 40;
+
+    game.choose_research_tech(HUMAN, Tech::FEUDALISM, 0);
+    assert_eq!(game.players[HUMAN].researching, Tech::FEUDALISM);
+    assert_eq!(game.players[HUMAN].researching_saved, Some(Tech::ALPHABET));
+    assert_eq!(game.players[HUMAN].research_saved, 40);
+    assert_eq!(game.players[HUMAN].research, 0);
+
+    game.choose_research_tech(HUMAN, Tech::ALPHABET, 0);
+    assert_eq!(game.players[HUMAN].researching, Tech::ALPHABET);
+    assert_eq!(game.players[HUMAN].researching_saved, None);
+    assert_eq!(game.players[HUMAN].research_saved, 0);
+    assert_eq!(game.players[HUMAN].research, 40);
+}
+
+#[test]
+fn suspended_research_accumulates_city_science_before_technology_upkeep() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.create_city(HUMAN, 10, 10);
+    game.players[HUMAN].known = Tech::all().collect();
+    game.players[HUMAN].researching = Tech::FUTURE;
+    game.players[HUMAN].researching_saved = Some(Tech::ALPHABET);
+    game.players[HUMAN].research_saved = 40;
+    game.players[HUMAN].research = 100;
+    let upkeep = game.technology_upkeep(HUMAN);
+
+    game.apply_research_upkeep(HUMAN, 20);
+
+    assert_eq!(game.players[HUMAN].research_saved, 60);
+    assert_eq!(game.players[HUMAN].research, 120 - upkeep);
+    assert_eq!(game.players[HUMAN].researching_saved, Some(Tech::ALPHABET));
+}
+
+#[test]
+fn losing_a_technology_does_not_retarget_the_active_project() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.players[HUMAN].known = vec![Tech::ALPHABET];
+    game.players[HUMAN].research_goal = Tech::UNSET;
+    game.players[HUMAN].researching = Tech::FEUDALISM;
+    game.players[HUMAN].research = 0;
+
+    game.apply_research_upkeep(HUMAN, -1);
+
+    assert!(!game.has_tech(HUMAN, Tech::ALPHABET));
+    assert_eq!(game.players[HUMAN].researching, Tech::FEUDALISM);
+}
+
+#[test]
+fn switching_keeps_free_discovery_bulbs_out_of_the_penalty() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.players[HUMAN].researching = Tech::ALPHABET;
+    game.players[HUMAN].research = 17;
+
+    game.choose_research_tech(HUMAN, Tech::FEUDALISM, 12);
+    assert_eq!(game.players[HUMAN].researching_saved, Some(Tech::ALPHABET));
+    assert_eq!(game.players[HUMAN].research_saved, 17);
+    assert_eq!(game.players[HUMAN].research, 12);
+}
+
+#[test]
+fn researchable_biq_advance_is_not_blocked_by_its_display_era() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.players[HUMAN].known.clear();
+
+    assert_eq!(Tech::FEUDALISM.era(), crate::rules::TechEra::MiddleAges);
+    assert_eq!(game.research_era(HUMAN), crate::rules::TechEra::Ancient);
+    assert!(Tech::FEUDALISM.civ3_prerequisites().unwrap().is_empty());
+    assert!(game.tech_available(HUMAN, Tech::FEUDALISM));
+    assert_eq!(
+        game.research_path(HUMAN, Tech::FEUDALISM),
+        [Tech::FEUDALISM]
+    );
+}
+
+#[test]
+fn research_selection_rejects_a_technology_with_unknown_biq_prerequisites() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
     game.players[1].known.clear();
     game.players[1].research = 0;
-    game.ai_free_bulbs.clear();
-    game.ai_tech_wants.insert(1, game.advisor_tech_wants(1));
-    let (choice, _, _) = game.select_ai_research(1);
-    assert!(
-        !game.tech_available(1, choice),
-        "fixture must prefer a deep advance: {}",
-        choice.name()
-    );
-    let current = Tech::all()
-        .find(|&tech| game.tech_available(1, tech))
-        .unwrap();
-    game.players[1].researching = current;
-    game.manage_ai_research(1);
-    assert_eq!(game.players[1].researching, current);
+    game.players[1].researching = Tech::ALPHABET;
+    assert!(!game.tech_available(1, Tech::COMBINED_ARMS));
+
+    game.choose_research_tech(1, Tech::COMBINED_ARMS, 0);
+    assert_eq!(game.players[1].researching, Tech::ALPHABET);
     assert_eq!(game.players[1].research, 0);
 }
 

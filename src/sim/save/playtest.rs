@@ -38,6 +38,8 @@ impl Simulation {
             );
             self.ai_space_warnings.insert((1, HUMAN), 7);
             self.ai_free_bulbs.insert(1, 3);
+            self.players[HUMAN].researching_saved = Some(Tech::POTTERY);
+            self.players[HUMAN].research_saved = 17;
             let target = self
                 .cities
                 .iter()
@@ -71,7 +73,7 @@ impl Simulation {
                 government::GovernmentAdvisorCache {
                     evaluated_turn: self.turn,
                     next_evaluation: self.turn + 5,
-                    scores: [1.0; 8],
+                    scores: [1.0; 11],
                 },
             );
             self.diplomatic_contact_until

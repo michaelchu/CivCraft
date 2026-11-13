@@ -21,6 +21,10 @@ impl super::Simulation {
         self.players[1].government = Government::Republic;
         let id = self.cities[0].id;
         let field = offset_native_by_map(10, 24, 8, 0);
+        // Keep these units inside national borders so this scenario measures
+        // the city building effects without the separate Freeciv field-unit
+        // unhappiness contribution.
+        self.tile_mut(field.0, field.1).owner = Some(1);
         for _ in 0..4 {
             self.spawn_unit(1, UnitKind::Warrior, field.0, field.1);
             self.units.last_mut().unwrap().home_city = Some(id);

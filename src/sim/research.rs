@@ -2,6 +2,18 @@
 
 use super::*;
 use crate::rules::TechEra;
+use crate::rules::freeciv::{ResearchRulesetSettings, RulesetData, effect_value};
+use crate::sim::action_rules::SimulationRequirementContext;
+use std::sync::OnceLock;
+
+pub(super) fn campaign_research_settings() -> &'static ResearchRulesetSettings {
+    static SETTINGS: OnceLock<ResearchRulesetSettings> = OnceLock::new();
+    SETTINGS.get_or_init(|| {
+        RulesetData::campaign_default()
+            .research_settings()
+            .unwrap_or_else(|error| panic!("invalid C2C3 research settings: {error}"))
+    })
+}
 
 impl Simulation {
     pub(crate) fn research_unit_unlocks(tech: Tech) -> Vec<&'static str> {
@@ -26,7 +38,7 @@ impl Simulation {
     }
 
     pub(crate) fn tech_available(&self, owner: usize, tech: Tech) -> bool {
-        if tech.data().is_none() && tech != Tech::FUTURE {
+        if !tech.is_civ3_advance() && tech != Tech::FUTURE {
             return false;
         }
         if tech == Tech::FUTURE {
@@ -38,16 +50,15 @@ impl Simulation {
             return false;
         }
         !self.has_tech(owner, tech)
-            && tech.era() <= self.research_era(owner)
             && tech
-                .prerequisites()
+                .civ3_prerequisites()
+                .unwrap_or(&[])
                 .iter()
                 .all(|&req| self.has_tech(owner, req))
     }
 
-    /// Highest Civ III era whose required advances have all been discovered.
-    /// Optional advances and CivCraft extension technologies do not hold back
-    /// the next era.
+    /// Highest Civ III content era reached. This is presentation metadata for
+    /// existing client views; research legality is determined by the C3 graph.
     pub(crate) fn research_era(&self, owner: usize) -> TechEra {
         let mut current = TechEra::Ancient;
         for era in [TechEra::Ancient, TechEra::MiddleAges, TechEra::Industrial] {
@@ -76,16 +87,7 @@ impl Simulation {
             if game.has_tech(owner, tech) || path.contains(&tech) {
                 return;
             }
-            if tech.is_civ3_advance() {
-                for era in TechEra::ALL.iter().take(tech.era().index()) {
-                    for required in Tech::all().filter(|candidate| {
-                        candidate.era() == *era && candidate.required_for_civ3_era()
-                    }) {
-                        visit(game, owner, required, path);
-                    }
-                }
-            }
-            for &req in tech.prerequisites() {
+            for &req in tech.civ3_prerequisites().unwrap_or(&[]) {
                 visit(game, owner, req, path);
             }
             path.push(tech);
@@ -102,22 +104,51 @@ impl Simulation {
     }
 
     pub(super) fn research_target(&self, owner: usize) -> Tech {
-        let goal = self.players[owner].research_goal;
-        let ferry_want = self.ferry_tech_want(owner, Tech::MAP_MAKING);
-        let goal = if ferry_want > 0 && ferry_want as f32 > self.advisor_tech_want(owner, goal) {
-            Tech::MAP_MAKING
-        } else {
-            goal
-        };
+        let goal = self.research_goal_for_target(owner);
         self.research_path(owner, goal)
             .first()
             .copied()
             .or_else(|| {
-                Tech::all()
-                    .filter(|&tech| self.tech_available(owner, tech))
-                    .min_by_key(|tech| tech.cost())
+                let current = self.players[owner].researching;
+                self.tech_available(owner, current).then_some(current)
             })
             .unwrap_or(Tech::FUTURE)
+    }
+
+    /// Select a new target when Freeciv would call choose_tech(). Goal steps
+    /// take precedence; without one, choose_random_tech() reservoir-samples
+    /// every currently researchable advance in source ID order.
+    pub(super) fn choose_research_target(&mut self, owner: usize) -> Tech {
+        let goal = self.research_goal_for_target(owner);
+        if let Some(step) = self.research_path(owner, goal).first().copied() {
+            return step;
+        }
+        self.random_available_research_target(owner)
+    }
+
+    fn research_goal_for_target(&self, owner: usize) -> Tech {
+        let goal = self.players[owner].research_goal;
+        if self.players[owner].ai && goal != Tech::UNSET {
+            let ferry_want = self.ferry_tech_want(owner, Tech::MAP_MAKING);
+            if ferry_want > 0 && ferry_want as f32 > self.advisor_tech_want(owner, goal) {
+                return Tech::MAP_MAKING;
+            }
+        }
+        goal
+    }
+
+    fn random_available_research_target(&mut self, owner: usize) -> Tech {
+        let mut choice = Tech::FUTURE;
+        let mut count = 0;
+        for tech in Tech::all() {
+            if self.tech_available(owner, tech) {
+                count += 1;
+                if self.rand_below(count) == 0 {
+                    choice = tech;
+                }
+            }
+        }
+        choice
     }
 
     pub(super) fn next_ai_research_target(&mut self, owner: usize) -> Tech {
@@ -240,101 +271,197 @@ impl Simulation {
             && penalty.saturating_add(researched) <= self.target_cost(owner, current)
             && self.tech_available(owner, choice)
         {
-            self.players[owner].researching = choice;
-            // techtools.c:choose_tech, default techpenalty=100. Bulbs carried
-            // from a discovery this phase are exempt from the switching cost.
-            self.players[owner].research = researched - penalty;
+            self.choose_research_tech(owner, choice, free);
         }
     }
 
     pub(crate) fn target_cost(&self, owner: usize, tech: Tech) -> i32 {
-        if (tech.data().is_none() || !tech.is_civ3_advance()) && tech != Tech::FUTURE {
+        self.technology_cost(owner, tech, false)
+    }
+
+    fn technology_cost(&self, owner: usize, tech: Tech, loss_value: bool) -> i32 {
+        if !tech.is_civ3_advance() && tech != Tech::FUTURE {
             return 0;
         }
         let player = &self.players[owner];
-        let base = if tech == Tech::FUTURE {
-            research_cost(
-                player
-                    .known
-                    .iter()
-                    .filter(|tech| tech.is_civ3_advance())
-                    .count() as i32
-                    + player.future_techs
-                    + 1,
-            )
-        } else {
-            tech.cost()
+        if tech != Tech::FUTURE && !loss_value && self.has_tech(owner, tech) {
+            return 0;
+        }
+        let rules = RulesetData::campaign_default();
+        let settings = campaign_research_settings();
+        let base = match settings.cost_style {
+            crate::rules::freeciv::ResearchCostStyle::Linear => {
+                if tech == Tech::FUTURE {
+                    i64::from(settings.base_tech_cost)
+                        * i64::from(
+                            player
+                                .known
+                                .iter()
+                                .filter(|known| known.is_civ3_advance())
+                                .count() as i32
+                                + player.future_techs
+                                + 1,
+                        )
+                } else {
+                    let requirement_count = tech
+                        .civ3_requirement_count()
+                        .expect("researchable C3 technology has a Freeciv requirement count");
+                    i64::from(settings.base_tech_cost)
+                        .saturating_mul(i64::from(requirement_count))
+                        .max(i64::from(settings.min_tech_cost))
+                }
+            }
         };
-        let mut alive = 0;
-        let mut sources = 0;
-        for other in 0..self.players.len() {
-            if !self.player_alive(other) {
-                continue;
+
+        // common/research.c::research_total_bulbs_required applies the
+        // active Tech_Cost_Pct effect, embassy leakage, then sciencebox.
+        let context = SimulationRequirementContext::for_player_at(self, owner, None)
+            .with_government(player.government);
+        let cost_percent = effect_value(&rules.effects, "Tech_Cost_Pct", &context)
+            .expect("campaign Tech_Cost_Pct effects are evaluable");
+        let mut cost = base as f64 * cost_percent as f64 / 100.0;
+        if settings.leakage_style == crate::rules::freeciv::TechnologyLeakageStyle::Embassies
+            && effect_value(&rules.effects, "Tech_Leakage", &context)
+                .expect("campaign Tech_Leakage effects are evaluable")
+                > 0
+        {
+            let mut alive = 0;
+            let mut sources = 0;
+            for other in 0..self.players.len() {
+                if !self.player_alive(other) {
+                    continue;
+                }
+                alive += 1;
+                let knows = if tech == Tech::FUTURE {
+                    self.players[other].future_techs > player.future_techs
+                } else {
+                    self.has_tech(other, tech)
+                };
+                if other != owner && knows && self.has_embassy(owner, other) {
+                    sources += 1;
+                }
             }
-            alive += 1;
-            let knows = if tech == Tech::FUTURE {
-                self.players[other].future_techs > player.future_techs
-            } else {
-                self.has_tech(other, tech)
-            };
-            if knows && self.has_embassy(owner, other) {
-                sources += 1;
+            if alive > 0 {
+                let leak = cost * f64::from(sources) * f64::from(settings.tech_leak_percent)
+                    / f64::from(alive)
+                    / 100.0;
+                cost = (cost - leak).max(0.0);
             }
         }
-        if alive == 0 {
-            base
-        } else {
-            (base * (alive - sources) / alive).max(1)
+        cost = (cost * f64::from(settings.sciencebox_percent) / 100.0).max(1.0);
+        cost as i32
+    }
+
+    /// Port of `server/techtools.c::choose_tech` for C2C3's non-multiresearch
+    /// setting. Free bulbs from a completed discovery are exempt from the
+    /// switch penalty; one abandoned project is retained for resumption.
+    pub(super) fn choose_research_tech(&mut self, owner: usize, tech: Tech, free_bulbs: i32) {
+        if !self.tech_available(owner, tech) {
+            return;
         }
+        let player = &mut self.players[owner];
+        if player.researching == tech {
+            return;
+        }
+        let investable = player.research.saturating_sub(free_bulbs);
+        if investable > 0 && player.researching_saved.is_none() {
+            player.research_saved = player.research;
+            player.researching_saved = Some(player.researching);
+            let loss =
+                investable.saturating_mul(campaign_research_settings().tech_penalty_percent) / 100;
+            player.research = player.research.saturating_sub(loss).max(0);
+        } else if player.researching_saved == Some(tech) {
+            player.research = player.research_saved;
+            player.research_saved = 0;
+            player.researching_saved = None;
+        }
+        player.researching = tech;
+    }
+
+    pub(super) fn apply_research_penalty(&mut self, owner: usize, tech: Tech, percent: i32) {
+        let penalty = self.target_cost(owner, tech).saturating_mul(percent) / 100;
+        self.players[owner].research = self.players[owner].research.saturating_sub(penalty);
+        self.players[owner].researching_saved = None;
+        self.players[owner].research_saved = 0;
+    }
+
+    fn player_effect_value(&self, owner: usize, kind: &str) -> i64 {
+        let rules = RulesetData::campaign_default();
+        let context = SimulationRequirementContext::for_player_at(self, owner, None)
+            .with_government(self.players[owner].government);
+        effect_value(&rules.effects, kind, &context)
+            .unwrap_or_else(|error| panic!("could not evaluate campaign {kind} effects: {error:?}"))
     }
 
     pub(crate) fn technology_upkeep(&self, owner: usize) -> i32 {
         let player = &self.players[owner];
+        let settings = campaign_research_settings();
         let known_cost: i64 = player
             .known
             .iter()
             .filter(|tech| tech.is_civ3_advance())
-            .filter_map(|tech| tech.data())
-            .map(|advance| {
-                i64::from((advance.requirement_count * BASE_TECH_COST).max(MIN_TECH_COST))
+            .map(|tech| {
+                let count = tech
+                    .civ3_requirement_count()
+                    .expect("known C3 advance has a Freeciv requirement count");
+                (i64::from(settings.base_tech_cost) * i64::from(count))
+                    .max(i64::from(settings.min_tech_cost))
             })
             .sum();
         let future = i64::from(player.future_techs);
-        let known = player
+        let techs_researched = player
             .known
             .iter()
             .filter(|tech| tech.is_civ3_advance())
             .count() as i64
+            + future
             + 1;
         let future_cost = if future > 0 {
-            i64::from(BASE_TECH_COST) * (future * (2 * known + future + 1) + 2 * known) / 2
+            i64::from(settings.base_tech_cost)
+                * (future * (2 * techs_researched + future + 1) + 2 * techs_researched)
+                / 2
         } else {
             0
         };
-        // Civ2Civ3 uses the default Normal science factor (100) plus the
-        // ruleset's Tech_Cost_Pct (300) for maintenance calculations.
-        let scaled = (known_cost + future_cost)
-            * i64::from(100 + TECH_COST_PERCENT)
-            * i64::from(SCIENCEBOX_PERCENT);
-        let free = if player.government == Government::Anarchy {
-            102
-        } else {
-            3
+        let cost_percent = self.player_effect_value(owner, "Tech_Cost_Pct");
+        let free = self.player_effect_value(owner, "Tech_Upkeep_Free");
+        let cities = match settings.upkeep_style {
+            crate::rules::freeciv::TechnologyUpkeepStyle::Cities => self
+                .cities
+                .iter()
+                .filter(|city| city.owner == owner)
+                .count() as f64,
         };
-        let divider = 6000 * 100 * 100;
-        let cities = self
-            .cities
-            .iter()
-            .filter(|city| city.owner == owner)
-            .count() as i64;
-        (((scaled - free * divider).max(0) * cities) / divider) as i32
+        let base = (known_cost + future_cost) as f64;
+        let upkeep = base
+            * (cost_percent as f64 / 100.0 + 1.0)
+            * (f64::from(settings.sciencebox_percent) / 100.0)
+            / f64::from(settings.upkeep_divider);
+        ((upkeep - free as f64).max(0.0) * cities) as i32
     }
 
     pub(super) fn apply_research_upkeep(&mut self, owner: usize, income: i32) {
         let upkeep = self.technology_upkeep(owner);
         self.players[owner].last_science = income - upkeep;
+        // Freeciv's per-city update_bulbs() adds normal science output to the
+        // suspended project's pool. The later negative upkeep update runs
+        // after researching_saved is cleared, so only city science belongs
+        // here; do not add net income after upkeep.
+        if self.players[owner].researching_saved.is_some() {
+            self.players[owner].research_saved =
+                self.players[owner].research_saved.saturating_add(income);
+        }
         self.players[owner].research += income - upkeep;
-        if self.players[owner].research >= 0 {
+        let settings = campaign_research_settings();
+        let forgiveness = settings.tech_loss_forgiveness_percent;
+        let loss_threshold = -self
+            .target_cost(owner, self.players[owner].researching)
+            .saturating_mul(forgiveness)
+            / 100;
+        if self.players[owner].research >= 0
+            || forgiveness < 0
+            || self.players[owner].research >= loss_threshold
+        {
             return;
         }
         let lost = if self.players[owner].future_techs > 0 {
@@ -344,9 +471,10 @@ impl Simulation {
             let eligible: Vec<_> = Tech::all()
                 .filter(|tech| {
                     known.contains(tech)
-                        && known
-                            .iter()
-                            .all(|other| !other.prerequisites().contains(tech))
+                        && (settings.tech_loss_allow_holes
+                            || known.iter().all(|other| {
+                                !other.civ3_prerequisites().unwrap_or(&[]).contains(tech)
+                            }))
                 })
                 .collect();
             if eligible.is_empty() {
@@ -358,13 +486,20 @@ impl Simulation {
         let Some(tech) = lost else {
             return;
         };
-        self.players[owner].research += self.target_cost(owner, tech) / 2;
+        let restore_percent = campaign_research_settings().tech_loss_restore_percent;
+        if restore_percent < 0 {
+            self.players[owner].research = 0;
+        } else {
+            self.players[owner].research +=
+                self.technology_cost(owner, tech, true) * restore_percent / 100;
+        }
         if tech == Tech::FUTURE {
             self.players[owner].future_techs -= 1;
         } else {
             self.players[owner].known.retain(|&known| known != tech);
-            self.players[owner].researching = self.research_target(owner);
         }
+        self.players[owner].researching_saved = None;
+        self.players[owner].research_saved = 0;
         if owner == HUMAN {
             self.add_event(format!(
                 "Insufficient science to maintain {}. The technology was lost.",
@@ -380,23 +515,33 @@ impl Simulation {
         let available: Vec<_> = Tech::all()
             .filter(|&tech| self.tech_available(owner, tech))
             .collect();
-        let advance = if let Some(cost) = available.iter().map(|tech| tech.cost()).min() {
-            let cheapest: Vec<_> = available
-                .into_iter()
-                .filter(|tech| tech.cost() == cost)
-                .collect();
-            cheapest[self.rand_below(cheapest.len() as i32) as usize]
-        } else {
-            Tech::FUTURE
+        let advance = match campaign_research_settings().free_technology_style {
+            crate::rules::freeciv::FreeTechnologyStyle::Cheapest => {
+                if let Some(cost) = available
+                    .iter()
+                    .map(|&tech| self.target_cost(owner, tech))
+                    .min()
+                {
+                    let cheapest: Vec<_> = available
+                        .into_iter()
+                        .filter(|&tech| self.target_cost(owner, tech) == cost)
+                        .collect();
+                    cheapest[self.rand_below(cheapest.len() as i32) as usize]
+                } else {
+                    Tech::FUTURE
+                }
+            }
         };
         self.discover(owner, advance);
         if self.players[owner].researching == advance {
-            self.players[owner].researching = self.research_target(owner);
+            let free = self.players[owner].research;
+            let next = self.choose_research_target(owner);
+            self.choose_research_tech(owner, next, free);
         }
     }
 
     pub(super) fn discover(&mut self, owner: usize, tech: Tech) {
-        if (tech.data().is_none() || !tech.is_civ3_advance()) && tech != Tech::FUTURE {
+        if !tech.is_civ3_advance() && tech != Tech::FUTURE {
             return;
         }
         let was_researching = self.players[owner].researching == tech;
@@ -404,6 +549,10 @@ impl Simulation {
             self.ai_free_bulbs
                 .insert(owner, self.players[owner].research);
         }
+        // `server/techtools.c::tech_researched` forgets the one suspended
+        // project after any newly discovered technology.
+        self.players[owner].researching_saved = None;
+        self.players[owner].research_saved = 0;
         if tech == Tech::FUTURE {
             self.players[owner].future_techs += 1;
         } else {
@@ -433,7 +582,9 @@ impl Simulation {
             self.players[owner].research_goal = Tech::UNSET;
         }
         if self.players[owner].ai && was_researching {
-            self.players[owner].researching = self.post_discovery_ai_target(owner);
+            let free = self.ai_free_bulbs.get(&owner).copied().unwrap_or(0);
+            let next = self.post_discovery_ai_target(owner);
+            self.choose_research_tech(owner, next, free);
         }
     }
 
@@ -451,7 +602,7 @@ impl Simulation {
                     return tech;
                 }
                 let mut first = true;
-                for &req in tech.prerequisites() {
+                for &req in tech.civ3_prerequisites().unwrap_or(&[]) {
                     if !done.contains(&req) {
                         done.push(req);
                         if first {
@@ -500,13 +651,15 @@ impl Simulation {
                     .all(|player| !player.known.contains(&current));
             self.discover(owner, current);
             if first_bonus {
-                let bonus = self.research_target(owner);
+                let bonus = self.choose_research_target(owner);
                 if bonus != Tech::FUTURE {
                     self.discover(owner, bonus);
                 }
             }
             if !self.players[owner].ai {
-                self.players[owner].researching = self.research_target(owner);
+                let free = self.players[owner].research;
+                let next = self.choose_research_target(owner);
+                self.choose_research_tech(owner, next, free);
             }
         }
     }

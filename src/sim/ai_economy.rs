@@ -162,7 +162,7 @@ impl Simulation {
     pub(super) fn manage_ai_taxes(&mut self, owner: usize) {
         // Fixed Civ2Civ3 allows changing taxes. Anarchy leaves saved rates
         // alone; production itself distributes all trade to luxury there.
-        if self.players[owner].government == Government::Anarchy {
+        if self.players[owner].government == Government::during_revolution() {
             return;
         }
         let (mut trade, mut expenses, mut income) = (0, 0, 0);

@@ -472,8 +472,10 @@ impl Simulation {
         granted_tech: Option<Tech>,
     ) -> i32 {
         let bonus = self.city_output_bonus_percent(city, output_type, government, granted_tech);
-        let produced = (i64::from(gross) * i64::from(bonus) / 100)
-            .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        // city.c keeps these outputs in native C `int` arithmetic. Wrapping
+        // before division matches the pinned build for the city-manager's
+        // synthetic sentinel values and is identical for ordinary outputs.
+        let produced = gross.wrapping_mul(bonus) / 100;
         self.c2c3_city_output_after_bonus(city, produced, output_type, government, granted_tech)
     }
 
@@ -531,7 +533,10 @@ impl Simulation {
         let mut waste = if waste_all {
             remaining
         } else if waste_level > 0 {
-            remaining * waste_level / 100
+            // Freeciv's C implementation performs this multiplication in
+            // the native int width. Keep that behavior for the synthetic
+            // city-manager sentinels as well as ordinary production values.
+            remaining.wrapping_mul(waste_level) / 100
         } else {
             0
         };

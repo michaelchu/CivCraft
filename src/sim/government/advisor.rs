@@ -4,27 +4,26 @@ use super::*;
 
 impl super::Simulation {
     pub(super) fn government_available(&self, owner: usize, government: Government) -> bool {
-        government
-            .requirement()
-            .is_none_or(|tech| self.has_tech(owner, tech))
-            || self.has_active_wonder(owner, Building::STATUE_OF_LIBERTY)
+        self.government_requirements_met(owner, government)
     }
 
     pub(super) fn government_player_bonus(&self, owner: usize, government: Government) -> i32 {
-        // advdata.c:adv_gov_player_bonus_want uses a player-only CERTAIN
-        // effect query. The ruleset's Veteran_Build effects require unit
-        // flags, and Output_Inc_Tile requires an output/tile context, so
-        // neither supplies a player-only bonus. Civ2Civ3 has no Rapture_Grow.
-        let partisans = i32::from(
-            owner != BARBARIANS
-                && matches!(government, Government::Communism | Government::Democracy)
-                && self.has_tech(owner, Tech::COMMUNISM)
-                && self.has_tech(owner, Tech::GUNPOWDER)
-                && (0..self.players.len()).any(|player| self.has_tech(player, Tech::NATIONALISM)),
-        ) * 3;
-        // Civ2Civ3 actions.ruleset has no Gov target requirement in any
-        // enabler: action_immune_government returns false for every action.
-        partisans
+        // advdata.c:adv_gov_player_bonus_want values the selected ruleset's
+        // player-wide Fanatics and Inspire_Partisans effects. Resolve them
+        // through the shared evaluator so their technology and government
+        // requirements remain editable in the campaign ruleset.
+        let rules = RulesetData::campaign_default();
+        let context = SimulationRequirementContext::for_player_at(self, owner, None)
+            .with_government(government);
+        ["Fanatics", "Inspire_Partisans"]
+            .into_iter()
+            .map(|kind| {
+                effect_value(&rules.effects, kind, &context)
+                    .unwrap_or_else(|error| panic!("could not evaluate C2C3 {kind}: {error:?}"))
+            })
+            .filter(|&value| value > 0)
+            .count() as i32
+            * 3
     }
 
     pub(super) fn government_advisor_add_city_value(&self, city: &City, total: &mut f32) {
@@ -108,21 +107,21 @@ impl super::Simulation {
     pub(super) fn calculate_government_scores(
         &mut self,
         owner: usize,
-        mut scores: [f64; 8],
-    ) -> [f64; 8] {
+        mut scores: [f64; 11],
+    ) -> [f64; 11] {
         let original = self.players[owner].government;
         let rates = self.players[owner].rates;
-        for government in Government::TARGETS {
-            let better = match government {
-                Government::Despotism => Some(Government::Monarchy),
-                _ => None,
-            };
-            if better.is_some_and(|better| self.government_available(owner, better)) {
+        let catalog = super::campaign_government_catalog();
+        for &government in Government::targets() {
+            if has_available_preferred_government(self, owner, government, catalog) {
                 continue;
             }
             self.players[owner].government = government;
-            self.players[owner].rates =
-                capped_rates(self.players[owner].rates, government.max_rate());
+            self.players[owner].rates = if self.players[owner].ai {
+                rates
+            } else {
+                rates_after_government_change(rates, government.max_rate())
+            };
             self.arrange_government_workers(owner);
             let mut value = 0.0_f32;
             for city in self.player_cities_ordered(owner) {
@@ -167,7 +166,7 @@ impl super::Simulation {
         let old = self
             .ai_government_cache
             .get(&owner)
-            .map_or([0.0; 8], |cache| cache.scores);
+            .map_or([0.0; 11], |cache| cache.scores);
         let scores = self.calculate_government_scores(owner, old);
         let cities = self
             .cities
@@ -187,12 +186,12 @@ impl super::Simulation {
     pub(super) fn government_goals(
         &self,
         owner: usize,
-        scores: &[f64; 8],
+        scores: &[f64; 11],
     ) -> (Government, Government, f64) {
         let current = self.players[owner].government;
         let (mut goal, mut available) = (current, current);
         let (mut goal_value, mut available_value) = (0.0, 0.0);
-        for government in Government::TARGETS {
+        for &government in Government::targets() {
             let value = scores[government as usize];
             if value > goal_value {
                 goal = government;
@@ -210,7 +209,7 @@ impl super::Simulation {
         self.refresh_government_advisor(owner);
         if self.players[owner]
             .revolution_target
-            .is_some_and(|target| target != Government::Anarchy)
+            .is_some_and(|target| target != Government::during_revolution())
             || !self.cities.iter().any(|city| city.owner == owner)
         {
             return;
@@ -309,5 +308,78 @@ impl super::Simulation {
             && before.next_evaluation == 5
             && self.players[1].government == Government::Despotism
             && self.players[1].rates == [60, 40, 0]
+    }
+}
+
+fn preferred_government(
+    catalog: &crate::rules::freeciv::GovernmentRulesetCatalog,
+    government: Government,
+) -> Option<Government> {
+    let id = government.rule_name()?;
+    let preferred = catalog.get(id)?.ai_better.as_deref()?;
+    Government::from_rule_name(preferred)
+}
+
+fn has_available_preferred_government(
+    simulation: &Simulation,
+    owner: usize,
+    government: Government,
+    catalog: &crate::rules::freeciv::GovernmentRulesetCatalog,
+) -> bool {
+    preferred_government(catalog, government)
+        .is_some_and(|preferred| simulation.government_available(owner, preferred))
+}
+
+#[cfg(test)]
+mod ruleset_government_tests {
+    use super::*;
+
+    #[test]
+    fn government_availability_uses_the_selected_ruleset_requirements() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        game.players[1].known.clear();
+        assert!(!game.government_available(1, Government::Monarchy));
+
+        game.players[1].known.push(Tech::MONARCHY);
+        assert!(game.government_available(1, Government::Monarchy));
+    }
+
+    #[test]
+    fn government_advisor_reads_ai_better_from_ruleset_records() {
+        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut catalog = super::super::campaign_government_catalog().clone();
+
+        // Tribal's selected-ruleset ai_better points to Republic, so it is
+        // suppressed once the Republic requirement is satisfied.
+        game.players[1].known.push(Tech::THE_REPUBLIC);
+        assert!(has_available_preferred_government(
+            &game,
+            1,
+            Government::Tribal,
+            &catalog
+        ));
+
+        // Changing the parsed preference changes advisor selection without a
+        // government-specific code branch.
+        catalog
+            .governments
+            .iter_mut()
+            .find(|government| government.id == "Despotism")
+            .unwrap()
+            .ai_better = Some("Republic".to_owned());
+        assert!(has_available_preferred_government(
+            &game,
+            1,
+            Government::Despotism,
+            &catalog
+        ));
+
+        game.players[1].known.clear();
+        assert!(!has_available_preferred_government(
+            &game,
+            1,
+            Government::Despotism,
+            &catalog
+        ));
     }
 }

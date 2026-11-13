@@ -269,7 +269,7 @@ impl Simulation {
             self.spawn_unit(1, UnitKind::Warrior, 10, 24);
             self.units.last_mut().unwrap().home_city = Some(city.id);
         }
-        let high_tax = !self.city_gold_upkeep(&city).is_empty()
+        let high_tax = !self.city_gold_upkeep(&city).paid.is_empty()
             && self.bodyguard_production_choice(&city, false).is_some();
         self.players[1].rates = [50, 50, 0];
         let null_type_upkeep = high_tax && self.bodyguard_production_choice(&city, false).is_some();

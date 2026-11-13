@@ -23,6 +23,22 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     game.cities[0].foreign_nationality_tenure = vec![(2, 7, 3)];
     game.cities[0].culture_suppressed_until_majority_assimilated = true;
     game.players[HUMAN].mobilized = true;
+    game.players[HUMAN].government = Government::Fundamentalism;
+    game.players[HUMAN].revolution_target = Some(Government::Federation);
+    game.players[HUMAN].revolution_turn = Some(game.turn + 2);
+    game.players[HUMAN].researching_saved = Some(Tech::MONARCHY);
+    game.players[HUMAN].research_saved = 53;
+    game.government_adoptions[Government::Federation as usize] = 3;
+    let mut government_scores = [0.0; 11];
+    government_scores[Government::Federation as usize] = 17.5;
+    game.ai_government_cache.insert(
+        1,
+        government::GovernmentAdvisorCache {
+            evaluated_turn: game.turn,
+            next_evaluation: game.turn + 5,
+            scores: government_scores,
+        },
+    );
     game.global_advances = vec![Tech::SPACE_FLIGHT, Tech::SUPERCONDUCTORS];
     game.year = 1;
     game.year_0_hack = true;
@@ -40,6 +56,25 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.year, game.year);
     assert_eq!(loaded.year_0_hack, game.year_0_hack);
     assert!(loaded.players[HUMAN].mobilized);
+    assert_eq!(loaded.players[HUMAN].government, Government::Fundamentalism);
+    assert_eq!(
+        loaded.players[HUMAN].revolution_target,
+        Some(Government::Federation)
+    );
+    assert_eq!(loaded.players[HUMAN].revolution_turn, Some(game.turn + 2));
+    assert_eq!(
+        loaded.players[HUMAN].researching_saved,
+        Some(Tech::MONARCHY)
+    );
+    assert_eq!(loaded.players[HUMAN].research_saved, 53);
+    assert_eq!(
+        loaded.government_adoptions[Government::Federation as usize],
+        3
+    );
+    assert_eq!(
+        loaded.ai_government_cache[&1].scores[Government::Federation as usize],
+        17.5
+    );
     assert_eq!(loaded.cities[0].culture_for_civilization(HUMAN), 375);
     assert_eq!(loaded.cities[0].culture_for_civilization(2), 125);
     assert_eq!(
@@ -151,8 +186,15 @@ fn civilization_culture_survives_city_destruction_and_save_load() {
 #[test]
 fn old_save_headers_and_corrupt_current_payloads_are_rejected() {
     let path = temporary_save("save-invalid");
-    fs::write(&path, b"CIVCRAFT\0\x18previous payload").unwrap();
-    assert!(Simulation::load_campaign(&path).is_err());
+    for header in [
+        b"CIVCRAFT\0\x18".as_slice(),
+        b"CIVCRAFT\0\x19".as_slice(),
+        b"CIVCRAFT\0\x1A".as_slice(),
+        b"CIVCRAFT\0\x1B".as_slice(),
+    ] {
+        fs::write(&path, [header, b"previous payload"].concat()).unwrap();
+        assert!(Simulation::load_campaign(&path).is_err());
+    }
 
     fs::write(&path, [HEADER, b"invalid payload"].concat()).unwrap();
     let error = match Simulation::load_campaign(&path) {

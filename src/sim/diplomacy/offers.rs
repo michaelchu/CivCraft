@@ -346,12 +346,9 @@ impl Simulation {
             self.players[giver].gold -= terms.gold;
             self.players[receiver].gold += terms.gold;
         }
-        for (index, receiver) in [key.1, key.0].into_iter().enumerate() {
+        for (index, (donor, receiver)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {
             if let Some(tech) = offer.terms[index].technology {
-                self.discover(receiver, tech);
-                if self.players[receiver].researching == tech {
-                    self.players[receiver].researching = self.research_target(receiver);
-                }
+                self.transfer_treaty_technology(donor, receiver, tech);
             }
         }
         for (index, (giver, receiver)) in [(key.0, key.1), (key.1, key.0)].into_iter().enumerate() {

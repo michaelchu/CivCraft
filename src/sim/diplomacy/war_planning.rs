@@ -283,7 +283,7 @@ impl Simulation {
         self.refresh_visibility();
         if !self.at_war(owner, target) && self.senate_blocks_cancellation(owner, target) {
             let government = self.players[owner].government;
-            self.players[owner].government = Government::Anarchy;
+            self.players[owner].government = Government::during_revolution();
             let revolution_helps = !self.senate_blocks_cancellation(owner, target);
             self.players[owner].government = government;
             if revolution_helps && self.begin_ai_war_revolution(owner) {

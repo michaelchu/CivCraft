@@ -1,6 +1,5 @@
 //! Unit kinds and their ruleset-facing identity.
 
-use super::research_cost;
 use crate::rules::Tech;
 use crate::sim::unit_catalog;
 use crate::sim::{Base, Terrain};
@@ -501,12 +500,5 @@ impl UnitKind {
 
     pub(crate) fn can_fortify(self) -> bool {
         self.unit_class().can_fortify() && !self.has_flag(unit_catalog::UnitFlag::CantFortify)
-    }
-}
-
-impl Tech {
-    pub(crate) fn cost(self) -> i32 {
-        let requirements = self.data().map_or(1, |advance| advance.requirement_count);
-        research_cost(requirements)
     }
 }

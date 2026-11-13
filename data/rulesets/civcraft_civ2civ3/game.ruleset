@@ -815,6 +815,8 @@ colorlist =
 ; The Freeciv server defaults for steepness and wetness are explicit here so
 ; the editable derivative owns the map-generation inputs.
 ; `specials` and `huts` retain the pinned server defaults from common/map.h.
+; The research defaults below come from common/game.h; they are explicit so
+; research progression and revolution behavior are ruleset-owned as well.
 set =
     { "name", "value"
       "aifill", 6
@@ -836,7 +838,14 @@ set =
       "startunits", "cwsx"
       "citymindist", 3
       "techlevel", 1
+      "sciencebox", 100
+      "techpenalty", 100
+      "techleak", 100
+      "techlost_recv", 0
+      "techlost_donor", 0
+      "diplbulbcost", 0
       "borders", "ENABLED"
+      "happyborders", "NATIONAL"
       "foggedborders", "ENABLED"
       "restrictinfra", "ENABLED"
       "unreachableprotects", "DISABLED"
@@ -846,6 +855,7 @@ set =
       "techlossforgiveness", 0
       "techlossrestore", 50
       "revolentype", "RANDQUICK"
+      "revolen", 5
       "tradeworldrelpct", 100
       "disasters", 100
       "animals", 14

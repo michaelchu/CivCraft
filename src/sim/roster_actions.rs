@@ -52,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    fn caravel_support_uses_the_imported_government_table_without_shield_upkeep() {
+    fn caravel_upkeep_uses_the_selected_c2c3_record_and_government_effects() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
         game.cities.clear();
@@ -64,9 +64,13 @@ mod tests {
         }
         game.players[HUMAN].government = Government::Anarchy;
         let anarchy = game.city_unit_upkeep(&city);
-        assert_eq!((anarchy.shields, anarchy.gold), (0, 3));
+        // C2C3 Caravels have one shield upkeep; Anarchy supports two
+        // shields per city, so three cost one shield in aggregate.
+        assert_eq!((anarchy.shields, anarchy.gold), (1, 0));
         game.players[HUMAN].government = Government::Monarchy;
         let support = game.city_unit_upkeep(&city);
-        assert_eq!((support.shields, support.gold), (0, 1));
+        // Monarchy disables shield upkeep, and Caravels have no direct gold
+        // upkeep in the selected C2C3 unit record.
+        assert_eq!((support.shields, support.gold), (0, 0));
     }
 }

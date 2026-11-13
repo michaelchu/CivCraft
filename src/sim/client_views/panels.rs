@@ -94,18 +94,12 @@ impl Simulation {
                 player.government.max_rate()
             )
         };
-        let options = Government::TARGETS
-            .into_iter()
+        let options = Government::targets()
+            .iter()
+            .copied()
             .map(|government| {
-                let support_description = government.unit_support().map_or_else(
-                    || "Unit support: unresolved legacy government".to_owned(),
-                    |policy| {
-                        format!(
-                            "Free units: {}/{}/{} · {} gold per excess unit",
-                            policy.town, policy.city, policy.metropolis, policy.cost_per_unit
-                        )
-                    },
-                );
+                let support_description =
+                    "Unit upkeep: C2C3 per-unit costs and city allowances".to_owned();
                 let requirement_description = government.requirement().and_then(|tech| {
                     (!player.known.contains(&tech)).then(|| {
                         if self.can_change_government(owner, government) {
@@ -148,7 +142,7 @@ impl Simulation {
             year: self.year,
             gold: player.gold,
             government_name: player.government.name(),
-            anarchy: player.government == Government::Anarchy,
+            anarchy: player.government == Government::during_revolution(),
             rates: player.rates,
             max_rate: player.government.max_rate(),
             research_name: research.name(),

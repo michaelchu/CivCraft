@@ -168,6 +168,9 @@ pub(crate) struct City {
     pub(in crate::sim) foreign_nationality_tenure: Vec<(usize, u32, u32)>,
     pub(crate) worked_tiles: Vec<(i32, i32)>,
     pub(in crate::sim) was_happy: bool,
+    /// Consecutive city turns in disorder; C2C3 uses this for revolutions.
+    #[serde(default)]
+    pub(in crate::sim) anarchy: i32,
     pub(in crate::sim) last_plague: Option<i32>,
     pub(in crate::sim) history: i32,
     /// Current city culture by civilization, with capture retention controlled
@@ -225,6 +228,7 @@ impl City {
             foreign_nationality_tenure: Vec::new(),
             worked_tiles: Vec::new(),
             was_happy: false,
+            anarchy: 0,
             last_plague: None,
             history: 0,
             culture_by_civilization: vec![(owner, 0)],
@@ -405,6 +409,9 @@ pub(crate) struct Player {
     pub(crate) mobilized: bool,
     pub(crate) known: Vec<Tech>,
     pub(crate) researching: Tech,
+    /// Freeciv's single suspended project in non-multiresearch games.
+    pub(crate) researching_saved: Option<Tech>,
+    pub(crate) research_saved: i32,
     pub(crate) research_goal: Tech,
     pub(crate) future_techs: i32,
     pub(crate) research: i32,

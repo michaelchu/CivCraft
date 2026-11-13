@@ -42,6 +42,31 @@ files or values are sourced from `classic` or another Freeciv gameplay ruleset.
 All eleven required gameplay files are present in this selected directory; the
 sibling `default/` folder contains include and script data only.
 
+For P8, the same `[settings]` table also records seven pinned Freeciv engine
+defaults that C2C3 does not set itself: `sciencebox = 100`, `techpenalty = 100`,
+`techleak = 100`, `techlost_recv = 0`, `techlost_donor = 0`,
+`diplbulbcost = 0`, and `revolen = 5`. It also records
+`happyborders = "NATIONAL"` so unit unrest follows an editable, explicit
+setting rather than a hidden engine default.
+Their values come from `common/game.h` (`GAME_DEFAULT_SCIENCEBOX`,
+`GAME_DEFAULT_TECHPENALTY`, `GAME_DEFAULT_TECHLEAK`,
+`GAME_DEFAULT_TECHLOST_RECV`, `GAME_DEFAULT_TECHLOST_DONOR`, and
+`GAME_DEFAULT_DIPLBULBCOST`, `GAME_DEFAULT_REVOLUTION_LENGTH`, and
+`GAME_DEFAULT_HAPPYBORDERS`) in revision
+`9ff184b6eb128ca636c7ad6269e27aa959600006`. C2C3's explicit
+`techlossforgiveness = 0`, `techlossrestore = 50`, and
+`revolentype = "RANDQUICK"` remain unchanged. This keeps the effective P8
+inputs editable in the selected derivative instead of depending on implicit
+server defaults.
+
+P8's `unit_economics.tsv` maps all 92 Conquests unit IDs to selected C2C3 unit
+records for upkeep and supported-unit happiness only: 33 direct adapters and
+59 explicit role aliases. The aliases for Army, Curragh, Flak, Mobile SAM,
+Privateer, and TOW Infantry are economics profiles, not claims that Freeciv
+and Civ III unit identities match. Civ III identity, combat values, movement,
+and presentation remain on the Civ III catalog; the adapter consumes C2C3
+`uk_*` values and effects. Each bridge rationale is recorded in the table.
+
 The included Freeciv nation files preserve the native ruleset's include graph.
 CivCraft's playable civilization roster remains the Civ III catalog in
 `../civ3_conquests/civilizations.tsv`; the future content adapter must keep

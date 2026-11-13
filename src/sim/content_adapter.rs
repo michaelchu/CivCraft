@@ -244,12 +244,6 @@ fn bind_technology(
             "Civ III BIQ uses the shorter name; this source identity binds to the existing Amphibious Warfare save ID.".to_owned(),
         ));
     }
-    if source.display_name.eq_ignore_ascii_case("Ironclads") {
-        return Ok((
-            None,
-            "No stable runtime Tech ID has been assigned yet; preserve the source record until an appended ID and save compatibility are implemented.".to_owned(),
-        ));
-    }
     Err(ContentBindingError(format!(
         "Civ III technology {:?} has no exact or explicit stable Tech mapping",
         source.display_name
@@ -296,8 +290,8 @@ mod tests {
         );
         assert_eq!(bindings.count(ContentKind::Building, true), 47);
         assert_eq!(bindings.count(ContentKind::Building, false), 36);
-        assert_eq!(bindings.count(ContentKind::Technology, true), 82);
-        assert_eq!(bindings.count(ContentKind::Technology, false), 1);
+        assert_eq!(bindings.count(ContentKind::Technology, true), 83);
+        assert_eq!(bindings.count(ContentKind::Technology, false), 0);
         assert_eq!(bindings.count(ContentKind::Nation, true), 31);
 
         for (kind, record) in UnitKind::ALL_NATIVE.iter().zip(
@@ -318,8 +312,11 @@ mod tests {
         let ironclads = bindings
             .by_source_id(ContentKind::Technology, "TECH_Ironclads")
             .unwrap();
-        assert!(ironclads.runtime_id.is_none());
-        assert!(ironclads.mapping_note.contains("stable runtime Tech ID"));
+        assert_eq!(
+            ironclads.runtime_id,
+            Some(StableContentId::Technology(Tech::IRONCLADS))
+        );
+        assert_eq!(ironclads.mapping_note, "");
         assert!(
             bindings
                 .records

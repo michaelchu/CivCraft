@@ -314,8 +314,9 @@ fn research_unlock_detail(tech: Tech) -> String {
         .then_some(data.name)
     }));
     unlocks.extend(
-        Government::TARGETS
-            .into_iter()
+        Government::targets()
+            .iter()
+            .copied()
             .filter(|government| government.requirement() == Some(tech))
             .map(|government| government.name()),
     );

@@ -135,11 +135,41 @@ fn new_game_advances_freeciv_post_mapgen_rng_and_keeps_civ3_assignments() {
     let starts = map.starts.clone();
     let mut expected_starts = starts.clone();
     let expected_roster = crate::rules::civilizations::select_roster(map.seed, MAX_CIVILIZATIONS);
+    let civilization_count = map.civilization_count;
     let mut expected_random = map.game_random.clone();
 
     // srv_main.c::shuffle_players() calls array_shuffle() for all 512 slots.
     for bound in (2..=PLAYER_SLOTS).rev() {
         expected_random.draw(bound as u32);
+    }
+    // techtools.c::init_tech selects an initial research target for each
+    // player without a goal by reservoir-sampling its currently available
+    // advances. Only players assigned to starts are active. fc_rand() does
+    // not draw for a bound of one. Freeciv does this before init_new_game().
+    for civilization in expected_roster.iter().take(civilization_count) {
+        let known = civilization.starting_techs;
+        let mut available_count = 0;
+        for tech in Tech::all().filter(|tech| tech.is_civ3_advance()) {
+            if known.contains(&tech)
+                || tech
+                    .civ3_equivalent()
+                    .is_some_and(|equivalent| known.contains(&equivalent))
+            {
+                continue;
+            }
+            let prerequisites = tech.civ3_prerequisites().unwrap_or(&[]);
+            if prerequisites.iter().all(|required| {
+                known.contains(required)
+                    || required
+                        .civ3_equivalent()
+                        .is_some_and(|equivalent| known.contains(&equivalent))
+            }) {
+                available_count += 1;
+                if available_count > 1 {
+                    expected_random.draw(available_count as u32);
+                }
+            }
+        }
     }
     // gamehand.c::init_new_game() generates a 32-character identifier from
     // the 64-character base64url alphabet before shuffling flexible starts.
@@ -351,10 +381,13 @@ fn defense_stages_and_research_costs_match_civ2civ3() {
         .push(City::new(999, HUMAN, x, y, "Test".to_owned(), game.turn));
     assert_eq!(game.defense_power(&defender, x, y), 27);
 
-    // Linear precalculation is 10 bulbs per recursive requirement; the
-    // ruleset's unconditional 300% Tech_Cost_Pct effect is then applied.
-    assert_eq!(Tech::ALPHABET.cost(), 30);
-    assert_eq!(Tech::IRON_WORKING.cost(), 90);
+    // C2C3 linear costs come from the Civ III graph through the selected
+    // ruleset's base cost and Tech_Cost_Pct effect.
+    game.players[HUMAN].known.clear();
+    assert_eq!(game.target_cost(HUMAN, Tech::ALPHABET), 30);
+    // Freeciv's Linear style counts the advance and all recursive Civ III
+    // prerequisites. The BIQ graph gives Iron Working six records here.
+    assert_eq!(game.target_cost(HUMAN, Tech::IRON_WORKING), 60);
 }
 
 #[test]

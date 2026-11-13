@@ -1,17 +1,19 @@
 //! Technology identifiers and the ordered technology catalog.
 //!
-//! Each advance records its name, prerequisites, cost inputs, and unlock
-//! metadata. Research eligibility and progress are resolved in `sim::research`
-//! and `sim::research_phase`; this module supplies the static graph those
-//! systems query. Prerequisites may be alternative paths, so callers should
-//! use the catalog's requirement helpers instead of assuming every listed
-//! prerequisite is mandatory.
+//! Stable advance IDs retain the Freeciv-derived aliases used by existing
+//! effects and requirements. Researchable Civ III advances and their direct
+//! prerequisite graph are loaded from the checked-in Conquests technology TSV.
+//! Research eligibility and progress are resolved in `sim::research` and
+//! `sim::research_phase`.
 //!
 //! Catalog identity and order are used by saved player knowledge and UI/AI
 //! iteration. Preserve them when editing the ruleset data.
 
-// Catalog transcribed from Freeciv data/civ2civ3/techs.ruleset.
-// Reference unlock labels come from the unit and building rulesets.
+use std::sync::OnceLock;
+
+// Legacy catalog transcribed from Freeciv data/civ2civ3/techs.ruleset. The
+// checked-in Conquests TSV overrides the researchable graph while these
+// stable IDs and labels remain available for Freeciv effect bindings.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Tech(pub(crate) usize);
@@ -60,6 +62,20 @@ impl TechEra {
     }
 }
 
+struct Civ3TechCatalog {
+    advances: Vec<Option<Advance>>,
+}
+
+impl Civ3TechCatalog {
+    fn get(&'static self, tech: Tech) -> Option<&'static Advance> {
+        self.advances.get(tech.0).and_then(Option::as_ref)
+    }
+
+    fn is_researchable(&self, tech: Tech) -> bool {
+        self.advances.get(tech.0).is_some_and(Option::is_some)
+    }
+}
+
 #[allow(dead_code)] // Includes aliases and advances reserved for the Civ III ruleset.
 impl Tech {
     pub(crate) const FREE_ARTISTRY: Self = Self(87);
@@ -97,6 +113,7 @@ impl Tech {
     pub(crate) const ASTRONOMY: Self = Self(3);
     pub(crate) const CONSTRUCTION: Self = Self(18);
     pub(crate) const RADIO: Self = Self(63);
+    pub(crate) const ELECTRONICS: Self = Self(23);
     pub(crate) const AMPHIBIOUS_WARFARE: Self = Self(2);
     pub(crate) const ALPHABET: Self = Self(1);
     pub(crate) const BRIDGE_BUILDING: Self = Self(7);
@@ -155,13 +172,16 @@ impl Tech {
     pub(crate) const TRADE: Self = Self(83);
     pub(crate) const FEUDALISM: Self = Self(28);
     pub(crate) const FASCISM: Self = Self(99);
+    pub(crate) const IRONCLADS: Self = Self(100);
 
     pub(crate) fn all() -> impl Iterator<Item = Self> {
         (0..ADVANCES.len()).map(Self)
     }
 
     pub(crate) fn data(self) -> Option<&'static Advance> {
-        ADVANCES.get(self.0)
+        civ3_tech_catalog()
+            .get(self)
+            .or_else(|| ADVANCES.get(self.0))
     }
 
     pub(crate) fn name(self) -> &'static str {
@@ -173,7 +193,37 @@ impl Tech {
     }
 
     pub(crate) fn prerequisites(self) -> &'static [Self] {
-        self.data().map_or(&[], |advance| advance.prerequisites)
+        self.civ3_prerequisites().unwrap_or_else(|| {
+            ADVANCES
+                .get(self.0)
+                .map_or(&[], |advance| advance.prerequisites)
+        })
+    }
+
+    /// True when this stable runtime ID names a researchable Conquests BIQ
+    /// technology. Radio and Freeciv-only aliases are intentionally excluded.
+    pub(crate) fn is_civ3_advance(self) -> bool {
+        civ3_tech_catalog().is_researchable(self)
+    }
+
+    /// Direct BIQ prerequisites, preserving the order of the four source
+    /// prerequisite slots. Returns `None` for a Freeciv-only technology ID.
+    pub(crate) fn civ3_prerequisites(self) -> Option<&'static [Self]> {
+        self.is_civ3_advance().then(|| {
+            self.data()
+                .expect("researchable Civ III advance")
+                .prerequisites
+        })
+    }
+
+    /// Freeciv linear requirement count: this advance plus every unique
+    /// transitive prerequisite in the Conquests BIQ graph.
+    pub(crate) fn civ3_requirement_count(self) -> Option<i32> {
+        self.is_civ3_advance().then(|| {
+            self.data()
+                .expect("researchable Civ III advance")
+                .requirement_count
+        })
     }
 
     pub(crate) fn era(self) -> TechEra {
@@ -204,6 +254,7 @@ impl Tech {
             | "Flight"
             | "Fascism"
             | "Industrialization"
+            | "Ironclads"
             | "Mass Production"
             | "Medicine"
             | "Motorized Transportation"
@@ -246,98 +297,6 @@ impl Tech {
             | "Labor Union" => Modern,
             _ => Ancient,
         }
-    }
-
-    pub(crate) fn is_civ3_advance(self) -> bool {
-        matches!(
-            self.era(),
-            TechEra::Ancient | TechEra::MiddleAges | TechEra::Industrial | TechEra::Modern
-        ) && matches!(
-            self.name(),
-            "Advanced Flight"
-                | "Alphabet"
-                | "Amphibious Warfare"
-                | "Astronomy"
-                | "Atomic Theory"
-                | "Banking"
-                | "Bronze Working"
-                | "Ceremonial Burial"
-                | "Chemistry"
-                | "Chivalry"
-                | "Code of Laws"
-                | "Combustion"
-                | "Communism"
-                | "Computers"
-                | "Construction"
-                | "Currency"
-                | "Democracy"
-                | "Economics"
-                | "Ecology"
-                | "Education"
-                | "Electricity"
-                | "Electronics"
-                | "Engineering"
-                | "Espionage"
-                | "Fascism"
-                | "Feudalism"
-                | "Fission"
-                | "Flight"
-                | "Free Artistry"
-                | "Genetics"
-                | "Gunpowder"
-                | "Horseback Riding"
-                | "Industrialization"
-                | "Invention"
-                | "Integrated Defense"
-                | "Iron Working"
-                | "Literature"
-                | "Magnetism"
-                | "Map Making"
-                | "Masonry"
-                | "Mass Production"
-                | "Mathematics"
-                | "Medicine"
-                | "Metallurgy"
-                | "Military Tradition"
-                | "Miniaturization"
-                | "Monarchy"
-                | "Monotheism"
-                | "Music Theory"
-                | "Motorized Transportation"
-                | "Mysticism"
-                | "Nationalism"
-                | "Navigation"
-                | "Nuclear Power"
-                | "Physics"
-                | "Philosophy"
-                | "Polytheism"
-                | "Pottery"
-                | "Printing Press"
-                | "Radio"
-                | "Recycling"
-                | "Refining"
-                | "Replaceable Parts"
-                | "Robotics"
-                | "Rocketry"
-                | "Sanitation"
-                | "Satellites"
-                | "Scientific Method"
-                | "Smart Weapons"
-                | "Space Flight"
-                | "Stealth"
-                | "Steel"
-                | "Steam Power"
-                | "Superconductor"
-                | "Synthetic Fibers"
-                | "The Corporation"
-                | "The Laser"
-                | "The Republic"
-                | "The Wheel"
-                | "Theology"
-                | "Theory of Gravity"
-                | "Warrior Code"
-                | "Writing"
-        )
     }
 
     /// CivCraft-only advances retained for current ruleset effects. Their
@@ -1107,27 +1066,219 @@ const ADVANCES: &[Advance] = &[
         first_discovery_bonus: false,
         reference_unlocks: "Fascism government",
     },
+    Advance {
+        name: "Ironclads",
+        prerequisites: &[Tech::STEAM_POWER],
+        requirement_count: 2,
+        first_discovery_bonus: false,
+        reference_unlocks: "Ironclad",
+    },
 ];
+
+struct RawCiv3Advance {
+    tech: Tech,
+    prerequisites: Vec<Tech>,
+}
+
+fn civ3_tech_catalog() -> &'static Civ3TechCatalog {
+    static CATALOG: OnceLock<Civ3TechCatalog> = OnceLock::new();
+    CATALOG.get_or_init(build_civ3_tech_catalog)
+}
+
+fn build_civ3_tech_catalog() -> Civ3TechCatalog {
+    const SOURCE: &str = include_str!("../../data/rulesets/civ3_conquests/technologies.tsv");
+    let mut lines = SOURCE.lines();
+    let header = lines.next().expect("Civ III technology catalog header");
+    let columns: Vec<_> = header.split('\t').collect();
+    let name_column = columns
+        .iter()
+        .position(|column| *column == "name")
+        .expect("Civ III technology name column");
+    let prerequisite_columns: Vec<_> = (1..=4)
+        .map(|index| {
+            let expected = format!("prerequisite_{index}_name");
+            columns
+                .iter()
+                .position(|column| *column == expected.as_str())
+                .expect("Civ III technology prerequisite column")
+        })
+        .collect();
+
+    let mut raw_advances = Vec::new();
+    let mut seen_runtime_ids = vec![false; ADVANCES.len()];
+    for (line_number, line) in lines.enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let fields: Vec<_> = line.split('\t').collect();
+        let source_name = fields
+            .get(name_column)
+            .copied()
+            .expect("Civ III technology name field");
+        let tech = civ3_tech_by_name(source_name).unwrap_or_else(|| {
+            panic!(
+                "unmapped Civ III BIQ technology {source_name:?} on row {}",
+                line_number + 2
+            )
+        });
+        assert!(
+            !seen_runtime_ids[tech.0],
+            "multiple Civ III BIQ technologies map to runtime Tech({})",
+            tech.0
+        );
+        seen_runtime_ids[tech.0] = true;
+
+        let prerequisites = prerequisite_columns
+            .iter()
+            .filter_map(|&column| fields.get(column).copied())
+            .filter(|name| !name.is_empty())
+            .map(|name| {
+                civ3_tech_by_name(name).unwrap_or_else(|| {
+                    panic!("unmapped Civ III BIQ prerequisite {name:?} for {source_name:?}")
+                })
+            })
+            .collect();
+        raw_advances.push(RawCiv3Advance {
+            tech,
+            prerequisites,
+        });
+    }
+    assert_eq!(
+        raw_advances.len(),
+        83,
+        "unexpected Conquests BIQ tech count"
+    );
+
+    let mut advances: Vec<Option<Advance>> = std::iter::repeat_with(|| None)
+        .take(ADVANCES.len())
+        .collect();
+    for raw in &raw_advances {
+        let requirement_count = civ3_linear_requirement_count(raw.tech, &raw_advances);
+        let prerequisites = Box::leak(raw.prerequisites.clone().into_boxed_slice());
+        let template = ADVANCES
+            .get(raw.tech.0)
+            .expect("Civ III runtime technology has a legacy metadata template");
+        advances[raw.tech.0] = Some(Advance {
+            name: template.name,
+            prerequisites,
+            requirement_count,
+            first_discovery_bonus: template.first_discovery_bonus,
+            reference_unlocks: template.reference_unlocks,
+        });
+    }
+    Civ3TechCatalog { advances }
+}
+
+fn civ3_tech_by_name(name: &str) -> Option<Tech> {
+    if name.eq_ignore_ascii_case("Amphibious War") {
+        return Some(Tech::AMPHIBIOUS_WARFARE);
+    }
+    ADVANCES
+        .iter()
+        .position(|advance| advance.name.eq_ignore_ascii_case(name))
+        .map(Tech)
+}
+
+fn civ3_linear_requirement_count(tech: Tech, graph: &[RawCiv3Advance]) -> i32 {
+    let mut seen = vec![false; ADVANCES.len()];
+    let mut pending = vec![tech];
+    while let Some(current) = pending.pop() {
+        if seen[current.0] {
+            continue;
+        }
+        seen[current.0] = true;
+        let advance = graph
+            .iter()
+            .find(|advance| advance.tech == current)
+            .expect("Civ III prerequisite belongs to the BIQ graph");
+        pending.extend(advance.prerequisites.iter().copied());
+    }
+    seen.into_iter().filter(|included| *included).count() as i32
+}
 
 #[cfg(test)]
 mod sentinel_tests {
     use super::*;
+
     #[test]
     fn adding_unset_preserves_every_existing_persisted_advance_index() {
-        assert_eq!(Tech::all().count(), 100);
-        assert_eq!(Tech::FUTURE.0, 100);
-        assert_eq!(Tech::UNSET.0, 101);
+        assert_eq!(Tech::all().count(), 101);
+        assert_eq!(Tech::IRONCLADS.0, 100);
+        assert_eq!(Tech::IRONCLADS.name(), "Ironclads");
+        assert_eq!(Tech::FUTURE.0, 101);
+        assert_eq!(Tech::UNSET.0, 102);
         assert_eq!(Tech::POTTERY.0, 62);
         assert_eq!(
             bincode::serialize(&Tech::FUTURE).unwrap(),
-            100_u64.to_le_bytes()
+            101_u64.to_le_bytes()
         );
         assert_eq!(
-            bincode::deserialize::<Tech>(&101_u64.to_le_bytes()).unwrap(),
+            bincode::deserialize::<Tech>(&102_u64.to_le_bytes()).unwrap(),
             Tech::UNSET
         );
         assert_eq!(Tech::UNSET.name(), "No goal");
         assert!(Tech::UNSET.data().is_none());
         assert!(Tech::UNSET.prerequisites().is_empty());
+    }
+
+    #[test]
+    fn conquests_biq_is_the_civ3_research_graph() {
+        assert_eq!(
+            civ3_tech_catalog()
+                .advances
+                .iter()
+                .filter(|advance| advance.is_some())
+                .count(),
+            83
+        );
+        assert!(!Tech::RADIO.is_civ3_advance());
+        assert!(Tech::IRONCLADS.is_civ3_advance());
+        assert!(Tech::IRONCLADS.civ3_requirement_count().is_some());
+        assert_eq!(
+            Tech::ALPHABET.civ3_requirement_count(),
+            Some(1),
+            "a root advance counts itself"
+        );
+        assert_eq!(
+            Tech::ADVANCED_FLIGHT.civ3_requirement_count(),
+            Some(16),
+            "the shared Combustion prerequisite is only counted once"
+        );
+        assert_eq!(
+            Tech::ADVANCED_FLIGHT.civ3_prerequisites(),
+            Some(
+                &[
+                    Tech::FLIGHT,
+                    Tech::ELECTRONICS,
+                    Tech::MOTORIZED_TRANSPORTATION
+                ][..]
+            ),
+            "BIQ prerequisite slot order is retained"
+        );
+        assert_eq!(
+            Tech::COMMUNISM.civ3_prerequisites(),
+            Some(&[Tech::NATIONALISM][..])
+        );
+        assert_eq!(
+            Tech::MOTORIZED_TRANSPORTATION.civ3_prerequisites(),
+            Some(&[Tech::MASS_PRODUCTION][..])
+        );
+        assert_eq!(
+            Tech::SYNTHETIC_FIBERS.civ3_prerequisites(),
+            Some(&[Tech::ECOLOGY][..])
+        );
+        assert_eq!(
+            Tech::AMPHIBIOUS_WARFARE.civ3_prerequisites(),
+            Some(&[Tech::MASS_PRODUCTION][..]),
+            "the shorter BIQ name binds to the stable Amphibious Warfare ID"
+        );
+        assert_eq!(
+            Tech::IRONCLADS.civ3_prerequisites(),
+            Some(&[Tech::STEAM_POWER][..])
+        );
+        assert_eq!(
+            Tech::IRONCLADS.data().map(|advance| advance.name),
+            Some("Ironclads")
+        );
     }
 }

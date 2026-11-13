@@ -15,6 +15,7 @@ use crate::rules::freeciv::{
 };
 use crate::rules::{Building, Genus, Tech};
 use crate::world::{Resource, Terrain};
+use std::sync::OnceLock;
 
 /// A reusable view of simulation state for shared Freeciv requirement
 /// evaluation. `tile` is the position at which a prospective action or effect
@@ -31,9 +32,11 @@ pub(crate) struct SimulationRequirementContext<'a> {
     relation_target: Option<usize>,
     output_type: Option<String>,
     specialist: Option<String>,
+    action: Option<String>,
     government: Option<super::Government>,
     granted_tech: Option<Tech>,
     celebrating: Option<bool>,
+    unit_type_flag_record: Option<&'static crate::rules::freeciv::ContentRecord>,
     unbound_content_is_absent: bool,
 }
 
@@ -58,9 +61,11 @@ impl<'a> SimulationRequirementContext<'a> {
             relation_target: None,
             output_type: None,
             specialist: None,
+            action: None,
             government: None,
             granted_tech: None,
             celebrating: None,
+            unit_type_flag_record: None,
             unbound_content_is_absent: false,
         }
     }
@@ -81,9 +86,11 @@ impl<'a> SimulationRequirementContext<'a> {
             relation_target: None,
             output_type: None,
             specialist: None,
+            action: None,
             government: None,
             granted_tech: None,
             celebrating: None,
+            unit_type_flag_record: None,
             unbound_content_is_absent: false,
         }
     }
@@ -104,15 +111,25 @@ impl<'a> SimulationRequirementContext<'a> {
             relation_target: None,
             output_type: None,
             specialist: None,
+            action: None,
             government: None,
             granted_tech: None,
             celebrating: None,
+            unit_type_flag_record: None,
             unbound_content_is_absent: true,
         }
     }
 
     pub(crate) fn with_output_type(mut self, output_type: &str) -> Self {
         self.output_type = Some(output_type.to_owned());
+        self
+    }
+
+    pub(crate) fn with_unit_type_flag_record(
+        mut self,
+        record: &'static crate::rules::freeciv::ContentRecord,
+    ) -> Self {
+        self.unit_type_flag_record = Some(record);
         self
     }
 
@@ -124,6 +141,11 @@ impl<'a> SimulationRequirementContext<'a> {
 
     pub(crate) fn with_specialist(mut self, specialist: &str) -> Self {
         self.specialist = Some(specialist.to_owned());
+        self
+    }
+
+    pub(crate) fn with_action(mut self, action: &str) -> Self {
+        self.action = Some(action.to_owned());
         self
     }
 
@@ -159,9 +181,11 @@ impl<'a> SimulationRequirementContext<'a> {
             relation_target: self.relation_target,
             output_type: self.output_type.clone(),
             specialist: self.specialist.clone(),
+            action: self.action.clone(),
             government: self.government,
             granted_tech: self.granted_tech,
             celebrating: self.celebrating,
+            unit_type_flag_record: self.unit_type_flag_record,
             unbound_content_is_absent: self.unbound_content_is_absent,
         }
     }
@@ -365,7 +389,28 @@ impl<'a> SimulationRequirementContext<'a> {
             // A Freeciv-only technology has no Civ III player-state identity.
             return Err(Self::unsupported(requirement));
         };
-        Ok(self.granted_tech == Some(tech) || self.simulation.has_tech(self.owner, tech))
+        match requirement.range {
+            RequirementRange::Player => {
+                Ok(self.granted_tech == Some(tech) || self.simulation.has_tech(self.owner, tech))
+            }
+            RequirementRange::World if requirement.survives => {
+                // Freeciv 9ff184b6 common/requirements.c::is_tech_req_active
+                // resolves surviving World advances from game.info.global_advances,
+                // a monotonic record that remains set after a player loses the tech.
+                Ok(self.simulation.global_advances.contains(&tech))
+            }
+            RequirementRange::World => {
+                // Freeciv 9ff184b6 common/requirements.c::is_tech_req_active
+                // checks ordinary World advances with players_iterate_alive;
+                // knowledge on the context player alone is insufficient.
+                Ok((0..self.simulation.players.len()).any(|player| {
+                    self.simulation.player_alive(player)
+                        && (self.simulation.has_tech(player, tech)
+                            || (player == self.owner && self.granted_tech == Some(tech)))
+                }))
+            }
+            _ => Err(Self::unsupported(requirement)),
+        }
     }
 
     fn building_present(
@@ -433,6 +478,30 @@ impl<'a> SimulationRequirementContext<'a> {
             })),
             _ => Err(Self::unsupported(requirement)),
         }
+    }
+
+    fn building_genus_present(
+        &self,
+        requirement: &Requirement,
+    ) -> Result<bool, RequirementEvaluationError> {
+        let name = Self::string_name(requirement)?;
+        let expected = [
+            (Genus::Improvement, "Improvement"),
+            (Genus::SmallWonder, "SmallWonder"),
+            (Genus::GreatWonder, "GreatWonder"),
+            (Genus::Special, "Special"),
+            (Genus::Convert, "Convert"),
+        ]
+        .into_iter()
+        .find_map(|(genus, candidate)| name.eq_ignore_ascii_case(candidate).then_some(genus))
+        .ok_or_else(|| Self::unsupported(requirement))?;
+        let city = self
+            .city
+            .or_else(|| self.tile.and_then(|(x, y)| self.simulation.city_at(x, y)));
+        Ok(city.is_some_and(|city| {
+            matches!(city.production, super::Production::Building(building)
+                if building.data().genus == expected)
+        }))
     }
 
     fn extra_record(&self, name: &str) -> Option<&RuleRecord> {
@@ -699,6 +768,13 @@ impl RequirementContext for SimulationRequirementContext<'_> {
         let unsupported = || Self::unsupported(requirement);
         let kind = requirement.kind.to_ascii_lowercase();
         match kind.as_str() {
+            "action" if requirement.range == RequirementRange::Local => {
+                let name = Self::string_name(requirement)?;
+                Ok(self
+                    .action
+                    .as_deref()
+                    .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
+            }
             "building"
                 if matches!(
                     requirement.range,
@@ -707,7 +783,15 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             {
                 self.building_present(requirement)
             }
-            "tech" if requirement.range == RequirementRange::Player => {
+            "buildinggenus" if requirement.range == RequirementRange::Local => {
+                self.building_genus_present(requirement)
+            }
+            "tech"
+                if matches!(
+                    requirement.range,
+                    RequirementRange::Player | RequirementRange::World
+                ) =>
+            {
                 self.tech_present(requirement)
             }
             "gov" if requirement.range == RequirementRange::Player => {
@@ -717,6 +801,25 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     .unwrap_or(self.simulation.players[self.owner].government);
                 Ok(c2c3_government_rule_name(government)
                     .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
+            }
+            "govflag" if requirement.range == RequirementRange::Player => {
+                let name = Self::string_name(requirement)?;
+                let government = self
+                    .government
+                    .unwrap_or(self.simulation.players[self.owner].government);
+                let Some(rule_name) = government.rule_name() else {
+                    return Ok(false);
+                };
+                let catalog = self
+                    .ruleset
+                    .government_catalog()
+                    .map_err(|_| unsupported())?;
+                Ok(catalog.get(rule_name).is_some_and(|record| {
+                    record
+                        .flags
+                        .iter()
+                        .any(|flag| flag.eq_ignore_ascii_case(name))
+                }))
             }
             "outputtype" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
@@ -800,7 +903,15 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 let Some(unit) = self.unit else {
                     return Ok(false);
                 };
-                freeciv_unit_type_flag(unit.kind, name).ok_or_else(unsupported)
+                if let Some(record) = self.unit_type_flag_record {
+                    let flags = record
+                        .string_list_field("flags")
+                        .map_err(|_| unsupported())?
+                        .unwrap_or_default();
+                    Ok(flags.iter().any(|flag| flag.eq_ignore_ascii_case(name)))
+                } else {
+                    freeciv_unit_type_flag(unit.kind, name).ok_or_else(unsupported)
+                }
             }
             "terrain" if requirement.range == RequirementRange::Tile => {
                 let name = Self::string_name(requirement)?;
@@ -909,6 +1020,9 @@ fn c2c3_government_rule_name(government: super::Government) -> Option<&'static s
         super::Government::Despotism => "Despotism",
         super::Government::Monarchy => "Monarchy",
         super::Government::Communism => "Communism",
+        super::Government::Tribal => "Tribal",
+        super::Government::Fundamentalism => "Fundamentalism",
+        super::Government::Federation => "Federation",
         super::Government::Republic => "Republic",
         super::Government::Democracy => "Democracy",
         // Fascism and Feudalism are Civ III governments without a direct
@@ -990,6 +1104,29 @@ impl Simulation {
         self.action_available_for_unit_with_tile(actor, action, target_xy, None)
     }
 
+    /// Evaluate an action for a Civ III actor using the selected Freeciv
+    /// unit record that supplies its ruleset flags. Automatic upkeep actions
+    /// use this path because their identities come from the explicit
+    /// C2C3 economics crosswalk rather than the movement/action identity map.
+    pub(crate) fn action_available_for_unit_with_record(
+        &self,
+        actor: &Unit,
+        action: &str,
+        target_xy: (i32, i32),
+        unit_record: &'static crate::rules::freeciv::ContentRecord,
+        target_city: Option<&super::City>,
+    ) -> Result<bool, ActionEvaluationError> {
+        self.action_available_for_unit_with_context(
+            actor,
+            action,
+            target_xy,
+            (actor.x, actor.y),
+            None,
+            Some(unit_record),
+            target_city,
+        )
+    }
+
     fn action_available_for_unit_with_tile(
         &self,
         actor: &Unit,
@@ -1014,27 +1151,58 @@ impl Simulation {
         actor_tile_xy: (i32, i32),
         target_state: Option<&Tile>,
     ) -> Result<bool, ActionEvaluationError> {
+        self.action_available_for_unit_with_context(
+            actor,
+            action,
+            target_xy,
+            actor_tile_xy,
+            target_state,
+            None,
+            None,
+        )
+    }
+
+    fn action_available_for_unit_with_context(
+        &self,
+        actor: &Unit,
+        action: &str,
+        target_xy: (i32, i32),
+        actor_tile_xy: (i32, i32),
+        target_state: Option<&Tile>,
+        unit_record: Option<&'static crate::rules::freeciv::ContentRecord>,
+        target_city: Option<&super::City>,
+    ) -> Result<bool, ActionEvaluationError> {
         let target_unit = self.action_target_unit(actor, action, target_xy);
+        let target_city = target_city.filter(|city| (city.x, city.y) == target_xy);
         let target_owner = target_unit
             .map(|unit| unit.owner)
+            .or_else(|| target_city.map(|city| city.owner))
             .or_else(|| self.tile(target_xy.0, target_xy.1).owner);
         let mut actor_context =
             SimulationRequirementContext::for_unit_at(self, actor, actor_tile_xy)
-                .with_relation_target(target_owner);
+                .with_relation_target(Some(target_owner.unwrap_or(actor.owner)))
+                .with_action(action);
+        if let Some(record) = unit_record {
+            actor_context = actor_context.with_unit_type_flag_record(record);
+        }
         if let Some(state) = target_state
             && actor_tile_xy == target_xy
         {
             actor_context = actor_context.with_tile_override(target_xy, state);
         }
-        let target_context = match target_unit {
-            Some(unit) => SimulationRequirementContext::for_unit_at(self, unit, target_xy),
-            None => SimulationRequirementContext::for_player_at(
+        let target_context = if let Some(unit) = target_unit {
+            SimulationRequirementContext::for_unit_at(self, unit, target_xy)
+        } else if let Some(city) = target_city {
+            SimulationRequirementContext::for_city_at(self, city, Some(target_xy))
+        } else {
+            SimulationRequirementContext::for_player_at(
                 self,
                 target_owner.unwrap_or(actor.owner),
                 Some(target_xy),
-            ),
+            )
         }
-        .with_relation_target(Some(actor.owner));
+        .with_relation_target(Some(actor.owner))
+        .with_action(action);
         let target_context = if let Some(state) = target_state {
             target_context.with_tile_override(target_xy, state)
         } else {
@@ -1773,6 +1941,135 @@ const DIRECT_C2C3_UNIT_RECORDS: &[(&str, &str)] = &[
 /// the early Trireme carrier. Keep this separate from direct identity matches.
 const C2C3_UNIT_RECORD_ALIASES: &[(&str, &str)] = &[("galley", "unit_trireme")];
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UnitEconomicsBindingKind {
+    Direct,
+    RoleAlias,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum UnitEconomicsRecordBinding {
+    Mapped {
+        record: &'static crate::rules::freeciv::ContentRecord,
+        kind: UnitEconomicsBindingKind,
+    },
+    Unsupported {
+        source_id: &'static str,
+        basis: &'static str,
+    },
+}
+
+#[derive(Clone, Copy, Debug)]
+struct UnitEconomicsRule {
+    civ3_unit_id: &'static str,
+    c2c3_record: &'static str,
+    kind: Option<UnitEconomicsBindingKind>,
+    basis: &'static str,
+}
+
+fn unit_economics_rules() -> &'static [UnitEconomicsRule] {
+    static RULES: OnceLock<Vec<UnitEconomicsRule>> = OnceLock::new();
+    RULES.get_or_init(|| {
+        const SOURCE: &str =
+            include_str!("../../data/rulesets/civcraft_civ2civ3/unit_economics.tsv");
+        let mut rules = Vec::new();
+        let mut header_seen = false;
+        for (line_index, line) in SOURCE.lines().enumerate() {
+            if line.trim().is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if !header_seen {
+                assert_eq!(
+                    line.split('\t').collect::<Vec<_>>(),
+                    ["civ3_unit_id", "c2c3_record", "mapping_kind", "basis"],
+                    "invalid selected unit economics mapping header"
+                );
+                header_seen = true;
+                continue;
+            }
+            let fields: Vec<_> = line.split('\t').collect();
+            assert_eq!(
+                fields.len(),
+                4,
+                "invalid unit economics mapping row {}",
+                line_index + 1
+            );
+            let kind = match fields[2] {
+                "direct" => Some(UnitEconomicsBindingKind::Direct),
+                "alias" => Some(UnitEconomicsBindingKind::RoleAlias),
+                "unsupported" => None,
+                other => panic!("unknown unit economics mapping kind {other:?}"),
+            };
+            if kind.is_none() {
+                assert_eq!(fields[1], "-", "unsupported unit mapping has a target");
+            } else {
+                assert_ne!(fields[1], "-", "mapped unit record is missing");
+            }
+            rules.push(UnitEconomicsRule {
+                civ3_unit_id: fields[0],
+                c2c3_record: fields[1],
+                kind,
+                basis: fields[3],
+            });
+        }
+        assert!(
+            header_seen,
+            "missing selected unit economics mapping header"
+        );
+        assert_eq!(
+            rules.len(),
+            92,
+            "Civ III Conquests unit economics map count"
+        );
+        for (index, rule) in rules.iter().enumerate() {
+            assert!(
+                !rules[..index].iter().any(|previous| previous
+                    .civ3_unit_id
+                    .eq_ignore_ascii_case(rule.civ3_unit_id)),
+                "duplicate unit economics mapping for {:?}",
+                rule.civ3_unit_id
+            );
+        }
+        rules
+    })
+}
+
+/// Resolve the C2C3 unit record used only for upkeep and supported-unit
+/// happiness. Unsupported rows are retained as decisions in the TSV and are
+/// returned with their recorded basis rather than falling back to Civ III.
+pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsRecordBinding {
+    let Some(source_id) = unit.conquests_id() else {
+        return UnitEconomicsRecordBinding::Unsupported {
+            source_id: unit.name(),
+            basis: "Unit has no Civ III Conquests source identity.",
+        };
+    };
+    let Some(rule) = unit_economics_rules()
+        .iter()
+        .find(|rule| rule.civ3_unit_id.eq_ignore_ascii_case(source_id))
+    else {
+        return UnitEconomicsRecordBinding::Unsupported {
+            source_id,
+            basis: "No row in the selected CivCraft unit economics crosswalk.",
+        };
+    };
+    let Some(kind) = rule.kind else {
+        return UnitEconomicsRecordBinding::Unsupported {
+            source_id,
+            basis: rule.basis,
+        };
+    };
+    let record = RulesetData::campaign_default()
+        .content
+        .iter()
+        .find(|record| {
+            record.kind == ContentKind::Unit
+                && record.section.eq_ignore_ascii_case(rule.c2c3_record)
+        })
+        .unwrap_or_else(|| panic!("missing selected C2C3 unit record {:?}", rule.c2c3_record));
+    UnitEconomicsRecordBinding::Mapped { record, kind }
+}
+
 /// C2C3 records that define transport capacity and cargo compatibility.
 /// Galley maps to the early Trireme role; Nuclear Submarine maps to the
 /// selected Submarine role because C2C3 has no separate nuclear submarine.
@@ -2299,6 +2596,76 @@ mod tests {
     }
 
     #[test]
+    fn world_tech_requirement_uses_selected_catalog_binding_and_living_players() {
+        let mut game = flat_game();
+        game.players[crate::sim::HUMAN].known.clear();
+        game.players[1].known.clear();
+        game.spawn_unit(crate::sim::HUMAN, UnitKind::Worker, 10, 20);
+        game.spawn_unit(1, UnitKind::Warrior, 12, 20);
+        game.players[1].ai = false;
+        // C2C3 calls this advance "Superconductors"; the Civ III catalog
+        // identity is singular, so resolution must go through the selected
+        // Freeciv content record and its explicit source binding.
+        let tech = Tech::SUPERCONDUCTORS;
+        game.global_advances.retain(|&known| known != tech);
+        game.discover(1, tech);
+
+        let requirement = |range, survives| Requirement {
+            kind: "Tech".to_owned(),
+            name: RequirementValue::String("Superconductors".to_owned()),
+            range,
+            present: true,
+            survives,
+            quiet: false,
+            source: crate::rules::freeciv::RuleSourceLocation {
+                file: "effects.ruleset".into(),
+                section: "test_world_tech".to_owned(),
+                key: "reqs".to_owned(),
+                line: 1,
+            },
+        };
+
+        let player_context =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
+        assert!(
+            !player_context
+                .is_present(&requirement(RequirementRange::Player, false))
+                .unwrap()
+        );
+        assert!(
+            player_context
+                .is_present(&requirement(RequirementRange::World, false))
+                .unwrap()
+        );
+        assert!(
+            player_context
+                .is_present(&requirement(RequirementRange::World, true))
+                .unwrap()
+        );
+
+        // Force one actual tech loss while the rival remains alive. Ordinary
+        // World scope stops matching, while survives=TRUE stays in global history.
+        game.players[1].researching = Tech::ALPHABET;
+        game.players[1].research = 0;
+        game.apply_research_upkeep(1, -10_000);
+        assert!(!game.has_tech(1, tech));
+        assert!(game.global_advances.contains(&tech));
+
+        let player_context =
+            SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, None);
+        assert!(
+            !player_context
+                .is_present(&requirement(RequirementRange::World, false))
+                .unwrap()
+        );
+        assert!(
+            player_context
+                .is_present(&requirement(RequirementRange::World, true))
+                .unwrap()
+        );
+    }
+
+    #[test]
     fn unsupported_requirement_is_reported_instead_of_becoming_false() {
         let mut game = flat_game();
         let worker_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::Worker, 10, 20);
@@ -2557,6 +2924,86 @@ mod tests {
             assert!(!game.ruleset_transport_pair_allowed_fail_closed(gap, UnitKind::Warrior));
             assert!(!game.ruleset_transport_pair_allowed_fail_closed(UnitKind::Transport, gap));
         }
+    }
+
+    #[test]
+    fn upkeep_actions_use_mapped_unit_flags_and_target_city_production() {
+        let mut game = flat_game();
+        let (x, y) = (10, 20);
+        game.create_city(crate::sim::HUMAN, x, y);
+        game.cities[0].production = super::super::Production::Building(Building::PYRAMIDS);
+        let caravan_record = RulesetData::campaign_default()
+            .content
+            .iter()
+            .find(|record| {
+                record.kind == ContentKind::Unit
+                    && record.section.eq_ignore_ascii_case("unit_caravan")
+            })
+            .unwrap();
+        let warrior_id = game.spawn_unit(crate::sim::HUMAN, UnitKind::Warrior, x, y);
+        let warrior = game.unit_by_id(warrior_id).unwrap().clone();
+
+        assert!(
+            game.action_available_for_unit_with_record(
+                &warrior,
+                "Help Wonder",
+                (x, y),
+                caravan_record,
+                Some(&game.cities[0]),
+            )
+            .unwrap()
+        );
+        assert!(
+            game.action_available_for_unit_with_record(
+                &warrior,
+                "Disband Unit Recover",
+                (x, y),
+                caravan_record,
+                Some(&game.cities[0]),
+            )
+            .unwrap()
+        );
+        assert!(
+            game.action_available_for_unit_with_record(
+                &warrior,
+                "Disband Unit",
+                (x, y),
+                caravan_record,
+                None,
+            )
+            .unwrap()
+        );
+
+        game.cities[0].production = super::super::Production::Building(Building::TEMPLE);
+        assert!(
+            !game
+                .action_available_for_unit_with_record(
+                    &warrior,
+                    "Help Wonder",
+                    (x, y),
+                    caravan_record,
+                    Some(&game.cities[0]),
+                )
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn action_requirement_context_applies_recycling_shield_value_effect() {
+        let mut game = flat_game();
+        let id = game.spawn_unit(crate::sim::HUMAN, UnitKind::Warrior, 10, 20);
+        let unit = game.unit_by_id(id).unwrap();
+        let context =
+            SimulationRequirementContext::for_unit(&game, unit).with_action("Disband Unit Recover");
+        assert_eq!(
+            crate::rules::freeciv::effect_value(
+                &RulesetData::campaign_default().effects,
+                "Unit_Shield_Value_Pct",
+                &context,
+            )
+            .unwrap(),
+            -50
+        );
     }
 
     #[test]

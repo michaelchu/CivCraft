@@ -100,7 +100,12 @@ fn military_training_scales_with_army_but_not_when_next_tech_obsoletes_it() {
         .into_iter()
         .filter(|&tech| tech != Tech::GUNPOWDER)
         .collect();
-    assert!(game.domestic_improvement_want(&city, Building::BARRACKS) > 0.0);
+    // Only Gunpowder remains; the Civ III barracks becomes obsolete when it
+    // is discovered, so Freeciv's advisor subtracts the entire want.
+    assert_eq!(
+        game.domestic_improvement_want(&city, Building::BARRACKS),
+        0.0
+    );
 }
 
 #[test]

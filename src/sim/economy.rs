@@ -45,11 +45,8 @@ impl CityForecast {
     }
 
     pub(crate) fn shield_surplus(&self) -> i32 {
-        if self.disorder {
-            0
-        } else {
-            (self.shields - self.support.shields).max(0)
-        }
+        let output = if self.disorder { 0 } else { self.shields };
+        output - self.support.shields
     }
 
     pub(crate) fn gold_surplus(&self, unit_gold: i32) -> i32 {
@@ -110,7 +107,7 @@ impl Simulation {
     pub(super) fn raise_rate(&mut self, owner: usize, index: usize) -> bool {
         let player = &mut self.players[owner];
         let rates = &mut player.rates;
-        if player.government == Government::Anarchy
+        if player.government == Government::during_revolution()
             || index >= rates.len()
             || rates[index] >= player.government.max_rate()
         {
@@ -176,10 +173,15 @@ impl Simulation {
         &self,
         city: &City,
         trade: i32,
-        rates: [i32; 3],
+        mut rates: [i32; 3],
         citizens: [i32; 3],
     ) -> [i32; 3] {
         let government = self.players[city.owner].government;
+        if government == Government::during_revolution() {
+            // common/city.c::add_tax_income forces all trade to luxury during
+            // the ruleset's temporary government without changing saved rates.
+            rates = [0, 0, 100];
+        }
         let mut output = Self::distribute_trade(trade, rates);
         for index in 0..3 {
             output[index] += citizens[index];

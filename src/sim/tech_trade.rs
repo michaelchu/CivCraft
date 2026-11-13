@@ -1,11 +1,99 @@
 //! Technology exchange rules in diplomacy.
 
+use super::research::campaign_research_settings;
 use super::*;
+use crate::rules::freeciv::ResearchRulesetSettings;
 
 impl Simulation {
+    /// Runs Freeciv's receiver-side transfer-loss roll for a technology treaty.
+    ///
+    /// `server/techtools.c::tech_transfer` always draws once for
+    /// `techlost_recv`, even when the default chance is zero. The setting is
+    /// an engine setting rather than a ruleset parameter, so the caller passes
+    /// the campaign's resolved chance (currently Freeciv's default of zero).
+    /// Keep the draw here so successful trades preserve the shared gameplay
+    /// random stream.
+    pub(super) fn technology_transfer_succeeds(&mut self, receiver_loss_chance: i32) -> bool {
+        self.rand_below(100) >= receiver_loss_chance.clamp(0, 100)
+    }
+
+    pub(super) fn transfer_treaty_technology(
+        &mut self,
+        donor: usize,
+        receiver: usize,
+        tech: Tech,
+    ) -> bool {
+        self.transfer_treaty_technology_with_settings(
+            donor,
+            receiver,
+            tech,
+            *campaign_research_settings(),
+        )
+    }
+
+    fn transfer_treaty_technology_with_settings(
+        &mut self,
+        donor: usize,
+        receiver: usize,
+        tech: Tech,
+        settings: ResearchRulesetSettings,
+    ) -> bool {
+        if !self.has_tech(donor, tech)
+            || !self.technology_trade_receivable(receiver, tech, settings.tech_trade_allow_holes)
+        {
+            return false;
+        }
+        if settings.tech_lost_donor_percent > 0
+            && self.donor_can_lose_treaty_technology(donor, tech, settings)
+            && self.rand_below(100) < settings.tech_lost_donor_percent
+        {
+            self.players[donor].known.retain(|&known| known != tech);
+            // The treaty-transfer path calls research_tech_lost() directly;
+            // only the upkeep-driven loss path clears suspended research.
+            self.handle_government_tech_loss(donor, tech);
+            if donor == HUMAN {
+                self.add_event(format!(
+                    "You lost {} while transferring the technology.",
+                    tech.name()
+                ));
+            }
+        }
+
+        if !self.technology_transfer_succeeds(settings.tech_lost_recv_percent) {
+            return false;
+        }
+
+        let was_researching = self.players[receiver].researching == tech;
+        self.apply_research_penalty(receiver, tech, settings.diplomatic_bulb_cost_percent);
+        self.discover(receiver, tech);
+        if was_researching {
+            let free_bulbs = self.players[receiver].research;
+            let next = self.choose_research_target(receiver);
+            self.choose_research_tech(receiver, next, free_bulbs);
+        }
+        true
+    }
+
+    fn donor_can_lose_treaty_technology(
+        &self,
+        donor: usize,
+        tech: Tech,
+        settings: ResearchRulesetSettings,
+    ) -> bool {
+        settings.tech_trade_loss_allow_holes
+            || self.players[donor]
+                .known
+                .iter()
+                .all(|&known| !known.civ3_prerequisites().unwrap_or(&[]).contains(&tech))
+    }
+
     fn technology_gold_equivalent(&self, buyer: usize, tech: Tech, include_advisor: bool) -> i32 {
         // Civ2Civ3 disables trades that would leave holes in the tech tree.
-        if tech == Tech::FUTURE || !self.tech_available(buyer, tech) {
+        if !self.technology_trade_receivable(
+            buyer,
+            tech,
+            campaign_research_settings().tech_trade_allow_holes,
+        ) {
             return 0;
         }
         let bulbs: i32 = self
@@ -44,7 +132,9 @@ impl Simulation {
         tech: Tech,
         include_advisor: bool,
     ) -> Option<(i32, bool)> {
-        if !self.has_tech(seller, tech) || tech == Tech::FUTURE || !self.tech_available(buyer, tech)
+        let settings = campaign_research_settings();
+        if !self.has_tech(seller, tech)
+            || !self.technology_trade_receivable(buyer, tech, settings.tech_trade_allow_holes)
         {
             return None;
         }
@@ -69,6 +159,21 @@ impl Simulation {
             }
         }
         Some((price, dangerous))
+    }
+
+    fn technology_trade_receivable(&self, receiver: usize, tech: Tech, allow_holes: bool) -> bool {
+        if !tech.is_civ3_advance() || self.has_tech(receiver, tech) {
+            return false;
+        }
+        if allow_holes {
+            // The preserved Civ III technology graph has no AR_ROOT
+            // requirement class. C2C3 also has no root_req entries, so
+            // Freeciv's allow-holes predicate accepts any unknown C3 advance.
+            // Ordinary prerequisites still control research availability.
+            true
+        } else {
+            self.tech_available(receiver, tech)
+        }
     }
 
     pub(super) fn ai_treaty_clause_balance(
@@ -227,5 +332,121 @@ mod arithmetic_tests {
             sim.technology_gold_equivalent(1, Tech::POTTERY, true),
             cached
         );
+    }
+
+    #[test]
+    fn technology_transfer_consumes_receiver_roll_even_when_default_chance_is_zero() {
+        let mut actual = Simulation::new(crate::mapgen::generate(42));
+        let mut expected = actual.clone();
+
+        assert!(actual.technology_transfer_succeeds(0));
+        expected.rand_below(100);
+
+        assert_eq!(actual.random_snapshot(), expected.random_snapshot());
+    }
+
+    #[test]
+    fn technology_transfer_uses_the_configured_receiver_loss_chance() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let mut expected = sim.clone();
+        let roll = expected.rand_below(100);
+
+        assert_eq!(sim.technology_transfer_succeeds(100), roll >= 100);
+        assert_eq!(sim.random_snapshot(), expected.random_snapshot());
+    }
+
+    #[test]
+    fn accepted_technology_transfer_discovers_the_technology_and_consumes_receiver_draw() {
+        let mut actual = Simulation::new(crate::mapgen::generate(42));
+        let mut expected = actual.clone();
+        actual.players[HUMAN].known.clear();
+        expected.players[HUMAN].known.clear();
+        actual.players[1].known = vec![Tech::ALPHABET];
+
+        assert!(actual.transfer_treaty_technology(1, HUMAN, Tech::ALPHABET));
+        expected.rand_below(100);
+
+        assert!(actual.has_tech(HUMAN, Tech::ALPHABET));
+        assert_eq!(actual.random_snapshot(), expected.random_snapshot());
+    }
+
+    #[test]
+    fn allow_holes_ruleset_setting_allows_receiving_an_advance_without_its_c3_prerequisites() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.players[HUMAN].known.clear();
+        sim.players[1].known = vec![Tech::INVENTION];
+        let mut settings = *campaign_research_settings();
+
+        assert!(!sim.technology_trade_receivable(HUMAN, Tech::INVENTION, false));
+        settings.tech_trade_allow_holes = true;
+        assert!(sim.transfer_treaty_technology_with_settings(1, HUMAN, Tech::INVENTION, settings));
+        assert!(sim.has_tech(HUMAN, Tech::INVENTION));
+        assert!(!sim.tech_available(HUMAN, Tech::INVENTION));
+    }
+
+    #[test]
+    fn receiver_transfer_loss_roll_prevents_discovery() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.players[HUMAN].known.clear();
+        sim.players[1].known = vec![Tech::ALPHABET];
+        let mut settings = *campaign_research_settings();
+        settings.tech_lost_recv_percent = 100;
+
+        assert!(!sim.transfer_treaty_technology_with_settings(1, HUMAN, Tech::ALPHABET, settings));
+        assert!(!sim.has_tech(HUMAN, Tech::ALPHABET));
+    }
+
+    #[test]
+    fn donor_transfer_loss_is_skipped_when_it_would_open_a_technology_hole() {
+        let mut actual = Simulation::new(crate::mapgen::generate(42));
+        let mut expected = actual.clone();
+        actual.players[HUMAN].known.clear();
+        let writing = Tech::all().find(|tech| tech.name() == "Writing").unwrap();
+        actual.players[1].known = vec![Tech::ALPHABET, writing];
+        expected.players[HUMAN].known.clear();
+        let mut settings = *campaign_research_settings();
+        settings.tech_lost_donor_percent = 100;
+
+        assert!(actual.transfer_treaty_technology_with_settings(
+            1,
+            HUMAN,
+            Tech::ALPHABET,
+            settings
+        ));
+        expected.rand_below(100);
+
+        assert!(actual.has_tech(1, Tech::ALPHABET));
+        assert!(actual.has_tech(HUMAN, Tech::ALPHABET));
+        assert_eq!(actual.random_snapshot(), expected.random_snapshot());
+    }
+
+    #[test]
+    fn donor_transfer_loss_precedes_receiver_roll_and_can_remove_unneeded_tech() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.players[HUMAN].known.clear();
+        sim.players[1].known = vec![Tech::ALPHABET];
+        let mut settings = *campaign_research_settings();
+        settings.tech_lost_donor_percent = 100;
+
+        assert!(sim.transfer_treaty_technology_with_settings(1, HUMAN, Tech::ALPHABET, settings));
+        assert!(!sim.has_tech(1, Tech::ALPHABET));
+        assert!(sim.has_tech(HUMAN, Tech::ALPHABET));
+    }
+
+    #[test]
+    fn treaty_donor_loss_preserves_suspended_research_like_freeciv() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.players[HUMAN].known.clear();
+        sim.players[1].known = vec![Tech::ALPHABET];
+        sim.players[1].researching = Tech::FEUDALISM;
+        sim.players[1].researching_saved = Some(Tech::ALPHABET);
+        sim.players[1].research_saved = 37;
+        let mut settings = *campaign_research_settings();
+        settings.tech_lost_donor_percent = 100;
+
+        assert!(sim.transfer_treaty_technology_with_settings(1, HUMAN, Tech::ALPHABET, settings));
+        assert!(!sim.has_tech(1, Tech::ALPHABET));
+        assert_eq!(sim.players[1].researching_saved, Some(Tech::ALPHABET));
+        assert_eq!(sim.players[1].research_saved, 37);
     }
 }

@@ -198,12 +198,8 @@ impl Simulation {
                     return false;
                 }
                 self.players[HUMAN].research_goal = goal;
-                let next = self.research_target(HUMAN);
-                let player = &mut self.players[HUMAN];
-                if player.researching != next {
-                    player.researching = next;
-                    player.research = 0;
-                }
+                let next = self.choose_research_target(HUMAN);
+                self.choose_research_tech(HUMAN, next, 0);
                 true
             }
             EndTurn => {

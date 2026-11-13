@@ -98,7 +98,9 @@ impl Simulation {
         let was_researching = self.players[owner].researching == tech;
         self.discover(owner, tech);
         if was_researching && !self.players[owner].ai {
-            self.players[owner].researching = self.research_target(owner);
+            let free = self.players[owner].research;
+            let next = self.choose_research_target(owner);
+            self.choose_research_tech(owner, next, free);
         }
         tech
     }

@@ -44,47 +44,41 @@ fn city_manager_never_assigns_resisting_citizens_to_work_or_specialists() {
 }
 
 #[test]
-fn military_police_limits_match_conquests_governments_and_require_attack_strength() {
+fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.units.clear();
     game.cities.clear();
     game.players[HUMAN].known.clear();
     game.create_city(HUMAN, 10, 24);
-    game.cities[0].size = 8;
-    game.cities[0].specialists = [0; 3];
+    let city = game.cities[0].clone();
     for government in [
-        (Government::Anarchy, 4),
-        (Government::Despotism, 2),
-        (Government::Monarchy, 1),
-        (Government::Communism, 0),
-        (Government::Fascism, 0),
-        (Government::Feudalism, 1),
-        (Government::Republic, 4),
-        (Government::Democracy, 4),
+        (Government::Anarchy, 3),
+        (Government::Tribal, 0),
+        (Government::Despotism, 3),
+        (Government::Monarchy, 3),
+        (Government::Communism, 3),
+        (Government::Fundamentalism, 0),
+        (Government::Federation, 0),
+        (Government::Republic, 0),
+        (Government::Democracy, 0),
     ] {
         game.players[HUMAN].government = government.0;
-        game.units.clear();
-        for _ in 0..5 {
-            game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
-        }
         assert_eq!(
-            game.city_feelings(&game.cities[0], 0).1,
+            game.city_rule_effect(
+                &city,
+                "Martial_Law_Max",
+                None,
+                None,
+                None,
+                false,
+                government.0,
+                None,
+            ),
             government.1,
             "{:?}",
             government.0
         );
     }
-
-    game.players[HUMAN].government = Government::Despotism;
-    game.units.clear();
-    for _ in 0..5 {
-        game.spawn_unit(HUMAN, UnitKind::Settler, 10, 24);
-    }
-    assert_eq!(
-        game.city_feelings(&game.cities[0], 0).1,
-        4,
-        "zero-attack Settlers do not count as military police"
-    );
 }
 
 #[test]
@@ -151,6 +145,53 @@ fn military_police_require_an_attacking_unit_and_only_work_in_its_city() {
         2,
         "Democracy has no military police"
     );
+}
+
+#[test]
+fn unit_unrest_still_changes_city_feelings_without_martial_law() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(HUMAN, 10, 24);
+    game.cities[0].size = 8;
+    game.cities[0].specialists = [0; 3];
+    game.cities[0].buildings.push(Building::COLOSSEUM);
+    let city = game.cities[0].clone();
+    let city_id = city.id;
+
+    for government in [Government::Republic, Government::Democracy] {
+        game.players[HUMAN].government = government;
+        game.units.clear();
+        let martial_law = game.city_rule_effect(
+            &city,
+            "Martial_Law_Max",
+            None,
+            None,
+            None,
+            false,
+            government,
+            None,
+        );
+        assert_eq!(martial_law, 0, "{government:?} has no martial law");
+        let baseline = game.city_feelings_after_effects(&city, 16);
+
+        game.units.clear();
+        for index in 0..5 {
+            let x = 25 + index;
+            game.tile_mut(x, 24).owner = None;
+            let id = game.spawn_unit(HUMAN, UnitKind::Warrior, x, 24);
+            let unit = game.units.iter_mut().find(|unit| unit.id == id).unwrap();
+            unit.home_city = Some(city_id);
+            unit.home_order = id;
+        }
+
+        assert!(game.city_unit_upkeep(&city).unit_happiness > 0);
+        let with_unit_unrest = game.city_feelings_after_effects(&city, 16);
+        assert!(
+            with_unit_unrest.1 > baseline.1 || with_unit_unrest.0 < baseline.0,
+            "{government:?}: supported unit unrest must apply even with Martial_Law_Max=0; baseline={baseline:?}, with units={with_unit_unrest:?}"
+        );
+    }
 }
 
 #[test]

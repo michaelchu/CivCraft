@@ -31,9 +31,10 @@ impl super::Simulation {
         }
         self.create_city(1, 12, 24);
         let home = self.cities[0].id;
-        // Despotism supports four units for free in Civ III; seven Warriors
-        // reproduce the three-unit upkeep burden this scenario needs.
-        for _ in 0..7 {
+        // C2C3 Despotism supports two gold-upkeep units per city. Warriors
+        // convert one shield upkeep to one gold, so five reproduce the
+        // three-gold expense this scenario needs.
+        for _ in 0..5 {
             let id = self.spawn_unit(1, UnitKind::Warrior, 12, 24);
             let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
             unit.home_city = Some(home);

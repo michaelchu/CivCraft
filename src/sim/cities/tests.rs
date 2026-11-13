@@ -411,6 +411,7 @@ fn sewer_system_allows_growth_past_size_sixteen() {
             growth_retained,
             shrink_retained,
             false,
+            false,
         ) == Growth::Grew
         {
             growth_sizes.push(game.cities[0].size);

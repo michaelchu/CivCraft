@@ -30,7 +30,11 @@ where
     serde::Serialize::serialize(&ordered, serializer)
 }
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x19";
+// P8 adds suspended research state, C3 technology catalog IDs, C2C3
+// government identities, the expanded government adoption/cache state, and
+// per-city disorder duration for Freeciv's revolution threshold.
+// Earlier save versions remain unsupported rather than silently discarding it.
+const HEADER: &[u8] = b"CIVCRAFT\0\x1C";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;

@@ -6,8 +6,6 @@
 //! `sim`. Serialization derives here define part of the campaign save format,
 //! so changing a field may also require a migration in `save::migrations`.
 
-use super::{BASE_TECH_COST, MIN_TECH_COST, SCIENCEBOX_PERCENT, TECH_COST_PERCENT, percent_of};
-
 mod entities;
 mod terrain;
 mod unit_stats;
@@ -17,11 +15,6 @@ pub(crate) use crate::world::{Resource, Terrain, TerrainBase};
 pub(crate) use entities::{City, Player, Production, Unit, UnitState, WorkKind};
 pub(crate) use terrain::Tile;
 pub(crate) use units::UnitKind;
-
-pub(super) fn research_cost(requirements: i32) -> i32 {
-    let base = (BASE_TECH_COST * requirements).max(MIN_TECH_COST);
-    percent_of(percent_of(base, TECH_COST_PERCENT), SCIENCEBOX_PERCENT).max(1)
-}
 
 #[cfg(test)]
 mod resource_terrain_tests {

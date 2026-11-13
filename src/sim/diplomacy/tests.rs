@@ -196,6 +196,35 @@ fn embassy_clauses_are_directional_permanent_and_reject_stale_duplicates() {
 }
 
 #[test]
+fn accepted_treaty_technology_uses_the_c2c3_transfer_path() {
+    let mut game = war_planning_game();
+    game.players[HUMAN].gold = 20_000;
+    game.players[HUMAN].known.clear();
+    game.players[1].known = vec![Tech::ALPHABET];
+    let offer = TreatyOffer {
+        terms: [
+            Concessions {
+                gold: 20_000,
+                ..Default::default()
+            },
+            Concessions {
+                technology: Some(Tech::ALPHABET),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+    let mut expected = game.clone();
+    expected.rand_below(100);
+
+    assert!(game.execute_offer(HUMAN, 1, offer));
+
+    assert!(game.has_tech(HUMAN, Tech::ALPHABET));
+    assert_eq!(game.random_snapshot(), expected.random_snapshot());
+    assert_eq!(game.players[HUMAN].gold, 0);
+}
+
+#[test]
 fn an_existing_offer_can_be_accepted_after_physical_contact_expires() {
     let mut game = war_planning_game();
     let mut offer = TreatyOffer::default();
