@@ -69,12 +69,17 @@ impl Simulation {
         self.spawn_unit(1, UnitKind::Warrior, front.0, front.1);
         // Cannons have no attack value, so they do not create a city threat.
         self.spawn_unit(HUMAN, UnitKind::Cavalry, enemy.0, enemy.1);
-        let too_far = !self.reinforce_ai_cities(1).contains(&marine);
+        let no_near_route = std::collections::HashSet::new();
+        let too_far = !self
+            .reinforce_ai_cities(1, &no_near_route)
+            .contains(&marine);
         for step in 0..=3 {
             let (x, y) = point(step);
             self.tile_mut(x, y).road = true;
         }
-        let dispatched = self.reinforce_ai_cities(1).contains(&marine);
+        let dispatched = self
+            .reinforce_ai_cities(1, &no_near_route)
+            .contains(&marine);
         too_far
             && dispatched
             && self

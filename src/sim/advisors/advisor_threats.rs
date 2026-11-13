@@ -145,10 +145,7 @@ impl Simulation {
         // city_got_defense_effect(NULL) calls get_city_bonus without a
         // unittype. All class-specific effects are MAYBE and fail CERTAIN.
         // Only these unconditional extra effects survive in this ruleset.
-        let has_defense = matches!(
-            self.tile(city.x, city.y).base,
-            Some(Base::Fortress | Base::Airbase)
-        );
+        let has_defense = self.advisor_city_has_defense_effect(city);
         let mut defense = 0;
         for unit in self.tile_units_ordered(city.x, city.y) {
             let mut rating = self.advisor_garrison_defense_rating(city, unit);
@@ -195,7 +192,7 @@ impl Simulation {
         danger
     }
 
-    fn advisor_garrison_defense_rating(&self, city: &City, unit: &Unit) -> i32 {
+    pub(in crate::sim) fn advisor_garrison_defense_rating(&self, city: &City, unit: &Unit) -> i32 {
         if !Self::worker_guard_for_advisor(unit.kind) {
             return 0;
         }
@@ -228,6 +225,21 @@ impl Simulation {
         }
         rating /= ADVISOR_POWER_DIVIDER;
         rating
+    }
+
+    /// Match Freeciv's `city_got_defense_effect(city, nullptr)`, which asks
+    /// the selected ruleset whether the city has any certain defense bonus.
+    pub(in crate::sim) fn advisor_city_has_defense_effect(&self, city: &City) -> bool {
+        self.city_rule_effect(
+            city,
+            "Defend_Bonus",
+            Some((city.x, city.y)),
+            None,
+            None,
+            false,
+            self.players[city.owner].government,
+            None,
+        ) > 0
     }
 
     fn worker_guard_for_advisor(kind: UnitKind) -> bool {

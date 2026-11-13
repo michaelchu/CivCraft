@@ -43,7 +43,8 @@ impl super::Simulation {
             .is_some_and(|(id, _)| id == small);
         let guard = self.spawn_unit(1, UnitKind::Musketman, home.0, home.1);
         self.assign_ai_guard(guard, guards::GuardTarget::Unit(founder));
-        let actual = self.dispatch_settlement_ferries(1);
+        let no_reserved_defenders = std::collections::HashSet::new();
+        let actual = self.dispatch_settlement_ferries(1, &no_reserved_defenders);
         let reselected = actual
             .get(&roomy)
             .is_some_and(|plan| plan.destination == island)
@@ -53,7 +54,9 @@ impl super::Simulation {
                 .get(&founder)
                 .is_some_and(|target| target.destination == island);
         self.remove_units_with_cargo(vec![roomy]);
-        let blocked = self.dispatch_settlement_ferries(1).is_empty()
+        let blocked = self
+            .dispatch_settlement_ferries(1, &no_reserved_defenders)
+            .is_empty()
             && self
                 .ai_settlement_targets
                 .get(&founder)

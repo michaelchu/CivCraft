@@ -631,9 +631,9 @@ impl Simulation {
             .flat_map(|city| city.worked_tiles.iter().copied())
             .collect();
         for index in indices {
-            let city = &self.cities[index];
-            let forecast = self.city_forecast(city);
-            let surplus = self.city_manager_surplus(city, &forecast);
+            let city = self.cities[index].clone();
+            let forecast = self.city_forecast(&city);
+            let surplus = self.city_manager_surplus(&city, &forecast);
             // daicity.c:CITY_EMERGENCY or a full granary, not an arbitrary
             // low-food threshold or unconditional optimization every phase.
             if surplus[1] >= 0
@@ -646,7 +646,40 @@ impl Simulation {
             for tile in &city.worked_tiles {
                 occupied.remove(tile);
             }
-            let arranged = self.city_manager_result(city, &occupied);
+            // daicity.c:resolve_city_emergency first frees every eligible
+            // tile in the emergency city's radius that another same-owner
+            // city is working. The donor keeps its population by converting
+            // each displaced worker to the default specialist.
+            let reclaim: Vec<_> = self
+                .map_city_radius(&city)
+                .filter_map(|(_, _, x, y)| {
+                    let tile = (x, y);
+                    if !self.tile_can_support_worker(&city, x, y) {
+                        return None;
+                    }
+                    self.cities
+                        .iter()
+                        .enumerate()
+                        .find(|(other_index, other)| {
+                            *other_index != index
+                                && other.owner == owner
+                                && other.worked_tiles.contains(&tile)
+                        })
+                        .map(|(other_index, _)| (tile, other_index))
+                })
+                .collect();
+            for (tile, donor_index) in reclaim {
+                if let Some(worker) = self.cities[donor_index]
+                    .worked_tiles
+                    .iter()
+                    .position(|&worked| worked == tile)
+                {
+                    self.cities[donor_index].worked_tiles.remove(worker);
+                    self.cities[donor_index].specialists[2] += 1;
+                    occupied.remove(&tile);
+                }
+            }
+            let arranged = self.city_manager_result(&city, &occupied);
             occupied.extend(arranged.worked_tiles.iter().copied());
             self.cities[index].worked_tiles = arranged.worked_tiles;
             self.cities[index].specialists = arranged.specialists;

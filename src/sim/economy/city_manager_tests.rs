@@ -3,6 +3,74 @@
 use super::*;
 use std::collections::HashSet;
 
+fn emergency_tile_reclaim_fixture(donor_tile: (i32, i32)) -> (Simulation, u32, u32) {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Desert;
+        tile.resource = None;
+        tile.owner = Some(1);
+        tile.river = false;
+        tile.road = false;
+        tile.railroad = false;
+    }
+
+    game.create_city(1, 12, 24);
+    let emergency_city = game.cities[0].id;
+    game.create_city(1, 14, 24);
+    let donor_city = game.cities[1].id;
+
+    game.cities[0].size = 10;
+    game.cities[0].food = 0;
+    game.cities[0].specialists = [0; 3];
+    game.cities[0].worked_tiles.clear();
+    game.cities[1].size = 1;
+    game.cities[1].food = 5;
+    game.cities[1].specialists = [0; 3];
+    game.cities[1].worked_tiles = vec![donor_tile];
+    let shared = (13, 24);
+    game.tile_mut(shared.0, shared.1).terrain = Terrain::Grassland;
+    game.tile_mut(shared.0, shared.1).river = true;
+    (game, emergency_city, donor_city)
+}
+
+#[test]
+fn ai_city_emergency_reclaims_worked_tiles_from_same_owner_neighbors() {
+    let shared = (13, 24);
+    let (mut game, emergency_city, donor_city) = emergency_tile_reclaim_fixture(shared);
+    let target = game.city_by_id(emergency_city).unwrap();
+    let forecast = game.city_forecast(target);
+    assert!(game.city_manager_surplus(target, &forecast)[0] < 0);
+
+    game.arrange_ai_emergency_workers(1);
+
+    let target = game.city_by_id(emergency_city).unwrap();
+    let donor = game.city_by_id(donor_city).unwrap();
+    assert!(target.worked_tiles.contains(&shared));
+    assert!(!donor.worked_tiles.contains(&shared));
+    assert_eq!(donor.specialists[2], 1);
+    assert_eq!(donor.tile_workers(), 0);
+}
+
+#[test]
+fn ai_city_emergency_leaves_neighbor_allocations_when_no_worked_tile_is_eligible() {
+    let outside_target_radius = (16, 24);
+    let (mut game, emergency_city, donor_city) =
+        emergency_tile_reclaim_fixture(outside_target_radius);
+    let donor_worked_before = game.city_by_id(donor_city).unwrap().worked_tiles.clone();
+    let donor_specialists_before = game.city_by_id(donor_city).unwrap().specialists;
+    let target = game.city_by_id(emergency_city).unwrap();
+    let forecast = game.city_forecast(target);
+    assert!(game.city_manager_surplus(target, &forecast)[0] < 0);
+
+    game.arrange_ai_emergency_workers(1);
+
+    let donor = game.city_by_id(donor_city).unwrap();
+    assert_eq!(donor.worked_tiles, donor_worked_before);
+    assert_eq!(donor.specialists, donor_specialists_before);
+}
+
 #[test]
 fn foreign_nationality_remains_available_for_tile_work() {
     let mut game = Simulation::new(crate::mapgen::generate(42));

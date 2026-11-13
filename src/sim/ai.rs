@@ -121,14 +121,16 @@ impl Simulation {
         for boat in boats {
             self.refresh_ferry_boss(boat);
         }
-        let counterattacks = self.counterattack_from_ai_cities(owner);
-        let reinforcements = self.reinforce_ai_cities(owner);
+        let city_defenders = self.assign_ai_city_defenders(owner);
+        let counterattacks = self.counterattack_from_ai_cities(owner, &city_defenders);
+        let reinforcements = self.reinforce_ai_cities(owner, &city_defenders);
         let paratroopers: Vec<_> = self
             .units
             .iter()
             .filter(|unit| {
                 unit.owner == owner
                     && unit.kind == UnitKind::Paratrooper
+                    && !city_defenders.contains(&unit.id)
                     && !counterattacks.contains(&unit.id)
                     && !reinforcements.contains(&unit.id)
             })
@@ -139,12 +141,15 @@ impl Simulation {
             .filter_map(|unit| self.run_ai_paratrooper(unit).then_some(unit.id))
             .collect();
         self.prune_settlement_reservations(owner);
-        let settlement_ferries = self.dispatch_settlement_ferries(owner);
+        let settlement_ferries = self.dispatch_settlement_ferries(owner, &city_defenders);
         let fleet = self.coordinate_assault_fleets(
             owner,
             |id| settlement_ferries.contains_key(&id),
             |id| {
-                counterattacks.contains(&id) || reinforcements.contains(&id) || drops.contains(&id)
+                city_defenders.contains(&id)
+                    || counterattacks.contains(&id)
+                    || reinforcements.contains(&id)
+                    || drops.contains(&id)
             },
         );
         let assault = self.dispatch_assault_transports(
@@ -152,13 +157,15 @@ impl Simulation {
             |id| settlement_ferries.contains_key(&id) || fleet.contains(&id),
             |id| {
                 counterattacks.contains(&id)
+                    || city_defenders.contains(&id)
                     || reinforcements.contains(&id)
                     || drops.contains(&id)
                     || fleet.contains(&id)
             },
         );
-        let reserved = counterattacks
+        let reserved = city_defenders
             .iter()
+            .chain(&counterattacks)
             .chain(&reinforcements)
             .chain(&drops)
             .chain(&fleet)
@@ -173,6 +180,17 @@ impl Simulation {
             let Some(unit) = self.unit_by_id(id).cloned() else {
                 continue;
             };
+            if city_defenders.contains(&id) {
+                if let Some(city) = self
+                    .cities
+                    .iter()
+                    .find(|city| city.owner == owner && (city.x, city.y) == (unit.x, unit.y))
+                {
+                    self.unit_goto_tiles.insert(id, (city.x, city.y));
+                    self.fortify_unit(id);
+                }
+                continue;
+            }
             if unit.kind.is_nuclear_weapon() {
                 self.run_ai_nuclear_strike(id);
                 continue;

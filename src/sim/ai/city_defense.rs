@@ -7,9 +7,184 @@ impl Simulation {
         self.manage_ai_taxes(owner);
     }
 
+    /// Reserve the best local units as city defenders before any other
+    /// military jobs are assigned, following Freeciv's `dai_set_defenders`.
+    /// The returned set is turn-local because CivCraft has no persistent
+    /// generic unit-task field; the planning pass uses it to keep these units
+    /// out of attacks, escorts, and reinforcement orders for this turn.
+    pub(super) fn assign_ai_city_defenders(
+        &mut self,
+        owner: usize,
+    ) -> std::collections::HashSet<u32> {
+        let mut reserved = std::collections::HashSet::new();
+        if owner == BARBARIANS {
+            return reserved;
+        }
+
+        let city_ids: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|city| city.owner == owner)
+            .map(|city| city.id)
+            .collect();
+        for city_id in city_ids {
+            let Some(city) = self.city_by_id(city_id).cloned() else {
+                continue;
+            };
+            let mut defense = 0_i64;
+            let attack = self.advisor_guard_city_assessment(&city).danger;
+            let wall_value = if attack > 0 { 90 } else { 5 };
+            let mut walls = 0;
+            while walls * walls < wall_value * 10 {
+                walls += 1;
+            }
+            let has_defense = self.advisor_city_has_defense_effect(&city);
+            let government = self.players[owner].government;
+            let martial_max = self
+                .city_rule_effect(
+                    &city,
+                    "Martial_Law_Max",
+                    None,
+                    None,
+                    None,
+                    false,
+                    government,
+                    None,
+                )
+                .max(0);
+            let martial_each = self
+                .city_rule_effect(
+                    &city,
+                    "Martial_Law_By_Unit",
+                    None,
+                    None,
+                    None,
+                    false,
+                    government,
+                    None,
+                )
+                .max(0);
+            let (_, unhappy, angry) = self.city_feelings(&city, self.city_forecast(&city).luxury);
+            // The native AI counts unhappy and angry citizens by nationality,
+            // then adds entertainers because it prefers a police unit to the
+            // luxury specialist. CivCraft's city model has aggregate moods.
+            let martless_unhappy = unhappy + angry + city.specialists[2].max(0);
+            let candidates: Vec<_> = self
+                .tile_units_ordered(city.x, city.y)
+                .filter(|unit| unit.owner == owner && unit.transport.is_none())
+                .map(|unit| unit.id)
+                .collect();
+            let mut count = 0_i32;
+            let mut emergency = false;
+
+            loop {
+                let defense_needed = defense <= i64::from(attack);
+                let martial_needed = count < martial_max
+                    && martial_each > 0
+                    && martless_unhappy > martial_each * count;
+                if !defense_needed && !martial_needed {
+                    break;
+                }
+
+                let mut best: Option<(u32, i32)> = None;
+                for id in candidates.iter().copied() {
+                    if reserved.contains(&id) {
+                        continue;
+                    }
+                    let Some(unit) = self.unit_by_id(id) else {
+                        continue;
+                    };
+                    let assigned_to_this_city = matches!(
+                        self.ai_guard_targets.get(&id),
+                        Some(super::super::guards::GuardTarget::City(target)) if *target == city.id
+                    );
+                    let has_other_job = self.ai_guard_targets.contains_key(&id)
+                        && !assigned_to_this_city
+                        || self.ai_ground_targets.contains_key(&id)
+                        || self.ai_settlement_targets.contains_key(&id)
+                        || self.hunter_targets.contains_key(&id)
+                        || self.ai_ferries.passengers.contains_key(&id)
+                        || self.ai_ferries.boats.contains_key(&id)
+                        || self
+                            .unit_goto_tiles
+                            .get(&id)
+                            .is_some_and(|target| *target != (city.x, city.y));
+                    if !emergency && has_other_job {
+                        continue;
+                    }
+                    let mut want = self.advisor_garrison_defense_rating(&city, unit);
+                    if has_defense {
+                        want = want * walls / 10;
+                    }
+                    // assess_defense_unit returns a squared rating, applying
+                    // the same wall value used by assess_defense_quadratic.
+                    want = want.saturating_mul(want);
+                    if want > best.map_or(0, |(_, best_want)| best_want) {
+                        best = Some((id, want));
+                    }
+                }
+
+                let Some((id, want)) = best else {
+                    if defense_needed && !emergency {
+                        // Native retries once with all roles eligible if no
+                        // ordinary defender can cover an actual threat.
+                        emergency = true;
+                        continue;
+                    }
+                    break;
+                };
+                let unit = self.unit_by_id(id).unwrap().clone();
+                if (martless_unhappy < martial_each * count
+                    || count >= martial_max
+                    || martial_each <= 0)
+                    && ((count >= 2 && unit.kind.stats().attack > unit.kind.stats().defense)
+                        || (count >= 4 && unit.kind.stats().attack == unit.kind.stats().defense))
+                {
+                    break;
+                }
+
+                if emergency {
+                    // The emergency pass may take over an existing guard
+                    // assignment, as Freeciv does when danger is uncovered.
+                    self.clear_ai_charge(id);
+                    self.clear_ai_guard(id);
+                    self.ai_ground_targets.remove(&id);
+                    self.ai_settlement_targets.remove(&id);
+                    self.hunter_targets.remove(&id);
+                    self.ai_worker_tasks.remove(&id);
+                    self.unit_goto_tiles.remove(&id);
+                    self.release_ai_ferry(id);
+                    let passenger =
+                        self.ai_ferries
+                            .boats
+                            .get(&id)
+                            .and_then(|boat| match boat.state {
+                                super::super::ferries::FerryState::Available => None,
+                                super::super::ferries::FerryState::Assigned(passenger) => {
+                                    Some(passenger)
+                                }
+                            });
+                    if let Some(boat) = self.ai_ferries.boats.get_mut(&id) {
+                        boat.state = super::super::ferries::FerryState::Available;
+                    }
+                    if let Some(passenger) = passenger
+                        && let Some(request) = self.ai_ferries.passengers.get_mut(&passenger)
+                    {
+                        request.request = super::super::ferries::FerryRequest::Wanted;
+                    }
+                }
+                reserved.insert(id);
+                defense += i64::from(want);
+                count += 1;
+            }
+        }
+        reserved
+    }
+
     pub(super) fn counterattack_from_ai_cities(
         &mut self,
         owner: usize,
+        reserved_defenders: &std::collections::HashSet<u32>,
     ) -> std::collections::HashSet<u32> {
         let mut committed = std::collections::HashSet::new();
         let cities: Vec<_> = self
@@ -30,6 +205,7 @@ impl Simulation {
                             && !unit.kind.is_naval()
                             && !unit.kind.is_aircraft()
                             && unit.transport.is_none()
+                            && !reserved_defenders.contains(&unit.id)
                     })
                     .collect();
                 if garrison.len() <= 1 {
@@ -94,6 +270,7 @@ impl Simulation {
     pub(in crate::sim) fn reinforce_ai_cities(
         &mut self,
         owner: usize,
+        reserved_defenders: &std::collections::HashSet<u32>,
     ) -> std::collections::HashSet<u32> {
         let mut dispatched = std::collections::HashSet::new();
         if owner == BARBARIANS {
@@ -151,6 +328,7 @@ impl Simulation {
                     && unit.work_left == 0
                     && (unit.x, unit.y) != target
                     && !dispatched.contains(&unit.id)
+                    && !reserved_defenders.contains(&unit.id)
                     && !self.ai_guard_targets.contains_key(&unit.id)
             }) {
                 if let Some(home) = self
@@ -243,3 +421,7 @@ impl Simulation {
         immediate && prepared && avoided && self.ground_city_attack_choice(&attacker).is_some()
     }
 }
+
+#[cfg(test)]
+#[path = "city_defense_tests.rs"]
+mod tests;

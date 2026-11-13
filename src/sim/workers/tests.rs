@@ -41,17 +41,30 @@ fn plan(old: f32, new: f32, worked: bool, delay: i32) -> WorkerPlan {
 }
 
 #[test]
-fn worker_road_value_counts_civ3_neighbor_connections() {
+fn worker_road_bonus_rewards_network_connectors_not_isolated_spurs() {
     let mut game = game();
     let center = (10, 20);
-    let neighbors: Vec<_> = game.map_wrap.civ3_neighbors(center.0, center.1).collect();
-    assert_eq!(neighbors.len(), 8);
-    let disconnected = game.worker_road_extra(center, false);
-    for (x, y) in neighbors {
-        game.tile_mut(x, y).road = true;
+    assert_eq!(game.worker_road_extra(center, false), 0.0);
+
+    // A road to the north can connect through the candidate tile to the
+    // ordinary, fast-build terrain on the far side.
+    let north = offset_native_by_map(center.0, center.1, 0, -1);
+    game.tile_mut(north.0, north.1).road = true;
+    assert!(game.worker_road_extra(center, false) > 0.0);
+}
+
+#[test]
+fn worker_road_bonus_ignores_connectors_whose_destinations_are_too_slow() {
+    let mut game = game();
+    let center = (10, 20);
+    let north = offset_native_by_map(center.0, center.1, 0, -1);
+    game.tile_mut(north.0, north.1).road = true;
+    for offset in [(-1, 1), (0, 1), (1, 1)] {
+        let (x, y) = offset_native_by_map(center.0, center.1, offset.0, offset.1);
+        game.tile_mut(x, y).terrain = Terrain::Mountains;
     }
-    let connected = game.worker_road_extra(center, false);
-    assert!(disconnected > connected);
+
+    assert_eq!(game.worker_road_extra(center, false), 0.0);
 }
 
 #[test]

@@ -95,11 +95,13 @@ fn military_training_scales_with_army_but_not_when_next_tech_obsoletes_it() {
     }
     let large_army = game.domestic_improvement_want(&city, Building::BARRACKS);
     assert!(large_army > small_army && large_army > 0.0);
-    game.players[1].known = game
-        .research_path(1, Tech::GUNPOWDER)
-        .into_iter()
-        .filter(|&tech| tech != Tech::GUNPOWDER)
+    game.players[1].known = Tech::all()
+        .filter(|&tech| tech.is_civ3_advance() && tech != Tech::GUNPOWDER)
         .collect();
+    assert_eq!(
+        game.research_path(1, Tech::GUNPOWDER),
+        vec![Tech::GUNPOWDER]
+    );
     // Only Gunpowder remains; the Civ III barracks becomes obsolete when it
     // is discovered, so Freeciv's advisor subtracts the entire want.
     assert_eq!(

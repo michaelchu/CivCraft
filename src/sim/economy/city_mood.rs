@@ -2,6 +2,27 @@
 
 use super::*;
 
+#[derive(Clone, Copy)]
+struct CitizenFeelingCounts {
+    happy: i32,
+    content: i32,
+    unhappy: i32,
+    angry: i32,
+}
+
+#[derive(Clone, Copy)]
+struct CitizenFeelingStages {
+    effect: CitizenFeelingCounts,
+    martial: CitizenFeelingCounts,
+    final_stage: CitizenFeelingCounts,
+}
+
+impl CitizenFeelingCounts {
+    fn tuple(self) -> (i32, i32, i32) {
+        (self.happy, self.unhappy, self.angry)
+    }
+}
+
 impl Simulation {
     pub(crate) fn city_in_disorder(&self, city: &City, luxury: i32) -> bool {
         self.city_mood(city, luxury).0
@@ -20,6 +41,8 @@ impl Simulation {
 
     pub(in crate::sim) fn city_feelings(&self, city: &City, luxury: i32) -> (i32, i32, i32) {
         self.city_feelings_stages(city, luxury, true)
+            .final_stage
+            .tuple()
     }
 
     pub(in crate::sim) fn city_feelings_after_effects(
@@ -28,6 +51,47 @@ impl Simulation {
         luxury: i32,
     ) -> (i32, i32, i32) {
         self.city_feelings_stages(city, luxury, false)
+            .final_stage
+            .tuple()
+    }
+
+    /// Minimum unhappiness recorded from FEELING_EFFECT through FEELING_FINAL.
+    /// C2C3 defines no Enemy_Citizen_Unhappy_Pct effect, so its nationality
+    /// stage leaves these counts unchanged.
+    pub(in crate::sim) fn city_min_unhappy_after_effect_stage(
+        &self,
+        city: &City,
+        luxury: i32,
+    ) -> i32 {
+        let stages = self.city_feelings_stages(city, luxury, true);
+        stages
+            .effect
+            .unhappy
+            .min(stages.martial.unhappy)
+            .min(stages.final_stage.unhappy)
+    }
+
+    /// Freeciv's `get_entertainers` counts specialists whose luxury output
+    /// reaches the selected ruleset's happy cost.
+    pub(in crate::sim) fn city_entertainer_count(&self, city: &City) -> i32 {
+        let government = self.players[city.owner].government;
+        let happy_cost = ruleset::CityEconomySettings::campaign().happy_cost;
+        [(0, "Scientist"), (1, "Taxman"), (2, "Elvis")]
+            .into_iter()
+            .filter_map(|(index, specialist)| {
+                let luxury = self.city_rule_effect(
+                    city,
+                    "Specialist_Output",
+                    None,
+                    Some("Luxury"),
+                    Some(specialist),
+                    false,
+                    government,
+                    None,
+                );
+                (luxury >= happy_cost).then_some(city.specialists[index])
+            })
+            .sum()
     }
 
     fn city_feelings_stages(
@@ -35,57 +99,18 @@ impl Simulation {
         city: &City,
         luxury: i32,
         martial_enabled: bool,
-    ) -> (i32, i32, i32) {
+    ) -> CitizenFeelingStages {
         let government = self.players[city.owner].government;
         let effect = |kind: &str| {
             self.city_rule_effect(city, kind, None, None, None, false, government, None)
         };
-        let base = self.city_base_content(city, government);
-
-        let specialists = city.specialists.iter().sum::<i32>().clamp(0, city.size);
-        let content = (base.min(city.size).max(0) - specialists).max(0);
-        let mut angry = (-base).clamp(0, city.size - specialists);
-        let mut unhappy = (city.size - specialists - content - angry).max(0);
-        let mut happy = 0;
-
-        // city.c:citizen_luxury_happy converts angry, content, unhappy->happy,
-        // then one remaining luxury can make an unhappy citizen content.
-        let happy_cost = ruleset::CityEconomySettings::campaign().happy_cost.max(1);
-        let mut remaining_luxury = luxury.max(0);
-        while remaining_luxury >= happy_cost && angry > 0 {
-            angry -= 1;
-            unhappy += 1;
-            remaining_luxury -= happy_cost;
-        }
-        let mut content = content;
-        while remaining_luxury >= happy_cost && content > 0 {
-            content -= 1;
-            happy += 1;
-            remaining_luxury -= happy_cost;
-        }
-        while remaining_luxury >= 2 * happy_cost && unhappy > 0 {
-            unhappy -= 1;
-            happy += 1;
-            remaining_luxury -= 2 * happy_cost;
-        }
-        if remaining_luxury >= happy_cost && unhappy > 0 {
-            unhappy -= 1;
-            content += 1;
-        }
-
-        // Make_Content effects first calm angry citizens, then contentify
-        // unhappy citizens, matching city.c:citizen_content_buildings.
-        let mut content_faces = effect("Make_Content").max(0);
-        while content_faces > 0 && angry > 0 {
-            angry -= 1;
-            unhappy += 1;
-            content_faces -= 1;
-        }
-        while content_faces > 0 && unhappy > 0 {
-            unhappy -= 1;
-            content += 1;
-            content_faces -= 1;
-        }
+        let effect_stage = self.city_feelings_effect_stage(city, luxury);
+        let CitizenFeelingCounts {
+            mut happy,
+            mut content,
+            mut unhappy,
+            mut angry,
+        } = effect_stage;
 
         // C2C3 martial law applies to non-civilian units physically present
         // in the city. Each unit's effect is evaluated through its own type.
@@ -140,6 +165,12 @@ impl Simulation {
             content += 1;
             unit_unhappiness -= 1;
         }
+        let martial_stage = CitizenFeelingCounts {
+            happy,
+            content,
+            unhappy,
+            angry,
+        };
         // Make_Happy precedes No_Unhappy and Force_Content in the final mood
         // stage; these effects are data-driven and also cover wonders.
         let mut happy_faces = effect("Make_Happy").max(0);
@@ -169,7 +200,74 @@ impl Simulation {
             }
         }
 
-        (happy, unhappy, angry)
+        CitizenFeelingStages {
+            effect: effect_stage,
+            martial: martial_stage,
+            final_stage: CitizenFeelingCounts {
+                happy,
+                content,
+                unhappy,
+                angry,
+            },
+        }
+    }
+
+    fn city_feelings_effect_stage(&self, city: &City, luxury: i32) -> CitizenFeelingCounts {
+        let government = self.players[city.owner].government;
+        let effect = |kind: &str| {
+            self.city_rule_effect(city, kind, None, None, None, false, government, None)
+        };
+        let base = self.city_base_content(city, government);
+        let specialists = city.specialists.iter().sum::<i32>().clamp(0, city.size);
+        let mut content = (base.min(city.size).max(0) - specialists).max(0);
+        let mut angry = (-base).clamp(0, city.size - specialists);
+        let mut unhappy = (city.size - specialists - content - angry).max(0);
+        let mut happy = 0;
+
+        // city.c:citizen_luxury_happy converts angry, content, unhappy->happy,
+        // then one remaining luxury can make an unhappy citizen content.
+        let happy_cost = ruleset::CityEconomySettings::campaign().happy_cost.max(1);
+        let mut remaining_luxury = luxury.max(0);
+        while remaining_luxury >= happy_cost && angry > 0 {
+            angry -= 1;
+            unhappy += 1;
+            remaining_luxury -= happy_cost;
+        }
+        while remaining_luxury >= happy_cost && content > 0 {
+            content -= 1;
+            happy += 1;
+            remaining_luxury -= happy_cost;
+        }
+        while remaining_luxury >= 2 * happy_cost && unhappy > 0 {
+            unhappy -= 1;
+            happy += 1;
+            remaining_luxury -= 2 * happy_cost;
+        }
+        if remaining_luxury >= happy_cost && unhappy > 0 {
+            unhappy -= 1;
+            content += 1;
+        }
+
+        // Make_Content effects first calm angry citizens, then contentify
+        // unhappy citizens, matching city.c:citizen_content_buildings.
+        let mut content_faces = effect("Make_Content").max(0);
+        while content_faces > 0 && angry > 0 {
+            angry -= 1;
+            unhappy += 1;
+            content_faces -= 1;
+        }
+        while content_faces > 0 && unhappy > 0 {
+            unhappy -= 1;
+            content += 1;
+            content_faces -= 1;
+        }
+
+        CitizenFeelingCounts {
+            happy,
+            content,
+            unhappy,
+            angry,
+        }
     }
 
     pub(super) fn city_base_content(&self, city: &City, government: Government) -> i32 {
