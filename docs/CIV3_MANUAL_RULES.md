@@ -304,6 +304,25 @@ supplied manual. Their claims have not yet been reconciled into rule entries.
   gathers information from mixed source types; use as a discovery aid, then
   trace gameplay claims to a more specific source.
 
+### Era progression
+
+- **CIV3-COMPLETE-MANUAL — *Civilization III: Complete* manual**, Firaxis
+  Games, [Steam-hosted manual PDF](https://steamcdn-a.akamaihd.net/steam/apps/3910/manuals/manual.pdf?t=1531947942).
+  Official manual; Complete edition. Checked 2026-11-13, "Advances" and
+  "Optional Advances," lines corresponding to printed pp. 166–167. The manual
+  says civilizations must gain all critical technologies of an age before
+  researching advances in the next age, and lists optional advances that are
+  exempt. It does not enumerate the Conquests-only BIQ's critical flags; the
+  checked-in technology catalog supplies that classification.
+
+Rule: an advance from a later era cannot be researched until all critical
+advances in the preceding eras are known. Optional advances are exempt.
+Technologies gained by trade or minor tribes count as known. A research goal
+path must include any remaining critical advances before entering its era.
+Supported by `CIV3-COMPLETE-MANUAL`; the critical/optional classification is
+from the checked-in Conquests technology catalog and remains subject to BIQ
+verification.
+
 The online sources do not fully agree on the reported base-game technology
 count: the Vi.ki page reports 82 based on its count of Prima's table and also
 mentions an 81-tech count in a Firaxis comparison; CivFanatics reports 82.

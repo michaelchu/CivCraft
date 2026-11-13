@@ -162,8 +162,8 @@ fn c2c3_tech_switch_suspends_one_project_and_restores_its_bulbs() {
     game.players[HUMAN].researching = Tech::ALPHABET;
     game.players[HUMAN].research = 40;
 
-    game.choose_research_tech(HUMAN, Tech::FEUDALISM, 0);
-    assert_eq!(game.players[HUMAN].researching, Tech::FEUDALISM);
+    game.choose_research_tech(HUMAN, Tech::POTTERY, 0);
+    assert_eq!(game.players[HUMAN].researching, Tech::POTTERY);
     assert_eq!(game.players[HUMAN].researching_saved, Some(Tech::ALPHABET));
     assert_eq!(game.players[HUMAN].research_saved, 40);
     assert_eq!(game.players[HUMAN].research, 0);
@@ -198,40 +198,96 @@ fn losing_a_technology_does_not_retarget_the_active_project() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.players[HUMAN].known = vec![Tech::ALPHABET];
     game.players[HUMAN].research_goal = Tech::UNSET;
-    game.players[HUMAN].researching = Tech::FEUDALISM;
+    game.players[HUMAN].researching = Tech::BRONZE_WORKING;
     game.players[HUMAN].research = 0;
 
     game.apply_research_upkeep(HUMAN, -1);
 
     assert!(!game.has_tech(HUMAN, Tech::ALPHABET));
-    assert_eq!(game.players[HUMAN].researching, Tech::FEUDALISM);
+    assert_eq!(game.players[HUMAN].researching, Tech::BRONZE_WORKING);
 }
 
 #[test]
 fn switching_keeps_free_discovery_bulbs_out_of_the_penalty() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.players[HUMAN].known.clear();
     game.players[HUMAN].researching = Tech::ALPHABET;
     game.players[HUMAN].research = 17;
 
-    game.choose_research_tech(HUMAN, Tech::FEUDALISM, 12);
+    game.choose_research_tech(HUMAN, Tech::POTTERY, 12);
     assert_eq!(game.players[HUMAN].researching_saved, Some(Tech::ALPHABET));
     assert_eq!(game.players[HUMAN].research_saved, 17);
     assert_eq!(game.players[HUMAN].research, 12);
 }
 
 #[test]
-fn researchable_biq_advance_is_not_blocked_by_its_display_era() {
+fn later_era_research_waits_for_critical_advances_in_prior_eras() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
     game.players[HUMAN].known.clear();
 
     assert_eq!(Tech::FEUDALISM.era(), crate::rules::TechEra::MiddleAges);
     assert_eq!(game.research_era(HUMAN), crate::rules::TechEra::Ancient);
     assert!(Tech::FEUDALISM.civ3_prerequisites().unwrap().is_empty());
-    assert!(game.tech_available(HUMAN, Tech::FEUDALISM));
-    assert_eq!(
-        game.research_path(HUMAN, Tech::FEUDALISM),
-        [Tech::FEUDALISM]
+    assert!(!game.tech_available(HUMAN, Tech::FEUDALISM));
+    let path = game.research_path(HUMAN, Tech::FEUDALISM);
+    assert!(path.contains(&Tech::FEUDALISM));
+    assert!(
+        Tech::all()
+            .filter(
+                |tech| tech.era() == crate::rules::TechEra::Ancient && tech.required_for_civ3_era()
+            )
+            .all(|tech| path.contains(&tech))
     );
+
+    let modern_path = game.research_path(HUMAN, Tech::COMPUTERS);
+    assert!(Tech::all()
+        .filter(|tech| tech.era() < crate::rules::TechEra::Modern
+            && tech.required_for_civ3_era())
+        .all(|tech| modern_path.contains(&tech)));
+}
+
+#[test]
+fn research_cannot_be_switched_to_a_later_era_technology_early() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.players[HUMAN].known.clear();
+    game.players[HUMAN].researching = Tech::ALPHABET;
+    game.players[HUMAN].research = 37;
+
+    assert!(!game.tech_available(HUMAN, Tech::FEUDALISM));
+    game.choose_research_tech(HUMAN, Tech::FEUDALISM, 0);
+
+    assert_eq!(game.players[HUMAN].researching, Tech::ALPHABET);
+    assert_eq!(game.players[HUMAN].research, 37);
+    assert_eq!(game.players[HUMAN].researching_saved, None);
+}
+
+#[test]
+fn era_advances_only_after_every_critical_advance_of_each_age_is_known() {
+    use crate::rules::TechEra;
+
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.players[HUMAN].known.clear();
+
+    for (era, next_era) in [
+        (TechEra::Ancient, TechEra::MiddleAges),
+        (TechEra::MiddleAges, TechEra::Industrial),
+        (TechEra::Industrial, TechEra::Modern),
+    ] {
+        let required: Vec<_> = Tech::all()
+            .filter(|tech| tech.era() == era && tech.required_for_civ3_era())
+            .collect();
+        assert!(!required.is_empty(), "expected critical advances for {era:?}");
+
+        for &tech in &required[..required.len() - 1] {
+            game.discover(HUMAN, tech);
+            assert_eq!(game.research_era(HUMAN), era);
+        }
+        game.discover(HUMAN, *required.last().unwrap());
+        assert!(Tech::all()
+            .filter(|tech| tech.era() == era && tech.optional_in_civ3())
+            .all(|tech| !game.has_tech(HUMAN, tech)));
+        assert_eq!(game.research_era(HUMAN), next_era);
+    }
 }
 
 #[test]

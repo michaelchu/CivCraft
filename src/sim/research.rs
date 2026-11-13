@@ -50,6 +50,7 @@ impl Simulation {
             return false;
         }
         !self.has_tech(owner, tech)
+            && tech.era() <= self.research_era(owner)
             && tech
                 .civ3_prerequisites()
                 .unwrap_or(&[])
@@ -57,8 +58,8 @@ impl Simulation {
                 .all(|&req| self.has_tech(owner, req))
     }
 
-    /// Highest Civ III content era reached. This is presentation metadata for
-    /// existing client views; research legality is determined by the C3 graph.
+    /// Highest era reached after acquiring every critical advance in each
+    /// preceding era. The result also gates access to later-era technologies.
     pub(crate) fn research_era(&self, owner: usize) -> TechEra {
         let mut current = TechEra::Ancient;
         for era in [TechEra::Ancient, TechEra::MiddleAges, TechEra::Industrial] {
@@ -86,6 +87,17 @@ impl Simulation {
         fn visit(game: &Simulation, owner: usize, tech: Tech, path: &mut Vec<Tech>) {
             if game.has_tech(owner, tech) || path.contains(&tech) {
                 return;
+            }
+            let current_era = game.research_era(owner);
+            for era in TechEra::ALL
+                .into_iter()
+                .filter(|era| *era >= current_era && *era < tech.era())
+            {
+                for required in Tech::all()
+                    .filter(|advance| advance.era() == era && advance.required_for_civ3_era())
+                {
+                    visit(game, owner, required, path);
+                }
             }
             for &req in tech.civ3_prerequisites().unwrap_or(&[]) {
                 visit(game, owner, req, path);

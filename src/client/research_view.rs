@@ -348,6 +348,8 @@ fn research_unlock_detail(tech: Tech) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rules::TechEra;
+
     #[test]
     fn cleared_goal_focuses_current_research_without_a_phantom_future_branch() {
         let tree = ResearchTree::new();
@@ -360,6 +362,17 @@ mod tests {
             focused_research_tech(Tech::FUTURE, Tech::BRONZE_WORKING),
             Tech::FUTURE
         );
+    }
+
+    #[test]
+    fn research_tree_goal_branch_includes_critical_advances_from_earlier_eras() {
+        let tree = ResearchTree::new();
+        let branch = tree.ancestors(Tech::COMPUTERS);
+
+        assert!(Tech::all()
+            .filter(|tech| tech.era() < TechEra::Modern && tech.required_for_civ3_era())
+            .all(|tech| branch.contains(&tech)));
+        assert!(branch.contains(&Tech::COMPUTERS));
     }
 
     #[test]

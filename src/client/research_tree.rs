@@ -209,6 +209,15 @@ impl ResearchTree {
         let mut cursor = 0;
         while cursor < found.len() {
             let node = found[cursor];
+            for era in TechEra::ALL.into_iter().filter(|era| *era < node.era()) {
+                for required in
+                    Tech::all().filter(|tech| tech.era() == era && tech.required_for_civ3_era())
+                {
+                    if !found.contains(&required) {
+                        found.push(required);
+                    }
+                }
+            }
             for edge in self.edges.iter().filter(|edge| edge.to == node) {
                 if !found.contains(&edge.from) {
                     found.push(edge.from);
