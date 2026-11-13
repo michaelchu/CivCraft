@@ -2,9 +2,9 @@
 
 Baseline: `b6272ff` on main (merged shared-harness optimizations). This review
 inventoried **998 Rust tests in 142 files** and **7 Python exporter tests in two
-files**. The [baseline inventory](TEST_VALUE_INVENTORY.csv) records every test,
-its source location, screening result, and any specific action. Locations refer
-to that baseline, rather than the edited files.
+files**. A one-time local inventory recorded each test's source location,
+screening result, and any specific action. It is not checked in because it would
+become stale as tests change; the lasting decisions are documented below.
 
 ## Review criteria and scope
 
@@ -20,8 +20,8 @@ checks. Suspect cases received direct source review, including the helper or
 selector they call. Domain families were reviewed for distinct purpose. All
 Rust tests and all Python tests were then executed.
 
-The CSV distinguishes `retain-screened` from direct-source changes and known
-failures. The structural screen is not a mutation-testing proof that every
+The review distinguished structurally screened tests from direct-source changes
+and known failures. The structural screen is not a mutation-testing proof that every
 remaining assertion catches all plausible bugs, nor a new validation of every
 gameplay expectation against the Civ III manual. No such blanket claim is made.
 The current policy is to preserve evidence unless redundancy or false coverage
