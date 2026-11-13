@@ -14,17 +14,13 @@ fn native_hunter_roles_and_combat_values_match_imported_conquests_rules() {
     let icbm = UnitKind::ICBM.stats();
     assert_eq!((cruise.attack, cruise.defense, cruise.moves), (0, 0, 1));
     assert_eq!((icbm.attack, icbm.defense, icbm.moves), (0, 0, 1));
-    assert!(UnitKind::ALL_NATIVE.iter().all(|kind| {
-        let rule = kind.conquests_rule();
-        kind.stats().cost == rule.cost
-            && kind.stats().attack == rule.attack
-            && kind.stats().defense == rule.defense
-    }));
+    // Full-roster stat wiring is checked by unit_catalog::tests::
+    // active_catalog_is_the_source_order_and_upgrades_use_conquests_links.
 }
 
 #[test]
 fn hunter_assigns_same_tile_missiles_only_when_a_real_hunt_begins() {
-    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
     let (hunter, missile, target) = sim.ai_submarine_playtest_setup();
     {
         let hunter_unit = sim.units.iter_mut().find(|u| u.id == hunter).unwrap();
@@ -82,7 +78,7 @@ fn hunter_assigns_same_tile_missiles_only_when_a_real_hunt_begins() {
 
 #[test]
 fn ordinary_horseman_does_not_enter_source_missile_hunter_phase() {
-    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.units.clear();
     sim.cities.clear();
     sim.hunter_targets.clear();
@@ -119,7 +115,7 @@ fn ordinary_horseman_does_not_enter_source_missile_hunter_phase() {
 
 #[test]
 fn hunter_stack_uses_native_prepend_order_and_keeps_raw_original_threat() {
-    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
     let (hunter_id, _, carrier) = sim.ai_submarine_playtest_setup();
     let hunter = sim
         .units
@@ -150,7 +146,7 @@ fn hunter_stack_uses_native_prepend_order_and_keeps_raw_original_threat() {
 
 #[test]
 fn imported_naval_speeds_and_sea_legality_are_used_without_asserting_ai_ranking() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let destroyer = UnitKind::Destroyer.stats();
     let nuclear_sub = UnitKind::NuclearSubmarine.stats();
     assert_eq!(
@@ -174,7 +170,7 @@ fn imported_naval_speeds_and_sea_legality_are_used_without_asserting_ai_ranking(
 
 #[test]
 fn active_hunter_passes_over_a_cheap_ship_for_a_carrier() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (hunter, _, carrier) = game.ai_submarine_playtest_setup();
     let sub = game
         .units
@@ -200,13 +196,13 @@ fn active_hunter_passes_over_a_cheap_ship_for_a_carrier() {
 
 #[test]
 fn normal_targets_handicap_suppresses_hunter_and_ammunition_production() {
-    let game = Simulation::new(crate::mapgen::generate(42));
+    let game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(game.normal_hunter_production_playtest(), (true, true, true));
 }
 
 #[test]
 fn distant_ground_missions_do_not_assume_a_one_way_air_sortie_is_recoverable() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (infantry, fighter, city) = game.ai_ground_invasion_playtest_setup();
     assert_eq!(game.ai_ground_targets.get(&infantry), Some(&city));
     let target = game.city_by_id(city).unwrap();
@@ -236,7 +232,7 @@ fn distant_ground_missions_do_not_assume_a_one_way_air_sortie_is_recoverable() {
 
 #[test]
 fn local_occupation_marks_only_undefended_cities_and_obeys_actual_movement_radius() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (infantry, _, city) = game.ai_ground_invasion_playtest_setup();
     game.ai_ground_targets.clear();
     let target = game.city_by_id(city).unwrap().clone();
@@ -254,7 +250,7 @@ fn local_occupation_marks_only_undefended_cities_and_obeys_actual_movement_radiu
 
 #[test]
 fn peace_and_defensive_reservations_cancel_ground_missions() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (infantry, _, city) = game.ai_ground_invasion_playtest_setup();
     game.refresh_ground_invasions(1, &[infantry].into_iter().collect());
     assert!(!game.ai_ground_targets.contains_key(&infantry));
@@ -267,7 +263,7 @@ fn peace_and_defensive_reservations_cancel_ground_missions() {
 }
 #[test]
 fn defended_overseas_force_keeps_its_invasion_until_capture() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let result = game.overseas_assault_playtest(true);
     assert_eq!(
         result,
@@ -286,7 +282,7 @@ fn defended_overseas_force_keeps_its_invasion_until_capture() {
 }
 #[test]
 fn defender_buildability_uses_imported_technology_and_connected_resources() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -319,7 +315,7 @@ fn defender_buildability_uses_imported_technology_and_connected_resources() {
 }
 #[test]
 fn military_pickup_preserves_a_civilian_boss_until_released() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -373,7 +369,7 @@ fn military_pickup_preserves_a_civilian_boss_until_released() {
 
 #[test]
 fn worker_transport_dispatch_keeps_its_passenger_and_booking_without_ferry_management() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -408,7 +404,7 @@ fn worker_transport_dispatch_keeps_its_passenger_and_booking_without_ferry_manag
 
 #[test]
 fn military_delivery_releases_the_persisted_ferry_boss() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(game.overseas_assault_playtest(false), (true, true, true));
     assert!(!game.ai_ferries.boats.is_empty());
     assert!(
@@ -420,7 +416,7 @@ fn military_delivery_releases_the_persisted_ferry_boss() {
 }
 #[test]
 fn roads_reduce_legal_reinforcement_move_cost_and_grave_danger_is_observable() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -449,7 +445,7 @@ fn roads_reduce_legal_reinforcement_move_cost_and_grave_danger_is_observable() {
 
 #[test]
 fn grave_home_danger_keeps_its_strong_defender_even_with_a_threatened_neighbor() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -484,7 +480,7 @@ fn grave_home_danger_keeps_its_strong_defender_even_with_a_threatened_neighbor()
 
 #[test]
 fn amphibious_waypoint_keeps_the_passengers_final_land_goal() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -511,7 +507,7 @@ fn amphibious_waypoint_keeps_the_passengers_final_land_goal() {
 
 #[test]
 fn damaged_military_ferry_waits_in_city_until_recovered() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {

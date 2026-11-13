@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn default_government_uses_selected_ruleset_unit_upkeep() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     // nations.ruleset31; nation.c:init_government_of_nation; includes
     // nonplayable Barbarian/Pirate nations without an explicit override.
     assert!(
@@ -34,7 +34,7 @@ fn default_government_uses_selected_ruleset_unit_upkeep() {
 
 #[test]
 fn barbarians_keep_the_current_government_output_waste_rules() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.barbarian_output_waste_playtest());
     let mut city = game.cities[0].clone();
     assert_eq!(
@@ -57,7 +57,7 @@ fn barbarians_keep_the_current_government_output_waste_rules() {
 
 #[test]
 fn selected_ruleset_governments_have_no_fundamentalism_tithe_effect() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.players[1].government = Government::Democracy;
@@ -79,13 +79,13 @@ fn selected_ruleset_governments_have_no_fundamentalism_tithe_effect() {
 
 #[test]
 fn cached_government_scores_follow_reference_cadence_but_unlocks_apply_immediately() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_government_cache_playtest());
 }
 
 #[test]
 fn government_cache_interval_uses_city_count_with_five_and_twenty_turn_bounds() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.turn = 0;
@@ -112,7 +112,7 @@ fn government_cache_interval_uses_city_count_with_five_and_twenty_turn_bounds() 
 
 #[test]
 fn government_player_bonus_uses_c2c3_fanatics_and_partisans_effects() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].known.clear();
     assert_eq!(game.government_player_bonus(1, Government::Communism), 0);
     assert_eq!(game.government_player_bonus(1, Government::Democracy), 0);
@@ -138,7 +138,7 @@ fn government_player_bonus_uses_c2c3_fanatics_and_partisans_effects() {
 
 #[test]
 fn government_source_effects_include_negative_requirements_and_veteran_class_counts() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
@@ -156,7 +156,7 @@ fn government_source_effects_include_negative_requirements_and_veteran_class_cou
 
 #[test]
 fn anarchy_waives_normal_technology_upkeep() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.players[HUMAN].known = Tech::all().collect();
     game.players[HUMAN].future_techs = 100;
@@ -172,7 +172,7 @@ fn anarchy_waives_normal_technology_upkeep() {
 
 #[test]
 fn revolution_respects_unlocks_anarchy_and_rate_caps() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].government = Government::Despotism;
     assert!(!game.apply(Command::Government(Government::Monarchy)));
     game.players[HUMAN].known.push(Tech::MONARCHY);
@@ -192,7 +192,7 @@ fn revolution_respects_unlocks_anarchy_and_rate_caps() {
 
 #[test]
 fn zero_turn_ai_government_change_is_committed_at_the_phase_boundary() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].ai = true;
     game.players[1].known.push(Tech::MONARCHY);
     game.players[1].rates = [20, 80, 0];
@@ -214,7 +214,7 @@ fn zero_turn_ai_government_change_is_committed_at_the_phase_boundary() {
 
 #[test]
 fn ruleset_no_anarchy_effect_allows_and_defers_a_human_government_change() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
     game.cities[0].buildings.push(Building::STATUE_OF_LIBERTY);
 
@@ -235,7 +235,7 @@ fn ruleset_no_anarchy_effect_allows_and_defers_a_human_government_change() {
 
 #[test]
 fn human_rate_reallocation_preserves_luxury_then_maximizes_science() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].government = Government::during_revolution();
     game.players[HUMAN].revolution_target = Some(Government::Despotism);
     game.players[HUMAN].revolution_turn = Some(game.turn);
@@ -249,7 +249,7 @@ fn human_rate_reallocation_preserves_luxury_then_maximizes_science() {
 
 #[test]
 fn eliminated_players_do_not_finish_or_count_government_revolutions() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.retain(|city| city.owner != 1);
     game.units.retain(|unit| unit.owner != 1);
     game.players[1].government = Government::during_revolution();
@@ -272,7 +272,7 @@ fn eliminated_players_do_not_finish_or_count_government_revolutions() {
 
 #[test]
 fn random_quick_revolution_length_handles_the_engine_minimum_setting() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.random_quick_revolution_length(Government::Monarchy, 1),
         1
@@ -281,7 +281,7 @@ fn random_quick_revolution_length_handles_the_engine_minimum_setting() {
 
 #[test]
 fn random_quick_adoption_acceleration_counts_used_civilization_and_barbarian_slots() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let target = Government::Monarchy;
     let length = 5;
     game.government_adoptions[target as usize] = 2;
@@ -300,7 +300,7 @@ fn random_quick_adoption_acceleration_counts_used_civilization_and_barbarian_slo
 
 #[test]
 fn revolution_recomputes_trade_output_without_changing_saved_rates() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -398,7 +398,7 @@ fn statue_of_liberty_makes_republic_disorder_revolution_immediate() {
 }
 
 fn republic_disorder_scenario() -> (Simulation, u32) {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -418,7 +418,7 @@ fn republic_disorder_scenario() -> (Simulation, u32) {
 
 #[test]
 fn mobilization_requires_nationalism_and_peace_treaty_returns_to_normalcy() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known.clear();
     assert!(!game.apply(crate::sim::Command::Mobilize));
     assert!(!game.players[HUMAN].mobilized);

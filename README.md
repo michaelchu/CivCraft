@@ -43,3 +43,78 @@ years; landform accepts `archipelago`, `continents`, or `pangaea`; and
 temperature accepts `cool`, `temperate`, or `warm`. The built-in `--tileset`
 choices are `civ3`, `conquests`, `snoopy-standard`, `snoopy-greener`, and
 `snoopy-extended`.
+
+## Headless AI simulation
+
+Run an AI-only campaign without opening a game window and write a
+compact JSON review report with a JSONL evidence sidecar:
+
+```sh
+cargo run --offline --release --bin headless_sim -- \
+  --seed 42 --map-size tiny --ocean-coverage 70 --climate normal \
+  --world-age 4 --landform continents --temperature temperate \
+  --turns 30 --checkpoint-every 10 \
+  --report /tmp/civcraft-simulation.json
+```
+
+The default is 30 turns; use `--turns 10` for an initial review and longer runs
+for targeted investigations. Checkpoints are published every 10 turns.
+
+Run a registered deterministic scenario or resume a saved campaign through the
+same analytics pipeline:
+
+```sh
+cargo run --offline --release --bin headless_sim -- --list-scenarios
+cargo run --offline --release --bin headless_sim -- \
+  --scenario city-healing --turns 10 --report /tmp/healing.json
+cargo run --offline --release --bin headless_sim -- \
+  --scenario settlement-ferry --turns 1 --report /tmp/ferry.json
+cargo run --offline --release --bin headless_sim -- \
+  --load-campaign /path/to/campaign.save --turns 10 --report /tmp/resumed.json
+```
+
+`--scenario` and `--load-campaign` are mutually exclusive. Named scenarios
+record their version and setup checks in `run.scenario`; loaded campaigns record
+the source path. Both attach a fresh trace collector before simulation begins.
+
+Report schema 5 provides a compact summary and two streamed evidence sidecars:
+
+- `/tmp/civcraft-simulation.json`: run configuration/status, enabled analyzers,
+  metrics, coverage, findings, final totals, and a compact timeline.
+- `/tmp/civcraft-simulation.json.snapshots.jsonl`: initial state and one typed
+  snapshot per completed step, including selected/required city, civilization,
+  and unit providers.
+- `/tmp/civcraft-simulation.json.events.jsonl`: structured events carrying turn,
+  phase, sequence, participants, and domain-owned payloads.
+
+Read the summary first, then select evidence by snapshot turn or event sequence:
+
+```sh
+jq '.run, .summary, .findings' /tmp/civcraft-simulation.json
+jq -c 'select(.turn == 11) | .cities[] | select(.id == 1)' \
+  /tmp/civcraft-simulation.json.snapshots.jsonl
+```
+
+Analytics are independently registered modules. The initial set includes growth
+and settlement heuristics plus an event-only production metric. Use
+`--list-analyzers`, `--analytics growth,settlement`, or `--analytics none`.
+`--trace-domains`, `--trace-entities`, event-buffer/output limits, and
+`--snapshot-providers` control evidence capture. Analyzer requirements are
+captured even when their evidence is filtered from output; unavailable event
+references and collector gaps are explicit.
+
+Findings are heuristic candidates unless an analyzer explicitly checks an
+established invariant. Repeated observations update an episode, explicit recovery
+resolves it, and recurrence opens a new episode. By default findings do not stop
+the run; `--stop-on-finding any|invariant` opts in. A finding-free run does not
+prove gameplay correctness. Current observation boundaries are initial state
+and end of turn; phase events preserve transient values from inside the turn.
+
+See [Headless analytics and tracing](docs/HEADLESS_ANALYTICS.md) for extension
+interfaces, configuration, evidence semantics, and schema migration details.
+
+World-generation controls match the interactive game: map size accepts the
+Civ III presets or `WIDTHxHEIGHT`; ocean coverage accepts `60`, `70`, or `80`;
+climate accepts `arid`, `normal`, or `wet`; world age accepts `3`, `4`, or `5`;
+landform accepts `archipelago`, `continents`, or `pangaea`; and temperature
+accepts `cool`, `temperate`, or `warm`.

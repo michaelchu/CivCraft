@@ -204,6 +204,71 @@ mod tests {
         assert!(UnitKind::NuclearSubmarine.has_ai_strategy(UnitAiStrategy::NavalMissileTransport));
     }
 
+    // These are catalog contracts, not tests of advisor training/mission policy.
+    // Keep literal expectations here rather than under misleading advisor names.
+    #[test]
+    fn land_production_candidates_keep_their_conquests_prerequisites_and_roles() {
+        assert_eq!(
+            UnitKind::Spearman.required_tech(),
+            Some(Tech::BRONZE_WORKING)
+        );
+        assert_eq!(UnitKind::Spearman.stats().defense, 2);
+        assert_eq!(
+            UnitKind::Marine.required_tech(),
+            Some(Tech::AMPHIBIOUS_WARFARE)
+        );
+        assert_eq!(
+            UnitKind::Marine.required_resources(),
+            vec![Resource::Rubber]
+        );
+        assert!(UnitKind::Marine.has_marine_attack());
+        assert_eq!(UnitKind::Marine.stats().moves, 1);
+        assert_eq!(UnitKind::Catapult.required_tech(), Some(Tech::MATHEMATICS));
+        assert_eq!(UnitKind::Catapult.stats().attack, 0);
+        assert!(UnitKind::Catapult.has_ai_strategy(UnitAiStrategy::Artillery));
+    }
+
+    #[test]
+    fn air_and_sea_candidates_keep_their_conquests_prerequisites_and_combat_values() {
+        assert_eq!(UnitKind::Fighter.required_tech(), Some(Tech::FLIGHT));
+        assert_eq!(UnitKind::Fighter.required_resources(), vec![Resource::Oil]);
+        assert_eq!(UnitKind::Fighter.stats().attack, 4);
+        assert_eq!(UnitKind::Fighter.stats().defense, 2);
+        assert_eq!(UnitKind::Fighter.hp_loss_percent(), 10);
+        assert!(UnitKind::Fighter.has_ai_strategy(UnitAiStrategy::AirDefense));
+        assert_eq!(UnitKind::Destroyer.required_tech(), Some(Tech::COMBUSTION));
+        assert_eq!(
+            UnitKind::Destroyer.required_resources(),
+            vec![Resource::Oil]
+        );
+        assert_eq!(UnitKind::AegisCruiser.required_tech(), Some(Tech::ROBOTICS));
+        assert_eq!(
+            UnitKind::AegisCruiser.required_resources(),
+            vec![Resource::Aluminum, Resource::Uranium]
+        );
+        assert!(UnitKind::AegisCruiser.is_naval());
+        assert_eq!(UnitKind::AegisCruiser.stats().attack, 15);
+        assert_eq!(UnitKind::AegisCruiser.stats().defense, 10);
+        assert_eq!(UnitKind::Carrier.stats().attack, 1);
+        assert!(UnitKind::Transport.is_naval());
+        // Previously embedded in an unrelated advisor scenario aggregate.
+        assert_eq!(
+            UnitKind::TacticalNuke.required_tech(),
+            Some(Tech::SPACE_FLIGHT)
+        );
+        assert_eq!(
+            UnitKind::TacticalNuke.required_resources(),
+            vec![Resource::Aluminum, Resource::Uranium]
+        );
+    }
+
+    #[test]
+    fn worker_and_missile_capabilities_do_not_imply_military_training_policy() {
+        assert!(UnitKind::Worker.stats().can_work);
+        assert!(UnitKind::TacticalNuke.no_veteran());
+        assert!(UnitKind::CruiseMissile.no_veteran());
+    }
+
     #[test]
     fn campaign_zone_of_control_comes_from_the_conquests_prto_field() {
         assert!(UnitKind::ModernArmor.has_zone_of_control());

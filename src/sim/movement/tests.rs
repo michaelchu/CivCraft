@@ -64,7 +64,7 @@ fn blocked_zoc_positions(game: &Simulation) -> ((i32, i32), (i32, i32), (i32, i3
 
 #[test]
 fn activity_completion_is_immediate_and_old_mp_controls_only_work_count() {
-    let game = Simulation::new(crate::mapgen::generate(42));
+    let game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.activity_completion_order_playtest(),
         (true, true, true, true)
@@ -73,7 +73,7 @@ fn activity_completion_is_immediate_and_old_mp_controls_only_work_count() {
 
 #[test]
 fn stealth_fighter_targets_follow_c2c3_unit_classes() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let attacker = game.spawn_unit(HUMAN, UnitKind::StealthFighter, 10, 24);
@@ -90,7 +90,7 @@ fn stealth_fighter_targets_follow_c2c3_unit_classes() {
 
 #[test]
 fn ordinary_attackers_keep_their_normal_defender_eligibility() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
@@ -102,7 +102,7 @@ fn ordinary_attackers_keep_their_normal_defender_eligibility() {
 
 #[test]
 fn game_loss_units_are_last_defenders_only_on_protected_tiles() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (11, 24);
@@ -128,7 +128,7 @@ fn game_loss_units_are_last_defenders_only_on_protected_tiles() {
 
 #[test]
 fn defender_choice_uses_civ3_build_cost_when_win_chance_and_rating_tie() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -175,7 +175,7 @@ fn defender_choice_uses_civ3_build_cost_when_win_chance_and_rating_tie() {
 
 #[test]
 fn defender_choice_uses_defense_rating_after_equal_win_chance_and_cost() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -203,7 +203,7 @@ fn defender_choice_uses_defense_rating_after_equal_win_chance_and_cost() {
 
 #[test]
 fn defender_choice_keeps_first_tile_list_unit_on_a_full_tie() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -235,7 +235,7 @@ fn defender_choice_keeps_first_tile_list_unit_on_a_full_tie() {
 
 #[test]
 fn transported_defenders_follow_selected_tp_defense_and_deboard_rules() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -254,7 +254,7 @@ fn transported_defenders_follow_selected_tp_defense_and_deboard_rules() {
         Some(cargo)
     );
 
-    let mut at_sea = Simulation::new(crate::mapgen::generate(42));
+    let mut at_sea = Simulation::new(crate::test_support::seeded_map());
     at_sea.units.clear();
     at_sea.cities.clear();
     let (sx, sy) = (10, 24);
@@ -273,7 +273,7 @@ fn transported_defenders_follow_selected_tp_defense_and_deboard_rules() {
 
 #[test]
 fn tired_attack_scales_power_by_selected_ruleset_setting() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
     let mut unit = game.unit_by_id(id).unwrap().clone();
     unit.moves_left = MOVE_FRAGMENTS - 1;
@@ -288,7 +288,7 @@ fn tired_attack_scales_power_by_selected_ruleset_setting() {
 
 #[test]
 fn defender_reachability_uses_c2c3_target_classes_and_city_exception() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -303,7 +303,7 @@ fn defender_reachability_uses_c2c3_target_classes_and_city_exception() {
 
 #[test]
 fn military_move_does_not_capture_non_capturable_worker() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (nx, ny) = game.map_wrap.offset(10, 24, 1, 0).unwrap();
@@ -325,7 +325,7 @@ fn military_move_does_not_capture_non_capturable_worker() {
 
 #[test]
 fn imported_marine_small_land_units_can_occupy_cities() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let home = (10, 24);
@@ -342,7 +342,7 @@ fn imported_marine_small_land_units_can_occupy_cities() {
 
 #[test]
 fn settlers_are_not_captured_by_military_move_under_c2c3() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (nx, ny) = game.map_wrap.offset(10, 24, 1, 0).unwrap();
@@ -366,7 +366,7 @@ fn settlers_are_not_captured_by_military_move_under_c2c3() {
 
 #[test]
 fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.enable_visual_events();
     game.units.clear();
     game.cities.clear();
@@ -413,7 +413,7 @@ fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
 
 #[test]
 fn capture_eligibility_comes_from_selected_action_rules_not_civ3_technology() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
@@ -434,7 +434,7 @@ fn capture_eligibility_comes_from_selected_action_rules_not_civ3_technology() {
 #[test]
 fn capture_unique_preflight_rejects_conflicts_without_state_or_rng_changes() {
     for already_owned in [false, true] {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
         let (x, y) = (11, 24);
@@ -473,7 +473,7 @@ fn capture_unique_preflight_rejects_conflicts_without_state_or_rng_changes() {
 
 #[test]
 fn capture_success_move_cost_uses_selected_effect_in_movement_fragments() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let actor_id = game.spawn_unit(HUMAN, UnitKind::Marine, 10, 24);
@@ -495,7 +495,7 @@ fn capture_success_move_cost_uses_selected_effect_in_movement_fragments() {
 
 #[test]
 fn capture_bounce_handles_city_tiles_and_unlisted_non_allied_units() {
-    let mut city_case = Simulation::new(crate::mapgen::generate(42));
+    let mut city_case = Simulation::new(crate::test_support::seeded_map());
     city_case.units.clear();
     city_case.cities.clear();
     let (x, y) = (10, 24);
@@ -599,7 +599,7 @@ fn freeciv_bounce_uses_survivable_tiles_and_keeps_source_iteration_order() {
 
 #[test]
 fn selected_roster_has_no_capturable_civ_iii_target_type() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let actor_id = game.spawn_unit(HUMAN, UnitKind::Marine, 10, 24);
@@ -638,7 +638,7 @@ fn enslave_result_indices_resolve_separately_from_capture_eligibility() {
 
 #[test]
 fn combat_uses_the_selected_attack_action_and_skips_civ3_enslavement_rng() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -705,7 +705,7 @@ fn combat_uses_the_selected_attack_action_and_skips_civ3_enslavement_rng() {
 
 #[test]
 fn combat_recalculates_movement_from_post_combat_hp() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -768,7 +768,7 @@ fn combat_recalculates_movement_from_post_combat_hp() {
 
 #[test]
 fn combat_recalculates_defender_movement_from_post_combat_hp() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -832,7 +832,7 @@ fn combat_recalculates_defender_movement_from_post_combat_hp() {
 
 #[test]
 fn next_phase_refills_use_live_mountain_movement_effects() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let tile = game.tile_mut(10, 24);
@@ -856,7 +856,7 @@ fn next_phase_refills_use_live_mountain_movement_effects() {
 
 #[test]
 fn player_goto_continues_across_turns_until_destination() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -922,7 +922,7 @@ fn player_goto_continues_across_turns_until_destination() {
 
 #[test]
 fn end_phase_repairs_precede_city_builds_and_next_phase_activities() {
-    let game = Simulation::new(crate::mapgen::generate(42));
+    let game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.unit_turn_lifecycle_playtest(),
         (true, true, true, true)
@@ -931,13 +931,13 @@ fn end_phase_repairs_precede_city_builds_and_next_phase_activities() {
 
 #[test]
 fn native_movement_costs_nativity_boarding_and_zoc_flags() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(game.native_movement_rules_playtest(), (true, true, true));
 }
 
 #[test]
 fn moved_units_retain_the_matching_civ3_flic_direction_row() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -965,7 +965,7 @@ fn moved_units_retain_the_matching_civ3_flic_direction_row() {
 fn civ3_move_commands_cover_all_eight_neighbors_and_facing_rows() {
     let expected_rows = [5, 4, 3, 2, 1, 0, 7, 6];
     for direction in 0..CIV3_DIRS.len() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         for tile in &mut game.tiles {
             tile.terrain = Terrain::Grassland;
@@ -987,7 +987,7 @@ fn civ3_move_commands_cover_all_eight_neighbors_and_facing_rows() {
 
 #[test]
 fn civ3_move_command_rejects_an_invalid_direction_without_moving() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
     assert!(!game.apply(Command::MoveCiv3(id, CIV3_DIRS.len())));
     assert_eq!(
@@ -1001,7 +1001,7 @@ fn civ3_move_command_rejects_an_invalid_direction_without_moving() {
 
 #[test]
 fn big_land_has_no_terrain_defense_and_nuclear_is_not_air_attacker() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     let p = (10, 24);
     game.tile_mut(p.0, p.1).terrain = Terrain::Grassland;
@@ -1026,7 +1026,7 @@ fn big_land_has_no_terrain_defense_and_nuclear_is_not_air_attacker() {
 
 #[test]
 fn mountain_movement_effect_and_river_defense_follow_native_classes() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     let p = (10, 24);
     let tile = game.tile_mut(p.0, p.1);
@@ -1059,7 +1059,7 @@ fn mountain_movement_effect_and_river_defense_follow_native_classes() {
 
 #[test]
 fn combat_terrain_defense_uses_selected_c2c3_terrain_and_class_rules() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     let (x, y) = (10, 24);
     {
@@ -1097,7 +1097,7 @@ fn combat_terrain_defense_uses_selected_c2c3_terrain_and_class_rules() {
 
 #[test]
 fn combat_defense_counts_upgraded_base_underlays_from_selected_effects() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     let (x, y) = (10, 24);
     {
@@ -1131,7 +1131,7 @@ fn combat_defense_counts_upgraded_base_underlays_from_selected_effects() {
 
 #[test]
 fn destroyer_defense_multiplier_uses_the_selected_submarine_flag() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     let (x, y) = (10, 24);
     game.tile_mut(x, y).terrain = Terrain::Ocean;
@@ -1156,7 +1156,7 @@ fn destroyer_defense_multiplier_uses_the_selected_submarine_flag() {
 
 #[test]
 fn combat_occupancy_uses_selected_chance_and_consumes_its_rng_draw() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -1196,7 +1196,7 @@ fn combat_occupancy_uses_selected_chance_and_consumes_its_rng_draw() {
 
 #[test]
 fn combat_firepower_uses_selected_c2c3_unit_flags() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let (x, y) = (10, 24);
@@ -1222,13 +1222,13 @@ fn combat_firepower_uses_selected_c2c3_unit_flags() {
 
 #[test]
 fn civilian_peace_borders_follow_ruleset_flags_and_still_exclude_foreign_stacks() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.civilian_border_playtest());
 }
 
 #[test]
 fn movement_rates_scale_damage_before_effects_and_use_whole_move_class_minima() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.damaged_movement_playtest());
     game.players[HUMAN]
         .known
@@ -1274,7 +1274,7 @@ fn movement_rates_scale_damage_before_effects_and_use_whole_move_class_minima() 
 
 #[test]
 fn wounded_ground_and_sea_units_restore_the_same_rates_used_by_pathfinding() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.tile_mut(10, 24).terrain = Terrain::Sea;
@@ -1296,7 +1296,7 @@ fn wounded_ground_and_sea_units_restore_the_same_rates_used_by_pathfinding() {
 
 #[test]
 fn newly_created_triremes_get_lighthouse_speed_in_their_actual_location() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
     game.cities[0].buildings.push(Building::LIGHTHOUSE);
@@ -1310,7 +1310,7 @@ fn newly_created_triremes_get_lighthouse_speed_in_their_actual_location() {
 
 #[test]
 fn workers_pool_matching_progress_only_when_they_have_movement() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
     let (first, second) = game.cooperative_work_playtest_setup();
     for id in [first, second] {
@@ -1339,7 +1339,7 @@ fn workers_pool_matching_progress_only_when_they_have_movement() {
 
 #[test]
 fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
     }
@@ -1383,7 +1383,7 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
 
 #[test]
 fn freeciv_zoc_blocks_a_step_between_two_enemy_controlled_tiles() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let (start, destination, enemy) = blocked_zoc_positions(&game);
     let mover = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
@@ -1403,7 +1403,7 @@ fn freeciv_zoc_blocks_a_step_between_two_enemy_controlled_tiles() {
 
 #[test]
 fn freeciv_zoc_allows_one_step_into_enemy_control_from_a_safe_tile() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let start = (10, 20);
     let destination = game.map_wrap.civ3_neighbor(start.0, start.1, 2).unwrap();
@@ -1438,7 +1438,7 @@ fn freeciv_zoc_allows_one_step_into_enemy_control_from_a_safe_tile() {
 
 #[test]
 fn zoc_legality_does_not_preempt_the_existing_attack_action_path() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let start = (10, 20);
     let destination = game.map_wrap.civ3_neighbor(start.0, start.1, 2).unwrap();
@@ -1456,7 +1456,7 @@ fn zoc_legality_does_not_preempt_the_existing_attack_action_path() {
 
 #[test]
 fn freeciv_zoc_allied_stack_city_nozoc_terrain_and_igzoc_exemptions_apply() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let (start, destination, enemy) = blocked_zoc_positions(&game);
     let mover = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
@@ -1489,7 +1489,7 @@ fn freeciv_zoc_allied_stack_city_nozoc_terrain_and_igzoc_exemptions_apply() {
 
 #[test]
 fn freeciv_route_zoc_uses_only_observed_enemy_units() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);
     let (start, destination, enemy) = blocked_zoc_positions(&game);
     let mover_id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
@@ -1517,7 +1517,7 @@ fn freeciv_route_zoc_uses_only_observed_enemy_units() {
 
 #[test]
 fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (12, 12);
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
@@ -1565,7 +1565,7 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
 
 #[test]
 fn defeating_a_stack_defender_kills_all_reachable_hostile_units() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (12, 12);
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
@@ -1590,7 +1590,7 @@ fn defeating_a_stack_defender_kills_all_reachable_hostile_units() {
 
 #[test]
 fn stack_losses_leave_units_the_winner_cannot_reach() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (12, 12);
     let (nx, ny) = offset_native_by_map(x, y, 1, 0);
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
@@ -1620,7 +1620,7 @@ mod transport_tests {
 
     #[test]
     fn unload_all_deboards_every_eligible_cargo_unit() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         let (x, y) = (10, 20);
         game.tile_mut(x, y).terrain = Terrain::Grassland;
@@ -1649,7 +1649,7 @@ mod transport_tests {
     #[test]
     fn rescue_prefers_idle_carriers_then_uses_future_speed_to_break_ties() {
         for fast_ship_working in [false, true] {
-            let mut game = Simulation::new(crate::mapgen::generate(42));
+            let mut game = Simulation::new(crate::test_support::seeded_map());
             game.units.clear();
             let (x, y) = (10, 20);
             game.tile_mut(x, y).terrain = Terrain::Sea;
@@ -1686,7 +1686,7 @@ mod transport_tests {
 
     #[test]
     fn combustion_transport_carries_its_imported_capacity_of_heavy_units() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         let (x, y) = (10, 20);
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);
@@ -1731,7 +1731,7 @@ mod transport_tests {
 
     #[test]
     fn ports_build_transports_only_with_their_tech_and_upgrade_obsolete_production() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         let (x, y) = (24, 15);
         for (tx, ty) in game.map_wrap.civ3_neighbors(x, y) {
             game.tile_mut(tx, ty).terrain = Terrain::Grassland;
@@ -1759,7 +1759,7 @@ mod transport_tests {
 
     #[test]
     fn adjacent_embark_respects_cargo_class_and_capacity() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
+        let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         let (x, y) = (10, 20);
         let (sx, sy) = offset_native_by_map(x, y, 1, 0);

@@ -291,17 +291,17 @@ impl Simulation {
             .player_units_ordered(owner)
             .filter(|u| {
                 u.moves_left > 0
-                    && if owner == HUMAN {
-                        u.automated && u.kind.is_worker()
-                    } else {
+                    && if self.players[owner].ai {
                         u.kind.is_worker()
+                    } else {
+                        u.automated && u.kind.is_worker()
                     }
             })
             .map(|u| u.id)
             .collect();
         let mut state = WorkMap::default();
         for &id in &workers {
-            if owner != HUMAN
+            if self.players[owner].ai
                 && let Some(actor) = self
                     .units
                     .iter()

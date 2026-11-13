@@ -7,7 +7,7 @@ struct SceneTiming {
     setup_ms: f64,
     actions_ms: f64,
     draws: Vec<f64>,
-    captures: Vec<(String, f64, u64)>,
+    captures: Vec<(String, f64, u64, Option<f64>)>,
     base_pixels: Option<u64>,
     checks: Vec<(&'static str, bool)>,
     cache: (u64, u64, usize),
@@ -34,11 +34,16 @@ impl UiReviewProfile {
         fs::create_dir_all(dir)?;
         // Remove only files managed by this run, so skipped pages cannot leave
         // stale screenshots behind when a review directory is reused.
-        for file in std::iter::once("report.json".to_owned()).chain(
-            names
-                .into_iter()
-                .flat_map(|name| [format!("{name}.png"), format!("{name}-next.png")]),
-        ) {
+        for file in
+            std::iter::once("report.json".to_owned()).chain(names.into_iter().flat_map(|name| {
+                [
+                    format!("{name}.png"),
+                    format!("{name}-next.png"),
+                    format!("{name}-diff.png"),
+                    format!("{name}-next-diff.png"),
+                ]
+            }))
+        {
             match fs::remove_file(Path::new(dir).join(file)) {
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -77,6 +82,7 @@ impl UiReviewProfile {
         ms: f64,
         pixels: u64,
         next: bool,
+        similarity: Option<f64>,
     ) -> bool {
         let distinct = if next {
             self.scenes[scene]
@@ -90,7 +96,9 @@ impl UiReviewProfile {
         } else {
             self.scenes[scene].base_pixels = Some(pixels);
         }
-        self.scenes[scene].captures.push((name, ms, pixels));
+        self.scenes[scene]
+            .captures
+            .push((name, ms, pixels, similarity));
         distinct
     }
     pub(crate) fn finish(&self, dir: &str) -> io::Result<bool> {
@@ -102,7 +110,7 @@ impl UiReviewProfile {
             let mut samples=s.draws.clone();samples.sort_by(f64::total_cmp);
             let mean=samples.iter().sum::<f64>()/samples.len().max(1) as f64;
             let p95=samples.get((samples.len()*95/100).min(samples.len().saturating_sub(1))).copied().unwrap_or(0.0);
-            let captures=s.captures.iter().map(|(file,ms,pixels)|format!("{{\"file\":{},\"ms\":{ms:.4},\"pixel_fingerprint\":\"{pixels:016x}\"}}",json_string(file))).collect::<Vec<_>>().join(",");
+            let captures=s.captures.iter().map(|(file,ms,pixels,similarity)|format!("{{\"file\":{},\"ms\":{ms:.4},\"pixel_fingerprint\":\"{pixels:016x}\",\"baseline_similarity\":{}}}",json_string(file),similarity.map_or_else(||"null".to_owned(),|score|format!("{score:.8}")))).collect::<Vec<_>>().join(",");
             let checks=s.checks.iter().map(|(label,ok)|format!("{{\"check\":{},\"passed\":{ok}}}",json_string(label))).collect::<Vec<_>>().join(",");
             let kind=if s.name=="world" || s.name.starts_with("campaign-") {"campaign"}else{"fixture"};
             format!("{{\"scene\":{},\"kind\":\"{kind}\",\"setup_ms\":{:.4},\"actions_ms\":{:.4},\"draw_mean_cpu_ms\":{mean:.4},\"draw_p95_cpu_ms\":{p95:.4},\"frames\":{},\"border_cache_hits\":{},\"border_cache_misses\":{},\"border_cache_entries\":{},\"checks\":[{checks}],\"captures\":[{captures}]}}",json_string(s.name),s.setup_ms,s.actions_ms,samples.len(),s.cache.0,s.cache.1,s.cache.2)
@@ -118,6 +126,30 @@ impl UiReviewProfile {
         )?;
         Ok(passed)
     }
+}
+
+pub(crate) fn compare_capture(actual: &Path, baseline: &Path, diff: &Path) -> io::Result<f64> {
+    let open = |path: &Path| {
+        image::open(path)
+            .map(|image| image.into_rgb8())
+            .map_err(io::Error::other)
+    };
+    let actual = open(actual)?;
+    let baseline = open(baseline)?;
+    let comparison =
+        image_compare::rgb_hybrid_compare(&actual, &baseline).map_err(io::Error::other)?;
+    if comparison.score < 1.0 {
+        comparison
+            .image
+            .to_color_map()
+            .save(diff)
+            .map_err(io::Error::other)?;
+    } else if let Err(error) = fs::remove_file(diff)
+        && error.kind() != io::ErrorKind::NotFound
+    {
+        return Err(error);
+    }
+    Ok(comparison.score)
 }
 fn json_string(text: &str) -> String {
     let mut out = String::from("\"");
@@ -160,8 +192,8 @@ mod tests {
     fn unchanged_page_pixels_fail_the_report() {
         let mut p = UiReviewProfile::new(42);
         p.setup(0, "world", 0.0);
-        assert!(p.capture(0, "world.png".into(), 0.0, 123, false));
-        assert!(!p.capture(0, "world-next.png".into(), 0.0, 123, true));
+        assert!(p.capture(0, "world.png".into(), 0.0, 123, false, None));
+        assert!(!p.capture(0, "world-next.png".into(), 0.0, 123, true, None));
         assert!(!p.scenes[0].checks[0].1);
     }
     #[test]
@@ -171,5 +203,28 @@ mod tests {
         p.check(0, "bounds", false);
         p.check(0, "bounds", true);
         assert_eq!(p.scenes[0].checks, vec![("bounds", false)]);
+    }
+
+    #[test]
+    fn perceptual_comparison_writes_a_diff_only_for_changed_images() {
+        let dir =
+            std::env::temp_dir().join(format!("civcraft-image-compare-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let baseline = dir.join("baseline.png");
+        let actual = dir.join("actual.png");
+        let diff = dir.join("diff.png");
+        let base = image::RgbImage::from_pixel(16, 16, image::Rgb([20, 40, 60]));
+        base.save(&baseline).unwrap();
+        base.save(&actual).unwrap();
+        assert_eq!(compare_capture(&actual, &baseline, &diff).unwrap(), 1.0);
+        assert!(!diff.exists());
+        let changed = image::RgbImage::from_pixel(16, 16, image::Rgb([200, 40, 60]));
+        changed.save(&actual).unwrap();
+        assert!(compare_capture(&actual, &baseline, &diff).unwrap() < 1.0);
+        assert!(diff.exists());
+        for file in [baseline, actual, diff] {
+            std::fs::remove_file(file).unwrap();
+        }
+        std::fs::remove_dir(dir).unwrap();
     }
 }

@@ -155,7 +155,7 @@ mod tests {
                 .collect::<Vec<_>>();
             assert_eq!(
                 owner_units.len(),
-                profile.units().iter().map(|(_, count)| count).sum()
+                profile.units().iter().map(|(_, count)| count).sum::<usize>()
             );
             assert_eq!(
                 owner_units

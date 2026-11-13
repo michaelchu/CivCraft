@@ -46,7 +46,7 @@ fn founder_can_plan_with_a_partly_loaded_available_ferry_but_not_a_full_one() {
 }
 
 fn ocean_game() -> Simulation {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {

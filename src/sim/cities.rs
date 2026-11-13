@@ -1,5 +1,7 @@
 //! City lifecycle and turn processing, including production and population changes.
 
+pub(super) mod observations;
+
 use super::*;
 
 mod production;
@@ -106,6 +108,21 @@ impl Simulation {
                 "{name} founded. Its people begin training Warriors."
             ));
         }
+        self.trace.emit(
+            self.turn,
+            || {
+                vec![
+                    trace::Entity::Unit(unit_id),
+                    trace::Entity::City(self.next_city_id - 1),
+                    trace::Entity::Civilization(unit.owner),
+                ]
+            },
+            || crate::sim::settlement::observations::CityFounded {
+                x: unit.x,
+                y: unit.y,
+                name: name.clone(),
+            },
+        );
         self.refresh_visibility();
         true
     }

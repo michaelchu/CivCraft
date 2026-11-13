@@ -2,7 +2,7 @@
 
 use super::*;
 fn game() -> Simulation {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.diplomacy.clear();

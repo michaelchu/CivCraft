@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn peace_does_not_rewrite_citizen_nationalities() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
     game.cities[0].size = 3;
@@ -26,7 +26,7 @@ fn peace_does_not_rewrite_citizen_nationalities() {
 
 #[test]
 fn advisor_danger_distinguishes_love_pacts_excuses_and_allocated_enemy_allies() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -83,7 +83,7 @@ fn advisor_danger_distinguishes_love_pacts_excuses_and_allocated_enemy_allies() 
 
 #[test]
 fn defense_building_baseline_respects_native_peace_love_and_ceasefire_danger() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -288,7 +288,7 @@ fn native_pair_spam_delays_first_ai_offer_without_delaying_human_offers() {
 
 #[test]
 fn cached_diplomatic_intelligence_changes_real_negotiation_commands() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_diplomatic_intelligence_playtest());
 }
 
@@ -363,7 +363,7 @@ fn shared_ally_greed_discount_is_a_phase_snapshot() {
 
 #[test]
 fn treaty_map_and_city_clause_fixtures_use_negotiated_terms() {
-    let fresh = || Simulation::new(crate::mapgen::generate(42));
+    let fresh = || Simulation::new(crate::test_support::seeded_map());
     assert!(fresh().treaty_map_playtest());
     assert!(fresh().city_clause_playtest());
     assert!(fresh().city_clause_bundle_playtest());
@@ -518,7 +518,7 @@ fn positive_most_hated_target_still_suppresses_source_offer_cadence() {
 
 #[test]
 fn phase_love_and_gift_response_match_reference_integer_order() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_diplomatic_love_playtest());
 }
 
@@ -764,7 +764,7 @@ fn balanced_trades_do_not_count_as_all_beneficial_gifts() {
 
 #[test]
 fn treaty_giver_policies_alliance_jump_and_senate_callback_match_source() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_treaty_policy_playtest());
 }
 
@@ -807,7 +807,7 @@ fn only_ai_givers_reject_unsafe_vision_and_alliance_cancellation_preserves_grant
 
 #[test]
 fn technology_price_discounts_allies_before_adding_leakage() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[1].known = vec![Tech::POTTERY];
     game.players[HUMAN].known.clear();
     game.players[2].known.clear();
@@ -825,7 +825,7 @@ fn technology_price_discounts_allies_before_adding_leakage() {
 
 #[test]
 fn low_science_can_make_a_balanced_offer_unacceptable_to_the_ai() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.diplomacy_playtest_technologies(true);
     game.sign_pact(HUMAN, 1, Pact::Peace);
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().pact = Pact::Peace;
@@ -840,7 +840,7 @@ fn low_science_can_make_a_balanced_offer_unacceptable_to_the_ai() {
 
 #[test]
 fn stale_bundle_applies_no_gold_technology_pact_or_vision() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.create_city(1, 20, 20);
     game.diplomacy_playtest_technologies(true);
@@ -862,7 +862,7 @@ fn stale_bundle_applies_no_gold_technology_pact_or_vision() {
 
 #[test]
 fn an_armistice_disbands_units_that_fail_to_withdraw() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.create_city(1, 20, 20);
     let soldier = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 20);
@@ -877,7 +877,7 @@ fn an_armistice_disbands_units_that_fail_to_withdraw() {
 
 #[test]
 fn a_ceasefire_expires_back_to_war() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.create_city(1, 20, 20);
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
@@ -891,7 +891,7 @@ fn a_ceasefire_expires_back_to_war() {
 
 #[test]
 fn ceasefire_expiry_breaks_mutual_alliances_despite_the_senate() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.create_city(1, 20, 20);
     game.create_city(2, 30, 30);
@@ -911,7 +911,7 @@ fn ceasefire_expiry_breaks_mutual_alliances_despite_the_senate() {
 
 #[test]
 fn breaking_an_alliance_removes_visitors_from_former_allied_cities() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.create_city(1, 20, 20);
     let soldier = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 20);
@@ -927,7 +927,7 @@ fn breaking_an_alliance_removes_visitors_from_former_allied_cities() {
 
 #[test]
 fn treaty_lengths_and_cancellation_follow_selected_ruleset_effects() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.create_city(1, 20, 20);
 
@@ -965,7 +965,7 @@ fn treaty_lengths_and_cancellation_follow_selected_ruleset_effects() {
 
 #[test]
 fn senate_enforces_treaties_unless_provoked_or_waived() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 10);
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
     game.players[HUMAN].government = Government::Democracy;

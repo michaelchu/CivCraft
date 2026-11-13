@@ -38,13 +38,41 @@ The city manager now captures modal input and removes underlying HUD hitboxes. T
 
 ## Reproduce visual QA
 
+Visual QA requires a complete Civ III installation. `CIVCRAFT_SOURCE_DIR` must
+point to its root and that root must contain `Conquests/Art/Terrain`. If the
+variable is unset or the directory is unavailable, do not run `--ui-review` or
+baseline comparisons in that environment. Run the portable headless and Rust
+tests instead and report visual review as skipped, not passed. Baselines made
+with missing, fallback, generated, or partial assets are not valid substitutes.
+The executable also rejects a missing or invalid source directory, but agents
+should perform the preflight below rather than launching a review expected to
+fail during startup.
+
 From the app directory:
 
 ```sh
 export CIVCRAFT_SOURCE_DIR="$HOME/Documents/projects/CivCraft/source"
+test -d "$CIVCRAFT_SOURCE_DIR/Conquests/Art/Terrain"
 cargo build --offline --release
 ./target/release/civcraft --seed 42 --ui-review /tmp/civcraft-ui-review --window-size 1280x720
 ```
+
+Compare a run against an explicit baseline gallery with the perceptual hybrid
+metric from `image-compare`:
+
+```sh
+./target/release/civcraft --seed 42 \
+  --ui-review /tmp/civcraft-ui-review-current \
+  --ui-baseline /tmp/civcraft-ui-review-baseline \
+  --ui-min-similarity 0.99 --window-size 1280x720
+```
+
+Baseline files are never updated automatically. Every captured filename must
+exist in the baseline directory with identical dimensions. Similarity scores
+are recorded as `baseline_similarity` in `report.json`; a score below the
+threshold fails the run. Any non-identical image writes a `*-diff.png`
+visualization beside the current capture. The default threshold is `0.99` when
+`--ui-baseline` is used.
 
 The gallery covers 44 scenarios, including the campaign intro and three campaign flows built from an ordinary seeded new game. Those flows found a city, change worker allocation and restore it, change taxes, and end a turn through the real UI hit-testing and action-dispatch functions. The `diplomacy-negotiation` fixture first offers peace without compensation and verifies the rejection, then adds gold, resubmits, and checks that peace is signed and gold deducted. Other scenarios provide controlled examples for developed cities, diplomacy, first contact and war status, leader avatars, research, touching national borders, and six-direction rivers with lake outlets and fog; `report.json` identifies each scene as `campaign` or `fixture`.
 
@@ -62,7 +90,13 @@ For a quick on-demand check, select a scene by name:
 
 Every scene produces its primary screenshot. A `-next.png` is saved only after a control changes the page or campaign state; the runner verifies that the captured pixels changed too. Managed screenshots from an earlier run are cleared before capture, so old pages cannot masquerade as new results. Autosaves are disabled and, except for the go-to hover scenario, the gallery parks its virtual cursor outside the UI to keep captures independent of the OS pointer. Normal interactive play keeps its actual mouse hover behavior.
 
-`report.json` lists screenshots, assertions, CPU draw-submission timings, setup/capture timings and border-cache statistics. Failed checks, missing controls, out-of-window hitboxes, unchanged next-page captures and report-write failures return a nonzero exit status. `--ui-review` runs separately from `--self-test` and `--screenshot` to keep their state mutations independent. Missing automation-flag arguments fail rather than starting interactive play.
+`report.json` lists screenshots, assertions, optional baseline similarities,
+CPU draw-submission timings, setup/capture timings and border-cache statistics.
+Failed checks, baseline mismatches, missing controls, out-of-window hitboxes,
+unchanged next-page captures and report-write failures return a nonzero exit
+status. `--ui-review` runs separately from `--self-test` and `--screenshot` to
+keep their state mutations independent. Missing automation-flag arguments fail
+rather than starting interactive play.
 
 Repeat at 800x600 and 1600x900 to inspect compact and wide layouts. Run the desktop interaction suite separately:
 

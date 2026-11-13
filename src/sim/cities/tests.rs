@@ -17,7 +17,7 @@ fn kill_citizen_unit_kind() -> UnitKind {
 
 #[test]
 fn combat_population_loss_uses_killcitizen_and_selected_protection_effects() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 20, 24);
@@ -49,7 +49,7 @@ fn combat_population_loss_uses_killcitizen_and_selected_protection_effects() {
 
 #[test]
 fn combat_population_loss_respects_class_flags_and_bombard_effect_context() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 20, 24);
@@ -80,7 +80,7 @@ fn combat_population_loss_respects_class_flags_and_bombard_effect_context() {
 
 #[test]
 fn conquest_destroys_size_one_city_without_loot_or_transfer() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
@@ -101,7 +101,7 @@ fn conquest_destroys_size_one_city_without_loot_or_transfer() {
 
 #[test]
 fn conquest_transfers_city_loots_gold_raze_and_savepalace_by_selected_rules() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
@@ -175,7 +175,7 @@ fn conquest_transfers_city_loots_gold_raze_and_savepalace_by_selected_rules() {
 
 #[test]
 fn conquest_steals_an_available_technology_using_selected_effect_and_transfer_settings() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 20, 24);
@@ -211,7 +211,7 @@ fn conquest_steals_an_available_technology_using_selected_effect_and_transfer_se
 }
 
 fn conquest_fixture() -> (Simulation, u32, u32, (i32, i32)) {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let center = (20, 24);
@@ -244,7 +244,7 @@ fn conquest_fixture() -> (Simulation, u32, u32, (i32, i32)) {
 
 #[test]
 fn conquest_invokes_partisans_after_transfer_and_population_loss() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -603,7 +603,7 @@ fn conquest_rehomes_supported_units_in_old_cities_and_removes_other_outside_unit
 
 #[test]
 fn six_civilizations_found_capitals_then_use_unique_names_after_capture_and_loss() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     for owner in 0..PLAYER_COUNT {
         let civ = crate::rules::civilizations::by_id(
             game.players[owner].civilization_id.as_deref().unwrap(),
@@ -631,13 +631,13 @@ fn six_civilizations_found_capitals_then_use_unique_names_after_capture_and_loss
 
 #[test]
 fn lifecycle_cm_replaces_existing_workers_when_population_weights_change() {
-    let game = Simulation::new(crate::mapgen::generate(42));
+    let game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(game.city_worker_lifecycle_playtest(), (true, true, true));
 }
 
 #[test]
 fn city_events_preserve_other_manual_workers_and_normal_build_completion_does_not_arrange() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -668,7 +668,7 @@ fn city_events_preserve_other_manual_workers_and_normal_build_completion_does_no
 
 #[test]
 fn population_loss_removes_specialists_before_native_city_index_workers() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 12, 24);
     let city = &mut game.cities[0];
     let mut tiles: Vec<_> = Simulation::city_radius(city)
@@ -688,7 +688,7 @@ fn population_loss_removes_specialists_before_native_city_index_workers() {
 
 #[test]
 fn founding_consumes_the_unit_and_releases_its_guard_and_task_state() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
@@ -707,7 +707,7 @@ fn founding_consumes_the_unit_and_releases_its_guard_and_task_state() {
 
 #[test]
 fn desert_farmland_needs_a_food_bonus_and_supermarket_applies_to_worked_tiles() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (10, 20);
     game.tile_mut(x, y).terrain = Terrain::Grassland;
     game.create_city(HUMAN, x, y);
@@ -752,7 +752,7 @@ fn desert_farmland_needs_a_food_bonus_and_supermarket_applies_to_worked_tiles() 
 
 #[test]
 fn production_uses_population_before_growth() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
     let id = game.cities[0].id;
     let target = Production::Unit(UnitKind::Settler);
@@ -779,7 +779,7 @@ fn production_uses_population_before_growth() {
 
 #[test]
 fn completed_aqueduct_allows_growth_in_the_same_turn() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
     let (x, y) = offset_native_by_map(10, 20, 1, 0);
     game.tile_mut(x, y).terrain = Terrain::Lake;
@@ -796,7 +796,7 @@ fn completed_aqueduct_allows_growth_in_the_same_turn() {
 
 #[test]
 fn sewer_system_allows_growth_past_size_sixteen() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     game.create_city(HUMAN, 10, 20);
     game.cities[0]
@@ -831,7 +831,7 @@ fn sewer_system_allows_growth_past_size_sixteen() {
 
 #[test]
 fn c2c3_city_growth_limits_come_from_size_effects() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.cities.clear();
     game.create_city(HUMAN, 10, 20);
     assert_eq!(game.city_size_limit(&game.cities[0]), 8);
@@ -843,7 +843,7 @@ fn c2c3_city_growth_limits_come_from_size_effects() {
 
 #[test]
 fn ordinary_food_surplus_grows_city_and_food_deficit_shrinks_it() {
-    let mut growing = Simulation::new(crate::mapgen::generate(42));
+    let mut growing = Simulation::new(crate::test_support::seeded_map());
     growing.units.clear();
     growing.cities.clear();
     for tile in &mut growing.tiles {
@@ -865,7 +865,7 @@ fn ordinary_food_surplus_grows_city_and_food_deficit_shrinks_it() {
         .any(|city| city.id == id && city.size == 2);
     assert!(grew, "ordinary food surplus should grow a city");
 
-    let mut shrinking = Simulation::new(crate::mapgen::generate(42));
+    let mut shrinking = Simulation::new(crate::test_support::seeded_map());
     shrinking.units.clear();
     shrinking.cities.clear();
     for tile in &mut shrinking.tiles {
@@ -888,7 +888,7 @@ fn ordinary_food_surplus_grows_city_and_food_deficit_shrinks_it() {
 
 #[test]
 fn overlapping_cities_reserve_worked_tiles_and_release_them_on_reassignment() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     let second = offset_native_by_map(10, 20, 3, 0);
     game.create_city(HUMAN, 10, 20);

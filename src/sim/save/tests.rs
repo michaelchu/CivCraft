@@ -13,7 +13,7 @@ fn temporary_save(name: &str) -> std::path::PathBuf {
 #[test]
 fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     let path = temporary_save("save-round-trip");
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
     game.create_city(1, 20, 20);
     game.trade_routes.push(trade_routes::TradeRoute {
@@ -193,7 +193,7 @@ fn rejects_pre_p12_header_after_achievement_identity_format_change() {
 #[test]
 fn captured_city_history_and_nationalities_survive_save_load() {
     let path = temporary_save("captured-history-nationalities");
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
@@ -232,7 +232,7 @@ fn captured_city_history_and_nationalities_survive_save_load() {
 #[test]
 fn player_history_survives_city_destruction_and_save_load() {
     let path = temporary_save("national-history");
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.create_city(HUMAN, 10, 24);
@@ -278,7 +278,7 @@ fn old_save_headers_and_corrupt_current_payloads_are_rejected() {
 #[test]
 fn invalid_campaign_state_is_rejected_on_load() {
     let path = temporary_save("save-validation");
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(HUMAN, 10, 20);
     game.climate_current = [game.map_wrap.tile_count() as i32 + 1, 0];
     game.save_campaign(&path).unwrap();

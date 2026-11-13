@@ -4,14 +4,14 @@ use super::*;
 
 #[test]
 fn equal_yield_future_city_workers_and_reservations_follow_native_city_indices() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.settlement_reservation_order_playtest());
 }
 
 // A bounded island gives the real planners several valid destinations without
 // making every tile on the campaign map a settlement/work candidate.
 fn settlement_island() -> Simulation {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for index in 0..game.tiles.len() {
@@ -78,7 +78,7 @@ fn founder_can_choose_useful_work_over_a_positive_city_site_and_keeps_committed_
 
 #[test]
 fn founder_city_want_must_be_strictly_greater_than_actual_worker_want() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -102,13 +102,13 @@ fn founder_city_want_must_be_strictly_greater_than_actual_worker_want() {
 
 #[test]
 fn settlement_goal_government_desktop_fixture() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_settlement_goal_government_playtest());
 }
 
 #[test]
 fn exhausted_arriving_founder_keeps_its_mission_until_movement_refreshes() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -150,7 +150,7 @@ fn exhausted_arriving_founder_keeps_its_mission_until_movement_refreshes() {
 
 #[test]
 fn reservation_lifecycle_keeps_blocked_mission_but_releases_illegal_target() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -249,7 +249,7 @@ fn settlement_reservations_reduce_nearby_scores_and_separate_founders() {
 
 #[test]
 fn settlement_uses_goal_government_without_changing_live_government() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -291,7 +291,7 @@ fn settlement_uses_goal_government_without_changing_live_government() {
 
 #[test]
 fn rough_edges_use_remaining_movement_when_amortizing_a_city_site() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -319,7 +319,7 @@ fn rough_edges_use_remaining_movement_when_amortizing_a_city_site() {
 
 #[test]
 fn a_virtual_city_does_not_invent_road_trade_on_a_bare_river() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.create_city(1, 4, 12);
     let mut city = game.cities[0].clone();
     city.x = 10;
@@ -340,6 +340,6 @@ fn a_virtual_city_does_not_invent_road_trade_on_a_bare_river() {
 
 #[test]
 fn settlement_values_use_per_tile_rounding_reservations_and_actual_output() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_settlement_value_playtest());
 }

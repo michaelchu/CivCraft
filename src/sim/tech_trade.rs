@@ -391,7 +391,7 @@ mod arithmetic_tests {
     }
 
     #[test]
-    fn technology_transfer_uses_the_configured_receiver_loss_chance() {
+    fn full_receiver_loss_chance_rejects_transfer_but_still_consumes_rng() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let mut expected = sim.clone();
         let roll = expected.rand_below(100);
