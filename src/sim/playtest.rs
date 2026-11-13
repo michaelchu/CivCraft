@@ -284,30 +284,68 @@ mod ai_integration_tests {
     }
 
     #[test]
-    fn integrated_advisor_scenarios() {
-        let fresh = || Simulation::new(crate::mapgen::generate(42));
-        let government = fresh().ai_government_playtest();
-        let ferry = fresh().ferry_research_playtest();
-        assert_eq!(government, (true, true, true, true));
-        assert_eq!(ferry, (true, true, true));
-        assert!(fresh().civilian_upgrade_roster_playtest());
-        assert!(fresh().ai_growth_expansion_playtest());
-        let (source_defender, _safe_city_choice, urgent_response) =
-            fresh().ai_city_defense_playtest();
-        assert!(source_defender && urgent_response);
-        assert!(fresh().ai_threat_route_cost_playtest());
-        assert!(fresh().ai_ground_invasion_playtest());
-        assert!(fresh().ai_aircraft_advisor_playtest());
-        // Nuclear legality and imported Tactical Nuke gates have dedicated
-        // mechanics tests; target/launch ranking is not a manual-defined rule.
-        assert_eq!(
-            UnitKind::TacticalNuke.required_tech(),
-            Some(Tech::SPACE_FLIGHT)
+    fn government_scenario_checks_research_revolution_choice_and_completion() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        let (research, locked, chose, completed) = game.ai_government_playtest();
+        assert!(research, "government research goal");
+        assert!(
+            locked,
+            "Monarchy stays locked until its technology is known"
         );
-        assert_eq!(
-            UnitKind::TacticalNuke.required_resources(),
-            vec![Resource::Aluminum, Resource::Uranium]
+        assert!(chose, "government chosen");
+        assert!(completed, "revolution completes and keeps Monarchy");
+    }
+
+    #[test]
+    fn ferry_research_scenario_checks_inland_coastal_and_completed_research() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        let (inland, coastal, researched) = game.ferry_research_playtest();
+        assert!(inland, "inland city must not demand ferry research");
+        assert!(coastal, "coastal city must demand ferry research");
+        assert!(researched, "ferry technology research completes");
+    }
+
+    #[test]
+    fn civilian_upgrade_scenario_has_no_paid_worker_or_settler_successor() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        assert!(game.civilian_upgrade_roster_playtest());
+    }
+
+    #[test]
+    fn city_defense_scenario_checks_source_defender_and_urgent_response() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        let (source_defender, _safe_city_choice, urgent_response) = game.ai_city_defense_playtest();
+        assert!(source_defender, "source defender selection");
+        assert!(urgent_response, "urgent defense response");
+    }
+
+    #[test]
+    fn threat_route_scenario_checks_hostile_city_entry_cost() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        assert!(game.ai_threat_route_cost_playtest());
+    }
+
+    #[test]
+    fn ground_invasion_scenario_checks_a_distant_assigned_occupation_force() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        assert!(game.ai_ground_invasion_playtest());
+    }
+
+    #[test]
+    fn aircraft_scenario_checks_fuel_range_and_oil_requirement() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        assert!(game.ai_aircraft_advisor_playtest());
+    }
+
+    #[test]
+    fn fighter_scenario_checks_no_interception_range_limit_and_refuelling() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        let (no_interception, range_limit, refuelled) = game.ai_fighter_playtest();
+        assert!(no_interception, "no unsupported interception");
+        assert!(
+            range_limit,
+            "distant target remains outside operational range"
         );
-        assert_eq!(fresh().ai_fighter_playtest(), (true, true, true));
+        assert!(refuelled, "aircraft refuels at its base");
     }
 }

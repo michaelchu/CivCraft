@@ -61,6 +61,9 @@ For individual timing output, the standard Rust test harness also supports
 
 ## Existing assertion failures
 
+The advisor aggregate was later split during the [test-value review](TEST_VALUE_REVIEW.md).
+Its existing failure now appears under the standalone ferry-research name below.
+
 - `mapgen::tests::default_worlds_match_civcraft_resource_goldens`
 - `mapgen::tests::freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology`
 - `mapgen::tests::freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain`
@@ -76,7 +79,7 @@ For individual timing output, the standard Rust test harness also supports
 - `sim::output_effects::city_output_tests::celebration_trade_uses_prior_happiness_while_tile_penalty_uses_rapture_history`
 - `sim::output_effects::city_output_tests::shared_city_output_desktop_fixture`
 - `sim::playtest::ai_integration_tests::despotism_upkeep_playtest_charges_gold_in_isolated_state`
-- `sim::playtest::ai_integration_tests::integrated_advisor_scenarios`
+- `sim::playtest::ai_integration_tests::ferry_research_scenario_checks_inland_coastal_and_completed_research`
 - `sim::playtest::ai_integration_tests::shakespeares_theater_trade_effect_is_local_and_enduring`
 - `sim::research_phase::unset_goal_roundtrips_without_becoming_an_invention_or_current_target`
 - `sim::tests::new_game_advances_freeciv_post_mapgen_rng_and_keeps_civ3_assignments`

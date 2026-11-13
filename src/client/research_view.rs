@@ -369,11 +369,16 @@ mod tests {
         let tree = ResearchTree::new();
         let branch = tree.ancestors(Tech::COMPUTERS);
 
+        let critical: Vec<_> = Tech::all()
+            .filter(|tech| tech.era() < TechEra::Modern && tech.required_for_civ3_era())
+            .collect();
         assert!(
-            Tech::all()
-                .filter(|tech| tech.era() < TechEra::Modern && tech.required_for_civ3_era())
-                .all(|tech| branch.contains(&tech))
+            !critical.is_empty(),
+            "fixture must exercise earlier-era requirements"
         );
+        for tech in critical {
+            assert!(branch.contains(&tech), "missing critical advance {tech:?}");
+        }
         assert!(branch.contains(&Tech::COMPUTERS));
     }
 

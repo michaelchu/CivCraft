@@ -14,12 +14,8 @@ fn native_hunter_roles_and_combat_values_match_imported_conquests_rules() {
     let icbm = UnitKind::ICBM.stats();
     assert_eq!((cruise.attack, cruise.defense, cruise.moves), (0, 0, 1));
     assert_eq!((icbm.attack, icbm.defense, icbm.moves), (0, 0, 1));
-    assert!(UnitKind::ALL_NATIVE.iter().all(|kind| {
-        let rule = kind.conquests_rule();
-        kind.stats().cost == rule.cost
-            && kind.stats().attack == rule.attack
-            && kind.stats().defense == rule.defense
-    }));
+    // Full-roster stat wiring is checked by unit_catalog::tests::
+    // active_catalog_is_the_source_order_and_upgrades_use_conquests_links.
 }
 
 #[test]

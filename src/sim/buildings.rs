@@ -603,13 +603,28 @@ mod transaction_tests {
     use super::*;
 
     #[test]
-    fn foreign_nationality_does_not_block_rush_production() {
-        let mut game = Simulation::new(crate::mapgen::generate(42));
-        game.create_city(HUMAN, 24, 15);
-        game.turn += 1;
-        game.cities[0].foreign_citizens = vec![(1, 1)];
-
-        assert!(game.rush_cost(&game.cities[0]).is_some());
+    fn foreign_nationality_preserves_rush_cost_and_command_effects() {
+        let mut domestic = Simulation::new(crate::test_support::seeded_map());
+        domestic.create_city(HUMAN, 24, 15);
+        domestic.turn += 1;
+        let id = domestic.cities[0].id;
+        let expected_cost = domestic
+            .rush_cost(&domestic.cities[0])
+            .expect("rushable domestic fixture");
+        domestic.players[HUMAN].gold = expected_cost + 17;
+        let mut foreign = domestic.clone();
+        foreign.cities[0].foreign_citizens = vec![(1, 1)];
+        assert_eq!(foreign.rush_cost(&foreign.cities[0]), Some(expected_cost));
+        for game in [&mut domestic, &mut foreign] {
+            assert!(game.apply(Command::RushProduction(id)));
+            assert_eq!(game.cities[0].shields, game.cities[0].production.cost());
+            assert!(game.cities[0].bought_production);
+            assert_eq!(game.players[HUMAN].gold, 17);
+            assert!(
+                !game.apply(Command::RushProduction(id)),
+                "cannot rush twice"
+            );
+        }
     }
 
     #[test]
