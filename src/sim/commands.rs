@@ -119,19 +119,14 @@ impl Simulation {
             Airlift(id, city) => self.airlift(id, city),
             Work(id, kind) => self.begin_work(id, kind),
             Fortify(id) => self.fortify_unit(id),
-            Wait(_) | Sentry(_) => {
+            Wait(_) => {
                 let unit = &mut self.units[unit_index.unwrap()];
                 unit.moves_left = 0;
-                unit.state = if matches!(command, Wait(_)) {
-                    UnitState::Idle
-                } else {
-                    UnitState::Sentry
-                };
-                if matches!(command, Wait(_)) {
-                    self.add_event("Unit waits until next turn.");
-                }
+                unit.state = UnitState::Idle;
+                self.add_event("Unit waits until next turn.");
                 true
             }
+            Sentry(id) => self.set_unit_sentry(id),
             Automate(_) => {
                 let unit = &mut self.units[unit_index.unwrap()];
                 // common/unit.c: ACTIVITY_EXPLORE excludes fuelled types and

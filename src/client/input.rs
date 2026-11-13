@@ -153,9 +153,10 @@ impl Game {
             && let Some(id) = self.selected_unit
             && let Some(view) = self.sim.unit_action_view(id)
         {
-            self.sim.apply(Command::Sentry(id));
-            self.notify(format!("{} is now on sentry duty.", view.unit_name));
-            self.select_next_unit();
+            if self.sim.apply(Command::Sentry(id)) {
+                self.notify(format!("{} is now on sentry duty.", view.unit_name));
+                self.select_next_unit();
+            }
         }
         if is_key_pressed(KeyCode::Space) {
             self.perform_action(UiAction::Wait);

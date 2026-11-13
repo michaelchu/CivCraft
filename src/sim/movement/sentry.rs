@@ -3,6 +3,24 @@
 use super::*;
 
 impl Simulation {
+    pub(in crate::sim) fn set_unit_sentry(&mut self, unit_id: u32) -> bool {
+        let Some(unit) = self.unit_by_id(unit_id).cloned() else {
+            return false;
+        };
+        if unit.state == UnitState::Sentry
+            || (unit.transport.is_none() && !self.unit_can_survive_at_tile(&unit, unit.x, unit.y))
+        {
+            return false;
+        }
+        let Some(unit) = self.units.iter_mut().find(|unit| unit.id == unit_id) else {
+            return false;
+        };
+        unit.clear_work();
+        unit.moves_left = 0;
+        unit.state = UnitState::Sentry;
+        true
+    }
+
     pub(in crate::sim) fn wake_neighbor_sentries(&mut self, unit_id: u32) {
         let Some(moving) = self.unit_by_id(unit_id).cloned() else {
             return;
@@ -146,6 +164,50 @@ mod tests {
             .unwrap();
 
         game.spawn_unit(HUMAN, UnitKind::Warrior, adjacent.0, adjacent.1);
+        assert_eq!(game.unit_by_id(sentry).unwrap().state, UnitState::Sentry);
+    }
+
+    #[test]
+    fn sentry_command_rejects_units_that_cannot_survive_on_their_tile() {
+        let mut game = flat_map();
+        let fighter = game.spawn_unit(HUMAN, UnitKind::Fighter, 10, 20);
+        let unit = game.unit_by_id(fighter).unwrap().clone();
+        assert!(!game.unit_can_survive_at_tile(&unit, unit.x, unit.y));
+
+        assert!(!game.apply(crate::sim::Command::Sentry(fighter)));
+        let unit = game.unit_by_id(fighter).unwrap();
+        assert_eq!(unit.state, UnitState::Idle);
+        assert!(unit.moves_left > 0);
+    }
+
+    #[test]
+    fn sentry_command_clears_work_and_consumes_remaining_movement() {
+        let mut game = flat_map();
+        let worker = game.spawn_unit(HUMAN, UnitKind::Worker, 10, 20);
+        let unit = game.unit_by_id(worker).unwrap();
+        assert!(unit.moves_left > 0);
+        let unit = game
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == worker)
+            .unwrap();
+        unit.work_kind = Some(WorkKind::Road);
+        unit.work_left = 3;
+
+        assert!(game.apply(crate::sim::Command::Sentry(worker)));
+        let unit = game.unit_by_id(worker).unwrap();
+        assert_eq!(unit.state, UnitState::Sentry);
+        assert_eq!(unit.moves_left, 0);
+        assert_eq!(unit.work_left, 0);
+        assert_eq!(unit.work_kind, None);
+    }
+
+    #[test]
+    fn sentry_command_rejects_a_unit_already_on_sentry() {
+        let mut game = flat_map();
+        let sentry = place_sentry(&mut game, (10, 20));
+
+        assert!(!game.apply(crate::sim::Command::Sentry(sentry)));
         assert_eq!(game.unit_by_id(sentry).unwrap().state, UnitState::Sentry);
     }
 }
