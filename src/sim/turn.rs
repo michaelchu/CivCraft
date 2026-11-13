@@ -61,7 +61,7 @@ impl Simulation {
                 continue;
             }
             self.run_ai_worker_phase(owner);
-            if owner != HUMAN {
+            if self.players[owner].ai {
                 self.run_ai_last_activities(owner);
             }
         }
@@ -149,8 +149,8 @@ impl Simulation {
     /// Runs Freeciv's `ai_start_phase()` for the campaign civilizations after
     /// unit activities, movement-point refresh, and visibility have updated.
     fn run_civilization_begin_phase_ai(&mut self) {
-        for owner in 1..self.civilization_count {
-            if self.run_ai_player_planning(owner) {
+        for owner in 0..self.civilization_count {
+            if self.players[owner].ai && self.run_ai_player_planning(owner) {
                 self.prune_ai_player_units();
             }
         }
@@ -413,14 +413,24 @@ impl Simulation {
         if self.game_over.is_some() {
             return;
         }
-        if !self.player_alive(HUMAN) {
+        let ai_only = self.players[HUMAN].ai;
+        if !self.player_alive(HUMAN) && !ai_only {
             self.game_over = Some("Your civilization has passed into history.".to_owned());
             return;
         }
-        let rival_survives =
-            (0..self.civilization_count).any(|owner| owner != HUMAN && self.player_alive(owner));
-        if !rival_survives {
-            self.game_over = Some("The world is united beneath your banner.".to_owned());
+        let living = (0..self.civilization_count)
+            .filter(|&owner| self.player_alive(owner))
+            .count();
+        if (ai_only && living <= 1)
+            || (!ai_only
+                && !(0..self.civilization_count)
+                    .any(|owner| owner != HUMAN && self.player_alive(owner)))
+        {
+            self.game_over = Some(if ai_only {
+                "One civilization remains.".to_owned()
+            } else {
+                "The world is united beneath your banner.".to_owned()
+            });
         }
     }
 }
