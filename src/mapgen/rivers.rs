@@ -3,6 +3,10 @@
 use super::temperature::TemperatureMap;
 use super::*;
 
+fn is_ocean(terrain: Terrain) -> bool {
+    matches!(terrain, Terrain::Coast | Terrain::Sea)
+}
+
 /// Source-derived density and spring elevation values for the Freeciv path.
 /// The two Freeciv terrain percentages share the same `adjust_terrain_param`
 /// inputs and map-size-adjusted polar term as the terrain pass.
@@ -85,6 +89,10 @@ impl super::Generator {
                 self.lowland(),
             )
         };
+        // Prefer upland springs for the first part of placement. Relax back
+        // to the ruleset's lowland threshold later so river density remains
+        // possible on flatter maps.
+        let spring_elevation = lowland + (1000 - lowland).max(0) / 3;
         const MAX_TRIES: i32 = 32_767;
         let mut count = 0;
         for attempt in 0..MAX_TRIES {
@@ -95,6 +103,7 @@ impl super::Generator {
                 !tiles[tile].terrain.is_water()
                     && !tiles[tile].river
                     && heights[tile] >= lowland
+                    && (attempt >= MAX_TRIES / 2 || heights[tile] >= spring_elevation)
                     && freeciv_temperature
                         .map(|map| map.get(tile).is_not_frozen())
                         .unwrap_or(temperature[tile] >= VERY_COLD)
@@ -181,7 +190,7 @@ impl super::Generator {
         };
         let outlet = self
             .river_neighbors(last)
-            .filter(|&next| tiles[next].terrain.is_water() || tiles[next].river)
+            .filter(|&next| is_ocean(tiles[next].terrain) || tiles[next].river)
             .min_by_key(|&next| (heights[next], next));
         if let Some(outlet) = outlet {
             if tiles[outlet].terrain.is_water() {
@@ -315,13 +324,7 @@ impl super::Generator {
                 .any(|next| tiles[next].river)
                 || self
                     .freeciv_river_neighbors(current)
-                    .any(|next| tiles[next].terrain.is_water())
-                || (self.freeciv_terrain_property(
-                    tiles[current].terrain,
-                    terrain_properties,
-                    |properties| properties.frozen,
-                ) > 0
-                    && self.colatitude(current) * 5 < 4 * COLD)
+                    .any(|next| is_ocean(tiles[next].terrain))
             {
                 return Some(course);
             }
@@ -360,6 +363,7 @@ impl super::Generator {
         rng: &mut MapRng,
     ) -> Option<usize> {
         let mut candidates: Vec<_> = self.freeciv_river_neighbors(current).collect();
+        candidates.retain(|&tile| !tiles[tile].terrain.is_water());
         if candidates.is_empty() {
             return None;
         }
@@ -394,7 +398,7 @@ impl super::Generator {
                     // renderable Civ III course neighbors.
                     3 => {
                         100 - self.adjacent_percentage(&course_neighbors, |next| {
-                            tiles[next].terrain.is_water()
+                            is_ocean(tiles[next].terrain)
                         })
                     }
                     // river_test_adjacent_river counts cardinal neighbors in
@@ -493,7 +497,12 @@ impl super::Generator {
         let mut current = spring;
         let water_count = |tile| {
             self.river_neighbors(tile)
-                .filter(|&next| tiles[next].terrain.is_water())
+                .filter(|&next| is_ocean(tiles[next].terrain))
+                .count()
+        };
+        let lake_count = |tile| {
+            self.river_neighbors(tile)
+                .filter(|&next| tiles[next].terrain.is_water() && !is_ocean(tiles[next].terrain))
                 .count()
         };
         let river_count = |tile| {
@@ -503,17 +512,14 @@ impl super::Generator {
         };
         loop {
             course.push(current);
-            if water_count(current) > 0
-                || river_count(current) > 0
-                || (tiles[current].terrain == Terrain::Tundra
-                    && self.colatitude(current) * 5 < 4 * COLD)
-            {
+            if water_count(current) > 0 || river_count(current) > 0 {
                 return Some(course);
             }
             let score = |next: usize| {
                 (
                     Self::mountainous(tiles[next].terrain),
                     std::cmp::Reverse(water_count(next)),
+                    lake_count(next),
                     std::cmp::Reverse(river_count(next)),
                     self.civ3_neighbors(next)
                         .map(|tile| Self::mountainous(tiles[tile].terrain))
@@ -530,7 +536,8 @@ impl super::Generator {
             let mut candidates: Vec<_> = self
                 .river_neighbors(current)
                 .filter(|&next| {
-                    !blocked[next]
+                    !tiles[next].terrain.is_water()
+                        && !blocked[next]
                         && river_count(next) <= 1
                         && self.river_neighbors(next).any(|tile| !blocked[tile])
                 })

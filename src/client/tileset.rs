@@ -2089,10 +2089,19 @@ impl Civ3 {
         ) else {
             return;
         };
-        let has_water = [north, east, south, west]
-            .into_iter()
-            .any(|tile| tile.seen && tile.terrain.is_water());
-        let texture = match super::rivers::civ3_river_sheet(index, has_water) {
+        // A nearby water tile is not enough to make this a river mouth: that
+        // promoted every coastal junction to a delta. The mouth is the tile
+        // whose own river edge crosses into water; this also keeps the fan
+        // anchored to the shoreline tile rather than its offshore neighbor.
+        let is_mouth = !west.terrain.is_water()
+            && (0..8).any(|direction| {
+                west.river_edges & (1 << direction) != 0
+                    && wrap.civ3_neighbor(x, y, direction).is_some_and(|(nx, ny)| {
+                        let neighbor = game.sim.render_tile_view(nx, ny);
+                        neighbor.seen && neighbor.terrain.is_water()
+                    })
+            });
+        let texture = match super::rivers::civ3_river_sheet(index, is_mouth) {
             Civ3RiverSheet::Delta => &self.river_delta,
             Civ3RiverSheet::Mountain => &self.river_mountain,
         };

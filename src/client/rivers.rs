@@ -26,12 +26,12 @@ pub(super) fn civ3_junction_index(north: u8, east: u8, south: u8, west: u8) -> O
     (index != 0 || point).then_some(index)
 }
 
-pub(super) fn civ3_river_sheet(index: usize, has_water: bool) -> Civ3RiverSheet {
+pub(super) fn civ3_river_sheet(index: usize, is_mouth: bool) -> Civ3RiverSheet {
     let diagonal_only = matches!(index, 1 | 2 | 4 | 8);
-    if diagonal_only && !has_water {
-        Civ3RiverSheet::Mountain
-    } else {
+    if diagonal_only && is_mouth {
         Civ3RiverSheet::Delta
+    } else {
+        Civ3RiverSheet::Mountain
     }
 }
 
@@ -73,9 +73,9 @@ mod tests {
     }
 
     #[test]
-    fn civ3_selects_delta_art_at_water_mouths_and_mountain_art_inland() {
+    fn civ3_selects_delta_art_only_for_actual_mouth_junctions() {
         assert_eq!(civ3_river_sheet(1, true), Civ3RiverSheet::Delta);
         assert_eq!(civ3_river_sheet(1, false), Civ3RiverSheet::Mountain);
-        assert_eq!(civ3_river_sheet(3, false), Civ3RiverSheet::Delta);
+        assert_eq!(civ3_river_sheet(3, true), Civ3RiverSheet::Mountain);
     }
 }

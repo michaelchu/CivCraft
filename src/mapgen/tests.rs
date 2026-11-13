@@ -298,7 +298,7 @@ fn freeciv_ocean_depth_stages_use_height_and_the_civ3_wrap_topology() {
 }
 
 #[test]
-fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
+fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
     let generator = Generator {
         wrap: MapWrap::X,
         settings: Civ3WorldSettings::default(),
@@ -428,7 +428,6 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
             while cursor < course.len() {
                 let current = course[cursor];
                 assert!(!tiles[current].terrain.is_water());
-                has_outlet |= tiles[current].terrain == Terrain::Tundra;
                 for next in (Generator {
                     wrap: MapWrap::X,
                     settings: Civ3WorldSettings::default(),
@@ -436,7 +435,7 @@ fn generated_rivers_reach_water_or_the_poles_and_resources_are_spaced() {
                 })
                 .civ3_neighbors(current)
                 {
-                    has_outlet |= tiles[next].terrain.is_water();
+                    has_outlet |= matches!(tiles[next].terrain, Terrain::Coast | Terrain::Sea);
                     if tiles[next].river && !visited[next] {
                         visited[next] = true;
                         course.push(next);
@@ -705,7 +704,7 @@ fn freeciv_spring_filters_apply_adjacent_and_relaxed_terrain_thresholds() {
 }
 
 #[test]
-fn freeciv_river_blocking_is_fatal_and_endings_use_renderable_ocean_or_frozen_tiles() {
+fn freeciv_river_blocking_is_fatal_and_rivers_continue_through_frozen_terrain() {
     let wrap = MapWrap::X;
     let (generator, mut tiles, properties) = freeciv_river_test_map(wrap, Terrain::Grassland);
     let current = wrap.index(8, 10);
@@ -737,22 +736,22 @@ fn freeciv_river_blocking_is_fatal_and_endings_use_renderable_ocean_or_frozen_ti
             &mut MapRng::new(6),
         ),
         Some(vec![spring]),
-        "a course-neighbor ocean tile ends the river"
+        "a course-neighbor coast tile ends the river"
     );
 
     tiles[wrap.index(ocean_x, ocean_y)].terrain = Terrain::Grassland;
     let polar_glacier = wrap.index(9, 0);
     tiles[polar_glacier].terrain = Terrain::Glacier;
-    assert_eq!(
-        generator.trace_river(
-            &tiles,
-            &heights,
-            polar_glacier,
-            Some(&properties),
-            &mut MapRng::new(7),
-        ),
-        Some(vec![polar_glacier]),
-        "C2C3 Frozen property ends a river in the polar band"
+    let glacier_course = generator.trace_river(
+        &tiles,
+        &heights,
+        polar_glacier,
+        Some(&properties),
+        &mut MapRng::new(7),
+    );
+    assert!(
+        glacier_course.is_some_and(|course| course.len() > 1),
+        "frozen terrain must not terminate a river before it reaches an outlet"
     );
 }
 
