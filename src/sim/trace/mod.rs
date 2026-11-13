@@ -158,7 +158,11 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::{mapgen, sim::Simulation};
+    use crate::{
+        random::FreecivRng,
+        sim::Simulation,
+        world::{GeneratedMap, GeneratedTile, Terrain, TerrainBase, topology::MapWrap},
+    };
     #[derive(Serialize)]
     struct Example {
         value: i32,
@@ -182,12 +186,35 @@ mod integration_tests {
     }
     #[test]
     fn tracing_and_observation_leave_campaign_and_random_state_unchanged() {
-        let map = mapgen::generate_for_civ3_size(42, mapgen::Civ3MapSize::Tiny, Default::default());
+        // Two civilizations on a small, deterministic world exercise the real
+        // turn orchestrator without a 3,600-tile campaign's AI search cost.
+        let map_wrap = MapWrap::with_dimensions(16, 16).unwrap();
+        let map = GeneratedMap {
+            seed: 42,
+            map_seed: 42,
+            map_wrap,
+            game_random: FreecivRng::new(42),
+            tiles: vec![
+                GeneratedTile {
+                    terrain: Terrain::Grassland,
+                    base_terrain: TerrainBase::Grassland,
+                    altitude: 100,
+                    hut: false,
+                    river: false,
+                    river_edges: 0,
+                    resource: None,
+                };
+                map_wrap.tile_count()
+            ],
+            starts: vec![(3, 4), (11, 12)],
+            civilization_count: 2,
+        };
         let mut plain = Simulation::new(map);
         plain.enable_all_civilizations_as_ai();
         let mut traced = plain.clone();
         traced.trace = Collector::enabled(BTreeSet::from(["*".into()]), 10000);
         let mut event_count = 0;
+        let mut event_kinds = BTreeSet::new();
         for _ in 0..3 {
             plain.simulate_turn();
             traced.simulate_turn();
@@ -202,9 +229,13 @@ mod integration_tests {
                 bincode::serialize(&plain.native_random).unwrap(),
                 bincode::serialize(&traced.native_random).unwrap()
             );
-            event_count += traced.trace.drain().len();
+            let events = traced.trace.drain();
+            event_count += events.len();
+            event_kinds.extend(events.into_iter().map(|event| event.kind));
         }
         assert!(event_count > 0);
+        assert!(event_kinds.contains("settlement.city_founded"));
+        assert!(event_kinds.contains("cities.growth_applied"));
         let bytes = bincode::serialize(&traced).unwrap();
         let mut loaded: Simulation = bincode::deserialize(&bytes).unwrap();
         assert!(!loaded.trace.wants::<Example>());

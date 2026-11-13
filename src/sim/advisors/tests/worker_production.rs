@@ -3,7 +3,7 @@
 use super::*;
 
 fn worker_advisor_city(food_positive: bool) -> (Simulation, u32) {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.players[1].known = [Tech::POTTERY, Tech::ENGINEERING, Tech::ELECTRICITY].to_vec();

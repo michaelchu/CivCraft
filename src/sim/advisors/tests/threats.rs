@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn a_reachable_enemy_raises_demand_for_a_defender_upgrade() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.players[HUMAN].known = vec![Tech::BRONZE_WORKING];
     game.players[1].known.clear();
     let (x, y) = (20, 20);
@@ -33,7 +33,7 @@ fn a_reachable_enemy_raises_demand_for_a_defender_upgrade() {
 
 #[test]
 fn defender_forecast_preserves_stronger_veterans_and_production_heals_estimates() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
@@ -63,7 +63,7 @@ fn defender_forecast_preserves_stronger_veterans_and_production_heals_estimates(
 
 #[test]
 fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -104,7 +104,7 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
 
 #[test]
 fn threat_arrival_uses_source_pf_floor_and_retains_road_turn_zero() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -161,13 +161,13 @@ fn threat_arrival_uses_source_pf_floor_and_retains_road_turn_zero() {
 
 #[test]
 fn transported_troops_and_paradrops_enter_city_danger_without_illegal_moves() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_embarked_paradrop_danger_playtest());
 }
 
 #[test]
 fn cargo_danger_forecast_accounts_for_transport_capacity_and_disembark() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -196,7 +196,7 @@ fn cargo_danger_forecast_accounts_for_transport_capacity_and_disembark() {
 
 #[test]
 fn paradrop_estimate_uses_source_integer_range_and_full_movement_assumption() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -228,7 +228,7 @@ fn paradrop_estimate_uses_source_integer_range_and_full_movement_assumption() {
 
 #[test]
 fn danger_counter_choice_assumes_the_next_full_turn_without_mutating_the_enemy() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_embarked_paradrop_danger_playtest());
     game.players[1].known.extend(Tech::all());
     let (sx, sy) = offset_native_by_map(game.cities[0].x, game.cities[0].y, -1, 0);

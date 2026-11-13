@@ -2,7 +2,7 @@
 
 #[test]
 fn railroad_research_upgrades_centers_and_enables_worker_tracks() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let worker = game
         .units
         .iter()
@@ -124,7 +124,7 @@ fn native_and_map_coordinates_round_trip() {
 
 #[test]
 fn new_game_advances_freeciv_post_mapgen_rng_and_keeps_civ3_assignments() {
-    let map = crate::mapgen::generate(42);
+    let map = crate::test_support::seeded_map();
     let starts = map.starts.clone();
     let mut expected_starts = starts.clone();
     let expected_roster = crate::rules::civilizations::select_roster(map.seed, MAX_CIVILIZATIONS);
@@ -220,7 +220,7 @@ fn new_game_advances_freeciv_post_mapgen_rng_and_keeps_civ3_assignments() {
 
 #[test]
 fn civilization_ai_plans_after_begin_phase_restores_movement_points() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -254,7 +254,7 @@ fn isohex_neighbors_and_wrapping_match_freeciv_distance() {
     for &(start_x, start_y) in &[
         (0, 0),
         (MAP_W - 1, MAP_H - 1),
-        crate::mapgen::generate(42).starts[0],
+        crate::test_support::seeded_map().starts[0],
     ] {
         let mut neighbors = Vec::new();
         for (dx, dy) in ISOHEX_DIRS {
@@ -279,14 +279,14 @@ fn generated_world_uses_reference_dimensions_and_start_positions() {
     assert_eq!(MAP_TARGET_TILES, 2_000);
     assert_eq!(MAP_LINEAR_SCALE, 6);
     assert_eq!((MAP_W, MAP_H), (36, 48));
-    let first = crate::mapgen::generate(42);
+    let first = crate::test_support::seeded_map();
     let terrain = |map: &crate::mapgen::GeneratedMap| {
         map.tiles
             .iter()
             .map(|tile| (tile.terrain, tile.river, tile.resource))
             .collect::<Vec<_>>()
     };
-    let replay = crate::mapgen::generate(42);
+    let replay = crate::test_support::seeded_map();
     assert_eq!(terrain(&first), terrain(&replay));
     assert_eq!(first.starts, replay.starts);
     assert_ne!(terrain(&first), terrain(&crate::mapgen::generate(12345)));
@@ -307,7 +307,7 @@ fn generated_world_uses_reference_dimensions_and_start_positions() {
 
 #[test]
 fn wrapped_path_uses_one_legal_civ3_step() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
     }
@@ -321,7 +321,7 @@ fn wrapped_path_uses_one_legal_civ3_step() {
 
 #[test]
 fn healing_uses_city_minimum_and_fortified_regeneration() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let (x, y) = (10, 20);
     game.tile_mut(x, y).terrain = Terrain::Grassland;
     game.tile_mut(x, y).base = None;
@@ -354,7 +354,7 @@ fn healing_uses_city_minimum_and_fortified_regeneration() {
 
 #[test]
 fn player_restore_wires_selected_aircraft_recovery_and_fuel_sites() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -425,8 +425,8 @@ fn player_restore_wires_selected_aircraft_recovery_and_fuel_sites() {
 
 #[test]
 fn defense_stages_and_research_costs_match_civ2civ3() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    let (x, y) = crate::mapgen::generate(42).starts[0];
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let (x, y) = crate::test_support::seeded_map().starts[0];
     game.tile_mut(x, y).terrain = Terrain::Forest;
     game.tile_mut(x, y).river = false;
     game.tile_mut(x, y).river_edges = 0;
@@ -462,7 +462,7 @@ fn combat_odds_and_defender_selection_match_native_rules() {
     let even_fight = combat_win_chance(10, 10, 1, 10, 10, 1);
     assert!((even_fight - 0.5).abs() < 1.0e-12);
 
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     let mut attacker = Unit::new(1, HUMAN, UnitKind::Warrior, 0, 0);
@@ -526,7 +526,7 @@ fn granary_formula_uses_ruleset_initial_values_and_foodbox() {
 
 #[test]
 fn famine_destroys_size_one_city() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     let settler = game
         .units
         .iter()
@@ -547,8 +547,8 @@ fn famine_destroys_size_one_city() {
 
 #[test]
 fn irrigation_uses_ruleset_water_enablers_and_conflicts_with_mines() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    let (x, y) = crate::mapgen::generate(42).starts[0];
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let (x, y) = crate::test_support::seeded_map().starts[0];
     game.tile_mut(x, y).terrain = Terrain::Hills;
     game.tile_mut(x, y).river = false;
     let adjacent: Vec<_> = game.map_wrap.civ3_neighbors(x, y).collect();

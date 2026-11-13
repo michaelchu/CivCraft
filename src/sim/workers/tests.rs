@@ -3,7 +3,7 @@
 use super::*;
 
 fn game() -> Simulation {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.diplomacy.clear();
@@ -75,7 +75,7 @@ fn only_the_imported_worker_has_worker_action_flags() {
 
 #[test]
 fn sea_worker_routes_reject_known_land_and_use_native_unknown_terrain_cost() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     for tile in &mut game.tiles {
@@ -231,11 +231,22 @@ fn same_worker_task_preserves_goal_and_displaced_null_goal_is_not_recreated() {
 }
 
 #[test]
-fn idle_default_ai_worker_stays_put_while_human_automation_seeks_shelter() {
+fn idle_default_ai_worker_stays_put_without_generic_shelter_fallback() {
     let mut game = game();
-    assert_eq!(game.ai_worker_planning_playtest(), (true, true, true));
-    game.units.clear();
-    game.cities[0].owner = 1;
+    // The remote-plan/reservation/human-shelter scenario is covered above.
+    // Build just its job-free end state for this distinct AI fallback check.
+    for tile in &mut game.tiles {
+        tile.road = true;
+        tile.irrigation = true;
+        tile.farmland = true;
+        tile.mine = true;
+        tile.oil_well = false;
+    }
+    game.create_city(1, 20, 20);
+    for tile in &mut game.tiles {
+        tile.owner = None;
+    }
+    game.players[HUMAN].known.clear();
     let near = offset_native_by_map(20, 20, 1, 0);
     let id = game.spawn_unit(1, UnitKind::Worker, near.0, near.1);
     game.players[1].known.clear();

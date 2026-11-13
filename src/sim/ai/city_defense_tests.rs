@@ -1,7 +1,7 @@
 use super::*;
 
 fn city_fixture(size: i32) -> (Simulation, u32) {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.ai_ground_targets.clear();

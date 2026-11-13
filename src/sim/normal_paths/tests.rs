@@ -8,7 +8,7 @@ fn desktop_goto_fixture_exercises_risk_detour_and_final_attack() {
 }
 
 fn world() -> Simulation {
-    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
     sim.units.clear();
     sim.cities.clear();
     sim.prune_unit_ai_state();
