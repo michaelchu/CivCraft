@@ -123,7 +123,8 @@ impl Game {
                     entries.push(("Set home city [H]".to_owned(), UiAction::HomeCity, true));
                 }
                 if view.automate {
-                    entries.push(("Automate [A / X]".to_owned(), UiAction::Automate, true));
+                    let label = if view.worker { "Automate" } else { "Explore" };
+                    entries.push((format!("{label} [A / X]"), UiAction::Automate, true));
                 }
                 entries.push(("Wait [Space]".to_owned(), UiAction::Wait, true));
                 for (city_id, name) in view.disband_cities {

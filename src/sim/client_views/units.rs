@@ -141,6 +141,7 @@ impl Simulation {
         Some(UnitActionView {
             unit_name: unit.kind.name(),
             owner: unit.owner,
+            worker: unit.kind.stats().can_work,
             x: unit.x,
             y: unit.y,
             moves_left: unit.moves_left,
@@ -205,7 +206,9 @@ impl Simulation {
                 unit.owner == HUMAN
                     && unit.moves_left > 0
                     && unit.work_left == 0
+                    && !unit.automated
                     && unit.state != UnitState::Sentry
+                    && !(unit.kind.is_military() && unit.state == UnitState::Fortified)
             })
             .map(|unit| SelectableUnitView {
                 id: unit.id,

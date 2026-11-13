@@ -147,6 +147,7 @@ pub(crate) struct SpaceshipAssemblyView {
 pub(crate) struct UnitActionView {
     pub(crate) unit_name: &'static str,
     pub(crate) owner: usize,
+    pub(crate) worker: bool,
     pub(crate) x: i32,
     pub(crate) y: i32,
     pub(crate) moves_left: i32,
@@ -471,6 +472,45 @@ mod tests {
         assert_eq!(view.attack, unit.kind.stats().attack);
         assert_eq!(view.defense, unit.kind.stats().defense);
         assert_eq!(view.terrain_name, sim.tile(unit.x, unit.y).terrain.name());
+    }
+
+    #[test]
+    fn selectable_units_skip_automated_sentry_and_fortified_military_units() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        for unit in &mut sim.units {
+            if unit.owner == HUMAN {
+                unit.moves_left = 0;
+            }
+        }
+
+        let automated = sim.spawn_unit(HUMAN, UnitKind::Warrior, 10, 20);
+        sim.units.iter_mut().find(|unit| unit.id == automated).unwrap().automated = true;
+
+        let sentry = sim.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
+        sim.units.iter_mut().find(|unit| unit.id == sentry).unwrap().state = UnitState::Sentry;
+
+        let fortified_military = sim.spawn_unit(HUMAN, UnitKind::Warrior, 12, 20);
+        sim.units
+            .iter_mut()
+            .find(|unit| unit.id == fortified_military)
+            .unwrap()
+            .state = UnitState::Fortified;
+
+        let worker = sim.spawn_unit(HUMAN, UnitKind::Worker, 13, 20);
+
+        let ordinary_military = sim.spawn_unit(HUMAN, UnitKind::Warrior, 14, 20);
+
+        let selectable: Vec<u32> = sim
+            .selectable_units_view()
+            .into_iter()
+            .map(|unit| unit.id)
+            .collect();
+
+        assert!(!selectable.contains(&automated));
+        assert!(!selectable.contains(&sentry));
+        assert!(!selectable.contains(&fortified_military));
+        assert!(selectable.contains(&worker));
+        assert!(selectable.contains(&ordinary_military));
     }
 
     #[test]
