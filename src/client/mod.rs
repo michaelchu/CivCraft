@@ -765,9 +765,63 @@ mod tests {
 
         game.selected_city = None;
         game.selected_unit = Some(garrison);
+        assert!(game
+            .sim
+            .review_simulation()
+            .units()
+            .iter()
+            .find(|unit| unit.id == garrison)
+            .unwrap()
+            .moves_left
+            > 0);
         game.select_at(city.x, city.y);
 
         assert_eq!(game.selected_city, Some(city.id));
         assert_eq!(game.selected_unit, None);
+        let waited = game
+            .sim
+            .review_simulation()
+            .units()
+            .iter()
+            .find(|unit| unit.id == garrison)
+            .unwrap();
+        assert_eq!(waited.moves_left, 0);
+        assert_eq!(waited.state, UnitState::Idle);
+    }
+
+    #[test]
+    fn clicking_an_empty_map_tile_waits_and_deselects_the_active_unit() {
+        let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
+        let unit_id = game
+            .sim
+            .review_simulation()
+            .units()
+            .iter()
+            .find(|unit| unit.owner == HUMAN && unit.moves_left > 0)
+            .map(|unit| unit.id)
+            .expect("human unit with movement remaining");
+        game.selected_unit = Some(unit_id);
+
+        let wrap = game.map_wrap();
+        let empty = (0..wrap.height())
+            .flat_map(|y| (0..wrap.width()).map(move |x| (x, y)))
+            .find(|&(x, y)| {
+                game.sim.human_city_at_view(x, y).is_none()
+                    && game.sim.human_units_at_view(x, y).is_empty()
+            })
+            .expect("empty map tile");
+
+        game.select_at(empty.0, empty.1);
+
+        assert_eq!(game.selected_unit, None);
+        let waited = game
+            .sim
+            .review_simulation()
+            .units()
+            .iter()
+            .find(|unit| unit.id == unit_id)
+            .unwrap();
+        assert_eq!(waited.moves_left, 0);
+        assert_eq!(waited.state, UnitState::Idle);
     }
 }

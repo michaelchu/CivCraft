@@ -464,9 +464,22 @@ impl Game {
     }
 
     pub(crate) fn select_at(&mut self, x: i32, y: i32) {
+        let clicked_selected_unit = self
+            .selected_unit
+            .and_then(|unit_id| self.sim.unit_position_view(unit_id))
+            == Some((x, y));
+        if !clicked_selected_unit
+            && let Some(unit_id) = self.selected_unit.take()
+        {
+            self.sim.apply(Command::Wait(unit_id));
+        }
+
         // Cities take click priority over their garrisons. Units stationed in
         // a city remain selectable from the city manager.
         if let Some(city_id) = self.sim.human_city_at_view(x, y) {
+            if let Some(unit_id) = self.selected_unit.take() {
+                self.sim.apply(Command::Wait(unit_id));
+            }
             self.production_page = 0;
             self.unit_production_page = 0;
             self.worklist_page = None;
@@ -487,6 +500,8 @@ impl Game {
             self.action_page = 0;
             self.selected_unit = Some(unit.id);
             self.selected_city = None;
+        } else if let Some(unit_id) = self.selected_unit.take() {
+            self.sim.apply(Command::Wait(unit_id));
         }
     }
 }
