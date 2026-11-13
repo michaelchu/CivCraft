@@ -18,5 +18,9 @@ fn main() -> Result<(), String> {
         println!("{}", analytics::registry::IDS.join("\n"));
         return Ok(());
     }
+    if args.iter().any(|a| a == "--list-scenarios") {
+        println!("{}", headless::scenario::IDS.join("\n"));
+        return Ok(());
+    }
     headless::run(headless::config::Config::parse(&args)?)
 }

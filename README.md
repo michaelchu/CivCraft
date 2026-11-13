@@ -60,6 +60,21 @@ cargo run --offline --release --bin headless_sim -- \
 The default is 30 turns; use `--turns 10` for an initial review and longer runs
 for targeted investigations. Checkpoints are published every 10 turns.
 
+Run a registered deterministic scenario or resume a saved campaign through the
+same analytics pipeline:
+
+```sh
+cargo run --offline --release --bin headless_sim -- --list-scenarios
+cargo run --offline --release --bin headless_sim -- \
+  --scenario city-healing --turns 10 --report /tmp/healing.json
+cargo run --offline --release --bin headless_sim -- \
+  --load-campaign /path/to/campaign.save --turns 10 --report /tmp/resumed.json
+```
+
+`--scenario` and `--load-campaign` are mutually exclusive. Named scenarios
+record their version and setup checks in `run.scenario`; loaded campaigns record
+the source path. Both attach a fresh trace collector before simulation begins.
+
 Report schema 5 provides a compact summary and two streamed evidence sidecars:
 
 - `/tmp/civcraft-simulation.json`: run configuration/status, enabled analyzers,

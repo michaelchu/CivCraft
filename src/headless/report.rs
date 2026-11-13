@@ -1,5 +1,5 @@
 //! Streaming evidence and atomic summary checkpoints. No domain-specific checks.
-use super::config::Config;
+use super::{config::Config, scenario::Provenance};
 use crate::{
     analytics::Registry,
     sim::{observation::Snapshot, trace::Event},
@@ -27,9 +27,10 @@ pub(crate) struct Report {
     event_bytes: usize,
     pub omitted_events: usize,
     timeline: Vec<Value>,
+    scenario: Provenance,
 }
 impl Report {
-    pub fn new(path: &str) -> Result<Self, String> {
+    pub fn new(path: &str, scenario: Provenance) -> Result<Self, String> {
         let path = PathBuf::from(path);
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -63,6 +64,7 @@ impl Report {
             event_bytes: 0,
             omitted_events: 0,
             timeline: Vec::new(),
+            scenario,
         })
     }
     pub fn snapshot(&mut self, snapshot: &Snapshot) -> Result<(), String> {
@@ -119,10 +121,30 @@ impl Report {
             .iter()
             .map(|f| f.observation_count)
             .sum::<u64>();
+        let scenario_checks_passed = self
+            .scenario
+            .setup_checks
+            .iter()
+            .filter(|check| check.passed)
+            .count();
+        let scenario_failed = self.scenario.setup_checks.iter().any(|check| !check.passed);
+        let status = if reason.is_none() {
+            "running"
+        } else if scenario_failed {
+            "failed"
+        } else {
+            "completed"
+        };
+        let stop_reason = if reason.is_some() && scenario_failed {
+            "scenario_check"
+        } else {
+            reason.unwrap_or("checkpoint")
+        };
         let report = json!({
             "version":5,
-            "run":{"status":if reason.is_some(){"completed"}else{"running"},"stop_reason":reason.unwrap_or("checkpoint"),
+            "run":{"status":status,"stop_reason":stop_reason,
                 "configuration":config.metadata(),"turns_simulated":turns,"final_turn":last.turn,"game_over":game_over,
+                "scenario":self.scenario,
                 "git_commit":self.commit,"working_tree_dirty":self.dirty,"elapsed_seconds":self.started.elapsed().as_secs_f64()},
             "analytics":{"enabled":registry.descriptors(),"observation_boundaries":["initial","turn_end"],"metrics":registry.output.metrics},
             "coverage":{"collector_dropped_events":dropped,"events_not_retained":self.omitted_events,
@@ -131,6 +153,7 @@ impl Report {
                 "note":"Trace output filters do not filter analyzer input. Collector overflow does. No finding is not proof of correct gameplay."},
             "summary":{"finding_count":registry.output.findings.len(),"finding_observations":observations,
                 "open_findings":registry.output.findings.iter().filter(|f|f.status=="open").count(),
+                "scenario_checks_passed":scenario_checks_passed,"scenario_checks_total":self.scenario.setup_checks.len(),
                 "final_city_count":last.city_count,"civilizations":civilizations,"city_growth_status_counts":growth_counts},
             "findings":registry.output.findings,"timeline":self.timeline,
             "evidence":{
@@ -175,7 +198,16 @@ mod tests {
             "1".into(),
         ])
         .unwrap();
-        let mut report = Report::new(path.to_str().unwrap()).unwrap();
+        let mut report = Report::new(
+            path.to_str().unwrap(),
+            Provenance {
+                kind: "generated",
+                name: "test".into(),
+                version: 1,
+                setup_checks: vec![],
+            },
+        )
+        .unwrap();
         let registry = Registry::new(vec![]).unwrap();
         let snapshot = Snapshot::new(1, Phase::Initial, 0);
         report.snapshot(&snapshot).unwrap();

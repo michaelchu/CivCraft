@@ -1,12 +1,10 @@
 pub(crate) mod config;
 mod report;
+pub(crate) mod scenario;
 
 use crate::{
-    analytics, mapgen,
-    sim::{
-        Simulation,
-        trace::{Collector, Phase},
-    },
+    analytics,
+    sim::trace::{Collector, Phase},
 };
 use config::Config;
 use std::io::Write;
@@ -33,11 +31,21 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
             format!("{domain}.*")
         });
     }
-    let map = mapgen::generate_for_civ3_size(config.seed, config.map_size, config.world);
-    let mut game = Simulation::new(map);
-    game.enable_all_civilizations_as_ai();
+    let (mut game, scenario) = if let Some(path) = &config.load_campaign {
+        scenario::load(path)?
+    } else if let Some(name) = &config.scenario {
+        scenario::build(name, config.seed, config.map_size, config.world)?
+    } else {
+        scenario::generated(config.seed, config.map_size, config.world)
+    };
+    let failed_scenario_checks = scenario
+        .setup_checks
+        .iter()
+        .filter(|check| !check.passed)
+        .map(|check| check.name)
+        .collect::<Vec<_>>();
     game.trace = Collector::enabled(kinds, config.buffer_events);
-    let mut report = report::Report::new(&config.report)?;
+    let mut report = report::Report::new(&config.report, scenario)?;
     let mut snapshot = analytics::providers::capture(&game, &providers, Phase::Initial);
     report.snapshot(&snapshot)?;
     registry.start(&snapshot);
@@ -118,5 +126,11 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         "Completed {turns} turns; stop reason: {reason}. Report: {}",
         config.report
     );
+    if !failed_scenario_checks.is_empty() {
+        return Err(format!(
+            "scenario checks failed: {}",
+            failed_scenario_checks.join(", ")
+        ));
+    }
     Ok(())
 }

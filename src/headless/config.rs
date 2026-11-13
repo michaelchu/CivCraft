@@ -1,6 +1,7 @@
 use crate::{mapgen, sim::trace::Entity};
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 
 pub(crate) struct Config {
     pub seed: u64,
@@ -19,6 +20,8 @@ pub(crate) struct Config {
     pub max_event_bytes: usize,
     pub providers: BTreeSet<String>,
     pub stop_on_finding: String,
+    pub scenario: Option<String>,
+    pub load_campaign: Option<PathBuf>,
 }
 fn list(text: &str) -> Vec<String> {
     if text == "none" {
@@ -50,6 +53,8 @@ impl Config {
             "--trace-max-bytes",
             "--snapshot-providers",
             "--stop-on-finding",
+            "--scenario",
+            "--load-campaign",
         ];
         let mut values = BTreeMap::new();
         let mut iter = args.iter();
@@ -111,6 +116,13 @@ impl Config {
             .map_err(|_| "growth threshold is too large")?;
         let settlement_every = i32::try_from(positive("--settlement-check-every", "10")?)
             .map_err(|_| "settlement interval is too large")?;
+        let scenario = values.get("--scenario").map(|value| (*value).to_owned());
+        let load_campaign = values
+            .get("--load-campaign")
+            .map(|value| PathBuf::from(*value));
+        if scenario.is_some() && load_campaign.is_some() {
+            return Err("--scenario and --load-campaign are mutually exclusive".into());
+        }
         Ok(Self {
             seed: value("--seed", "42")
                 .parse()
@@ -136,6 +148,8 @@ impl Config {
             max_event_bytes: positive("--trace-max-bytes", "16777216")?,
             providers,
             stop_on_finding: stop.into(),
+            scenario,
+            load_campaign,
         })
     }
     pub fn retains(&self, event: &crate::sim::trace::Event) -> bool {
@@ -148,6 +162,7 @@ impl Config {
     }
     pub fn metadata(&self) -> serde_json::Value {
         json!({"seed":self.seed,"map_size":self.map_size.to_string(),"requested_turns":self.turns,
+            "scenario":self.scenario,"load_campaign":self.load_campaign,
             "world_settings":{"ocean_coverage":self.world.ocean_coverage.percent(),
                 "climate":format!("{:?}",self.world.climate).to_ascii_lowercase(),
                 "world_age_billions":match self.world.age {mapgen::WorldAge::Billion3=>3,mapgen::WorldAge::Billion4=>4,mapgen::WorldAge::Billion5=>5},
@@ -167,6 +182,7 @@ pub(crate) const HELP: &str = "Headless AI simulator\n\
 --trace-buffer-events 10000 --trace-max-events 50000 --trace-max-bytes 16777216\n\
 --snapshot-providers cities,civilizations,units (or none; analyzer requirements are added)\n\
 --stop-on-finding none|any|invariant --checkpoint-every 10\n\
+--scenario NAME | --load-campaign PATH; --list-scenarios\n\
 World setup: --ocean-coverage 60|70|80 --climate arid|normal|wet --world-age 3|4|5\n\
 --landform archipelago|continents|pangaea --temperature cool|temperate|warm";
 
@@ -185,6 +201,12 @@ mod tests {
             vec!["--missing", "x"],
             vec!["--snapshot-providers", "wrong"],
             vec!["--stop-on-finding", "oops"],
+            vec![
+                "--scenario",
+                "generated-ai",
+                "--load-campaign",
+                "campaign.save",
+            ],
         ] {
             assert!(Config::parse(&args(&values)).is_err(), "{values:?}");
         }
