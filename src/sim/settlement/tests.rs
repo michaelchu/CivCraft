@@ -8,10 +8,72 @@ fn equal_yield_future_city_workers_and_reservations_follow_native_city_indices()
     assert!(game.settlement_reservation_order_playtest());
 }
 
+// A bounded island gives the real planners several valid destinations without
+// making every tile on the campaign map a settlement/work candidate.
+fn settlement_island() -> Simulation {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    for index in 0..game.tiles.len() {
+        let (x, y) = game.map_wrap.position(index);
+        let land = (8..=18).contains(&x) && (18..=30).contains(&y);
+        let tile = &mut game.tiles[index];
+        tile.terrain = if land {
+            Terrain::Grassland
+        } else {
+            Terrain::Ocean
+        };
+        tile.resource = land.then_some(Resource::Wheat);
+        tile.owner = None;
+        tile.hut = false;
+        tile.pollution = false;
+        tile.fallout = false;
+        tile.road = land;
+        tile.railroad = land;
+        tile.irrigation = land;
+        tile.farmland = land;
+        tile.river = false;
+        tile.mine = false;
+        tile.base = None;
+    }
+    game.players[1].government = Government::Communism;
+    game
+}
+
 #[test]
 fn founder_can_choose_useful_work_over_a_positive_city_site_and_keeps_committed_missions() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.founder_work_arbitration_playtest());
+    let mut game = settlement_island();
+    game.create_city(1, 12, 24);
+    game.tile_mut(12, 24).pollution = true;
+    game.climate_current[0] = 1000;
+    let id = game.spawn_unit(1, UnitKind::Settler, 12, 24);
+    let founder = game.unit_by_id(id).unwrap().clone();
+    let (destination, _, city_want) = game.best_city_site(&founder).unwrap();
+    let improvement = game.worker_improvement_want(&founder);
+    assert!(city_want > 0.0);
+    assert!(improvement > city_want as f32);
+
+    let mut committed = game.clone();
+    committed.reserve_settlement_site(&founder, destination);
+    assert!(committed.run_ai_founder_with_improvement(&founder, improvement));
+    assert!(
+        committed
+            .ai_settlement_targets
+            .get(&id)
+            .is_some_and(|entry| entry.destination == destination)
+            || committed
+                .cities
+                .iter()
+                .any(|city| (city.x, city.y) == destination)
+    );
+
+    game.run_ai_founder(&founder);
+    assert!(!game.ai_settlement_targets.contains_key(&id));
+    assert_eq!(game.cities.len(), 1);
+    assert_eq!(
+        game.unit_by_id(id).unwrap().work_kind,
+        Some(WorkKind::Clean(Contamination::Pollution))
+    );
 }
 
 #[test]
@@ -121,9 +183,68 @@ fn reservation_lifecycle_keeps_blocked_mission_but_releases_illegal_target() {
 }
 
 #[test]
-fn founders_reserve_destinations_workers_and_growth_then_release_on_capture() {
-    let mut game = Simulation::new(crate::mapgen::generate(42));
-    assert!(game.ai_settlement_reservations_playtest());
+fn settlement_reservations_protect_sites_persist_while_waiting_and_release_after_capture() {
+    let mut game = settlement_island();
+    let id = game.spawn_unit(1, UnitKind::Settler, 8, 20);
+    let founder = game.unit_by_id(id).unwrap().clone();
+    let destination = (10, 24);
+    assert!(
+        game.city_site_value(1, destination.0, destination.1)
+            .is_some()
+    );
+    game.reserve_settlement_site(&founder, destination);
+    let reservation = game.ai_settlement_targets[&id];
+    assert_eq!(reservation.destination, destination);
+    assert!(
+        game.city_site_value(1, destination.0, destination.1)
+            .is_none()
+    );
+    let worker = reservation
+        .worker
+        .expect("reserve the future city's first worker");
+    assert!(game.settlement_citymap(1, None)[game.map_wrap.index(worker.0, worker.1)] < 0);
+
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == id)
+        .unwrap()
+        .moves_left = 0;
+    let waiting = game.unit_by_id(id).unwrap().clone();
+    game.run_ai_founder(&waiting);
+    assert_eq!(game.ai_settlement_targets[&id].destination, destination);
+    assert!(game.cities.is_empty());
+
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == id)
+        .unwrap()
+        .owner = HUMAN;
+    game.prune_settlement_reservations(1);
+    assert!(!game.ai_settlement_targets.contains_key(&id));
+    assert!(
+        game.city_site_value(1, destination.0, destination.1)
+            .is_some()
+    );
+}
+
+#[test]
+fn settlement_reservations_reduce_nearby_scores_and_separate_founders() {
+    let mut game = settlement_island();
+    let first_id = game.spawn_unit(1, UnitKind::Settler, 8, 20);
+    let second_id = game.spawn_unit(1, UnitKind::Settler, 18, 24);
+    let first = game.unit_by_id(first_id).unwrap().clone();
+    let second = game.unit_by_id(second_id).unwrap().clone();
+    let destination = (10, 24);
+    // Probe overlapping city radii, rather than scoring every tile on the map.
+    let probes = [(13, 24), (14, 24), (10, 28), (14, 28)];
+    let before = probes.map(|(x, y)| game.city_site_value(1, x, y));
+    game.reserve_settlement_site(&first, destination);
+    assert!(probes.into_iter().zip(before).any(|((x, y), old)| {
+        old.zip(game.city_site_value(1, x, y))
+            .is_some_and(|(old, new)| new < old)
+    }));
+    let (target, _, _) = game.best_city_site(&second).unwrap();
+    assert!(game.map_distance(target.0, target.1, destination.0, destination.1) >= 3);
 }
 
 #[test]

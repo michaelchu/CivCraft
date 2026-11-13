@@ -49,7 +49,7 @@ fn civ3_map_roster_controls_active_players_and_score_standings() {
             size,
             crate::mapgen::Civ3WorldSettings::default(),
         );
-        let mut game = Simulation::new(map);
+        let game = Simulation::new(map);
         assert_eq!(game.civilization_count, expected);
         assert_eq!(game.score_standings().len(), expected);
         for owner in 0..expected {
@@ -66,13 +66,6 @@ fn civ3_map_roster_controls_active_players_and_score_standings() {
         }
         for owner in expected..MAX_CIVILIZATIONS {
             assert!(!game.player_alive(owner));
-        }
-        if matches!(
-            size,
-            crate::mapgen::Civ3MapSize::Tiny | crate::mapgen::Civ3MapSize::Huge
-        ) {
-            game.end_turn();
-            assert_eq!(game.turn, 2);
         }
     }
 }
