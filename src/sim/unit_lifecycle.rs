@@ -56,6 +56,7 @@ impl Simulation {
             );
         }
         self.refresh_diplomatic_contact_at(owner, x, y);
+        self.wake_neighbor_sentries(id);
         id
     }
 

@@ -17,6 +17,7 @@ use crate::rules::freeciv::{RulesetData, effect_value};
 mod activities;
 mod combat;
 mod routes;
+mod sentry;
 mod transports;
 use std::{cmp::Reverse, collections::BinaryHeap, sync::OnceLock};
 
@@ -890,6 +891,9 @@ impl Simulation {
             {
                 return MoveResult::Blocked;
             }
+            // Freeciv wakes nearby sentries before resolving the attack, so
+            // a defender survives combat in its normal active state.
+            self.wake_neighbor_sentries(unit_id);
             self.resolve_combat(unit_id, defender_id, nx, ny, facing);
             return MoveResult::Fought;
         }
@@ -1016,6 +1020,7 @@ impl Simulation {
         // Native movement updates the moving player's vision immediately,
         // including AI discovery, before contact callbacks and hut outcomes.
         self.refresh_visibility();
+        self.wake_neighbor_sentries(unit_id);
         if let Some(unit) = visual_mover {
             let from = (unit.x, unit.y);
             self.publish_visual_event(VisualEvent::Move {
