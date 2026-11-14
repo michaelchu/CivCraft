@@ -99,12 +99,12 @@ impl Simulation {
             let assigned = self.ai_ground_targets.get(&boat.id) == Some(&city.id);
             let local =
                 undefended && self.map_wrap.civ3_distance(boat.x, boat.y, city.x, city.y) <= 2;
-            if assigned || local {
-                if let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&boat.id) {
-                    let marks = i32::from(assigned) + i32::from(local);
-                    attacks += marks * cargo_attacks;
-                    occupiers += marks * cargo_occupiers;
-                }
+            if (assigned || local)
+                && let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&boat.id)
+            {
+                let marks = i32::from(assigned) + i32::from(local);
+                attacks += marks * cargo_attacks;
+                occupiers += marks * cargo_occupiers;
             }
         }
         (attacks, occupiers)
