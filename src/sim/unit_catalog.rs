@@ -18,41 +18,25 @@ impl UnitKind {
     pub(super) fn has_marine_attack(self) -> bool {
         self.has_flag(UnitFlag::Marines)
     }
-    pub(super) fn is_city_buster(self) -> bool {
-        self.has_flag(UnitFlag::CityBuster)
+    #[cfg(test)]
+    pub(super) fn has_zone_of_control(self) -> bool {
+        self.conquests_rule().zone_of_control != 0
     }
-    pub(super) fn ignores_movement_cost_on(self, terrain: Terrain) -> bool {
-        self.conquests_rule().ignores_movement_cost(terrain)
+    #[cfg(test)]
+    pub(super) fn can_build_fortress(self) -> bool {
+        self.is_worker() || self.has_flag(UnitFlag::Fortress)
     }
     pub(super) fn has_no_build(self) -> bool {
         self.has_flag(UnitFlag::NoBuild)
     }
-    pub(super) fn has_no_zoc(self) -> bool {
-        self.has_flag(UnitFlag::HasNoZOC)
-    }
-    pub(super) fn has_zone_of_control(self) -> bool {
-        self.conquests_rule().zone_of_control != 0
-    }
     pub(super) fn has_no_home(self) -> bool {
         self.has_flag(UnitFlag::NoHome)
-    }
-    pub(super) fn requires_support(self) -> bool {
-        self.conquests_rule().require_support != 0
     }
     pub(super) fn no_veteran(self) -> bool {
         self.has_flag(UnitFlag::NoVeteran)
     }
     pub(super) fn is_big_land(self) -> bool {
         self.unit_class() == UnitClass::BigLand
-    }
-    pub(super) fn has_terrain_defense(self) -> bool {
-        self.unit_class().has_terrain_defense()
-    }
-    pub(super) fn can_helicopter_field_load(self) -> bool {
-        self.metadata().helicopter_field_load
-    }
-    pub(super) fn can_build_fortress(self) -> bool {
-        self.is_worker() || self.has_flag(UnitFlag::Fortress)
     }
     pub(super) fn required_government(self) -> Option<Government> {
         self.metadata().government

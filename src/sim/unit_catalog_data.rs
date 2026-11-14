@@ -84,14 +84,10 @@ pub(super) struct UnitMetadata {
     pub(super) capacity: usize,
     pub(super) fuel: u8,
     pub(super) veteran_levels: usize,
-    pub(super) helicopter_field_load: bool,
     pub(super) attacks_air: bool,
     pub(super) stealth: bool,
 }
 impl UnitClass {
-    pub(super) fn has_terrain_defense(self) -> bool {
-        matches!(self, Self::Land | Self::SmallLand)
-    }
     pub(super) fn has_barracks(self) -> bool {
         matches!(self, Self::Land | Self::SmallLand | Self::BigLand)
     }
@@ -109,15 +105,6 @@ impl UnitClass {
             self,
             Self::Land | Self::SmallLand | Self::BigLand | Self::Missile
         )
-    }
-    pub(super) fn damage_slows(self) -> bool {
-        matches!(
-            self,
-            Self::Land | Self::SmallLand | Self::BigLand | Self::Sea | Self::Trireme
-        )
-    }
-    pub(super) fn terrain_speed(self) -> bool {
-        matches!(self, Self::Land | Self::SmallLand | Self::BigLand)
     }
     pub(super) fn is_unreachable(self) -> bool {
         matches!(self, Self::Missile | Self::Helicopter | Self::Air)

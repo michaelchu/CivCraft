@@ -266,6 +266,7 @@ impl MapWrap {
     /// CivWiki's reverse-engineered culture-flip capital distance: max of the
     /// two diagonal-axis spans plus half the shorter span. Horizontal map
     /// wrapping shifts both axes, so compare the target's adjacent wrap images.
+    #[cfg(test)]
     pub(crate) fn civ3_culture_distance(self, ax: i32, ay: i32, bx: i32, by: i32) -> f64 {
         let (ax, ay) = native_to_map(ax, ay);
         let (bx, by) = native_to_map(bx, by);

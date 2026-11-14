@@ -77,6 +77,7 @@ impl AnalysisOutput {
             .insert(format!("{}.{}", self.analyzer, name), value.into());
     }
     /// Report an established invariant violation; heuristic checks should use `check`.
+    #[cfg(test)]
     pub fn invariant(
         &mut self,
         key: String,
