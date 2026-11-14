@@ -47,6 +47,7 @@ pub(super) struct CmLattice {
     pub(super) production: Vec<[i32; 6]>,
     pub(super) capacity: Vec<i32>,
     pub(super) better: Vec<Vec<usize>>,
+    pub(super) worse: Vec<Vec<usize>>,
     pub(super) orders: [Vec<usize>; 2],
     pub(super) by_stat: [Vec<usize>; 6],
 }
@@ -54,23 +55,33 @@ pub(super) struct CmLattice {
 #[derive(Clone)]
 pub(super) struct CmPartial {
     pub(super) counts: Vec<i32>,
+    prerequisites_filled: Vec<i32>,
     pub(super) production: [i32; 6],
     pub(super) idle: i32,
 }
 
 impl CmPartial {
     fn add(&mut self, lattice: &CmLattice, kind: usize, count: i32) {
+        let old_count = self.counts[kind];
         self.idle -= count;
         self.counts[kind] += count;
+        let new_count = self.counts[kind];
+        if old_count != lattice.capacity[kind] && new_count == lattice.capacity[kind] {
+            for &worse in &lattice.worse[kind] {
+                self.prerequisites_filled[worse] += 1;
+            }
+        } else if old_count == lattice.capacity[kind] && new_count != lattice.capacity[kind] {
+            for &worse in &lattice.worse[kind] {
+                self.prerequisites_filled[worse] -= 1;
+            }
+        }
         for output in 0..6 {
             self.production[output] += count * lattice.production[kind][output];
         }
     }
 
     fn prerequisites_filled(&self, lattice: &CmLattice, kind: usize) -> bool {
-        lattice.better[kind]
-            .iter()
-            .all(|&other| self.counts[other] == lattice.capacity[other])
+        self.prerequisites_filled[kind] == lattice.better[kind].len() as i32
     }
 }
 
@@ -239,6 +250,12 @@ impl Simulation {
                     .collect()
             })
             .collect();
+        let mut worse = vec![Vec::new(); production.len()];
+        for (kind, prerequisites) in better.iter().enumerate() {
+            for &prerequisite in prerequisites {
+                worse[prerequisite].push(kind);
+            }
+        }
         let orders = orders.map(|order| {
             order
                 .into_iter()
@@ -278,6 +295,7 @@ impl Simulation {
             production,
             capacity,
             better,
+            worse,
             orders,
             by_stat,
         };
@@ -405,6 +423,7 @@ impl Simulation {
         let min_production: [i32; 6] = std::array::from_fn(|index| usage[index] + minima[index]);
         let mut current = CmPartial {
             counts: vec![0; lattice.production.len()],
+            prerequisites_filled: vec![0; lattice.production.len()],
             production: if emergency { [-CM_INFINITY; 6] } else { [0; 6] },
             idle: city.size.max(0),
         };
@@ -418,6 +437,7 @@ impl Simulation {
         // a new counts vector for every bound check adds allocation churn.
         let mut completion = CmPartial {
             counts: vec![0; lattice.production.len()],
+            prerequisites_filled: vec![0; lattice.production.len()],
             production: [0; 6],
             idle: 0,
         };
