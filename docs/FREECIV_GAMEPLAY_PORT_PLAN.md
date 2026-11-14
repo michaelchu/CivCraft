@@ -20,8 +20,8 @@ checkout.
 | Gameplay algorithms and rule interpretation | Freeciv source at the pinned revision below |
 | Initial settings, effects, requirements, actions, and defaults | A CivCraft-owned copy/derivative of the pinned `civ2civ3` ruleset |
 | Units and their campaign identities, values, availability, and special data | Civ III: Conquests source catalog, including `data/rulesets/civ3_conquests/units.tsv` |
-| Buildings and their campaign identities and source values | Civ III source-derived building catalog; create or reconcile the input catalog where needed |
-| Technology tree and advance identities | Civ III source-derived technology catalog in `src/rules/research.rs`, with source gaps recorded explicitly |
+| Buildings and their campaign identities and source values | Civ III source-derived catalog in `data/rulesets/civ3_conquests/buildings.tsv` |
+| Technology tree and advance identities | Civ III source-derived catalog in `data/rulesets/civ3_conquests/technologies.tsv`, loaded by `src/rules/research.rs`, with source gaps recorded explicitly |
 | Original unit, terrain, resource, and other selected game art | Civ III source assets and existing asset mappings |
 
 Freeciv ruleset fields still provide the schema through which retained content
@@ -110,7 +110,7 @@ that code has been added.
 | P11 | Port AI | City, tax, research, diplomacy, settlement, worker, and military planning use Freeciv behavior adapted to CivCraft state and the Civ III content catalog. | Complete |
 | P12 | Port remaining campaign systems | Disasters, climate, villages, spaceship, score, achievements, and endgame behavior match the selected baseline where in campaign scope. | Complete |
 | P13 | Validate and cut over | Deterministic comparisons cover every migrated subsystem; end-to-end campaign scenarios cover interactions; old divergent implementations are removed or clearly isolated as unsupported. | Complete |
-| P14 | Maintain the port | Document how to change the CivCraft ruleset, add a content mapping, update the pinned Freeciv reference, and extend parity fixtures. | Not started |
+| P14 | Maintain the port | Document how to change the CivCraft ruleset, add a content mapping, update the pinned Freeciv reference, and extend parity fixtures. | Complete |
 
 ### P2 evidence
 
@@ -192,13 +192,12 @@ that code has been added.
   without replacing or reordering the Freeciv baseline records. Each source
   record retains its catalog ID, section/index, source path/hash, and original
   TSV fields.
-- Added a stable-ID adapter that resolves all 92 units and all 31
-  civilizations, plus 82 of 83 technologies and 47 of 83 buildings. The
-  `Amphibious War` to `Amphibious Warfare` alias is explicit. `Ironclads` and
-  the remaining 36 building wrapper mappings have explicit unresolved reasons
-  in the adapter data; their Civ III records remain available to later
-  subsystem ports. No `UnitKind`, `Building`, or `Tech` serialized ordering
-  changed.
+- Added a stable-ID adapter that resolves all 92 units, all 31 civilizations,
+  and all 83 technologies, plus 47 of 83 buildings. The `Amphibious War` to
+  `Amphibious Warfare` alias is explicit; `Ironclads` binds to its stable
+  `Tech::IRONCLADS` identity. The remaining 36 building wrapper mappings have
+  explicit unresolved reasons and their Civ III records remain available.
+  No `UnitKind`, `Building`, or `Tech` serialized ordering changed.
 - The focused adapter test passes and checks catalog counts, source identities,
   raw values, stable wrapper IDs, and unresolved mappings. Catalog loading and
   identity resolution are complete for this milestone. The behavior adapters
@@ -666,6 +665,28 @@ that code has been added.
   the user's earlier decision. The C2C3 `Automobile` obsolescence requirement
   is tested through its mapped Civ III `Motorized Transportation` research
   state.
+
+### P14 evidence (complete)
+
+- Added [`FREECIV_GAMEPLAY_PORT_MAINTENANCE.md`](FREECIV_GAMEPLAY_PORT_MAINTENANCE.md)
+  with workflows for editing the selected CivCraft C2C3 ruleset, updating Civ
+  III source catalogs and their runtime/mechanics bridges, advancing the
+  pinned Freeciv revision and manifest, and extending source-pinned parity
+  fixtures.
+- The guide records the current mapping contract: 92 units and 31
+  civilizations resolve; all 83 Civ III technologies resolve; 47 of 83
+  buildings bind to stable legacy wrappers, while 36 remain explicitly
+  unresolved. It also identifies terrain/resource mappings that remain
+  code-owned and asset mappings at the client boundary.
+- Reconciled the P4 evidence with `src/sim/content_adapter.rs`: the source
+  adapter test asserts 83/83 technology bindings, including Ironclads. The
+  earlier prose claiming 82/83 and an unresolved Ironclads mapping was stale.
+- Recorded compatibility: the client/view boundary remains in place; saves use
+  `CIVCRAFT\0\x22`; earlier save headers are rejected without migration. The
+  comparison ledger remains the place to update scoped differences.
+- Latest `origin/main` was fast-forwarded to `bcbbdff` before P14. P14 changes
+  documentation only; `git diff --cached --check` passes. No gameplay tests
+  were run for this documentation-only item.
 
 ## Subsystem comparison ledger
 

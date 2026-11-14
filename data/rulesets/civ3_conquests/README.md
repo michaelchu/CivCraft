@@ -59,10 +59,11 @@ culture-export mapping, whose numeric values are legacy CivCraft IDs.
 the selected Freeciv ruleset. The source records remain distinct from
 Freeciv's native content until the owning gameplay subsystem consumes them.
 The runtime binding layer currently resolves all 92 units, all 31 playable
-civilizations, 82 technologies, and 47 buildings. `Amphibious War` explicitly
-binds to the existing `Amphibious Warfare` technology ID; `Ironclads` and 36
-building wrappers remain unresolved and are preserved with reasons. This is
-an adapter inventory, not a gameplay cutover.
+civilizations, all 83 technologies, and 47 buildings. `Amphibious War`
+explicitly binds to the existing `Amphibious Warfare` technology ID, and
+`Ironclads` binds to `Tech::IRONCLADS`. Thirty-six building wrappers remain
+unresolved with explicit reasons; their source records are still preserved.
+This is an adapter inventory, not a gameplay cutover.
 
 ## Unit table
 
