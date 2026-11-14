@@ -273,15 +273,15 @@ Limitations or conflicts:
   "What are ‘bombardment’ units and how do they work?"; CIVILIZATION-WIKI-BOMBARD;
   Conquests BIQ `PRTO` range, strength, rate, and ability flags.
 - Scope: standard Conquests campaign, using the installed BIQ values.
-- Implementation: editable unit records now feed the Bombard action, range
-  legality, strength roll, rate of fire, stack target selection, and lethal
-  land/sea behavior. Existing adjacent bombard execution reads the same source
-  strength and lethal flags.
-- Unresolved: city improvements, population, terrain improvements, fortress
-  damage, target priority, bombard defense, and automatic bombard orders are
-  not implemented. Human air missions using operational range are also not
-  wired to this target action. The UI does not yet draw the full red target
-  grid.
+- Implementation: editable Civ III unit records now determine Bombard
+  capability, strength, rate of fire, per-unit tile range, aircraft operational
+  range, lethal land/sea outcomes, and Bombard Fx presentation. Freeciv's
+  selected combat rules still supply the per-shot defense roll and relevant
+  unit-class behavior.
+- Unresolved: city and terrain improvement damage, fortress damage, and AI
+  automatic bombard orders are not implemented. City population casualties
+  currently use selected C2C3 class/effect rules; exact Conquests parity is
+  unverified. The UI does not yet draw the full red target grid.
 
 ### Bombard visual effects and craters
 

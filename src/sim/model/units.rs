@@ -419,8 +419,7 @@ impl UnitKind {
         self.conquests_rule().rate_of_fire
     }
 
-    #[cfg(test)]
-    pub(crate) fn bombard_range(self) -> i32 {
+    pub(in crate::sim) fn bombard_range(self) -> i32 {
         self.conquests_rule().bombard_range
     }
 
@@ -428,7 +427,10 @@ impl UnitKind {
         self.conquests_rule().bombard_strength
     }
 
-    #[cfg(test)]
+    pub(in crate::sim) fn has_bombard_effects(self) -> bool {
+        self.conquests_rule().bombard_effects > 0
+    }
+
     pub(in crate::sim) fn has_lethal_bombard_against(self, target: Self) -> bool {
         if target.is_naval() {
             self.conquests_rule().has_lethal_sea_bombard()

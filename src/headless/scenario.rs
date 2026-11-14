@@ -8,7 +8,12 @@ use crate::{mapgen, sim::Simulation};
 use serde::Serialize;
 use std::path::Path;
 
-pub(crate) const IDS: &[&str] = &["generated-ai", "city-healing", "settlement-ferry"];
+pub(crate) const IDS: &[&str] = &[
+    "generated-ai",
+    "city-healing",
+    "settlement-ferry",
+    "combat-matrix",
+];
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct Check {
@@ -29,6 +34,7 @@ enum Action {
     None,
     CityHealing,
     SettlementFerry,
+    CombatMatrix,
 }
 
 pub(crate) struct Run {
@@ -70,6 +76,16 @@ impl Run {
                     },
                 ]
             }
+            Action::CombatMatrix => self
+                .game
+                .freeciv_combat_matrix_playtest()
+                .into_iter()
+                .map(|(name, passed, detail)| Check {
+                    name,
+                    passed,
+                    detail,
+                })
+                .collect(),
         };
         self.action = Action::None;
         self.game.enable_all_civilizations_as_ai();
@@ -116,6 +132,10 @@ pub(crate) fn build(
                 Action::SettlementFerry,
             )
         }
+        "combat-matrix" => (
+            Simulation::new(mapgen::generate(seed)),
+            Action::CombatMatrix,
+        ),
         _ => {
             return Err(format!(
                 "unknown scenario {name}; available: {}",
@@ -196,5 +216,22 @@ mod tests {
         run.execute_actions();
         assert!(!run.has_actions());
         assert!(run.provenance.checks.iter().all(|check| check.passed));
+    }
+
+    #[test]
+    fn combat_matrix_runs_map_combat_scenarios() {
+        let mut run = build(
+            "combat-matrix",
+            42,
+            mapgen::Civ3MapSize::Tiny,
+            Default::default(),
+        )
+        .unwrap();
+        assert!(run.has_actions());
+        run.execute_actions();
+        assert_eq!(run.provenance.checks.len(), 4);
+        for check in &run.provenance.checks {
+            assert!(check.passed, "{}: {}", check.name, check.detail);
+        }
     }
 }

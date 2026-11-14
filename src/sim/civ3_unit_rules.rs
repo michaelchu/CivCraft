@@ -28,7 +28,6 @@ pub(super) struct UnitRule {
     pub(super) capacity: usize,
     pub(super) operational_range: i32,
     pub(super) bombard_strength: i32,
-    #[allow(dead_code)] // Retained source rule for the unfinished bombard action path.
     pub(super) bombard_range: i32,
     pub(super) rate_of_fire: i32,
     pub(super) hit_point_bonus: i32,
@@ -40,7 +39,6 @@ pub(super) struct UnitRule {
     ignore_movement_cost: [u8; 14],
     #[allow(dead_code)]
     pub(super) zone_of_control: i32,
-    #[allow(dead_code)] // Retained source effects for the unfinished bombard action path.
     pub(super) bombard_effects: i32,
     #[allow(dead_code)]
     pub(super) require_support: i32,
@@ -148,12 +146,10 @@ impl UnitRule {
             .is_some_and(|value| value & (1 << bit) != 0)
     }
 
-    #[cfg(test)]
     pub(super) fn has_lethal_land_bombard(&self) -> bool {
         self.has_flag_1(3, 3)
     }
 
-    #[cfg(test)]
     pub(super) fn has_lethal_sea_bombard(&self) -> bool {
         self.has_flag_1(3, 4)
     }

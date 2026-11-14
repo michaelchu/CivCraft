@@ -232,6 +232,11 @@ impl Simulation {
             if drops.contains(&id) {
                 continue;
             }
+            // Ranged bombardment is an action on the current tile; try it
+            // before city defense, guard, or movement automation spends moves.
+            if self.run_ai_bombard(&unit) {
+                continue;
+            }
             if let Some(home) = city_defender_homes.get(&id).copied() {
                 // dai_manage_military tries Hunter management before the
                 // DEFEND_HOME task, even for a unit selected by dai_set_defenders.
