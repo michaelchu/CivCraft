@@ -329,10 +329,10 @@ impl<'a> MovementRules<'a> {
         if river && self.extra_is_native_to_class("River", class)? {
             return Ok(true);
         }
-        if let Some(base) = base {
-            if self.extra_is_native_to_class(c2c3_base_extra_rule_name(base), class)? {
-                return Ok(true);
-            }
+        if let Some(base) = base
+            && self.extra_is_native_to_class(c2c3_base_extra_rule_name(base), class)?
+        {
+            return Ok(true);
         }
         Ok(false)
     }
@@ -1281,7 +1281,8 @@ mod tests {
         (UnitClass::Missile, "Missile"),
     ];
 
-    const ACTIVITY_TIME_FIELDS: [(&str, fn(TerrainActivityTimes) -> i32); 7] = [
+    type ActivityTimeField = (&'static str, fn(TerrainActivityTimes) -> i32);
+    const ACTIVITY_TIME_FIELDS: [ActivityTimeField; 7] = [
         ("base_time", |times| times.base),
         ("road_time", |times| times.road),
         ("irrigation_time", |times| times.irrigation),

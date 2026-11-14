@@ -152,6 +152,7 @@ impl Simulation {
         f64::from(value)
     }
 
+    #[cfg(test)]
     pub(super) fn city_tech_effect_want(&self, city: &City, tech: Tech) -> i32 {
         let obsoletes_building = city.buildings.iter().any(|building| {
             building
@@ -166,12 +167,7 @@ impl Simulation {
         self.city_tech_effect_want_with_baseline(city, tech, baseline)
     }
 
-    fn city_tech_effect_want_with_baseline(
-        &self,
-        city: &City,
-        tech: Tech,
-        baseline: i32,
-    ) -> i32 {
+    fn city_tech_effect_want_with_baseline(&self, city: &City, tech: Tech, baseline: i32) -> i32 {
         let direct = match tech {
             Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION => {
                 self.advisor_city_output(city, Some(tech)) - baseline
@@ -388,33 +384,6 @@ impl Simulation {
                 );
             }
         }
-    }
-
-    pub(super) fn city_building_tech_want(&self, city: &City, tech: Tech) -> i32 {
-        // Most advances unlock no city improvement. Avoid computing the
-        // expensive city forecast and upkeep baseline for those advances;
-        // the loop below would necessarily return zero for them.
-        if !Building::all().any(|building| {
-            building.data().genus == Genus::Improvement
-                && building
-                    .data()
-                    .requirements
-                    .contains(&(Requirement::Tech(tech.0), true))
-        }) {
-            return 0;
-        }
-        let baseline = self.advisor_city_output(city, None);
-        let (food, gross_shields, _) = self.city_yields(city);
-        let upkeep = self.city_unit_upkeep(city);
-        let food_surplus = food - city.size * Self::citizen_food_cost() - upkeep.food;
-        let shields = (gross_shields - upkeep.shields).max(0);
-        self.city_building_tech_want_with_baseline(
-            city,
-            tech,
-            baseline,
-            food_surplus,
-            shields,
-        )
     }
 
     fn city_building_tech_want_with_baseline(

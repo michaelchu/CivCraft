@@ -2,7 +2,6 @@
 
 use crate::rules::Tech;
 use crate::sim::unit_catalog;
-use crate::sim::{Base, Terrain};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum UnitKind {
@@ -35,6 +34,10 @@ pub(crate) enum UnitKind {
     RadarArtillery,
     CruiseMissile,
     TacticalNuke,
+    #[expect(
+        clippy::upper_case_acronyms,
+        reason = "Preserve the existing unit identity in saved games and diagnostic output."
+    )]
     ICBM,
     Galley,
     Caravel,
@@ -366,31 +369,6 @@ impl UnitKind {
         self.conquests_rule().name
     }
 
-    pub(crate) fn is_native_on(
-        self,
-        terrain: Terrain,
-        river: bool,
-        road: bool,
-        railroad: bool,
-        base: Option<Base>,
-    ) -> bool {
-        if self.is_aircraft() {
-            true
-        } else if self == Self::Galley {
-            matches!(terrain, Terrain::Coast | Terrain::Sea | Terrain::Lake) || river
-        } else {
-            terrain.is_water() == self.is_naval()
-                && (!self.is_big_land()
-                    || !matches!(
-                        terrain,
-                        Terrain::Jungle | Terrain::Mountains | Terrain::Marsh
-                    )
-                    || road
-                    || railroad
-                    || matches!(base, Some(Base::Fort | Base::Fortress)))
-        }
-    }
-
     pub(crate) fn is_naval(self) -> bool {
         matches!(
             self.unit_class(),
@@ -441,6 +419,7 @@ impl UnitKind {
         self.conquests_rule().rate_of_fire
     }
 
+    #[cfg(test)]
     pub(crate) fn bombard_range(self) -> i32 {
         self.conquests_rule().bombard_range
     }
@@ -449,6 +428,7 @@ impl UnitKind {
         self.conquests_rule().bombard_strength
     }
 
+    #[cfg(test)]
     pub(in crate::sim) fn has_lethal_bombard_against(self, target: Self) -> bool {
         if target.is_naval() {
             self.conquests_rule().has_lethal_sea_bombard()
@@ -472,14 +452,6 @@ impl UnitKind {
             return kind.conquests_rule().has_flag_1(0, 1);
         }
         self.metadata().cargo.contains(&kind.unit_class())
-    }
-
-    pub(in crate::sim) fn can_capture_units(self) -> bool {
-        self.has_flag(unit_catalog::UnitFlag::Capturer)
-    }
-
-    pub(in crate::sim) fn is_capturable(self) -> bool {
-        self.has_flag(unit_catalog::UnitFlag::Capturable)
     }
 
     pub(crate) fn has_hostile_action(self) -> bool {

@@ -185,14 +185,14 @@ impl Simulation {
         for _ in 0..10 {
             game.progress_player_unit_activities(HUMAN);
         }
-        let built = gated
+
+        gated
             && started
             && boarded
             && game.tile(10, 24).oil_platform
             && game
                 .unit_by_id(worker)
-                .is_some_and(|unit| unit.work_kind.is_none() && unit.transport == Some(ship));
-        built
+                .is_some_and(|unit| unit.work_kind.is_none() && unit.transport == Some(ship))
     }
 
     pub(crate) fn transport_hud_playtest_setup(&mut self) -> u32 {

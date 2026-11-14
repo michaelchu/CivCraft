@@ -10,16 +10,16 @@ pub(super) struct StartProfile {
     starting_unit_2: &'static str,
     starting_unit_2_count: usize,
     expansionist: bool,
+    #[allow(
+        dead_code,
+        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
+    )]
     militaristic: bool,
     expansionist_bonus_unit: &'static str,
     bonus_count: usize,
 }
 
 impl StartProfile {
-    pub(super) fn is_militaristic(&self) -> bool {
-        self.militaristic
-    }
-
     pub(super) fn units(&self) -> Vec<(&'static str, usize)> {
         let mut units = Vec::with_capacity(3);
         if self.starting_unit_1_count > 0 {

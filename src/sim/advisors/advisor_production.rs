@@ -269,8 +269,8 @@ impl Simulation {
             let affordable = self.players[city.owner].gold > price;
             let want = self.native_defense_building_want(city, building, assessment);
             if want > 0.0 && (danger < 101 || count > 1 || assessment.grave == 0 && affordable) {
-                let builder_factor = super::super::ai_traits::builder_building_want_factor() as f32;
-                let want = f64::from((want as f32 * builder_factor) as f32);
+                let builder_factor = super::super::ai_traits::builder_building_want_factor();
+                let want = f64::from(want as f32 * builder_factor);
                 choice = Some(AiBuildChoice {
                     production: Production::Building(building),
                     want: if assessment.urgency == 0 {
@@ -430,8 +430,8 @@ impl Simulation {
             choice.production = Production::Building(building);
             // All six civilizations use the default Builder50. Native int divisions
             // 50/TRAIT_DEFAULT_VALUE(50)/2 yield0, before adding double0.5.
-            let builder_factor = super::super::ai_traits::builder_building_want_factor() as f32;
-            choice.want = f64::from((choice.want as f32 * builder_factor) as f32);
+            let builder_factor = super::super::ai_traits::builder_building_want_factor();
+            choice.want = f64::from(choice.want as f32 * builder_factor);
         }
     }
 

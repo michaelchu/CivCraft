@@ -108,9 +108,10 @@ impl std::fmt::Display for Civ3MapSize {
 ///
 /// The active Freeciv generator reads its landmass percentage from the
 /// selected ruleset; this Civ III UI choice is not mapped to that setting.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum OceanCoverage {
     Percent60,
+    #[default]
     Percent70,
     Percent80,
 }
@@ -139,9 +140,10 @@ impl std::str::FromStr for OceanCoverage {
 }
 
 /// Climate choices from Civ III world setup.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum Climate {
     Arid,
+    #[default]
     Normal,
     Wet,
 }
@@ -159,16 +161,11 @@ impl std::str::FromStr for Climate {
     }
 }
 
-impl Default for Climate {
-    fn default() -> Self {
-        Self::Normal
-    }
-}
-
 /// World age controls the amount of hilly and mountainous terrain.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum WorldAge {
     Billion3,
+    #[default]
     Billion4,
     Billion5,
 }
@@ -196,20 +193,15 @@ impl std::str::FromStr for WorldAge {
     }
 }
 
-impl Default for WorldAge {
-    fn default() -> Self {
-        Self::Billion4
-    }
-}
-
 /// Landmass scale choices exposed by Civ III's world setup.
 ///
 /// The active Freeciv generator does not yet map these presets to Freeciv
 /// `landmass` or `startpos` settings; they currently affect the OpenSimplex
 /// implementation only.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum Landform {
     Archipelago,
+    #[default]
     Continents,
     Pangaea,
 }
@@ -238,16 +230,11 @@ impl std::str::FromStr for Landform {
     }
 }
 
-impl Default for Landform {
-    fn default() -> Self {
-        Self::Continents
-    }
-}
-
 /// Temperature options exposed by Civ III's world setup.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(crate) enum Temperature {
     Cool,
+    #[default]
     Temperate,
     Warm,
 }
@@ -292,12 +279,6 @@ impl std::str::FromStr for Temperature {
     }
 }
 
-impl Default for Temperature {
-    fn default() -> Self {
-        Self::Temperate
-    }
-}
-
 /// Civ III world-generation choices. Additional world-setup controls will
 /// join this struct as their generation behavior is migrated.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -307,12 +288,6 @@ pub(crate) struct Civ3WorldSettings {
     pub(crate) age: WorldAge,
     pub(crate) landform: Landform,
     pub(crate) temperature: Temperature,
-}
-
-impl Default for OceanCoverage {
-    fn default() -> Self {
-        Self::Percent70
-    }
 }
 
 mod noise;
@@ -1029,6 +1004,10 @@ impl Generator {
         values
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Recursive subdivision carries the height field, RNG, step, and rectangular bounds."
+    )]
     fn freeciv_fractal_subdivide(
         &self,
         values: &mut [i32],
@@ -1403,11 +1382,10 @@ fn finalize_polar_ocean_boundary(
 ) -> GeneratedMap {
     let wrap = generator.wrap;
     // The polar cap is a visual boundary in Civ III, not generated land.
-    for tile_index in 0..wrap.tile_count() {
+    for (tile_index, tile) in map.tiles.iter_mut().enumerate() {
         if !generator.is_polar_cap_tile(tile_index) {
             continue;
         }
-        let tile = &mut map.tiles[tile_index];
         tile.terrain = Terrain::Ocean;
         tile.base_terrain = TerrainBase::Ocean;
         tile.altitude = tile.altitude.min(shore - 1);

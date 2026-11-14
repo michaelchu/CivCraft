@@ -191,10 +191,10 @@ impl MusicPlayer {
                                 };
                                 match load_sound_from_bytes(&prepared.full_track).await {
                                     Ok(full_sound) => {
-                                        if self.incoming_playing {
-                                            if let Some(previous) = &self.incoming_sound {
-                                                stop_sound(previous);
-                                            }
+                                        if self.incoming_playing
+                                            && let Some(previous) = &self.incoming_sound
+                                        {
+                                            stop_sound(previous);
                                         }
                                         let (sound, looped) =
                                             if let Some((intro_sound, duration)) = intro {
@@ -256,24 +256,24 @@ impl MusicPlayer {
 
         if let Some(duration) = self.intro_duration {
             self.intro_elapsed += get_frame_time().clamp(0.0, 0.1);
-            if self.intro_elapsed >= duration {
-                if let Some(full) = self.full_after_intro.take() {
-                    if let Some(intro) = &self.current_sound {
-                        stop_sound(intro);
-                    }
-                    self.current_sound = Some(full);
-                    play_sound(
-                        self.current_sound.as_ref().unwrap(),
-                        PlaySoundParams {
-                            looped: true,
-                            volume: 0.0,
-                        },
-                    );
-                    self.fade_kind = FadeKind::In;
-                    self.fade_elapsed = 0.0;
-                    self.intro_duration = None;
-                    self.intro_elapsed = 0.0;
+            if self.intro_elapsed >= duration
+                && let Some(full) = self.full_after_intro.take()
+            {
+                if let Some(intro) = &self.current_sound {
+                    stop_sound(intro);
                 }
+                self.current_sound = Some(full);
+                play_sound(
+                    self.current_sound.as_ref().unwrap(),
+                    PlaySoundParams {
+                        looped: true,
+                        volume: 0.0,
+                    },
+                );
+                self.fade_kind = FadeKind::In;
+                self.fade_elapsed = 0.0;
+                self.intro_duration = None;
+                self.intro_elapsed = 0.0;
             }
         }
 
@@ -325,15 +325,15 @@ impl MusicPlayer {
     }
 
     fn stop_current(&mut self) {
-        if self.playing {
-            if let Some(sound) = &self.current_sound {
-                stop_sound(sound);
-            }
+        if self.playing
+            && let Some(sound) = &self.current_sound
+        {
+            stop_sound(sound);
         }
-        if self.incoming_playing {
-            if let Some(sound) = &self.incoming_sound {
-                stop_sound(sound);
-            }
+        if self.incoming_playing
+            && let Some(sound) = &self.incoming_sound
+        {
+            stop_sound(sound);
         }
         self.current_sound = None;
         self.incoming_sound = None;

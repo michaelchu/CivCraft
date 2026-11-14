@@ -156,11 +156,10 @@ impl Game {
         if is_key_pressed(KeyCode::Y)
             && let Some(id) = self.selected_unit
             && let Some(view) = self.sim.unit_action_view(id)
+            && self.sim.apply(Command::Sentry(id))
         {
-            if self.sim.apply(Command::Sentry(id)) {
-                self.notify(format!("{} is now on sentry duty.", view.unit_name));
-                self.select_next_unit();
-            }
+            self.notify(format!("{} is now on sentry duty.", view.unit_name));
+            self.select_next_unit();
         }
         if is_key_pressed(KeyCode::Space) {
             self.perform_action(UiAction::Wait);
@@ -458,10 +457,10 @@ impl Game {
             return;
         }
         if self.goto_mode {
-            if let Some(id) = self.selected_unit {
-                if self.move_selected(Command::GoTo(id, x, y), id) {
-                    self.select_next_unit();
-                }
+            if let Some(id) = self.selected_unit
+                && self.move_selected(Command::GoTo(id, x, y), id)
+            {
+                self.select_next_unit();
             }
             self.goto_mode = false;
             return;

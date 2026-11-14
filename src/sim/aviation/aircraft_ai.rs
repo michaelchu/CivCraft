@@ -222,13 +222,12 @@ impl Simulation {
                             .map_wrap
                             .civ3_distance(live.x, live.y, primary.x, primary.y)
                             == 1
-                    {
-                        if let Some(direction) = CIV3_DIRS.iter().position(|&(dx, dy)| {
+                        && let Some(direction) = CIV3_DIRS.iter().position(|&(dx, dy)| {
                             self.map_wrap.civ3_offset(live.x, live.y, dx, dy)
                                 == Some((primary.x, primary.y))
-                        }) {
-                            self.try_move_unit_civ3(id, direction);
-                        }
+                        })
+                    {
+                        self.try_move_unit_civ3(id, direction);
                     }
                 }
                 if !self.units.iter().any(|unit| unit.id == primary) {

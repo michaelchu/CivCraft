@@ -65,18 +65,10 @@ struct UnitPacingOverrides {
 
 #[derive(Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[derive(Default)]
 pub(super) struct UnitAnimationPacing {
     defaults: PacingDefaults,
     units: HashMap<String, UnitPacingOverrides>,
-}
-
-impl Default for UnitAnimationPacing {
-    fn default() -> Self {
-        Self {
-            defaults: PacingDefaults::default(),
-            units: HashMap::new(),
-        }
-    }
 }
 
 impl UnitAnimationPacing {

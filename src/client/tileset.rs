@@ -78,7 +78,7 @@ pub(crate) fn load_source_fog_atlas() -> Result<Image, String> {
     }
     // FogOfWar.pcx stores opacity inversely in its grayscale palette; magenta
     // color-key pixels stay transparent even though they also have a palette value.
-    for pixel in image.bytes.chunks_exact_mut(4) {
+    for pixel in image.bytes.as_chunks_mut::<4>().0 {
         let opacity = (255.0 - f32::from(pixel[0])) / 255.0;
         let curved_opacity = opacity.powf(FOG_ALPHA_GAMMA);
         pixel[3] = (f32::from(pixel[3]) * curved_opacity).round() as u8;
@@ -397,8 +397,8 @@ impl Theme {
             roots.extend(self.fallback_roots.iter().map(PathBuf::as_path));
         }
         let mut last_missing = None;
-        let (path, image) = 'roots: loop {
-            for root in roots.iter().copied() {
+        let (path, image) = 'roots: {
+            for root in roots.iter() {
                 let path = root.join(relative);
                 match read_theme_image(&path, transparent_indices) {
                     Ok(image) => break 'roots image,
@@ -769,21 +769,21 @@ fn read_theme_image(
     // Original Civ III installations mix both filename and extension casing.
     // Resolve the basename case-insensitively and accept either supported image
     // format so source trees load consistently on case-sensitive filesystems.
-    if let Some(parent) = path.parent() {
-        if let (Some(wanted), Ok(entries)) = (path.file_stem(), fs::read_dir(parent)) {
-            let wanted = wanted.to_string_lossy();
-            for entry in entries.flatten() {
-                let candidate = entry.path();
-                let is_supported = candidate.extension().is_some_and(|ext| {
-                    ext.eq_ignore_ascii_case("pcx") || ext.eq_ignore_ascii_case("png")
-                });
-                if is_supported
-                    && candidate
-                        .file_stem()
-                        .is_some_and(|stem| stem.to_string_lossy().eq_ignore_ascii_case(&wanted))
-                {
-                    candidates.push(candidate);
-                }
+    if let Some(parent) = path.parent()
+        && let (Some(wanted), Ok(entries)) = (path.file_stem(), fs::read_dir(parent))
+    {
+        let wanted = wanted.to_string_lossy();
+        for entry in entries.flatten() {
+            let candidate = entry.path();
+            let is_supported = candidate.extension().is_some_and(|ext| {
+                ext.eq_ignore_ascii_case("pcx") || ext.eq_ignore_ascii_case("png")
+            });
+            if is_supported
+                && candidate
+                    .file_stem()
+                    .is_some_and(|stem| stem.to_string_lossy().eq_ignore_ascii_case(&wanted))
+            {
+                candidates.push(candidate);
             }
         }
     }
@@ -1194,7 +1194,7 @@ impl TerritoryArt {
         let main = [color.r, color.g, color.b]
             .map(|channel| (channel.clamp(0.0, 1.0) * 255.0).round() as u8);
         let mut textures = self.textures.borrow_mut();
-        if !textures.contains_key(&main) {
+        if let std::collections::hash_map::Entry::Vacant(e) = textures.entry(main) {
             let mut image = self.source.clone();
             let secondary = main.map(|channel| (f32::from(channel) * 0.8).round() as u8);
             for pixel in image.get_image_data_mut() {
@@ -1211,7 +1211,7 @@ impl TerritoryArt {
             }
             let texture = Texture2D::from_image(&image);
             texture.set_filter(FilterMode::Nearest);
-            textures.insert(main, texture);
+            e.insert(texture);
             self.cache_misses.set(self.cache_misses.get() + 1);
         } else {
             self.cache_hits.set(self.cache_hits.get() + 1);
@@ -1802,12 +1802,11 @@ impl Civ3 {
     }
 
     pub(super) fn city_texture_at(&self, style: u8, civilization_id: Option<&str>) -> &Texture2D {
-        if let Some(civilization) = civilization_id.and_then(crate::rules::civilizations::by_id) {
-            if let Some(style) =
+        if let Some(civilization) = civilization_id.and_then(crate::rules::civilizations::by_id)
+            && let Some(style) =
                 civilization_city_style(&civilization.name, &self.civilization_city_styles)
-            {
-                return self.city_texture(style);
-            }
+        {
+            return self.city_texture(style);
         }
         let style = ["asian", "american", "european", "middle_eastern", "roman"]
             .get(style as usize)
@@ -1896,6 +1895,10 @@ impl Civ3 {
     }
 
     /// Draw a compact unit portrait using the same source FLC art as the map.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Icon rendering combines unit identity, owner styling, and viewport geometry."
+    )]
     pub(super) fn draw_unit_icon(
         &self,
         kind: UnitKind,
@@ -1946,6 +1949,10 @@ impl Civ3 {
     }
 
     /// Draw the first frame for a unit's current direction from a mod FLC.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Animation rendering combines unit identity, playback state, and viewport geometry."
+    )]
     pub(super) fn draw_unit(
         &self,
         kind: UnitKind,

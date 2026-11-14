@@ -67,10 +67,10 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         if advanced {
-            for owner in 0..3 {
+            for player in &mut self.players[..3] {
                 // Isolate the BarbarianSeaTech roster from Musketeer techs so
                 // the seed has a single eligible advanced sea-raider type.
-                self.players[owner].known = vec![Tech::AMPHIBIOUS_WARFARE];
+                player.known = vec![Tech::AMPHIBIOUS_WARFARE];
             }
         }
 

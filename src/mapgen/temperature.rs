@@ -106,7 +106,7 @@ impl Generator {
                 let ocean_percent = if ocean_neighbors == 0 || neighbor_count == 0 {
                     0
                 } else {
-                    (ocean_neighbors * 100 / neighbor_count) as i32
+                    ocean_neighbors * 100 / neighbor_count
                 };
                 let height = if height_range > 0 {
                     -0.3 * f64::from((heights[tile] - shore).max(0)) / f64::from(height_range)
@@ -173,8 +173,7 @@ pub(super) fn freeciv_temperature_thresholds(
 ) -> (i32, i32, i32) {
     let cold_level = (FREECIV_MAX_COLATITUDE * (60 * 7 - temperature * 6) / 700).max(0);
     let tropical_level = (FREECIV_MAX_COLATITUDE * (143 * 7 - temperature * 10) / 700)
-        .max(0)
-        .min(FREECIV_MAX_COLATITUDE * 9 / 10);
+        .clamp(0, FREECIV_MAX_COLATITUDE * 9 / 10);
 
     // C2C3 leaves `separatepoles` unset, so use Freeciv's server default
     // (TRUE). The current campaign topology keeps default full-range latitude

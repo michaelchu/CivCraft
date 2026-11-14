@@ -281,9 +281,7 @@ impl<'a> SimulationRequirementContext<'a> {
         }
     }
 
-    fn string_name<'b>(
-        requirement: &'b Requirement,
-    ) -> Result<&'b str, RequirementEvaluationError> {
+    fn string_name(requirement: &Requirement) -> Result<&str, RequirementEvaluationError> {
         match &requirement.name {
             RequirementValue::String(name) => Ok(name),
             _ => Err(Self::unsupported(requirement)),
@@ -1578,6 +1576,10 @@ impl Simulation {
         )
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Action evaluation accepts explicit hypothetical actor and target overrides."
+    )]
     fn action_available_for_unit_with_context(
         &self,
         actor: &Unit,
@@ -1645,12 +1647,12 @@ impl Simulation {
         } else {
             target_context
         };
-        Ok(action_enabled(
+        action_enabled(
             &RulesetData::campaign_default().action_enablers,
             action,
             &actor_context,
             &target_context,
-        )?)
+        )
     }
 
     /// Select the C2C3 disembark enabler for movement. The cargo and carrier
@@ -3657,10 +3659,11 @@ mod tests {
             context.is_present(&requirement),
             Err(RequirementEvaluationError::Unsupported { .. })
         ));
-        assert!(!matches!(
-            game.action_available(worker_id, "Not an action", (10, 20)),
-            Ok(_)
-        ));
+        assert!(
+            !game
+                .action_available(worker_id, "Not an action", (10, 20))
+                .is_ok()
+        );
         assert!(matches!(
             game.action_available(worker_id, "Not an action", (10, 20)),
             Err(ActionEvaluationError::UnknownAction(_))

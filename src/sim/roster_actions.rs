@@ -22,7 +22,8 @@ mod tests {
 
     #[test]
     fn campaign_marine_identity_allows_real_amphibious_attacks() {
-        for kind in [UnitKind::Marine] {
+        {
+            let kind = UnitKind::Marine;
             let mut game = Simulation::new(crate::mapgen::generate(42));
             game.units.clear();
             game.cities.clear();

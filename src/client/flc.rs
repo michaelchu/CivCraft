@@ -156,7 +156,7 @@ fn apply_delta(
             if words > 0 {
                 row.copy_from_slice(packet);
             } else {
-                for pair in row.chunks_exact_mut(2) {
+                for pair in row.as_chunks_mut::<2>().0 {
                     pair.copy_from_slice(packet);
                 }
                 at += 2;
@@ -279,7 +279,7 @@ pub(super) fn decode_flic(bytes: &[u8]) -> Result<Flic, String> {
                             if color + count > 256 {
                                 return Err("FLC palette packet exceeds 256 colors".to_owned());
                             }
-                            for (index, rgb) in colors.chunks_exact(3).enumerate() {
+                            for (index, rgb) in colors.as_chunks::<3>().0.iter().enumerate() {
                                 palette[color + index].copy_from_slice(rgb);
                             }
                             color += count;

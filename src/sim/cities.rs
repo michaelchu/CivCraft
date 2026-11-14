@@ -42,16 +42,15 @@ impl Simulation {
     }
 
     pub(super) fn city_name(&self, owner: usize) -> String {
-        if let Some(civilization_id) = self.players[owner].civilization_id.as_deref() {
-            if let Some(name) =
+        if let Some(civilization_id) = self.players[owner].civilization_id.as_deref()
+            && let Some(name) =
                 crate::rules::civilizations::next_city_name(civilization_id, |name| {
                     self.cities
                         .iter()
                         .any(|city| city.name.eq_ignore_ascii_case(name))
                 })
-            {
-                return name;
-            }
+        {
+            return name;
         }
         // Rebels/barbarians retain their own identity, without borrowing a nation.
         for number in 1.. {
@@ -504,10 +503,9 @@ impl Simulation {
         buildings.sort_by_key(|building| building.0);
         let mut kept_buildings = Vec::with_capacity(buildings.len());
         for building in buildings {
-            if building.data().genus == Genus::GreatWonder {
-                kept_buildings.push(building);
-            } else if building.data().genus != Genus::SmallWonder
-                && self.rand_below(100) >= raze_chance
+            if building.data().genus == Genus::GreatWonder
+                || (building.data().genus != Genus::SmallWonder
+                    && self.rand_below(100) >= raze_chance)
             {
                 kept_buildings.push(building);
             }

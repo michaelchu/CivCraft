@@ -178,6 +178,10 @@ impl Game {
         );
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "City rendering combines city appearance with viewport geometry."
+    )]
     fn draw_city_sprite(
         &self,
         assets: &Assets,
@@ -386,6 +390,10 @@ impl Game {
         }
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Unit rendering combines stack state, animation playback, and viewport geometry."
+    )]
     pub(in crate::client) fn draw_unit(
         &self,
         assets: &Assets,

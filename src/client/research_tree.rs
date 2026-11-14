@@ -280,11 +280,7 @@ fn order_columns(columns: &mut [Vec<usize>], gaps: &[Vec<(usize, usize)>], count
                         }
                     })
                     .fold((0, 0), |(sum, count), row| (sum + row, count + 1));
-                if count == 0 {
-                    rank[node] * 1024
-                } else {
-                    sum * 1024 / count
-                }
+                (sum * 1024).checked_div(count).unwrap_or(rank[node] * 1024)
             });
             update(&columns[col], &mut rank);
         }

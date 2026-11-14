@@ -307,21 +307,21 @@ fn parse_route_type_table(
 
         // Freeciv's ruleset loader uses these per-cell defaults. Repeated rows
         // overwrite prior values, matching its ordered table traversal.
-        if let Some(column) = pct_column {
-            if let Some(value) = row_value(row, column, row_index, "pct")? {
-                settings.trade_percent = integer_value(value, "trade.settings.pct")?;
-            }
+        if let Some(column) = pct_column
+            && let Some(value) = row_value(row, column, row_index, "pct")?
+        {
+            settings.trade_percent = integer_value(value, "trade.settings.pct")?;
         }
-        if let Some(column) = cancellation_column {
-            if let Some(value) = row_value(row, column, row_index, "cancelling")? {
-                settings.cancellation =
-                    parse_cancellation(string_value(value, "trade.settings.cancelling")?)?;
-            }
+        if let Some(column) = cancellation_column
+            && let Some(value) = row_value(row, column, row_index, "cancelling")?
+        {
+            settings.cancellation =
+                parse_cancellation(string_value(value, "trade.settings.cancelling")?)?;
         }
-        if let Some(column) = bonus_column {
-            if let Some(value) = row_value(row, column, row_index, "bonus")? {
-                settings.bonus = parse_route_bonus(string_value(value, "trade.settings.bonus")?)?;
-            }
+        if let Some(column) = bonus_column
+            && let Some(value) = row_value(row, column, row_index, "bonus")?
+        {
+            settings.bonus = parse_route_bonus(string_value(value, "trade.settings.bonus")?)?;
         }
     }
     Ok(())

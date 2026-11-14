@@ -35,6 +35,7 @@ impl Simulation {
     /// Apply Freeciv's shared attack modifiers to an explicitly mapped
     /// content strength. Civ III air units retain their source `bombard_strength`
     /// for the C2C3 Bombard action even when their ordinary attack is zero.
+    #[cfg(test)]
     pub(in crate::sim) fn attack_power_against_with_base(
         &self,
         attacker: &Unit,

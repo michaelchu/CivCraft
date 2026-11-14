@@ -73,6 +73,10 @@ pub(crate) struct UnsupportedUnitEconomics {
 
 pub(super) struct UnitGoldUpkeep {
     pub(super) paid: Vec<(u32, i32)>,
+    #[allow(
+        dead_code,
+        reason = "Preserve unsupported upkeep details for diagnostics and unit-test assertions."
+    )]
     pub(super) unsupported_mappings: Vec<UnsupportedUnitEconomics>,
 }
 
@@ -149,8 +153,8 @@ impl Simulation {
                 UnitEconomicsRecordBinding::Unsupported { source_id, basis } => {
                     Some(UnsupportedUnitEconomics {
                         unit_id: unit.id,
-                        source_id: *source_id,
-                        basis: *basis,
+                        source_id,
+                        basis,
                     })
                 }
                 UnitEconomicsRecordBinding::Mapped { .. } => None,
@@ -515,7 +519,7 @@ impl Simulation {
             &context,
         )
         .unwrap_or_else(|error| panic!("could not evaluate C2C3 unit shield value: {error:?}"));
-        let value = i64::from(base) + i64::from(base) * percent / 100;
+        let value = base + base * percent / 100;
         i32::try_from(value).unwrap_or_else(|_| panic!("unit shield value exceeds i32"))
     }
 

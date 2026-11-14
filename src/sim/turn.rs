@@ -298,6 +298,33 @@ fn next_calendar_state(
     Ok((next_year, year_0_hack))
 }
 
+impl Simulation {
+    pub(in crate::sim) fn check_game_over(&mut self) {
+        if self.game_over.is_some() {
+            return;
+        }
+        let ai_only = self.players[HUMAN].ai;
+        if !self.player_alive(HUMAN) && !ai_only {
+            self.game_over = Some("Your civilization has passed into history.".to_owned());
+            return;
+        }
+        let living = (0..self.civilization_count)
+            .filter(|&owner| self.player_alive(owner))
+            .count();
+        if (ai_only && living <= 1)
+            || (!ai_only
+                && !(0..self.civilization_count)
+                    .any(|owner| owner != HUMAN && self.player_alive(owner)))
+        {
+            self.game_over = Some(if ai_only {
+                "One civilization remains.".to_owned()
+            } else {
+                "The world is united beneath your banner.".to_owned()
+            });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -437,32 +464,5 @@ mod tests {
                 .unwrap()
                 .contains("passed into history")
         );
-    }
-}
-
-impl Simulation {
-    pub(in crate::sim) fn check_game_over(&mut self) {
-        if self.game_over.is_some() {
-            return;
-        }
-        let ai_only = self.players[HUMAN].ai;
-        if !self.player_alive(HUMAN) && !ai_only {
-            self.game_over = Some("Your civilization has passed into history.".to_owned());
-            return;
-        }
-        let living = (0..self.civilization_count)
-            .filter(|&owner| self.player_alive(owner))
-            .count();
-        if (ai_only && living <= 1)
-            || (!ai_only
-                && !(0..self.civilization_count)
-                    .any(|owner| owner != HUMAN && self.player_alive(owner)))
-        {
-            self.game_over = Some(if ai_only {
-                "One civilization remains.".to_owned()
-            } else {
-                "The world is united beneath your banner.".to_owned()
-            });
-        }
     }
 }

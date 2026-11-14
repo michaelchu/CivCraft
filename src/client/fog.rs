@@ -23,6 +23,10 @@ impl Game {
         }
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Fog rendering needs geometry, tile knowledge, and an independent lookup callback."
+    )]
     pub(super) fn draw_fog_intersection(
         &self,
         assets: &Assets,
@@ -97,6 +101,26 @@ fn fog_status(
     }
 }
 
+/// Match OpenCiv3's 9x9 FogOfWar atlas indexing. `north` and `west` select
+/// the column; `east` and `south` select the row. Each state contributes 0
+/// when unknown, 1 when remembered, and 2 when currently visible, with the
+/// west/south state in the high trit.
+pub(super) fn source_fog_cell(
+    north: Knowledge,
+    south: Knowledge,
+    east: Knowledge,
+    west: Knowledge,
+) -> (usize, usize) {
+    let active = |state| match state {
+        Knowledge::Unknown => 0,
+        Knowledge::Remembered => 1,
+        Knowledge::Visible => 2,
+    };
+    let column = active(north) + active(west) * 3;
+    let row = active(east) + active(south) * 3;
+    (row, column)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,24 +146,4 @@ mod tests {
             }
         }
     }
-}
-
-/// Match OpenCiv3's 9x9 FogOfWar atlas indexing. `north` and `west` select
-/// the column; `east` and `south` select the row. Each state contributes 0
-/// when unknown, 1 when remembered, and 2 when currently visible, with the
-/// west/south state in the high trit.
-pub(super) fn source_fog_cell(
-    north: Knowledge,
-    south: Knowledge,
-    east: Knowledge,
-    west: Knowledge,
-) -> (usize, usize) {
-    let active = |state| match state {
-        Knowledge::Unknown => 0,
-        Knowledge::Remembered => 1,
-        Knowledge::Visible => 2,
-    };
-    let column = active(north) + active(west) * 3;
-    let row = active(east) + active(south) * 3;
-    (row, column)
 }

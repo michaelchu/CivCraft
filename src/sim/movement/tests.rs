@@ -18,9 +18,9 @@ fn prepare_zoc_test_map(game: &mut Simulation) {
     }
 }
 
-fn capture_unit_state(
-    game: &Simulation,
-) -> Vec<(u32, usize, UnitKind, i32, i32, Option<u32>, i32, i32)> {
+type CapturedUnitState = (u32, usize, UnitKind, i32, i32, Option<u32>, i32, i32);
+
+fn capture_unit_state(game: &Simulation) -> Vec<CapturedUnitState> {
     game.units
         .iter()
         .map(|unit| {
@@ -965,7 +965,7 @@ fn moved_units_retain_the_matching_civ3_flic_direction_row() {
 #[test]
 fn civ3_move_commands_cover_all_eight_neighbors_and_facing_rows() {
     let expected_rows = [5, 4, 3, 2, 1, 0, 7, 6];
-    for direction in 0..CIV3_DIRS.len() {
+    for (direction, &expected_row) in expected_rows.iter().enumerate() {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         for tile in &mut game.tiles {
@@ -982,7 +982,7 @@ fn civ3_move_commands_cover_all_eight_neighbors_and_facing_rows() {
         assert!(game.apply(Command::MoveCiv3(id, direction)));
         let moved = game.unit_by_id(id).unwrap();
         assert_eq!((moved.x, moved.y), destination);
-        assert_eq!(moved.facing, expected_rows[direction]);
+        assert_eq!(moved.facing, expected_row);
     }
 }
 

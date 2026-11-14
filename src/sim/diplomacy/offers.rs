@@ -414,6 +414,7 @@ impl Simulation {
         offer
     }
 
+    #[cfg(test)]
     pub(super) fn build_offer(&self, a: usize, b: usize, pact: Option<Pact>) -> TreatyOffer {
         let mut offer = TreatyOffer {
             pact,

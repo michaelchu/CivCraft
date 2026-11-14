@@ -95,6 +95,10 @@ impl Report {
         self.event_bytes += bytes.len();
         Ok(true)
     }
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Checkpoint output includes configuration, snapshot, termination state, and dropped-event accounting."
+    )]
     pub fn checkpoint(
         &mut self,
         config: &Config,

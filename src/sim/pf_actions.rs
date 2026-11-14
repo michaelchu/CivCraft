@@ -171,23 +171,19 @@ impl Simulation {
             .cities
             .iter()
             .any(|city| (city.x, city.y) == (x, y) && !self.allied(owner, city.owner));
-        if city {
-            if kind == UnitKind::Explorer {
-                return PfAction::None;
-            }
+        if city && kind == UnitKind::Explorer {
+            return PfAction::None;
         }
         let units = self
             .units
             .iter()
             .any(|unit| (unit.x, unit.y) == (x, y) && !self.allied(owner, unit.owner));
-        if units {
-            if !kind.is_civilian() {
-                return if self.pf_attack_possible(kind, owner, x, y, seen) {
-                    PfAction::Attack
-                } else {
-                    PfAction::Impossible
-                };
-            }
+        if units && !kind.is_civilian() {
+            return if self.pf_attack_possible(kind, owner, x, y, seen) {
+                PfAction::Attack
+            } else {
+                PfAction::Impossible
+            };
         }
         if city && city_attack && !kind.is_civilian() {
             return if Self::pf_class_can_occupy_city(kind)
@@ -323,7 +319,8 @@ mod tests {
         sim.cities.clear();
         sim.tile_mut(10, 20).terrain = Terrain::Grassland;
         sim.spawn_unit(1, UnitKind::Warrior, 10, 20);
-        for kind in [UnitKind::Settler] {
+        {
+            let kind = UnitKind::Settler;
             assert_eq!(
                 sim.pf_default_action(kind, HUMAN, (10, 20), true, true, true),
                 PfAction::None

@@ -394,7 +394,7 @@ fn parse_rule_record(
     if namespace == "user_effect" {
         for key in ["type", "ai_valued_as"] {
             let value = field_string(file, section, key)?.ok_or_else(|| {
-                LoadError::in_section(file, section, &format!("user effect is missing `{key}`"))
+                LoadError::in_section(file, section, format!("user effect is missing `{key}`"))
             })?;
             validate_identifier(
                 file,
@@ -429,10 +429,10 @@ fn parse_rule_record(
 }
 
 fn strip_translation_qualifier(name: &str) -> String {
-    if let Some(qualified) = name.strip_prefix('?') {
-        if let Some((_, untranslated)) = qualified.split_once(':') {
-            return untranslated.to_owned();
-        }
+    if let Some(qualified) = name.strip_prefix('?')
+        && let Some((_, untranslated)) = qualified.split_once(':')
+    {
+        return untranslated.to_owned();
     }
     name.to_owned()
 }
@@ -518,7 +518,7 @@ fn parse_requirement(
                 file,
                 section,
                 &entry.key,
-                &format!("unsupported requirement column {column:?}"),
+                format!("unsupported requirement column {column:?}"),
             ));
         }
     }
@@ -562,7 +562,7 @@ fn parse_requirement(
                 file,
                 section,
                 &entry.key,
-                &format!("unknown requirement range {range_name:?}"),
+                format!("unknown requirement range {range_name:?}"),
             ));
         }
     };
@@ -901,7 +901,7 @@ fn row_value<'a>(
             file,
             section,
             &entry.key,
-            &format!("table row is missing required column {column:?}"),
+            format!("table row is missing required column {column:?}"),
         )
     })
 }
@@ -921,7 +921,7 @@ fn row_string(
             file,
             section,
             &entry.key,
-            &format!("table column {column:?} must contain a scalar"),
+            format!("table column {column:?} must contain a scalar"),
         )),
     }
 }
@@ -943,7 +943,7 @@ fn row_bool(
             file,
             section,
             &entry.key,
-            &format!("table column {column:?} must be boolean"),
+            format!("table column {column:?} must be boolean"),
         )),
     }
 }

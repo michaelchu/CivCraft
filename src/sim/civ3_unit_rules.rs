@@ -14,6 +14,10 @@ pub(super) struct UnitRule {
     /// All original PRTO prototype indices represented by this campaign identity.
     /// Multiple indices occur when the same unit identity appears in more than
     /// one installed BIQ.
+    #[allow(
+        dead_code,
+        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
+    )]
     pub(super) source_prototypes: &'static str,
     pub(super) required_technology: &'static str,
     pub(super) required_resources: [&'static str; 3],
@@ -27,6 +31,10 @@ pub(super) struct UnitRule {
     pub(super) capacity: usize,
     pub(super) operational_range: i32,
     pub(super) bombard_strength: i32,
+    #[allow(
+        dead_code,
+        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
+    )]
     pub(super) bombard_range: i32,
     pub(super) rate_of_fire: i32,
     pub(super) hit_point_bonus: i32,
@@ -34,13 +42,29 @@ pub(super) struct UnitRule {
     flags_2: [u8; 8],
     flags_3: [u8; 20],
     ai_strategies: u32,
+    #[allow(
+        dead_code,
+        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
+    )]
     ignore_movement_cost: [u8; 14],
     #[allow(dead_code)]
     pub(super) zone_of_control: i32,
+    #[allow(
+        dead_code,
+        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
+    )]
     pub(super) bombard_effects: i32,
     #[allow(dead_code)]
     pub(super) require_support: i32,
+    #[allow(
+        dead_code,
+        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
+    )]
     pub(super) enslave_result_prototype_index: i32,
+    #[allow(
+        dead_code,
+        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
+    )]
     pub(super) create_craters: i32,
     pub(super) worker_strength: f32,
     #[allow(dead_code)]
@@ -62,6 +86,10 @@ pub(super) struct ExperienceRule {
     pub(super) base_hit_points: i32,
     #[allow(dead_code)]
     pub(super) retreat_bonus_percent: i32,
+    #[allow(
+        dead_code,
+        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
+    )]
     pub(super) promotion_chance_per_mille: i32,
     pub(super) is_default: bool,
 }
@@ -141,32 +169,12 @@ impl UnitRule {
             .is_some_and(|value| value & (1 << bit) != 0)
     }
 
-    pub(super) fn ignores_movement_cost(&self, terrain: crate::sim::Terrain) -> bool {
-        use crate::sim::Terrain as T;
-        let index = match terrain {
-            T::Desert => 0,
-            T::Plains => 1,
-            T::Grassland | T::GrasslandShield => 2,
-            T::Tundra => 3,
-            T::FloodPlains => 4,
-            T::Hills => 5,
-            T::Mountains => 6,
-            T::Forest => 7,
-            T::Jungle => 8,
-            T::Marsh => 9,
-            T::Volcano => 10,
-            T::Coast => 11,
-            T::Sea => 12,
-            T::Ocean => 13,
-            T::Lake | T::Glacier => return false,
-        };
-        self.ignore_movement_cost[index] & 1 != 0
-    }
-
+    #[cfg(test)]
     pub(super) fn has_lethal_land_bombard(&self) -> bool {
         self.has_flag_1(3, 3)
     }
 
+    #[cfg(test)]
     pub(super) fn has_lethal_sea_bombard(&self) -> bool {
         self.has_flag_1(3, 4)
     }
@@ -380,7 +388,9 @@ fn parse_ai_strategy_mask(profiles: &str, row: usize) -> u32 {
         assert_eq!(raw_flags.len(), 16, "invalid source AI flags on row {row}");
         let bytes = raw_flags
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| {
                 let pair = std::str::from_utf8(pair).expect("hex profile bytes");
                 u8::from_str_radix(pair, 16)
@@ -402,7 +412,9 @@ fn rules() -> &'static [UnitRule] {
             assert_eq!(value.len() % 2, 0, "invalid flag bytes on row {row}");
             value
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| {
                     let pair = std::str::from_utf8(pair).unwrap();
                     u8::from_str_radix(pair, 16)
@@ -515,6 +527,7 @@ pub(super) fn get(id: &str) -> Option<&'static UnitRule> {
     rules().iter().find(|rule| rule.id == id)
 }
 
+#[cfg(test)]
 pub(super) fn get_by_prototype_index(index: i32) -> Option<&'static UnitRule> {
     rules().iter().find(|rule| {
         rule.source_prototypes

@@ -648,6 +648,10 @@ impl super::Generator {
         }
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Start scoring consumes independent terrain fields, settings, and the deterministic RNG."
+    )]
     pub(super) fn start_positions(
         &self,
         terrain: &[Terrain],

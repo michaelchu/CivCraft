@@ -310,8 +310,7 @@ pub(crate) struct Simulation {
     ai_threat_arrival_cache:
         std::cell::RefCell<std::collections::BTreeMap<(u32, u32), Option<i32>>>,
     #[serde(skip)]
-    ai_danger_route_cache:
-        std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
+    ai_danger_route_cache: std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
 }
 
 fn percent_of(value: i32, percent: i32) -> i32 {
@@ -462,8 +461,7 @@ impl Simulation {
 
         let roster = crate::rules::civilizations::select_roster(seed, MAX_CIVILIZATIONS);
         let mut players = Vec::new();
-        for i in 0..MAX_CIVILIZATIONS {
-            let civilization = roster[i];
+        for (i, civilization) in roster.iter().enumerate().take(MAX_CIVILIZATIONS) {
             players.push(Player {
                 name: civilization.name.clone(),
                 civilization_id: Some(civilization.id.clone()),

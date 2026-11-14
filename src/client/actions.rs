@@ -66,10 +66,10 @@ impl Game {
                 }
             }
             UiAction::HelpWonder(city) => {
-                if let Some(id) = self.selected_unit {
-                    if self.sim.apply(Command::HelpWonder(id, city)) {
-                        self.select_next_unit();
-                    }
+                if let Some(id) = self.selected_unit
+                    && self.sim.apply(Command::HelpWonder(id, city))
+                {
+                    self.select_next_unit();
                 }
             }
             UiAction::BeginParadrop => {

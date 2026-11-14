@@ -29,9 +29,7 @@ impl Simulation {
             if surplus >= 0 {
                 break;
             }
-            let Some(city_index) = self.city_index_by_id(city_id) else {
-                return None;
-            };
+            let city_index = self.city_index_by_id(city_id)?;
             let current_upkeep = self.city_unit_upkeep(&self.cities[city_index]);
             let Some(current_row) = current_upkeep
                 .per_unit
@@ -47,16 +45,12 @@ impl Simulation {
                 continue;
             }
             if self.resolve_missing_unit_upkeep(row.unit_id, UnitUpkeepOutput::Shield) {
-                let Some(index) = self.city_index_by_id(city_id) else {
-                    return None;
-                };
+                let index = self.city_index_by_id(city_id)?;
                 surplus = shield_output - self.city_unit_upkeep(&self.cities[index]).shields;
             }
         }
 
-        let Some(index) = self.city_index_by_id(city_id) else {
-            return None;
-        };
+        let index = self.city_index_by_id(city_id)?;
         let remaining = self.city_unit_upkeep(&self.cities[index]);
         let mut protected_population_losses = 0;
         for row in remaining.per_unit {
@@ -75,9 +69,7 @@ impl Simulation {
         }
 
         if protected_population_losses > 0 {
-            let Some(index) = self.city_index_by_id(city_id) else {
-                return None;
-            };
+            let index = self.city_index_by_id(city_id)?;
             let city = &self.cities[index];
             if city.size <= protected_population_losses {
                 let owner = city.owner;
@@ -89,9 +81,7 @@ impl Simulation {
                 return None;
             }
             for _ in 0..protected_population_losses {
-                let Some(index) = self.city_index_by_id(city_id) else {
-                    return None;
-                };
+                let index = self.city_index_by_id(city_id)?;
                 self.reduce_city_population(index);
             }
             if let Some(index) = self.city_index_by_id(city_id)
@@ -517,6 +507,10 @@ pub(super) enum Growth {
 }
 
 impl City {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Growth resolution takes the independently computed ruleset effects for this city."
+    )]
     pub(super) fn resolve_growth(
         &mut self,
         wrap: MapWrap,

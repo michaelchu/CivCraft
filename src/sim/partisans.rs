@@ -89,26 +89,21 @@ fn selected_partisan_unit() -> UnitKind {
         // carrying Freeciv's Partisan role before using the Civ III identity.
         let candidates = UnitKind::ALL_NATIVE
             .into_iter()
-            .filter_map(
-                |kind| match super::action_rules::freeciv_unit_economics_record(kind) {
-                    super::action_rules::UnitEconomicsRecordBinding::Mapped {
-                        record,
-                        kind: mapping,
-                    } if mapping == super::action_rules::UnitEconomicsBindingKind::RoleAlias
-                        && record
-                            .string_list_field("roles")
-                            .expect("selected partisan role list is valid")
-                            .is_some_and(|roles| {
-                                roles
-                                    .iter()
-                                    .any(|role| role.eq_ignore_ascii_case("Partisan"))
-                            }) =>
-                    {
-                        Some(kind)
-                    }
-                    _ => None,
-                },
-            )
+            .filter(|&kind| {
+                matches!(super::action_rules::freeciv_unit_economics_record(kind),
+                super::action_rules::UnitEconomicsRecordBinding::Mapped {
+                    record,
+                    kind: mapping,
+                } if mapping == super::action_rules::UnitEconomicsBindingKind::RoleAlias
+                    && record
+                        .string_list_field("roles")
+                        .expect("selected partisan role list is valid")
+                        .is_some_and(|roles| {
+                            roles
+                                .iter()
+                                .any(|role| role.eq_ignore_ascii_case("Partisan"))
+                        }))
+            })
             .collect::<Vec<_>>();
         assert_eq!(
             candidates.len(),

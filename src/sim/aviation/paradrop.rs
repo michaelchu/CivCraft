@@ -384,11 +384,11 @@ impl Simulation {
                 }
             }
         }
-        if let Some((x, y)) = best {
-            if self.paradrop(unit.id, x, y) {
-                self.ai_military_rampage(unit.id, 1, 1);
-                return true;
-            }
+        if let Some((x, y)) = best
+            && self.paradrop(unit.id, x, y)
+        {
+            self.ai_military_rampage(unit.id, 1, 1);
+            return true;
         }
         false
     }

@@ -32,7 +32,9 @@ impl Simulation {
             }
             let costs = self.danger_route_costs(unit)?;
             let spent = costs[goal];
-            self.ai_danger_route_cache.borrow_mut().insert(unit.id, costs);
+            self.ai_danger_route_cache
+                .borrow_mut()
+                .insert(unit.id, costs);
             return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
         }
         self.danger_route_turns_uncached(unit, city)
