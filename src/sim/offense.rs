@@ -345,6 +345,10 @@ impl Simulation {
                 production: Production::Unit(seed_kind),
                 want: f64::from(target.want),
             };
+            let mut ferry_path = target
+                .ferry
+                .as_ref()
+                .map(|boat| NormalPaths::overlap_map(self, boat));
             for kind in UnitKind::simple_military() {
                 self.trace.count_operation("offense.candidate_units", 1);
                 if kind.stats().attack <= 0
@@ -357,7 +361,9 @@ impl Simulation {
                 let mut candidate = self.make_unit(0, city.owner, kind, city.x, city.y);
                 candidate.veteran = self.trained_rank(city, kind);
                 candidate.hp = candidate.max_hit_points();
-                let Some(turns) = self.offensive_candidate_turns(&candidate, &target) else {
+                let Some(turns) =
+                    self.offensive_candidate_turns(&candidate, &target, ferry_path.as_mut())
+                else {
                     continue;
                 };
                 let tech = kind.required_tech();

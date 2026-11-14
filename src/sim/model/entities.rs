@@ -209,6 +209,13 @@ pub(crate) struct City {
     pub(in crate::sim) ai_settlement_choice: Option<(Production, f64)>,
     #[serde(default)]
     pub(in crate::sim) ai_settlement_next: i32,
+    /// Per-city Freeciv-style cached domestic building tech feedback.
+    #[serde(default)]
+    pub(in crate::sim) ai_domestic_tech_wants: Option<Vec<(Tech, i32)>>,
+    #[serde(default)]
+    pub(in crate::sim) ai_domestic_tech_rates: [i32; 3],
+    #[serde(default)]
+    pub(in crate::sim) ai_domestic_tech_next: i32,
 }
 
 impl City {
@@ -249,6 +256,9 @@ impl City {
             ai_building_next: 0,
             ai_settlement_choice: None,
             ai_settlement_next: 0,
+            ai_domestic_tech_wants: None,
+            ai_domestic_tech_rates: [0; 3],
+            ai_domestic_tech_next: 0,
         }
     }
 }

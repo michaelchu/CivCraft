@@ -190,7 +190,7 @@ fn combined_ferry_search_finds_remote_boat_but_seed_rejects_an_unreachable_rende
         .offensive_beachhead(&mut fmap, seed.kind, seed.owner, enemy.0, enemy.1)
         .unwrap();
     assert_eq!(
-        game.offensive_candidate_turns(&seed, &target),
+        game.offensive_candidate_turns(&seed, &target, Some(&mut fmap)),
         fmap.position_turn(&game, x, y)
     );
 }

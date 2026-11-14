@@ -48,30 +48,59 @@ impl Simulation {
         // cities first would change f32 rounding after government feedback.
         let cities: Vec<_> = self.player_cities_ordered(owner).cloned().collect();
         for city in cities {
-            let _baseline_profile = profiler.scope("advisor.domestic.city_baseline");
-            let baseline = self.advisor_city_output(&city, None);
-            let (food, gross_shields, _) = self.city_yields(&city);
-            let upkeep = self.city_unit_upkeep(&city);
-            let food_surplus = food - city.size * Self::citizen_food_cost() - upkeep.food;
-            let shields = (gross_shields - upkeep.shields).max(0);
-            drop(_baseline_profile);
-            let _tech_profile = profiler.scope("advisor.domestic.building_tech_wants");
-            for &tech in improvement_unlock_techs() {
-                if !self.has_tech(owner, tech) {
-                    self.add_ai_tech_want(
-                        owner,
-                        tech,
-                        self.city_building_tech_want_with_baseline(
-                            &city,
+            let rates = self.players[owner].rates;
+            let cached = self.city_by_id(city.id).and_then(|current| {
+                (self.turn < current.ai_domestic_tech_next
+                    && current.ai_domestic_tech_rates == rates)
+                    .then(|| current.ai_domestic_tech_wants.clone())
+                    .flatten()
+            });
+            let wants = if let Some(wants) = cached {
+                self.trace
+                    .count_operation("advisor.domestic.tech_want_cache_hits", 1);
+                wants
+            } else {
+                self.trace
+                    .count_operation("advisor.domestic.tech_want_recalculations", 1);
+                let _baseline_profile = profiler.scope("advisor.domestic.city_baseline");
+                let baseline = self.advisor_city_output(&city, None);
+                let (food, gross_shields, _) = self.city_yields(&city);
+                let upkeep = self.city_unit_upkeep(&city);
+                let food_surplus = food - city.size * Self::citizen_food_cost() - upkeep.food;
+                let shields = (gross_shields - upkeep.shields).max(0);
+                drop(_baseline_profile);
+                let _tech_profile = profiler.scope("advisor.domestic.building_tech_wants");
+                let wants = improvement_unlock_techs()
+                    .iter()
+                    .copied()
+                    .filter(|&tech| !self.has_tech(owner, tech))
+                    .map(|tech| {
+                        (
                             tech,
-                            baseline,
-                            food_surplus,
-                            shields,
-                        ) as f32,
-                    );
+                            self.city_building_tech_want_with_baseline(
+                                &city,
+                                tech,
+                                baseline,
+                                food_surplus,
+                                shields,
+                            ),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                drop(_tech_profile);
+                let next = self.turn + self.stable_advice_interval(city.id, 0x444f_4d54_4543_48);
+                if let Some(index) = self.city_index_by_id(city.id) {
+                    self.cities[index].ai_domestic_tech_wants = Some(wants.clone());
+                    self.cities[index].ai_domestic_tech_rates = rates;
+                    self.cities[index].ai_domestic_tech_next = next;
+                }
+                wants
+            };
+            for (tech, want) in wants {
+                if !self.has_tech(owner, tech) {
+                    self.add_ai_tech_want(owner, tech, want as f32);
                 }
             }
-            drop(_tech_profile);
         }
     }
 

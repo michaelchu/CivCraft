@@ -351,19 +351,15 @@ impl super::Simulation {
         &self,
         candidate: &Unit,
         target: &OffensiveTarget,
+        ferry_map: Option<&mut NormalPaths>,
     ) -> Option<i32> {
         self.trace.count_operation("offensive.candidate_routes", 1);
         let mut pf = NormalPaths::enemy_map(self, candidate);
         let mut turns = None;
-        if let Some(boat) = target.ferry.as_ref() {
-            let mut fmap = NormalPaths::overlap_map(self, boat);
-            if let Some((x, y, _)) = self.offensive_beachhead(
-                &mut fmap,
-                candidate.kind,
-                candidate.owner,
-                target.x,
-                target.y,
-            ) {
+        if let (Some(boat), Some(fmap)) = (target.ferry.as_ref(), ferry_map) {
+            if let Some((x, y, _)) =
+                self.offensive_beachhead(fmap, candidate.kind, candidate.owner, target.x, target.y)
+            {
                 turns = fmap.position_turn(self, x, y);
                 let mut first = None;
                 while let Some(position) = pf.next_position(self) {

@@ -5,7 +5,7 @@ use super::*;
 impl Simulation {
     const STABLE_ADVICE_RECALC_SPEED: i32 = 5;
 
-    fn stable_advice_interval(&self, city_id: u32, salt: u64) -> i32 {
+    pub(super) fn stable_advice_interval(&self, city_id: u32, salt: u64) -> i32 {
         // Freeciv uses fc_rand(5) + 5. Use a separate deterministic mix so
         // scheduling does not perturb CivCraft's gameplay RNG stream.
         let mut value = self.world_seed ^ u64::from(city_id) ^ salt;
@@ -25,9 +25,11 @@ impl Simulation {
             }
             let building = city.ai_building_choice.take().is_some();
             let settlement = city.ai_settlement_choice.take().is_some();
-            if building || settlement {
+            let domestic_tech = city.ai_domestic_tech_wants.take().is_some();
+            if building || settlement || domestic_tech {
                 city.ai_building_next = self.turn;
                 city.ai_settlement_next = self.turn;
+                city.ai_domestic_tech_next = self.turn;
                 invalidated += 1;
             }
         }

@@ -538,6 +538,8 @@ impl Simulation {
         self.cities[city_index].ai_building_next = self.turn;
         self.cities[city_index].ai_settlement_choice = None;
         self.cities[city_index].ai_settlement_next = self.turn;
+        self.cities[city_index].ai_domestic_tech_wants = None;
+        self.cities[city_index].ai_domestic_tech_next = self.turn;
         let city_id = self.cities[city_index].id;
         self.reduce_city_population(city_index);
         let Some(city_index) = self.city_index_by_id(city_id) else {

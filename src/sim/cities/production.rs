@@ -278,6 +278,8 @@ impl Simulation {
                 self.cities[index].ai_building_next = self.turn;
                 self.cities[index].ai_settlement_choice = None;
                 self.cities[index].ai_settlement_next = self.turn;
+                self.cities[index].ai_domestic_tech_wants = None;
+                self.cities[index].ai_domestic_tech_next = self.turn;
                 self.trace.emit(
                     self.turn,
                     || {
