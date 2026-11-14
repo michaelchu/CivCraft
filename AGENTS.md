@@ -41,12 +41,11 @@ source for each claim; record edition differences or disagreements.
 
 ## Comparison source checkout
 
-The Freeciv source checkout at `/Users/michaelchu/Documents/projects/civjs/reference`
-is historical implementation context only, not a gameplay authority. Use it
+The Freeciv source submodule at `reference/freeciv` tracks the public upstream
+`main` branch and is implementation context only, not a gameplay authority. Use it
 only when a task explicitly requires examining that implementation. Do not
 copy its behavior into the manual-derived expected rules. For example, the
-legacy Civ2Civ3 unit rules are in
-`reference/freeciv/data/civ2civ3/units.ruleset` there.
+Civ2Civ3 unit rules are in `reference/freeciv/data/civ2civ3/units.ruleset`.
 
 ## Choosing the right test path
 

@@ -44,6 +44,28 @@ temperature accepts `cool`, `temperate`, or `warm`. The built-in `--tileset`
 choices are `civ3`, `conquests`, `snoopy-standard`, `snoopy-greener`, and
 `snoopy-extended`.
 
+## Freeciv reference source
+
+The Git submodule at `reference/freeciv` tracks the public upstream
+[Freeciv repository](https://github.com/freeciv/freeciv), using its `main` branch.
+Initialize it after cloning CivCraft:
+
+```sh
+git submodule update --init reference/freeciv
+```
+
+To advance it to the latest upstream `main` commit:
+
+```sh
+git submodule update --remote reference/freeciv
+git add reference/freeciv
+git commit -m "Update Freeciv reference submodule"
+```
+
+CivCraft records a specific Freeciv commit for reproducible checkouts; updates
+are explicit. This reference source is optional for building and running
+CivCraft and is implementation context, not an authority for Civ III rules.
+
 ## Headless AI simulation
 
 Run an AI-only campaign without opening a game window and write a

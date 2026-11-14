@@ -1,0 +1,4 @@
+[submodule "reference/freeciv"]
+	path = reference/freeciv
+	url = https://github.com/freeciv/freeciv.git
+	branch = main
