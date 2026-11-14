@@ -321,6 +321,7 @@ struct AdvisorSpatialIndex {
     unit_next: Vec<Option<usize>>,
     city_at: Vec<Option<usize>>,
     continent_labels: Vec<usize>,
+    offensive_outputs: std::collections::BTreeMap<u32, i32>,
     virtual_city_sites:
         std::collections::BTreeMap<usize, Vec<Option<Option<settlement::CitySite>>>>,
 }

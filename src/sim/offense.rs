@@ -42,6 +42,29 @@ impl Simulation {
         if value <= 0.0 {
             return 0.0;
         }
+        let output = if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
+                .borrow()
+                .offensive_outputs
+                .get(&city.id)
+                .copied()
+        } else {
+            None
+        }
+        .unwrap_or_else(|| {
+            let output = self.offensive_production_output(city);
+            if self.ai_advisor_cache_enabled.get() {
+                self.ai_spatial_index
+                    .borrow_mut()
+                    .offensive_outputs
+                    .insert(city.id, output);
+            }
+            output
+        });
+        (f64::from(value) * (23.0_f64 / 24.0).powi(delay + cost / output)) as f32
+    }
+
+    fn offensive_production_output(&self, city: &City) -> i32 {
         let cities: Vec<_> = self.player_cities_ordered(city.owner).collect();
         let average = cities
             .iter()
@@ -53,7 +76,7 @@ impl Simulation {
             .shield_surplus()
             .max(average)
             .max(1);
-        (f64::from(value) * (23.0_f64 / 24.0).powi(delay + cost / output)) as f32
+        output
     }
 
     fn offensive_seed(&self, city: &City, sea: bool) -> Option<UnitKind> {
