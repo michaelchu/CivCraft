@@ -252,7 +252,7 @@ impl Simulation {
             let shield_refreshed = snapshot.size != before_shield_upkeep.size
                 || self.city_unit_upkeep(&snapshot).per_unit.len()
                     != before_shield_forecast.support.per_unit.len();
-            let initial_gold = self.city_gold_upkeep(&snapshot);
+            let initial_gold = forecast.support.gold_upkeep();
             let can_produce = match snapshot.production {
                 Production::Unit(kind) => self.unit_buildable(&snapshot, kind),
                 target => self.can_produce(&snapshot, target),
@@ -442,6 +442,9 @@ impl Simulation {
                 };
                 science_income += income.science;
                 let unit_gold = if income_refreshed || food_unit_removed {
+                    // `income` can intentionally reuse a pre-completion
+                    // forecast. A newly built or removed unit changes the
+                    // supported-unit set, so refresh upkeep in that case.
                     self.city_gold_upkeep(city)
                 } else {
                     initial_gold

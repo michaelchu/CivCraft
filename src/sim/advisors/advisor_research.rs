@@ -125,6 +125,14 @@ impl Simulation {
         granted: Option<Tech>,
     ) -> f64 {
         let forecast = self.city_forecast_with_tech(city, granted);
+        self.advisor_city_output_from_forecast(city, &forecast)
+    }
+
+    pub(super) fn advisor_city_output_from_forecast(
+        &self,
+        city: &City,
+        forecast: &crate::sim::economy::CityForecast,
+    ) -> f64 {
         // advdata.h stores priorities as int: 18*1.2 truncates to21.
         let (science_weight, luxury_weight) =
             if self.players[city.owner].researching != Tech::FUTURE {

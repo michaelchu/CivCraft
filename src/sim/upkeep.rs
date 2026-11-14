@@ -20,6 +20,24 @@ pub(crate) struct UnitUpkeep {
     pub(crate) per_unit: Vec<UnitUpkeepRow>,
 }
 
+impl UnitUpkeep {
+    /// Reuse the gold allocation already produced with a city forecast instead
+    /// of scanning and sorting every supported unit a second time.
+    pub(super) fn gold_upkeep(&self) -> UnitGoldUpkeep {
+        let paid = self
+            .per_unit
+            .iter()
+            .filter_map(|row| match row.economics {
+                UnitUpkeepMapping::Mapped { net, .. } if net.gold > 0 => {
+                    Some((row.unit_id, net.gold))
+                }
+                UnitUpkeepMapping::Mapped { .. } | UnitUpkeepMapping::Unsupported(_) => None,
+            })
+            .collect();
+        UnitGoldUpkeep { paid }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct UnitOutputCosts {
     pub(crate) food: i32,

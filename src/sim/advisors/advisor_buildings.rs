@@ -13,6 +13,19 @@ pub(super) struct DefenseEffectContext {
 
 impl Simulation {
     pub(super) fn building_happiness_want(&self, city: &City, building: Building) -> f64 {
+        self.building_happiness_want_with_luxury(
+            city,
+            building,
+            self.city_forecast(city).luxury,
+        )
+    }
+
+    fn building_happiness_want_with_luxury(
+        &self,
+        city: &City,
+        building: Building,
+        luxury: i32,
+    ) -> f64 {
         // daieffects.c evaluates each active effect separately using the
         // candidate city's happiness, with its requirement range supplying c.
         let count = self.cities_owned_by(city.owner).count() as i32;
@@ -87,7 +100,9 @@ impl Simulation {
                 effects.push((1, count, true, -1));
             }
         }
-        let luxury = self.city_forecast(city).luxury;
+        if effects.is_empty() {
+            return 0.0;
+        }
         let (_, final_unhappy, _) = self.city_feelings(city, luxury);
         let (_, before_military, _) = self.city_feelings(city, luxury);
         let max_converted = final_unhappy.min(before_military);
@@ -120,6 +135,19 @@ impl Simulation {
     }
 
     pub(super) fn building_health_want(&self, city: &City, building: Building) -> f64 {
+        self.building_health_want_with_shields(
+            city,
+            building,
+            self.city_forecast(city).shields,
+        )
+    }
+
+    fn building_health_want_with_shields(
+        &self,
+        city: &City,
+        building: Building,
+        shields: i32,
+    ) -> f64 {
         let amount = match building {
             Building::AQUEDUCT | Building::SEWER_SYSTEM => 30,
             Building::AQUEDUCT_RIVER if !city.has_building(Building::AQUEDUCT) => 30,
@@ -134,7 +162,7 @@ impl Simulation {
         if amount == 0 {
             return 0.0;
         }
-        f64::from(5 + (amount / 5) * self.city_illness(city, self.city_forecast(city).shields))
+        f64::from(5 + (amount / 5) * self.city_illness(city, shields))
     }
 
     pub(super) fn defense_effect_context(&self, city: &City) -> DefenseEffectContext {
@@ -281,57 +309,88 @@ impl Simulation {
 
     pub(in crate::sim) fn domestic_improvement_want(&self, city: &City, building: Building) -> f64 {
         let forecast = self.city_forecast(city);
+        let base_output = self.advisor_city_output_from_forecast(city, &forecast);
+        self.domestic_improvement_want_with_forecast(city, building, &forecast, base_output)
+    }
+
+    pub(super) fn domestic_improvement_want_with_forecast(
+        &self,
+        city: &City,
+        building: Building,
+        forecast: &crate::sim::economy::CityForecast,
+        base_output: f64,
+    ) -> f64 {
         let mut improved = city.clone();
         improved.buildings.push(building);
         // daicity.c: base_want measures weighted output with the building added.
         // Happiness is valued separately, rather than valuing all disorder losses.
         let mut want = self.advisor_city_output_exact(&improved, None)
-            - self.advisor_city_output_exact(city, None)
+            - base_output
             + f64::from(self.building_growth_value(
                 city,
                 &improved,
                 forecast.food - city.size * Self::citizen_food_cost() - forecast.support.food,
             ))
-            + self.building_happiness_want(city, building)
-            + self.building_health_want(city, building)
+            + self.building_happiness_want_with_luxury(city, building, forecast.luxury)
+            + self.building_health_want_with_shields(city, building, forecast.shields)
             + self.defensive_building_effect_want(city, building);
         // daieffects.c values veteran construction as (3*c + affected)
         // and full healing as (5*c + affected), once per class effect.
-        let own_units = || self.units_owned_by(city.owner);
-        let land = own_units()
-            .filter(|unit| !unit.kind.is_naval() && !unit.kind.is_aircraft())
-            .count() as i32;
-        let naval = own_units().filter(|unit| unit.kind.is_naval()).count() as i32;
-        let aircraft = own_units().filter(|unit| unit.kind.is_aircraft()).count() as i32;
         want += f64::from(match building {
-            Building::BARRACKS | Building::BARRACKS_II | Building::BARRACKS_III => 8 + 2 * land,
+            Building::BARRACKS | Building::BARRACKS_II | Building::BARRACKS_III => {
+                let land = self
+                    .units_owned_by(city.owner)
+                    .filter(|unit| !unit.kind.is_naval() && !unit.kind.is_aircraft())
+                    .count() as i32;
+                8 + 2 * land
+            }
             // Sea and Trireme each have distinct veteran/healing effects.
-            Building::PORT_FACILITY => 16 + 2 * naval,
+            Building::PORT_FACILITY => {
+                let naval = self
+                    .units_owned_by(city.owner)
+                    .filter(|unit| unit.kind.is_naval())
+                    .count() as i32;
+                16 + 2 * naval
+            }
             // Air, Helicopter, Missile veteran; Air/Helicopter healing; airlift.
             Building::AIRPORT => {
-                let missiles = own_units()
-                    .filter(|unit| {
-                        matches!(
-                            unit.kind,
-                            UnitKind::CruiseMissile | UnitKind::TacticalNuke | UnitKind::ICBM
-                        )
-                    })
-                    .count() as i32;
+                let mut land = 0;
+                let mut aircraft = 0;
+                let mut missiles = 0;
+                for unit in self.units_owned_by(city.owner) {
+                    land += i32::from(!unit.kind.is_naval() && !unit.kind.is_aircraft());
+                    aircraft += i32::from(unit.kind.is_aircraft());
+                    missiles += i32::from(matches!(
+                        unit.kind,
+                        UnitKind::CruiseMissile | UnitKind::TacticalNuke | UnitKind::ICBM
+                    ));
+                }
                 19 + 2 * aircraft - missiles + 1 + land.min(13)
             }
             _ => 0,
         });
-        self.adjust_building_want(city, building, want)
+        self.adjust_building_want_with_surplus(city, building, want, forecast.shield_surplus())
     }
 
     pub(super) fn adjust_building_want(
         &self,
         city: &City,
         building: Building,
-        mut want: f64,
+        want: f64,
     ) -> f64 {
         // daicity.c: cost, switching loss, and impending obsolescence.
-        let surplus = self.city_forecast(city).shield_surplus().max(0);
+        let surplus = self.city_forecast(city).shield_surplus();
+        self.adjust_building_want_with_surplus(city, building, want, surplus)
+    }
+
+    fn adjust_building_want_with_surplus(
+        &self,
+        city: &City,
+        building: Building,
+        mut want: f64,
+        surplus: i32,
+    ) -> f64 {
+        let surplus = surplus.max(0);
         want -= f64::from(building.data().cost / (surplus * 10 + 1));
         if city.production.class() != Production::Building(building).class() {
             want -= f64::from(city.shields * SHIELD_WEIGHT) / 15.0;

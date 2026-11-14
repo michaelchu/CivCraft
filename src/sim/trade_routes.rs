@@ -100,6 +100,7 @@ impl Simulation {
             return;
         }
         let components = self.connected_trade_city_components();
+        let continents = self.continent_labels();
         let mut cities: Vec<_> = self.cities.iter().map(|city| city.id).collect();
         cities.sort_unstable();
         for (position, &from_city_id) in cities.iter().enumerate() {
@@ -123,10 +124,22 @@ impl Simulation {
                 let Some(good) = good else {
                     continue;
                 };
-                if !self.can_establish_trade_route(from_city_id, to_city_id, &good.id) {
+                if !self.can_establish_trade_route_with_continents(
+                    from_city_id,
+                    to_city_id,
+                    good,
+                    &continents,
+                    settings,
+                ) {
                     continue;
                 }
-                self.create_connected_trade_route(from_city_id, to_city_id, good);
+                self.create_connected_trade_route(
+                    from_city_id,
+                    to_city_id,
+                    good,
+                    &continents,
+                    settings,
+                );
             }
         }
     }
@@ -188,9 +201,9 @@ impl Simulation {
         from_city_id: u32,
         to_city_id: u32,
         good: &TradeGoodRulesetRecord,
+        continents: &[usize],
+        settings: &TradeRouteRulesetSettings,
     ) {
-        let settings = campaign_settings();
-        let continents = self.continent_labels();
         let mut replace = BTreeSet::new();
         for city_id in [from_city_id, to_city_id] {
             let Some(city) = self.city_by_id(city_id) else {
@@ -211,7 +224,7 @@ impl Simulation {
                         city_id,
                         good.replace_priority,
                         capacity,
-                        &continents,
+                        continents,
                         settings,
                     )
                     .into_iter()
@@ -452,13 +465,31 @@ impl Simulation {
         good_rule_name: &str,
     ) -> bool {
         let settings = campaign_settings();
+        let Some(good) = settings.good(good_rule_name) else {
+            return false;
+        };
+        let continents = self.continent_labels();
+        self.can_establish_trade_route_with_continents(
+            from_city_id,
+            to_city_id,
+            good,
+            &continents,
+            settings,
+        )
+    }
+
+    fn can_establish_trade_route_with_continents(
+        &self,
+        from_city_id: u32,
+        to_city_id: u32,
+        good: &TradeGoodRulesetRecord,
+        continents: &[usize],
+        settings: &TradeRouteRulesetSettings,
+    ) -> bool {
         let Some(from) = self.cities.iter().find(|city| city.id == from_city_id) else {
             return false;
         };
         let Some(to) = self.cities.iter().find(|city| city.id == to_city_id) else {
-            return false;
-        };
-        let Some(good) = settings.good(good_rule_name) else {
             return false;
         };
         let pair = TradeRoute {
@@ -476,8 +507,7 @@ impl Simulation {
         {
             return false;
         }
-        let continents = self.continent_labels();
-        let route_type = self.trade_route_type(from, to, &continents);
+        let route_type = self.trade_route_type(from, to, continents);
         let Some(route_type_settings) = settings.route_type(route_type) else {
             return false;
         };
@@ -494,14 +524,14 @@ impl Simulation {
             from_city_id,
             good.replace_priority,
             from_capacity,
-            &continents,
+            continents,
             settings,
         );
         let to_removable = self.trade_route_removable_value(
             to_city_id,
             good.replace_priority,
             to_capacity,
-            &continents,
+            continents,
             settings,
         );
         from_removable < base_value && to_removable < base_value

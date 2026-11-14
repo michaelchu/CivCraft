@@ -118,13 +118,20 @@ impl Simulation {
 
     fn domestic_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
         let wonder_city = self.ai_wonder_city(city.owner) == Some(city.id);
+        let forecast = self.city_forecast(city);
+        let base_output = self.advisor_city_output_from_forecast(city, &forecast);
         Building::all()
             .filter(|building| {
                 building.data().genus == Genus::Improvement
                     && self.building_blocker(city, *building).is_none()
             })
             .filter_map(|building| {
-                let want = (self.domestic_improvement_want(city, building) as f32
+                let want = (self.domestic_improvement_want_with_forecast(
+                    city,
+                    building,
+                    &forecast,
+                    base_output,
+                ) as f32
                     / if wonder_city { 5.0 } else { 1.0 }
                     * crate::sim::ai_traits::builder_building_want_factor())
                     as f64;
