@@ -284,10 +284,9 @@ those records are identical. `civilization_starts.tsv` contains all 31 playable
 civilizations, default Settler/Worker stacks, and the eight Expansionist Scout
 bonuses, including Chasqui Scout for the Inca.
 
-The export and regeneration instructions are in
-`data/rulesets/civ3_conquests/README.md`; the source parser is
-`tools/export_civ3_conquests_units.py`. The installed source BIQ SHA-256 at
-export time is
+The catalog provenance is documented in
+`data/rulesets/civ3_conquests/README.md`. The extraction utility is no longer
+distributed. The installed source BIQ SHA-256 at export time is
 `1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c`.
 The Rust campaign catalog consumes these rules for unit identity, stats,
 availability, prerequisites, unique replacement, and art mapping. Remaining

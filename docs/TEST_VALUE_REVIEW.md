@@ -46,7 +46,6 @@ problems below required inspecting what the assertions actually exercised.
 | Visual review reports | 3 | Retain detection and preservation of failures rather than treating unchanged pixels as success. |
 | Desktop CLI | 2 | Retain malformed automation-flag and map-size checks. |
 | Shared test fixture | 1 | Retain cached-map equivalence and cross-test mutation/RNG isolation. |
-| Python exporters | 7 | Retain field mapping/default semantics and malformed/unsupported input checks; all pass. |
 
 Historical Freeciv fixtures and ruleset-adapter tests remain implementation and
 compatibility guards. They are not proof of Civ III parity. Existing known
@@ -128,7 +127,6 @@ hiding the failure or weakening an expected value.
   compilation. Zero doctests. All eight split scenarios execute independently.
 - The 21 failing names match the baseline after mapping the old aggregate's
   failure to its new ferry-research name. No additional failures appeared.
-- Python exporters: **7 passed**, using `python3 -m unittest discover -s tools/tests -v`.
 - Checked every distinct moved metadata assertion against the catalog coverage.
 - Compared changed Rust files with their baseline after removing test functions,
   comments and whitespace: **non-test implementation tokens are unchanged**.

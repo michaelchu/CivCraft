@@ -238,14 +238,8 @@ unmodified legacy generator against this file.
 using the Civ III resource catalog. Resource placement changes extras and start
 site scoring, so keep these goldens separate from the native reference.
 
-Regenerate the native vectors with an unmodified Freeciv 3.3.90.14-dev
-(eb8c703) server and the reference Civ2Civ3 data:
-
-```sh
-python3 tools/generate_mapgen_oracles.py --server /path/to/freeciv-server \
-  --data /path/to/freeciv/data --work /tmp/civcraft-mapgen-oracles \
-  --output tests/fixtures/freeciv_mapgen_vectors.tsv
-```
-
-The reference server binds localhost even without clients, so sandboxed runs may
-need desktop/network approval. Unit goldens do not validate rendering.
+The historical generator is no longer distributed with this repository. If a
+fixture must be replaced, reproduce it independently with the exact recorded
+Freeciv revision and reference Civ2Civ3 data. The reference server binds
+localhost even without clients, so sandboxed runs may need desktop/network
+approval. Unit goldens do not validate rendering.

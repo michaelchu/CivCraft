@@ -76,7 +76,7 @@ order or a similar display name.
 
 | Content | Source data | Runtime bridge and maintenance rule |
 |---|---|---|
-| Units and unit art | `data/rulesets/civ3_conquests/units.tsv` has 92 campaign identities, source values, unique replacements, requirements, and `art_folder` / `art_root`. `civilization_starts.tsv` and `experience_levels.tsv` hold associated start and rank inputs. | `UnitKind::from_conquests_id` in `src/sim/model/units.rs` resolves stable identities. Add or correct a source row with `tools/export_civ3_conquests_units.py`, then check the identity, art path, unique-unit, and start-profile consumers. |
+| Units and unit art | `data/rulesets/civ3_conquests/units.tsv` has 92 campaign identities, source values, unique replacements, requirements, and `art_folder` / `art_root`. `civilization_starts.tsv` and `experience_levels.tsv` hold associated start and rank inputs. | `UnitKind::from_conquests_id` in `src/sim/model/units.rs` resolves stable identities. When correcting a source row, preserve its BIQ identity and provenance, then check the identity, art path, unique-unit, and start-profile consumers. |
 | Unit mechanics profiles | `data/rulesets/civcraft_civ2civ3/unit_economics.tsv` has 92 explicit C2C3 profiles: 33 direct matches and 59 role aliases for unit economics. | `src/sim/action_rules.rs` also maps C2C3 unit type records and flags; its explicit Galley-to-Trireme alias and no-type/default ledger are separate from the economics table. For a new or changed unit, add a sourced direct mapping, a justified role alias, or an explicit unsupported entry. Do not copy C2C3 combat, movement, or art values into the Civ III catalog. |
 | Buildings | `data/rulesets/civ3_conquests/buildings.tsv` retains all 83 BIQ records. | `building_catalog_bindings.tsv` maps 47 records to stable legacy `Building` IDs; 36 have explicit unresolved reasons. Add a stable binding only when the identity is deliberate and unique. Keep unresolved reasons until then; never assign by BIQ or enum row order. |
 | Technologies | `data/rulesets/civ3_conquests/technologies.tsv` retains all 83 BIQ advances and prerequisites. | `src/sim/content_adapter.rs` maps Freeciv technology names to the Civ III tree. Current explicit name bridges include Superconductors/Superconductor, Amphibious Warfare/Amphibious War, Conscription/Nationalism, Environmentalism/Ecology, Laser/The Laser, Mobile Warfare/Motorized Transportation, and Nuclear Fission/Fission. C2C3 Radio maps to Civ III Flight; Freeciv-only Plastics has no Civ III advance. Maintain the adapter and research consumers when either source name or identity changes. |
@@ -102,37 +102,12 @@ current pin: `freeciv_mapgen_vectors.tsv` intentionally records the earlier
 3.3.90.14-dev `eb8c703` oracle, while several later fixtures record
 `9ff184b6eb128ca636c7ad6269e27aa959600006`.
 
-Existing oracle generators include:
-
-- `tools/generate_freeciv_combat_oracles.py` for the extracted native combat
-  probability function;
-- `tools/generate_border_oracles.py` for native server border output plus
-  separately labeled Civ III topology cases;
-- `tools/generate_mapgen_oracles.py` for native server terrain, extras, and
-  starts; and
-- the checked-in fixture-specific oracle scripts for random-number,
-  counter-research, and normal-tax vectors.
-
-The combat and border generators use the current `9ff184b6` source pin. The
-checked-in native mapgen vector predates that pin, so regenerate it only with
-the matching `eb8c703` server and data. Do not pair a server binary with data
-from a different Freeciv revision. From `app/`, the commands are:
-
-```sh
-python3 tools/generate_freeciv_combat_oracles.py --reference ../freeciv
-python3 tools/generate_border_oracles.py --server <freeciv-9ff184b6-server> \
-  --data ../freeciv/data --source-root ../freeciv \
-  --work /tmp/civcraft-border-oracles \
-  --output tests/fixtures/freeciv_border_vectors.tsv
-python3 tools/generate_mapgen_oracles.py \
-  --server <freeciv-eb8c703-server> --data <freeciv-eb8c703-data> \
-  --work /tmp/civcraft-mapgen-oracles \
-  --output tests/fixtures/freeciv_mapgen_vectors.tsv
-```
-
-Use each generator's `--help` and embedded usage before regenerating. Run the
-native reference with the intended pinned source and `civ2civ3` data; do not
-make an oracle output match CivCraft by modifying the Freeciv fixture. Add the
+Oracle generators are no longer distributed in this repository. The combat
+and border fixtures use the `9ff184b6` source pin. The checked-in native mapgen
+vector predates that pin and records `eb8c703`. Reconstruct any replacement
+independently from the exact recorded source, server, data, and setup; never
+pair a server binary with data from a different revision or alter an oracle to
+match CivCraft. Add the
 new vector to the owning subsystem's test module and label source-native results
 separately from CivCraft adaptations. For a mechanics change, run its focused
 check and then `cargo test --offline --all-targets -- --test-threads=4` plus

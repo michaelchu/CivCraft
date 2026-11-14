@@ -78,21 +78,11 @@ is scaled against the simulation's `POWER_FACTOR` so its probability matches
 that ratio. This is not a claim that the official manual publishes the exact
 probability formula.
 
-## Reproducible verification
+## Source verification
 
-The checked-in exporter regeneration was run with:
-
-```sh
-python3 tools/export_civ3_conquests_units.py \
-  --unpacked-biq /tmp/conquests.unpacked \
-  --output /tmp/units.audit.tsv
-cmp /tmp/units.audit.tsv data/rulesets/civ3_conquests/units.tsv
-cmp /tmp/civilization_starts.tsv data/rulesets/civ3_conquests/civilization_starts.tsv
-cmp /tmp/experience_levels.tsv data/rulesets/civ3_conquests/experience_levels.tsv
-sha256sum ../../source/Conquests/conquests.biq
-```
-
-All three comparisons matched (exit status 0); the SHA-256 matched the source
+The extraction utility is no longer distributed with CivCraft. During the
+original audit, all three generated catalogs matched their checked-in files and
+the SHA-256 matched the source
 provenance in the TSV. The 3,220 direct field comparisons were an inline Python audit
 against the same unpacked bytes and the PRTO struct offsets above. Focused Air
 Defense behavior checks ran with `cargo test --offline air_defense`; both
