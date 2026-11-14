@@ -130,6 +130,7 @@ impl Simulation {
             .sum()
     }
 
+    #[cfg(test)]
     pub(super) fn building_health_want(&self, city: &City, building: Building) -> f64 {
         self.building_health_want_with_shields(city, building, self.city_forecast(city).shields)
     }
@@ -390,6 +391,7 @@ impl Simulation {
         want
     }
 
+    #[cfg(test)]
     pub(super) fn projected_wonder_want(
         &self,
         scratch: &mut Self,

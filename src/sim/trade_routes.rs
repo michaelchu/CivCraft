@@ -458,6 +458,7 @@ impl Simulation {
     /// road/Harbor adapter calls this instead of duplicating C2C3 capacity,
     /// route-type, and replacement rules; no Caravan or Freight identity is
     /// introduced.
+    #[cfg(test)]
     pub(crate) fn can_establish_trade_route(
         &self,
         from_city_id: u32,
