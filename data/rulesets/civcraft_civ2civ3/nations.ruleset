@@ -16,14 +16,8 @@ format_version = 50
 ; to recreate the ruleset file in a form wanted.
 ; These have no in-game effect whatsoever.
 [ruledit]
-
-; Nationlist to add include statement for. If this entry is omitted, all the nations
-; will be saved to nations.ruleset itself.
-nationlist = "default/nationlist.ruleset"
-
-; List of nations to embed to main nations.ruleset despite separate nationlist
-; being used for other nations.
-embedded_nations = "Barbarian", "Pirate", "Animal Kingdom"
+; CivCraft embeds only the special non-player nations used by C2C3 mechanics.
+; Playable civilizations come from civ3_conquests/civilizations.tsv.
 
 [compatibility]
 ; Initial government for all the nations that do not
@@ -61,9 +55,72 @@ builder_min = 30
 builder_max = 90
 builder_default = 50
 
-; Please keep [ruledit] section in sync with these includes
-*include "default/nationlist.ruleset"
-; This ruleset uses model of two separate barbarian nations
-*include "nation/barbarian.ruleset"
-*include "nation/pirate.ruleset"
-*include "nation/animals.ruleset"
+[nset_core]
+name = _("?nationset:CivCraft")
+rule_name = "civcraft"
+description = _("Special non-player nations used by CivCraft mechanics.")
+
+[ngroup_core]
+name = _("?nationgroup:Core")
+match = 0
+
+[ngroup_barbarian]
+name = _("?nationgroup:Barbarian")
+match = 0
+hidden = TRUE
+
+; CivCraft's playable roster is source-backed by the Civ III catalog. These
+; three records exist only for C2C3 barbarian and animal requirements.
+[nation_barbarian]
+name = _("Barbarian")
+plural = _("?plural:Barbarians")
+groups = "Core", "Barbarian"
+leaders =
+    { "name", "sex"
+      "Attila", "Male"
+    }
+flag = "barbarian"
+flag_alt = "-"
+style = "European"
+init_techs = ""
+init_buildings = ""
+init_units = ""
+cities = "Barbaricum"
+is_playable = FALSE
+barbarian_type = "Land"
+
+[nation_pirate]
+name = _("Pirate")
+plural = _("?plural:Pirates")
+groups = "Core", "Barbarian"
+leaders =
+    { "name", "sex"
+      "Blackbeard", "Male"
+    }
+flag = "pirate"
+flag_alt = "-"
+style = "European"
+init_techs = ""
+init_buildings = ""
+init_units = ""
+cities = "Tortuga"
+is_playable = FALSE
+barbarian_type = "Sea"
+
+[nation_animals]
+name = _("Animal Kingdom")
+plural = _("?plural:Animals")
+groups = "Core", "Barbarian"
+leaders =
+    { "name", "sex"
+      "Lion", "Female"
+    }
+flag = "animals"
+flag_alt = "barbarian"
+style = "European"
+init_techs = ""
+init_buildings = ""
+init_units = ""
+cities = "Wilderness"
+is_playable = FALSE
+barbarian_type = "Animal"

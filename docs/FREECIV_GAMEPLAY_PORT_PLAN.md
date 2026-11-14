@@ -157,17 +157,19 @@ that code has been added.
 
 ### P3 evidence
 
-- Created `data/rulesets/civcraft_civ2civ3/` from only the pinned C2C3 ruleset,
-  with its recursive shared nation include tree under sibling `default/`,
-  `nation/`, and `override/` paths. The eleven required gameplay ruleset files
+- Created `data/rulesets/civcraft_civ2civ3/` from only the pinned C2C3 ruleset.
+  The original recursive Freeciv nation include tree was later replaced by
+  three embedded special-player records because CivCraft uses its source-backed
+  Civ III civilization catalog. The eleven required gameplay ruleset files
   are all selected from the CivCraft directory; no top-level ruleset falls back
   to `classic` or another Freeciv ruleset.
 - Preserved `script.lua`, inherited `default.lua`, `README.civ2civ3`, and the
   upstream `COPYING` text. The Lua files are reference material for future Rust
   ports. The optional `parser.lua` was not copied because C2C3 has no
   `luadata.txt`.
-- Added `UPSTREAM_MANIFEST.tsv` with source and copied SHA-256 values for 589
-  files: 588 identical files and one modified `game.ruleset`. Its recorded
+- Added `UPSTREAM_MANIFEST.tsv` with source and copied SHA-256 values for the
+  original 589-file import. It remains a provenance record, including nation
+  dependencies subsequently removed from the runtime tree. Its recorded
   changes point the ruledit description to
   `civcraft_civ2civ3/README.civ2civ3` and make the inherited engine defaults
   `victories`, `landmass`, `startpos`, `steepness`, `wetness`, `specials`, and
