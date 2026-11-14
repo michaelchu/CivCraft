@@ -224,6 +224,10 @@ pub(crate) struct Simulation {
     tiles: Vec<Tile>,
     units: Vec<Unit>,
     cities: Vec<City>,
+    #[serde(skip)]
+    unit_id_index: std::cell::RefCell<std::collections::HashMap<u32, usize>>,
+    #[serde(skip)]
+    city_id_index: std::cell::RefCell<std::collections::HashMap<u32, usize>>,
     trade_routes: Vec<trade_routes::TradeRoute>,
     completed_wonders: Vec<Building>,
     spaceships: Vec<Spaceship>,
@@ -378,11 +382,23 @@ impl Simulation {
     }
     /// Finds a live unit by its persistent identifier.
     pub(crate) fn unit_by_id(&self, id: u32) -> Option<&Unit> {
-        self.units.iter().find(|unit| unit.id == id)
+        self.unit_index_by_id(id).map(|index| &self.units[index])
     }
     /// Finds a live unit's position in the stable unit collection.
     pub(crate) fn unit_index_by_id(&self, id: u32) -> Option<usize> {
-        self.units.iter().position(|unit| unit.id == id)
+        if let Some(index) = self.unit_id_index.borrow().get(&id).copied()
+            && self.units.get(index).is_some_and(|unit| unit.id == id)
+        {
+            return Some(index);
+        }
+        let index = self.units.iter().position(|unit| unit.id == id);
+        let mut cache = self.unit_id_index.borrow_mut();
+        if let Some(index) = index {
+            cache.insert(id, index);
+        } else {
+            cache.remove(&id);
+        }
+        index
     }
     /// Returns all cities in their stable simulation order.
     pub(crate) fn cities(&self) -> &[City] {
@@ -394,7 +410,7 @@ impl Simulation {
     }
     /// Finds a city by its persistent identifier.
     pub(crate) fn city_by_id(&self, id: u32) -> Option<&City> {
-        self.cities.iter().find(|city| city.id == id)
+        self.city_index_by_id(id).map(|index| &self.cities[index])
     }
     /// Finds the city occupying the given map coordinate.
     pub(crate) fn city_at(&self, x: i32, y: i32) -> Option<&City> {
@@ -408,7 +424,19 @@ impl Simulation {
     }
     /// Finds a city's index by its persistent identifier.
     pub(crate) fn city_index_by_id(&self, id: u32) -> Option<usize> {
-        self.cities.iter().position(|city| city.id == id)
+        if let Some(index) = self.city_id_index.borrow().get(&id).copied()
+            && self.cities.get(index).is_some_and(|city| city.id == id)
+        {
+            return Some(index);
+        }
+        let index = self.cities.iter().position(|city| city.id == id);
+        let mut cache = self.city_id_index.borrow_mut();
+        if let Some(index) = index {
+            cache.insert(id, index);
+        } else {
+            cache.remove(&id);
+        }
+        index
     }
     /// Returns players in their stable slot order.
     pub(crate) fn players(&self) -> &[Player] {
@@ -542,6 +570,8 @@ impl Simulation {
             tiles,
             units: Vec::new(),
             cities: Vec::new(),
+            unit_id_index: Default::default(),
+            city_id_index: Default::default(),
             trade_routes: Vec::new(),
             completed_wonders: Vec::new(),
             spaceships: vec![Spaceship::default(); players.len()],
