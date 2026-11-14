@@ -319,6 +319,8 @@ pub(crate) struct Simulation {
     ai_spatial_index: std::cell::RefCell<AdvisorSpatialIndex>,
 }
 
+type CachedOffensiveAdvice = (Option<advisors::AiBuildChoice>, Vec<(Tech, f32)>, bool);
+
 #[derive(Clone, Default)]
 struct AdvisorSpatialIndex {
     unit_head: Vec<Option<usize>>,
@@ -326,8 +328,7 @@ struct AdvisorSpatialIndex {
     city_at: Vec<Option<usize>>,
     continent_labels: Vec<usize>,
     offensive_outputs: std::collections::BTreeMap<u32, i32>,
-    offensive_advice:
-        std::collections::BTreeMap<u32, (Option<advisors::AiBuildChoice>, Vec<(Tech, f32)>, bool)>,
+    offensive_advice: std::collections::BTreeMap<u32, CachedOffensiveAdvice>,
     guard_assessments: std::collections::BTreeMap<u32, advisors::GuardCityAssessment>,
     research_paths: std::collections::BTreeMap<(usize, usize), Vec<Tech>>,
     research_eras: std::collections::BTreeMap<usize, crate::rules::TechEra>,

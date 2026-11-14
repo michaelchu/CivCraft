@@ -36,6 +36,8 @@ const ROAD_BONUS_OFFSETS: [(i32, i32); 12] = [
     (0, 2),
 ];
 
+type WorkerActivityTiles = std::collections::HashSet<(i32, i32)>;
+
 fn freeciv_square_road_connector_bonus(
     real_road: &[bool; ROAD_BONUS_OFFSETS.len()],
     potential_road: &[bool; ROAD_BONUS_OFFSETS.len()],
@@ -327,12 +329,7 @@ impl Simulation {
         )
     }
 
-    fn worker_activity_tiles(
-        &self,
-    ) -> (
-        std::collections::HashSet<(i32, i32)>,
-        std::collections::HashSet<(i32, i32)>,
-    ) {
+    fn worker_activity_tiles(&self) -> (WorkerActivityTiles, WorkerActivityTiles) {
         let mut roads = std::collections::HashSet::new();
         let mut railroads = std::collections::HashSet::new();
         for unit in &self.units {
