@@ -160,6 +160,8 @@ impl super::Simulation {
         owner: usize,
         mut scores: [f64; 11],
     ) -> [f64; 11] {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("government.score_evaluation");
         let original = self.players[owner].government;
         let rates = self.players[owner].rates;
         let catalog = super::campaign_government_catalog();

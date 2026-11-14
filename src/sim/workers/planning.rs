@@ -609,13 +609,51 @@ impl Simulation {
         state: &mut WorkMap,
         requests: &[WorkerRequest],
     ) -> Option<WorkerPlan> {
-        let routes = self.worker_routes(actor);
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("worker.plan");
         let allowance = self.unit_move_rate(actor).max(1);
         let occupied = |sim: &Self, position: (i32, i32)| {
             sim.any_unit_at(position.0, position.1, |u| {
                 u.id != actor.id && u.owner == actor.owner && u.kind.is_worker()
             })
         };
+        let cities: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|city| city.owner == actor.owner)
+            .cloned()
+            .collect();
+        let mut worksite_candidates = Vec::new();
+        let mut route_targets = std::collections::HashSet::new();
+        for (city_index, city) in cities.iter().enumerate() {
+            for (_, _, x, y) in self.map_city_radius(city) {
+                let position = (x, y);
+                let worked = (city.x, city.y) == position || city.worked_tiles.contains(&position);
+                if (!worked && !self.can_assign_city_tile(city, x, y))
+                    || !self.cached_worker_safe_tile(state, actor.owner, position)
+                    || occupied(self, position)
+                {
+                    continue;
+                }
+                route_targets.insert(self.map_wrap.index(x, y));
+                worksite_candidates.push((city_index, position, worked));
+            }
+        }
+        for request in requests {
+            if cities.iter().any(|city| city.id == request.city)
+                && !occupied(self, request.destination)
+            {
+                route_targets.insert(
+                    self.map_wrap
+                        .index(request.destination.0, request.destination.1),
+                );
+            }
+        }
+        self.trace.count_operation(
+            "worker.worksite_candidates",
+            worksite_candidates.len() as u64,
+        );
+        let routes = self.worker_routes_to(actor, Some(route_targets));
         let mut best_request = None;
         let mut request_value = -1;
         let mut request_distance = i32::MAX;
@@ -664,134 +702,123 @@ impl Simulation {
         if best_request.is_some() {
             return best_request;
         }
-        let cities: Vec<_> = self
-            .cities
-            .iter()
-            .filter(|c| c.owner == actor.owner)
-            .cloned()
-            .collect();
         let (road_activity, railroad_activity) = self.worker_activity_tiles();
         let mut best = None;
-        for city in cities {
+        let mut reachable_worksites = 0_u64;
+        for (city_index, position, worked) in worksite_candidates {
+            let city = &cities[city_index];
             let city_cache = state.city_cache(city.id);
-            for (_, _, x, y) in self.map_city_radius(&city) {
-                let position = (x, y);
-                let worked = (city.x, city.y) == position || city.worked_tiles.contains(&position);
-                if (!worked && !self.can_assign_city_tile(&city, x, y))
-                    || !self.cached_worker_safe_tile(state, actor.owner, position)
-                    || occupied(self, position)
-                {
-                    continue;
-                }
-                let cost = routes.costs[self.map_wrap.index(x, y)];
-                if cost == i32::MAX {
-                    continue;
-                }
-                let arrival = (cost + allowance - actor.moves_left.max(0)) / allowance;
-                if !self.worker_can_reserve(actor, position, arrival, state) {
-                    continue;
-                }
-                let remaining = if cost < actor.moves_left {
-                    actor.moves_left - cost
+            let (x, y) = position;
+            let cost = routes.costs[self.map_wrap.index(x, y)];
+            if cost == i32::MAX {
+                continue;
+            }
+            reachable_worksites += 1;
+            let arrival = (cost + allowance - actor.moves_left.max(0)) / allowance;
+            if !self.worker_can_reserve(actor, position, arrival, state) {
+                continue;
+            }
+            let remaining = if cost < actor.moves_left {
+                actor.moves_left - cost
+            } else {
+                let remainder = (cost - actor.moves_left.max(0)) % allowance;
+                if remainder == 0 {
+                    0
                 } else {
-                    let remainder = (cost - actor.moves_left.max(0)) % allowance;
-                    if remainder == 0 {
-                        0
-                    } else {
-                        allowance - remainder
-                    }
+                    allowance - remainder
+                }
+            };
+            let mut at = actor.clone();
+            (at.x, at.y) = position;
+            let old = self.cached_worker_old_value(state, city_cache, city, position);
+            for &activity in ACTIVITIES {
+                let Some((tile, time)) = self.worker_projection(&at, activity) else {
+                    continue;
                 };
-                let mut at = actor.clone();
-                (at.x, at.y) = position;
-                let old = self.cached_worker_old_value(state, city_cache, &city, position);
-                for &activity in ACTIVITIES {
-                    let Some((tile, time)) = self.worker_projection(&at, activity) else {
-                        continue;
-                    };
-                    self.trace
-                        .count_operation("worker.candidates_considered", 1);
-                    let new = self.cached_worker_projected_value(
-                        state, city_cache, &city, position, activity, tile,
-                    );
-                    let extra = match activity {
-                        WorkKind::Road => self.worker_road_extra_with_activities(
-                            position,
-                            false,
-                            &road_activity,
-                            &railroad_activity,
-                        ),
-                        WorkKind::Railroad => self.worker_road_extra_with_activities(
+                self.trace
+                    .count_operation("worker.candidates_considered", 1);
+                let new = self.cached_worker_projected_value(
+                    state, city_cache, &city, position, activity, tile,
+                );
+                let extra = match activity {
+                    WorkKind::Road => self.worker_road_extra_with_activities(
+                        position,
+                        false,
+                        &road_activity,
+                        &railroad_activity,
+                    ),
+                    WorkKind::Railroad => self.worker_road_extra_with_activities(
+                        position,
+                        true,
+                        &road_activity,
+                        &railroad_activity,
+                    ),
+                    WorkKind::Clean(target) if target != Contamination::Craters => {
+                        self.worker_climate_urgency(target) as f32
+                    }
+                    WorkKind::Clean(_) => 0.0,
+                    _ => 0.0,
+                };
+                let rate = self.activity_rate(actor);
+                let work = (time * ACTIVITY_FACTOR + rate - 1) / rate;
+                let delay = arrival + work + i32::from(remaining == 0);
+                consider_action(
+                    &mut best,
+                    WorkerPlan {
+                        destination: position,
+                        activity,
+                        path: routes.path(position)?,
+                        arrival,
+                        delay,
+                        old,
+                        new,
+                        extra,
+                        worked,
+                        request: None,
+                    },
+                );
+            }
+            // A missing road can be worth building for its ruleset-enabled
+            // railroad successor; source adds both cached total values.
+            if !self.tile(x, y).road
+                && let Some((road, time)) = self.worker_projection(&at, WorkKind::Road)
+                && self.work_action_available_for_unit_with_tile_fail_closed(
+                    &at,
+                    WorkKind::Railroad,
+                    position,
+                    Some(&road),
+                )
+            {
+                let railroad_time =
+                    self.work_activity_time_fail_closed(WorkKind::Railroad, road.terrain);
+                let new = self
+                    .cached_worker_road_then_rail_value(state, city_cache, city, position, road);
+                let rate = self.activity_rate(actor);
+                let work = ((time + railroad_time) * ACTIVITY_FACTOR + rate - 1) / rate;
+                consider_action(
+                    &mut best,
+                    WorkerPlan {
+                        destination: position,
+                        activity: WorkKind::Road,
+                        path: routes.path(position)?,
+                        arrival,
+                        delay: arrival + work + i32::from(remaining == 0),
+                        old,
+                        new,
+                        extra: self.worker_road_extra_with_activities(
                             position,
                             true,
                             &road_activity,
                             &railroad_activity,
                         ),
-                        WorkKind::Clean(target) if target != Contamination::Craters => {
-                            self.worker_climate_urgency(target) as f32
-                        }
-                        WorkKind::Clean(_) => 0.0,
-                        _ => 0.0,
-                    };
-                    let rate = self.activity_rate(actor);
-                    let work = (time * ACTIVITY_FACTOR + rate - 1) / rate;
-                    let delay = arrival + work + i32::from(remaining == 0);
-                    consider_action(
-                        &mut best,
-                        WorkerPlan {
-                            destination: position,
-                            activity,
-                            path: routes.path(position)?,
-                            arrival,
-                            delay,
-                            old,
-                            new,
-                            extra,
-                            worked,
-                            request: None,
-                        },
-                    );
-                }
-                // A missing road can be worth building for its ruleset-enabled
-                // railroad successor; source adds both cached total values.
-                if !self.tile(x, y).road
-                    && let Some((road, time)) = self.worker_projection(&at, WorkKind::Road)
-                    && self.work_action_available_for_unit_with_tile_fail_closed(
-                        &at,
-                        WorkKind::Railroad,
-                        position,
-                        Some(&road),
-                    )
-                {
-                    let railroad_time =
-                        self.work_activity_time_fail_closed(WorkKind::Railroad, road.terrain);
-                    let new = self.cached_worker_road_then_rail_value(
-                        state, city_cache, &city, position, road,
-                    );
-                    let rate = self.activity_rate(actor);
-                    let work = ((time + railroad_time) * ACTIVITY_FACTOR + rate - 1) / rate;
-                    consider_action(
-                        &mut best,
-                        WorkerPlan {
-                            destination: position,
-                            activity: WorkKind::Road,
-                            path: routes.path(position)?,
-                            arrival,
-                            delay: arrival + work + i32::from(remaining == 0),
-                            old,
-                            new,
-                            extra: self.worker_road_extra_with_activities(
-                                position,
-                                true,
-                                &road_activity,
-                                &railroad_activity,
-                            ),
-                            worked,
-                            request: None,
-                        },
-                    );
-                }
+                        worked,
+                        request: None,
+                    },
+                );
             }
         }
+        self.trace
+            .count_operation("worker.reachable_worksites", reachable_worksites);
         best.filter(|plan| {
             amortize(
                 (plan.new - plan.old + plan.extra) * WORKER_FACTOR,

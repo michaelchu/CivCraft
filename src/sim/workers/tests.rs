@@ -199,6 +199,51 @@ fn worker_routes_do_not_cross_foreign_territory_and_clip_last_move() {
 }
 
 #[test]
+fn target_limited_worker_routes_match_full_search_for_costs_and_paths() {
+    let mut game = game();
+    let id = game.spawn_unit(1, UnitKind::Worker, 10, 20);
+    let actor = game.unit_by_id(id).unwrap().clone();
+    let targets: HashSet<_> = [(10, 20), (11, 20), (14, 21)]
+        .into_iter()
+        .map(|(x, y)| game.map_wrap.index(x, y))
+        .collect();
+
+    let full = game.worker_routes(&actor);
+    let limited = game.worker_routes_to(&actor, Some(targets.clone()));
+
+    for target in targets {
+        let position = game.map_wrap.position(target);
+        assert_eq!(limited.costs[target], full.costs[target]);
+        assert_eq!(limited.path(position), full.path(position));
+    }
+    assert!(limited.expanded_nodes < full.expanded_nodes);
+}
+
+#[test]
+fn target_limited_worker_routes_exhaust_search_for_unreachable_targets() {
+    let mut game = game();
+    let id = game.spawn_unit(1, UnitKind::Worker, 10, 20);
+    let actor = game.unit_by_id(id).unwrap().clone();
+    for tile in &mut game.tiles {
+        tile.owner = Some(HUMAN);
+    }
+    let start = (10, 20);
+    game.tile_mut(start.0, start.1).owner = None;
+    let target = offset_native_by_map(start.0, start.1, 1, 0);
+    let targets = HashSet::from([game.map_wrap.index(target.0, target.1)]);
+
+    let full = game.worker_routes(&actor);
+    let limited = game.worker_routes_to(&actor, Some(targets));
+
+    assert_eq!(
+        limited.costs[game.map_wrap.index(target.0, target.1)],
+        i32::MAX
+    );
+    assert_eq!(limited.expanded_nodes, full.expanded_nodes);
+    assert_eq!(limited.path(target), full.path(target));
+}
+
+#[test]
 fn same_worker_task_preserves_goal_and_displaced_null_goal_is_not_recreated() {
     let mut game = game();
     game.create_city(1, 10, 20);

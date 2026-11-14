@@ -115,6 +115,16 @@ existing or new `count_operation` workload counters when investigating scaling.
 Nested inclusive timings overlap, so use exclusive time when comparing
 contributions across scopes; do not sum inclusive timings.
 
+Focused scopes include `worker.plan` and `worker.route_map`,
+`offense.target_search`, `government.score_evaluation`,
+`city_manager.arrange`, and `city_manager.query`. The arrangement scope includes
+lattice construction and nested search calls; compare its exclusive time with
+the nested query time to separate setup from search. Worker routing records
+expanded map nodes plus eligible and reachable worksite candidates, so those
+counts show the remaining search work relative to the destinations the planner
+can use. Use the existing worker route, offensive search, government
+evaluation, and city-manager iteration counters alongside the new measurements.
+
 ## Add an analyzer
 
 1. Create a module under `src/analytics/analyzers/` and implement `Analyzer`.
@@ -268,6 +278,14 @@ the mean and median of turns 1–10 against turns 71–80, the worst individual
 turn, and the phase/scope shares. Record the late/early ratio explicitly.
 Operation counts help distinguish algorithmic growth from machine noise. Always
 compare snapshot sidecars byte-for-byte when evaluating an optimization.
+
+Run from turn zero when measuring the end-to-end ramp or checking that the
+slowdown naturally recurs. For focused late-game profiling, load a saved
+campaign from around turn 70 and profile the next ten turns. This skips setup,
+but represents only that saved state's population, unit rosters, and AI
+decisions. Prefer a naturally advanced save over a hand-built turn-80 scenario
+when diagnosing the observed slowdown. Use a named scenario for a compact,
+controlled workload that exercises one specific path.
 
 ### Seed-42 80-turn ramp baseline
 

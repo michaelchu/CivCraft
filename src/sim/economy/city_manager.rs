@@ -105,6 +105,8 @@ impl Simulation {
         city: &City,
         occupied: &std::collections::HashSet<(i32, i32)>,
     ) -> City {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("city_manager.arrange");
         let citizens = city.size.max(0) as usize;
         let mut city_tiles: Vec<_> = self.map_city_radius(city).collect();
         // common/city.c:compare_iter_index defines reproducible city indices.
@@ -368,6 +370,8 @@ impl Simulation {
         emergency: bool,
         limit: usize,
     ) -> CmQueryResult {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("city_manager.query");
         let order = &lattice.orders[usize::from(emergency)];
         let mut rank = vec![usize::MAX; lattice.production.len()];
         for (position, &kind) in order.iter().enumerate() {

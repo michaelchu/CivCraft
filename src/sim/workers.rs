@@ -26,6 +26,7 @@ struct WorkerRoutes {
     costs: Vec<i32>,
     previous: Vec<Option<(usize, (i32, i32))>>,
     start: usize,
+    expanded_nodes: u64,
 }
 
 impl WorkerRoutes {
@@ -84,7 +85,14 @@ impl Simulation {
         })
     }
 
+    #[cfg(test)]
     fn worker_routes(&self, unit: &Unit) -> WorkerRoutes {
+        self.worker_routes_to(unit, None)
+    }
+
+    fn worker_routes_to(&self, unit: &Unit, targets: Option<HashSet<usize>>) -> WorkerRoutes {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("worker.route_map");
         self.trace.count_operation("worker.route_maps_built", 1);
         let start = self.map_wrap.index(unit.x, unit.y);
         let mut result = WorkerRoutes {
@@ -92,15 +100,34 @@ impl Simulation {
             costs: vec![i32::MAX; self.tiles.len()],
             previous: vec![None; self.tiles.len()],
             start,
+            expanded_nodes: 0,
         };
         result.costs[start] = 0;
         let mut queue = BinaryHeap::from([Reverse((0, 0, start))]);
+        let mut expanded = 0_u64;
+        let mut remaining_targets = targets;
+        if let Some(targets) = &mut remaining_targets {
+            targets.remove(&start);
+            if targets.is_empty() {
+                self.trace
+                    .count_operation("worker.route_expansions", expanded);
+                result.expanded_nodes = expanded;
+                return result;
+            }
+        }
         let allowance = self.unit_move_rate(unit).max(1);
         let mut sequence = 0;
         let mut actor = unit.clone();
         while let Some(Reverse((spent, _, index))) = queue.pop() {
             if result.costs[index] != spent {
                 continue;
+            }
+            expanded += 1;
+            if let Some(targets) = &mut remaining_targets
+                && targets.remove(&index)
+                && targets.is_empty()
+            {
+                break;
             }
             (actor.x, actor.y) = self.map_wrap.position(index);
             let remaining = if spent < unit.moves_left {
@@ -146,11 +173,20 @@ impl Simulation {
                 }
             }
         }
+        self.trace
+            .count_operation("worker.route_expansions", expanded);
+        result.expanded_nodes = expanded;
         result
     }
 
     fn worker_shelter(&mut self, actor: &Unit) {
-        let routes = self.worker_routes(actor);
+        let targets = self
+            .cities
+            .iter()
+            .filter(|city| self.allied(actor.owner, city.owner))
+            .map(|city| self.map_wrap.index(city.x, city.y))
+            .collect();
+        let routes = self.worker_routes_to(actor, Some(targets));
         let target = self
             .cities
             .iter()

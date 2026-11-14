@@ -111,6 +111,8 @@ impl super::Simulation {
     }
 
     pub(super) fn offensive_target(&self, city: &City, seed: &Unit) -> Option<OffensiveTarget> {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("offense.target_search");
         self.trace.count_operation("offensive.target_searches", 1);
         let mut map = NormalPaths::attack_map(self, seed);
         let mut best: Option<OffensiveTarget> = None;
