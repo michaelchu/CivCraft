@@ -13,17 +13,18 @@ This directory is CivCraft's editable baseline derived from Freeciv's
 - `script.lua` and `../default/default.lua` are retained as source references.
   CivCraft does not execute the Lua files; their gameplay hooks still need
   Rust implementations under the later campaign-system milestones.
-- The sibling `default/`, `nation/`, and `override/` files are the recursive
-  include closure required by `nations.ruleset` and
-  `default/nationlist.ruleset`. They are shared C2C3 data dependencies, not
-  another gameplay ruleset.
+- The sibling `default/` and `override/` files are shared C2C3 include and
+  script dependencies, not another gameplay ruleset. CivCraft intentionally
+  omits Freeciv's general nation catalog: `nations.ruleset` embeds only the
+  Barbarian, Pirate, and Animal Kingdom records needed by C2C3 mechanics,
+  while playable civilizations come from the Civ III source catalog.
 - `COPYING` preserves the upstream Freeciv license text. The upstream ruleset
   text does not carry a separate per-file licensing statement in this source
   checkout; do not infer one from this manifest.
-- `UPSTREAM_MANIFEST.tsv` records source and copied SHA-256 hashes for every
-  upstream file. `identical` means the file is unchanged; `modified` means
-  CivCraft changed the copy and the source hash still identifies the upstream
-  original.
+- `UPSTREAM_MANIFEST.tsv` records the original upstream import. It intentionally
+  retains provenance rows for the general Freeciv nation catalog that CivCraft
+  later removed from its runtime data tree. `identical` and `modified` describe
+  the imported copy at the time recorded, not necessarily the current file.
 
 The `game.ruleset` copy has intentional changes: its ruledit description
 paths point to `civcraft_civ2civ3/README.civ2civ3`, and its `[settings]` table
@@ -85,10 +86,9 @@ Airlift source and destination capacity overrides remain explicit in
 `airlift_to_always_enabled = TRUE`; the action adapter reads both settings
 alongside the selected `Airlift` effect and action range.
 
-The included Freeciv nation files preserve the native ruleset's include graph.
-CivCraft's playable civilization roster remains the Civ III catalog in
-`../civ3_conquests/civilizations.tsv`; the future content adapter must keep
-that roster authoritative when the ruleset data is connected to gameplay.
+CivCraft's playable civilization roster is the Civ III catalog in
+`../civ3_conquests/civilizations.tsv`. The selected ruleset keeps only three
+embedded special non-player nation records for barbarian and animal mechanics.
 
 ## License and distribution note
 

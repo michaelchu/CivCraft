@@ -3117,6 +3117,15 @@ mod tests {
                 .count(),
             87
         );
+        assert_eq!(
+            rules
+                .content
+                .iter()
+                .filter(|record| record.kind == ContentKind::Nation)
+                .count(),
+            3,
+            "the mechanics ruleset retains only special non-player nations"
+        );
         assert!(
             data_root
                 .join("civcraft_civ2civ3/UPSTREAM_MANIFEST.tsv")

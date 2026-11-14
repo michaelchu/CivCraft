@@ -101,7 +101,7 @@ impl Simulation {
             .expect("selected C2C3 civil-war settings are valid");
         let normal_player_count = self.players.len().saturating_sub(1);
         let playable_nations = rules
-            .content
+            .source_content
             .iter()
             .filter(|record| record.kind == crate::rules::freeciv::ContentKind::Nation)
             .count();
