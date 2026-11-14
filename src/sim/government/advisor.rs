@@ -2,6 +2,41 @@
 
 use super::*;
 
+struct GovernmentEvaluationFacts {
+    supported_by_city: std::collections::HashMap<u32, i32>,
+    land_units: i32,
+    total_units: i32,
+    womens_suffrage: bool,
+    theology: bool,
+    mysticism: bool,
+}
+
+impl GovernmentEvaluationFacts {
+    fn collect(simulation: &Simulation, owner: usize) -> Self {
+        let mut supported_by_city = std::collections::HashMap::new();
+        let mut land_units = 0;
+        let mut total_units = 0;
+        for unit in &simulation.units {
+            if unit.owner != owner {
+                continue;
+            }
+            total_units += 1;
+            land_units += i32::from(!unit.kind.is_aircraft() && !unit.kind.is_naval());
+            if let Some(city) = unit.home_city {
+                *supported_by_city.entry(city).or_default() += 1;
+            }
+        }
+        Self {
+            supported_by_city,
+            land_units,
+            total_units,
+            womens_suffrage: simulation.has_active_wonder(owner, Building::WOMENS_SUFFRAGE),
+            theology: simulation.has_tech(owner, Tech::THEOLOGY),
+            mysticism: simulation.has_tech(owner, Tech::MYSTICISM),
+        }
+    }
+}
+
 impl super::Simulation {
     pub(super) fn government_available(&self, owner: usize, government: Government) -> bool {
         self.government_requirements_met(owner, government)
@@ -47,6 +82,16 @@ impl super::Simulation {
     }
 
     pub(super) fn government_advisor_add_city_value(&self, city: &City, total: &mut f32) {
+        let facts = GovernmentEvaluationFacts::collect(self, city.owner);
+        self.government_advisor_add_city_value_with_facts(city, total, &facts);
+    }
+
+    fn government_advisor_add_city_value_with_facts(
+        &self,
+        city: &City,
+        total: &mut f32,
+        facts: &GovernmentEvaluationFacts,
+    ) {
         let government = self.players[city.owner].government;
         let forecast = self.city_forecast(city);
         let (_, unhappy, _) = self.city_feelings(city, forecast.luxury);
@@ -55,11 +100,7 @@ impl super::Simulation {
         let earlier_unhappy = unhappy;
         let content =
             |amount: i32| amount.min(unhappy.min(earlier_unhappy) + city.specialists[2]) * 35;
-        let supported = self
-            .units
-            .iter()
-            .filter(|unit| unit.owner == city.owner && unit.home_city == Some(city.id))
-            .count() as i32;
+        let supported = facts.supported_by_city.get(&city.id).copied().unwrap_or(0);
         let military_content = |amount: i32| unhappy * amount * supported * 2 + (amount + 2).max(1);
         // adv_want is float. Each source += rounds separately, including
         // the city output and each effect in effects.ruleset iteration order.
@@ -76,44 +117,31 @@ impl super::Simulation {
         if !matches!(government, Government::Communism | Government::Monarchy) {
             *total -= military_content(3) as f32;
         }
-        if government == Government::Democracy
-            && self.has_active_wonder(city.owner, Building::WOMENS_SUFFRAGE)
-        {
+        if government == Government::Democracy && facts.womens_suffrage {
             *total += military_content(-1) as f32;
         }
         if government == Government::Despotism {
             *total += content(1) as f32;
-            let land = self
-                .units
-                .iter()
-                .filter(|unit| {
-                    unit.owner == city.owner && !unit.kind.is_aircraft() && !unit.kind.is_naval()
-                })
-                .count() as i32;
-            *total += (2 + land) as f32;
+            *total += (2 + facts.land_units) as f32;
         }
         if matches!(government, Government::Communism | Government::Feudalism) {
-            *total += (3 + self
-                .units
-                .iter()
-                .filter(|unit| unit.owner == city.owner)
-                .count()) as f32;
+            *total += (3 + facts.total_units) as f32;
         }
         if government == Government::Communism
             && city.has_building(Building::CATHEDRAL)
-            && self.has_tech(city.owner, Tech::THEOLOGY)
+            && facts.theology
         {
             *total -= content(1) as f32;
         }
         if government == Government::Democracy
             && city.has_building(Building::POLICE_STATION)
-            && !self.has_active_wonder(city.owner, Building::WOMENS_SUFFRAGE)
+            && !facts.womens_suffrage
         {
             *total += military_content(1) as f32;
         }
         if government == Government::Communism
             && city.has_building(Building::TEMPLE)
-            && self.has_tech(city.owner, Tech::MYSTICISM)
+            && facts.mysticism
         {
             *total -= content(1) as f32;
         }
@@ -134,6 +162,15 @@ impl super::Simulation {
         let original = self.players[owner].government;
         let rates = self.players[owner].rates;
         let catalog = super::campaign_government_catalog();
+        let city_ids: Vec<_> = self
+            .player_cities_ordered(owner)
+            .map(|city| city.id)
+            .collect();
+        let facts = GovernmentEvaluationFacts::collect(self, owner);
+        self.trace.count_operation(
+            "government.unit_facts_scanned",
+            self.units.len().try_into().unwrap_or(u64::MAX),
+        );
         for &government in Government::targets() {
             if has_available_preferred_government(self, owner, government, catalog) {
                 continue;
@@ -146,8 +183,12 @@ impl super::Simulation {
             };
             self.arrange_government_workers(owner);
             let mut value = 0.0_f32;
-            for city in self.player_cities_ordered(owner) {
-                self.government_advisor_add_city_value(city, &mut value);
+            for &city_id in &city_ids {
+                let city = self
+                    .city_by_id(city_id)
+                    .expect("government-advisor city remains present during evaluation");
+                self.government_advisor_add_city_value_with_facts(city, &mut value, &facts);
+                self.trace.count_operation("government.city_evaluations", 1);
             }
             let mut bonus = self.government_player_bonus(owner, government);
             let revolution_unhappiness = self.government_revolution_unhappiness(owner, government);
