@@ -71,12 +71,10 @@ impl Simulation {
             .map(|c| self.city_forecast(c).shield_surplus())
             .sum::<i32>()
             / cities.len().max(1) as i32;
-        let output = self
-            .city_forecast(city)
+        self.city_forecast(city)
             .shield_surplus()
             .max(average)
-            .max(1);
-        output
+            .max(1)
     }
 
     fn offensive_seed(&self, city: &City, sea: bool) -> Option<UnitKind> {
