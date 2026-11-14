@@ -30,8 +30,9 @@ assert_cmd = "2.2"
 miniquad = { path = "vendor/miniquad" }
 
 [profile.release]
-opt-level = 2
+opt-level = 3
 lto = "thin"
+codegen-units = 1
 
 # Simulation searches are CPU-bound; keep debug assertions and symbols while
 # reducing the cost of repeated ruleset lookups in unoptimized builds.

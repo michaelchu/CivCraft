@@ -112,7 +112,7 @@ impl Simulation {
         let forecast = self.city_forecast(city);
         let surplus = forecast.shields - forecast.support.shields;
         if surplus > 0 && !forecast.disorder {
-            let labels = self.continent_labels();
+            let labels = self.advisor_continent_labels();
             let origin = labels[self.map_wrap.index(city.x, city.y)];
             let new_ferry = Self::settlement_ferry_unit_kinds()
                 .filter(|&kind| self.unit_buildable(city, kind))
@@ -257,7 +257,7 @@ impl Simulation {
         unavailable: impl Fn(u32) -> bool,
         capacity: usize,
     ) -> Option<(u32, SettlementFerry)> {
-        let labels = self.continent_labels();
+        let labels = self.advisor_continent_labels();
         let origin =
             if founder.transport.is_some() && self.tile(founder.x, founder.y).terrain.is_water() {
                 self.cities
@@ -386,7 +386,7 @@ impl Simulation {
             let (x, y) = self.map_wrap.position(index);
             if assigned.is_none_or(|destination| destination == (x, y))
                 && let Some(site) =
-                    self.city_site_result(founder.owner, x, y, government, &reservations)
+                    self.advisor_city_site_result(founder, x, y, government, &reservations)
             {
                 let value = site.value * discount - f64::from(unit_cost);
                 if value > best_value {

@@ -18,7 +18,6 @@ pub(crate) struct UnitUpkeep {
     /// Source-order supported units, with both pre-allowance and post-allowance
     /// costs for the city-turn missing-upkeep resolver.
     pub(crate) per_unit: Vec<UnitUpkeepRow>,
-    pub(crate) unsupported_mappings: Vec<UnsupportedUnitEconomics>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -73,11 +72,6 @@ pub(crate) struct UnsupportedUnitEconomics {
 
 pub(super) struct UnitGoldUpkeep {
     pub(super) paid: Vec<(u32, i32)>,
-    #[allow(
-        dead_code,
-        reason = "Preserve unsupported upkeep details for diagnostics and unit-test assertions."
-    )]
-    pub(super) unsupported_mappings: Vec<UnsupportedUnitEconomics>,
 }
 
 struct CityUnitEconomics {
@@ -87,14 +81,13 @@ struct CityUnitEconomics {
 
 impl Simulation {
     pub(crate) fn city_unit_upkeep(&self, city: &City) -> UnitUpkeep {
-        self.city_unit_economics(city).upkeep
+        self.city_unit_economics(city, None).upkeep
     }
 
     pub(super) fn city_gold_upkeep(&self, city: &City) -> UnitGoldUpkeep {
-        let economics = self.city_unit_economics(city);
+        let economics = self.city_unit_economics(city, None);
         UnitGoldUpkeep {
             paid: economics.gold_paid,
-            unsupported_mappings: economics.upkeep.unsupported_mappings,
         }
     }
 
@@ -104,7 +97,6 @@ impl Simulation {
     pub(super) fn homeless_unit_gold_upkeep(&self, owner: usize) -> UnitGoldUpkeep {
         let government = self.players[owner].government;
         let mut paid = Vec::new();
-        let mut unsupported_mappings = Vec::new();
         for unit in self
             .units
             .iter()
@@ -113,32 +105,37 @@ impl Simulation {
             let mapping = freeciv_unit_economics_record(unit.kind);
             let record = match mapping {
                 UnitEconomicsRecordBinding::Mapped { record, .. } => record,
-                UnitEconomicsRecordBinding::Unsupported { source_id, basis } => {
-                    unsupported_mappings.push(UnsupportedUnitEconomics {
-                        unit_id: unit.id,
-                        source_id,
-                        basis,
-                    });
-                    continue;
-                }
+                UnitEconomicsRecordBinding::Unsupported { .. } => continue,
             };
             let cost = self.c2c3_unit_upkeep_cost(unit, record, "Gold", government);
             if cost > 0 {
                 paid.push((unit.id, cost));
             }
         }
-        UnitGoldUpkeep {
-            paid,
-            unsupported_mappings,
-        }
+        UnitGoldUpkeep { paid }
     }
 
-    fn city_unit_economics(&self, city: &City) -> CityUnitEconomics {
+    pub(super) fn virtual_unit_raw_food_upkeep(&self, city: &City, unit: &Unit) -> Option<i32> {
+        self.city_unit_economics(city, Some(unit))
+            .upkeep
+            .per_unit
+            .into_iter()
+            .find(|row| row.unit_id == unit.id)
+            .and_then(|row| match row.economics {
+                UnitUpkeepMapping::Mapped { raw, .. } => Some(raw.food),
+                UnitUpkeepMapping::Unsupported(_) => None,
+            })
+    }
+
+    fn city_unit_economics(&self, city: &City, extra: Option<&Unit>) -> CityUnitEconomics {
         let mut units: Vec<_> = self
             .units
             .iter()
             .filter(|unit| unit.owner == city.owner && unit.home_city == Some(city.id))
             .collect();
+        if let Some(unit) = extra {
+            units.push(unit);
+        }
         // Freeciv prepends a unit to its home city's supported list both when
         // it is created and when it is rehomed, so its resolver iteration is
         // newest supported unit first.
@@ -147,20 +144,9 @@ impl Simulation {
             .into_iter()
             .map(|unit| (unit, freeciv_unit_economics_record(unit.kind)))
             .collect();
-        let mut unsupported_mappings = mappings
+        let allocation_complete = mappings
             .iter()
-            .filter_map(|(unit, mapping)| match mapping {
-                UnitEconomicsRecordBinding::Unsupported { source_id, basis } => {
-                    Some(UnsupportedUnitEconomics {
-                        unit_id: unit.id,
-                        source_id,
-                        basis,
-                    })
-                }
-                UnitEconomicsRecordBinding::Mapped { .. } => None,
-            })
-            .collect::<Vec<_>>();
-        let allocation_complete = unsupported_mappings.is_empty();
+            .all(|(_, mapping)| matches!(mapping, UnitEconomicsRecordBinding::Mapped { .. }));
         let government = self.players[city.owner].government;
         let output_types = ["Food", "Shield", "Gold"];
         // Freeciv allocates each output's free upkeep across the city's
@@ -205,7 +191,6 @@ impl Simulation {
             gold: 0,
             unit_happiness: 0,
             per_unit: Vec::with_capacity(mappings.len()),
-            unsupported_mappings: std::mem::take(&mut unsupported_mappings),
         };
         let mut gold_paid = Vec::new();
 
@@ -735,11 +720,15 @@ mod tests {
         let first_worker = worker_ids[0];
         let gold = game.city_gold_upkeep(&game.cities[0]);
         assert_eq!(gold.paid, vec![(first_worker, 2)]);
-        assert!(gold.unsupported_mappings.is_empty());
         let upkeep = game.city_unit_upkeep(&game.cities[0]);
         assert_eq!((upkeep.food, upkeep.shields, upkeep.gold), (0, 0, 2));
         assert_eq!(upkeep.unit_happiness, 0);
-        assert!(upkeep.unsupported_mappings.is_empty());
+        assert!(
+            upkeep
+                .per_unit
+                .iter()
+                .all(|row| matches!(&row.economics, UnitUpkeepMapping::Mapped { .. }))
+        );
         assert_eq!(
             upkeep
                 .per_unit
@@ -767,9 +756,13 @@ mod tests {
         let gold = game.city_gold_upkeep(&game.cities[0]);
         assert_eq!(gold.paid.len(), 2);
         assert_eq!(gold.paid.iter().map(|(_, cost)| cost).sum::<i32>(), 4);
-        assert!(gold.unsupported_mappings.is_empty());
         let upkeep = game.city_unit_upkeep(&game.cities[0]);
-        assert!(upkeep.unsupported_mappings.is_empty());
+        assert!(
+            upkeep
+                .per_unit
+                .iter()
+                .all(|row| matches!(&row.economics, UnitUpkeepMapping::Mapped { .. }))
+        );
         assert!(game.units.iter().any(|unit| unit.id == army));
     }
 
@@ -833,7 +826,12 @@ mod tests {
         }
         let upkeep = game.city_unit_upkeep(&game.cities[0]);
         assert_eq!(upkeep.unit_happiness, 6);
-        assert!(upkeep.unsupported_mappings.is_empty());
+        assert!(
+            upkeep
+                .per_unit
+                .iter()
+                .all(|row| matches!(&row.economics, UnitUpkeepMapping::Mapped { .. }))
+        );
     }
 
     #[test]

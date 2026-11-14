@@ -84,11 +84,6 @@ pub(super) struct UnitMetadata {
     pub(super) capacity: usize,
     pub(super) fuel: u8,
     pub(super) veteran_levels: usize,
-    #[allow(
-        dead_code,
-        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
-    )]
-    pub(super) helicopter_field_load: bool,
     pub(super) attacks_air: bool,
     pub(super) stealth: bool,
 }

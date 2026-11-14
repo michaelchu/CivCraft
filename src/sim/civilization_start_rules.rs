@@ -10,10 +10,7 @@ pub(super) struct StartProfile {
     starting_unit_2: &'static str,
     starting_unit_2_count: usize,
     expansionist: bool,
-    #[allow(
-        dead_code,
-        reason = "Retained as imported rule metadata; not all source fields have runtime consumers."
-    )]
+    #[allow(dead_code)] // Retained from the source profile for future leader AI behavior.
     militaristic: bool,
     expansionist_bonus_unit: &'static str,
     bonus_count: usize,
