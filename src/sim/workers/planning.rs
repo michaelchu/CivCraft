@@ -36,7 +36,7 @@ const ROAD_BONUS_OFFSETS: [(i32, i32); 12] = [
     (0, 2),
 ];
 
-type WorkerActivityTiles = std::collections::HashSet<(i32, i32)>;
+type WorkerActivityTiles = Vec<bool>;
 
 fn freeciv_square_road_connector_bonus(
     real_road: &[bool; ROAD_BONUS_OFFSETS.len()],
@@ -124,11 +124,65 @@ pub(super) struct WorkerPlan {
     pub(super) request: Option<WorkerRequest>,
 }
 
+#[derive(Clone, Default)]
+struct WorkerTileValueCache {
+    old: Option<f32>,
+    projected: [Option<f32>; ACTIVITIES.len()],
+    road_then_rail: Option<f32>,
+}
+
+struct WorkerCityValueCache {
+    city: u32,
+    // A city radius is small, so keep only encountered map indexes rather
+    // than allocating a full-map value array for every city.
+    tiles: Vec<(usize, WorkerTileValueCache)>,
+}
+
 #[derive(Default)]
 pub(super) struct WorkMap {
     // This is native's calloc-per-phase workermap, not save-game state.
     pub(super) reservations: BTreeMap<(i32, i32), (u32, i32)>,
     pub(super) orders: BTreeMap<u32, ((i32, i32), WorkKind)>,
+    // Freeciv's infrastructure cache computes city/tile improvement values
+    // once for an auto-worker pass. Routing, arrival and reservations remain
+    // worker-specific, while these yield projections are shared by every real
+    // or virtual worker considered in the phase.
+    infrastructure: Vec<WorkerCityValueCache>,
+    safety_owner: Option<usize>,
+    safety: Vec<Option<bool>>,
+}
+
+impl WorkMap {
+    fn city_cache(&mut self, city: u32) -> usize {
+        if let Some(index) = self
+            .infrastructure
+            .iter()
+            .position(|cache| cache.city == city)
+        {
+            return index;
+        }
+        let index = self.infrastructure.len();
+        self.infrastructure.push(WorkerCityValueCache {
+            city,
+            tiles: Vec::new(),
+        });
+        index
+    }
+
+    fn tile_cache(&mut self, city_cache: usize, tile: usize) -> usize {
+        if let Some(index) = self.infrastructure[city_cache]
+            .tiles
+            .iter()
+            .position(|(candidate, _)| *candidate == tile)
+        {
+            return index;
+        }
+        let index = self.infrastructure[city_cache].tiles.len();
+        self.infrastructure[city_cache]
+            .tiles
+            .push((tile, WorkerTileValueCache::default()));
+        index
+    }
 }
 
 pub(super) fn amortize(value: f32, delay: i32) -> f32 {
@@ -185,6 +239,106 @@ pub(super) fn consider_action(best: &mut Option<WorkerPlan>, plan: WorkerPlan) {
 }
 
 impl Simulation {
+    fn cached_worker_safe_tile(
+        &self,
+        state: &mut WorkMap,
+        owner: usize,
+        position: (i32, i32),
+    ) -> bool {
+        if state.safety_owner != Some(owner) || state.safety.len() != self.tiles.len() {
+            state.safety_owner = Some(owner);
+            state.safety.clear();
+            state.safety.resize(self.tiles.len(), None);
+        }
+        let index = self.map_wrap.index(position.0, position.1);
+        if let Some(safe) = state.safety[index] {
+            self.trace.count_operation("worker.safety_cache_hits", 1);
+            return safe;
+        }
+        self.trace.count_operation("worker.safety_cache_misses", 1);
+        let safe = self.worker_safe_tile(owner, position.0, position.1);
+        state.safety[index] = Some(safe);
+        safe
+    }
+
+    fn cached_worker_old_value(
+        &mut self,
+        state: &mut WorkMap,
+        cache: usize,
+        city: &City,
+        position: (i32, i32),
+    ) -> f32 {
+        let tile_index = self.map_wrap.index(position.0, position.1);
+        let tile_cache = state.tile_cache(cache, tile_index);
+        if let Some(value) = state.infrastructure[cache].tiles[tile_cache].1.old {
+            self.trace.count_operation("worker.value_cache_hits", 1);
+            self.trace.count_operation("worker.projections_avoided", 1);
+            return value;
+        }
+        self.trace.count_operation("worker.value_cache_misses", 1);
+        let value =
+            self.worker_tile_value(city, position, self.tile(position.0, position.1).clone());
+        state.infrastructure[cache].tiles[tile_cache].1.old = Some(value);
+        value
+    }
+
+    fn cached_worker_projected_value(
+        &mut self,
+        state: &mut WorkMap,
+        cache: usize,
+        city: &City,
+        position: (i32, i32),
+        activity: WorkKind,
+        tile: Tile,
+    ) -> f32 {
+        let tile_index = self.map_wrap.index(position.0, position.1);
+        let tile_cache = state.tile_cache(cache, tile_index);
+        let activity_index = ACTIVITIES
+            .iter()
+            .position(|candidate| *candidate == activity)
+            .expect("worker projection activity is cached");
+        if let Some(value) =
+            state.infrastructure[cache].tiles[tile_cache].1.projected[activity_index]
+        {
+            self.trace.count_operation("worker.value_cache_hits", 1);
+            self.trace.count_operation("worker.projections_avoided", 1);
+            return value;
+        }
+        self.trace.count_operation("worker.value_cache_misses", 1);
+        let value = self.worker_tile_value(city, position, tile);
+        state.infrastructure[cache].tiles[tile_cache].1.projected[activity_index] = Some(value);
+        value
+    }
+
+    fn cached_worker_road_then_rail_value(
+        &mut self,
+        state: &mut WorkMap,
+        cache: usize,
+        city: &City,
+        position: (i32, i32),
+        road: Tile,
+    ) -> f32 {
+        let tile_index = self.map_wrap.index(position.0, position.1);
+        let tile_cache = state.tile_cache(cache, tile_index);
+        if let Some(value) = state.infrastructure[cache].tiles[tile_cache]
+            .1
+            .road_then_rail
+        {
+            self.trace.count_operation("worker.value_cache_hits", 2);
+            self.trace.count_operation("worker.projections_avoided", 2);
+            return value;
+        }
+        self.trace.count_operation("worker.value_cache_misses", 2);
+        let road_value = self.worker_tile_value(city, position, road.clone());
+        let mut rail = road;
+        rail.railroad = true;
+        let value = self.worker_tile_value(city, position, rail) + road_value;
+        state.infrastructure[cache].tiles[tile_cache]
+            .1
+            .road_then_rail = Some(value);
+        value
+    }
+
     pub(super) fn worker_projection(
         &self,
         actor: &Unit,
@@ -330,15 +484,16 @@ impl Simulation {
     }
 
     fn worker_activity_tiles(&self) -> (WorkerActivityTiles, WorkerActivityTiles) {
-        let mut roads = std::collections::HashSet::new();
-        let mut railroads = std::collections::HashSet::new();
+        let mut roads = vec![false; self.tiles.len()];
+        let mut railroads = vec![false; self.tiles.len()];
         for unit in &self.units {
+            let index = self.map_wrap.index(unit.x, unit.y);
             match unit.work_kind {
                 Some(WorkKind::Road) => {
-                    roads.insert((unit.x, unit.y));
+                    roads[index] = true;
                 }
                 Some(WorkKind::Railroad) => {
-                    railroads.insert((unit.x, unit.y));
+                    railroads[index] = true;
                 }
                 _ => {}
             }
@@ -350,8 +505,8 @@ impl Simulation {
         &self,
         position: (i32, i32),
         railroad: bool,
-        road_activity: &std::collections::HashSet<(i32, i32)>,
-        railroad_activity: &std::collections::HashSet<(i32, i32)>,
+        road_activity: &WorkerActivityTiles,
+        railroad_activity: &WorkerActivityTiles,
     ) -> f32 {
         let (map_x, map_y) = native_to_map(position.0, position.1);
         let mut real_road = [false; ROAD_BONUS_OFFSETS.len()];
@@ -373,11 +528,12 @@ impl Simulation {
             let tile = self.tile(position.0, position.1);
             let exact_extra = if railroad { tile.railroad } else { tile.road };
             let dependency_extra = railroad && tile.road;
-            let dependency_activity = railroad && road_activity.contains(&position);
+            let tile_index = self.map_wrap.index(position.0, position.1);
+            let dependency_activity = railroad && road_activity[tile_index];
             let activity_in_progress = if railroad {
-                railroad_activity.contains(&position)
+                railroad_activity[tile_index]
             } else {
-                road_activity.contains(&position)
+                road_activity[tile_index]
             };
 
             real_road[index] = exact_extra || activity_in_progress;
@@ -450,7 +606,7 @@ impl Simulation {
     pub(super) fn worker_plan(
         &mut self,
         actor: &Unit,
-        state: &WorkMap,
+        state: &mut WorkMap,
         requests: &[WorkerRequest],
     ) -> Option<WorkerPlan> {
         let routes = self.worker_routes(actor);
@@ -517,11 +673,12 @@ impl Simulation {
         let (road_activity, railroad_activity) = self.worker_activity_tiles();
         let mut best = None;
         for city in cities {
+            let city_cache = state.city_cache(city.id);
             for (_, _, x, y) in self.map_city_radius(&city) {
                 let position = (x, y);
                 let worked = (city.x, city.y) == position || city.worked_tiles.contains(&position);
                 if (!worked && !self.can_assign_city_tile(&city, x, y))
-                    || !self.worker_safe_tile(actor.owner, x, y)
+                    || !self.cached_worker_safe_tile(state, actor.owner, position)
                     || occupied(self, position)
                 {
                     continue;
@@ -546,12 +703,16 @@ impl Simulation {
                 };
                 let mut at = actor.clone();
                 (at.x, at.y) = position;
-                let old = self.worker_tile_value(&city, position, self.tile(x, y).clone());
+                let old = self.cached_worker_old_value(state, city_cache, &city, position);
                 for &activity in ACTIVITIES {
                     let Some((tile, time)) = self.worker_projection(&at, activity) else {
                         continue;
                     };
-                    let new = self.worker_tile_value(&city, position, tile);
+                    self.trace
+                        .count_operation("worker.candidates_considered", 1);
+                    let new = self.cached_worker_projected_value(
+                        state, city_cache, &city, position, activity, tile,
+                    );
                     let extra = match activity {
                         WorkKind::Road => self.worker_road_extra_with_activities(
                             position,
@@ -603,10 +764,9 @@ impl Simulation {
                 {
                     let railroad_time =
                         self.work_activity_time_fail_closed(WorkKind::Railroad, road.terrain);
-                    let road_value = self.worker_tile_value(&city, position, road.clone());
-                    let mut rail = road;
-                    rail.railroad = true;
-                    let new = self.worker_tile_value(&city, position, rail) + road_value;
+                    let new = self.cached_worker_road_then_rail_value(
+                        state, city_cache, &city, position, road,
+                    );
                     let rate = self.activity_rate(actor);
                     let work = ((time + railroad_time) * ACTIVITY_FACTOR + rate - 1) / rate;
                     consider_action(

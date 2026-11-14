@@ -42,7 +42,7 @@ impl super::Simulation {
         let far_id = self.spawn_unit(1, UnitKind::Settler, far.0, far.1);
         let actor = self.unit_by_id(far_id).unwrap().clone();
         let remote = self
-            .worker_plan(&actor, &WorkMap::default(), &[])
+            .worker_plan(&actor, &mut WorkMap::default(), &[])
             .is_some_and(|p| {
                 p.destination == (20, 20) && p.activity == WorkKind::Clean(Contamination::Pollution)
             });

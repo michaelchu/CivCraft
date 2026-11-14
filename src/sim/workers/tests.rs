@@ -105,6 +105,32 @@ fn default_ai_plans_remote_work_displaces_reservations_and_shelters() {
 }
 
 #[test]
+fn worker_phase_reuses_city_tile_projection_values() {
+    let mut game = game();
+    game.create_city(1, 10, 20);
+    let first = game.spawn_unit(1, UnitKind::Worker, 10, 20);
+    let second = game.spawn_unit(1, UnitKind::Worker, 11, 20);
+    let first = game.unit_by_id(first).unwrap().clone();
+    let second = game.unit_by_id(second).unwrap().clone();
+    let mut state = WorkMap::default();
+
+    game.trace.enable_profiling();
+    game.trace.begin_turn_profile(1, 1, 2);
+    assert!(game.worker_plan(&first, &mut state, &[]).is_some());
+    assert!(game.worker_plan(&second, &mut state, &[]).is_some());
+    game.trace.finish_turn_profile();
+
+    let profiles = game.trace.drain_profiles();
+    let operations = &profiles[0].operations;
+    assert!(operations["worker.value_cache_hits"] > 0);
+    assert_eq!(
+        operations["worker.value_cache_hits"],
+        operations["worker.projections_avoided"]
+    );
+    assert!(operations["worker.safety_cache_hits"] > 0);
+}
+
+#[test]
 fn unworked_candidates_compare_future_total_until_worked_tiles_compete() {
     let mut best = None;
     consider_action(&mut best, plan(20.0, 100.0, false, 1));

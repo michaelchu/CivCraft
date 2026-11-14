@@ -85,6 +85,7 @@ impl Simulation {
     }
 
     fn worker_routes(&self, unit: &Unit) -> WorkerRoutes {
+        self.trace.count_operation("worker.route_maps_built", 1);
         let start = self.map_wrap.index(unit.x, unit.y);
         let mut result = WorkerRoutes {
             map_wrap: self.map_wrap,
@@ -303,7 +304,7 @@ impl Simulation {
                     continue;
                 }
                 let want = self
-                    .worker_plan(&actor, &state, requests)
+                    .worker_plan(&actor, &mut state, requests)
                     .map_or(0.0, |plan| {
                         if plan.request.is_some() {
                             1.0
@@ -328,7 +329,7 @@ impl Simulation {
     }
 
     pub(super) fn worker_improvement_want(&mut self, actor: &Unit) -> f32 {
-        self.worker_plan(actor, &WorkMap::default(), &[])
+        self.worker_plan(actor, &mut WorkMap::default(), &[])
             .map_or(0.0, |plan| {
                 amortize(
                     (plan.new - plan.old + plan.extra) * WORKER_FACTOR,
