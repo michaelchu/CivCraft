@@ -348,6 +348,28 @@ impl Simulation {
     }
 }
 
+impl Simulation {
+    /// Called only after losing a city: initial settler-only starts are valid.
+    pub(in crate::sim) fn eliminate_if_cityless(&mut self, owner: usize) {
+        if owner == BARBARIANS || self.cities.iter().any(|city| city.owner == owner) {
+            return;
+        }
+        let losses = self
+            .units
+            .iter()
+            .filter(|unit| unit.owner == owner)
+            .map(|unit| unit.id)
+            .collect();
+        self.remove_units_with_cargo(losses);
+        self.prune_unit_ai_state();
+        self.lose_spaceship(owner);
+        self.forget_eliminated_borders(owner);
+        self.add_event(format!("{} has been eliminated.", self.players[owner].name));
+        self.refresh_visibility();
+        self.check_game_over();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

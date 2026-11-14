@@ -43,6 +43,31 @@ pub(super) struct ObservedMap {
 }
 
 impl Simulation {
+    /// Elimination is public border information, including under fog.
+    /// Update only ownership; keep terrain, improvements and sight private.
+    pub(in crate::sim) fn forget_eliminated_borders(&mut self, owner: usize) {
+        for tile in &mut self.tiles {
+            if tile.last_seen_owner == Some(owner) {
+                tile.last_seen_owner = tile.owner;
+            }
+        }
+        for ((_, index), (_, remembered)) in &mut self.observed_map.tiles {
+            let live = &self.tiles[*index];
+            if remembered.owner == Some(owner) {
+                remembered.owner = live.owner;
+                remembered.border_city = live.border_city;
+            }
+            if remembered.last_seen_owner == Some(owner) {
+                remembered.last_seen_owner = live.owner;
+            }
+        }
+        for ((_, index), remembered) in &mut self.ai_map_memory {
+            if remembered.owner == Some(owner) {
+                remembered.owner = self.tiles[*index].owner;
+            }
+        }
+    }
+
     pub(crate) fn reveals_cities(&self, owner: usize) -> bool {
         self.effect_value_for_player(owner, "Reveal_Cities") > 0
     }

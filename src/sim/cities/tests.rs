@@ -287,6 +287,8 @@ fn conquest_invokes_partisans_after_transfer_and_population_loss() {
     game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(HUMAN, UnitKind::Swordsman, center.0, center.1);
 
+    game.create_city(1, 30, 24); // Partisans survive only while their civilization survives.
+
     let (seed, captured) = (1..=256)
         .find_map(|seed| {
             let mut candidate = game.clone();
@@ -338,6 +340,7 @@ fn conquest_transfers_center_garrison_and_resolves_unique_game_loss_conflicts() 
     assert_eq!(transferred.home_city, Some(city_id));
 
     let (mut game, _city_id, attacker, center) = conquest_fixture();
+    game.create_city(1, 30, 24); // Keep the giver alive to isolate unit bouncing.
     assert_eq!(
         crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
         Some(true)
@@ -432,6 +435,7 @@ fn conquest_transfer_bounces_units_from_other_nonallied_cities() {
 #[test]
 fn conquest_transfer_unloads_unallied_cargo_before_bouncing_illegal_city_occupants() {
     let (mut game, _, attacker, _) = conquest_fixture();
+    game.create_city(1, 30, 24); // Keep the giver alive to isolate unit bouncing.
     let foreign_city = (10, 24);
     let mut bounce_area = game
         .map_wrap
@@ -477,6 +481,7 @@ fn conquest_transfer_unloads_unallied_cargo_before_bouncing_illegal_city_occupan
 #[test]
 fn conquest_transfer_bounces_both_players_from_newly_hostile_mixed_stacks() {
     let (mut game, _, attacker, _) = conquest_fixture();
+    game.create_city(1, 30, 24); // Keep the giver alive to isolate unit bouncing.
     let stack = (18, 24);
     let giver_unit = game.spawn_unit(1, UnitKind::Warrior, stack.0, stack.1);
     let taker_unit = game.spawn_unit(HUMAN, UnitKind::Worker, stack.0, stack.1);
@@ -906,4 +911,74 @@ fn overlapping_cities_reserve_worked_tiles_and_release_them_on_reassignment() {
     assert!(!game.cities[1].worked_tiles.contains(&shared));
     assert_eq!(game.cities[1].worked_tiles.len(), 1);
     assert!(!game.cities[0].worked_tiles.contains(&shared));
+}
+
+#[test]
+fn last_city_loss_eliminates_remaining_units_but_preserves_unfounded_civs() {
+    for size in [1, 3] {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        game.cities.clear();
+        game.create_city(HUMAN, 10, 24);
+        game.create_city(1, 20, 24);
+        game.cities[1].size = size;
+        game.spawn_unit(1, UnitKind::Worker, 22, 24);
+        game.spawn_unit(1, UnitKind::Settler, 23, 24);
+        let initial_settler = game.spawn_unit(2, UnitKind::Settler, 30, 24);
+        let attacker_id = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
+        game.sign_pact(HUMAN, 1, Pact::War);
+        game.capture_city_if_needed(attacker_id, 20, 24);
+        assert!(!game.player_alive(1));
+        assert!(
+            game.campaign_messages_view()
+                .contains(&format!("{} has been eliminated.", game.players[1].name))
+        );
+        assert!(game.units.iter().all(|unit| unit.owner != 1));
+        assert!(game.unit_by_id(initial_settler).is_some());
+        assert!(game.player_alive(2));
+        assert!(game.game_over().is_none());
+    }
+}
+
+#[test]
+fn losing_one_of_multiple_cities_preserves_remaining_units() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    game.create_city(1, 20, 24);
+    game.create_city(1, 30, 24);
+    let worker = game.spawn_unit(1, UnitKind::Worker, 32, 24);
+    let lost = game.cities[0].id;
+    game.remove_city_for_population_loss(lost);
+    assert!(game.player_alive(1));
+    assert!(game.unit_by_id(worker).is_some());
+    game.remove_city_for_population_loss(game.cities[0].id);
+    assert!(!game.player_alive(1));
+    assert!(game.unit_by_id(worker).is_none());
+}
+
+#[test]
+fn human_last_city_conquest_ends_game_even_with_remaining_settler() {
+    for size in [1, 3] {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        game.cities.clear();
+        game.create_city(HUMAN, 20, 24);
+        game.cities[0].size = size;
+        game.create_city(1, 30, 24);
+        game.spawn_unit(HUMAN, UnitKind::Settler, 22, 24);
+        game.spawn_unit(HUMAN, UnitKind::Worker, 23, 24);
+        game.sign_pact(HUMAN, 1, Pact::War);
+        let attacker = game.spawn_unit(1, UnitKind::Warrior, 20, 24);
+        game.capture_city_if_needed(attacker, 20, 24);
+        assert!(!game.player_alive(HUMAN));
+        assert!(game.units.iter().all(|unit| unit.owner != HUMAN));
+        assert_eq!(
+            game.game_over_view().unwrap().message,
+            "Your civilization has passed into history."
+        );
+        let turn = game.turn;
+        game.simulate_turn();
+        assert_eq!(game.turn, turn, "defeat stops further turns");
+    }
 }
