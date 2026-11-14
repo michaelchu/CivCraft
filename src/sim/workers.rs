@@ -1,5 +1,6 @@
 //! Worker automation, tile assignment, and terrain improvement planning.
 
+use super::movement::WorkerRouteZoneCache;
 use super::pathfinding::reconstruct_path;
 use super::*;
 
@@ -115,6 +116,7 @@ impl Simulation {
                 return result;
             }
         }
+        let mut route_zone_cache = WorkerRouteZoneCache::new(self);
         let allowance = self.unit_move_rate(unit).max(1);
         let mut sequence = 0;
         let mut actor = unit.clone();
@@ -144,7 +146,12 @@ impl Simulation {
                     .owner
                     .is_some_and(|other| !self.allied(unit.owner, other))
                     || self.treaty_blocks_move(&actor, x, y)
-                    || self.zone_blocks_step(&actor, (actor.x, actor.y), (x, y))
+                    || self.zone_blocks_worker_route_step(
+                        &actor,
+                        (actor.x, actor.y),
+                        (x, y),
+                        &mut route_zone_cache,
+                    )
                     || self.any_unit_at(x, y, |u| !self.allied(unit.owner, u.owner))
                     || self.any_city_at(x, y, |c| !self.allied(unit.owner, c.owner))
                 {
@@ -175,6 +182,11 @@ impl Simulation {
         }
         self.trace
             .count_operation("worker.route_expansions", expanded);
+        let (zoc_hits, allied_hits) = route_zone_cache.cache_hits();
+        self.trace
+            .count_operation("worker.route_zoc_cache_hits", zoc_hits);
+        self.trace
+            .count_operation("worker.route_allied_unit_cache_hits", allied_hits);
         result.expanded_nodes = expanded;
         result
     }

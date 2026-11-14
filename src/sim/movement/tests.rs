@@ -1403,6 +1403,38 @@ fn freeciv_zoc_blocks_a_step_between_two_enemy_controlled_tiles() {
 }
 
 #[test]
+fn worker_route_zoc_cache_matches_live_checks_for_every_map_step() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    prepare_zoc_test_map(&mut game);
+    let start = (10, 20);
+    let mover = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
+    for (x, y) in [(12, 20), (14, 21), (18, 23)] {
+        game.spawn_unit(1, UnitKind::Warrior, x, y);
+    }
+    game.create_city(1, 16, 20);
+    game.tile_mut(21, 20).terrain = Terrain::Sea;
+    let unit = game.unit_by_id(mover).unwrap().clone();
+    let mut cache = WorkerRouteZoneCache::new(&game);
+    for y in 0..game.map_wrap.height() {
+        for x in 0..game.map_wrap.width() {
+            for (direction, _) in CIV3_DIRS.into_iter().enumerate() {
+                let Some(destination) = game.map_wrap.civ3_neighbor(x, y, direction) else {
+                    continue;
+                };
+                let from = (x, y);
+                assert_eq!(
+                    game.zone_blocks_step(&unit, from, destination),
+                    game.zone_blocks_worker_route_step(&unit, from, destination, &mut cache),
+                    "ZOC mismatch for {from:?} -> {destination:?}"
+                );
+            }
+        }
+    }
+    assert!(cache.cache_hits().0 > 0);
+    assert!(cache.cache_hits().1 > 0);
+}
+
+#[test]
 fn freeciv_zoc_allows_one_step_into_enemy_control_from_a_safe_tile() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     prepare_zoc_test_map(&mut game);

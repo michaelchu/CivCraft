@@ -413,6 +413,15 @@ impl Simulation {
         let mut min_luxury = -CM_INFINITY;
         let mut stack: Vec<usize> = Vec::new();
         let mut iterations = 0;
+        // Reuse the completion buffer across promising-branch checks. The
+        // Freeciv CM keeps partial-search state in its search object; cloning
+        // a new counts vector for every bound check adds allocation churn.
+        let mut completion = CmPartial {
+            counts: vec![0; lattice.production.len()],
+            production: [0; 6],
+            idle: 0,
+        };
+        let completion_scratch_reuses = std::cell::Cell::new(0_u64);
         #[cfg(test)]
         let disorder_prunes = std::cell::Cell::new(0);
         let max_content = self
@@ -444,14 +453,15 @@ impl Simulation {
                     best_fitness = fitness;
                 }
             }
-            let promising = |partial: &CmPartial, kind: usize| {
+            let mut promising = |partial: &CmPartial, kind: usize| {
                 let mut raw = [0; 6];
                 if partial.idle == 1 {
                     raw = std::array::from_fn(|output| {
                         partial.production[output] + lattice.production[kind][output]
                     });
                 } else {
-                    let mut completion = partial.clone();
+                    completion_scratch_reuses
+                        .set(completion_scratch_reuses.get().saturating_add(1));
                     for (output, raw_output) in raw.iter_mut().enumerate() {
                         completion.clone_from(partial);
                         completion.add(lattice, kind, 1);
@@ -493,7 +503,7 @@ impl Simulation {
                 }
                 meets_min && beats_best && luxury >= min_luxury
             };
-            let next = |partial: &CmPartial, start: usize| {
+            let mut next = |partial: &CmPartial, start: usize| {
                 (start..order.len()).find(|&position| {
                     let kind = order[position];
                     partial.counts[kind] < lattice.capacity[kind]
@@ -526,6 +536,10 @@ impl Simulation {
                 break;
             }
         }
+        self.trace.count_operation(
+            "city_manager.completion_scratch_reuses",
+            completion_scratch_reuses.get(),
+        );
         self.trace
             .count_operation("city_manager.search_iterations", iterations as u64);
         CmQueryResult {

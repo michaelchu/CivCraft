@@ -21,6 +21,34 @@ mod sentry;
 mod transports;
 use std::{cmp::Reverse, collections::BinaryHeap, sync::OnceLock};
 
+pub(super) struct WorkerRouteZoneCache {
+    city_owners: Vec<Option<usize>>,
+    enemy_zoc: Vec<Option<bool>>,
+    allied_unit: Vec<Option<bool>>,
+    enemy_zoc_hits: u64,
+    allied_unit_hits: u64,
+}
+
+impl WorkerRouteZoneCache {
+    pub(super) fn new(sim: &Simulation) -> Self {
+        let mut city_owners = vec![None; sim.tiles.len()];
+        for city in &sim.cities {
+            city_owners[sim.map_wrap.index(city.x, city.y)] = Some(city.owner);
+        }
+        Self {
+            city_owners,
+            enemy_zoc: vec![None; sim.tiles.len()],
+            allied_unit: vec![None; sim.tiles.len()],
+            enemy_zoc_hits: 0,
+            allied_unit_hits: 0,
+        }
+    }
+
+    pub(super) fn cache_hits(&self) -> (u64, u64) {
+        (self.enemy_zoc_hits, self.allied_unit_hits)
+    }
+}
+
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(super) struct RouteTile {
     pub(super) terrain: Terrain,
@@ -563,6 +591,62 @@ impl Simulation {
 
     pub(super) fn zone_blocks_step(&self, unit: &Unit, from: (i32, i32), to: (i32, i32)) -> bool {
         self.zone_blocks_step_with_observation(unit, from, to, false)
+    }
+
+    fn enemy_zoc_controls_tile_for_worker_route(
+        &self,
+        owner: usize,
+        position: (i32, i32),
+        cache: &mut WorkerRouteZoneCache,
+    ) -> bool {
+        let index = self.map_wrap.index(position.0, position.1);
+        if let Some(controlled) = cache.enemy_zoc[index] {
+            cache.enemy_zoc_hits += 1;
+            return controlled;
+        }
+        let controlled = self.enemy_zoc_controls_tile(owner, position.0, position.1, false);
+        cache.enemy_zoc[index] = Some(controlled);
+        controlled
+    }
+
+    pub(super) fn zone_blocks_worker_route_step(
+        &self,
+        unit: &Unit,
+        from: (i32, i32),
+        to: (i32, i32),
+        cache: &mut WorkerRouteZoneCache,
+    ) -> bool {
+        if !Self::unit_class_uses_zoc(unit.kind)
+            || super::action_rules::freeciv_unit_type_flag(unit.kind, "IgZOC")
+                .expect("campaign C2C3 unit-type IgZOC binding")
+        {
+            return false;
+        }
+        let destination = self.map_wrap.index(to.0, to.1);
+        let allied_unit = match cache.allied_unit[destination] {
+            Some(value) => {
+                cache.allied_unit_hits += 1;
+                value
+            }
+            None => {
+                let value = self.allied_unit_at(unit.owner, to.0, to.1, false);
+                cache.allied_unit[destination] = Some(value);
+                value
+            }
+        };
+        if allied_unit {
+            return false;
+        }
+        let source = self.map_wrap.index(from.0, from.1);
+        if cache.city_owners[source].is_some()
+            || cache.city_owners[destination].is_some()
+            || Self::terrain_has_no_zoc(self.tile(from.0, from.1).terrain)
+            || Self::terrain_has_no_zoc(self.tile(to.0, to.1).terrain)
+        {
+            return false;
+        }
+        self.enemy_zoc_controls_tile_for_worker_route(unit.owner, from, cache)
+            && self.enemy_zoc_controls_tile_for_worker_route(unit.owner, to, cache)
     }
 
     pub(super) fn zone_blocks_route(

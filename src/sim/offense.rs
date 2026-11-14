@@ -297,6 +297,8 @@ impl Simulation {
         city: &City,
         prior: Option<AiBuildChoice>,
     ) -> (Option<AiBuildChoice>, Vec<(Tech, f32)>, bool) {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("offense.candidate_evaluation");
         let mut research = Vec::new();
         let mut choice = prior;
         let mut replaced = false;
@@ -326,22 +328,25 @@ impl Simulation {
             let (defender, base_benefit) = self.offensive_victim(&seed, &target);
             let (helper, helper_cost) =
                 enemy_city.map_or((0, 0), |enemy| self.offensive_helpers(&seed, enemy));
-            let (_, occupiers) =
+            let (enemy_attacks, occupiers) =
                 enemy_city.map_or((0, 0), |enemy| self.invasion_support(city.owner, enemy, 0));
+            let enemy_city_worth = enemy_city.map_or(0.0, |enemy| self.offensive_city_worth(enemy));
+            let enemy_finishing_factor =
+                enemy_city.map_or(0.0, |enemy| self.offensive_finishing_factor(enemy));
+            let target_victims = self.offensive_victim_count(target.x, target.y);
+            let empire_city_count = self.player_cities_ordered(city.owner).count().max(1) as i32;
             let mut benefit = base_benefit;
-            if let Some(enemy) = enemy_city
-                && (seed.kind.can_occupy_city() || occupiers > 0)
-            {
+            if enemy_city.is_some() && (seed.kind.can_occupy_city() || occupiers > 0) {
                 benefit = (f64::from(benefit)
-                    + self.offensive_city_worth(enemy)
-                        * f64::from(self.offensive_finishing_factor(enemy))
-                        / 3.0) as f32;
+                    + enemy_city_worth * f64::from(enemy_finishing_factor) / 3.0)
+                    as f32;
             }
             let mut selected = AiBuildChoice {
                 production: Production::Unit(seed_kind),
                 want: f64::from(target.want),
             };
             for kind in UnitKind::simple_military() {
+                self.trace.count_operation("offense.candidate_units", 1);
                 if kind.stats().attack <= 0
                     || !Self::guard_can_follow(kind, seed_kind)
                     || !self.offensive_native_near(kind, target.x, target.y)
@@ -363,7 +368,7 @@ impl Simulation {
                     .map(|&tech| self.target_cost(city.owner, tech))
                     .sum::<i32>()
                     / 4
-                    / self.player_cities_ordered(city.owner).count().max(1) as i32;
+                    / empire_city_count;
                 let power = (Self::offensive_attack_rating(&candidate) + helper).pow(2);
                 if power == 0 {
                     continue;
@@ -371,37 +376,37 @@ impl Simulation {
                 let vulnerability = defender.as_ref().map_or(0, |def| {
                     self.offensive_defense_squared(def, kind, target.x, target.y, true)
                 });
-                let victims = self.offensive_victim_count(target.x, target.y);
-                let mut desire = if vulnerability == 0
-                    && (kind.is_naval() || kind.fuel_capacity() > 0)
-                {
-                    0.0
-                } else {
-                    let mut desire = kill_desire(
-                        benefit,
-                        power,
-                        kind.stats().cost + helper_cost,
-                        vulnerability,
-                        victims,
-                    );
-                    if let Some(enemy) = enemy_city {
-                        let existing = helper * helper;
-                        if benefit * existing as f32 > (helper_cost * vulnerability) as f32 {
-                            desire -=
-                                kill_desire(benefit, existing, helper_cost, vulnerability, victims);
+                let mut desire =
+                    if vulnerability == 0 && (kind.is_naval() || kind.fuel_capacity() > 0) {
+                        0.0
+                    } else {
+                        let mut desire = kill_desire(
+                            benefit,
+                            power,
+                            kind.stats().cost + helper_cost,
+                            vulnerability,
+                            target_victims,
+                        );
+                        if enemy_city.is_some() {
+                            let existing = helper * helper;
+                            if benefit * existing as f32 > (helper_cost * vulnerability) as f32 {
+                                desire -= kill_desire(
+                                    benefit,
+                                    existing,
+                                    helper_cost,
+                                    vulnerability,
+                                    target_victims,
+                                );
+                            }
+                            if kind.can_occupy_city() && enemy_attacks > 0 && occupiers == 0 {
+                                desire = desire.max(
+                                    (enemy_city_worth * 10.0 * f64::from(enemy_finishing_factor))
+                                        as f32,
+                                );
+                            }
                         }
-                        let (attacks, occupied) = self.invasion_support(city.owner, enemy, 0);
-                        if kind.can_occupy_city() && attacks > 0 && occupied == 0 {
-                            desire = desire.max(
-                                (self.offensive_city_worth(enemy)
-                                    * 10.0
-                                    * f64::from(self.offensive_finishing_factor(enemy)))
-                                    as f32,
-                            );
-                        }
-                    }
-                    desire
-                };
+                        desire
+                    };
                 desire -= (tech_cost * 17) as f32;
                 desire -= (turns * 17) as f32;
                 let cost = Self::offensive_balanced_cost(kind)

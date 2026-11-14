@@ -36,6 +36,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn record_ai_domestic_tech_wants(&mut self, owner: usize) {
+        let profiler = self.trace.profiler();
         if !self.has_tech(owner, Tech::MAP_MAKING) {
             self.add_ai_tech_want(
                 owner,
@@ -47,11 +48,14 @@ impl Simulation {
         // cities first would change f32 rounding after government feedback.
         let cities: Vec<_> = self.player_cities_ordered(owner).cloned().collect();
         for city in cities {
+            let _baseline_profile = profiler.scope("advisor.domestic.city_baseline");
             let baseline = self.advisor_city_output(&city, None);
             let (food, gross_shields, _) = self.city_yields(&city);
             let upkeep = self.city_unit_upkeep(&city);
             let food_surplus = food - city.size * Self::citizen_food_cost() - upkeep.food;
             let shields = (gross_shields - upkeep.shields).max(0);
+            drop(_baseline_profile);
+            let _tech_profile = profiler.scope("advisor.domestic.building_tech_wants");
             for &tech in improvement_unlock_techs() {
                 if !self.has_tech(owner, tech) {
                     self.add_ai_tech_want(
@@ -67,6 +71,7 @@ impl Simulation {
                     );
                 }
             }
+            drop(_tech_profile);
         }
     }
 
@@ -405,17 +410,24 @@ impl Simulation {
         food_surplus: i32,
         shields: i32,
     ) -> i32 {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("advisor.domestic.building_tech_want");
         let mut want = 0;
-        for building in
-            Building::all().filter(|building| building.data().genus == Genus::Improvement)
-        {
+        let buildings = improvement_buildings_for_tech(tech);
+        let scanned = Building::all().count();
+        self.trace.count_operation(
+            "advisor.domestic.building_candidates",
+            buildings.len() as u64,
+        );
+        self.trace.count_operation(
+            "advisor.domestic.building_scan_entries_avoided",
+            scanned.saturating_sub(buildings.len()) as u64,
+        );
+        for &building in buildings {
             let data = building.data();
-            if !data
-                .requirements
-                .contains(&(Requirement::Tech(tech.0), true))
-                || self
-                    .building_blocker_with_tech(city, building, Some(tech))
-                    .is_some()
+            if self
+                .building_blocker_with_tech(city, building, Some(tech))
+                .is_some()
             {
                 continue;
             }
@@ -476,6 +488,53 @@ fn improvement_unlock_techs() -> &'static [Tech] {
             })
             .collect()
     })
+}
+
+fn improvement_buildings_for_tech(tech: Tech) -> &'static [Building] {
+    static BY_TECH: std::sync::OnceLock<Vec<(Tech, Vec<Building>)>> = std::sync::OnceLock::new();
+    BY_TECH
+        .get_or_init(|| {
+            improvement_unlock_techs()
+                .iter()
+                .copied()
+                .map(|tech| {
+                    let buildings = Building::all()
+                        .filter(|building| {
+                            let data = building.data();
+                            data.genus == Genus::Improvement
+                                && data
+                                    .requirements
+                                    .contains(&(Requirement::Tech(tech.0), true))
+                        })
+                        .collect();
+                    (tech, buildings)
+                })
+                .collect()
+        })
+        .iter()
+        .find(|(candidate, _)| *candidate == tech)
+        .map_or(&[], |(_, buildings)| buildings)
+}
+
+#[cfg(test)]
+mod building_tech_index_tests {
+    use super::*;
+
+    #[test]
+    fn per_tech_building_index_preserves_the_full_scan_and_source_order() {
+        for &tech in improvement_unlock_techs() {
+            let expected: Vec<_> = Building::all()
+                .filter(|building| {
+                    let data = building.data();
+                    data.genus == Genus::Improvement
+                        && data
+                            .requirements
+                            .contains(&(Requirement::Tech(tech.0), true))
+                })
+                .collect();
+            assert_eq!(improvement_buildings_for_tech(tech), expected);
+        }
+    }
 }
 
 fn city_effect_techs() -> &'static [Tech] {
