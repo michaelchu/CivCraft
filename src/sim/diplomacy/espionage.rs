@@ -134,7 +134,7 @@ impl Simulation {
                 let contacted = self.contacted_pact(HUMAN, owner).is_some();
                 let at_war = self.at_war(HUMAN, owner);
                 let relation = self.diplomacy.get(&Self::relation_key(HUMAN, owner));
-                let direction = usize::from(HUMAN > owner);
+                let direction = 0;
                 let has_spy = relation.is_some_and(|relation| relation.spy[direction].is_some());
                 let military_plans_active = relation
                     .is_some_and(|relation| relation.military_plans_until[direction] > self.turn);
@@ -391,7 +391,7 @@ impl Simulation {
             .get(&relation_key)
             .and_then(|relation| relation.spy[direction]);
         let target = city_id.and_then(|id| self.cities.iter().find(|city| city.id == id));
-        if mission.needs_city() && !target.is_some_and(|city| city.owner == opponent) {
+        if mission.needs_city() && target.is_none_or(|city| city.owner != opponent) {
             return fail(self, "Select a city belonging to the chosen civilization.");
         }
 

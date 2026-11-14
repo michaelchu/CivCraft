@@ -77,7 +77,7 @@ impl Game {
                 UiAction::ToggleEspionage,
                 "Espionage".to_owned(),
                 None,
-                self.sim.espionage_rivals_view().len() > 0,
+                !self.sim.espionage_rivals_view().is_empty(),
                 false,
             ),
             (
