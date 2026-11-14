@@ -87,38 +87,38 @@ impl super::Simulation {
         best
     }
 
+    fn offensive_ferry_candidate(&self, seed: &Unit) -> Option<Unit> {
+        self.offensive_find_ferry(seed).or_else(|| {
+            UnitKind::ALL_NATIVE
+                .into_iter()
+                .rev()
+                .find(|kind| {
+                    kind.has_ai_strategy(UnitAiStrategy::NavalTransport)
+                        && self.unit_available(seed.owner, *kind)
+                })
+                .or_else(|| {
+                    UnitKind::ALL_NATIVE
+                        .into_iter()
+                        .find(|kind| kind.has_ai_strategy(UnitAiStrategy::NavalTransport))
+                })
+                .filter(|_| {
+                    self.map_wrap
+                        .civ3_neighbors(seed.x, seed.y)
+                        .any(|(x, y)| self.tile(x, y).terrain.is_water())
+                })
+                .map(|kind| self.make_unit(0, seed.owner, kind, seed.x, seed.y))
+        })
+    }
+
     pub(super) fn offensive_target(&self, city: &City, seed: &Unit) -> Option<OffensiveTarget> {
+        self.trace.count_operation("offensive.target_searches", 1);
         let mut map = NormalPaths::attack_map(self, seed);
         let mut best: Option<OffensiveTarget> = None;
         let mut fallback = 0.0_f32;
         let rating = Self::offensive_attack_rating(seed);
-        let ferry = if !seed.kind.is_naval() {
-            self.offensive_find_ferry(seed).or_else(|| {
-                UnitKind::ALL_NATIVE
-                    .into_iter()
-                    .rev()
-                    .find(|kind| {
-                        kind.has_ai_strategy(UnitAiStrategy::NavalTransport)
-                            && self.unit_available(seed.owner, *kind)
-                    })
-                    .or_else(|| {
-                        UnitKind::ALL_NATIVE
-                            .into_iter()
-                            .find(|kind| kind.has_ai_strategy(UnitAiStrategy::NavalTransport))
-                    })
-                    .filter(|_| {
-                        self.map_wrap
-                            .civ3_neighbors(seed.x, seed.y)
-                            .any(|(x, y)| self.tile(x, y).terrain.is_water())
-                    })
-                    .map(|kind| self.make_unit(0, seed.owner, kind, seed.x, seed.y))
-            })
-        } else {
-            None
-        };
-        let mut ferry_map = ferry
-            .as_ref()
-            .map(|ferry| NormalPaths::overlap_map(self, ferry));
+        let mut ferry_initialized = seed.kind.is_naval();
+        let mut ferry = None;
+        let mut ferry_map = None;
         for owner in 0..self.players.len() {
             if !self.ai_potentially_hostile(seed.owner, owner) {
                 continue;
@@ -130,7 +130,15 @@ impl super::Simulation {
                     continue;
                 }
                 let mut by_boat = false;
-                let turns = if let Some(turns) = map.position_turn(self, enemy.x, enemy.y) {
+                let direct = map.position_turn(self, enemy.x, enemy.y);
+                if direct.is_none() && !ferry_initialized {
+                    ferry = self.offensive_ferry_candidate(seed);
+                    ferry_map = ferry
+                        .as_ref()
+                        .map(|boat| NormalPaths::overlap_map(self, boat));
+                    ferry_initialized = true;
+                }
+                let turns = if let Some(turns) = direct {
                     turns
                 } else if let Some(fmap) = ferry_map.as_mut() {
                     let Some((x, y, land)) =
@@ -342,6 +350,7 @@ impl super::Simulation {
         candidate: &Unit,
         target: &OffensiveTarget,
     ) -> Option<i32> {
+        self.trace.count_operation("offensive.candidate_routes", 1);
         let mut pf = NormalPaths::enemy_map(self, candidate);
         let mut turns = None;
         if let Some(boat) = target.ferry.as_ref() {

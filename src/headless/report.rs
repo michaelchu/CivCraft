@@ -2,7 +2,10 @@
 use super::{config::Config, scenario::Provenance};
 use crate::{
     analytics::Registry,
-    sim::{observation::Snapshot, trace::Event},
+    sim::{
+        observation::Snapshot,
+        trace::{Event, TurnProfile},
+    },
 };
 use serde_json::{Value, json};
 use std::{
@@ -28,6 +31,7 @@ pub(crate) struct Report {
     pub omitted_events: usize,
     timeline: Vec<Value>,
     scenario: Provenance,
+    turn_profiles: Vec<TurnProfile>,
 }
 impl Report {
     pub fn new(path: &str, scenario: Provenance) -> Result<Self, String> {
@@ -65,6 +69,7 @@ impl Report {
             omitted_events: 0,
             timeline: Vec::new(),
             scenario,
+            turn_profiles: Vec::new(),
         })
     }
     pub fn snapshot(&mut self, snapshot: &Snapshot) -> Result<(), String> {
@@ -78,6 +83,9 @@ impl Report {
     }
     pub fn scenario(&mut self, scenario: Provenance) {
         self.scenario = scenario;
+    }
+    pub fn turn_profiles(&mut self, profiles: Vec<TurnProfile>) {
+        self.turn_profiles.extend(profiles);
     }
     pub fn event(&mut self, event: &Event, config: &Config) -> Result<bool, String> {
         if !config.retains(event) || self.event_records >= config.max_events {
@@ -162,7 +170,7 @@ impl Report {
                 "open_findings":registry.output.findings.iter().filter(|f|f.status=="open").count(),
                 "scenario_checks_passed":scenario_checks_passed,"scenario_checks_total":self.scenario.checks.len(),
                 "final_city_count":last.city_count,"civilizations":civilizations,"city_growth_status_counts":growth_counts},
-            "findings":registry.output.findings,"timeline":self.timeline,
+            "findings":registry.output.findings,"timeline":self.timeline,"turn_profiles":self.turn_profiles,
             "evidence":{
                 "snapshots":{"format":"jsonl","path":self.snapshot_path.file_name().unwrap().to_string_lossy(),"records":self.snapshot_records,"lookup":"Select by turn; initial snapshot is before the first step. Entity IDs identify cities, civilizations, and units."},
                 "events":{"format":"jsonl","path":self.event_path.file_name().unwrap().to_string_lossy(),"records":self.event_records,"bytes":self.event_bytes,"lookup":"Select by sequence. Event turn and phase identify when the action occurred, not the next turn's snapshot."},

@@ -50,7 +50,9 @@ impl super::Simulation {
         let government = self.players[city.owner].government;
         let forecast = self.city_forecast(city);
         let (_, unhappy, _) = self.city_feelings(city, forecast.luxury);
-        let (_, earlier_unhappy, _) = self.city_feelings(city, forecast.luxury);
+        // CivCraft has one current-feelings adapter for both native
+        // unhappy and earlier-unhappy reads; do not evaluate it twice.
+        let earlier_unhappy = unhappy;
         let content =
             |amount: i32| amount.min(unhappy.min(earlier_unhappy) + city.specialists[2]) * 35;
         let supported = self

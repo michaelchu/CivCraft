@@ -271,6 +271,22 @@ impl Simulation {
     /// Source assess_danger and assess_defense_quadratic, with normal AI's
     /// three-turn horizon. Ratings remain integer at native assignment points.
     pub(in crate::sim) fn advisor_guard_city_assessment(&self, city: &City) -> GuardCityAssessment {
+        self.trace.count_operation("guard_assessment.calls", 1);
+        let cache_enabled = self.ai_advisor_cache_enabled.get();
+        if cache_enabled
+            && let Some(assessment) = self
+                .ai_spatial_index
+                .borrow()
+                .guard_assessments
+                .get(&city.id)
+                .copied()
+        {
+            self.trace.count_operation("guard_assessment.cache_hit", 1);
+            return assessment;
+        }
+        if cache_enabled {
+            self.trace.count_operation("guard_assessment.cache_miss", 1);
+        }
         let mut result = GuardCityAssessment {
             danger: 0,
             urgency: 0,
@@ -311,6 +327,12 @@ impl Simulation {
             defense += rating;
         }
         result.defense = defense.min(1 << 15).pow(2);
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
+                .borrow_mut()
+                .guard_assessments
+                .insert(city.id, result);
+        }
         result
     }
 

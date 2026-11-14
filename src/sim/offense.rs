@@ -255,8 +255,39 @@ impl Simulation {
         if early || severe {
             return (None, Vec::new());
         }
-        let (choice, research, replaced) = self.offensive_advice_with_prior(city, prior);
+        let (choice, research, replaced) = self.cached_offensive_advice(city, prior);
         (if replaced { choice } else { None }, research)
+    }
+
+    pub(super) fn cached_offensive_advice(
+        &self,
+        city: &City,
+        prior: Option<AiBuildChoice>,
+    ) -> (Option<AiBuildChoice>, Vec<(Tech, f32)>, bool) {
+        self.trace.count_operation("offensive_advice.calls", 1);
+        let cache_enabled = self.ai_advisor_cache_enabled.get();
+        if cache_enabled
+            && let Some(result) = self
+                .ai_spatial_index
+                .borrow()
+                .offensive_advice
+                .get(&city.id)
+                .cloned()
+        {
+            self.trace.count_operation("offensive_advice.cache_hit", 1);
+            return result;
+        }
+        if cache_enabled {
+            self.trace.count_operation("offensive_advice.cache_miss", 1);
+        }
+        let result = self.offensive_advice_with_prior(city, prior);
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
+                .borrow_mut()
+                .offensive_advice
+                .insert(city.id, result.clone());
+        }
+        result
     }
 
     /// Caller has passed the shared routine/severe-defense stages. Selection

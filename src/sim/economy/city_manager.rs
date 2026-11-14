@@ -447,8 +447,9 @@ impl Simulation {
                         partial.production[output] + lattice.production[kind][output]
                     });
                 } else {
+                    let mut completion = partial.clone();
                     for (output, raw_output) in raw.iter_mut().enumerate() {
-                        let mut completion = partial.clone();
+                        completion.clone_from(partial);
                         completion.add(lattice, kind, 1);
                         let last = completion
                             .counts
@@ -521,6 +522,8 @@ impl Simulation {
                 break;
             }
         }
+        self.trace
+            .count_operation("city_manager.search_iterations", iterations as u64);
         CmQueryResult {
             city: if best.idle == 0 && best_fitness.0 {
                 Some(self.city_manager_apply(city, lattice, &best))

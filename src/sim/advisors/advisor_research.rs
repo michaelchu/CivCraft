@@ -83,16 +83,15 @@ impl Simulation {
     }
 
     pub(super) fn record_ai_military_tech_wants(&mut self, city: &City) {
+        self.trace.profile_step("military_tech.counter_defenders");
         for (tech, want) in self.counter_defender_tech_feedback(city) {
             self.add_ai_tech_want(city.owner, tech, want);
         }
-        for &tech in defender_techs() {
-            self.add_ai_tech_want(
-                city.owner,
-                tech,
-                self.production_defender_tech_want(city, tech),
-            );
+        self.trace.profile_step("military_tech.future_defenders");
+        for (tech, want) in self.production_defender_tech_wants(city) {
+            self.add_ai_tech_want(city.owner, tech, want);
         }
+        self.trace.profile_step("military_tech.offense");
         for (tech, want) in self.offensive_advice(city).1 {
             self.add_ai_tech_want(city.owner, tech, want);
         }
@@ -470,18 +469,6 @@ fn improvement_unlock_techs() -> &'static [Tech] {
                             .requirements
                             .contains(&(Requirement::Tech(tech.0), true))
                 })
-            })
-            .collect()
-    })
-}
-
-fn defender_techs() -> &'static [Tech] {
-    static TECHS: std::sync::OnceLock<Vec<Tech>> = std::sync::OnceLock::new();
-    TECHS.get_or_init(|| {
-        Tech::all()
-            .filter(|&tech| {
-                Simulation::production_defender_types()
-                    .any(|kind| kind.required_tech() == Some(tech))
             })
             .collect()
     })

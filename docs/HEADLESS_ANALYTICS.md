@@ -190,6 +190,11 @@ cargo run --offline --release --bin headless_sim -- \
 - `--stop-on-finding none|any|invariant` optionally stops after a full turn.
   Defaults to `none`; built-in heuristics cannot trigger `invariant` mode.
 - `--checkpoint-every 10` controls publication frequency.
+- `--profile-turns true` records opt-in per-turn timings for simulation phases
+  and named substeps, the starting city/unit counts, and operation counters.
+  Leave it disabled for ordinary scenario checks. Use it for deterministic
+  performance investigations and compare fixed turn windows rather than only
+  the total process runtime.
 
 Snapshots stream to disk rather than accumulating full history in memory. Their
 size grows with requested turns and selected/required providers; event limits
@@ -207,6 +212,11 @@ I/O errors fail the runner rather than silently continuing without evidence.
 - `coverage`: required-event overflow, events not retained by filters/limits,
   and effective snapshot providers.
 - `summary`, `findings`, `timeline`: compact review information.
+- `turn_profiles`: present as an empty array unless profiling is enabled. Each
+  entry contains total turn time, phase/substep times, starting entity counts,
+  and operation counts such as city-manager search iterations and advisor
+  cache hits/misses. Timings are diagnostic wall-clock observations and do not
+  participate in simulation decisions.
 - `evidence`: relative filenames, record counts, and lookup guidance.
 
 Sidecars:
@@ -229,6 +239,57 @@ last valid `running` checkpoint. No findings is not proof of correct gameplay.
 Schema 5 replaces schema 4's history sidecar with independent snapshots/events,
 adds the initial snapshot and analyzer metadata, and introduces finding episode
 IDs. Readers should inspect `version` before applying schema-specific queries.
+
+For ramp analysis, use one fixed seed and world configuration, then compare
+the mean and median of turns 1–10 against turns 71–80, the worst individual
+turn, and the phase/substep shares. Record the late/early ratio explicitly.
+Operation counts help distinguish algorithmic growth from machine noise. Always
+compare snapshot sidecars byte-for-byte when evaluating an optimization.
+
+### Seed-42 80-turn ramp baseline
+
+The deterministic tiny-map workload below is the current ramp regression:
+
+```sh
+cargo run --offline --release --bin headless_sim -- \
+  --seed 42 --map-size tiny --ocean-coverage 70 --climate normal \
+  --world-age 4 --landform continents --temperature temperate \
+  --turns 80 --checkpoint-every 10 --profile-turns true \
+  --report /tmp/civcraft-ramp80.json
+```
+
+On the profiling host used for the November 2026 optimization pass, the final
+run averaged 0.674 seconds for turns 1–10 and 7.468 seconds for turns 71–80,
+an 11.08x late/early ratio. The worst turn was 11.35 seconds. Host timing is
+noisy; operation counts and byte-identical snapshot sidecars are the stronger
+comparison evidence. The aspirational ratio remains 3x or less and has not
+been reached.
+
+The remaining growth is distributed rather than attributable to one fixed
+overhead:
+
+- Offensive research still performs destination-specific path searches per
+  advised city. Target searches grew from 2.1 to 15.5 per turn and candidate
+  routes from zero to 79; these searches cannot be combined naively because
+  movement class, boarding, hostile endpoints, and city origin affect costs.
+- AI unit planning scales with the live unit roster and includes defense,
+  reinforcement, invasion, and per-unit movement searches.
+- Worker planning constructs a route map per eligible real or virtual worker
+  and values activities across owned city radii. Activity-tile lookups are
+  indexed, but route construction and tile valuation remain per worker.
+- Government reevaluation periodically runs bounded city-manager searches for
+  each candidate government. This produces the remaining five-turn spikes;
+  staggering evaluations would change AI decisions and is not a transparent
+  optimization.
+- City production, domestic technology advice, wonders, and emergency worker
+  assignment scale at least linearly with city count. Some contain nested
+  building, technology, or city-manager candidate loops.
+
+Do not share destination-specific path maps or retain advisor results across
+turns without proving their invalidation rules. Production choices, unit
+positions, diplomacy, visibility, transport state, technology, and city
+assignments can all change the result. Prefer operation-count reductions with
+exact snapshot parity over improvements visible only in one wall-clock run.
 
 ## Test entry points
 

@@ -372,6 +372,7 @@ impl NormalPaths {
     }
 
     fn iterate(&mut self, sim: &Simulation) -> bool {
+        sim.trace.count_operation("normal_paths.expansions", 1);
         let current = self.current;
         let node = self.nodes[current].clone();
         if node.behavior != Behavior::DontLeave

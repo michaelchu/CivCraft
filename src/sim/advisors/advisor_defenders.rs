@@ -183,23 +183,32 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn production_defender_tech_want(&self, city: &City, tech: Tech) -> f32 {
-        if !Self::production_defender_types().any(|kind| kind.required_tech() == Some(tech)) {
-            return 0.0;
-        }
+        self.production_defender_tech_wants(city)
+            .into_iter()
+            .find_map(|(candidate, want)| (candidate == tech).then_some(want))
+            .unwrap_or(0.0)
+    }
+
+    pub(in crate::sim) fn production_defender_tech_wants(&self, city: &City) -> Vec<(Tech, f32)> {
+        let techs: Vec<_> = Tech::all()
+            .filter(|&tech| {
+                Self::production_defender_types().any(|kind| kind.required_tech() == Some(tech))
+            })
+            .collect();
         // The side effect belongs to dai_process_defender_want, not every
         // tactical call to dai_choose_defender_versus. Mirror the production
         // caller's gates before evaluating future defenders.
         let assessment = self.advisor_guard_city_assessment(city);
         let martial = self.city_martial_law_want(city) as f32;
         if assessment.danger == 0 && martial <= 0.0 {
-            return 0.0;
+            return techs.into_iter().map(|tech| (tech, 0.0)).collect();
         }
         let danger =
             Self::native_city_defense_danger(assessment, self.city_forecast(city).shield_surplus());
         let count = self.tile_units_ordered(city.x, city.y).count() as i32;
         if (danger <= 0 || assessment.defense != 0 && count > assessment.urgency) && martial <= 0.0
         {
-            return 0.0;
+            return techs.into_iter().map(|tech| (tech, 0.0)).collect();
         }
         let wallvalue = if assessment.danger > 0 {
             90.0_f32
@@ -220,37 +229,42 @@ impl Simulation {
         }
         let total = danger as f32 + martial;
         let cities = self.player_cities_ordered(city.owner).count().max(1) as i32;
-        let mut want = 0.0_f32;
-        for kind in Self::production_defender_types() {
-            if self.unit_buildable(city, kind)
-                || !self.unit_buildable_later(city, kind)
-                || kind.required_tech() != Some(tech)
-            {
-                continue;
-            }
-            let mut desire = Self::production_defender_desire(kind, danger);
-            if desire <= 0.0 {
-                continue;
-            }
-            // Supported unit requirements are a single reachable advance;
-            // goal cost includes its still-unknown prerequisites. The source
-            // overwrites (not sums) costs for multi-tech requirements.
-            let tech_cost = self
-                .research_path(city.owner, tech)
-                .into_iter()
-                .map(|required| self.target_cost(city.owner, required))
-                .sum::<i32>()
-                / 4
-                / cities;
-            if !kind.has_flag(UnitFlag::BadCityDefender) {
-                desire *= wallvalue;
-                desire /= POWER_FACTOR as f32;
-            }
-            let tech_desire = desire * total / (kind.stats().cost + tech_cost) as f32;
-            if tech_desire > 0.0 {
-                want += tech_desire * best_cost as f32 / best;
-            }
-        }
-        want
+        techs
+            .into_iter()
+            .map(|tech| {
+                let mut want = 0.0_f32;
+                for kind in Self::production_defender_types() {
+                    if self.unit_buildable(city, kind)
+                        || !self.unit_buildable_later(city, kind)
+                        || kind.required_tech() != Some(tech)
+                    {
+                        continue;
+                    }
+                    let mut desire = Self::production_defender_desire(kind, danger);
+                    if desire <= 0.0 {
+                        continue;
+                    }
+                    // Supported unit requirements are a single reachable advance;
+                    // goal cost includes its still-unknown prerequisites. The source
+                    // overwrites (not sums) costs for multi-tech requirements.
+                    let tech_cost = self
+                        .research_path(city.owner, tech)
+                        .into_iter()
+                        .map(|required| self.target_cost(city.owner, required))
+                        .sum::<i32>()
+                        / 4
+                        / cities;
+                    if !kind.has_flag(UnitFlag::BadCityDefender) {
+                        desire *= wallvalue;
+                        desire /= POWER_FACTOR as f32;
+                    }
+                    let tech_desire = desire * total / (kind.stats().cost + tech_cost) as f32;
+                    if tech_desire > 0.0 {
+                        want += tech_desire * best_cost as f32 / best;
+                    }
+                }
+                (tech, want)
+            })
+            .collect()
     }
 }

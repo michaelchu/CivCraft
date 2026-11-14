@@ -61,6 +61,22 @@ impl Simulation {
     /// Highest era reached after acquiring every critical advance in each
     /// preceding era. The result also gates access to later-era technologies.
     pub(crate) fn research_era(&self, owner: usize) -> TechEra {
+        self.trace.count_operation("research_era.calls", 1);
+        let cache_enabled = self.ai_advisor_cache_enabled.get();
+        if cache_enabled
+            && let Some(era) = self
+                .ai_spatial_index
+                .borrow()
+                .research_eras
+                .get(&owner)
+                .copied()
+        {
+            self.trace.count_operation("research_era.cache_hit", 1);
+            return era;
+        }
+        if cache_enabled {
+            self.trace.count_operation("research_era.cache_miss", 1);
+        }
         let mut current = TechEra::Ancient;
         for era in [TechEra::Ancient, TechEra::MiddleAges, TechEra::Industrial] {
             if Tech::all()
@@ -77,10 +93,32 @@ impl Simulation {
                 break;
             }
         }
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
+                .borrow_mut()
+                .research_eras
+                .insert(owner, current);
+        }
         current
     }
 
     pub(super) fn research_path(&self, owner: usize, goal: Tech) -> Vec<Tech> {
+        self.trace.count_operation("research_path.calls", 1);
+        let cache_enabled = self.ai_advisor_cache_enabled.get();
+        if cache_enabled
+            && let Some(path) = self
+                .ai_spatial_index
+                .borrow()
+                .research_paths
+                .get(&(owner, goal.0))
+                .cloned()
+        {
+            self.trace.count_operation("research_path.cache_hit", 1);
+            return path;
+        }
+        if cache_enabled {
+            self.trace.count_operation("research_path.cache_miss", 1);
+        }
         if (goal.data().is_none() || !goal.is_civ3_advance()) && goal != Tech::FUTURE {
             return Vec::new();
         }
@@ -112,6 +150,12 @@ impl Simulation {
             }
         }
         visit(self, owner, goal, &mut path);
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
+                .borrow_mut()
+                .research_paths
+                .insert((owner, goal.0), path.clone());
+        }
         path
     }
 

@@ -39,6 +39,9 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         scenario::generated(config.seed, config.map_size, config.world)
     };
     scenario.game.trace = Collector::enabled(kinds, config.buffer_events);
+    if config.profile_turns {
+        scenario.game.trace.enable_profiling();
+    }
     let mut report = report::Report::new(&config.report, scenario.provenance.clone())?;
     let mut snapshot = analytics::providers::capture(&scenario.game, &providers, Phase::Initial);
     report.snapshot(&snapshot)?;
@@ -85,6 +88,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
             break;
         }
         game.simulate_turn();
+        report.turn_profiles(game.trace.drain_profiles());
         turns += 1;
         let dropped = game.trace.dropped();
         registry.gap(dropped - previous_dropped);

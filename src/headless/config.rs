@@ -22,6 +22,7 @@ pub(crate) struct Config {
     pub stop_on_finding: String,
     pub scenario: Option<String>,
     pub load_campaign: Option<PathBuf>,
+    pub profile_turns: bool,
 }
 fn list(text: &str) -> Vec<String> {
     if text == "none" {
@@ -55,6 +56,7 @@ impl Config {
             "--stop-on-finding",
             "--scenario",
             "--load-campaign",
+            "--profile-turns",
         ];
         let mut values = BTreeMap::new();
         let mut iter = args.iter();
@@ -110,6 +112,11 @@ impl Config {
         if !["none", "any", "invariant"].contains(&stop) {
             return Err("--stop-on-finding accepts none, any, invariant".into());
         }
+        let profile_turns = match value("--profile-turns", "false") {
+            "true" => true,
+            "false" => false,
+            _ => return Err("--profile-turns accepts true or false".into()),
+        };
         let turns =
             u32::try_from(positive("--turns", "30")?).map_err(|_| "turn count is too large")?;
         let growth_stall_turns = u32::try_from(positive("--growth-stall-turns", "2")?)
@@ -150,6 +157,7 @@ impl Config {
             stop_on_finding: stop.into(),
             scenario,
             load_campaign,
+            profile_turns,
         })
     }
     pub fn retains(&self, event: &crate::sim::trace::Event) -> bool {
@@ -170,7 +178,8 @@ impl Config {
                 "temperature":format!("{:?}",self.world.temperature).to_ascii_lowercase()},
             "checkpoint_every":self.checkpoint_every,"trace_domains":self.trace_domains,"trace_entities":self.trace_entities,
             "trace_buffer_events":self.buffer_events,"trace_max_events":self.max_events,"trace_max_bytes":self.max_event_bytes,
-            "snapshot_providers":self.providers,"stop_on_finding":self.stop_on_finding})
+            "snapshot_providers":self.providers,"stop_on_finding":self.stop_on_finding,
+            "profile_turns":self.profile_turns})
     }
 }
 pub(crate) const HELP: &str = "Headless AI simulator\n\
@@ -182,6 +191,7 @@ pub(crate) const HELP: &str = "Headless AI simulator\n\
 --trace-buffer-events 10000 --trace-max-events 50000 --trace-max-bytes 16777216\n\
 --snapshot-providers cities,civilizations,units (or none; analyzer requirements are added)\n\
 --stop-on-finding none|any|invariant --checkpoint-every 10\n\
+--profile-turns true|false (records per-turn phase timings)\n\
 --scenario NAME | --load-campaign PATH; --list-scenarios\n\
 World setup: --ocean-coverage 60|70|80 --climate arid|normal|wet --world-age 3|4|5\n\
 --landform archipelago|continents|pangaea --temperature cool|temperate|warm";
@@ -201,6 +211,7 @@ mod tests {
             vec!["--missing", "x"],
             vec!["--snapshot-providers", "wrong"],
             vec!["--stop-on-finding", "oops"],
+            vec!["--profile-turns", "sometimes"],
             vec![
                 "--scenario",
                 "generated-ai",

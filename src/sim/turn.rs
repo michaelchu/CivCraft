@@ -46,6 +46,7 @@ impl Simulation {
         }
         // srv_main:end_phase also enacts changes made during this phase.
         self.trace.phase(trace::Phase::EndActivities);
+        self.trace.profile_step("end.revolutions_and_automation");
         self.finish_revolutions();
         let automated: Vec<u32> = self
             .player_units_ordered(HUMAN)
@@ -61,12 +62,16 @@ impl Simulation {
             if !self.player_alive(owner) {
                 continue;
             }
+            self.trace.profile_step("end.ai_worker_phase");
             self.run_ai_worker_phase(owner);
             if self.players[owner].ai {
+                self.trace.profile_step("end.ai_last_activities");
                 self.run_ai_last_activities(owner);
             }
         }
+        self.trace.profile_step("end.barbarian_worker_phase");
         self.run_ai_worker_phase(BARBARIANS);
+        self.trace.profile_step("end.prune_and_trade_routes");
         self.ai_free_bulbs.clear();
         self.prune_ai_player_units();
         // Route connectivity is an actor-free CivCraft adapter for C2C3's
@@ -80,6 +85,7 @@ impl Simulation {
             {
                 continue;
             }
+            self.trace.profile_step("cities.player_processing");
             self.restore_player_units(owner);
             let income = self.process_player_cities(owner);
             self.finish_player_national_activities(owner, income);
@@ -100,6 +106,7 @@ impl Simulation {
         // Freeciv summons barbarians at end_turn(), after city activity. They
         // first move in ai_start_phase() at the following begin_phase().
         self.trace.phase(trace::Phase::WorldEvents);
+        self.trace.profile_step("world.events_and_visibility");
         self.summon_barbarians();
         self.check_city_migrations(crate::sim::migration::MigrationSettings::c2c3_default());
         self.check_disasters();
@@ -145,6 +152,7 @@ impl Simulation {
         // movement budget, then refills MP. Revolution completion is also
         // checked here, after activities (update_revolution at line 1381).
         self.trace.phase(trace::Phase::UnitActivities);
+        self.trace.profile_step("units.activities_and_visibility");
         for owner in 0..self.players.len() {
             self.progress_player_unit_activities(owner);
         }
@@ -154,8 +162,11 @@ impl Simulation {
         }
         self.refresh_visibility();
         self.trace.phase(trace::Phase::AiPlanning);
+        self.trace.profile_step("ai.civilizations");
         self.run_civilization_begin_phase_ai();
+        self.trace.profile_step("ai.barbarians");
         self.run_barbarian_begin_phase();
+        self.trace.profile_step("ai.gotos_and_indexes");
         self.continue_player_gotos();
         self.rebuild_city_ownership();
         // Historical field name is retained for save compatibility; hunter

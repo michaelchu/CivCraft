@@ -494,7 +494,7 @@ impl Simulation {
         if !severe {
             // kill_something_with performs its comparison BEFORE a ferry
             // replacement truncates want. Accept its final choice directly.
-            military = self.offensive_advice_with_prior(city, military).0;
+            military = self.cached_offensive_advice(city, military).0;
             if let Some((kind, want)) = self.hunter_production_choice(city)
                 && want > 0.0
                 && military.is_none_or(|old| want > old.want)
@@ -513,6 +513,7 @@ impl Simulation {
     }
 
     fn ai_build_choice_in_place(&mut self, city: &City) -> Option<AiBuildChoice> {
+        self.trace.profile_step("build.military");
         let (_, military) = self.military_build_advice(city);
         if military.is_some() && self.ai_on_war_footing(city.owner) {
             return military;
@@ -525,9 +526,11 @@ impl Simulation {
                 best = Some(AiBuildChoice { production, want });
             }
         };
+        self.trace.profile_step("build.worker");
         if let Some((kind, want)) = self.worker_production_choice_in_place(city) {
             consider(Production::Unit(kind), want);
         }
+        self.trace.profile_step("build.settlement");
         if let Some((kind, want)) = self.settlement_production_choice(city) {
             let want =
                 want * f64::from(super::super::ai_traits::fixed_default("expansionist")) / 50.0;
@@ -538,9 +541,11 @@ impl Simulation {
             };
             consider(Production::Unit(kind), want);
         }
+        self.trace.profile_step("build.wonder");
         if let Some(choice) = self.wonder_build_choice(city) {
             consider(choice.production, choice.want);
         }
+        self.trace.profile_step("build.domestic");
         if let Some(choice) = self.domestic_build_choice(city) {
             consider(choice.production, choice.want);
         }
@@ -584,6 +589,7 @@ impl Simulation {
             let Some(city) = self.city_by_id(id).cloned() else {
                 continue;
             };
+            self.trace.profile_step("build.military_tech_wants");
             self.record_ai_military_tech_wants(&city);
             if let Some(choice) = self.ai_build_choice_in_place(&city) {
                 choices.insert(id, choice);

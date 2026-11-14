@@ -316,7 +316,46 @@ impl Simulation {
         value
     }
 
+    #[cfg(test)]
     pub(super) fn worker_road_extra(&self, position: (i32, i32), railroad: bool) -> f32 {
+        let (road_activity, railroad_activity) = self.worker_activity_tiles();
+        self.worker_road_extra_with_activities(
+            position,
+            railroad,
+            &road_activity,
+            &railroad_activity,
+        )
+    }
+
+    fn worker_activity_tiles(
+        &self,
+    ) -> (
+        std::collections::HashSet<(i32, i32)>,
+        std::collections::HashSet<(i32, i32)>,
+    ) {
+        let mut roads = std::collections::HashSet::new();
+        let mut railroads = std::collections::HashSet::new();
+        for unit in &self.units {
+            match unit.work_kind {
+                Some(WorkKind::Road) => {
+                    roads.insert((unit.x, unit.y));
+                }
+                Some(WorkKind::Railroad) => {
+                    railroads.insert((unit.x, unit.y));
+                }
+                _ => {}
+            }
+        }
+        (roads, railroads)
+    }
+
+    fn worker_road_extra_with_activities(
+        &self,
+        position: (i32, i32),
+        railroad: bool,
+        road_activity: &std::collections::HashSet<(i32, i32)>,
+        railroad_activity: &std::collections::HashSet<(i32, i32)>,
+    ) -> f32 {
         let (map_x, map_y) = native_to_map(position.0, position.1);
         let mut real_road = [false; ROAD_BONUS_OFFSETS.len()];
         let mut potential_road = [false; ROAD_BONUS_OFFSETS.len()];
@@ -337,13 +376,12 @@ impl Simulation {
             let tile = self.tile(position.0, position.1);
             let exact_extra = if railroad { tile.railroad } else { tile.road };
             let dependency_extra = railroad && tile.road;
-            let dependency_activity = railroad
-                && self.units.iter().any(|unit| {
-                    (unit.x, unit.y) == position && unit.work_kind == Some(WorkKind::Road)
-                });
-            let activity_in_progress = self.units.iter().any(|unit| {
-                (unit.x, unit.y) == position && unit.work_kind == Some(target_activity)
-            });
+            let dependency_activity = railroad && road_activity.contains(&position);
+            let activity_in_progress = if railroad {
+                railroad_activity.contains(&position)
+            } else {
+                road_activity.contains(&position)
+            };
 
             real_road[index] = exact_extra || activity_in_progress;
             // Railroad has Road as a C2C3 extra dependency. A neighboring
@@ -479,6 +517,7 @@ impl Simulation {
             .filter(|c| c.owner == actor.owner)
             .cloned()
             .collect();
+        let (road_activity, railroad_activity) = self.worker_activity_tiles();
         let mut best = None;
         for city in cities {
             for (_, _, x, y) in self.map_city_radius(&city) {
@@ -517,8 +556,18 @@ impl Simulation {
                     };
                     let new = self.worker_tile_value(&city, position, tile);
                     let extra = match activity {
-                        WorkKind::Road => self.worker_road_extra(position, false),
-                        WorkKind::Railroad => self.worker_road_extra(position, true),
+                        WorkKind::Road => self.worker_road_extra_with_activities(
+                            position,
+                            false,
+                            &road_activity,
+                            &railroad_activity,
+                        ),
+                        WorkKind::Railroad => self.worker_road_extra_with_activities(
+                            position,
+                            true,
+                            &road_activity,
+                            &railroad_activity,
+                        ),
                         WorkKind::Clean(target) if target != Contamination::Craters => {
                             self.worker_climate_urgency(target) as f32
                         }
@@ -573,7 +622,12 @@ impl Simulation {
                             delay: arrival + work + i32::from(remaining == 0),
                             old,
                             new,
-                            extra: self.worker_road_extra(position, true),
+                            extra: self.worker_road_extra_with_activities(
+                                position,
+                                true,
+                                &road_activity,
+                                &railroad_activity,
+                            ),
                             worked,
                             request: None,
                         },

@@ -10,7 +10,7 @@ struct CounterCandidate {
     goal: Option<(Tech, i32)>,
 }
 
-fn choose_counter(candidates: &[CounterCandidate], mut want: i32) -> Option<(Tech, i32)> {
+fn choose_counter_goal(candidates: &[CounterCandidate]) -> Option<(Tech, bool)> {
     let mut best_available = None;
     let mut available_defense = 0;
     for candidate in candidates {
@@ -33,10 +33,13 @@ fn choose_counter(candidates: &[CounterCandidate], mut want: i32) -> Option<(Tec
         }
     }
     let (tech, defense) = best?;
-    if best_available.is_some() && 2 * defense <= 3 * available_defense {
-        want /= 2;
-    }
-    Some((tech, want))
+    let halve = best_available.is_some() && 2 * defense <= 3 * available_defense;
+    Some((tech, halve))
+}
+
+#[cfg(test)]
+fn choose_counter(candidates: &[CounterCandidate], want: i32) -> Option<(Tech, i32)> {
+    choose_counter_goal(candidates).map(|(tech, halve)| (tech, if halve { want / 2 } else { want }))
 }
 
 impl Simulation {
@@ -46,6 +49,23 @@ impl Simulation {
         attacker: UnitKind,
         want: i32,
     ) -> Option<(Tech, i32)> {
+        let cache_key = (city.id, attacker as usize);
+        self.trace.count_operation("counter_defender.calls", 1);
+        let cache_enabled = self.ai_advisor_cache_enabled.get();
+        if cache_enabled
+            && let Some(goal) = self
+                .ai_spatial_index
+                .borrow()
+                .counter_defenders
+                .get(&cache_key)
+                .copied()
+        {
+            self.trace.count_operation("counter_defender.cache_hit", 1);
+            return goal.map(|(tech, halve)| (tech, if halve { want / 2 } else { want }));
+        }
+        if cache_enabled {
+            self.trace.count_operation("counter_defender.cache_miss", 1);
+        }
         // The native function queries Defend_Bonus using ATTACKER type as
         // the primary type context, deliberately not a virtual defender.
         let bonus = 100 + self.advisor_city_defend_bonus(city, attacker);
@@ -88,7 +108,14 @@ impl Simulation {
             .collect();
         // No supplied unit has a building prerequisite: the native
         // utype_needs_improvement branch cannot run for this fixed ruleset.
-        choose_counter(&candidates, want)
+        let goal = choose_counter_goal(&candidates);
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
+                .borrow_mut()
+                .counter_defenders
+                .insert(cache_key, goal);
+        }
+        goal.map(|(tech, halve)| (tech, if halve { want / 2 } else { want }))
     }
 
     pub(super) fn counter_defender_tech_feedback(&self, city: &City) -> Vec<(Tech, f32)> {
