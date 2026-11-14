@@ -6,7 +6,7 @@ impl Simulation {
     /// Freeciv's `contemplate_terrain_improvements` values the best task a
     /// virtual worker could perform, then scales that want by upkeep,
     /// population cost, and the owner's worker-to-city ratio.
-    pub(super) fn worker_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
+    fn worker_production_choice_in_place(&mut self, city: &City) -> Option<(UnitKind, f64)> {
         // `dai_role_utype_for_terrain_class(..., UTYF_WORKERS, TC_LAND)` walks
         // role units backwards and returns the first buildable type. CivCraft
         // maps the source worker flag from the Civ III catalog and uses its
@@ -33,9 +33,8 @@ impl Simulation {
         // path delay, and the worker-factor normalization used by the native
         // autoworker advisor. A virtual unit starts at this city, like the
         // unit created by contemplate_terrain_improvements.
-        let mut planner = self.clone();
-        let worker = planner.make_unit(0, city.owner, kind, city.x, city.y);
-        let raw_want = planner.worker_improvement_want(&worker) as i32;
+        let worker = self.make_unit(0, city.owner, kind, city.x, city.y);
+        let raw_want = self.worker_improvement_want(&worker) as i32;
         if raw_want <= 0 {
             return None;
         }
@@ -49,7 +48,7 @@ impl Simulation {
         // are land cities, so CivCraft's connected-land labels provide that
         // grouping. The Civ III unit catalog determines which units have the
         // worker role; Settlers remain founders only.
-        let labels = self.continent_labels();
+        let labels = self.advisor_continent_labels();
         let place = labels[self.map_wrap.index(city.x, city.y)];
         let workers = self
             .units
@@ -70,6 +69,11 @@ impl Simulation {
         want /= (workers / (cities + 1)).max(1);
         want = (want - workers).max(0);
         (want > 0).then_some((kind, f64::from(want)))
+    }
+
+    pub(super) fn worker_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
+        let mut preview = self.clone();
+        preview.worker_production_choice_in_place(city)
     }
 
     /// Return the selected ruleset's raw food upkeep for a prospective worker.
@@ -518,7 +522,7 @@ impl Simulation {
         (before, military)
     }
 
-    pub(in crate::sim) fn ai_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
+    fn ai_build_choice_in_place(&mut self, city: &City) -> Option<AiBuildChoice> {
         let (_, military) = self.military_build_advice(city);
         if military.is_some() && self.ai_on_war_footing(city.owner) {
             return military;
@@ -531,7 +535,7 @@ impl Simulation {
                 best = Some(AiBuildChoice { production, want });
             }
         };
-        if let Some((kind, want)) = self.worker_production_choice(city) {
+        if let Some((kind, want)) = self.worker_production_choice_in_place(city) {
             consider(Production::Unit(kind), want);
         }
         if let Some((kind, want)) = self.settlement_production_choice(city) {
@@ -566,6 +570,11 @@ impl Simulation {
         best
     }
 
+    pub(in crate::sim) fn ai_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
+        let mut preview = self.clone();
+        preview.ai_build_choice_in_place(city)
+    }
+
     pub(in crate::sim) fn prepare_ai_city_defenses(
         &mut self,
         owner: usize,
@@ -580,7 +589,7 @@ impl Simulation {
                 continue;
             };
             self.record_ai_military_tech_wants(&city);
-            if let Some(choice) = self.ai_build_choice(&city) {
+            if let Some(choice) = self.ai_build_choice_in_place(&city) {
                 choices.insert(id, choice);
                 if city.production != choice.production {
                     self.change_production(id, choice.production);

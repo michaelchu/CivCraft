@@ -416,7 +416,7 @@ impl Simulation {
                 6 * count + owned_units().filter(|unit| unit.kind.is_naval()).count() as i32
             }
             Building::GREAT_WALL => {
-                let labels = self.continent_labels();
+                let labels = self.advisor_continent_labels();
                 let continent = labels[self.map_wrap.index(city.x, city.y)];
                 let threat = self.units.iter().any(|unit| {
                     unit.kind.is_military()

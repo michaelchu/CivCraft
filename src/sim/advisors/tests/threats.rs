@@ -190,10 +190,10 @@ fn scoped_threat_cache_preserves_arrivals_across_multiple_cities() {
             .collect::<Vec<_>>()
     };
     let uncached = arrivals(&game);
-    game.begin_ai_threat_cache();
+    game.begin_ai_advisor_cache();
     let cached = arrivals(&game);
     let repeated = arrivals(&game);
-    game.end_ai_threat_cache();
+    game.end_ai_advisor_cache();
 
     assert_eq!(cached, uncached);
     assert_eq!(repeated, uncached);

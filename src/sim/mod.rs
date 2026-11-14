@@ -305,13 +305,24 @@ pub(crate) struct Simulation {
     #[serde(skip)]
     diplomatic_contact_until: std::collections::BTreeMap<(usize, usize), i32>,
     #[serde(skip)]
-    ai_threat_cache_enabled: std::cell::Cell<bool>,
+    ai_advisor_cache_enabled: std::cell::Cell<bool>,
     #[serde(skip)]
     ai_threat_arrival_cache:
         std::cell::RefCell<std::collections::BTreeMap<(u32, u32), Option<i32>>>,
     #[serde(skip)]
-    ai_danger_route_cache:
-        std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
+    ai_danger_route_cache: std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
+    #[serde(skip)]
+    ai_spatial_index: std::cell::RefCell<AdvisorSpatialIndex>,
+}
+
+#[derive(Clone, Default)]
+struct AdvisorSpatialIndex {
+    unit_head: Vec<Option<usize>>,
+    unit_next: Vec<Option<usize>>,
+    city_at: Vec<Option<usize>>,
+    continent_labels: Vec<usize>,
+    virtual_city_sites:
+        std::collections::BTreeMap<usize, Vec<Option<Option<settlement::CitySite>>>>,
 }
 
 fn percent_of(value: i32, percent: i32) -> i32 {
@@ -585,9 +596,10 @@ impl Simulation {
             ai_ferries: Default::default(),
             ai_government_cache: Default::default(),
             diplomatic_contact_until: Default::default(),
-            ai_threat_cache_enabled: Default::default(),
+            ai_advisor_cache_enabled: Default::default(),
             ai_threat_arrival_cache: Default::default(),
             ai_danger_route_cache: Default::default(),
+            ai_spatial_index: Default::default(),
         };
         for owner in 0..civilization_count {
             game.players[owner].researching = game.choose_research_target(owner);
@@ -761,7 +773,7 @@ impl Simulation {
         }
         // Worker movement can change threat routes between owners. Cache only
         // within this owner's read-heavy advisor pass, then discard it.
-        self.begin_ai_threat_cache();
+        self.begin_ai_advisor_cache();
         // ai/default/aihand.c:dai_do_last_activities runs government and
         // taxes before city management and spending, then research.
         self.clear_ai_tech_wants(owner);
@@ -778,7 +790,7 @@ impl Simulation {
         self.record_ai_tech_effect_wants(owner);
         self.manage_ai_research(owner);
         self.auto_launch_ai_spaceship(owner);
-        self.end_ai_threat_cache();
+        self.end_ai_advisor_cache();
     }
 }
 

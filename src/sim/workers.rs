@@ -66,11 +66,7 @@ impl Simulation {
 
     fn worker_safe_tile(&self, owner: usize, x: i32, y: i32) -> bool {
         // Native adv_worker_safe_tile accepts any guard on the worksite.
-        if self
-            .units
-            .iter()
-            .any(|u| (u.x, u.y) == (x, y) && Self::worker_guard(u.kind))
-        {
+        if self.any_unit_at(x, y, |u| Self::worker_guard(u.kind)) {
             return true;
         }
         !self.units.iter().any(|u| {
@@ -121,14 +117,8 @@ impl Simulation {
                     .is_some_and(|other| !self.allied(unit.owner, other))
                     || self.treaty_blocks_move(&actor, x, y)
                     || self.zone_blocks_step(&actor, (actor.x, actor.y), (x, y))
-                    || self
-                        .units
-                        .iter()
-                        .any(|u| (u.x, u.y) == (x, y) && !self.allied(unit.owner, u.owner))
-                    || self
-                        .cities
-                        .iter()
-                        .any(|c| (c.x, c.y) == (x, y) && !self.allied(unit.owner, c.owner))
+                    || self.any_unit_at(x, y, |u| !self.allied(unit.owner, u.owner))
+                    || self.any_city_at(x, y, |c| !self.allied(unit.owner, c.owner))
                 {
                     continue;
                 }

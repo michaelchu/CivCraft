@@ -12,6 +12,7 @@ pub(super) struct SettlementReservation {
     pub(super) worker: Option<(i32, i32)>,
 }
 
+#[derive(Clone)]
 pub(super) struct CitySite {
     pub(super) value: f64,
     pub(super) worker: Option<(i32, i32)>,
@@ -20,6 +21,40 @@ pub(super) struct CitySite {
 type ScoredCitySite = ((i32, i32), Vec<(i32, i32)>, f64);
 
 impl Simulation {
+    pub(in crate::sim) fn advisor_city_site_result(
+        &self,
+        founder: &Unit,
+        x: i32,
+        y: i32,
+        government: Government,
+        reservations: &[i32],
+    ) -> Option<CitySite> {
+        let cacheable = self.ai_advisor_cache_enabled.get()
+            && matches!(founder.id, 0 | u32::MAX)
+            && !self.units.iter().any(|unit| unit.id == founder.id);
+        if !cacheable {
+            return self.city_site_result(founder.owner, x, y, government, reservations);
+        }
+        let index = self.map_wrap.index(x, y);
+        if let Some(cached) = self
+            .ai_spatial_index
+            .borrow()
+            .virtual_city_sites
+            .get(&founder.owner)
+            .and_then(|sites| sites[index].as_ref())
+        {
+            return cached.clone();
+        }
+        let result = self.city_site_result(founder.owner, x, y, government, reservations);
+        let mut spatial = self.ai_spatial_index.borrow_mut();
+        let sites = spatial
+            .virtual_city_sites
+            .entry(founder.owner)
+            .or_insert_with(|| vec![None; self.tiles.len()]);
+        sites[index] = Some(result.clone());
+        result
+    }
+
     pub(super) fn settlement_citymap(&self, owner: usize, except: Option<u32>) -> Vec<i32> {
         let mut map = vec![0; self.tiles.len()];
         for city in &self.cities {
@@ -226,7 +261,7 @@ impl Simulation {
             let (x, y) = self.map_wrap.position(index);
             let turns = cost / allowance;
             if let Some(site) =
-                self.city_site_result(founder.owner, x, y, government, &reservations)
+                self.advisor_city_site_result(founder, x, y, government, &reservations)
             {
                 let score = site.value * (23.0_f64 / 24.0).powi(3 * turns)
                     - f64::from(founder.kind.stats().cost);
@@ -271,12 +306,8 @@ impl Simulation {
             let (nx, ny) = self.map_wrap.civ3_offset(traveler.x, traveler.y, dx, dy)?;
             if self.treaty_blocks_move(traveler, nx, ny)
                 || self.zone_blocks_step(traveler, (traveler.x, traveler.y), (nx, ny))
-                || self.units.iter().any(|other| {
-                    (other.x, other.y) == (nx, ny) && !self.allied(other.owner, traveler.owner)
-                })
-                || self.cities.iter().any(|city| {
-                    (city.x, city.y) == (nx, ny) && !self.allied(city.owner, traveler.owner)
-                })
+                || self.any_unit_at(nx, ny, |other| !self.allied(other.owner, traveler.owner))
+                || self.any_city_at(nx, ny, |city| !self.allied(city.owner, traveler.owner))
             {
                 return None;
             }
@@ -312,11 +343,13 @@ impl Simulation {
                         Pact::Armistice | Pact::Peace | Pact::Alliance
                     )
             })
-            || self.units.iter().any(|unit| {
-                unit.kind.is_military()
-                    && self.at_war(unit.owner, owner)
-                    && self.map_wrap.civ3_distance(x, y, unit.x, unit.y) <= 1
-            })
+            || std::iter::once((x, y))
+                .chain(self.map_wrap.civ3_neighbors(x, y))
+                .any(|(tx, ty)| {
+                    self.any_unit_at(tx, ty, |unit| {
+                        unit.kind.is_military() && self.at_war(unit.owner, owner)
+                    })
+                })
         {
             return None;
         }
