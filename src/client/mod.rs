@@ -45,6 +45,7 @@ mod city_map;
 #[allow(dead_code)] // Standalone projection helpers are retained for geometry regression fixtures.
 mod civ3_geometry;
 mod civ3_projection;
+mod espionage_view;
 mod flc;
 mod fog;
 mod government_view;
@@ -73,10 +74,10 @@ pub(crate) use ui_review::{UI_REVIEW_SCENES, UiReviewSequence, UiReviewSources};
 
 use crate::rules::{Building, Requirement, Tech};
 use crate::sim::{
-    Base, CityManagerView, ClientSimulation, Command, GotoPoint, GotoPreview, Government, HUMAN,
-    MAX_CIVILIZATIONS, Pact, PresentationEventView, Production, RenderedCityView, RenderedUnitView,
-    Resource, ShipPart, Terrain, TreatyMap, TreatyOffer, UnitKind, UnitState, WORKLIST_LIMIT,
-    WorkKind, WorklistEdit, year_label,
+    Base, CityManagerView, ClientSimulation, Command, EspionageMission, EspionageRisk, GotoPoint,
+    GotoPreview, Government, HUMAN, MAX_CIVILIZATIONS, Pact, PresentationEventView, Production,
+    RenderedCityView, RenderedUnitView, Resource, ShipPart, Terrain, TreatyMap, TreatyOffer,
+    UnitKind, UnitState, WORKLIST_LIMIT, WorkKind, WorklistEdit, year_label,
 };
 #[cfg(test)]
 use crate::sim::{CombatVisual, VisualEvent};
@@ -159,6 +160,14 @@ pub(crate) enum UiAction {
     UpgradeUnit(UnitKind, i32),
     ToggleGovernment,
     ToggleDiplomacy,
+    ToggleEspionage,
+    EspionageOpponent(usize),
+    EspionageRivalPage(usize),
+    EspionageCity(u32),
+    EspionageCityPage(usize),
+    EspionageMilitaryPage(usize),
+    EspionageRisk(EspionageRisk),
+    PerformEspionage(usize, EspionageMission, Option<u32>, EspionageRisk),
     OpenDiplomacyWith(usize),
     OpenDiplomacyOverview,
     DiplomacyPage(usize),
@@ -235,6 +244,13 @@ pub(crate) struct Game {
     government_open: bool,
     spaceship_open: bool,
     diplomacy_open: bool,
+    espionage_open: bool,
+    espionage_target: Option<usize>,
+    espionage_rival_page: usize,
+    espionage_city: Option<u32>,
+    espionage_city_page: usize,
+    espionage_military_page: usize,
+    espionage_risk: EspionageRisk,
     diplomacy_target: Option<usize>,
     reviewed_offer: Option<(usize, TreatyOffer)>,
     treaty_draft: Option<(usize, TreatyOffer)>,
@@ -307,6 +323,13 @@ impl Game {
             government_open: false,
             spaceship_open: false,
             diplomacy_open: false,
+            espionage_open: false,
+            espionage_target: None,
+            espionage_rival_page: 0,
+            espionage_city: None,
+            espionage_city_page: 0,
+            espionage_military_page: 0,
+            espionage_risk: EspionageRisk::Immediate,
             diplomacy_target: None,
             reviewed_offer: None,
             treaty_draft: None,
@@ -472,7 +495,7 @@ impl Game {
             actions.extend(self.draw_intro());
             return actions;
         }
-        if self.government_open || self.diplomacy_open {
+        if self.government_open || self.diplomacy_open || self.espionage_open {
             draw_rectangle(
                 0.0,
                 0.0,
@@ -486,6 +509,9 @@ impl Game {
         }
         if self.diplomacy_open {
             return self.draw_diplomacy();
+        }
+        if self.espionage_open {
+            return self.draw_espionage();
         }
         if self.selected_city_index().is_some() {
             actions.clear();

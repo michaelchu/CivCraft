@@ -72,9 +72,11 @@ Limitations or conflicts:
 - Limitations or conflicts: Does not specify procedural map-generation
   thresholds, the frequency of shielded Grassland, or Conquests-only Volcano
   and Marsh rules. The manual says "generally" for starting hit points and
-  does not enumerate Conquests unit-specific hit-point bonuses. These
-  Civilization III actions are compatibility context only; Freeciv remains
-  the authority for the ported action formulas and state transitions. The
+  does not enumerate Conquests unit-specific hit-point bonuses. For mechanics
+  explicitly ported from C2C3 in other scopes, Freeciv remains implementation
+  context for those ported formulas and state transitions. Espionage targets
+  Conquests; its undocumented formulas remain supplementary or unresolved as
+  recorded in `CIV3_ESPIONAGE_DIPLOMACY_CITY_ACTIONS_DESIGN.md`. The
   Conscription-to-Nationalism mapping preserves the Civ III research tree; it
   does not claim the C2C3 prerequisites or all effects of the two advances are
   identical.
@@ -143,10 +145,10 @@ Limitations or conflicts:
 - URL or local file: [`../../source/Conquests/Text/Civilopedia.txt`](../../source/Conquests/Text/Civilopedia.txt), “Craters” entry
 - Source type: Original game material
 - Edition / expansion / patch scope: Civilization III: Conquests
-- Pages, table, figure, or section: “Craters,” lines 311–320
+- Pages, table, figure, or section: “Craters,” lines 311–320; “Espionage,” lines 817–928; “Embassies,” lines 1607–1620; “Intelligence Center,” lines 5762–5765; “Espionage” technology, lines 6535–6539
 - Retrieved or checked date: 2026-11-14
-- Claims this source supports: Craters can form in non-city squares when bombardment eliminates the last unit or terrain improvement; they reduce food, production, and commerce by one, and Workers can clear them.
-- Limitations or conflicts: “May be formed” does not state an exact random chance. The installed Civilopedia describes the effect but not its PRTO flag mapping; the installed BIQ supplies `CreateCraters` values.
+- Claims this source supports: Craters can form in non-city squares when bombardment eliminates the last unit or terrain improvement; they reduce food, production, and commerce by one, and Workers can clear them. In Conquests, Writing opens the Espionage screen; the Espionage technology and Intelligence Agency enable espionage; the screen tracks embassies, planted Spies, experience, targets, mission choices, and costs; and the catalog includes city investigation, technology/map/plans theft, propaganda, counterspy, and production sabotage.
+- Limitations or conflicts: “May be formed” does not state an exact random chance. The installed Civilopedia describes the crater effect but not its PRTO flag mapping; the installed BIQ supplies `CreateCraters` values. Espionage outcomes and formulas are not specified in the Civilopedia entries summarized here.
 
 - Source ID: APOLYTON-BIQ-FORMAT
 - Title / publisher: "Civilization III BIC file format (2nd thread)," Apolyton
@@ -158,6 +160,26 @@ Limitations or conflicts:
 - Retrieved or checked date: 2026-11-09
 - Claims this source supports: PRTO ability flag byte 4 bits 3 and 4 represent Lethal Land Bombardment and Lethal Sea Bombardment.
 - Limitations or conflicts: Forum reverse-engineering notes; the decoded values are cross-checked against installed campaign unit records and known unit behavior.
+
+- Source ID: CIVFANATICS-ESPIONAGE-STUDY
+- Title / publisher: “A Study of Espionage Missions,” CivFanatics; author attribution is not shown in the article body
+- URL or local file: <https://civfanatics.com/civ3/strategy/game-mechanics/a-study-of-espionage-missions/>
+- Source type: Specialist community analysis, reverse engineered
+- Edition / expansion / patch scope: Civilization III edition and patch are not pinned by the article
+- Pages, table, figure, or section: “Prices of Espionage Missions,” “Success chance,” “Government modifier,” and “Culture factors”
+- Retrieved or checked date: 2026-11-14
+- Claims this source supports: Base operation cost equations; embassy/city investigation success; Spy planting rates and the failed-plant retry marker; mission escape chances and the separate 80% operation-success roll; propaganda citizen persuasion formula, Democracy immunity, government modifiers, culture categories, 75% city-flip threshold, and confused-citizen effects.
+- Limitations or conflicts: Community reverse engineering, not official documentation; the edition and patch are unspecified. The article says Carefully costs 50% extra by wording that differs from CivWiki's explicit 1.5x. Confirm values against Conquests 1.22 before asserting exact parity.
+
+- Source ID: CIVWIKI-CIV3-ESPIONAGE
+- Title / publisher: “Spionageaktionen (Civ3),” CivWiki
+- URL or local file: <https://civ-wiki.de/wiki/Spionageaktionen_%28Civ3%29>
+- Source type: Specialist community summary citing Prima and community analysis
+- Edition / expansion / patch scope: Civilization III generally; no Conquests patch is pinned
+- Pages, table, figure, or section: “Kosten der Spionageaktionen,” “Erfolgswahrscheinlichkeiten,” and “Propaganda”
+- Retrieved or checked date: 2026-11-14
+- Claims this source supports: Mission base costs and risk multipliers; embassy versus Spy escape and success chances; veteran Spy planting in Communism/Fascism; failed-plant retry chance; propaganda veteran/nationality modifiers, government/culture factors, and confused-citizen behavior.
+- Limitations or conflicts: Secondary summary with no patch-specific validation. Its Carefully modifier is 1.5x, conflicting with the CivFanatics article wording. Its claims are supplementary, not manual-derived rules.
 
 ## Unit mechanics
 
@@ -391,6 +413,11 @@ not as a settled manual-derived fact.
 - **VI-CITIES — Vi.ki, “Cities”**: <https://civ3.vi.ki/cities>. A city
   mechanics summary whose claims cite specific manual editions and Prima page
   ranges; preserve those edition distinctions when following a claim.
+- **CIVFANATICS-ESPIONAGE-STUDY — “A Study of Espionage Missions”** and
+  **CIVWIKI-CIV3-ESPIONAGE — “Spionageaktionen (Civ3)”**: supplemental leads
+  for reverse-engineered mission formulas; see the source records above and
+  the scoped implementation note in
+  [`CIV3_ESPIONAGE_DIPLOMACY_CITY_ACTIONS_DESIGN.md`](CIV3_ESPIONAGE_DIPLOMACY_CITY_ACTIONS_DESIGN.md).
 
 ## Confidence labels
 
@@ -488,4 +515,17 @@ Related manual rules:
 - Details the manual leaves unspecified: How often map generation places this
   variant and the exact sprite used for its rocky-tuft symbol.
 - Supplementary source ID(s): None
+- Related manual rules: None
+
+### DIPLOMACY-ESPIONAGE-MANUAL
+
+- Subsystem: Diplomacy and espionage
+- Rule title: Embassies and covert missions are UI-driven player actions
+- Manual edition / scope: Base Civilization III manual; Conquests interface cross-check
+- Manual page(s): Base manual printed pp. 138–139 and 148–149; Conquests Complete manual Chapter 13, pp. 166–167
+- Manual statement (paraphrase): Contact and Writing permit embassies; embassies enable diplomatic city investigation and technology theft, close during war and reopen with peace. Covert mission discovery is distinct from operation success and can cause an international incident or be treated as an act of war. The Espionage screen selects opponent, mission, optional target city, and risk.
+- Confidence: Explicit
+- Supported expected behavior: Keep embassy and Spy as diplomatic assets, offer missions through the Espionage UI, and model detection separately from mission success. Do not add moving Spy units.
+- Details the manual leaves unspecified: Conquests-specific mission cost equations, success probabilities, incident response thresholds, precise per-mission technology gates, and selected operation outcomes.
+- Supplementary source ID(s): CIV3-CONQUESTS-CIVILOPEDIA; CIVFANATICS-ESPIONAGE-STUDY; CIVWIKI-CIV3-ESPIONAGE
 - Related manual rules: None

@@ -5,11 +5,11 @@
 
 use super::{
     CityContextView, CityManagerView, Command, DiplomacyMeetingView, DiplomacyRivalView,
-    GameOverView, GotoPreview, GovernmentView, MinimapCityView, MinimapTileView, MusicCueView,
-    Pact, PlaytestHarness, PlaytestState, PresentationEventView, RenderTileView, RenderedCityView,
-    RenderedUnitView, ResearchProgressView, SelectableUnitView, Simulation, SpaceshipAssemblyView,
-    Tech, TechnologyResearchView, TopBarView, TreatyOffer, UnitActionView, UnitContextView,
-    UnitFidgetView,
+    EspionageRivalView, GameOverView, GotoPreview, GovernmentView, MinimapCityView,
+    MinimapTileView, MusicCueView, Pact, PlaytestHarness, PlaytestState, PresentationEventView,
+    RenderTileView, RenderedCityView, RenderedUnitView, ResearchProgressView, SelectableUnitView,
+    Simulation, SpaceshipAssemblyView, Tech, TechnologyResearchView, TopBarView, TreatyOffer,
+    UnitActionView, UnitContextView, UnitFidgetView,
 };
 use crate::world::topology::MapWrap;
 use std::collections::VecDeque;
@@ -105,6 +105,10 @@ impl ClientSimulation {
 
     pub(crate) fn diplomacy_overview_view(&self) -> Vec<DiplomacyRivalView> {
         self.simulation.diplomacy_overview_view()
+    }
+
+    pub(crate) fn espionage_rivals_view(&self) -> Vec<EspionageRivalView> {
+        self.simulation.espionage_rivals_view()
     }
 
     pub(crate) fn diplomacy_meeting_view(

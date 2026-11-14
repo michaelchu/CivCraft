@@ -44,12 +44,13 @@ pub(crate) use client_views::{
     ResearchProgressView, SelectableUnitView, SpaceshipAssemblyView, TechnologyResearchView,
     TopBarView, UnitActionView, UnitContextView, UnitFidgetView,
 };
+pub(crate) use diplomacy::EspionageRivalView;
 mod combat_rules;
 mod commands;
 mod diplomacy;
 mod tech_trade;
 mod trade_routes;
-pub(crate) use diplomacy::{Pact, TreatyMap, TreatyOffer};
+pub(crate) use diplomacy::{EspionageMission, EspionageRisk, Pact, TreatyMap, TreatyOffer};
 mod economy;
 mod exploration;
 mod government;

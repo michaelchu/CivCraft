@@ -183,6 +183,9 @@ pub(crate) struct City {
     /// Consecutive city turns in disorder; C2C3 uses this for revolutions.
     #[serde(default)]
     pub(in crate::sim) anarchy: i32,
+    /// Temporarily unhappy citizens produced by failed propaganda attempts.
+    #[serde(default)]
+    pub(in crate::sim) confused_citizens: i32,
     pub(in crate::sim) last_plague: Option<i32>,
     /// Freeciv cumulative city culture history.
     pub(in crate::sim) history: i32,
@@ -238,6 +241,7 @@ impl City {
             worked_tiles: Vec::new(),
             was_happy: false,
             anarchy: 0,
+            confused_citizens: 0,
             last_plague: None,
             history: 0,
             foreign_citizens: Vec::new(),

@@ -107,6 +107,9 @@ impl Simulation {
         if owner != BARBARIANS && (owner >= self.civilization_count || !self.player_alive(owner)) {
             return false;
         }
+        if owner != BARBARIANS {
+            self.run_ai_espionage(owner);
+        }
         // dai_do_first_activities assesses danger (and its research feedback)
         // before moving units; do_last_activities clears these wants later.
         let profiler = self.trace.profiler();

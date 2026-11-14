@@ -33,6 +33,12 @@ pub(crate) enum Command {
     RaiseRate(usize),
     Government(super::Government),
     Mobilize,
+    Espionage(
+        usize,
+        super::EspionageMission,
+        Option<u32>,
+        super::EspionageRisk,
+    ),
     Negotiate(usize, super::Pact),
     ProposeTreaty(usize, super::TreatyOffer),
     ShareTreatyCityMap(usize, u32),
@@ -184,6 +190,9 @@ impl Simulation {
             DeclineOffer(other) => self.decline_offer(other),
             Government(target) => self.change_government(HUMAN, target),
             Mobilize => self.mobilize(HUMAN),
+            Espionage(owner, mission, city, risk) => {
+                self.perform_espionage(owner, mission, city, risk)
+            }
             RaiseRate(index) => self.raise_rate(HUMAN, index),
             WorkCityTile(id, x, y) => self.toggle_city_tile(id, x, y),
             Specialist(id, index, delta) => self.assign_specialist(id, index, delta),

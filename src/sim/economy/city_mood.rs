@@ -40,9 +40,15 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn city_feelings(&self, city: &City, luxury: i32) -> (i32, i32, i32) {
-        self.city_feelings_stages(city, luxury, true)
+        let (happy, unhappy, angry) = self
+            .city_feelings_stages(city, luxury, true)
             .final_stage
-            .tuple()
+            .tuple();
+        (
+            happy,
+            unhappy + city.confused_citizens.clamp(0, city.size),
+            angry,
+        )
     }
 
     pub(in crate::sim) fn city_feelings_after_effects(

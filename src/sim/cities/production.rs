@@ -479,6 +479,12 @@ impl Simulation {
                 self.check_city_pollution(&city, income.shields);
             }
             self.update_city_disorder_revolution(city_id);
+            if let Some(index) = self.city_index_by_id(city_id)
+                && self.cities[index].owner == owner
+            {
+                self.cities[index].confused_citizens =
+                    self.cities[index].confused_citizens.saturating_sub(1);
+            }
         }
         self.reconcile_city_workers();
         (science_income, gold_paid)

@@ -4,12 +4,15 @@ use super::*;
 
 mod attitude;
 mod contact;
+mod espionage;
 mod observer;
 mod offers;
 mod pacts;
 mod scenarios;
 mod vision;
 mod war_planning;
+pub(crate) use espionage::EspionageRivalView;
+pub(crate) use espionage::{EspionageMission, EspionageRisk};
 #[cfg(test)]
 use war_planning::war_planning_game;
 #[cfg(test)]
@@ -269,6 +272,12 @@ pub(super) struct Relation {
     pub(super) offer: Option<TreatyOffer>,
     vision: [bool; 2],
     embassy: [bool; 2],
+    #[serde(default)]
+    spy: [Option<espionage::SpyAsset>; 2],
+    #[serde(default)]
+    failed_spy_plant_turn: [Option<i32>; 2],
+    #[serde(default)]
+    military_plans_until: [i32; 2],
     offer_after: i32,
 }
 
@@ -287,7 +296,6 @@ impl Simulation {
         (a.min(b), a.max(b))
     }
 
-    #[cfg(test)]
     pub(super) fn record_diplomatic_incident(
         &mut self,
         violator: usize,
@@ -447,6 +455,25 @@ impl Simulation {
     }
 
     pub(super) fn advance_diplomacy(&mut self) {
+        let turn = self.turn;
+        let failed_plant_flags: Vec<_> = self
+            .diplomacy
+            .iter()
+            .flat_map(|(&key, relation)| {
+                (0..2).filter_map(move |side| {
+                    relation.failed_spy_plant_turn[side]
+                        .filter(|failed_turn| turn > *failed_turn)
+                        .map(|_| (key, side))
+                })
+            })
+            .collect();
+        for (key, side) in failed_plant_flags {
+            if self.rand_below(3) == 0
+                && let Some(relation) = self.diplomacy.get_mut(&key)
+            {
+                relation.failed_spy_plant_turn[side] = None;
+            }
+        }
         let mut transitions = Vec::new();
         for (&(a, b), relation) in &mut self.diplomacy {
             if relation.until > 0 && relation.until <= self.turn {

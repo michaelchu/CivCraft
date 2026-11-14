@@ -18,7 +18,7 @@ impl Game {
             return;
         };
         let status = view.spaceship_status;
-        let button_count = 7 + usize::from(status.is_some());
+        let button_count = 8 + usize::from(status.is_some());
         let button_width = 38.0;
         let step = button_width + 4.0;
         let button_start = width - HUD_MARGIN - button_count as f32 * step + 4.0;
@@ -70,6 +70,14 @@ impl Game {
                 "Diplomacy".to_owned(),
                 None,
                 true,
+                false,
+            ),
+            (
+                HudIcon::Target,
+                UiAction::ToggleEspionage,
+                "Espionage".to_owned(),
+                None,
+                self.sim.espionage_rivals_view().len() > 0,
                 false,
             ),
             (

@@ -321,6 +321,38 @@ impl Game {
                 self.diplomacy_page = 0;
                 self.reviewed_offer = None;
             }
+            UiAction::ToggleEspionage => {
+                self.espionage_open = !self.espionage_open;
+                self.espionage_target = None;
+                self.espionage_rival_page = 0;
+                self.espionage_city = None;
+                self.espionage_city_page = 0;
+                self.espionage_military_page = 0;
+                self.diplomacy_open = false;
+                self.government_open = false;
+            }
+            UiAction::EspionageOpponent(owner) => {
+                self.espionage_target = Some(owner);
+                self.espionage_city = None;
+                self.espionage_city_page = 0;
+                self.espionage_military_page = 0;
+            }
+            UiAction::EspionageRivalPage(page) => {
+                self.espionage_rival_page = page;
+                self.espionage_target = None;
+                self.espionage_city = None;
+            }
+            UiAction::EspionageCity(city) => self.espionage_city = Some(city),
+            UiAction::EspionageCityPage(page) => {
+                self.espionage_city_page = page;
+                self.espionage_city = None;
+            }
+            UiAction::EspionageMilitaryPage(page) => self.espionage_military_page = page,
+            UiAction::EspionageRisk(risk) => self.espionage_risk = risk,
+            UiAction::PerformEspionage(owner, mission, city, risk) => {
+                self.sim
+                    .apply(Command::Espionage(owner, mission, city, risk));
+            }
             UiAction::OpenDiplomacyWith(owner) => {
                 self.diplomacy_open = true;
                 self.diplomacy_target = Some(owner);

@@ -45,13 +45,14 @@ impl Game {
             }
             return;
         }
-        if self.government_open || self.diplomacy_open {
+        if self.government_open || self.diplomacy_open || self.espionage_open {
             if is_key_pressed(KeyCode::Escape) {
                 if self.reviewed_offer.take().is_some() {
                     return;
                 }
                 self.government_open = false;
                 self.diplomacy_open = false;
+                self.espionage_open = false;
             }
             return;
         }
@@ -367,6 +368,7 @@ impl Game {
             || self.spaceship_open
             || self.government_open
             || self.diplomacy_open
+            || self.espionage_open
             || self.selected_city.is_some()
         {
             let (x, y) = mouse_position();
