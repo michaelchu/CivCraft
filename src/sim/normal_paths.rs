@@ -209,7 +209,7 @@ impl NormalPaths {
         } else {
             0
         };
-        let city = sim.city_at(x, y);
+        let city = sim.city_at_cached(x, y);
         if city.is_some_and(|city| {
             self.class_can_occupy_city || sim.allied(self.actor.owner, city.owner)
         }) && (previous & CITY != 0
@@ -258,13 +258,10 @@ impl NormalPaths {
     }
 
     fn foreign_at(&self, sim: &Simulation, x: i32, y: i32) -> bool {
-        sim.units
-            .iter()
-            .any(|unit| (unit.x, unit.y) == (x, y) && !sim.allied(self.actor.owner, unit.owner))
+        sim.any_unit_at(x, y, |unit| !sim.allied(self.actor.owner, unit.owner))
             || sim
-                .cities
-                .iter()
-                .any(|city| (city.x, city.y) == (x, y) && !sim.allied(self.actor.owner, city.owner))
+                .city_at_cached(x, y)
+                .is_some_and(|city| !sim.allied(self.actor.owner, city.owner))
     }
 
     fn initialize(&mut self, sim: &Simulation, index: usize, previous_scope: u8) -> bool {

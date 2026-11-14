@@ -150,10 +150,8 @@ impl Simulation {
                     if self.treaty_blocks_move(unit, nx, ny) {
                         continue;
                     }
-                    enemy_block = self
-                        .units
-                        .iter()
-                        .any(|u| u.x == nx && u.y == ny && self.at_war(u.owner, unit.owner));
+                    enemy_block =
+                        self.any_unit_at(nx, ny, |other| self.at_war(other.owner, unit.owner));
                     if enemy_block && ni != goal {
                         continue;
                     }
