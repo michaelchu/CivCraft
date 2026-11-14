@@ -13,11 +13,7 @@ pub(super) struct DefenseEffectContext {
 
 impl Simulation {
     pub(super) fn building_happiness_want(&self, city: &City, building: Building) -> f64 {
-        self.building_happiness_want_with_luxury(
-            city,
-            building,
-            self.city_forecast(city).luxury,
-        )
+        self.building_happiness_want_with_luxury(city, building, self.city_forecast(city).luxury)
     }
 
     fn building_happiness_want_with_luxury(
@@ -135,11 +131,7 @@ impl Simulation {
     }
 
     pub(super) fn building_health_want(&self, city: &City, building: Building) -> f64 {
-        self.building_health_want_with_shields(
-            city,
-            building,
-            self.city_forecast(city).shields,
-        )
+        self.building_health_want_with_shields(city, building, self.city_forecast(city).shields)
     }
 
     fn building_health_want_with_shields(
@@ -324,8 +316,7 @@ impl Simulation {
         improved.buildings.push(building);
         // daicity.c: base_want measures weighted output with the building added.
         // Happiness is valued separately, rather than valuing all disorder losses.
-        let mut want = self.advisor_city_output_exact(&improved, None)
-            - base_output
+        let mut want = self.advisor_city_output_exact(&improved, None) - base_output
             + f64::from(self.building_growth_value(
                 city,
                 &improved,
@@ -372,12 +363,7 @@ impl Simulation {
         self.adjust_building_want_with_surplus(city, building, want, forecast.shield_surplus())
     }
 
-    pub(super) fn adjust_building_want(
-        &self,
-        city: &City,
-        building: Building,
-        want: f64,
-    ) -> f64 {
+    pub(super) fn adjust_building_want(&self, city: &City, building: Building, want: f64) -> f64 {
         // daicity.c: cost, switching loss, and impending obsolescence.
         let surplus = self.city_forecast(city).shield_surplus();
         self.adjust_building_want_with_surplus(city, building, want, surplus)
