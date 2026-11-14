@@ -81,11 +81,11 @@ struct CityUnitEconomics {
 
 impl Simulation {
     pub(crate) fn city_unit_upkeep(&self, city: &City) -> UnitUpkeep {
-        self.city_unit_economics(city).upkeep
+        self.city_unit_economics(city, None).upkeep
     }
 
     pub(super) fn city_gold_upkeep(&self, city: &City) -> UnitGoldUpkeep {
-        let economics = self.city_unit_economics(city);
+        let economics = self.city_unit_economics(city, None);
         UnitGoldUpkeep {
             paid: economics.gold_paid,
         }
@@ -117,12 +117,27 @@ impl Simulation {
         }
     }
 
-    fn city_unit_economics(&self, city: &City) -> CityUnitEconomics {
+    pub(super) fn virtual_unit_raw_food_upkeep(&self, city: &City, unit: &Unit) -> Option<i32> {
+        self.city_unit_economics(city, Some(unit))
+            .upkeep
+            .per_unit
+            .into_iter()
+            .find(|row| row.unit_id == unit.id)
+            .and_then(|row| match row.economics {
+                UnitUpkeepMapping::Mapped { raw, .. } => Some(raw.food),
+                UnitUpkeepMapping::Unsupported(_) => None,
+            })
+    }
+
+    fn city_unit_economics(&self, city: &City, extra: Option<&Unit>) -> CityUnitEconomics {
         let mut units: Vec<_> = self
             .units
             .iter()
             .filter(|unit| unit.owner == city.owner && unit.home_city == Some(city.id))
             .collect();
+        if let Some(unit) = extra {
+            units.push(unit);
+        }
         // Freeciv prepends a unit to its home city's supported list both when
         // it is created and when it is rehomed, so its resolver iteration is
         // newest supported unit first.

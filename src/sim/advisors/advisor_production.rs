@@ -81,20 +81,9 @@ impl Simulation {
     /// CivCraft's shared unit-economics evaluator with a temporary home-city
     /// binding and read its pre-free-upkeep cost.
     fn worker_food_upkeep(&self, city: &City, kind: UnitKind) -> Option<i32> {
-        let mut preview = self.clone();
-        let mut worker = preview.make_unit(u32::MAX, city.owner, kind, city.x, city.y);
+        let mut worker = self.make_unit(u32::MAX, city.owner, kind, city.x, city.y);
         worker.home_city = Some(city.id);
-        preview.units.push(worker);
-        let city = preview.city_by_id(city.id)?;
-        preview
-            .city_unit_upkeep(city)
-            .per_unit
-            .into_iter()
-            .find(|row| row.unit_id == u32::MAX)
-            .and_then(|row| match row.economics {
-                crate::sim::upkeep::UnitUpkeepMapping::Mapped { raw, .. } => Some(raw.food),
-                crate::sim::upkeep::UnitUpkeepMapping::Unsupported(_) => None,
-            })
+        self.virtual_unit_raw_food_upkeep(city, &worker)
     }
 
     /// Freeciv's `unit_foodbox_cost` charges the production-time food lost
