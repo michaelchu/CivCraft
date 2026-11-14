@@ -304,6 +304,52 @@ positions, diplomacy, visibility, transport state, technology, and city
 assignments can all change the result. Prefer operation-count reductions with
 exact snapshot parity over improvements visible only in one wall-clock run.
 
+### Freeciv-guided ramp pass
+
+The pinned Freeciv source at commit `3efab1385e` supplies the architecture for
+the next pass. In particular, `ai/default/daicity.c` schedules slow-changing
+building and founder wants over five to nine turns, while continuing to
+evaluate volatile military and worker advice every turn;
+`server/advisors/infracache.c` computes city-tile improvement values once per
+worker phase; `common/aicore/citymap.c` uses flat map-indexed phase storage;
+and the `pf_map_move_costs_iterate` users in `ai/default/daiunit.c` stop lazy
+path expansion when the remaining movement-cost horizon cannot win.
+
+CivCraft now follows those shapes without introducing a global path cache:
+
+- stable building and settlement advice is persisted per city, scheduled over
+  deterministic five-to-nine-turn intervals, and invalidated by production
+  completion, capture, technology changes, and government changes;
+- worker tile/activity values and safety checks are shared within a phase,
+  while route cost, reservations, work rate, and road-network bonuses remain
+  worker-specific; worker activity occupancy uses map-indexed vectors;
+- government evaluation scans owner and home-city unit facts once per refresh;
+- ferry and rendezvous searches consume `NormalPaths` lazily and stop after a
+  result is determined. Cross-actor reuse remains deliberately unsupported
+  because movement, visibility, diplomacy, transport, risk, and zone of
+  control are part of path compatibility.
+
+The stable-advice schedule deliberately adopts Freeciv's less-opportunistic
+five-to-nine-turn behavior, so its scenario snapshots can differ from the old
+every-turn advisor. The schedule is saved to preserve deterministic reloads.
+Military emergencies are not cached.
+
+On the same quiet November 2026 host, clean release runs at commits `66663d0`
+and `114ba0a` measured:
+
+| metric | before | after | change |
+| --- | ---: | ---: | ---: |
+| turns 1-10 mean | 0.647 s | 0.667 s | +3.1% |
+| turns 71-80 mean | 7.519 s | 6.608 s | -12.1% |
+| late/early ratio | 11.62x | 9.90x | -14.8% |
+| worst turn | 12.18 s | 11.71 s | -3.9% |
+
+The pass materially reduced the ramp but did not reach the aspirational 3x
+ratio. The remaining late window is led by domestic and military technology
+advice, government projection, worker routing, and per-unit AI planning. Use
+`ramp_report` and the new advisor, worker, government, and path operation
+counters for subsequent comparisons.
+
 ## Test entry points
 
 Both executables are thin wrappers around the library. Shared simulation,
