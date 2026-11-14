@@ -258,6 +258,19 @@ cargo run --offline --release --bin headless_sim -- \
   --report /tmp/civcraft-ramp80.json
 ```
 
+Summarize one run, or emit an array of summaries for directly comparable runs:
+
+```sh
+cargo run --offline --release --bin ramp_report -- \
+  /tmp/civcraft-ramp80-before.json /tmp/civcraft-ramp80-after.json
+```
+
+The tool uses the first and last ten recorded profiles and reports their mean
+and median time, mean entity counts, the late/early mean ratio, worst turn,
+and early/late phase, substep, and operation means. Keep the workload and host
+fixed when comparing wall-clock values. Operation counts are the preferred
+evidence that an optimization changed scaling rather than host noise.
+
 On the profiling host used for the November 2026 optimization pass, the final
 run averaged 0.674 seconds for turns 1–10 and 7.468 seconds for turns 71–80,
 an 11.08x late/early ratio. The worst turn was 11.35 seconds. Host timing is
