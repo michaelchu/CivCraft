@@ -50,6 +50,27 @@ fn wonder_production_and_helpers_compete_using_empire_effects() {
 }
 
 #[test]
+fn city_advisor_pass_selects_the_wonder_city_once_for_the_owner() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.create_city(1, 5, 8);
+    game.create_city(1, 20, 24);
+    game.reconcile_city_workers();
+    game.trace.enable_profiling();
+    game.trace
+        .begin_turn_profile(game.turn, game.cities.len(), game.units.len());
+    let wonder_city = game.ai_wonder_city(1);
+    let cities = game.cities.clone();
+    for city in &cities {
+        game.ai_build_choice_in_place(city, wonder_city);
+    }
+    game.trace.finish_turn_profile();
+
+    let profiles = game.trace.drain_profiles();
+    assert_eq!(profiles[0].operations["advisor.wonder_city_searches"], 1);
+}
+
+#[test]
 fn projected_wonder_counts_other_cities_and_restores_scratch_state() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();

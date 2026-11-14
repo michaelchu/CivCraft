@@ -429,13 +429,17 @@ impl Simulation {
         }
     }
 
-    pub(in crate::sim) fn routine_military_advice_allowed(&self, city: &City) -> bool {
+    fn routine_military_advice_allowed_with_wonder_city(
+        &self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> bool {
         let forecast = self.city_forecast(city);
         let (_, final_unhappy, _) = self.city_feelings(city, forecast.luxury);
         let (_, effect_unhappy, _) = self.city_feelings_after_effects(city, forecast.luxury);
         forecast.shield_surplus() > 0
             && final_unhappy <= effect_unhappy
-            && self.ai_wonder_city(city.owner) != Some(city.id)
+            && wonder_city != Some(city.id)
     }
 
     /// Shared native stages preceding the sea/land offensive callbacks.
@@ -444,10 +448,18 @@ impl Simulation {
         &self,
         city: &City,
     ) -> (Option<AiBuildChoice>, bool, bool) {
+        self.pre_offensive_military_advice_with_wonder_city(city, self.ai_wonder_city(city.owner))
+    }
+
+    fn pre_offensive_military_advice_with_wonder_city(
+        &self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> (Option<AiBuildChoice>, bool, bool) {
         let (mut military, martial) = self.native_city_defense_choice(city);
         // Source returns its life-saving defense advice before all routine
         // candidates and training when production/happiness/wonder gates fail.
-        if !self.routine_military_advice_allowed(city) {
+        if !self.routine_military_advice_allowed_with_wonder_city(city, wonder_city) {
             return (military, true, false);
         }
         let mut defensive = military.is_some();
@@ -487,7 +499,16 @@ impl Simulation {
         &self,
         city: &City,
     ) -> (Option<AiBuildChoice>, Option<AiBuildChoice>) {
-        let (mut military, early, severe) = self.pre_offensive_military_advice(city);
+        self.military_build_advice_with_wonder_city(city, self.ai_wonder_city(city.owner))
+    }
+
+    fn military_build_advice_with_wonder_city(
+        &self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> (Option<AiBuildChoice>, Option<AiBuildChoice>) {
+        let (mut military, early, severe) =
+            self.pre_offensive_military_advice_with_wonder_city(city, wonder_city);
         if early {
             return (military, military);
         }
@@ -512,9 +533,13 @@ impl Simulation {
         (before, military)
     }
 
-    fn ai_build_choice_in_place(&mut self, city: &City) -> Option<AiBuildChoice> {
+    pub(super) fn ai_build_choice_in_place(
+        &mut self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> Option<AiBuildChoice> {
         self.trace.profile_step("build.military");
-        let (_, military) = self.military_build_advice(city);
+        let (_, military) = self.military_build_advice_with_wonder_city(city, wonder_city);
         if military.is_some() && self.ai_on_war_footing(city.owner) {
             return military;
         }
@@ -534,7 +559,7 @@ impl Simulation {
         if let Some((kind, want)) = self.settlement_production_choice(city) {
             let want =
                 want * f64::from(super::super::ai_traits::fixed_default("expansionist")) / 50.0;
-            let want = if self.ai_wonder_city(city.owner) == Some(city.id) {
+            let want = if wonder_city == Some(city.id) {
                 want / if kind.stats().pop_cost > 0 { 5.0 } else { 2.0 }
             } else {
                 want
@@ -542,11 +567,11 @@ impl Simulation {
             consider(Production::Unit(kind), want);
         }
         self.trace.profile_step("build.wonder");
-        if let Some(choice) = self.wonder_build_choice(city) {
+        if let Some(choice) = self.wonder_build_choice_with_wonder_city(city, wonder_city) {
             consider(choice.production, choice.want);
         }
         self.trace.profile_step("build.domestic");
-        if let Some(choice) = self.domestic_build_choice(city) {
+        if let Some(choice) = self.domestic_build_choice_with_wonder_city(city, wonder_city) {
             consider(choice.production, choice.want);
         }
         for building in [
@@ -557,7 +582,7 @@ impl Simulation {
             if self.building_blocker(city, building).is_none() {
                 consider(
                     Production::Building(building),
-                    self.space_production_want(city, building),
+                    self.space_production_want_with_wonder_city(city, building, wonder_city),
                 );
                 break;
             }
@@ -571,7 +596,8 @@ impl Simulation {
         // owner's normal last-activities pass. Give that isolated preview the
         // same read-only spatial indexes used by the regular advisor pass.
         preview.begin_ai_advisor_cache();
-        let choice = preview.ai_build_choice_in_place(city);
+        let wonder_city = preview.ai_wonder_city(city.owner);
+        let choice = preview.ai_build_choice_in_place(city, wonder_city);
         preview.end_ai_advisor_cache();
         choice
     }
@@ -585,13 +611,14 @@ impl Simulation {
             .player_cities_ordered(owner)
             .map(|city| city.id)
             .collect();
+        let wonder_city = self.ai_wonder_city(owner);
         for id in ids {
             let Some(city) = self.city_by_id(id).cloned() else {
                 continue;
             };
             self.trace.profile_step("build.military_tech_wants");
             self.record_ai_military_tech_wants(&city);
-            if let Some(choice) = self.ai_build_choice_in_place(&city) {
+            if let Some(choice) = self.ai_build_choice_in_place(&city, wonder_city) {
                 choices.insert(id, choice);
                 if city.production != choice.production {
                     self.change_production(id, choice.production);

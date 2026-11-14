@@ -40,7 +40,15 @@ pub(super) struct GuardCityAssessment {
 
 impl Simulation {
     fn wonder_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
-        if self.ai_wonder_city(city.owner) != Some(city.id) {
+        self.wonder_build_choice_with_wonder_city(city, self.ai_wonder_city(city.owner))
+    }
+
+    fn wonder_build_choice_with_wonder_city(
+        &self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> Option<AiBuildChoice> {
+        if wonder_city != Some(city.id) {
             return None;
         }
         let candidates: Vec<_> = Building::all()
@@ -85,6 +93,8 @@ impl Simulation {
     }
 
     fn ai_wonder_city(&self, owner: usize) -> Option<u32> {
+        self.trace
+            .count_operation("advisor.wonder_city_searches", 1);
         let owned: Vec<_> = self
             .cities
             .iter()
@@ -128,7 +138,15 @@ impl Simulation {
     }
 
     fn domestic_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
-        let wonder_city = self.ai_wonder_city(city.owner) == Some(city.id);
+        self.domestic_build_choice_with_wonder_city(city, self.ai_wonder_city(city.owner))
+    }
+
+    fn domestic_build_choice_with_wonder_city(
+        &self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> Option<AiBuildChoice> {
+        let wonder_city = wonder_city == Some(city.id);
         let forecast = self.city_forecast(city);
         let base_output = self.advisor_city_output_from_forecast(city, &forecast);
         Building::all()
@@ -155,6 +173,15 @@ impl Simulation {
     }
 
     fn space_production_want(&self, city: &City, building: Building) -> f64 {
+        self.space_production_want_with_wonder_city(city, building, self.ai_wonder_city(city.owner))
+    }
+
+    fn space_production_want_with_wonder_city(
+        &self,
+        city: &City,
+        building: Building,
+        wonder_city: Option<u32>,
+    ) -> f64 {
         // advdata.c chooses the first player on tied manufacturing/tech scores.
         let leader = |score: &dyn Fn(usize) -> i32| {
             (0..self.players.len())
@@ -192,7 +219,7 @@ impl Simulation {
         if !competitive && !race_started {
             return 0.0;
         }
-        let base = if self.ai_wonder_city(city.owner) == Some(city.id) {
+        let base = if wonder_city == Some(city.id) {
             120.0
         } else {
             210.0
