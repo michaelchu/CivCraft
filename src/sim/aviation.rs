@@ -108,11 +108,23 @@ impl Simulation {
         })
     }
 
+    fn ai_bombard_preempted_by_priority_action(&self, actor: &Unit, x: i32, y: i32) -> bool {
+        ["Capture Units", "Collect Ransom"].iter().any(|action| {
+            self.tile_units_ordered(x, y).any(|target| {
+                self.unit_visible_to(actor.owner, target)
+                    && self
+                        .action_available_for_unit_against_unit(actor, action, target)
+                        .is_ok_and(|available| available)
+            })
+        })
+    }
+
     pub(crate) fn can_begin_bombard(&self, unit: &Unit) -> bool {
         (unit.owner == HUMAN || self.players.get(unit.owner).is_some_and(|player| player.ai))
             && self.has_civ3_bombard_capability(unit.kind)
             && unit.transport.is_none()
             && unit.moves_left > 0
+            && (unit.kind.fuel_capacity() == 0 || self.refuel_site(unit.owner, unit.x, unit.y))
     }
 
     fn bombard_action_available_at_tile(&self, unit: &Unit, x: i32, y: i32) -> bool {
@@ -125,8 +137,8 @@ impl Simulation {
             target.owner != unit.owner
                 && self.at_war(unit.owner, target.owner)
                 && target.transport.is_none()
-                && !target.kind.is_aircraft()
                 && self.unit_visible_to(unit.owner, target)
+                && self.combat_target_reachable(unit.kind, target.kind, x, y)
         });
         city_action || unit_action
     }
@@ -181,6 +193,7 @@ impl Simulation {
     /// before its normal movement/guard task consumes the turn.
     pub(super) fn run_ai_bombard(&mut self, unit: &Unit) -> bool {
         if !self.players.get(unit.owner).is_some_and(|player| player.ai)
+            || unit.kind.fuel_capacity() > 0
             || !self.can_begin_bombard(unit)
         {
             return false;
@@ -190,31 +203,146 @@ impl Simulation {
             .map_wrap
             .civ3_radius(unit.x, unit.y, range)
             .into_iter()
-            .filter_map(|(x, y, _)| self.can_bombard_tile(unit, x, y).then_some((x, y)))
+            .filter_map(|(x, y, _)| {
+                (self.can_bombard_tile(unit, x, y)
+                    && !self.ai_bombard_preempted_by_priority_action(unit, x, y))
+                .then_some((x, y))
+            })
             .collect();
-        targets.sort_by_key(|&(x, y)| {
-            let city = self
-                .city_at(x, y)
-                .is_some_and(|city| city.owner != unit.owner);
-            let visible_stack = self
-                .tile_units_ordered(x, y)
-                .filter(|target| {
-                    target.owner != unit.owner
-                        && self.at_war(unit.owner, target.owner)
-                        && self.unit_visible_to(unit.owner, target)
-                })
-                .count();
-            (
-                std::cmp::Reverse(city),
-                std::cmp::Reverse(visible_stack),
-                y,
-                x,
-            )
+        targets.sort_by(|&(ax, ay), &(bx, by)| {
+            self.ai_bombard_tile_value(unit, bx, by)
+                .total_cmp(&self.ai_bombard_tile_value(unit, ax, ay))
+                .then_with(|| ay.cmp(&by))
+                .then_with(|| ax.cmp(&bx))
         });
         let Some((x, y)) = targets.first().copied() else {
             return false;
         };
         matches!(self.try_ranged_bombard(unit.id, x, y), MoveResult::Fought)
+    }
+
+    /// Move conventional bombarders toward a legal firing position when no
+    /// current shot is available. Re-evaluate the visible targets each turn;
+    /// this deliberately does not turn an aircraft into a ground-style
+    /// artillery unit.
+    pub(super) fn run_ai_bombard_approach(&mut self, unit: &Unit) -> bool {
+        if !self.players.get(unit.owner).is_some_and(|player| player.ai)
+            || unit.kind.fuel_capacity() > 0
+            || !self.can_begin_bombard(unit)
+        {
+            return false;
+        }
+        let range = Self::civ3_bombard_range(unit.kind);
+        let mut target_tiles = std::collections::BTreeSet::new();
+        for city in self.cities.iter().filter(|city| {
+            city.owner != unit.owner
+                && self.at_war(unit.owner, city.owner)
+                && self.tile(city.x, city.y).known_by[unit.owner]
+        }) {
+            target_tiles.insert((city.x, city.y));
+        }
+        for target in self.units.iter().filter(|target| {
+            target.owner != unit.owner
+                && self.at_war(unit.owner, target.owner)
+                && target.transport.is_none()
+                && self.unit_visible_to(unit.owner, target)
+        }) {
+            target_tiles.insert((target.x, target.y));
+        }
+
+        let mut best: Option<(f64, i32, Vec<(i32, i32)>)> = None;
+        for (tx, ty) in target_tiles {
+            for (px, py, distance) in self.map_wrap.civ3_radius(tx, ty, range) {
+                if distance == 0
+                    || !self.tile(px, py).known_by[unit.owner]
+                    || self
+                        .city_at(px, py)
+                        .is_some_and(|city| city.owner != unit.owner)
+                    || self
+                        .tile_units_ordered(px, py)
+                        .any(|other| other.id != unit.id && self.at_war(unit.owner, other.owner))
+                {
+                    continue;
+                }
+                let mut firing_unit = unit.clone();
+                (firing_unit.x, firing_unit.y) = (px, py);
+                if !self.can_bombard_tile(&firing_unit, tx, ty) {
+                    continue;
+                }
+                if self.ai_bombard_preempted_by_priority_action(&firing_unit, tx, ty) {
+                    continue;
+                }
+                let value = self.ai_bombard_tile_value(&firing_unit, tx, ty);
+                if value <= 0.0 {
+                    continue;
+                }
+                let Some((path, cost)) =
+                    self.ai_goto_path(unit, (px, py), super::normal_paths::GotoTask::Attack)
+                else {
+                    continue;
+                };
+                if path.len() <= 1 {
+                    continue;
+                }
+                let score = value / (1.0 + f64::from(cost) / f64::from(self.unit_move_rate(unit)));
+                if best.as_ref().is_none_or(|(best_score, best_cost, _)| {
+                    score > *best_score || (score == *best_score && cost < *best_cost)
+                }) {
+                    best = Some((score, cost, path));
+                }
+            }
+        }
+        best.is_some_and(|(_, _, path)| self.follow_source_ai_path(unit.id, path).moved)
+    }
+
+    fn ai_bombard_tile_value(&self, attacker: &Unit, x: i32, y: i32) -> f64 {
+        let attack = self.attack_power_against_with_base_for_action(
+            attacker,
+            x,
+            y,
+            attacker.kind.bombard_strength(),
+            "Bombard",
+        );
+        let rate = if crate::sim::combat_rules::selected().damage_reduces_bombard_rate
+            && attacker.kind.bombard_rate() > 0
+        {
+            (attacker.kind.bombard_rate() * attacker.hp / attacker.max_hit_points()).max(1)
+        } else {
+            attacker.kind.bombard_rate()
+        };
+        let mut value = 0.0;
+        for target in self.tile_units_ordered(x, y).filter(|target| {
+            target.owner != attacker.owner
+                && self.at_war(attacker.owner, target.owner)
+                && target.transport.is_none()
+                && self.unit_visible_to(attacker.owner, target)
+                && self.combat_target_reachable(attacker.kind, target.kind, x, y)
+        }) {
+            let defense = self.defense_power_against(target, x, y, attacker.kind);
+            let firepower = self.combat_firepower(attacker, target).0;
+            if attack + defense <= 0 {
+                continue;
+            }
+            let expected_damage = (f64::from(attack) / f64::from(attack + defense)
+                * f64::from(rate * firepower))
+            .min(f64::from(target.hp));
+            let lethal = attacker.kind.has_lethal_bombard_against(target.kind);
+            let lethal_bonus = if lethal && expected_damage >= f64::from(target.hp) {
+                f64::from(target.kind.stats().cost) * 0.5
+            } else {
+                0.0
+            };
+            value += (f64::from(target.kind.stats().cost) + 1.0) * expected_damage
+                / f64::from(target.hp.max(1))
+                + lethal_bonus;
+        }
+        if let Some(city) = self
+            .city_at(x, y)
+            .filter(|city| city.owner != attacker.owner && self.at_war(attacker.owner, city.owner))
+        {
+            value += f64::from(city.size.max(1));
+        }
+        value
     }
 
     pub(super) fn refuel_site(&self, owner: usize, x: i32, y: i32) -> bool {
@@ -319,7 +447,8 @@ impl Simulation {
                 target.owner != attacker.owner
                     && self.at_war(attacker.owner, target.owner)
                     && target.transport.is_none()
-                    && !target.kind.is_aircraft()
+                    && self.unit_visible_to(attacker.owner, target)
+                    && self.combat_target_reachable(attacker.kind, target.kind, x, y)
             })
             .cloned()
             .collect();
@@ -340,7 +469,13 @@ impl Simulation {
             mapped_bombard_strength,
             "Bombard",
         );
-        let rate = attacker.kind.bombard_rate();
+        let base_rate = attacker.kind.bombard_rate();
+        let rate =
+            if crate::sim::combat_rules::selected().damage_reduces_bombard_rate && base_rate > 0 {
+                (base_rate * attacker.hp / attacker.max_hit_points()).max(1)
+            } else {
+                base_rate
+            };
         let mut total_damage = 0;
         let mut observed_targets = Vec::new();
 

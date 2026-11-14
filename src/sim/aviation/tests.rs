@@ -79,15 +79,21 @@ fn ai_artillery_bombards_a_visible_enemy_stack_at_civ3_range() {
     game.cities.clear();
     let (sx, sy) = (10, 20);
     let (tx, ty) = game.map_wrap.offset(sx, sy, 2, 0).unwrap();
-    for (x, y) in [(sx, sy), (tx, ty), (2, 2), (3, 2)] {
+    for (x, y) in [(sx, sy), (tx, ty), (6, 20), (2, 2), (3, 2)] {
         game.tile_mut(x, y).terrain = Terrain::Grassland;
         game.tile_mut(x, y).base = None;
         game.tile_mut(x, y).hut = false;
     }
-    game.create_city(1, sx, sy);
+    game.create_city(1, 6, 20);
     game.create_city(HUMAN, 2, 2);
     game.sign_pact(1, HUMAN, Pact::War);
     let artillery = game.spawn_unit(1, UnitKind::Artillery, sx, sy);
+    let spotter = game.spawn_unit(1, UnitKind::Warrior, tx - 1, ty);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == spotter)
+        .unwrap()
+        .moves_left = 0;
     let target = game.spawn_unit(HUMAN, UnitKind::Warrior, tx, ty);
     game.refresh_visibility();
     assert!(game.unit_visible_to(1, game.unit_by_id(target).unwrap()));
@@ -102,6 +108,71 @@ fn ai_artillery_bombards_a_visible_enemy_stack_at_civ3_range() {
     let artillery = game.unit_by_id(artillery).unwrap();
     assert_eq!((artillery.x, artillery.y), (sx, sy));
     assert_eq!(artillery.moves_left, 0);
+}
+
+#[test]
+fn ai_bombard_scoring_prefers_a_high_value_target_over_a_cheap_casualty() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let (sx, sy) = (10, 20);
+    let (cheap_x, cheap_y) = game.map_wrap.offset(sx, sy, 1, 0).unwrap();
+    let (valuable_x, valuable_y) = game.map_wrap.offset(sx, sy, 2, 0).unwrap();
+    for (x, y) in [
+        (sx, sy),
+        (cheap_x, cheap_y),
+        (valuable_x, valuable_y),
+        (2, 2),
+    ] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.tile_mut(x, y).base = None;
+        game.tile_mut(x, y).hut = false;
+    }
+    game.create_city(1, sx, sy);
+    game.create_city(HUMAN, 2, 2);
+    game.sign_pact(1, HUMAN, Pact::War);
+    let artillery = game.spawn_unit(1, UnitKind::Artillery, sx, sy);
+    game.spawn_unit(HUMAN, UnitKind::Worker, cheap_x, cheap_y);
+    game.spawn_unit(HUMAN, UnitKind::MechInfantry, valuable_x, valuable_y);
+    game.refresh_visibility();
+    let artillery = game.unit_by_id(artillery).unwrap();
+
+    assert!(
+        game.ai_bombard_tile_value(artillery, valuable_x, valuable_y)
+            > game.ai_bombard_tile_value(artillery, cheap_x, cheap_y)
+    );
+}
+
+#[test]
+fn ai_artillery_moves_toward_a_firing_position_when_no_shot_is_in_range() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let source = (10, 20);
+    let target = game.map_wrap.offset(source.0, source.1, 6, 0).unwrap();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.hut = false;
+        tile.known_by[1] = true;
+    }
+    game.create_city(1, source.0, source.1);
+    game.create_city(HUMAN, target.0, target.1);
+    game.sign_pact(1, HUMAN, Pact::War);
+    let artillery = game.spawn_unit(1, UnitKind::Artillery, source.0, source.1);
+    let source_distance = game
+        .map_wrap
+        .civ3_distance(source.0, source.1, target.0, target.1);
+    assert!(source_distance > UnitKind::Artillery.bombard_range());
+
+    game.run_ai_player(1);
+
+    let artillery = game.unit_by_id(artillery).unwrap();
+    let moved_distance = game
+        .map_wrap
+        .civ3_distance(artillery.x, artillery.y, target.0, target.1);
+    assert!(moved_distance < source_distance);
+    assert!(moved_distance > 0);
 }
 
 #[test]
@@ -132,6 +203,66 @@ fn ai_bombard_does_not_use_remembered_visibility_to_find_hidden_units() {
         UnitKind::Submarine.stats().hp
     );
     assert!(game.unit_by_id(artillery).unwrap().moves_left > 0);
+}
+
+#[test]
+fn ai_aircraft_cannot_start_a_bombard_mission_away_from_a_refuel_site() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    let (fighter, target) = game.ai_aircraft_advisor_playtest_setup();
+    let away = offset_native_by_map(10, 24, 4, 0);
+    {
+        let plane = game
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == fighter)
+            .unwrap();
+        (plane.x, plane.y) = away;
+    }
+    let plane = game.unit_by_id(fighter).unwrap().clone();
+    let target_unit = game.unit_by_id(target).unwrap();
+    assert!(!game.can_bombard_tile(&plane, target_unit.x, target_unit.y));
+    assert!(!game.refuel_site(plane.owner, plane.x, plane.y));
+
+    let hp_before = target_unit.hp;
+    assert!(!game.run_ai_bombard(&plane));
+    assert_eq!(game.unit_by_id(target).unwrap().hp, hp_before);
+    assert!(game.unit_by_id(fighter).unwrap().moves_left > 0);
+}
+
+#[test]
+fn bombard_does_not_damage_a_hidden_or_unreachable_unit_in_a_visible_stack() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    let (sx, sy) = (10, 20);
+    let (tx, ty) = game.map_wrap.offset(sx, sy, 2, 0).unwrap();
+    for (x, y) in [(sx, sy), (tx, ty)] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.tile_mut(x, y).base = None;
+        game.tile_mut(x, y).hut = false;
+        game.tile_mut(x, y).visible = true;
+    }
+    game.sign_pact(HUMAN, 1, Pact::War);
+    game.create_city(HUMAN, sx, sy);
+    let artillery = game.spawn_unit(HUMAN, UnitKind::Artillery, sx, sy);
+    let visible = game.spawn_unit(1, UnitKind::Warrior, tx, ty);
+    let hidden = game.spawn_unit(1, UnitKind::Submarine, tx, ty);
+    let unreachable = game.spawn_unit(1, UnitKind::Fighter, tx, ty);
+    let hidden_hp = game.unit_by_id(hidden).unwrap().hp;
+    let unreachable_hp = game.unit_by_id(unreachable).unwrap().hp;
+    assert!(!game.unit_visible_to(HUMAN, game.unit_by_id(hidden).unwrap()));
+    assert!(!game.combat_target_reachable(UnitKind::Artillery, UnitKind::Fighter, tx, ty));
+    assert!(game.can_bombard_tile(game.unit_by_id(artillery).unwrap(), tx, ty));
+
+    game.native_random = None;
+    game.rng = 0;
+    assert_eq!(
+        game.try_ranged_bombard(artillery, tx, ty),
+        MoveResult::Fought
+    );
+    assert_eq!(game.unit_by_id(hidden).unwrap().hp, hidden_hp);
+    assert_eq!(game.unit_by_id(unreachable).unwrap().hp, unreachable_hp);
+    assert!(game.unit_by_id(visible).unwrap().hp < UnitKind::Warrior.stats().hp);
 }
 
 #[test]
@@ -440,6 +571,7 @@ fn legacy_air_defense_strength_does_not_intercept_selected_ruleset_bombard() {
     game.tile_mut(tx, ty).terrain = Terrain::Grassland;
     game.tile_mut(tx, ty).owner = Some(1);
     game.sign_pact(HUMAN, 1, Pact::War);
+    game.create_city(HUMAN, sx, sy);
     let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, sx, sy);
     let defender = game.spawn_unit(1, UnitKind::Warrior, tx, ty);
     game.spawn_unit(1, UnitKind::Flak, tx, ty);
@@ -560,6 +692,7 @@ fn bombard_uses_civ3_range_and_unit_mapping() {
     game.tile_mut(out_of_range_x, out_of_range_y).visible = true;
     game.tile_mut(out_of_range_x, out_of_range_y).owner = Some(1);
     game.sign_pact(HUMAN, 1, Pact::War);
+    game.create_city(HUMAN, x, y);
     let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, x, y);
     game.spawn_unit(1, UnitKind::Warrior, tx, ty);
     let far_target = game.spawn_unit(1, UnitKind::Warrior, far_x, far_y);
@@ -650,7 +783,7 @@ fn civ3_bombard_can_target_an_empty_enemy_city_and_uses_selected_citizen_class_r
 }
 
 #[test]
-fn civ3_bombard_uses_full_source_rate_and_matches_per_target_rng_draws() {
+fn bombard_rate_scales_with_health_and_matches_per_target_rng_draws() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -664,6 +797,7 @@ fn civ3_bombard_uses_full_source_rate_and_matches_per_target_rng_draws() {
     }
     game.tile_mut(tx, ty).owner = Some(1);
     game.sign_pact(HUMAN, 1, Pact::War);
+    game.create_city(HUMAN, sx, sy);
     let bomber = game.spawn_unit(HUMAN, UnitKind::Bomber, sx, sy);
     let first = game.spawn_unit(1, UnitKind::Warrior, tx, ty);
     let second = game.spawn_unit(1, UnitKind::Spearman, tx, ty);
@@ -674,8 +808,8 @@ fn civ3_bombard_uses_full_source_rate_and_matches_per_target_rng_draws() {
         .unwrap()
         .hp /= 3;
     let bomb_unit = game.unit_by_id(bomber).unwrap().clone();
-    let rate = UnitKind::Bomber.bombard_rate();
-    assert_eq!(rate, 3, "Civ III rate of fire is unchanged by current HP");
+    let rate = (UnitKind::Bomber.bombard_rate() * bomb_unit.hp / bomb_unit.max_hit_points()).max(1);
+    assert_eq!(rate, 1, "C2C3 reduces rate of fire with current HP");
     assert!(!game.combat_target_reachable(UnitKind::Bomber, UnitKind::Fighter, tx, ty));
 
     let targets = [first, second];
@@ -1228,6 +1362,7 @@ mod stealth_tests {
         game.tile_mut(tx, ty).owner = Some(1);
         game.tile_mut(tx, ty).visible = true;
         game.sign_pact(HUMAN, 1, Pact::War);
+        game.create_city(HUMAN, x, y);
         let fighter = game.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
         game.spawn_unit(1, UnitKind::Warrior, tx, ty);
         assert!(game.can_begin_bombard(game.unit_by_id(fighter).unwrap()));

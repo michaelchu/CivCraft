@@ -237,6 +237,9 @@ impl Simulation {
             if self.run_ai_bombard(&unit) {
                 continue;
             }
+            if self.run_ai_bombard_approach(&unit) {
+                continue;
+            }
             if let Some(home) = city_defender_homes.get(&id).copied() {
                 // dai_manage_military tries Hunter management before the
                 // DEFEND_HOME task, even for a unit selected by dai_set_defenders.

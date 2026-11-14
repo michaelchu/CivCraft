@@ -57,7 +57,9 @@ Limitations or conflicts:
 - Retrieved or checked date: 2026-11-13
 - Claims this source supports: Coast, Sea, and Ocean base yields and resource
   habitats; Flood Plains and shield yielding Grassland yields; new units
-  generally have 3 hit points, Veterans 4, and Elites 5 (p. 80)
+  generally have 3 hit points, Veterans 4, and Elites 5 (p. 80); bombardment
+  is a ranged attack that can damage units, defensive fortifications,
+  population, and city improvements without moving the attacker (p. 83).
 - Supplementary claims: Civilization III has no moving Diplomat or Spy units;
   embassies provide diplomatic actions and city intelligence after Writing,
   and espionage missions require Espionage plus the Intelligence Agency and
@@ -92,10 +94,10 @@ Limitations or conflicts:
 - URL or local file: <https://oldapplestuff.com/download/Macintosh/Macintosh_Garden/manuals/Civilization_III_PTW_strategy_guide.pdf>
 - Source type: Official publication
 - Edition / expansion / patch scope: Play the World expansion strategy guide; its introduction states that, unless an item is marked PTW-only, strategies also apply to original Civilization III
-- Pages, table, figure, or section: printed pp. 108–110, “Those Wonderful Workers” and “The Workers you capture”
-- Retrieved or checked date: 2026-11-10
-- Claims this source supports: captured foreign Workers complete jobs at half the rate of the owner's native Workers; stacking Workers combines their progress rates.
-- Limitations or conflicts: This is a PTW-era guide, not a Conquests manual. Conquests PRTO `WorkerStrength` remains authoritative for the editable source value, and the installed campaign value (1.0 for Worker) is interpreted against the native worker progress baseline of 2.
+- Pages, table, figure, or section: printed pp. 108–110, “Those Wonderful Workers” and “The Workers you capture”; pp. 115–116, “Bombardment and Bombing”
+- Retrieved or checked date: 2026-11-14
+- Claims this source supports: captured foreign Workers complete jobs at half the rate of the owner's native Workers; stacking Workers combines their progress rates. The bombardment section gives city target weights of 25% population, 25% buildings, and 50% units; gives buildings, citizens, and terrain improvements 16 defense and 1 HP; and documents terrain-improvement destruction priority.
+- Limitations or conflicts: This is a PTW-era guide, not a Conquests manual. Its bombardment target probabilities and object order are supplementary evidence and have not been confirmed against the Conquests executable. Conquests PRTO `WorkerStrength` remains authoritative for the editable source value, and the installed campaign value (1.0 for Worker) is interpreted against the native worker progress baseline of 2.
 
 - Source ID: CIVFANATICS-CIV3-FAQ
 - Title / publisher: "Civilization III: Frequently Asked Questions," CivFanatics
@@ -142,7 +144,7 @@ Limitations or conflicts:
 - Source type: Original game material
 - Edition / expansion / patch scope: Civilization III: Conquests
 - Pages, table, figure, or section: “Craters,” lines 311–320
-- Retrieved or checked date: 2026-11-10
+- Retrieved or checked date: 2026-11-14
 - Claims this source supports: Craters can form in non-city squares when bombardment eliminates the last unit or terrain improvement; they reduce food, production, and commerce by one, and Workers can clear them.
 - Limitations or conflicts: “May be formed” does not state an exact random chance. The installed Civilopedia describes the effect but not its PRTO flag mapping; the installed BIQ supplies `CreateCraters` values.
 
@@ -275,13 +277,31 @@ Limitations or conflicts:
 - Scope: standard Conquests campaign, using the installed BIQ values.
 - Implementation: editable Civ III unit records now determine Bombard
   capability, strength, rate of fire, per-unit tile range, aircraft operational
-  range, lethal land/sea outcomes, and Bombard Fx presentation. Freeciv's
-  selected combat rules still supply the per-shot defense roll and relevant
-  unit-class behavior.
-- Unresolved: city and terrain improvement damage, fortress damage, and AI
-  automatic bombard orders are not implemented. City population casualties
-  currently use selected C2C3 class/effect rules; exact Conquests parity is
-  unverified. The UI does not yet draw the full red target grid.
+  range, lethal land/sea outcomes, and Bombard Fx presentation. A direct
+  aircraft bombard action requires a refueling site. AI aircraft use the
+  dedicated air-strike path instead of the ground-style bombard order. Under
+  selected C2C3 rules, rate of fire reduces as a unit loses HP, with a minimum
+  of one shot; target
+  damage uses the selected ruleset's per-shot combat roll. Each defender must
+  be visible and reachable under the selected C2C3 class rules.
+- Freeciv implementation context: the pinned C2C3 ruleset sets
+  `damage_reduces_bombard_rate = TRUE`, has adjacent action range, and resolves
+  one rate of fire against each reachable defender on the tile. CivCraft uses
+  Civ III per-unit range instead of the ruleset's adjacent-only action range.
+- AI: Freeciv checks capture/ransom before bombard. CivCraft does the same for
+  conventional bombard units, trying an in-range shot before movement and
+  scoring candidate tiles by expected defender damage, unit value,
+  lethal-kill potential, and citizen losses. Fuelled aircraft use the separate
+  air-strike path.
+- Unresolved: Conquests bombardment can damage city population, buildings,
+  fortifications, and terrain improvements, but this simulation currently
+  resolves only eligible units and selected C2C3 citizen casualties. Exact
+  target selection and object-defense rules need more Conquests-specific
+  evidence before implementation. The PTW guide's target weights and priority
+  are recorded above but are not assumed to be Conquests rules. Conventional
+  AI bombard units can now move toward a scored firing position, but the AI
+  does not keep a repeated bombard order. The UI does not yet draw the full red
+  target grid.
 
 ### Bombard visual effects and craters
 
@@ -293,16 +313,16 @@ Limitations or conflicts:
   pp. 38–39; CIV3-CONQUESTS-CIVILOPEDIA, “Craters”; CivFanatics “Editor Rules - Explained,”
   “Bombard Fx” and “Create Craters” entries.
 - Implementation: `BombardEffects` drives a target explosion overlay through
-  the existing combat event. `CreateCraters` persists a tile marker after a
-  flagged bombard eliminates its final unit on a non-city tile with no
-  remaining modeled terrain improvement. The marker subtracts one from each
-  tile yield and is clearable by Workers through the existing damage-cleaning
-  action. UI rendering uses the existing crater atlas.
-- Unresolved: source text does not state the crater probability; current
-  implementation treats an eligible event as certain. Bombarding and removing
-  terrain improvements is not implemented, so crater creation from the final
-  improvement being destroyed is deferred. The visual effect is a native
-  overlay, not playback of the original unit-specific bombard animation.
+  the existing combat event. The source `CreateCraters` flag is loaded, and
+  tile crater state already affects yield and can be cleared, but bombardment
+  does not currently create craters. Bombardment does not yet destroy terrain
+  improvements or city buildings.
+- Unresolved: the Civilopedia says a crater "may be formed" when bombardment
+  removes the last unit or terrain improvement; the checked source does not
+  specify the probability or exact trigger ordering. `CreateCraters` is
+  permission for eligible units to cause craters, but the chance remains
+  unknown. The visual effect is a native overlay, not playback of the original
+  unit-specific bombard animation.
 
 ### Technology-tree source leads
 

@@ -200,8 +200,9 @@ impl Simulation {
     pub(crate) fn bombard_playtest_setup(&mut self) -> (u32, [u32; 2]) {
         let (x, y) = (10, 20);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-        self.tile_mut(x, y).terrain = Terrain::Sea;
+        self.tile_mut(x, y).terrain = Terrain::Grassland;
         self.tile_mut(nx, ny).terrain = Terrain::Grassland;
+        self.create_city(HUMAN, x, y);
         let bomber = self.spawn_unit(HUMAN, UnitKind::Bomber, x, y);
         let targets = [
             self.spawn_unit(1, UnitKind::Worker, nx, ny),

@@ -535,6 +535,7 @@ fn specialists_only_lattice() -> CmLattice {
         production,
         capacity: vec![CM_INFINITY; 3],
         better: vec![vec![]; 3],
+        worse: vec![vec![]; 3],
         orders: [vec![1, 0, 2], vec![2, 1, 0]],
         by_stat,
     }
@@ -614,6 +615,7 @@ fn native_cm_learns_minimum_luxury_from_disorder_and_prunes_later_choices() {
         production,
         capacity: vec![8, CM_INFINITY, CM_INFINITY, CM_INFINITY],
         better: vec![vec![]; 4],
+        worse: vec![vec![]; 4],
         orders: [vec![0, 2, 1, 3], vec![3, 0, 2, 1]],
         by_stat,
     };
