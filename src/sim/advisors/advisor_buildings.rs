@@ -410,6 +410,28 @@ impl Simulation {
         city: &City,
         building: Building,
     ) -> f64 {
+        let owned: Vec<_> = self.cities_owned_by(city.owner).collect();
+        let baseline_outputs: Vec<_> = owned
+            .iter()
+            .map(|owned_city| self.advisor_city_output_exact(owned_city, None))
+            .collect();
+        self.projected_wonder_want_with_baselines(
+            scratch,
+            city,
+            building,
+            &owned,
+            &baseline_outputs,
+        )
+    }
+
+    pub(super) fn projected_wonder_want_with_baselines(
+        &self,
+        scratch: &mut Self,
+        city: &City,
+        building: Building,
+        owned: &[&City],
+        baseline_outputs: &[f64],
+    ) -> f64 {
         let government_want = if building == Building::STATUE_OF_LIBERTY {
             scratch
                 .government_research_want(city.owner)
@@ -431,20 +453,18 @@ impl Simulation {
         if building.data().genus == Genus::GreatWonder {
             scratch.completed_wonders.push(building);
         }
-        let owned: Vec<_> = self.cities_owned_by(city.owner).collect();
         let count = owned.len() as i32;
         // daicity.c:base_want adds the building, recomputes outputs in its
         // entire effect range, and restores it. This scratch preserves live
         // units, cities, technology, completed world effects, and RNG state.
         let mut want = 0.0;
-        for original in &owned {
+        for (original, &baseline) in owned.iter().zip(baseline_outputs) {
             let projected = scratch
                 .cities
                 .iter()
                 .find(|candidate| candidate.id == original.id)
                 .unwrap();
-            want += scratch.advisor_city_output_exact(projected, None)
-                - self.advisor_city_output_exact(original, None);
+            want += scratch.advisor_city_output_exact(projected, None) - baseline;
         }
         want += self.building_happiness_want(city, building);
         let owned_units = || self.units_owned_by(city.owner);

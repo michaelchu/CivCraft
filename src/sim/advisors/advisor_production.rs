@@ -562,7 +562,13 @@ impl Simulation {
 
     pub(in crate::sim) fn ai_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
         let mut preview = self.clone();
-        preview.ai_build_choice_in_place(city)
+        // City-turn production completion can request advice outside the
+        // owner's normal last-activities pass. Give that isolated preview the
+        // same read-only spatial indexes used by the regular advisor pass.
+        preview.begin_ai_advisor_cache();
+        let choice = preview.ai_build_choice_in_place(city);
+        preview.end_ai_advisor_cache();
+        choice
     }
 
     pub(in crate::sim) fn prepare_ai_city_defenses(

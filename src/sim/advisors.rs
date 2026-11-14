@@ -59,12 +59,23 @@ impl Simulation {
             return None;
         }
         let mut scratch = self.clone();
+        let owned: Vec<_> = self.cities_owned_by(city.owner).collect();
+        let baseline_outputs: Vec<_> = owned
+            .iter()
+            .map(|owned_city| self.advisor_city_output_exact(owned_city, None))
+            .collect();
         candidates
             .into_iter()
             .filter_map(|building| {
                 // Freeciv applies Builder to building_advisor_choose's
                 // improvement choice, not to the separate wonder helper.
-                let want = self.projected_wonder_want(&mut scratch, city, building);
+                let want = self.projected_wonder_want_with_baselines(
+                    &mut scratch,
+                    city,
+                    building,
+                    &owned,
+                    &baseline_outputs,
+                );
                 (want > 0.0).then_some(AiBuildChoice {
                     production: Production::Building(building),
                     want: want.min(DOMESTIC_WANT_MAX),
