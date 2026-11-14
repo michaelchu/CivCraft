@@ -36,22 +36,34 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn record_ai_domestic_tech_wants(&mut self, owner: usize) {
-        for tech in Tech::all() {
-            if self.has_tech(owner, tech) {
-                continue;
-            }
-            self.add_ai_tech_want(owner, tech, self.ferry_tech_want(owner, tech) as f32);
+        if !self.has_tech(owner, Tech::MAP_MAKING) {
+            self.add_ai_tech_want(
+                owner,
+                Tech::MAP_MAKING,
+                self.ferry_tech_want(owner, Tech::MAP_MAKING) as f32,
+            );
         }
         // Apply every contribution to the existing phase accumulator; grouping
         // cities first would change f32 rounding after government feedback.
         let cities: Vec<_> = self.player_cities_ordered(owner).cloned().collect();
         for city in cities {
-            for tech in Tech::all() {
+            let baseline = self.advisor_city_output(&city, None);
+            let (food, gross_shields, _) = self.city_yields(&city);
+            let upkeep = self.city_unit_upkeep(&city);
+            let food_surplus = food - city.size * Self::citizen_food_cost() - upkeep.food;
+            let shields = (gross_shields - upkeep.shields).max(0);
+            for &tech in improvement_unlock_techs() {
                 if !self.has_tech(owner, tech) {
                     self.add_ai_tech_want(
                         owner,
                         tech,
-                        self.city_building_tech_want(&city, tech) as f32,
+                        self.city_building_tech_want_with_baseline(
+                            &city,
+                            tech,
+                            baseline,
+                            food_surplus,
+                            shields,
+                        ) as f32,
                     );
                 }
             }
@@ -74,7 +86,7 @@ impl Simulation {
         for (tech, want) in self.counter_defender_tech_feedback(city) {
             self.add_ai_tech_want(city.owner, tech, want);
         }
-        for tech in Tech::all() {
+        for &tech in defender_techs() {
             self.add_ai_tech_want(
                 city.owner,
                 tech,
@@ -141,36 +153,25 @@ impl Simulation {
     }
 
     pub(super) fn city_tech_effect_want(&self, city: &City, tech: Tech) -> i32 {
-        let direct_output = matches!(tech, Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION);
         let obsoletes_building = city.buildings.iter().any(|building| {
             building
                 .data()
                 .obsolete
                 .contains(&(Requirement::Tech(tech.0), true))
         });
-        let ruleset = RulesetData::campaign_default();
-        let has_supported_effect = tech.is_civ3_advance()
-            && ruleset.effects.iter().any(|effect| {
-                effect.multiplier.is_none()
-                    && matches!(
-                        effect.kind.to_ascii_lowercase().as_str(),
-                        "city_vision_radius_sq"
-                            | "unit_vision_radius_sq"
-                            | "move_bonus"
-                            | "upgrade_price_pct"
-                            | "make_content"
-                            | "health_pct"
-                    )
-                    && effect
-                        .requirements
-                        .iter()
-                        .filter_map(|requirement| bound_player_tech(ruleset, requirement))
-                        .any(|(required, _)| required == tech)
-            });
-        if !direct_output && !obsoletes_building && !has_supported_effect {
+        if !city_effect_techs().contains(&tech) && !obsoletes_building {
             return 0;
         }
         let baseline = self.advisor_city_output(city, None);
+        self.city_tech_effect_want_with_baseline(city, tech, baseline)
+    }
+
+    fn city_tech_effect_want_with_baseline(
+        &self,
+        city: &City,
+        tech: Tech,
+        baseline: i32,
+    ) -> i32 {
         let direct = match tech {
             Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION => {
                 self.advisor_city_output(city, Some(tech)) - baseline
@@ -360,13 +361,31 @@ impl Simulation {
 
     pub(in crate::sim) fn record_ai_tech_effect_wants(&mut self, owner: usize) {
         let cities: Vec<_> = self.player_cities_ordered(owner).cloned().collect();
+        let baselines = cities
+            .iter()
+            .map(|city| self.advisor_city_output(city, None))
+            .collect::<Vec<_>>();
         // daitech.c: effect feedback is the final contribution before selection.
-        for tech in Tech::all() {
+        for tech in Tech::all().filter(|&tech| {
+            city_effect_techs().contains(&tech)
+                || cities.iter().any(|city| {
+                    city.buildings.iter().any(|building| {
+                        building
+                            .data()
+                            .obsolete
+                            .contains(&(Requirement::Tech(tech.0), true))
+                    })
+                })
+        }) {
             if self.has_tech(owner, tech) {
                 continue;
             }
-            for city in &cities {
-                self.add_ai_tech_want(owner, tech, self.city_tech_effect_want(city, tech) as f32);
+            for (city, &baseline) in cities.iter().zip(&baselines) {
+                self.add_ai_tech_want(
+                    owner,
+                    tech,
+                    self.city_tech_effect_want_with_baseline(city, tech, baseline) as f32,
+                );
             }
         }
     }
@@ -389,6 +408,23 @@ impl Simulation {
         let upkeep = self.city_unit_upkeep(city);
         let food_surplus = food - city.size * Self::citizen_food_cost() - upkeep.food;
         let shields = (gross_shields - upkeep.shields).max(0);
+        self.city_building_tech_want_with_baseline(
+            city,
+            tech,
+            baseline,
+            food_surplus,
+            shields,
+        )
+    }
+
+    fn city_building_tech_want_with_baseline(
+        &self,
+        city: &City,
+        tech: Tech,
+        baseline: i32,
+        food_surplus: i32,
+        shields: i32,
+    ) -> i32 {
         let mut want = 0;
         for building in
             Building::all().filter(|building| building.data().genus == Genus::Improvement)
@@ -443,6 +479,67 @@ impl Simulation {
         }
         benefit
     }
+}
+
+fn improvement_unlock_techs() -> &'static [Tech] {
+    static TECHS: std::sync::OnceLock<Vec<Tech>> = std::sync::OnceLock::new();
+    TECHS.get_or_init(|| {
+        Tech::all()
+            .filter(|&tech| {
+                Building::all().any(|building| {
+                    building.data().genus == Genus::Improvement
+                        && building
+                            .data()
+                            .requirements
+                            .contains(&(Requirement::Tech(tech.0), true))
+                })
+            })
+            .collect()
+    })
+}
+
+fn defender_techs() -> &'static [Tech] {
+    static TECHS: std::sync::OnceLock<Vec<Tech>> = std::sync::OnceLock::new();
+    TECHS.get_or_init(|| {
+        Tech::all()
+            .filter(|&tech| {
+                Simulation::production_defender_types()
+                    .any(|kind| kind.required_tech() == Some(tech))
+            })
+            .collect()
+    })
+}
+
+fn city_effect_techs() -> &'static [Tech] {
+    static TECHS: std::sync::OnceLock<Vec<Tech>> = std::sync::OnceLock::new();
+    TECHS.get_or_init(|| {
+        let ruleset = RulesetData::campaign_default();
+        Tech::all()
+            .filter(|&tech| {
+                matches!(tech, Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION)
+                    || tech.is_civ3_advance()
+                        && ruleset.effects.iter().any(|effect| {
+                            effect.multiplier.is_none()
+                                && matches!(
+                                    effect.kind.to_ascii_lowercase().as_str(),
+                                    "city_vision_radius_sq"
+                                        | "unit_vision_radius_sq"
+                                        | "move_bonus"
+                                        | "upgrade_price_pct"
+                                        | "make_content"
+                                        | "health_pct"
+                                )
+                                && effect
+                                    .requirements
+                                    .iter()
+                                    .filter_map(|requirement| {
+                                        bound_player_tech(ruleset, requirement)
+                                    })
+                                    .any(|(required, _)| required == tech)
+                        })
+            })
+            .collect()
+    })
 }
 
 /// Resolve only the player-scoped, non-surviving Tech universals that
