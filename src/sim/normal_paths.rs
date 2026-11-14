@@ -95,6 +95,7 @@ pub(super) struct NormalPaths {
     risk: bool,
     nodes: Vec<Node>,
     queue: ExplorerQueue,
+    yielded_start: bool,
 }
 
 impl NormalPaths {
@@ -120,15 +121,6 @@ impl NormalPaths {
             true,
             false,
         )
-    }
-    pub(super) fn positions(&mut self, sim: &Simulation) -> Vec<(i32, i32, i32, u32)> {
-        let mut result = vec![(self.actor.x, self.actor.y, 0, 0)];
-        while self.iterate(sim) {
-            let (x, y) = self.map_wrap.position(self.current);
-            let node = &self.nodes[self.current];
-            result.push((x, y, node.cost / self.rate, node.extra));
-        }
-        result
     }
     fn new(
         sim: &Simulation,
@@ -156,6 +148,7 @@ impl NormalPaths {
             risk,
             nodes: vec![Node::default(); sim.tiles.len()],
             queue: ExplorerQueue::default(),
+            yielded_start: false,
         };
         map.initialize(sim, start, 0);
         if let Some(ship) = unit.transport.and_then(|id| sim.unit_by_id(id)) {
@@ -174,6 +167,22 @@ impl NormalPaths {
         map.nodes[start].cost = map.rate.wrapping_sub(unit.moves_left);
         map.nodes[start].status = Status::Processed;
         map
+    }
+
+    /// Returns positions in the same increasing-cost order as Freeciv's
+    /// `pf_map_*_iterate` macros. Keeping this incremental lets callers stop
+    /// once they have found a sufficient destination instead of eagerly
+    /// expanding and allocating an entry for every reachable map tile.
+    pub(super) fn next_position(&mut self, sim: &Simulation) -> Option<(i32, i32, i32, u32)> {
+        if !self.yielded_start {
+            self.yielded_start = true;
+            return Some((self.actor.x, self.actor.y, 0, 0));
+        }
+        self.iterate(sim).then(|| {
+            let (x, y) = self.map_wrap.position(self.current);
+            let node = &self.nodes[self.current];
+            (x, y, node.cost / self.rate, node.extra)
+        })
     }
 
     fn native_base(sim: &Simulation, kind: UnitKind, x: i32, y: i32) -> bool {

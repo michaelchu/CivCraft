@@ -54,7 +54,7 @@ impl super::Simulation {
         let mut map = NormalPaths::ferry_search_map(self, passenger);
         let mut best_turns = i32::MAX;
         let mut best = None;
-        for (x, y, turn, extra) in map.positions(self) {
+        while let Some((x, y, turn, extra)) = map.next_position(self) {
             if turn + (extra / 65536) as i32 > best_turns {
                 break;
             }
@@ -363,9 +363,15 @@ impl super::Simulation {
                 target.y,
             ) {
                 turns = fmap.position_turn(self, x, y);
-                let first = pf.positions(self).into_iter().find(|(x, y, _, _)| {
-                    (*x, *y) == (boat.x, boat.y) || (*x, *y) == (target.x, target.y)
-                });
+                let mut first = None;
+                while let Some(position) = pf.next_position(self) {
+                    if (position.0, position.1) == (boat.x, boat.y)
+                        || (position.0, position.1) == (target.x, target.y)
+                    {
+                        first = Some(position);
+                        break;
+                    }
+                }
                 if let Some((x, y, travel, _)) = first {
                     if (x, y) == (target.x, target.y) {
                         turns = Some(travel);
