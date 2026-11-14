@@ -738,10 +738,9 @@ impl Simulation {
 
     pub(in crate::sim) fn tile_can_support_worker(&self, city: &City, x: i32, y: i32) -> bool {
         self.tile(x, y).owner == Some(city.owner)
-            && !self.cities.iter().any(|other| (other.x, other.y) == (x, y))
-            && !self.units.iter().any(|unit| {
-                (unit.x, unit.y) == (x, y)
-                    && unit.kind.is_military()
+            && !self.any_city_at_cached(x, y)
+            && !self.any_unit_at(x, y, |unit| {
+                unit.kind.is_military()
                     && unit.transport.is_none()
                     && self.at_war(unit.owner, city.owner)
             })

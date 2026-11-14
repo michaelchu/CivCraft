@@ -420,12 +420,11 @@ impl Simulation {
     ) -> Option<WorkerPlan> {
         let routes = self.worker_routes(actor);
         let allowance = self.unit_move_rate(actor).max(1);
-        let occupied = |sim: &Self, position| {
-            sim.units.iter().any(|u| {
+        let occupied = |sim: &Self, position: (i32, i32)| {
+            sim.any_unit_at(position.0, position.1, |u| {
                 u.id != actor.id
                     && u.owner == actor.owner
                     && u.kind.is_worker()
-                    && (u.x, u.y) == position
             })
         };
         let mut best_request = None;
