@@ -52,11 +52,18 @@ impl Simulation {
         if !self.at_war(owner, city.owner) {
             return (0, 0);
         }
-        let undefended = !self.units.iter().any(|u| {
-            (u.x, u.y) == (city.x, city.y)
-                && u.kind.stats().defense > 0
-                && !self.allied(owner, u.owner)
+        let undefended = !self.any_unit_at(city.x, city.y, |u| {
+            u.kind.stats().defense > 0 && !self.allied(owner, u.owner)
         });
+        let mut cargo_support = std::collections::BTreeMap::<u32, (i32, i32)>::new();
+        for cargo in self.units.iter().filter(|unit| unit.kind.is_military()) {
+            let Some(transport) = cargo.transport else {
+                continue;
+            };
+            let support = cargo_support.entry(transport).or_default();
+            support.0 += cargo.kind.stats().moves * MOVE_FRAGMENTS;
+            support.1 += i32::from(cargo.kind.can_occupy_city());
+        }
         let mut attacks = 0;
         let mut occupiers = 0;
         for actor in self.units.iter().filter(|u| {
@@ -80,13 +87,9 @@ impl Simulation {
                     actor.kind.stats().moves * MOVE_FRAGMENTS
                 };
             occupiers += marks * i32::from(actor.kind.can_occupy_city());
-            for cargo in self
-                .units
-                .iter()
-                .filter(|u| u.transport == Some(actor.id) && u.kind.is_military())
-            {
-                attacks += marks * cargo.kind.stats().moves * MOVE_FRAGMENTS;
-                occupiers += marks * i32::from(cargo.kind.can_occupy_city());
+            if let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&actor.id) {
+                attacks += marks * cargo_attacks;
+                occupiers += marks * cargo_occupiers;
             }
         }
         // Nonattacking ferries still carry occupation-capable reinforcements.
@@ -97,14 +100,10 @@ impl Simulation {
             let local =
                 undefended && self.map_wrap.civ3_distance(boat.x, boat.y, city.x, city.y) <= 2;
             if assigned || local {
-                for cargo in self
-                    .units
-                    .iter()
-                    .filter(|u| u.transport == Some(boat.id) && u.kind.is_military())
-                {
+                if let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&boat.id) {
                     let marks = i32::from(assigned) + i32::from(local);
-                    attacks += marks * cargo.kind.stats().moves * MOVE_FRAGMENTS;
-                    occupiers += marks * i32::from(cargo.kind.can_occupy_city());
+                    attacks += marks * cargo_attacks;
+                    occupiers += marks * cargo_occupiers;
                 }
             }
         }
@@ -319,6 +318,23 @@ impl Simulation {
     pub(super) fn ground_city_attack_choice(&self, unit: &Unit) -> Option<(u32, Vec<(i32, i32)>)> {
         let mut best = None;
         let mut best_value = 0.0;
+        let production: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|city| city.owner == unit.owner)
+            .map(|city| self.city_forecast(city).shield_surplus())
+            .collect();
+        let average = production.iter().sum::<i32>() / production.len().max(1) as i32;
+        let output = self
+            .cities
+            .iter()
+            .find(|city| Some(city.id) == unit.home_city)
+            .map_or(1, |city| self.city_forecast(city).shield_surplus())
+            .max(average)
+            .max(1);
+        let rating = |actor: &Unit| {
+            Self::attack_power(actor) * actor.hp * actor.kind.stats().firepower / (POWER_FACTOR * 3)
+        };
         for city in self.cities.iter().filter(|city| {
             self.at_war(unit.owner, city.owner) && self.tile(city.x, city.y).known_by[unit.owner]
         }) {
@@ -344,10 +360,6 @@ impl Simulation {
             if turns > 10 {
                 continue;
             }
-            let rating = |actor: &Unit| {
-                Self::attack_power(actor) * actor.hp * actor.kind.stats().firepower
-                    / (POWER_FACTOR * 3)
-            };
             let helpers: Vec<_> = self
                 .units
                 .iter()
@@ -401,20 +413,6 @@ impl Simulation {
                 0.0
             };
             let gain = gain - f64::from(turns * 17);
-            let production: Vec<_> = self
-                .cities
-                .iter()
-                .filter(|c| c.owner == unit.owner)
-                .map(|c| self.city_forecast(c).shield_surplus())
-                .collect();
-            let average = production.iter().sum::<i32>() / production.len().max(1) as i32;
-            let output = self
-                .cities
-                .iter()
-                .find(|c| Some(c.id) == unit.home_city)
-                .map_or(1, |c| self.city_forecast(c).shield_surplus())
-                .max(average)
-                .max(1);
             let stats = unit.kind.stats();
             let balanced = 2 * stats.cost * stats.attack / (stats.attack + stats.defense).max(1);
             let value = gain * (23.0_f64 / 24.0).powi(turns.max(1) + balanced / output);

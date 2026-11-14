@@ -369,14 +369,10 @@ impl Simulation {
             for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
                 if self.treaty_blocks_move(&actor, x, y)
                     || self.zone_blocks_step(&actor, (actor.x, actor.y), (x, y))
+                    || self.any_unit_at(x, y, |u| !self.allied(guard.owner, u.owner))
                     || self
-                        .units
-                        .iter()
-                        .any(|u| (u.x, u.y) == (x, y) && !self.allied(guard.owner, u.owner))
-                    || self
-                        .cities
-                        .iter()
-                        .any(|c| (c.x, c.y) == (x, y) && !self.allied(guard.owner, c.owner))
+                        .city_at_cached(x, y)
+                        .is_some_and(|city| !self.allied(guard.owner, city.owner))
                 {
                     continue;
                 }
@@ -431,9 +427,8 @@ impl Simulation {
                 }
             }
             if let Some(city) = self
-                .cities
-                .iter()
-                .find(|c| c.owner == guard.owner && (c.x, c.y) == (x, y))
+                .city_at_cached(x, y)
+                .filter(|city| city.owner == guard.owner)
             {
                 let data = self.advisor_guard_city_assessment(city);
                 if data.urgency <= 0 {

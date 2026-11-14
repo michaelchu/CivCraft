@@ -57,10 +57,15 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn any_city_at_cached(&self, x: i32, y: i32) -> bool {
+        self.city_at_cached(x, y).is_some()
+    }
+
+    pub(in crate::sim) fn city_at_cached(&self, x: i32, y: i32) -> Option<&City> {
         if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index.borrow().city_at[self.map_wrap.index(x, y)].is_some()
+            let index = self.ai_spatial_index.borrow().city_at[self.map_wrap.index(x, y)]?;
+            self.cities.get(index)
         } else {
-            self.cities.iter().any(|city| (city.x, city.y) == (x, y))
+            self.cities.iter().find(|city| (city.x, city.y) == (x, y))
         }
     }
 
