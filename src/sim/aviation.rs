@@ -250,7 +250,8 @@ impl Simulation {
             target_tiles.insert((target.x, target.y));
         }
 
-        let mut best: Option<(f64, i32, Vec<(i32, i32)>)> = None;
+        type ScoredBombardPath = (f64, i32, Vec<(i32, i32)>);
+        let mut best: Option<ScoredBombardPath> = None;
         for (tx, ty) in target_tiles {
             for (px, py, distance) in self.map_wrap.civ3_radius(tx, ty, range) {
                 if distance == 0
