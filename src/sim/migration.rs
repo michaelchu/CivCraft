@@ -140,11 +140,11 @@ impl Simulation {
                     continue;
                 }
 
-                if let Some(candidate) = candidates.international {
-                    if self.rand_below(100) < settings.world_chance.clamp(0, 100) {
-                        international_migration = true;
-                        self.do_city_migration(city_id, candidate.city_id, settings);
-                    }
+                if let Some(candidate) = candidates.international
+                    && self.rand_below(100) < settings.world_chance.clamp(0, 100)
+                {
+                    international_migration = true;
+                    self.do_city_migration(city_id, candidate.city_id, settings);
                 }
             }
         }

@@ -116,9 +116,9 @@ impl Simulation {
         let carrier = self.spawn_unit(HUMAN, UnitKind::Carrier, sea.0, sea.1);
         let helicopter = self.spawn_unit(HUMAN, UnitKind::Helicopter, sea.0, sea.1);
         assert!(self.board_specific_ship(helicopter, carrier));
-        let carrier_capacity =
-            self.ruleset_transport_capacity(UnitKind::Carrier)
-                .expect("selected C2C3 Carrier record has a valid capacity") as usize;
+        let carrier_capacity = self
+            .ruleset_transport_capacity(UnitKind::Carrier)
+            .expect("selected C2C3 Carrier record has a valid capacity");
         for _ in 1..carrier_capacity {
             let fighter = self.spawn_unit(HUMAN, UnitKind::Fighter, sea.0, sea.1);
             assert!(self.board_specific_ship(fighter, carrier));

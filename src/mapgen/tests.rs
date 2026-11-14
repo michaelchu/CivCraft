@@ -378,7 +378,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                     .all(|next| next == index || !tiles[next].hut)
                 );
             }
-            if tile.resource.is_some() {
+            if let Some(resource) = tile.resource {
                 assert!(
                     (Generator {
                         wrap: MapWrap::X,
@@ -388,11 +388,7 @@ fn generated_rivers_reach_the_ocean_and_resources_are_spaced() {
                     .neighbors(index)
                     .all(|next| tiles[next].resource.is_none())
                 );
-                assert!(
-                    tile.terrain
-                        .resource_options()
-                        .contains(&tile.resource.unwrap())
-                );
+                assert!(tile.terrain.resource_options().contains(&resource));
                 if matches!(tile.resource, Some(Resource::Fish | Resource::Whales)) {
                     let neighborhood: Vec<_> = generator
                         .within(index, 1)
@@ -836,7 +832,8 @@ fn dump_civcraft_mapgen_vectors() {
 fn default_worlds_match_civcraft_resource_goldens() {
     // These capture generated terrain, resource placement, and sorted starts
     // using Civ III's eight-direction topology.
-    let cases: [(u64, u64, [(i32, i32); 6]); 5] = [
+    type ResourceGolden = (u64, u64, [(i32, i32); 6]);
+    let cases: [ResourceGolden; 5] = [
         (
             1,
             0x7397e149e920ef7e,
@@ -971,7 +968,7 @@ fn generated_polar_coastlines_vary_across_longitudes() {
             (0..wrap.width())
                 .map(|x| {
                     (1..wrap.height() / 2)
-                        .find(|&y| !map.tiles[wrap.index(x, y) as usize].terrain.is_water())
+                        .find(|&y| !map.tiles[wrap.index(x, y)].terrain.is_water())
                         .unwrap_or(wrap.height() / 2)
                 })
                 .collect::<Vec<_>>(),
@@ -979,7 +976,7 @@ fn generated_polar_coastlines_vary_across_longitudes() {
                 .map(|x| {
                     (1..wrap.height() / 2)
                         .find(|&distance| {
-                            !map.tiles[wrap.index(x, wrap.height() - 1 - distance) as usize]
+                            !map.tiles[wrap.index(x, wrap.height() - 1 - distance)]
                                 .terrain
                                 .is_water()
                         })

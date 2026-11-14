@@ -360,7 +360,7 @@ mod tests {
             .unwrap()
     }
 
-    fn bonuses_entry_mut<'a>(record: &'a mut ContentRecord) -> &'a mut super::super::Entry {
+    fn bonuses_entry_mut(record: &mut ContentRecord) -> &mut super::super::Entry {
         record
             .fields
             .iter_mut()

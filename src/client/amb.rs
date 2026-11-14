@@ -114,7 +114,7 @@ fn midi_tempo(track: &[u8]) -> Option<u32> {
                 );
             }
             i = i.checked_add(length as usize)?;
-        } else if status >= 0x80 && status < 0xf0 {
+        } else if (0x80..0xf0).contains(&status) {
             running = status;
             let n = if status & 0xe0 == 0xc0 { 1 } else { 2 };
             i = i.checked_add(n)?;
@@ -145,7 +145,7 @@ fn first_note_on_tick(track: &[u8]) -> Result<Option<u32>, String> {
             i = next
                 .checked_add(length as usize)
                 .ok_or("invalid MIDI meta event")?;
-        } else if status >= 0x80 && status < 0xf0 {
+        } else if (0x80..0xf0).contains(&status) {
             running = status;
             let n = if status & 0xe0 == 0xc0 { 1 } else { 2 };
             let data = track
@@ -264,10 +264,9 @@ mod tests {
                 } else if path
                     .extension()
                     .is_some_and(|ext| ext.eq_ignore_ascii_case("amb"))
+                    && let Err(error) = read_amb_cues(&path)
                 {
-                    if let Err(error) = read_amb_cues(&path) {
-                        failures.push(format!("{}: {error}", path.display()));
-                    }
+                    failures.push(format!("{}: {error}", path.display()));
                 }
             }
         }

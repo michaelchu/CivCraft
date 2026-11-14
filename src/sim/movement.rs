@@ -1151,12 +1151,11 @@ impl Simulation {
                         continue;
                     };
                     if (unit.x, unit.y) == target {
-                        if let Some(index) = self.unit_index_by_id(id) {
-                            if let Some(UnitOrder::Patrol { returning, .. }) =
+                        if let Some(index) = self.unit_index_by_id(id)
+                            && let Some(UnitOrder::Patrol { returning, .. }) =
                                 self.units[index].order.as_mut()
-                            {
-                                *returning = !*returning;
-                            }
+                        {
+                            *returning = !*returning;
                         }
                     } else {
                         self.player_goto(id, target.0, target.1);

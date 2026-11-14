@@ -65,7 +65,6 @@ impl Simulation {
             .collect();
         let city_map_tiles = self
             .map_city_radius(city)
-            .into_iter()
             .map(|(dx, dy, x, y)| {
                 let tile = self.tile(x, y);
                 let is_city = (dx, dy) == (0, 0);

@@ -226,6 +226,10 @@ fn resource_name(resource: Resource) -> Option<&'static str> {
 }
 
 impl Simulation {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Effect evaluation needs the explicit city, tile, output, and hypothetical government context."
+    )]
     pub(in crate::sim) fn city_rule_effect(
         &self,
         city: &City,
@@ -277,6 +281,10 @@ impl Simulation {
         i32::try_from(value).unwrap_or_else(|_| panic!("C2C3 city effect {kind} exceeds i32"))
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Tile yield evaluation takes independent location, celebration, and hypothetical technology inputs."
+    )]
     pub(in crate::sim) fn c2c3_city_tile_yields(
         &self,
         city: &City,

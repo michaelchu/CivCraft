@@ -149,10 +149,10 @@ impl AnalysisOutput {
         finding.last_observed_turn = self.turn;
         finding.observation_count += 1;
         finding.latest_evidence = evidence;
-        if let Some(reference) = &self.evidence {
-            if finding.evidence.last() != Some(reference) {
-                finding.evidence.push(reference.clone());
-            }
+        if let Some(reference) = &self.evidence
+            && finding.evidence.last() != Some(reference)
+        {
+            finding.evidence.push(reference.clone());
         }
     }
 }

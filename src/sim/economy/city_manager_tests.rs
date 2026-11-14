@@ -384,7 +384,7 @@ fn city_manager_matches_small_city_lattice_oracle_across_rates_and_governments()
                         + i64::from(output[1]) * 5
                         + i64::from(output[3] + output[5]) * 2
                 };
-                (-(stage as i32), fitness)
+                (-stage, fitness)
             };
             let yields: Vec<_> = allowed
                 .iter()

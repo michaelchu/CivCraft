@@ -181,10 +181,10 @@ impl OpenSimplex3 {
         for i in (0..P3D.len()).step_by(9) {
             let base = BASE_3D[P3D[i] as usize];
             let mut pattern = Vec::with_capacity(base.len() / 4 + 3);
-            for c in base.chunks_exact(4) {
+            for c in base.as_chunks::<4>().0 {
                 pattern.push(Contribution::new(c[0], c[1], c[2], c[3]));
             }
-            for c in P3D[i + 1..i + 9].chunks_exact(4) {
+            for c in P3D[i + 1..i + 9].as_chunks::<4>().0 {
                 pattern.push(Contribution::new(c[0], c[1], c[2], c[3]));
             }
             patterns.push(pattern);

@@ -41,13 +41,12 @@ impl Simulation {
             .expect("campaign C2C3 Civil_War_Chance requirements are supported");
         let city_bonus: i64 = self
             .player_cities_ordered(owner)
-            .cloned()
             .map(|city| {
-                let luxury = self.city_trade(&city, self.city_yields(&city).2)[2];
-                let (disorder, happy) = self.city_mood(&city, luxury);
+                let luxury = self.city_trade(city, self.city_yields(city).2)[2];
+                let (disorder, happy) = self.city_mood(city, luxury);
                 let context = super::action_rules::SimulationRequirementContext::for_city_at(
                     self,
-                    &city,
+                    city,
                     Some((city.x, city.y)),
                 )
                 .with_disordered(disorder)

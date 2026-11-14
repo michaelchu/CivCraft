@@ -17,14 +17,13 @@ impl Simulation {
         record: &crate::rules::freeciv::ContentRecord,
     ) -> Option<UnitKind> {
         UnitKind::ALL_NATIVE.into_iter().find(|&kind| {
-            let mapped = match crate::sim::action_rules::freeciv_unit_economics_record(kind) {
+            match crate::sim::action_rules::freeciv_unit_economics_record(kind) {
                 crate::sim::action_rules::UnitEconomicsRecordBinding::Mapped {
                     record: mapped_record,
                     ..
                 } => mapped_record.section.eq_ignore_ascii_case(&record.section),
                 crate::sim::action_rules::UnitEconomicsRecordBinding::Unsupported { .. } => false,
-            };
-            mapped
+            }
         })
     }
 
@@ -52,14 +51,13 @@ impl Simulation {
         }
 
         let identity_mapped = UnitKind::ALL_NATIVE.into_iter().any(|kind| {
-            let mapped = match crate::sim::action_rules::freeciv_unit_economics_record(kind) {
+            match crate::sim::action_rules::freeciv_unit_economics_record(kind) {
                 crate::sim::action_rules::UnitEconomicsRecordBinding::Mapped {
                     record: mapped_record,
                     ..
                 } => mapped_record.section.eq_ignore_ascii_case(&record.section),
                 crate::sim::action_rules::UnitEconomicsRecordBinding::Unsupported { .. } => false,
-            };
-            mapped
+            }
         });
         if !identity_mapped {
             return false;

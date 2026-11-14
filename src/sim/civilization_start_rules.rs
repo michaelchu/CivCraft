@@ -17,7 +17,6 @@ pub(super) struct StartProfile {
 }
 
 impl StartProfile {
-
     pub(super) fn units(&self) -> Vec<(&'static str, usize)> {
         let mut units = Vec::with_capacity(3);
         if self.starting_unit_1_count > 0 {

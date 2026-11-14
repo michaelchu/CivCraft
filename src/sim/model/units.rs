@@ -34,6 +34,10 @@ pub(crate) enum UnitKind {
     RadarArtillery,
     CruiseMissile,
     TacticalNuke,
+    #[expect(
+        clippy::upper_case_acronyms,
+        reason = "Preserve the existing unit identity in saved games and diagnostic output."
+    )]
     ICBM,
     Galley,
     Caravel,

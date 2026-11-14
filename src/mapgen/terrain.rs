@@ -295,6 +295,10 @@ impl<Eligible: Fn(usize) -> bool> PatchGrowth<'_, Eligible> {
 }
 
 impl super::Generator {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Terrain generation consumes independent map fields and the deterministic RNG."
+    )]
     pub(super) fn terrain_pass(
         &self,
         heights: &[i32],

@@ -112,9 +112,7 @@ impl Simulation {
                 paid.push((unit.id, cost));
             }
         }
-        UnitGoldUpkeep {
-            paid,
-        }
+        UnitGoldUpkeep { paid }
     }
 
     pub(super) fn virtual_unit_raw_food_upkeep(&self, city: &City, unit: &Unit) -> Option<i32> {
@@ -146,9 +144,9 @@ impl Simulation {
             .into_iter()
             .map(|unit| (unit, freeciv_unit_economics_record(unit.kind)))
             .collect();
-        let allocation_complete = mappings.iter().all(|(_, mapping)| {
-            matches!(mapping, UnitEconomicsRecordBinding::Mapped { .. })
-        });
+        let allocation_complete = mappings
+            .iter()
+            .all(|(_, mapping)| matches!(mapping, UnitEconomicsRecordBinding::Mapped { .. }));
         let government = self.players[city.owner].government;
         let output_types = ["Food", "Shield", "Gold"];
         // Freeciv allocates each output's free upkeep across the city's
@@ -506,7 +504,7 @@ impl Simulation {
             &context,
         )
         .unwrap_or_else(|error| panic!("could not evaluate C2C3 unit shield value: {error:?}"));
-        let value = i64::from(base) + i64::from(base) * percent / 100;
+        let value = base + base * percent / 100;
         i32::try_from(value).unwrap_or_else(|_| panic!("unit shield value exceeds i32"))
     }
 
@@ -725,10 +723,12 @@ mod tests {
         let upkeep = game.city_unit_upkeep(&game.cities[0]);
         assert_eq!((upkeep.food, upkeep.shields, upkeep.gold), (0, 0, 2));
         assert_eq!(upkeep.unit_happiness, 0);
-        assert!(upkeep.per_unit.iter().all(|row| matches!(
-            &row.economics,
-            UnitUpkeepMapping::Mapped { .. }
-        )));
+        assert!(
+            upkeep
+                .per_unit
+                .iter()
+                .all(|row| matches!(&row.economics, UnitUpkeepMapping::Mapped { .. }))
+        );
         assert_eq!(
             upkeep
                 .per_unit
@@ -757,10 +757,12 @@ mod tests {
         assert_eq!(gold.paid.len(), 2);
         assert_eq!(gold.paid.iter().map(|(_, cost)| cost).sum::<i32>(), 4);
         let upkeep = game.city_unit_upkeep(&game.cities[0]);
-        assert!(upkeep.per_unit.iter().all(|row| matches!(
-            &row.economics,
-            UnitUpkeepMapping::Mapped { .. }
-        )));
+        assert!(
+            upkeep
+                .per_unit
+                .iter()
+                .all(|row| matches!(&row.economics, UnitUpkeepMapping::Mapped { .. }))
+        );
         assert!(game.units.iter().any(|unit| unit.id == army));
     }
 
@@ -824,10 +826,12 @@ mod tests {
         }
         let upkeep = game.city_unit_upkeep(&game.cities[0]);
         assert_eq!(upkeep.unit_happiness, 6);
-        assert!(upkeep.per_unit.iter().all(|row| matches!(
-            &row.economics,
-            UnitUpkeepMapping::Mapped { .. }
-        )));
+        assert!(
+            upkeep
+                .per_unit
+                .iter()
+                .all(|row| matches!(&row.economics, UnitUpkeepMapping::Mapped { .. }))
+        );
     }
 
     #[test]

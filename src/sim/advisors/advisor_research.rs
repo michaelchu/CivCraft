@@ -167,12 +167,7 @@ impl Simulation {
         self.city_tech_effect_want_with_baseline(city, tech, baseline)
     }
 
-    fn city_tech_effect_want_with_baseline(
-        &self,
-        city: &City,
-        tech: Tech,
-        baseline: i32,
-    ) -> i32 {
+    fn city_tech_effect_want_with_baseline(&self, city: &City, tech: Tech, baseline: i32) -> i32 {
         let direct = match tech {
             Tech::RAILROAD | Tech::TRADE | Tech::THE_CORPORATION => {
                 self.advisor_city_output(city, Some(tech)) - baseline

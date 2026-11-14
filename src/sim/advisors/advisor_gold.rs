@@ -437,14 +437,7 @@ impl Simulation {
             }
         }
         let at_war = self.ai_on_war_footing(owner);
-        self.spend_ai_routine_gold(
-            owner,
-            reserve,
-            expenses,
-            at_war,
-            &emergency_cities,
-            choices,
-        );
+        self.spend_ai_routine_gold(owner, reserve, expenses, at_war, &emergency_cities, choices);
         if !at_war {
             self.spend_ai_upgrade_gold(owner, None, reserve.max(expenses));
         }
@@ -611,7 +604,7 @@ mod city_sale_tests {
         game.cities[0].buildings.extend([candidate]);
         game.cities[0]
             .buildings
-            .extend(std::iter::repeat(Building::LIBRARY).take(20));
+            .extend(std::iter::repeat_n(Building::LIBRARY, 20));
         game.players[1].rates = [0, 29, 71];
         assert!(game.ai_projected_income(1) < -game.players[1].gold);
         assert!(!game.ai_sell_for_solvency(1));

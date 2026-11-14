@@ -155,8 +155,8 @@ fn conquest_transfers_city_loots_gold_raze_and_savepalace_by_selected_rules() {
     assert_eq!(game.players[HUMAN].gold, loot);
     assert_eq!(game.players[1].gold, 200 - loot);
     assert_eq!(game.players[HUMAN].gold + game.players[1].gold, 200);
-    assert_eq!(captured.has_building(Building::PALACE), true);
-    assert_eq!(captured.has_building(Building::GREAT_LIBRARY), true);
+    assert!(captured.has_building(Building::PALACE));
+    assert!(captured.has_building(Building::GREAT_LIBRARY));
     assert_eq!(
         captured.has_building(Building::CITY_WALLS),
         !city_walls_razed

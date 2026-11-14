@@ -213,7 +213,7 @@ mod tests {
         let seed = (1..=1000)
             .find(|&seed| {
                 expected.set_random_seed(seed);
-                expected.rand_below(1000) + 1 <= 50
+                expected.rand_below(1000) < 50
             })
             .expect("one in twenty city conversion roll");
         game.set_random_seed(seed);

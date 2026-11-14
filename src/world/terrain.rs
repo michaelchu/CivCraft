@@ -121,7 +121,6 @@ impl Terrain {
         matches!(self, Self::Coast | Self::Sea | Self::Ocean | Self::Lake)
     }
 
-
     pub(crate) fn defense_bonus(self) -> i32 {
         match self {
             Self::Forest | Self::Jungle => 25,
@@ -191,7 +190,6 @@ impl Terrain {
             _ => 0,
         }
     }
-
 
     pub(crate) fn irrigation_time(self) -> i32 {
         match self {

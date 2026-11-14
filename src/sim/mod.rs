@@ -473,8 +473,7 @@ impl Simulation {
 
         let roster = crate::rules::civilizations::select_roster(seed, MAX_CIVILIZATIONS);
         let mut players = Vec::new();
-        for i in 0..MAX_CIVILIZATIONS {
-            let civilization = roster[i];
+        for (i, civilization) in roster.iter().enumerate().take(MAX_CIVILIZATIONS) {
             players.push(Player {
                 name: civilization.name.clone(),
                 civilization_id: Some(civilization.id.clone()),

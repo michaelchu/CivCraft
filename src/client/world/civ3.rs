@@ -103,7 +103,7 @@ fn irrigation_sprite_index(diagonals: [bool; 4]) -> usize {
         .into_iter()
         .zip([0x1, 0x2, 0x4, 0x8])
         .fold(0, |index, (irrigated, flag)| {
-            index | usize::from(irrigated) * flag
+            index | (usize::from(irrigated) * flag)
         })
 }
 
@@ -114,7 +114,7 @@ fn route_sprite_index(neighbors: [bool; 8]) -> usize {
         .into_iter()
         .zip(FLAGS)
         .fold(0, |index, (connected, flag)| {
-            index | usize::from(connected) * flag
+            index | (usize::from(connected) * flag)
         })
 }
 
@@ -123,7 +123,7 @@ fn contamination_sprite_index(diagonal_neighbors: [bool; 4], variation: usize) -
         .into_iter()
         .zip([0x1, 0x2, 0x4, 0x8])
         .fold(0usize, |index, (connected, flag)| {
-            index | usize::from(connected) * flag
+            index | (usize::from(connected) * flag)
         });
     if mask == 0 {
         variation % 10
@@ -391,10 +391,11 @@ impl<'a> Civ3WorldPainter<'a> {
         } else {
             (route_sprite_index(road_connections), 0)
         };
-        if tile.railroad && road_index != 0 {
-            if !tileset.draw_road(road_index, geometry.center, geometry.size()) {
-                return false;
-            }
+        if tile.railroad
+            && road_index != 0
+            && !tileset.draw_road(road_index, geometry.center, geometry.size())
+        {
+            return false;
         }
         if tile.railroad {
             tileset.draw_railroad(railroad_index, geometry.center, geometry.size())

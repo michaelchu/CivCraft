@@ -290,10 +290,7 @@ impl FuelPaths {
         let mut tail = self.positions.len();
         self.positions.push(self.snapshot(cursor));
         self.nodes[cursor].pos = Some(tail);
-        loop {
-            let Some(direction) = self.nodes[cursor].direction else {
-                break;
-            };
+        while let Some(direction) = self.nodes[cursor].direction {
             let (x, y) = self.map_wrap.position(cursor);
             let (dx, dy) = CIV3_DIRS[direction];
             let Some((px, py)) = self.map_wrap.civ3_offset(x, y, -dx, -dy) else {

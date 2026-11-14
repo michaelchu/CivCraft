@@ -491,9 +491,9 @@ mod wrap_tests {
         for wrap in [MapWrap::X] {
             for y in 0..wrap.height() {
                 for x in 0..wrap.width() {
-                    for direction in 0..CIV3_DIRS.len() {
+                    for (direction, &(_, dy)) in CIV3_DIRS.iter().enumerate() {
                         let Some((nx, ny)) = wrap.civ3_neighbor(x, y, direction) else {
-                            assert!(!(0..wrap.height()).contains(&(y + CIV3_DIRS[direction].1)));
+                            assert!(!(0..wrap.height()).contains(&(y + dy)));
                             continue;
                         };
                         assert_eq!(
@@ -522,7 +522,8 @@ mod wrap_tests {
 
     #[test]
     fn civ3_neighbor_iterator_exposes_all_eight_directions() {
-        for wrap in [MapWrap::X] {
+        {
+            let wrap = MapWrap::X;
             let (x, y) = (wrap.width() / 2, wrap.height() / 2);
             let neighbors: Vec<_> = wrap.civ3_neighbors(x, y).collect();
             let expected: Vec<_> = (0..CIV3_DIRS.len())
@@ -563,11 +564,11 @@ mod wrap_tests {
             ];
             for (x, y) in origins {
                 let graph = wrap.civ3_distances_from(x, y);
-                for index in 0..wrap.tile_count() {
+                for (index, &distance) in graph.iter().enumerate() {
                     let (tx, ty) = wrap.position(index);
                     assert_eq!(
                         wrap.civ3_distance(x, y, tx, ty),
-                        graph[index],
+                        distance,
                         "wrap={wrap:?}, origin=({x},{y}), target=({tx},{ty})"
                     );
                 }
@@ -620,7 +621,8 @@ mod wrap_tests {
 
     #[test]
     fn civ3_city_radius_has_twenty_one_distinct_tiles_and_wraps_at_the_seam() {
-        for wrap in [MapWrap::X] {
+        {
+            let wrap = MapWrap::X;
             let center = (wrap.width() - 1, wrap.height() / 2);
             let radius: Vec<_> = wrap.city_radius(center.0, center.1).collect();
             let unique: std::collections::HashSet<_> =

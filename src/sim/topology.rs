@@ -46,10 +46,7 @@ mod campaign_boundary_tests {
             sim.refresh_visibility();
             let other = (10, wrap.height() - 1);
             assert!(!sim.tile(other.0, other.1).visible);
-            assert_eq!(
-                sim.map_wrap.civ3_neighbors(10, 0).any(|p| p == other),
-                false
-            );
+            assert!(!sim.map_wrap.civ3_neighbors(10, 0).any(|p| p == other));
             let actor = sim.units[0].clone();
             let path = sim.plan_route(&actor, other.0, other.1, true);
             assert!(path.len() > 20);
@@ -57,7 +54,7 @@ mod campaign_boundary_tests {
             let city = sim.create_city(HUMAN, 10, 0);
             let _ = city;
             let radius: Vec<_> = sim.map_city_radius(sim.cities.last().unwrap()).collect();
-            assert_eq!(radius.iter().any(|p| p.3 >= wrap.height() - 2), false);
+            assert!(!radius.iter().any(|p| p.3 >= wrap.height() - 2));
             assert!(radius.iter().all(|p| (0..wrap.height()).contains(&p.3)));
             // Population loss must remove fields across this mode's actual seam.
             let mut edge_city = sim.cities.last().unwrap().clone();

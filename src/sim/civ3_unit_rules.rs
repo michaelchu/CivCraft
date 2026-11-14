@@ -366,7 +366,9 @@ fn parse_ai_strategy_mask(profiles: &str, row: usize) -> u32 {
         assert_eq!(raw_flags.len(), 16, "invalid source AI flags on row {row}");
         let bytes = raw_flags
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| {
                 let pair = std::str::from_utf8(pair).expect("hex profile bytes");
                 u8::from_str_radix(pair, 16)
@@ -388,7 +390,9 @@ fn rules() -> &'static [UnitRule] {
             assert_eq!(value.len() % 2, 0, "invalid flag bytes on row {row}");
             value
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| {
                     let pair = std::str::from_utf8(pair).unwrap();
                     u8::from_str_radix(pair, 16)
