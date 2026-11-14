@@ -109,7 +109,8 @@ impl Simulation {
         }
         // dai_do_first_activities assesses danger (and its research feedback)
         // before moving units; do_last_activities clears these wants later.
-        self.trace.profile_step("ai_plan.tech_and_registries");
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("ai.tech_and_registries");
         self.record_ai_first_activity_tech_wants(owner);
         self.refresh_ai_ferries();
         self.refresh_ai_guards();
@@ -122,7 +123,8 @@ impl Simulation {
         for boat in boats {
             self.refresh_ferry_boss(boat);
         }
-        self.trace.profile_step("ai_plan.city_defenders");
+        drop(_profile);
+        let _profile = profiler.scope("ai.city_defenders");
         let mut city_defenders = self.assign_ai_city_defenders(owner);
         // Keep the home city for this pass. A Freeciv DEFEND_HOME unit may
         // rampage and leave its tile before dai_military_defend sends it back.
@@ -174,8 +176,8 @@ impl Simulation {
             city_defenders.insert(id);
             city_defender_homes.entry(id).or_insert(home);
         }
-        self.trace
-            .profile_step("ai_plan.counterattack_and_reinforcement");
+        drop(_profile);
+        let _profile = profiler.scope("ai.counterattack_and_reinforcement");
         let counterattacks = self.counterattack_from_ai_cities(owner, &city_defenders);
         let reinforcements = self.reinforce_ai_cities(owner, &city_defenders);
         let paratroopers: Vec<_> = self
@@ -193,7 +195,8 @@ impl Simulation {
             .iter()
             .filter_map(|unit| self.run_ai_paratrooper(unit).then_some(unit.id))
             .collect();
-        self.trace.profile_step("ai_plan.transports_and_settlement");
+        drop(_profile);
+        let _profile = profiler.scope("ai.transports_and_settlement");
         self.prune_settlement_reservations(owner);
         let settlement_ferries = self.dispatch_settlement_ferries(owner, &city_defenders);
         let assault = self.dispatch_assault_transports(
@@ -214,11 +217,13 @@ impl Simulation {
             .chain(&assault)
             .copied()
             .collect();
-        self.trace.profile_step("ai_plan.ground_invasions");
+        drop(_profile);
+        let _profile = profiler.scope("ai.ground_invasions");
         self.refresh_ground_invasions(owner, &reserved);
         let mut claimed_targets = std::collections::HashSet::new();
         let mut ferry_managed = std::collections::HashSet::new();
-        self.trace.profile_step("ai_plan.units");
+        drop(_profile);
+        let _profile = profiler.scope("ai.units");
         let unit_ids: Vec<u32> = self.player_units_ordered(owner).map(|u| u.id).collect();
         for id in unit_ids {
             let Some(unit) = self.unit_by_id(id).cloned() else {
@@ -372,6 +377,7 @@ impl Simulation {
                 }
             }
         }
+        drop(_profile);
         true
     }
 

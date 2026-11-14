@@ -46,7 +46,8 @@ impl Simulation {
         }
         // srv_main:end_phase also enacts changes made during this phase.
         self.trace.phase(trace::Phase::EndActivities);
-        self.trace.profile_step("end.revolutions_and_automation");
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("turn.revolutions_and_automation");
         self.finish_revolutions();
         let automated: Vec<u32> = self
             .player_units_ordered(HUMAN)
@@ -56,22 +57,26 @@ impl Simulation {
         for id in automated {
             self.run_automated_unit(id);
         }
+        drop(_profile);
         // srv_main::end_phase runs auto_workers_player before AI
         // last_activities, immediately before city activities.
         for owner in 0..self.civilization_count {
             if !self.player_alive(owner) {
                 continue;
             }
-            self.trace.profile_step("end.ai_worker_phase");
+            let _profile = profiler.scope("turn.ai_worker_phase");
             self.run_ai_worker_phase(owner);
+            drop(_profile);
             if self.players[owner].ai {
-                self.trace.profile_step("end.ai_last_activities");
+                let _profile = profiler.scope("turn.ai_last_activities");
                 self.run_ai_last_activities(owner);
+                drop(_profile);
             }
         }
-        self.trace.profile_step("end.barbarian_worker_phase");
+        let _profile = profiler.scope("turn.barbarian_worker_phase");
         self.run_ai_worker_phase(BARBARIANS);
-        self.trace.profile_step("end.prune_and_trade_routes");
+        drop(_profile);
+        let _profile = profiler.scope("turn.prune_and_trade_routes");
         self.ai_free_bulbs.clear();
         self.prune_ai_player_units();
         // Route connectivity is an actor-free CivCraft adapter for C2C3's
@@ -79,13 +84,14 @@ impl Simulation {
         // and last-activity changes, before any city calculates output.
         self.reconcile_trade_routes();
         self.establish_connected_trade_routes();
+        drop(_profile);
         self.trace.phase(trace::Phase::CityProcessing);
         for owner in 0..self.players.len() {
             if !self.player_alive(owner) || (owner < BARBARIANS && owner >= self.civilization_count)
             {
                 continue;
             }
-            self.trace.profile_step("cities.player_processing");
+            let _profile = profiler.scope("turn.cities.player_processing");
             self.restore_player_units(owner);
             let income = self.process_player_cities(owner);
             self.finish_player_national_activities(owner, income);
@@ -102,11 +108,12 @@ impl Simulation {
             {
                 self.players[owner].gold += self.players[owner].gold.max(0) / 20;
             }
+            drop(_profile);
         }
         // Freeciv summons barbarians at end_turn(), after city activity. They
         // first move in ai_start_phase() at the following begin_phase().
         self.trace.phase(trace::Phase::WorldEvents);
-        self.trace.profile_step("world.events_and_visibility");
+        let _profile = profiler.scope("turn.world.events_and_visibility");
         self.summon_barbarians();
         self.check_city_migrations(crate::sim::migration::MigrationSettings::c2c3_default());
         self.check_disasters();
@@ -146,13 +153,14 @@ impl Simulation {
         if self.game_over.is_some() {
             return;
         }
+        drop(_profile);
         // begin_turn() calculates score before begin-phase activities and AI.
         self.refresh_score_snapshot();
         // srv_main:begin_phase progresses activities with the previous
         // movement budget, then refills MP. Revolution completion is also
         // checked here, after activities (update_revolution at line 1381).
         self.trace.phase(trace::Phase::UnitActivities);
-        self.trace.profile_step("units.activities_and_visibility");
+        let _profile = profiler.scope("turn.units.activities_and_visibility");
         for owner in 0..self.players.len() {
             self.progress_player_unit_activities(owner);
         }
@@ -161,12 +169,15 @@ impl Simulation {
             city.airlift_used = false;
         }
         self.refresh_visibility();
+        drop(_profile);
         self.trace.phase(trace::Phase::AiPlanning);
-        self.trace.profile_step("ai.civilizations");
+        let _profile = profiler.scope("turn.ai.civilizations");
         self.run_civilization_begin_phase_ai();
-        self.trace.profile_step("ai.barbarians");
+        drop(_profile);
+        let _profile = profiler.scope("turn.ai.barbarians");
         self.run_barbarian_begin_phase();
-        self.trace.profile_step("ai.gotos_and_indexes");
+        drop(_profile);
+        let _profile = profiler.scope("turn.ai.gotos_and_indexes");
         self.continue_player_gotos();
         self.rebuild_city_ownership();
         // Historical field name is retained for save compatibility; hunter
@@ -180,6 +191,7 @@ impl Simulation {
             self.previous_naval_positions.contains_key(hunter)
                 && self.previous_naval_positions.contains_key(target)
         });
+        drop(_profile);
         self.trace.phase(trace::Phase::TurnEnd);
         self.add_event(format!(
             "Turn {} begins - {}.",

@@ -99,7 +99,7 @@ cargo run --offline --release --bin headless_sim -- \
 record their version and setup checks in `run.scenario`; loaded campaigns record
 the source path. Both attach a fresh trace collector before simulation begins.
 
-Report schema 5 provides a compact summary and two streamed evidence sidecars:
+Report schema 6 provides a compact summary and two streamed evidence sidecars:
 
 - `/tmp/civcraft-simulation.json`: run configuration/status, enabled analyzers,
   metrics, coverage, findings, final totals, and a compact timeline.
@@ -108,6 +108,10 @@ Report schema 5 provides a compact summary and two streamed evidence sidecars:
   and unit providers.
 - `/tmp/civcraft-simulation.json.events.jsonl`: structured events carrying turn,
   phase, sequence, participants, and domain-owned payloads.
+
+For performance investigations, pass `--profile-turns true`. The summary then
+includes per-turn phase timings, named scope aggregates (call count and
+inclusive/exclusive time), entity counts, and operation counters.
 
 Read the summary first, then select evidence by snapshot turn or event sequence:
 

@@ -1,8 +1,8 @@
 //! Passive runtime instrumentation. No callbacks or gameplay decisions live here.
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -57,6 +57,7 @@ pub(crate) struct Collector {
     profile_turn: Option<TurnProfileInProgress>,
     profiles: Vec<TurnProfile>,
     operations: RefCell<BTreeMap<&'static str, u64>>,
+    span_recorder: Rc<RefCell<SpanRecorder>>,
 }
 
 struct TurnProfileInProgress {
@@ -67,9 +68,35 @@ struct TurnProfileInProgress {
     phase_started: Instant,
     phase: Phase,
     phases: Vec<PhaseProfile>,
-    step_started: Instant,
-    step: Option<&'static str>,
-    steps: Vec<StepProfile>,
+}
+
+#[derive(Default)]
+struct SpanRecorder {
+    enabled: bool,
+    active: Vec<ActiveSpan>,
+    completed: BTreeMap<&'static str, SpanAggregate>,
+}
+
+struct ActiveSpan {
+    id: u64,
+    name: &'static str,
+    started: Instant,
+    child_elapsed: std::time::Duration,
+}
+
+#[derive(Clone, Copy, Default)]
+struct SpanAggregate {
+    calls: u64,
+    inclusive_seconds: f64,
+    exclusive_seconds: f64,
+}
+
+#[derive(Clone)]
+pub(crate) struct ProfileHandle(Rc<RefCell<SpanRecorder>>);
+
+pub(crate) struct ProfileSpan {
+    recorder: Rc<RefCell<SpanRecorder>>,
+    id: u64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -85,14 +112,16 @@ pub(crate) struct TurnProfile {
     pub unit_count: usize,
     pub elapsed_seconds: f64,
     pub phases: Vec<PhaseProfile>,
-    pub steps: Vec<StepProfile>,
+    pub spans: Vec<SpanProfile>,
     pub operations: BTreeMap<&'static str, u64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub(crate) struct StepProfile {
-    pub step: &'static str,
-    pub elapsed_seconds: f64,
+pub(crate) struct SpanProfile {
+    pub name: &'static str,
+    pub calls: u64,
+    pub inclusive_seconds: f64,
+    pub exclusive_seconds: f64,
 }
 
 // Simulation clones are used for speculation. They must not share or duplicate traces.
@@ -113,6 +142,12 @@ impl Collector {
     }
     pub fn enable_profiling(&mut self) {
         self.profile_enabled = true;
+        self.span_recorder.borrow_mut().enabled = true;
+    }
+    /// A cheap cloned handle lets profiling scopes coexist with mutable access
+    /// to the simulation while a module performs its work.
+    pub fn profiler(&self) -> ProfileHandle {
+        ProfileHandle(self.span_recorder.clone())
     }
     pub fn begin_turn_profile(&mut self, turn: i32, city_count: usize, unit_count: usize) {
         if !self.profile_enabled {
@@ -120,6 +155,11 @@ impl Collector {
         }
         let now = Instant::now();
         self.operations.get_mut().clear();
+        {
+            let mut recorder = self.span_recorder.borrow_mut();
+            recorder.active.clear();
+            recorder.completed.clear();
+        }
         self.profile_turn = Some(TurnProfileInProgress {
             turn,
             city_count,
@@ -128,9 +168,6 @@ impl Collector {
             phase_started: now,
             phase: self.phase,
             phases: Vec::new(),
-            step_started: now,
-            step: None,
-            steps: Vec::new(),
         });
     }
     pub fn count_operation(&self, operation: &'static str, count: u64) {
@@ -139,42 +176,35 @@ impl Collector {
         }
         *self.operations.borrow_mut().entry(operation).or_default() += count;
     }
-    pub fn profile_step(&mut self, step: &'static str) {
-        let Some(current) = &mut self.profile_turn else {
-            return;
-        };
-        let now = Instant::now();
-        if let Some(previous) = current.step {
-            current.steps.push(StepProfile {
-                step: previous,
-                elapsed_seconds: now.duration_since(current.step_started).as_secs_f64(),
-            });
-        }
-        current.step = Some(step);
-        current.step_started = now;
-    }
     pub fn finish_turn_profile(&mut self) {
         let Some(mut current) = self.profile_turn.take() else {
             return;
         };
+        debug_assert!(
+            self.span_recorder.borrow().active.is_empty(),
+            "all profiling scopes must close before the turn profile is finished"
+        );
         let now = Instant::now();
         current.phases.push(PhaseProfile {
             phase: current.phase,
             elapsed_seconds: now.duration_since(current.phase_started).as_secs_f64(),
         });
-        if let Some(step) = current.step {
-            current.steps.push(StepProfile {
-                step,
-                elapsed_seconds: now.duration_since(current.step_started).as_secs_f64(),
-            });
-        }
+        let spans = std::mem::take(&mut self.span_recorder.borrow_mut().completed)
+            .into_iter()
+            .map(|(name, aggregate)| SpanProfile {
+                name,
+                calls: aggregate.calls,
+                inclusive_seconds: aggregate.inclusive_seconds,
+                exclusive_seconds: aggregate.exclusive_seconds,
+            })
+            .collect();
         self.profiles.push(TurnProfile {
             turn: current.turn,
             city_count: current.city_count,
             unit_count: current.unit_count,
             elapsed_seconds: now.duration_since(current.started).as_secs_f64(),
             phases: current.phases,
-            steps: current.steps,
+            spans,
             operations: std::mem::take(self.operations.get_mut()),
         });
     }
@@ -231,20 +261,12 @@ impl Collector {
     pub fn phase(&mut self, phase: Phase) {
         if let Some(current) = &mut self.profile_turn {
             let now = Instant::now();
-            if let Some(step) = current.step {
-                current.steps.push(StepProfile {
-                    step,
-                    elapsed_seconds: now.duration_since(current.step_started).as_secs_f64(),
-                });
-            }
             current.phases.push(PhaseProfile {
                 phase: current.phase,
                 elapsed_seconds: now.duration_since(current.phase_started).as_secs_f64(),
             });
             current.phase_started = now;
             current.phase = phase;
-            current.step = None;
-            current.step_started = now;
         }
         self.phase = phase;
     }
@@ -253,6 +275,50 @@ impl Collector {
     }
     pub fn dropped(&self) -> u64 {
         self.dropped
+    }
+}
+
+impl ProfileHandle {
+    /// Start a named timing scope. Scopes nest and aggregate by stable name for
+    /// the current turn; when profiling is disabled this returns immediately.
+    pub fn scope(&self, name: &'static str) -> Option<ProfileSpan> {
+        let mut recorder = self.0.borrow_mut();
+        if !recorder.enabled {
+            return None;
+        }
+        let id = recorder.active.last().map_or(1, |span| span.id + 1);
+        recorder.active.push(ActiveSpan {
+            id,
+            name,
+            started: Instant::now(),
+            child_elapsed: std::time::Duration::ZERO,
+        });
+        Some(ProfileSpan {
+            recorder: self.0.clone(),
+            id,
+        })
+    }
+}
+
+impl Drop for ProfileSpan {
+    fn drop(&mut self) {
+        let now = Instant::now();
+        let mut recorder = self.recorder.borrow_mut();
+        let Some(active) = recorder.active.pop() else {
+            return;
+        };
+        debug_assert_eq!(
+            active.id, self.id,
+            "profiling scopes must drop in stack order"
+        );
+        let elapsed = now.duration_since(active.started);
+        let aggregate = recorder.completed.entry(active.name).or_default();
+        aggregate.calls += 1;
+        aggregate.inclusive_seconds += elapsed.as_secs_f64();
+        aggregate.exclusive_seconds += elapsed.saturating_sub(active.child_elapsed).as_secs_f64();
+        if let Some(parent) = recorder.active.last_mut() {
+            parent.child_elapsed += elapsed;
+        }
     }
 }
 
@@ -334,11 +400,14 @@ mod integration_tests {
         plain.enable_all_civilizations_as_ai();
         let mut traced = plain.clone();
         traced.trace = Collector::enabled(BTreeSet::from(["*".into()]), 10000);
+        let mut profiled = plain.clone();
+        profiled.trace.enable_profiling();
         let mut event_count = 0;
         let mut event_kinds = BTreeSet::new();
         for _ in 0..3 {
             plain.simulate_turn();
             traced.simulate_turn();
+            profiled.simulate_turn();
             let _ = traced.observe_cities();
             let _ = traced.observe_units();
             let _ = traced.observe_civilizations();
@@ -350,6 +419,14 @@ mod integration_tests {
                 bincode::serialize(&plain.native_random).unwrap(),
                 bincode::serialize(&traced.native_random).unwrap()
             );
+            assert_eq!(
+                bincode::serialize(&plain).unwrap(),
+                bincode::serialize(&profiled).unwrap()
+            );
+            assert_eq!(
+                bincode::serialize(&plain.native_random).unwrap(),
+                bincode::serialize(&profiled.native_random).unwrap()
+            );
             let events = traced.trace.drain();
             event_count += events.len();
             event_kinds.extend(events.into_iter().map(|event| event.kind));
@@ -357,6 +434,7 @@ mod integration_tests {
         assert!(event_count > 0);
         assert!(event_kinds.contains("settlement.city_founded"));
         assert!(event_kinds.contains("cities.growth_applied"));
+        assert_eq!(profiled.trace.drain_profiles().len(), 3);
         let bytes = bincode::serialize(&traced).unwrap();
         let mut loaded: Simulation = bincode::deserialize(&bytes).unwrap();
         assert!(!loaded.trace.wants::<Example>());
@@ -367,12 +445,18 @@ mod integration_tests {
     }
 
     #[test]
-    fn opt_in_turn_profiles_record_phases_steps_entities_and_operations() {
+    fn opt_in_turn_profiles_record_phases_scopes_entities_and_operations() {
         let mut collector = Collector::default();
         collector.enable_profiling();
         collector.begin_turn_profile(7, 3, 11);
         collector.phase(Phase::EndActivities);
-        collector.profile_step("workers");
+        let profiler = collector.profiler();
+        {
+            let _scope = profiler.scope("workers");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            let _nested = profiler.scope("workers.pathfinding");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
         collector.count_operation("routes", 4);
         collector.phase(Phase::CityProcessing);
         collector.finish_turn_profile();
@@ -386,7 +470,26 @@ mod integration_tests {
                 .iter()
                 .any(|phase| phase.phase == Phase::EndActivities)
         );
-        assert!(profiles[0].steps.iter().any(|step| step.step == "workers"));
+        let workers = profiles[0]
+            .spans
+            .iter()
+            .find(|span| span.name == "workers")
+            .unwrap();
+        let nested = profiles[0]
+            .spans
+            .iter()
+            .find(|span| span.name == "workers.pathfinding")
+            .unwrap();
+        assert_eq!(workers.calls, 1);
+        assert!(workers.inclusive_seconds >= workers.exclusive_seconds);
+        assert!(workers.inclusive_seconds >= nested.inclusive_seconds);
+        assert_eq!(nested.calls, 1);
         assert_eq!(profiles[0].operations["routes"], 4);
+    }
+
+    #[test]
+    fn profiling_scopes_are_absent_when_profiling_is_disabled() {
+        let collector = Collector::default();
+        assert!(collector.profiler().scope("unused.operation").is_none());
     }
 }

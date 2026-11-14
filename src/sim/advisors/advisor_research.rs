@@ -83,18 +83,22 @@ impl Simulation {
     }
 
     pub(super) fn record_ai_military_tech_wants(&mut self, city: &City) {
-        self.trace.profile_step("military_tech.counter_defenders");
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("advisor.military_tech.counter_defenders");
         for (tech, want) in self.counter_defender_tech_feedback(city) {
             self.add_ai_tech_want(city.owner, tech, want);
         }
-        self.trace.profile_step("military_tech.future_defenders");
+        drop(_profile);
+        let _profile = profiler.scope("advisor.military_tech.future_defenders");
         for (tech, want) in self.production_defender_tech_wants(city) {
             self.add_ai_tech_want(city.owner, tech, want);
         }
-        self.trace.profile_step("military_tech.offense");
+        drop(_profile);
+        let _profile = profiler.scope("advisor.military_tech.offense");
         for (tech, want) in self.offensive_advice(city).1 {
             self.add_ai_tech_want(city.owner, tech, want);
         }
+        drop(_profile);
     }
 
     /// Explicit preview for isolated advisor scenarios. Runtime research and

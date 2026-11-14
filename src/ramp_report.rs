@@ -43,15 +43,23 @@ fn window(profiles: &[&Value]) -> Result<Value, String> {
     }))
 }
 
-fn named_means(profiles: &[&Value], field: &str, name_field: &str) -> BTreeMap<String, f64> {
+fn named_means(
+    profiles: &[&Value],
+    field: &str,
+    name_field: &str,
+    value_field: &str,
+) -> BTreeMap<String, f64> {
     let mut totals = BTreeMap::<String, f64>::new();
     for profile in profiles {
         for item in profile[field].as_array().into_iter().flatten() {
             let Some(name) = item[name_field].as_str() else {
                 continue;
             };
-            if let Some(seconds) = item["elapsed_seconds"].as_f64() {
-                *totals.entry(name.to_owned()).or_default() += seconds;
+            let value = item[value_field]
+                .as_f64()
+                .or_else(|| item[value_field].as_u64().map(|value| value as f64));
+            if let Some(value) = value {
+                *totals.entry(name.to_owned()).or_default() += value;
             }
         }
     }
@@ -109,19 +117,35 @@ fn summarize(report: &Value, source: &str) -> Result<Value, String> {
     let mut detail = Map::new();
     detail.insert(
         "early_phase_mean_seconds".into(),
-        json!(named_means(early, "phases", "phase")),
+        json!(named_means(early, "phases", "phase", "elapsed_seconds")),
     );
     detail.insert(
         "late_phase_mean_seconds".into(),
-        json!(named_means(late, "phases", "phase")),
+        json!(named_means(late, "phases", "phase", "elapsed_seconds")),
     );
     detail.insert(
-        "early_step_mean_seconds".into(),
-        json!(named_means(early, "steps", "step")),
+        "early_span_mean_inclusive_seconds".into(),
+        json!(named_means(early, "spans", "name", "inclusive_seconds")),
     );
     detail.insert(
-        "late_step_mean_seconds".into(),
-        json!(named_means(late, "steps", "step")),
+        "late_span_mean_inclusive_seconds".into(),
+        json!(named_means(late, "spans", "name", "inclusive_seconds")),
+    );
+    detail.insert(
+        "early_span_mean_exclusive_seconds".into(),
+        json!(named_means(early, "spans", "name", "exclusive_seconds")),
+    );
+    detail.insert(
+        "late_span_mean_exclusive_seconds".into(),
+        json!(named_means(late, "spans", "name", "exclusive_seconds")),
+    );
+    detail.insert(
+        "early_span_mean_calls".into(),
+        json!(named_means(early, "spans", "name", "calls")),
+    );
+    detail.insert(
+        "late_span_mean_calls".into(),
+        json!(named_means(late, "spans", "name", "calls")),
     );
     detail.insert(
         "early_operation_means".into(),
@@ -190,7 +214,7 @@ mod tests {
                     "unit_count": turn * 2,
                     "elapsed_seconds": turn as f64,
                     "phases": [{"phase":"ai_planning","elapsed_seconds":turn as f64 / 2.0}],
-                    "steps": [{"step":"workers","elapsed_seconds":turn as f64 / 4.0}],
+                    "spans": [{"name":"workers","inclusive_seconds":turn as f64 / 4.0,"exclusive_seconds":turn as f64 / 8.0,"calls":2}],
                     "operations": {"routes":turn},
                 })
             })

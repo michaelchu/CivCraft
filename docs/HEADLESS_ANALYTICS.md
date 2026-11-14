@@ -95,6 +95,26 @@ Currently instrumented: actual city food/growth processing, production
 completion, city founding, and settlement-site selection. Growth traces describe
 observed behavior, not an expected Civ III rules oracle.
 
+## Opt-in simulation profiling
+
+With `--profile-turns true`, simulation code can create a scoped timing with a
+stable module/operation name:
+
+```rust
+let profiler = self.trace.profiler();
+let _scope = profiler.scope("ai.worker_planning");
+self.plan_workers();
+```
+
+The cloned handle lets a scope stay alive while the simulation is mutably
+borrowed. Scopes close automatically, including on early return, and may nest.
+Profiles aggregate call count, inclusive time, and exclusive time by name for
+each turn. Disabled profiling returns no scope and does not time the operation.
+Prefer meaningful work units over one scope per tiny helper; pair timings with
+existing or new `count_operation` workload counters when investigating scaling.
+Nested inclusive timings overlap, so use exclusive time when comparing
+contributions across scopes; do not sum inclusive timings.
+
 ## Add an analyzer
 
 1. Create a module under `src/analytics/analyzers/` and implement `Analyzer`.
@@ -191,7 +211,7 @@ cargo run --offline --release --bin headless_sim -- \
   Defaults to `none`; built-in heuristics cannot trigger `invariant` mode.
 - `--checkpoint-every 10` controls publication frequency.
 - `--profile-turns true` records opt-in per-turn timings for simulation phases
-  and named substeps, the starting city/unit counts, and operation counters.
+  and named scopes, the starting city/unit counts, and operation counters.
   Leave it disabled for ordinary scenario checks. Use it for deterministic
   performance investigations and compare fixed turn windows rather than only
   the total process runtime.
@@ -201,7 +221,7 @@ size grows with requested turns and selected/required providers; event limits
 do not limit snapshots. The compact timeline and findings remain in memory.
 I/O errors fail the runner rather than silently continuing without evidence.
 
-## Report schema 5
+## Report schema 6
 
 `report.json` is the review entry point:
 
@@ -213,10 +233,11 @@ I/O errors fail the runner rather than silently continuing without evidence.
   and effective snapshot providers.
 - `summary`, `findings`, `timeline`: compact review information.
 - `turn_profiles`: present as an empty array unless profiling is enabled. Each
-  entry contains total turn time, phase/substep times, starting entity counts,
-  and operation counts such as city-manager search iterations and advisor
-  cache hits/misses. Timings are diagnostic wall-clock observations and do not
-  participate in simulation decisions.
+  entry contains total turn time, phase times, scoped timing aggregates
+  (`spans`, with call count and inclusive/exclusive seconds), starting entity
+  counts, and operation counts such as city-manager search iterations and
+  advisor cache hits/misses. Timings are diagnostic wall-clock observations
+  and do not participate in simulation decisions.
 - `evidence`: relative filenames, record counts, and lookup guidance.
 
 Sidecars:
@@ -236,13 +257,15 @@ Both streams flush before a summary checkpoint is atomically published.
 limit, game over, or configured finding stop. A terminated run can leave its
 last valid `running` checkpoint. No findings is not proof of correct gameplay.
 
-Schema 5 replaces schema 4's history sidecar with independent snapshots/events,
-adds the initial snapshot and analyzer metadata, and introduces finding episode
-IDs. Readers should inspect `version` before applying schema-specific queries.
+Schema 6 replaces implicit sequential step timings with scoped timing
+aggregates. Schema 5 replaced schema 4's history sidecar with independent
+snapshots/events, added the initial snapshot and analyzer metadata, and
+introduced finding episode IDs. Readers should inspect `version` before
+applying schema-specific queries.
 
 For ramp analysis, use one fixed seed and world configuration, then compare
 the mean and median of turns 1–10 against turns 71–80, the worst individual
-turn, and the phase/substep shares. Record the late/early ratio explicitly.
+turn, and the phase/scope shares. Record the late/early ratio explicitly.
 Operation counts help distinguish algorithmic growth from machine noise. Always
 compare snapshot sidecars byte-for-byte when evaluating an optimization.
 
@@ -267,9 +290,10 @@ cargo run --offline --release --bin ramp_report -- \
 
 The tool uses the first and last ten recorded profiles and reports their mean
 and median time, mean entity counts, the late/early mean ratio, worst turn,
-and early/late phase, substep, and operation means. Keep the workload and host
-fixed when comparing wall-clock values. Operation counts are the preferred
-evidence that an optimization changed scaling rather than host noise.
+and early/late phase, per-operation span timing/call, and operation means. Keep
+the workload and host fixed when comparing wall-clock values. Operation counts
+are the preferred evidence that an optimization changed scaling rather than
+host noise.
 
 On the profiling host used for the November 2026 optimization pass, the final
 run averaged 0.674 seconds for turns 1–10 and 7.468 seconds for turns 71–80,

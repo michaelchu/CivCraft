@@ -811,30 +811,39 @@ impl Simulation {
         // Worker movement can change threat routes between owners. Cache only
         // within this owner's read-heavy advisor pass, then discard it.
         self.begin_ai_advisor_cache();
+        let profiler = self.trace.profiler();
         // ai/default/aihand.c:dai_do_last_activities runs government and
         // taxes before city management and spending, then research.
         self.clear_ai_tech_wants(owner);
-        self.trace.profile_step("last.government");
+        let _profile = profiler.scope("ai.last.government");
         self.choose_ai_government(owner);
         if let Some((tech, want)) = self.government_research_want(owner) {
             self.add_ai_tech_want(owner, tech, want as f32);
         }
         self.choose_ai_rates(owner);
-        self.trace.profile_step("last.emergency_workers");
+        drop(_profile);
+        let _profile = profiler.scope("ai.last.emergency_workers");
         self.arrange_ai_emergency_workers(owner);
-        self.trace.profile_step("last.city_sales");
+        drop(_profile);
+        let _profile = profiler.scope("ai.last.city_sales");
         self.manage_ai_city_sales(owner);
-        self.trace.profile_step("last.domestic_tech_wants");
+        drop(_profile);
+        let _profile = profiler.scope("ai.last.domestic_tech_wants");
         self.record_ai_domestic_tech_wants(owner);
-        self.trace.profile_step("last.city_defenses");
+        drop(_profile);
+        let _profile = profiler.scope("ai.last.city_defenses");
         let build_choices = self.prepare_ai_city_defenses(owner);
-        self.trace.profile_step("last.defense_spending");
+        drop(_profile);
+        let _profile = profiler.scope("ai.last.defense_spending");
         self.spend_ai_defense_gold_with_choices(owner, &build_choices);
-        self.trace.profile_step("last.tech_effect_wants");
+        drop(_profile);
+        let _profile = profiler.scope("ai.last.tech_effect_wants");
         self.record_ai_tech_effect_wants(owner);
-        self.trace.profile_step("last.research_and_spaceship");
+        drop(_profile);
+        let _profile = profiler.scope("ai.last.research_and_spaceship");
         self.manage_ai_research(owner);
         self.auto_launch_ai_spaceship(owner);
+        drop(_profile);
         self.end_ai_advisor_cache();
     }
 }

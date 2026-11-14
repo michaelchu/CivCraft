@@ -156,7 +156,7 @@ impl Report {
             reason.unwrap_or("checkpoint")
         };
         let report = json!({
-            "version":5,
+            "version":6,
             "run":{"status":status,"stop_reason":stop_reason,
                 "configuration":config.metadata(),"turns_simulated":turns,"final_turn":last.turn,"game_over":game_over,
                 "scenario":self.scenario,

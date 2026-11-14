@@ -662,8 +662,10 @@ impl Simulation {
         city: &City,
         wonder_city: Option<u32>,
     ) -> Option<AiBuildChoice> {
-        self.trace.profile_step("build.military");
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("advisor.build.military");
         let (_, military) = self.military_build_advice_with_wonder_city(city, wonder_city);
+        drop(_profile);
         if military.is_some() && self.ai_on_war_footing(city.owner) {
             return military;
         }
@@ -675,18 +677,21 @@ impl Simulation {
                 best = Some(AiBuildChoice { production, want });
             }
         };
-        self.trace.profile_step("build.worker");
+        let _profile = profiler.scope("advisor.build.worker");
         if let Some((kind, want)) = self.worker_production_choice_in_place(city) {
             consider(Production::Unit(kind), want);
         }
-        self.trace.profile_step("build.settlement");
+        drop(_profile);
+        let _profile = profiler.scope("advisor.build.settlement");
         if let Some(choice) = self.cached_settlement_choice(city, wonder_city) {
             consider(choice.production, choice.want);
         }
-        self.trace.profile_step("build.stable");
+        drop(_profile);
+        let _profile = profiler.scope("advisor.build.stable");
         if let Some(choice) = self.cached_building_choice(city, wonder_city) {
             consider(choice.production, choice.want);
         }
+        drop(_profile);
         best
     }
 
@@ -706,6 +711,7 @@ impl Simulation {
         &mut self,
         owner: usize,
     ) -> std::collections::BTreeMap<u32, AiBuildChoice> {
+        let profiler = self.trace.profiler();
         let mut choices = std::collections::BTreeMap::new();
         let ids: Vec<_> = self
             .player_cities_ordered(owner)
@@ -716,8 +722,9 @@ impl Simulation {
             let Some(city) = self.city_by_id(id).cloned() else {
                 continue;
             };
-            self.trace.profile_step("build.military_tech_wants");
+            let _profile = profiler.scope("advisor.build.military_tech_wants");
             self.record_ai_military_tech_wants(&city);
+            drop(_profile);
             if let Some(choice) = self.ai_build_choice_in_place(&city, wonder_city) {
                 choices.insert(id, choice);
                 if city.production != choice.production {
