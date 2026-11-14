@@ -287,6 +287,7 @@ impl Simulation {
         (a.min(b), a.max(b))
     }
 
+    #[cfg(test)]
     pub(super) fn record_diplomatic_incident(
         &mut self,
         violator: usize,

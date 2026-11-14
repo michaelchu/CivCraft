@@ -42,15 +42,6 @@ pub(crate) struct Event {
     pub payload: serde_json::Value,
 }
 
-impl Event {
-    pub fn decode<'a, P: Payload + serde::Deserialize<'a>>(&'a self) -> Result<P, String> {
-        if self.kind != P::KIND || self.schema_version != P::VERSION {
-            return Err("event kind/schema does not match requested payload".into());
-        }
-        P::deserialize(&self.payload).map_err(|e| e.to_string())
-    }
-}
-
 #[derive(Default)]
 pub(crate) struct Collector {
     enabled: bool,

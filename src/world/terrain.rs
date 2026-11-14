@@ -121,13 +121,6 @@ impl Terrain {
         matches!(self, Self::Coast | Self::Sea | Self::Ocean | Self::Lake)
     }
 
-    pub(crate) fn movement_cost(self) -> i32 {
-        match self {
-            Self::Forest | Self::Hills | Self::Marsh | Self::Jungle => 2,
-            Self::Mountains | Self::Volcano => 3,
-            _ => 1,
-        }
-    }
 
     pub(crate) fn defense_bonus(self) -> i32 {
         match self {
@@ -199,13 +192,6 @@ impl Terrain {
         }
     }
 
-    pub(crate) fn road_time(self) -> i32 {
-        if self.is_water() {
-            0
-        } else {
-            self.movement_cost() * 2
-        }
-    }
 
     pub(crate) fn irrigation_time(self) -> i32 {
         match self {

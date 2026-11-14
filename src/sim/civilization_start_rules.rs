@@ -10,15 +10,13 @@ pub(super) struct StartProfile {
     starting_unit_2: &'static str,
     starting_unit_2_count: usize,
     expansionist: bool,
+    #[allow(dead_code)] // Retained from the source profile for future leader AI behavior.
     militaristic: bool,
     expansionist_bonus_unit: &'static str,
     bonus_count: usize,
 }
 
 impl StartProfile {
-    pub(super) fn is_militaristic(&self) -> bool {
-        self.militaristic
-    }
 
     pub(super) fn units(&self) -> Vec<(&'static str, usize)> {
         let mut units = Vec::with_capacity(3);

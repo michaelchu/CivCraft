@@ -14,6 +14,7 @@ pub(super) struct UnitRule {
     /// All original PRTO prototype indices represented by this campaign identity.
     /// Multiple indices occur when the same unit identity appears in more than
     /// one installed BIQ.
+    #[allow(dead_code)] // Retained from the source catalog for prototype-index lookups.
     pub(super) source_prototypes: &'static str,
     pub(super) required_technology: &'static str,
     pub(super) required_resources: [&'static str; 3],
@@ -27,6 +28,7 @@ pub(super) struct UnitRule {
     pub(super) capacity: usize,
     pub(super) operational_range: i32,
     pub(super) bombard_strength: i32,
+    #[allow(dead_code)] // Retained source rule for the unfinished bombard action path.
     pub(super) bombard_range: i32,
     pub(super) rate_of_fire: i32,
     pub(super) hit_point_bonus: i32,
@@ -34,13 +36,17 @@ pub(super) struct UnitRule {
     flags_2: [u8; 8],
     flags_3: [u8; 20],
     ai_strategies: u32,
+    #[allow(dead_code)] // Retained source terrain flags for movement rule integration.
     ignore_movement_cost: [u8; 14],
     #[allow(dead_code)]
     pub(super) zone_of_control: i32,
+    #[allow(dead_code)] // Retained source effects for the unfinished bombard action path.
     pub(super) bombard_effects: i32,
     #[allow(dead_code)]
     pub(super) require_support: i32,
+    #[allow(dead_code)] // Retained source result for the unfinished enslave action path.
     pub(super) enslave_result_prototype_index: i32,
+    #[allow(dead_code)] // Retained source capability for the unfinished crater action path.
     pub(super) create_craters: i32,
     pub(super) worker_strength: f32,
     #[allow(dead_code)]
@@ -62,6 +68,7 @@ pub(super) struct ExperienceRule {
     pub(super) base_hit_points: i32,
     #[allow(dead_code)]
     pub(super) retreat_bonus_percent: i32,
+    #[allow(dead_code)] // Retained source experience value for veteran promotion behavior.
     pub(super) promotion_chance_per_mille: i32,
     pub(super) is_default: bool,
 }
@@ -141,32 +148,12 @@ impl UnitRule {
             .is_some_and(|value| value & (1 << bit) != 0)
     }
 
-    pub(super) fn ignores_movement_cost(&self, terrain: crate::sim::Terrain) -> bool {
-        use crate::sim::Terrain as T;
-        let index = match terrain {
-            T::Desert => 0,
-            T::Plains => 1,
-            T::Grassland | T::GrasslandShield => 2,
-            T::Tundra => 3,
-            T::FloodPlains => 4,
-            T::Hills => 5,
-            T::Mountains => 6,
-            T::Forest => 7,
-            T::Jungle => 8,
-            T::Marsh => 9,
-            T::Volcano => 10,
-            T::Coast => 11,
-            T::Sea => 12,
-            T::Ocean => 13,
-            T::Lake | T::Glacier => return false,
-        };
-        self.ignore_movement_cost[index] & 1 != 0
-    }
-
+    #[cfg(test)]
     pub(super) fn has_lethal_land_bombard(&self) -> bool {
         self.has_flag_1(3, 3)
     }
 
+    #[cfg(test)]
     pub(super) fn has_lethal_sea_bombard(&self) -> bool {
         self.has_flag_1(3, 4)
     }
@@ -272,7 +259,6 @@ impl UnitRule {
                 0
             },
             veteran_levels: if can_gain_ranks { 4 } else { 1 },
-            helicopter_field_load: false,
             attacks_air: self.has_flag_3(12, 2),
             stealth: self.has_flag_1(2, 5),
         }
@@ -515,6 +501,7 @@ pub(super) fn get(id: &str) -> Option<&'static UnitRule> {
     rules().iter().find(|rule| rule.id == id)
 }
 
+#[cfg(test)]
 pub(super) fn get_by_prototype_index(index: i32) -> Option<&'static UnitRule> {
     rules().iter().find(|rule| {
         rule.source_prototypes
