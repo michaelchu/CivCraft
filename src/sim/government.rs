@@ -391,6 +391,7 @@ impl Simulation {
     }
 
     fn start_government_revolution(&mut self, owner: usize, target: Government) -> bool {
+        self.invalidate_stable_city_advice_for_owner(owner);
         let settings = RulesetData::campaign_default()
             .research_settings()
             .expect("valid C2C3 revolution settings");

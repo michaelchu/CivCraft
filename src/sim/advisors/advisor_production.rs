@@ -3,6 +3,130 @@
 use super::*;
 
 impl Simulation {
+    const STABLE_ADVICE_RECALC_SPEED: i32 = 5;
+
+    fn stable_advice_interval(&self, city_id: u32, salt: u64) -> i32 {
+        // Freeciv uses fc_rand(5) + 5. Use a separate deterministic mix so
+        // scheduling does not perturb CivCraft's gameplay RNG stream.
+        let mut value = self.world_seed ^ u64::from(city_id) ^ salt;
+        value ^= value >> 30;
+        value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        value ^= value >> 27;
+        value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
+        value ^= value >> 31;
+        Self::STABLE_ADVICE_RECALC_SPEED + (value % Self::STABLE_ADVICE_RECALC_SPEED as u64) as i32
+    }
+
+    pub(in crate::sim) fn invalidate_stable_city_advice_for_owner(&mut self, owner: usize) {
+        let mut invalidated = 0;
+        for city in &mut self.cities {
+            if city.owner != owner {
+                continue;
+            }
+            let building = city.ai_building_choice.take().is_some();
+            let settlement = city.ai_settlement_choice.take().is_some();
+            if building || settlement {
+                city.ai_building_next = self.turn;
+                city.ai_settlement_next = self.turn;
+                invalidated += 1;
+            }
+        }
+        self.trace
+            .count_operation("advisor.stable_invalidations", invalidated);
+    }
+
+    fn cached_settlement_choice(
+        &mut self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> Option<AiBuildChoice> {
+        let cached = self.city_by_id(city.id).and_then(|current| {
+            (self.turn < current.ai_settlement_next)
+                .then_some(current.ai_settlement_choice)
+                .flatten()
+        });
+        if let Some((production, want)) = cached
+            && self.can_change_production(city, production)
+        {
+            self.trace.count_operation("advisor.settlement_hits", 1);
+            return Some(AiBuildChoice { production, want });
+        }
+        self.trace
+            .count_operation("advisor.settlement_recalculations", 1);
+        let choice = self.settlement_production_choice(city).map(|(kind, want)| {
+            let want =
+                want * f64::from(super::super::ai_traits::fixed_default("expansionist")) / 50.0;
+            let want = if wonder_city == Some(city.id) {
+                want / if kind.stats().pop_cost > 0 { 5.0 } else { 2.0 }
+            } else {
+                want
+            };
+            AiBuildChoice {
+                production: Production::Unit(kind),
+                want,
+            }
+        });
+        let interval = self.stable_advice_interval(city.id, 0x5345_5454_4c45);
+        let turn = self.turn;
+        if let Some(index) = self.city_index_by_id(city.id) {
+            self.cities[index].ai_settlement_choice =
+                choice.map(|value| (value.production, value.want));
+            self.cities[index].ai_settlement_next = turn + interval;
+        }
+        choice
+    }
+
+    fn cached_building_choice(
+        &mut self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> Option<AiBuildChoice> {
+        let cached = self.city_by_id(city.id).and_then(|current| {
+            (self.turn < current.ai_building_next)
+                .then_some(current.ai_building_choice)
+                .flatten()
+        });
+        if let Some((production, want)) = cached
+            && self.can_change_production(city, production)
+        {
+            self.trace.count_operation("advisor.building_hits", 1);
+            return Some(AiBuildChoice { production, want });
+        }
+        self.trace
+            .count_operation("advisor.building_recalculations", 1);
+        let mut best = self.wonder_build_choice_with_wonder_city(city, wonder_city);
+        let mut consider = |candidate: Option<AiBuildChoice>| {
+            if let Some(candidate) = candidate
+                && candidate.want > 0.0
+                && best.is_none_or(|old| candidate.want > old.want)
+            {
+                best = Some(candidate);
+            }
+        };
+        consider(self.domestic_build_choice_with_wonder_city(city, wonder_city));
+        for building in [
+            Building::SPACE_MODULE,
+            Building::SPACE_COMPONENT,
+            Building::SPACE_STRUCTURAL,
+        ] {
+            if self.building_blocker(city, building).is_none() {
+                consider(Some(AiBuildChoice {
+                    production: Production::Building(building),
+                    want: self.space_production_want_with_wonder_city(city, building, wonder_city),
+                }));
+                break;
+            }
+        }
+        let interval = self.stable_advice_interval(city.id, 0x4255_494c_4449_4e47);
+        let turn = self.turn;
+        if let Some(index) = self.city_index_by_id(city.id) {
+            self.cities[index].ai_building_choice =
+                best.map(|value| (value.production, value.want));
+            self.cities[index].ai_building_next = turn + interval;
+        }
+        best
+    }
+
     /// Freeciv's `contemplate_terrain_improvements` values the best task a
     /// virtual worker could perform, then scales that want by upkeep,
     /// population cost, and the owner's worker-to-city ratio.
@@ -556,36 +680,12 @@ impl Simulation {
             consider(Production::Unit(kind), want);
         }
         self.trace.profile_step("build.settlement");
-        if let Some((kind, want)) = self.settlement_production_choice(city) {
-            let want =
-                want * f64::from(super::super::ai_traits::fixed_default("expansionist")) / 50.0;
-            let want = if wonder_city == Some(city.id) {
-                want / if kind.stats().pop_cost > 0 { 5.0 } else { 2.0 }
-            } else {
-                want
-            };
-            consider(Production::Unit(kind), want);
-        }
-        self.trace.profile_step("build.wonder");
-        if let Some(choice) = self.wonder_build_choice_with_wonder_city(city, wonder_city) {
+        if let Some(choice) = self.cached_settlement_choice(city, wonder_city) {
             consider(choice.production, choice.want);
         }
-        self.trace.profile_step("build.domestic");
-        if let Some(choice) = self.domestic_build_choice_with_wonder_city(city, wonder_city) {
+        self.trace.profile_step("build.stable");
+        if let Some(choice) = self.cached_building_choice(city, wonder_city) {
             consider(choice.production, choice.want);
-        }
-        for building in [
-            Building::SPACE_MODULE,
-            Building::SPACE_COMPONENT,
-            Building::SPACE_STRUCTURAL,
-        ] {
-            if self.building_blocker(city, building).is_none() {
-                consider(
-                    Production::Building(building),
-                    self.space_production_want_with_wonder_city(city, building, wonder_city),
-                );
-                break;
-            }
         }
         best
     }

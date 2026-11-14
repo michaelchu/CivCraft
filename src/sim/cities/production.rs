@@ -271,6 +271,13 @@ impl Simulation {
                 city.protected_shields = surplus.min(city.shields);
             }
             if let Some((target, shields)) = finished {
+                // Match Freeciv's forced advisor refresh after a city finishes
+                // production; the next choice must see the newly completed
+                // unit/building rather than a scheduled stable want.
+                self.cities[index].ai_building_choice = None;
+                self.cities[index].ai_building_next = self.turn;
+                self.cities[index].ai_settlement_choice = None;
+                self.cities[index].ai_settlement_next = self.turn;
                 self.trace.emit(
                     self.turn,
                     || {

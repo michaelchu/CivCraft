@@ -39,6 +39,7 @@ pub(super) struct GuardCityAssessment {
 }
 
 impl Simulation {
+    #[allow(dead_code)] // Direct parity helper used by playtests and focused tests.
     fn wonder_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
         self.wonder_build_choice_with_wonder_city(city, self.ai_wonder_city(city.owner))
     }
@@ -137,6 +138,7 @@ impl Simulation {
         best
     }
 
+    #[allow(dead_code)] // Direct parity helper used by focused tests.
     fn domestic_build_choice(&self, city: &City) -> Option<AiBuildChoice> {
         self.domestic_build_choice_with_wonder_city(city, self.ai_wonder_city(city.owner))
     }

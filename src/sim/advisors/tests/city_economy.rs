@@ -3,6 +3,30 @@
 use super::*;
 
 #[test]
+fn stable_city_advice_is_reused_until_its_persisted_schedule_is_due() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.create_city(1, 10, 24);
+    let city_id = game.cities[0].id;
+    game.prepare_ai_city_defenses(1);
+    let first = game.city_by_id(city_id).unwrap().clone();
+    assert!(first.ai_building_next >= game.turn + 5);
+    assert!(first.ai_settlement_next >= game.turn + 5);
+
+    game.prepare_ai_city_defenses(1);
+    let reused = game.city_by_id(city_id).unwrap();
+    assert_eq!(reused.ai_building_next, first.ai_building_next);
+    assert_eq!(reused.ai_settlement_next, first.ai_settlement_next);
+
+    let bytes = bincode::serialize(&game).unwrap();
+    let mut loaded: Simulation = bincode::deserialize(&bytes).unwrap();
+    assert_eq!(loaded.cities[0].ai_building_next, first.ai_building_next);
+    loaded.turn = first.ai_building_next.max(first.ai_settlement_next);
+    loaded.prepare_ai_city_defenses(1);
+    assert!(loaded.cities[0].ai_building_next > loaded.turn);
+    assert!(loaded.cities[0].ai_settlement_next > loaded.turn);
+}
+
+#[test]
 fn gold_spending_preserves_final_nondefense_advice() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (city, _) = game.hunter_production_playtest_setup();

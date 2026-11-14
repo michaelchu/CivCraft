@@ -81,6 +81,7 @@ impl super::Simulation {
         .expect("C2C3 Revolution_Unhappiness value exceeds advisor range")
     }
 
+    #[cfg(test)]
     pub(super) fn government_advisor_add_city_value(&self, city: &City, total: &mut f32) {
         let facts = GovernmentEvaluationFacts::collect(self, city.owner);
         self.government_advisor_add_city_value_with_facts(city, total, &facts);

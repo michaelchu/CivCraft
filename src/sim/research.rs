@@ -554,6 +554,7 @@ impl Simulation {
         } else {
             self.players[owner].known.retain(|&known| known != tech);
         }
+        self.invalidate_stable_city_advice_for_owner(owner);
         self.players[owner].researching_saved = None;
         self.players[owner].research_saved = 0;
         if owner == HUMAN {
@@ -600,6 +601,7 @@ impl Simulation {
         if !tech.is_civ3_advance() && tech != Tech::FUTURE {
             return;
         }
+        self.invalidate_stable_city_advice_for_owner(owner);
         let was_researching = self.players[owner].researching == tech;
         if self.players[owner].ai && was_researching {
             self.ai_free_bulbs

@@ -198,6 +198,17 @@ pub(crate) struct City {
     pub(in crate::sim) protected_shields: i32,
     pub(in crate::sim) production_before_switch: Option<(Production, i32)>,
     pub(crate) buildings: Vec<Building>,
+    /// Slow-changing production-advisor results. Freeciv persists the
+    /// equivalent building/founder wants and their next evaluation turns so
+    /// loading a campaign neither causes a CPU spike nor changes AI cadence.
+    #[serde(default)]
+    pub(in crate::sim) ai_building_choice: Option<(Production, f64)>,
+    #[serde(default)]
+    pub(in crate::sim) ai_building_next: i32,
+    #[serde(default)]
+    pub(in crate::sim) ai_settlement_choice: Option<(Production, f64)>,
+    #[serde(default)]
+    pub(in crate::sim) ai_settlement_next: i32,
 }
 
 impl City {
@@ -234,6 +245,10 @@ impl City {
             protected_shields: 0,
             production_before_switch: None,
             buildings: Vec::new(),
+            ai_building_choice: None,
+            ai_building_next: 0,
+            ai_settlement_choice: None,
+            ai_settlement_next: 0,
         }
     }
 }
