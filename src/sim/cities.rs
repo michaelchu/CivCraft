@@ -96,12 +96,7 @@ impl Simulation {
         let nearest_city = self
             .cities
             .iter()
-            .map(|city| {
-                (
-                    self.map_distance(unit.x, unit.y, city.x, city.y),
-                    city.id,
-                )
-            })
+            .map(|city| (self.map_distance(unit.x, unit.y, city.x, city.y), city.id))
             .min();
         self.publish_visual_event(VisualEvent::FoundCity { unit: unit.clone() });
         self.units.remove(index);

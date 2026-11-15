@@ -86,6 +86,8 @@ mod tests {
                 id: 1,
                 owner: 0,
                 name: "Test".into(),
+                x: 0,
+                y: 0,
                 population: 2,
                 food,
                 food_output: 6,

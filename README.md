@@ -139,6 +139,19 @@ and end of turn; phase events preserve transient values from inside the turn.
 See [Headless analytics and tracing](docs/HEADLESS_ANALYTICS.md) for extension
 interfaces, configuration, evidence semantics, and schema migration details.
 
+## Git hooks
+
+Install the repository's local hooks after cloning:
+
+```sh
+./scripts/install-git-hooks.sh
+```
+
+The pre-commit hook checks Rust formatting. The pre-push hook runs formatting
+and Clippy across all targets, matching the corresponding CI checks. A failed
+check blocks the commit or push. Run `./scripts/check-rust.sh` manually to run
+the full pre-push checks.
+
 World-generation controls match the interactive game: map size accepts the
 Civ III presets or `WIDTHxHEIGHT`; ocean coverage accepts `60`, `70`, or `80`;
 climate accepts `arid`, `normal`, or `wet`; world age accepts `3`, `4`, or `5`;

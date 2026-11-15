@@ -400,37 +400,37 @@ impl Simulation {
                 let vulnerability = defender.as_ref().map_or(0, |def| {
                     self.offensive_defense_squared(def, kind, target.x, target.y, true)
                 });
-                let desire =
-                    if vulnerability == 0 && (kind.is_naval() || kind.fuel_capacity() > 0) {
-                        0.0
-                    } else {
-                        let mut desire = kill_desire(
-                            benefit,
-                            power,
-                            kind.stats().cost + helper_cost,
-                            vulnerability,
-                            target_victims,
-                        );
-                        if enemy_city.is_some() {
-                            let existing = helper * helper;
-                            if benefit * existing as f32 > (helper_cost * vulnerability) as f32 {
-                                desire -= kill_desire(
-                                    benefit,
-                                    existing,
-                                    helper_cost,
-                                    vulnerability,
-                                    target_victims,
-                                );
-                            }
-                            if kind.can_occupy_city() && enemy_attacks > 0 && occupiers == 0 {
-                                desire = desire.max(
-                                    (enemy_city_worth * 10.0 * f64::from(enemy_finishing_factor))
-                                        as f32,
-                                );
-                            }
+                let desire = if vulnerability == 0 && (kind.is_naval() || kind.fuel_capacity() > 0)
+                {
+                    0.0
+                } else {
+                    let mut desire = kill_desire(
+                        benefit,
+                        power,
+                        kind.stats().cost + helper_cost,
+                        vulnerability,
+                        target_victims,
+                    );
+                    if enemy_city.is_some() {
+                        let existing = helper * helper;
+                        if benefit * existing as f32 > (helper_cost * vulnerability) as f32 {
+                            desire -= kill_desire(
+                                benefit,
+                                existing,
+                                helper_cost,
+                                vulnerability,
+                                target_victims,
+                            );
                         }
-                        desire
-                    };
+                        if kind.can_occupy_city() && enemy_attacks > 0 && occupiers == 0 {
+                            desire = desire.max(
+                                (enemy_city_worth * 10.0 * f64::from(enemy_finishing_factor))
+                                    as f32,
+                            );
+                        }
+                    }
+                    desire
+                };
                 let desire_before_route = desire - (tech_cost * 17) as f32;
                 let cost = Self::offensive_balanced_cost(kind)
                     + if target.new_ferry {
@@ -438,7 +438,8 @@ impl Simulation {
                     } else {
                         0
                     };
-                let best_possible_want = self.offensive_amortize(city, desire_before_route, 1, cost);
+                let best_possible_want =
+                    self.offensive_amortize(city, desire_before_route, 1, cost);
                 let can_produce = missing.is_empty()
                     && f64::from(best_possible_want) > selected.want
                     && self.can_produce(city, Production::Unit(kind));

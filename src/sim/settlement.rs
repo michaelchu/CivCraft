@@ -237,12 +237,8 @@ impl Simulation {
                         .count()
                 })
                 .sum();
-            let travel_distance = self.map_distance(
-                founder.x,
-                founder.y,
-                destination.0,
-                destination.1,
-            );
+            let travel_distance =
+                self.map_distance(founder.x, founder.y, destination.0, destination.1);
             self.trace.emit(
                 self.turn,
                 || {

@@ -63,8 +63,7 @@ impl Simulation {
         let _search_profile = profiler.scope("movement.route_search_graph");
         self.trace
             .count_operation("movement.route_search_graph_calls", 1);
-        let (best, _, expanded) =
-            self.search_route_graph_map(unit, &[goal], limit, false, false);
+        let (best, _, expanded) = self.search_route_graph_map(unit, &[goal], limit, false, false);
         self.trace
             .count_operation("movement.route_search_graph_expansions", expanded);
         (best[goal].0 != i32::MAX).then_some(best[goal].0)
