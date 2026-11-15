@@ -93,6 +93,16 @@ impl Simulation {
             }
             return false;
         }
+        let nearest_city = self
+            .cities
+            .iter()
+            .map(|city| {
+                (
+                    self.map_distance(unit.x, unit.y, city.x, city.y),
+                    city.id,
+                )
+            })
+            .min();
         self.publish_visual_event(VisualEvent::FoundCity { unit: unit.clone() });
         self.units.remove(index);
         self.discard_unit_ai(unit_id);
@@ -120,6 +130,8 @@ impl Simulation {
                 x: unit.x,
                 y: unit.y,
                 name: name.clone(),
+                nearest_city_id: nearest_city.map(|(_, id)| id),
+                nearest_city_distance: nearest_city.map(|(distance, _)| distance),
             },
         );
         self.refresh_visibility();

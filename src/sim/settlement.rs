@@ -211,6 +211,38 @@ impl Simulation {
             government,
             &map,
         ) {
+            use std::collections::HashSet;
+            let nearest_city = self
+                .cities
+                .iter()
+                .map(|city| {
+                    (
+                        self.map_distance(destination.0, destination.1, city.x, city.y),
+                        city.id,
+                    )
+                })
+                .min();
+            let candidate_radius: HashSet<_> = self
+                .map_city_radius_at(destination.0, destination.1)
+                .map(|(_, _, x, y)| self.map_wrap.index(x, y))
+                .collect();
+            let city_radius_overlap_tiles = self
+                .cities
+                .iter()
+                .map(|city| {
+                    self.map_city_radius_at(city.x, city.y)
+                        .filter(|(_, _, x, y)| {
+                            candidate_radius.contains(&self.map_wrap.index(*x, *y))
+                        })
+                        .count()
+                })
+                .sum();
+            let travel_distance = self.map_distance(
+                founder.x,
+                founder.y,
+                destination.0,
+                destination.1,
+            );
             self.trace.emit(
                 self.turn,
                 || {
@@ -219,7 +251,15 @@ impl Simulation {
                         trace::Entity::Civilization(founder.owner),
                     ]
                 },
-                || observations::SiteSelected { destination },
+                || observations::SiteSelected {
+                    destination,
+                    score: site.value,
+                    travel_distance,
+                    nearest_city_id: nearest_city.map(|(_, id)| id),
+                    nearest_city_distance: nearest_city.map(|(distance, _)| distance),
+                    city_radius_overlap_tiles,
+                    first_worker_tile: site.worker,
+                },
             );
             self.ai_worker_tasks.remove(&founder.id);
             self.unit_goto_tiles.insert(founder.id, destination);

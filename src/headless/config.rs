@@ -189,7 +189,7 @@ pub(crate) const HELP: &str = "Headless AI simulator\n\
 --trace-domains all|none|cities,production,settlement\n\
 --trace-entities all|city:1,unit:7,civilization:0\n\
 --trace-buffer-events 10000 --trace-max-events 50000 --trace-max-bytes 16777216\n\
---snapshot-providers cities,civilizations,units (or none; analyzer requirements are added)\n\
+--snapshot-providers cities,civilizations,territory,units (or none; analyzer requirements are added)\n\
 --stop-on-finding none|any|invariant --checkpoint-every 10\n\
 --profile-turns true|false (records per-turn phase timings)\n\
 --scenario NAME | --load-campaign PATH; --list-scenarios\n\

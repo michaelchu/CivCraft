@@ -87,6 +87,8 @@ pub(crate) struct CitySnapshot {
     pub id: u32,
     pub owner: usize,
     pub name: String,
+    pub x: i32,
+    pub y: i32,
     pub population: i32,
     pub food: i32,
     pub food_output: i32,
@@ -102,6 +104,15 @@ pub(crate) struct CitySnapshot {
     pub specialists: Specialists,
     pub worked_tiles: Vec<TileYield>,
     pub growth_status: &'static str,
+}
+#[derive(Clone, Serialize)]
+pub(crate) struct TerritorySnapshot {
+    pub width: i32,
+    pub height: i32,
+    /// Row-major map coordinates; `None` means the tile is not currently owned.
+    pub owners: Vec<Option<usize>>,
+    /// Row-major land mask, aligned with `owners`; false includes all water terrain.
+    pub land: Vec<bool>,
 }
 #[derive(Clone, Serialize)]
 pub(crate) struct CivilizationSnapshot {
@@ -148,6 +159,8 @@ impl Simulation {
                     id: city.id,
                     owner: city.owner,
                     name: city.name.clone(),
+                    x: city.x,
+                    y: city.y,
                     population: city.size,
                     food: city.food,
                     food_output: forecast.food,
@@ -234,5 +247,24 @@ impl Simulation {
                     .map(|r| r.destination),
             })
             .collect()
+    }
+
+    pub(crate) fn observe_territory(&self) -> TerritorySnapshot {
+        let width = self.map_wrap.width();
+        let height = self.map_wrap.height();
+        let owners = (0..height)
+            .flat_map(|y| (0..width).map(move |x| (x, y)))
+            .map(|(x, y)| self.tile(x, y).owner)
+            .collect();
+        let land = (0..height)
+            .flat_map(|y| (0..width).map(move |x| (x, y)))
+            .map(|(x, y)| !self.tile(x, y).terrain.is_water())
+            .collect();
+        TerritorySnapshot {
+            width,
+            height,
+            owners,
+            land,
+        }
     }
 }

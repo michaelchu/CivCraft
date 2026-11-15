@@ -233,8 +233,13 @@ cargo run --offline --release --bin headless_sim -- \
   listed participant matches. Filters apply to persisted events, not snapshots
   or analyzer inputs. Arbitrary domain names allow newly instrumented modules;
   an unmatched name produces no events from that domain.
-- `--snapshot-providers cities,civilizations,units` selects output providers;
+- `--snapshot-providers cities,civilizations,territory,units` selects output providers;
   `none` records just the envelope plus analyzer-required data.
+- The `territory` provider records map dimensions, row-major tile ownership,
+  and a land mask so unowned land can be distinguished from water. City
+  snapshots include centers; settlement events record selected-site score,
+  travel and nearest-city distances, radius overlap, first-worker tile, and
+  actual founding distance to the nearest existing city.
 - `--trace-buffer-events 10000` bounds requested events buffered per full turn.
   Overflow increments a counter and notifies analyzers. Payload sizes vary.
 - `--trace-max-events 50000` and `--trace-max-bytes 16777216` bound persisted
