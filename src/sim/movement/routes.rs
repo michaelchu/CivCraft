@@ -55,8 +55,19 @@ impl Simulation {
         let _profile = profiler.scope("movement.route_cost_within");
         self.trace
             .count_operation("movement.route_cost_within_calls", 1);
-        self.search_route(unit, x, y, false, limit)
-            .map(|(_, cost)| cost)
+        let start = self.map_wrap.index(unit.x, unit.y);
+        let goal = self.map_wrap.index(x, y);
+        if start == goal {
+            return Some(0);
+        }
+        let _search_profile = profiler.scope("movement.route_search_graph");
+        self.trace
+            .count_operation("movement.route_search_graph_calls", 1);
+        let (best, _, expanded) =
+            self.search_route_graph_map(unit, &[goal], limit, false, false);
+        self.trace
+            .count_operation("movement.route_search_graph_expansions", expanded);
+        (best[goal].0 != i32::MAX).then_some(best[goal].0)
     }
 
     /// Return route costs to several destinations from one shared search.
@@ -67,6 +78,15 @@ impl Simulation {
         &self,
         unit: &Unit,
         destinations: &[(i32, i32)],
+    ) -> Vec<Option<i32>> {
+        self.route_costs_to_many_within(unit, destinations, i32::MAX)
+    }
+
+    pub(in crate::sim) fn route_costs_to_many_within(
+        &self,
+        unit: &Unit,
+        destinations: &[(i32, i32)],
+        limit: i32,
     ) -> Vec<Option<i32>> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("movement.route_costs_to_many");
@@ -83,7 +103,7 @@ impl Simulation {
             .count_operation("movement.route_search_graph_calls", 1);
         self.trace
             .count_operation("movement.route_search_graph_multi_calls", 1);
-        let (best, _, expanded) = self.search_route_graph_map(unit, &goals, i32::MAX, false, false);
+        let (best, _, expanded) = self.search_route_graph_map(unit, &goals, limit, false, false);
         self.trace
             .count_operation("movement.route_search_graph_expansions", expanded);
         self.trace

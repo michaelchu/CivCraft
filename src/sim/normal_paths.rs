@@ -2,8 +2,8 @@
 //! use PF_FUEL; human
 //! click routes deliberately remain a separate client policy.
 use super::movement_rules::{MovementRules, c2c3_base_extra_rule_name};
+use super::pf_actions::PfAction;
 use super::*;
-use super::{exploration::ExplorerQueue, pf_actions::PfAction};
 
 const NATIVE: u8 = 1;
 const CITY: u8 = 2;
@@ -33,6 +33,78 @@ enum Style {
     Attack,
     Overlap,
     FerrySearch,
+}
+
+/// Indexed heap for normal path maps. Freeciv's map_index_pq replaces a
+/// queued tile directly; ExplorerQueue::put otherwise scans the heap to find
+/// that tile, making each decrease-key linear in the frontier size.
+#[derive(Default)]
+struct NormalPathQueue {
+    heap: Vec<(i64, usize)>,
+    positions: Vec<usize>,
+}
+
+impl NormalPathQueue {
+    fn new(tile_count: usize) -> Self {
+        Self {
+            heap: vec![(0, 0)],
+            positions: vec![0; tile_count],
+        }
+    }
+
+    fn insert(&mut self, cost: i64, tile: usize) {
+        debug_assert_eq!(self.positions[tile], 0);
+        self.put(cost, tile);
+    }
+
+    fn put(&mut self, cost: i64, tile: usize) {
+        let mut index = self.positions[tile];
+        if index == 0 {
+            self.heap.push((i64::MAX, tile));
+            index = self.heap.len() - 1;
+        } else if cost >= self.heap[index].0 {
+            return;
+        }
+        while index > 1 && self.heap[index / 2].0 > cost {
+            let parent = index / 2;
+            self.heap[index] = self.heap[parent];
+            self.positions[self.heap[index].1] = index;
+            index = parent;
+        }
+        self.heap[index] = (cost, tile);
+        self.positions[tile] = index;
+    }
+
+    fn pop(&mut self) -> Option<(i64, usize)> {
+        if self.heap.len() <= 1 {
+            return None;
+        }
+        let first = self.heap[1];
+        let last = self.heap.pop().expect("nonempty path queue");
+        self.positions[first.1] = 0;
+        if self.heap.len() > 1 {
+            let mut index = 1;
+            while index * 2 < self.heap.len() {
+                let mut child = index * 2;
+                if child + 1 < self.heap.len() && self.heap[child + 1].0 < self.heap[child].0 {
+                    child += 1;
+                }
+                if self.heap[child].0 >= last.0 {
+                    break;
+                }
+                self.heap[index] = self.heap[child];
+                self.positions[self.heap[index].1] = index;
+                index = child;
+            }
+            self.heap[index] = last;
+            self.positions[last.1] = index;
+        }
+        Some(first)
+    }
+
+    fn frontier_len(&self) -> usize {
+        self.heap.len().saturating_sub(1)
+    }
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TilePolicy {
@@ -89,13 +161,18 @@ pub(super) struct NormalPaths {
     current: usize,
     style: Style,
     policy: TilePolicy,
+    movement_class: super::unit_catalog::UnitClass,
+    ignores_terrain: bool,
+    coast_strict: bool,
     class_build_anywhere: bool,
     class_can_occupy_city: bool,
     omniscient: bool,
     risk: bool,
     nodes: Vec<Node>,
-    queue: ExplorerQueue,
+    queue: NormalPathQueue,
     yielded_start: bool,
+    heuristic_goal: Option<usize>,
+    expanded: u64,
 }
 
 impl NormalPaths {
@@ -110,6 +187,21 @@ impl NormalPaths {
     }
     pub(super) fn position_turn(&mut self, sim: &Simulation, x: i32, y: i32) -> Option<i32> {
         let goal = self.reach(sim, x, y)?;
+        Some(self.nodes[goal].cost / self.rate)
+    }
+
+    /// Point-to-point variant for production candidate routing. On the
+    /// selected C2C3 map every represented normal-movement edge costs at
+    /// least one move fragment, so Civ III's exact neighbor-graph distance is
+    /// an admissible and consistent lower bound.
+    pub(super) fn position_turn_astar(&mut self, sim: &Simulation, x: i32, y: i32) -> Option<i32> {
+        let goal = self.map_wrap.index(x, y);
+        self.heuristic_goal = Some(goal);
+        let reached = self.reach(sim, x, y);
+        self.heuristic_goal = None;
+        sim.trace
+            .count_operation("normal_paths.astar_query_expansions", self.expanded);
+        let goal = reached?;
         Some(self.nodes[goal].cost / self.rate)
     }
     pub(super) fn ferry_search_map(sim: &Simulation, unit: &Unit) -> Self {
@@ -134,6 +226,13 @@ impl NormalPaths {
         let class_rules = MovementRules::campaign()
             .unit_class_movement_data_for_kind(unit.kind)
             .expect("selected C2C3 unit-class movement data");
+        let movement_class = MovementRules::campaign()
+            .unit_class_for_kind(unit.kind)
+            .expect("selected C2C3 unit class");
+        let ignores_terrain = super::action_rules::freeciv_unit_type_flag(unit.kind, "IgTer")
+            .expect("campaign C2C3 unit-type IgTer binding");
+        let coast_strict = super::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")
+            .expect("campaign C2C3 CoastStrict unit flag");
         let mut map = Self {
             map_wrap: sim.map_wrap,
             actor: unit.clone(),
@@ -142,13 +241,18 @@ impl NormalPaths {
             current: start,
             style,
             policy,
+            movement_class,
+            ignores_terrain,
+            coast_strict,
             class_build_anywhere: class_rules.build_anywhere,
             class_can_occupy_city: class_rules.can_occupy_city,
             omniscient,
             risk,
             nodes: vec![Node::default(); sim.tiles.len()],
-            queue: ExplorerQueue::default(),
+            queue: NormalPathQueue::new(sim.tiles.len()),
             yielded_start: false,
+            heuristic_goal: None,
+            expanded: 0,
         };
         map.initialize(sim, start, 0);
         if let Some(ship) = unit.transport.and_then(|id| sim.unit_by_id(id)) {
@@ -199,13 +303,12 @@ impl NormalPaths {
     }
 
     fn scope_native_tile(&self, sim: &Simulation, kind: UnitKind, x: i32, y: i32) -> bool {
-        let coast_strict = super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
-            .expect("selected C2C3 CoastStrict unit flag");
         let observer = (!self.omniscient).then_some(self.actor.owner);
-        if coast_strict && !sim.safe_ocean_at(x, y, observer) {
+        if self.coast_strict && !sim.safe_ocean_at(x, y, observer) {
             return false;
         }
-        sim.pf_movement_native_tile(kind, x, y)
+        debug_assert_eq!(kind, self.actor.kind);
+        sim.pf_movement_native_to_class(self.movement_class, x, y)
     }
 
     fn scope(&self, sim: &Simulation, x: i32, y: i32, previous: u8) -> (u8, bool) {
@@ -277,6 +380,23 @@ impl NormalPaths {
         if self.nodes[index].status != Status::Uninit {
             return self.nodes[index].behavior != Behavior::Ignore;
         }
+        sim.trace
+            .count_operation("normal_paths.tiles_initialized", 1);
+        let style_counter = match self.style {
+            Style::Default => "default",
+            Style::Attack => "attack",
+            Style::Overlap => "overlap",
+            Style::FerrySearch => "ferry_search",
+        };
+        sim.trace.count_operation(
+            match style_counter {
+                "default" => "normal_paths.default.tiles_initialized",
+                "attack" => "normal_paths.attack.tiles_initialized",
+                "overlap" => "normal_paths.overlap.tiles_initialized",
+                _ => "normal_paths.ferry_search.tiles_initialized",
+            },
+            1,
+        );
         let (x, y) = self.map_wrap.position(index);
         self.nodes[index].status = Status::Init;
         let foreign = self.foreign_at(sim, x, y);
@@ -370,6 +490,17 @@ impl NormalPaths {
                 .wrapping_add(extra.wrapping_mul(self.rate as u32) as i32),
         )
     }
+
+    fn queue_priority(&self, tile: usize, cost: i32, extra: u32) -> i64 {
+        let total = self.total(cost, extra);
+        let Some(goal) = self.heuristic_goal else {
+            return total;
+        };
+        let (x, y) = self.map_wrap.position(tile);
+        let (goal_x, goal_y) = self.map_wrap.position(goal);
+        let distance = self.map_wrap.civ3_distance(x, y, goal_x, goal_y);
+        total + i64::from(distance) * i64::from(TURN_FACTOR)
+    }
     fn moves_left(&self, cost: i32) -> i32 {
         if cost <= 0 {
             self.rate.wrapping_sub(cost)
@@ -382,6 +513,26 @@ impl NormalPaths {
 
     fn iterate(&mut self, sim: &Simulation) -> bool {
         sim.trace.count_operation("normal_paths.expansions", 1);
+        self.expanded += 1;
+        let (expansion_counter, neighbor_counter) = match self.style {
+            Style::Default => (
+                "normal_paths.default.expansions",
+                "normal_paths.default.neighbor_checks",
+            ),
+            Style::Attack => (
+                "normal_paths.attack.expansions",
+                "normal_paths.attack.neighbor_checks",
+            ),
+            Style::Overlap => (
+                "normal_paths.overlap.expansions",
+                "normal_paths.overlap.neighbor_checks",
+            ),
+            Style::FerrySearch => (
+                "normal_paths.ferry_search.expansions",
+                "normal_paths.ferry_search.neighbor_checks",
+            ),
+        };
+        sim.trace.count_operation(expansion_counter, 1);
         let current = self.current;
         let node = self.nodes[current].clone();
         if node.behavior != Behavior::DontLeave
@@ -392,6 +543,8 @@ impl NormalPaths {
             let mut actor = self.actor.clone();
             (actor.x, actor.y) = (x, y);
             for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
+                sim.trace.count_operation("normal_paths.neighbor_checks", 1);
+                sim.trace.count_operation(neighbor_counter, 1);
                 let Some((nx, ny)) = self.map_wrap.civ3_offset(x, y, dx, dy) else {
                     continue;
                 };
@@ -406,9 +559,10 @@ impl NormalPaths {
                 // PF_NORMAL and movement execution share the same C2C3 ZOC
                 // test, including class/type flags, city/terrain exceptions,
                 // and the direct-combat destination exception.
-                if dest.action != PfAction::Attack
-                    && sim.zone_blocks_route(&actor, (x, y), (nx, ny), false)
-                {
+                if dest.action != PfAction::Attack && {
+                    sim.trace.count_operation("normal_paths.zoc_checks", 1);
+                    sim.zone_blocks_route(&actor, (x, y), (nx, ny), false)
+                } {
                     continue;
                 }
                 let cost = if self.style == Style::FerrySearch {
@@ -417,7 +571,13 @@ impl NormalPaths {
                     } else if node.scope & (NATIVE | CITY) == 0 {
                         continue;
                     } else {
-                        sim.raw_move_cost_for(&actor, nx, ny)
+                        sim.raw_move_cost_for_class(
+                            &actor,
+                            nx,
+                            ny,
+                            self.movement_class,
+                            self.ignores_terrain,
+                        )
                     }
                 } else if dest.action != PfAction::None {
                     if dest.action == PfAction::Attack {
@@ -435,7 +595,15 @@ impl NormalPaths {
                         .unknown_tile_move_cost(actor.kind)
                         .expect("selected C2C3 unknown-tile movement cost")
                 } else if dest.scope != 0 {
-                    sim.raw_move_cost_for(&actor, nx, ny)
+                    sim.trace
+                        .count_operation("normal_paths.raw_move_cost_calls", 1);
+                    sim.raw_move_cost_for_class(
+                        &actor,
+                        nx,
+                        ny,
+                        self.movement_class,
+                        self.ignores_terrain,
+                    )
                 } else if self.style == Style::Overlap && dest.scope & NATIVE == 0 {
                     self.rate
                 } else {
@@ -451,9 +619,18 @@ impl NormalPaths {
                     self.nodes[next].direction = Some(direction);
                     if dest.status == Status::Init {
                         self.nodes[next].status = Status::New;
-                        self.queue.insert(self.total(cost, extra), next);
+                        sim.trace.count_operation("normal_paths.queue_inserts", 1);
+                        let priority = self.queue_priority(next, cost, extra);
+                        self.queue.insert(priority, next);
                     } else {
-                        self.queue.put(self.total(cost, extra), next);
+                        sim.trace
+                            .count_operation("normal_paths.queue_decrease_keys", 1);
+                        sim.trace.count_operation(
+                            "normal_paths.queue_frontier_entries_at_decrease_key",
+                            self.queue.frontier_len() as u64,
+                        );
+                        let priority = self.queue_priority(next, cost, extra);
+                        self.queue.put(priority, next);
                     }
                 }
             }
@@ -563,6 +740,8 @@ impl Simulation {
     }
 
     pub(super) fn ai_goto_is_sane(&self, unit: &Unit, goal: (i32, i32)) -> bool {
+        let _profile = self.trace.profiler().scope("ai.goto.sanity");
+        self.trace.count_operation("ai.goto.sanity_checks", 1);
         if let Some(mut map) = super::fuel_paths::FuelPaths::attack_sanity(self, unit) {
             return map.movement_cost(self, goal.0, goal.1).is_some();
         }
@@ -582,6 +761,17 @@ impl Simulation {
         if !self.ai_goto_is_sane(unit, goal) {
             return None;
         }
+        self.ai_goto_path_after_sanity(unit, goal, task)
+    }
+
+    fn ai_goto_path_after_sanity(
+        &self,
+        unit: &Unit,
+        goal: (i32, i32),
+        task: GotoTask,
+    ) -> Option<(Vec<(i32, i32)>, i32)> {
+        let _profile = self.trace.profiler().scope("ai.goto.route_build");
+        self.trace.count_operation("ai.goto.routes_built", 1);
         if let Some(mut map) = super::fuel_paths::FuelPaths::new(self, unit, true) {
             let cost = map.movement_cost(self, goal.0, goal.1)?;
             return Some((map.path(self, goal.0, goal.1)?, cost));
@@ -620,7 +810,7 @@ impl Simulation {
         let mut progressed = false;
         if (unit.x, unit.y) != goal
             && unit.moves_left > 0
-            && let Some((path, _)) = self.ai_goto_path(&unit, goal, task)
+            && let Some((path, _)) = self.ai_goto_path_after_sanity(&unit, goal, task)
         {
             progressed = self.follow_source_ai_path(id, path).moved;
         }

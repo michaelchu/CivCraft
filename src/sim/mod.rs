@@ -317,15 +317,32 @@ pub(crate) struct Simulation {
     #[serde(skip)]
     ai_danger_route_cache: std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
     #[serde(skip)]
+    movement_step_cost_cache:
+        std::cell::RefCell<std::collections::HashMap<movement_rules::StepCostCacheKey, i32>>,
+    #[serde(skip)]
+    movement_native_cache: std::cell::RefCell<Vec<i8>>,
+    #[serde(skip)]
+    visibility_refresh_deferred: bool,
+    #[serde(skip)]
+    visibility_refresh_pending: bool,
+    #[serde(skip)]
+    visibility_pending_render_tiles: Vec<bool>,
+    #[serde(skip)]
+    visibility_render_scope: Option<Vec<usize>>,
+    #[serde(skip)]
     ai_spatial_index: std::cell::RefCell<AdvisorSpatialIndex>,
 }
 
 type CachedOffensiveAdvice = (Option<advisors::AiBuildChoice>, Vec<(Tech, f32)>, bool);
+type VirtualCityTileYieldCache = (Government, Vec<Option<(i32, i32, i32)>>);
+type RouteZoneCache = [Vec<Option<bool>>; 2];
 
 #[derive(Clone, Default)]
 struct AdvisorSpatialIndex {
     unit_head: Vec<Option<usize>>,
     unit_next: Vec<Option<usize>>,
+    tile_unit_indices: Option<Vec<Vec<usize>>>,
+    tile_unit_revision: u64,
     city_at: Vec<Option<usize>>,
     continent_labels: Vec<usize>,
     offensive_outputs: std::collections::BTreeMap<u32, i32>,
@@ -336,6 +353,10 @@ struct AdvisorSpatialIndex {
     counter_defenders: std::collections::BTreeMap<(u32, usize), Option<(Tech, bool)>>,
     virtual_city_sites:
         std::collections::BTreeMap<usize, Vec<Option<Option<settlement::CitySite>>>>,
+    virtual_city_tile_yields: std::collections::BTreeMap<usize, VirtualCityTileYieldCache>,
+    route_zone_control: std::collections::BTreeMap<usize, RouteZoneCache>,
+    pf_actions:
+        std::collections::HashMap<(usize, usize, usize, bool, bool, bool), pf_actions::PfAction>,
 }
 
 fn percent_of(value: i32, percent: i32) -> i32 {
@@ -637,6 +658,12 @@ impl Simulation {
             ai_advisor_cache_enabled: Default::default(),
             ai_threat_arrival_cache: Default::default(),
             ai_danger_route_cache: Default::default(),
+            movement_step_cost_cache: Default::default(),
+            movement_native_cache: Default::default(),
+            visibility_refresh_deferred: false,
+            visibility_refresh_pending: false,
+            visibility_pending_render_tiles: Default::default(),
+            visibility_render_scope: None,
             ai_spatial_index: Default::default(),
         };
         for owner in 0..civilization_count {

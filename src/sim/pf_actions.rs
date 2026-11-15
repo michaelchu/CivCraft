@@ -19,6 +19,53 @@ pub(super) enum PfAction {
 }
 
 impl Simulation {
+    pub(super) fn cached_movement_native_to_class(
+        &self,
+        tile: MovementTile,
+        class: super::unit_catalog::UnitClass,
+    ) -> bool {
+        const CLASS_COUNT: usize = 8;
+        const TERRAIN_COUNT: usize = 17;
+        const BASE_VARIANTS: usize = 5;
+        const EXTRA_COMBINATIONS: usize = 8;
+        let base = match tile.base {
+            None => 0,
+            Some(Base::Fort) => 1,
+            Some(Base::Fortress) => 2,
+            Some(Base::Airstrip) => 3,
+            Some(Base::Airbase) => 4,
+        };
+        let extras = usize::from(tile.road)
+            | (usize::from(tile.railroad) << 1)
+            | (usize::from(tile.river) << 2);
+        let index = (((class as usize * TERRAIN_COUNT + tile.terrain as usize) * BASE_VARIANTS
+            + base)
+            * EXTRA_COMBINATIONS)
+            + extras;
+        let cache_len = CLASS_COUNT * TERRAIN_COUNT * BASE_VARIANTS * EXTRA_COMBINATIONS;
+        {
+            let mut cache = self.movement_native_cache.borrow_mut();
+            if cache.is_empty() {
+                cache.resize(cache_len, -1);
+            }
+            if cache[index] >= 0 {
+                return cache[index] != 0;
+            }
+        }
+        let native = MovementRules::campaign()
+            .movement_tile_native_to_class(
+                tile.terrain,
+                tile.road,
+                tile.railroad,
+                tile.river,
+                tile.base,
+                class,
+            )
+            .expect("campaign C2C3 movement native_to data");
+        self.movement_native_cache.borrow_mut()[index] = i8::from(native);
+        native
+    }
+
     fn pf_class_can_occupy_city(kind: UnitKind) -> bool {
         MovementRules::campaign()
             .unit_class_movement_data_for_kind(kind)
@@ -35,34 +82,62 @@ impl Simulation {
             .expect("campaign C2C3 unit class binding");
         let ignores = super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
             .expect("campaign C2C3 unit-type IgTer binding");
+        self.raw_move_cost_for_class(unit, x, y, class, ignores)
+    }
+
+    pub(super) fn raw_move_cost_for_class(
+        &self,
+        unit: &Unit,
+        x: i32,
+        y: i32,
+        class: super::unit_catalog::UnitClass,
+        ignores: bool,
+    ) -> i32 {
+        let rules = MovementRules::campaign();
         let source = self.tile(unit.x, unit.y);
         let dest = self.tile(x, y);
         let restricted = [source.owner, dest.owner]
             .into_iter()
             .flatten()
             .any(|owner| self.at_war(unit.owner, owner));
-        rules
+        let source_movement = MovementTile::new(
+            source.terrain,
+            source.road,
+            source.railroad,
+            source.river,
+            source.base,
+        );
+        let destination_movement = MovementTile::new(
+            dest.terrain,
+            dest.road,
+            dest.railroad,
+            dest.river,
+            dest.base,
+        );
+        let cardinal = self.pf_move_is_cardinal((unit.x, unit.y), (x, y));
+        let key = (
+            source_movement,
+            destination_movement,
+            class,
+            cardinal,
+            restricted,
+            ignores,
+        );
+        if let Some(cost) = self.movement_step_cost_cache.borrow().get(&key).copied() {
+            return cost;
+        }
+        let cost = rules
             .step_cost(
-                MovementTile::new(
-                    source.terrain,
-                    source.road,
-                    source.railroad,
-                    source.river,
-                    source.base,
-                ),
-                MovementTile::new(
-                    dest.terrain,
-                    dest.road,
-                    dest.railroad,
-                    dest.river,
-                    dest.base,
-                ),
+                source_movement,
+                destination_movement,
                 class,
-                self.pf_move_is_cardinal((unit.x, unit.y), (x, y)),
+                cardinal,
                 restricted,
                 ignores,
             )
-            .expect("campaign C2C3 step movement data")
+            .expect("campaign C2C3 step movement data");
+        self.movement_step_cost_cache.borrow_mut().insert(key, cost);
+        cost
     }
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
         let tile = self.tile(x, y);
@@ -88,22 +163,32 @@ impl Simulation {
 
     /// Movement scope uses its explicit Volcano→Mountains adapter; generic PF
     /// action/native requirements continue to use `pf_native_tile` above.
+    #[cfg(test)]
     pub(super) fn pf_movement_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
-        let tile = self.tile(x, y);
         let rules = MovementRules::campaign();
         let class = rules
             .unit_class_for_kind(kind)
             .expect("campaign C2C3 unit class binding");
-        rules
-            .movement_tile_native_to_class(
+        self.pf_movement_native_to_class(class, x, y)
+    }
+
+    pub(super) fn pf_movement_native_to_class(
+        &self,
+        class: super::unit_catalog::UnitClass,
+        x: i32,
+        y: i32,
+    ) -> bool {
+        let tile = self.tile(x, y);
+        self.cached_movement_native_to_class(
+            MovementTile::new(
                 tile.terrain,
                 tile.road,
                 tile.railroad,
                 tile.river,
                 tile.base,
-                class,
-            )
-            .expect("campaign C2C3 movement native_to data")
+            ),
+            class,
+        )
     }
 
     /// Freeciv's C2C3 ISO|HEX topology marks six of CivCraft's eight steps as
@@ -130,28 +215,18 @@ impl Simulation {
         if !seen {
             return true;
         }
-        let city = self
-            .cities
-            .iter()
-            .any(|city| (city.x, city.y) == (x, y) && !self.allied(owner, city.owner));
-        let mut any = false;
-        for unit in self.units.iter().filter(|unit| (unit.x, unit.y) == (x, y)) {
-            if !self.at_war(owner, unit.owner) {
-                return false;
-            }
+        let city = self.any_city_at(x, y, |city| !self.allied(owner, city.owner));
+        if self.any_unit_at(x, y, |unit| !self.at_war(owner, unit.owner)) {
+            return false;
+        }
+        self.any_unit_at(x, y, |unit| {
             let native_base = unit.kind.is_aircraft()
                 && matches!(self.tile(x, y).base, Some(Base::Airstrip | Base::Airbase));
-            if !unit.kind.unit_class().is_unreachable()
+            !unit.kind.unit_class().is_unreachable()
                 || kind.can_attack_aircraft()
                 || native_base
                 || city
-            {
-                any = true;
-            }
-            // unreachableprotects is disabled by Civ2Civ3: unreachable
-            // aircraft do not protect a reachable ship in the same stack.
-        }
-        any
+        })
     }
 
     pub(super) fn pf_default_action(
@@ -163,38 +238,55 @@ impl Simulation {
         seen: bool,
         city_attack: bool,
     ) -> PfAction {
+        self.trace.count_operation("pf_actions.calls", 1);
         let (x, y) = position;
         if !known {
             return PfAction::None;
         }
-        let city = self
-            .cities
-            .iter()
-            .any(|city| (city.x, city.y) == (x, y) && !self.allied(owner, city.owner));
-        if city && kind == UnitKind::Explorer {
-            return PfAction::None;
+        let key = (
+            kind as usize,
+            owner,
+            self.map_wrap.index(x, y),
+            known,
+            seen,
+            city_attack,
+        );
+        if self.ai_advisor_cache_enabled.get()
+            && let Some(action) = self.ai_spatial_index.borrow().pf_actions.get(&key).copied()
+        {
+            self.trace.count_operation("pf_actions.cache_hits", 1);
+            return action;
         }
-        let units = self
-            .units
-            .iter()
-            .any(|unit| (unit.x, unit.y) == (x, y) && !self.allied(owner, unit.owner));
-        if units && !kind.is_civilian() {
-            return if self.pf_attack_possible(kind, owner, x, y, seen) {
-                PfAction::Attack
+        let city = self.any_city_at(x, y, |city| !self.allied(owner, city.owner));
+        let action = if city && kind == UnitKind::Explorer {
+            PfAction::None
+        } else {
+            let units = self.any_unit_at(x, y, |unit| !self.allied(owner, unit.owner));
+            if units && !kind.is_civilian() {
+                if self.pf_attack_possible(kind, owner, x, y, seen) {
+                    PfAction::Attack
+                } else {
+                    PfAction::Impossible
+                }
+            } else if city && city_attack && !kind.is_civilian() {
+                if Self::pf_class_can_occupy_city(kind)
+                    || self.pf_attack_possible(kind, owner, x, y, false)
+                {
+                    PfAction::Attack
+                } else {
+                    PfAction::Impossible
+                }
             } else {
-                PfAction::Impossible
-            };
+                PfAction::None
+            }
+        };
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
+                .borrow_mut()
+                .pf_actions
+                .insert(key, action);
         }
-        if city && city_attack && !kind.is_civilian() {
-            return if Self::pf_class_can_occupy_city(kind)
-                || self.pf_attack_possible(kind, owner, x, y, false)
-            {
-                PfAction::Attack
-            } else {
-                PfAction::Impossible
-            };
-        }
-        PfAction::None
+        action
     }
 
     pub(super) fn pf_action_step_possible(&self, actor: &Unit, action: PfAction) -> bool {
@@ -205,10 +297,9 @@ impl Simulation {
         } else {
             // Units can act from transport scope; native/city scope also permits actions.
             self.pf_native_tile(actor.kind, actor.x, actor.y)
-                || self.cities.iter().any(|city| {
-                    (city.x, city.y) == (actor.x, actor.y)
-                        && (self.allied(actor.owner, city.owner)
-                            || Self::pf_class_can_occupy_city(actor.kind))
+                || self.any_city_at(actor.x, actor.y, |city| {
+                    self.allied(actor.owner, city.owner)
+                        || Self::pf_class_can_occupy_city(actor.kind)
                 })
                 || actor.transport.is_some()
                 || self.boarding_target(actor, actor.x, actor.y).is_some()
@@ -247,7 +338,7 @@ impl Simulation {
         }
         !target.is_aircraft()
             || enemy.kind.can_attack_aircraft()
-            || self.cities.iter().any(|city| (city.x, city.y) == (x, y))
+            || self.any_city_at_cached(x, y)
             || matches!(self.tile(x, y).base, Some(Base::Airstrip | Base::Airbase))
     }
 

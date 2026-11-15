@@ -23,20 +23,36 @@ use std::{cmp::Reverse, collections::BinaryHeap, sync::OnceLock};
 
 pub(super) struct WorkerRouteZoneCache {
     city_owners: Vec<Option<usize>>,
+    city_indices: Vec<Option<usize>>,
     enemy_zoc: Vec<Option<bool>>,
     allied_unit: Vec<Option<bool>>,
     enemy_zoc_hits: u64,
     allied_unit_hits: u64,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct WorkerRouteMovementProfile {
+    pub(super) class: super::unit_catalog::UnitClass,
+    pub(super) ignores_terrain: bool,
+    pub(super) coast_strict: bool,
+    pub(super) ignores_zoc: bool,
+    pub(super) can_occupy_city: bool,
+    pub(super) move_fragments: i32,
+    pub(super) unknown_tile_cost: i32,
+}
+
 impl WorkerRouteZoneCache {
     pub(super) fn new(sim: &Simulation) -> Self {
         let mut city_owners = vec![None; sim.tiles.len()];
-        for city in &sim.cities {
-            city_owners[sim.map_wrap.index(city.x, city.y)] = Some(city.owner);
+        let mut city_indices = vec![None; sim.tiles.len()];
+        for (city_index, city) in sim.cities.iter().enumerate() {
+            let tile = sim.map_wrap.index(city.x, city.y);
+            city_owners[tile] = Some(city.owner);
+            city_indices[tile] = Some(city_index);
         }
         Self {
             city_owners,
+            city_indices,
             enemy_zoc: vec![None; sim.tiles.len()],
             allied_unit: vec![None; sim.tiles.len()],
             enemy_zoc_hits: 0,
@@ -46,6 +62,15 @@ impl WorkerRouteZoneCache {
 
     pub(super) fn cache_hits(&self) -> (u64, u64) {
         (self.enemy_zoc_hits, self.allied_unit_hits)
+    }
+
+    fn city_at<'a>(&self, sim: &'a Simulation, x: i32, y: i32) -> Option<&'a City> {
+        self.city_indices[sim.map_wrap.index(x, y)].and_then(|index| sim.cities.get(index))
+    }
+
+    pub(super) fn foreign_city_at(&self, sim: &Simulation, owner: usize, x: i32, y: i32) -> bool {
+        self.city_owners[sim.map_wrap.index(x, y)]
+            .is_some_and(|city_owner| !sim.allied(owner, city_owner))
     }
 }
 
@@ -286,25 +311,63 @@ impl Simulation {
     }
 
     pub(super) fn movement_cost_for(&self, unit: &Unit, nx: i32, ny: i32) -> Option<i32> {
+        self.movement_cost_for_with_city_cache(unit, nx, ny, None, None)
+    }
+
+    pub(super) fn movement_cost_for_worker_route(
+        &self,
+        unit: &Unit,
+        nx: i32,
+        ny: i32,
+        cache: &WorkerRouteZoneCache,
+        profile: &WorkerRouteMovementProfile,
+    ) -> Option<i32> {
+        self.movement_cost_for_with_city_cache(unit, nx, ny, Some(cache), Some(profile))
+    }
+
+    fn movement_cost_for_with_city_cache(
+        &self,
+        unit: &Unit,
+        nx: i32,
+        ny: i32,
+        city_cache: Option<&WorkerRouteZoneCache>,
+        profile: Option<&WorkerRouteMovementProfile>,
+    ) -> Option<i32> {
         let rules = MovementRules::campaign();
-        let fragments = rules
-            .move_fragments()
-            .expect("campaign C2C3 movement fragment setting");
+        let fragments = profile.map_or_else(
+            || {
+                rules
+                    .move_fragments()
+                    .expect("campaign C2C3 movement fragment setting")
+            },
+            |profile| profile.move_fragments,
+        );
         if unit.kind.is_aircraft() {
             return Some(fragments);
         }
-        let dest = self.tile(nx, ny);
-        let source = self.tile(unit.x, unit.y);
-        let class = rules
-            .unit_class_for_kind(unit.kind)
-            .expect("campaign C2C3 unit class binding");
-        let source_movement = MovementTile::new(
-            source.terrain,
-            source.road,
-            source.railroad,
-            source.river,
-            source.base,
+        let class = profile.map_or_else(
+            || {
+                rules
+                    .unit_class_for_kind(unit.kind)
+                    .expect("campaign C2C3 unit class binding")
+            },
+            |profile| profile.class,
         );
+        let ignores_terrain = profile.map_or_else(
+            || {
+                super::action_rules::freeciv_unit_type_flag(unit.kind, "IgTer")
+                    .expect("campaign C2C3 unit-type IgTer binding")
+            },
+            |profile| profile.ignores_terrain,
+        );
+        let coast_strict = profile.map_or_else(
+            || {
+                super::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")
+                    .expect("campaign C2C3 unit-type CoastStrict binding")
+            },
+            |profile| profile.coast_strict,
+        );
+        let dest = self.tile(nx, ny);
         let destination_movement = MovementTile::new(
             dest.terrain,
             dest.road,
@@ -312,73 +375,64 @@ impl Simulation {
             dest.river,
             dest.base,
         );
-        let destination_native = rules
-            .movement_tile_native_to_class(
-                dest.terrain,
-                dest.road,
-                dest.railroad,
-                dest.river,
-                dest.base,
-                class,
-            )
-            .expect("campaign C2C3 movement native_to data");
-        if self.city_at(nx, ny).is_none()
-            && super::action_rules::freeciv_unit_type_flag(unit.kind, "CoastStrict")
-                .expect("campaign C2C3 unit-type CoastStrict binding")
-            && !self.safe_ocean_at(nx, ny, None)
-        {
+        let destination_native = self.cached_movement_native_to_class(destination_movement, class);
+        let city =
+            city_cache.map_or_else(|| self.city_at(nx, ny), |cache| cache.city_at(self, nx, ny));
+        if city.is_none() && coast_strict && !self.safe_ocean_at(nx, ny, None) {
             return None;
         }
         if unit.kind.is_naval() {
             return (destination_native
-                || self.cities.iter().any(|city| {
-                    (city.x, city.y) == (nx, ny)
-                        && self.allied(city.owner, unit.owner)
-                        && self.naval_city_access(city, unit.kind)
+                || city.is_some_and(|city| {
+                    self.allied(city.owner, unit.owner) && self.naval_city_access(city, unit.kind)
                 }))
-            .then(|| self.ruleset_step_cost(unit, source_movement, destination_movement, nx, ny));
+            .then(|| self.raw_move_cost_for_class(unit, nx, ny, class, ignores_terrain));
         }
-        let city_access = self.cities.iter().any(|city| {
-            (city.x, city.y) == (nx, ny)
-                && (self.allied(city.owner, unit.owner)
-                    || self.at_war(city.owner, unit.owner)
-                        && rules
-                            .unit_class_movement_data_for_kind(unit.kind)
-                            .expect("campaign C2C3 unit class data")
-                            .can_occupy_city)
+        let can_occupy_city = profile.map_or_else(
+            || {
+                rules
+                    .unit_class_movement_data(class)
+                    .expect("campaign C2C3 unit class data")
+                    .can_occupy_city
+            },
+            |profile| profile.can_occupy_city,
+        );
+        let city_access = city.is_some_and(|city| {
+            self.allied(city.owner, unit.owner)
+                || self.at_war(city.owner, unit.owner) && can_occupy_city
         });
         (destination_native || city_access)
-            .then(|| self.ruleset_step_cost(unit, source_movement, destination_movement, nx, ny))
+            .then(|| self.raw_move_cost_for_class(unit, nx, ny, class, ignores_terrain))
     }
 
-    fn ruleset_step_cost(
+    pub(super) fn worker_route_movement_profile(
         &self,
-        unit: &Unit,
-        source: MovementTile,
-        destination: MovementTile,
-        nx: i32,
-        ny: i32,
-    ) -> i32 {
+        kind: UnitKind,
+    ) -> WorkerRouteMovementProfile {
         let rules = MovementRules::campaign();
         let class = rules
-            .unit_class_for_kind(unit.kind)
+            .unit_class_for_kind(kind)
             .expect("campaign C2C3 unit class binding");
-        let ignores_terrain = super::action_rules::freeciv_unit_type_flag(unit.kind, "IgTer")
-            .expect("campaign C2C3 unit-type IgTer binding");
-        let restricted = [self.tile(unit.x, unit.y).owner, self.tile(nx, ny).owner]
-            .into_iter()
-            .flatten()
-            .any(|owner| self.at_war(unit.owner, owner));
-        rules
-            .step_cost(
-                source,
-                destination,
-                class,
-                self.movement_is_cardinal((unit.x, unit.y), (nx, ny)),
-                restricted,
-                ignores_terrain,
-            )
-            .expect("campaign C2C3 step movement data")
+        let class_data = rules
+            .unit_class_movement_data(class)
+            .expect("campaign C2C3 unit class data");
+        WorkerRouteMovementProfile {
+            class,
+            ignores_terrain: super::action_rules::freeciv_unit_type_flag(kind, "IgTer")
+                .expect("campaign C2C3 unit-type IgTer binding"),
+            coast_strict: super::action_rules::freeciv_unit_type_flag(kind, "CoastStrict")
+                .expect("campaign C2C3 unit-type CoastStrict binding"),
+            ignores_zoc: !Self::unit_class_uses_zoc(kind)
+                || super::action_rules::freeciv_unit_type_flag(kind, "IgZOC")
+                    .expect("campaign C2C3 unit-type IgZOC binding"),
+            can_occupy_city: class_data.can_occupy_city,
+            move_fragments: rules
+                .move_fragments()
+                .expect("campaign C2C3 movement fragment setting"),
+            unknown_tile_cost: rules
+                .unknown_tile_move_cost(kind)
+                .expect("selected C2C3 unknown-tile movement cost"),
+        }
     }
 
     pub(super) fn movement_is_cardinal(&self, from: (i32, i32), to: (i32, i32)) -> bool {
@@ -442,6 +496,43 @@ impl Simulation {
     }
 
     fn enemy_zoc_controls_tile(&self, owner: usize, x: i32, y: i32, observed: bool) -> bool {
+        if self.ai_advisor_cache_enabled.get() {
+            let index = self.map_wrap.index(x, y);
+            let visibility = usize::from(observed);
+            if let Some(controlled) = self
+                .ai_spatial_index
+                .borrow()
+                .route_zone_control
+                .get(&owner)
+                .and_then(|cache| cache[visibility].get(index))
+                .copied()
+                .flatten()
+            {
+                self.trace
+                    .count_operation("movement.route_zoc_cache_hits", 1);
+                return controlled;
+            }
+            self.trace
+                .count_operation("movement.route_zoc_cache_misses", 1);
+            let controlled = self.enemy_zoc_controls_tile_uncached(owner, x, y, observed);
+            let mut spatial = self.ai_spatial_index.borrow_mut();
+            let cache = spatial
+                .route_zone_control
+                .entry(owner)
+                .or_insert_with(|| std::array::from_fn(|_| vec![None; self.tiles.len()]));
+            cache[visibility][index] = Some(controlled);
+            return controlled;
+        }
+        self.enemy_zoc_controls_tile_uncached(owner, x, y, observed)
+    }
+
+    fn enemy_zoc_controls_tile_uncached(
+        &self,
+        owner: usize,
+        x: i32,
+        y: i32,
+        observed: bool,
+    ) -> bool {
         std::iter::once((x, y))
             .chain(self.map_wrap.civ3_neighbors(x, y))
             .any(|(tx, ty)| {
@@ -467,19 +558,17 @@ impl Simulation {
                         // cities and assumes fogged cities are occupied. The
                         // app does not persist that bit, so recover only the
                         // boolean from a live stack when the city is visible.
-                        return !self.tile(tx, ty).visible
-                            || self.units.iter().any(|unit| (unit.x, unit.y) == (tx, ty));
+                        return !self.tile(tx, ty).visible || self.any_unit_at(tx, ty, |_| true);
                     }
-                    return self.units.iter().any(|unit| (unit.x, unit.y) == (tx, ty));
+                    return self.any_unit_at(tx, ty, |_| true);
                 }
 
                 // Freeciv can also source ZOC from extras and their owners.
                 // CivCraft's tile model has no generic extra-owner or ZOC
                 // extra collection, so those ruleset sources are not yet
                 // representable here.
-                self.units.iter().any(|unit| {
-                    (unit.x, unit.y) == (tx, ty)
-                        && (!observed || self.unit_visible_to_human(unit))
+                self.any_unit_at(tx, ty, |unit| {
+                    (!observed || self.unit_visible_to_human(unit))
                         && !self.allied(owner, unit.owner)
                         && unit.transport.is_none()
                         && Self::unit_class_uses_zoc(unit.kind)
@@ -544,10 +633,8 @@ impl Simulation {
     }
 
     fn allied_unit_at(&self, owner: usize, x: i32, y: i32, observed: bool) -> bool {
-        self.units.iter().any(|other| {
-            (other.x, other.y) == (x, y)
-                && (!observed || self.unit_visible_to_human(other))
-                && self.allied(owner, other.owner)
+        self.any_unit_at(x, y, |other| {
+            (!observed || self.unit_visible_to_human(other)) && self.allied(owner, other.owner)
         })
     }
 
@@ -609,6 +696,7 @@ impl Simulation {
         controlled
     }
 
+    #[cfg(test)]
     pub(super) fn zone_blocks_worker_route_step(
         &self,
         unit: &Unit,
@@ -616,10 +704,19 @@ impl Simulation {
         to: (i32, i32),
         cache: &mut WorkerRouteZoneCache,
     ) -> bool {
-        if !Self::unit_class_uses_zoc(unit.kind)
-            || super::action_rules::freeciv_unit_type_flag(unit.kind, "IgZOC")
-                .expect("campaign C2C3 unit-type IgZOC binding")
-        {
+        let profile = self.worker_route_movement_profile(unit.kind);
+        self.zone_blocks_worker_route_step_with_profile(unit, from, to, cache, &profile)
+    }
+
+    pub(super) fn zone_blocks_worker_route_step_with_profile(
+        &self,
+        unit: &Unit,
+        from: (i32, i32),
+        to: (i32, i32),
+        cache: &mut WorkerRouteZoneCache,
+        profile: &WorkerRouteMovementProfile,
+    ) -> bool {
+        if profile.ignores_zoc {
             return false;
         }
         let destination = self.map_wrap.index(to.0, to.1);
@@ -896,6 +993,7 @@ impl Simulation {
         ny: i32,
         facing: Option<u8>,
     ) -> MoveResult {
+        let profiler = self.trace.profiler();
         let Some(index) = self.unit_index_by_id(unit_id) else {
             return MoveResult::Blocked;
         };
@@ -903,12 +1001,15 @@ impl Simulation {
         if unit.kind.is_nuclear_weapon() {
             return MoveResult::Blocked;
         }
-        let action_available = if unit.transport.is_some() {
-            self.transport_disembark_action_for_unit_fail_closed(&unit, (nx, ny))
-                .is_some()
-        } else {
-            self.action_available_for_unit(&unit, "Unit Move", (nx, ny))
-                .is_ok_and(|available| available)
+        let action_available = {
+            let _profile = profiler.scope("movement.execute.action_availability");
+            if unit.transport.is_some() {
+                self.transport_disembark_action_for_unit_fail_closed(&unit, (nx, ny))
+                    .is_some()
+            } else {
+                self.action_available_for_unit(&unit, "Unit Move", (nx, ny))
+                    .is_ok_and(|available| available)
+            }
         };
         if !action_available {
             return MoveResult::Blocked;
@@ -916,6 +1017,7 @@ impl Simulation {
         if unit.moves_left <= 0 || unit.work_left > 0 || unit.state == UnitState::Sentry {
             return MoveResult::Blocked;
         }
+        let _profile = profiler.scope("movement.execute.blocking_checks");
         if self.treaty_blocks_move(&unit, nx, ny) {
             if unit.owner == HUMAN {
                 self.add_event("A treaty prevents entry to that tile.");
@@ -932,6 +1034,8 @@ impl Simulation {
         if !self.can_leave_transport(&unit) {
             return MoveResult::Blocked;
         }
+        drop(_profile);
+        let _profile = profiler.scope("movement.execute.cost_and_defender");
         let cost = match self.movement_cost_for(&unit, nx, ny) {
             Some(cost) => cost,
             None if self.tile(nx, ny).terrain.is_water() && !unit.kind.is_naval() => {
@@ -957,6 +1061,7 @@ impl Simulation {
             None => return MoveResult::Blocked,
         };
         let defender = self.best_defender_id(&unit, nx, ny);
+        drop(_profile);
         if let Some(defender_id) = defender {
             let Some(defender) = self.unit_by_id(defender_id).cloned() else {
                 return MoveResult::Blocked;
@@ -1027,6 +1132,7 @@ impl Simulation {
             .is_aircraft()
             .then(|| self.boarding_target(&unit, nx, ny))
             .flatten();
+        let _profile = profiler.scope("movement.execute.enter_tile");
         if !self.enter_tile(unit_id, nx, ny, cost, facing) {
             return MoveResult::Blocked;
         }
@@ -1064,64 +1170,67 @@ impl Simulation {
         facing: Option<u8>,
         conquest_action: Option<&'static str>,
     ) -> bool {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("movement.execute.enter_tile.city_action");
+        let Some(unit_index) = self.unit_index_by_id(unit_id) else {
+            return false;
+        };
+        let moving_unit = self.units[unit_index].clone();
+        let old_position = (moving_unit.x, moving_unit.y);
+        let owner = moving_unit.owner;
         let entering_city = self
-            .unit_by_id(unit_id)
-            .and_then(|unit| {
-                self.cities
-                    .iter()
-                    .find(|city| {
-                        (city.x, city.y) == (nx, ny) && self.at_war(city.owner, unit.owner)
-                    })
-                    .map(|city| (unit.clone(), city))
-            })
-            .map(|(unit, city)| {
-                conquest_action.or_else(|| self.city_conquest_action_for_unit(&unit, city))
+            .cities
+            .iter()
+            .find(|city| (city.x, city.y) == (nx, ny) && self.at_war(city.owner, moving_unit.owner))
+            .map(|city| {
+                conquest_action.or_else(|| self.city_conquest_action_for_unit(&moving_unit, city))
             });
         if entering_city.is_some_and(|action| action.is_none()) {
             return false;
         }
-        let old_position = self
-            .units
-            .iter()
-            .find(|unit| unit.id == unit_id)
-            .map(|unit| (unit.x, unit.y));
-        if self
-            .units
-            .iter()
-            .any(|unit| unit.id == unit_id && unit.transport.is_some())
-        {
+        drop(_profile);
+        let _profile = profiler.scope("movement.execute.enter_tile.unit_update");
+        if moving_unit.owner != HUMAN {
+            self.record_visibility_render_scope(&moving_unit, old_position, (nx, ny));
+        }
+        if moving_unit.transport.is_some() {
             self.release_ai_ferry(unit_id);
         }
-        let mut visual_mover = self
-            .visual_events
-            .enabled
-            .then(|| self.unit_by_id(unit_id).cloned())
-            .flatten();
+        let mut visual_mover = self.visual_events.enabled.then(|| moving_unit.clone());
         if let (Some(unit), Some(facing)) = (&mut visual_mover, facing) {
             unit.facing = facing;
         }
-        if let Some(mover) = self.units.iter_mut().find(|u| u.id == unit_id) {
-            mover.x = nx;
-            mover.y = ny;
-            if let Some(facing) = facing {
-                mover.facing = facing;
-            }
-            mover.transport = None;
-            mover.moves_left = (mover.moves_left - cost).max(0);
-            mover.moved = true;
-            mover.state = UnitState::Idle;
-            self.list_order.unit(mover);
+        let mover = &mut self.units[unit_index];
+        mover.x = nx;
+        mover.y = ny;
+        if let Some(facing) = facing {
+            mover.facing = facing;
         }
+        mover.transport = None;
+        mover.moves_left = (mover.moves_left - cost).max(0);
+        mover.moved = true;
+        mover.state = UnitState::Idle;
+        self.list_order.unit(mover);
         self.record_transport_change(unit_id, None);
-        let owner = self
-            .units
-            .iter()
-            .find(|unit| unit.id == unit_id)
-            .map(|unit| unit.owner);
+        drop(_profile);
+        let _profile = profiler.scope("movement.execute.enter_tile.cargo");
         self.move_cargo(unit_id, nx, ny);
+        drop(_profile);
         // Native movement updates the moving player's vision immediately,
         // including AI discovery, before contact callbacks and hut outcomes.
-        self.refresh_visibility();
+        if self.visibility_refresh_deferred {
+            self.visibility_refresh_pending = true;
+        } else if moving_unit.owner != HUMAN {
+            self.visibility_refresh_pending = true;
+            self.flush_deferred_visibility();
+        } else {
+            let _profile = self
+                .trace
+                .profiler()
+                .scope("movement.execute.refresh_visibility");
+            self.refresh_visibility();
+        }
+        let _profile = profiler.scope("movement.execute.enter_tile.sentries_and_visuals");
         self.wake_neighbor_sentries(unit_id);
         if let Some(unit) = visual_mover {
             let from = (unit.x, unit.y);
@@ -1131,16 +1240,20 @@ impl Simulation {
                 to: (nx, ny),
             });
         }
+        drop(_profile);
+        let _profile = profiler.scope("movement.execute.enter_tile.capture");
         if entering_city.is_some_and(|action| action.is_some()) {
             self.capture_city_if_needed(unit_id, nx, ny);
         }
-        if let Some(owner) = owner {
-            self.refresh_diplomatic_contact_at(owner, nx, ny);
-        }
+        drop(_profile);
+        let _profile = profiler.scope("movement.execute.enter_tile.diplomacy");
+        self.refresh_diplomatic_contact_at(owner, nx, ny);
+        drop(_profile);
+        let _profile = profiler.scope("movement.execute.enter_tile.village");
         self.enter_village(unit_id, nx, ny);
-        if let Some(old_position) = old_position {
-            self.ai_guard_follow_step(unit_id, old_position);
-        }
+        drop(_profile);
+        let _profile = profiler.scope("movement.execute.enter_tile.guard_follow");
+        self.ai_guard_follow_step(unit_id, old_position);
         true
     }
 
@@ -1412,6 +1525,11 @@ impl Simulation {
         unit_id: u32,
         path: impl IntoIterator<Item = (i32, i32)>,
     ) -> bool {
+        let defer_visibility_before = self.visibility_refresh_deferred;
+        let defer_visibility = self
+            .unit_by_id(unit_id)
+            .is_some_and(|unit| unit.owner != HUMAN);
+        self.visibility_refresh_deferred = defer_visibility_before || defer_visibility;
         let mut moved = false;
         for (dx, dy) in path {
             let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
@@ -1428,6 +1546,14 @@ impl Simulation {
             if unit.moves_left <= 0 || result == MoveResult::Fought {
                 break;
             }
+        }
+        self.visibility_refresh_deferred = defer_visibility_before;
+        if !defer_visibility_before && self.visibility_refresh_pending {
+            let _profile = self
+                .trace
+                .profiler()
+                .scope("movement.follow_path.flush_visibility");
+            self.flush_deferred_visibility();
         }
         moved
     }

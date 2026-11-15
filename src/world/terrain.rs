@@ -1,6 +1,6 @@
 //! Shared terrain and resource values used by generation and campaign state.
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Terrain {
     /// Civ III water categories, kept in the old wire slots: old shallow Ocean
     /// became Sea, and old Deep Ocean became Ocean.

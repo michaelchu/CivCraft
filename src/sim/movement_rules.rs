@@ -660,7 +660,7 @@ pub(super) struct TerrainMovementData {
     pub(super) transform_result: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct MovementTile {
     pub(super) terrain: Terrain,
     pub(super) road: bool,
@@ -668,6 +668,8 @@ pub(super) struct MovementTile {
     pub(super) river: bool,
     pub(super) base: Option<Base>,
 }
+
+pub(super) type StepCostCacheKey = (MovementTile, MovementTile, UnitClass, bool, bool, bool);
 
 impl MovementTile {
     pub(super) const fn new(

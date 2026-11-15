@@ -86,6 +86,73 @@ impl ExplorerQueue {
     }
 }
 
+/// Indexed heap for searches where each tile has exactly one queued entry.
+/// Freeciv's PF_NORMAL queue uses map_index_pq_replace for decrease-key;
+/// ExplorerQueue::put must retain its linear lookup for fuel searches, whose
+/// waited queue can contain multiple entries for one tile.
+pub(super) struct IndexedExplorerQueue {
+    heap: Vec<(i64, usize)>,
+    positions: Vec<usize>,
+}
+
+impl IndexedExplorerQueue {
+    pub(super) fn new(tile_count: usize) -> Self {
+        Self {
+            heap: vec![(0, 0)],
+            positions: vec![0; tile_count],
+        }
+    }
+
+    pub(super) fn put(&mut self, cost: i64, tile: usize) {
+        let mut index = self.positions[tile];
+        if index == 0 {
+            self.heap.push((i64::MAX, tile));
+            index = self.heap.len() - 1;
+        } else if cost >= self.heap[index].0 {
+            return;
+        }
+        while index > 1 && self.heap[index / 2].0 > cost {
+            let parent = index / 2;
+            self.heap[index] = self.heap[parent];
+            self.positions[self.heap[index].1] = index;
+            index = parent;
+        }
+        self.heap[index] = (cost, tile);
+        self.positions[tile] = index;
+    }
+
+    pub(super) fn pop(&mut self) -> Option<(i64, usize)> {
+        if self.heap.len() <= 1 {
+            return None;
+        }
+        let first = self.heap[1];
+        let last = self.heap.pop().expect("nonempty explorer queue");
+        self.positions[first.1] = 0;
+        if self.heap.len() > 1 {
+            let mut index = 1;
+            while index * 2 < self.heap.len() {
+                let mut child = index * 2;
+                if child + 1 < self.heap.len() && self.heap[child + 1].0 < self.heap[child].0 {
+                    child += 1;
+                }
+                if self.heap[child].0 >= last.0 {
+                    break;
+                }
+                self.heap[index] = self.heap[child];
+                self.positions[self.heap[index].1] = index;
+                index = child;
+            }
+            self.heap[index] = last;
+            self.positions[last.1] = index;
+        }
+        Some(first)
+    }
+
+    pub(super) fn frontier_len(&self) -> usize {
+        self.heap.len().saturating_sub(1)
+    }
+}
+
 struct ExplorerRoutes {
     // Native PF chooses by combined movement and unsigned extra costs.
     costs: Vec<(i32, i64)>,
@@ -130,14 +197,8 @@ impl Simulation {
 
     fn explorer_may_visit(&self, unit: &Unit, x: i32, y: i32) -> bool {
         !self.treaty_blocks_move(unit, x, y)
-            && !self
-                .units
-                .iter()
-                .any(|other| (other.x, other.y) == (x, y) && !self.allied(unit.owner, other.owner))
-            && !self
-                .cities
-                .iter()
-                .any(|city| (city.x, city.y) == (x, y) && !self.allied(unit.owner, city.owner))
+            && !self.any_unit_at(x, y, |other| !self.allied(unit.owner, other.owner))
+            && !self.any_city_at(x, y, |city| !self.allied(unit.owner, city.owner))
     }
 
     fn explorer_desirable(&self, unit: &Unit, x: i32, y: i32) -> i32 {
@@ -174,7 +235,7 @@ impl Simulation {
 
     pub(super) fn explorer_stack_risk(&self, unit: &Unit, x: i32, y: i32) -> i64 {
         let tile = self.tile(x, y);
-        let stack = if self.cities.iter().any(|city| (city.x, city.y) == (x, y)) {
+        let stack = if self.any_city_at_cached(x, y) {
             0
         } else {
             self.units
@@ -232,6 +293,8 @@ impl Simulation {
         unit: &Unit,
         goal: Option<(i32, i32)>,
     ) -> (Option<(i32, i32)>, ExplorerRoutes) {
+        let _profile = self.trace.profiler().scope("exploration.search");
+        self.trace.count_operation("exploration.searches", 1);
         let start = self.map_wrap.index(unit.x, unit.y);
         let rate = self.unit_move_rate(unit).max(1);
         let mut routes = ExplorerRoutes {
@@ -239,7 +302,7 @@ impl Simulation {
             previous: vec![None; self.tiles.len()],
         };
         routes.costs[start] = (0, 0);
-        let mut queue = ExplorerQueue::default();
+        let mut queue = IndexedExplorerQueue::new(self.tiles.len());
         queue.put(0, start);
         let mut best = None;
         let mut best_log = f64::NEG_INFINITY;
@@ -251,6 +314,8 @@ impl Simulation {
             if combined != i64::from(spent) * PF_TURN_FACTOR + i64::from(rate) * extra {
                 continue;
             }
+            self.trace
+                .count_operation("exploration.search_expansions", 1);
             let (x, y) = self.map_wrap.position(current);
             if let Some(goal) = goal {
                 if (x, y) == goal {
@@ -258,6 +323,8 @@ impl Simulation {
                 }
             } else if current != start {
                 // pf_map_move_costs_iterate(..., FALSE) excludes the start.
+                self.trace
+                    .count_operation("exploration.desirability_evaluations", 1);
                 let score = self.explorer_desirable(unit, x, y);
                 if score > 0 {
                     let log_score = f64::from(score).ln() + f64::from(spent) * log_df;
@@ -301,6 +368,20 @@ impl Simulation {
                 if old.0 == i32::MAX
                     || next < i64::from(old.0) * PF_TURN_FACTOR + i64::from(rate) * old.1
                 {
+                    self.trace.count_operation(
+                        if old.0 == i32::MAX {
+                            "exploration.queue_inserts"
+                        } else {
+                            "exploration.queue_decrease_keys"
+                        },
+                        1,
+                    );
+                    if old.0 != i32::MAX {
+                        self.trace.count_operation(
+                            "exploration.queue_frontier_entries_at_decrease_key",
+                            queue.frontier_len() as u64,
+                        );
+                    }
                     routes.costs[index] = (movement, extra);
                     routes.previous[index] = Some((current, (dx, dy)));
                     queue.put(next, index);
@@ -363,6 +444,8 @@ impl Simulation {
     }
 
     fn follow_explorer_goal(&mut self, unit: &Unit, goal: (i32, i32)) {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("exploration.follow_goal");
         let id = unit.id;
         let (reachable, routes) = self.explorer_search(unit, Some(goal));
         if reachable.is_none() {
@@ -376,33 +459,52 @@ impl Simulation {
         if let Some(actor) = self.units.iter_mut().find(|actor| actor.id == id) {
             actor.state = UnitState::Idle;
         }
+        let _profile = profiler.scope("exploration.follow_goal.steps");
+        let defer_visibility_before = self.visibility_refresh_deferred;
+        self.visibility_refresh_deferred = defer_visibility_before || unit.owner != HUMAN;
         for (dx, dy) in path {
             let Some(actor) = self.unit_by_id(id).cloned() else {
-                return;
+                break;
             };
             let Some((nx, ny)) = self.map_wrap.civ3_offset(actor.x, actor.y, dx, dy) else {
                 continue;
             };
+            let _profile = profiler.scope("exploration.follow_goal.legality");
             if actor.moves_left <= 0
                 || !self.explorer_may_visit(&actor, nx, ny)
                 || (actor.owner == BARBARIANS && self.tile(nx, ny).hut)
             {
                 break;
             }
+            drop(_profile);
+            let _profile = profiler.scope("exploration.follow_goal.movement_cost");
             if let Some(cost) = self.movement_cost_for(&actor, nx, ny)
                 && actor.moves_left <= cost
                 && self.unit_move_rate(&actor) > cost
-                && self.explorer_danger_at(&actor, nx, ny)
-                && !self.explorer_danger_at(&actor, actor.x, actor.y)
+                && {
+                    let _profile = profiler.scope("exploration.follow_goal.danger");
+                    self.explorer_danger_at(&actor, nx, ny)
+                }
+                && {
+                    let _profile = profiler.scope("exploration.follow_goal.danger");
+                    !self.explorer_danger_at(&actor, actor.x, actor.y)
+                }
             {
                 break;
             }
+            drop(_profile);
             let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
                 break;
             };
+            let _profile = profiler.scope("exploration.follow_goal.try_move");
             if self.try_move_unit_civ3(id, direction) == MoveResult::Blocked {
                 break;
             }
+        }
+        self.visibility_refresh_deferred = defer_visibility_before;
+        if !defer_visibility_before && self.visibility_refresh_pending {
+            let _profile = profiler.scope("exploration.follow_goal.flush_visibility");
+            self.flush_deferred_visibility();
         }
         // adv_follow_path restores the caller's activity after temporary GOTO.
         if let Some(actor) = self.units.iter_mut().find(|actor| actor.id == id) {

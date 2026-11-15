@@ -46,6 +46,10 @@ impl Simulation {
         self.next_unit_id += 1;
         self.units.push(self.make_unit(id, owner, kind, x, y));
         self.list_order.unit(self.units.last().unwrap());
+        if self.visibility_refresh_deferred {
+            let unit = self.units.last().unwrap().clone();
+            self.record_visibility_render_scope(&unit, (x, y), (x, y));
+        }
         if Self::is_ai_ferry(kind) {
             self.ai_ferries.boats.insert(
                 id,

@@ -187,6 +187,8 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn refresh_visibility(&mut self) {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("visibility.refresh.reset");
         for tile in &mut self.tiles {
             tile.visible = false;
             tile.stealth_visible = false;
@@ -201,6 +203,7 @@ impl Simulation {
                 }
             }
         }
+        drop(_profile);
         let revealers: Vec<_> = self
             .units
             .iter()
@@ -217,6 +220,7 @@ impl Simulation {
         let recipients: Vec<_> = (0..self.players.len())
             .map(|owner| self.vision_recipients(owner))
             .collect();
+        let _profile = profiler.scope("visibility.refresh.knowledge_sharing");
         let sharing: Vec<_> = recipients
             .iter()
             .enumerate()
@@ -235,8 +239,10 @@ impl Simulation {
                 tile.seen |= tile.known_by[HUMAN];
             }
         }
+        drop(_profile);
         let mut observations = vec![None; self.tiles.len()];
         let mut render_seen = vec![vec![false; self.tiles.len()]; self.players.len()];
+        let _profile = profiler.scope("visibility.refresh.revealers");
         for (owner, x, y, radius_sq, stealth_sq) in revealers {
             let radius = (radius_sq as f32).sqrt().ceil() as i32;
             for (visible_x, visible_y, distance) in self.map_wrap.civ3_radius(x, y, radius) {
@@ -263,9 +269,11 @@ impl Simulation {
                 }
             }
         }
+        drop(_profile);
         let city_reveal_owners: Vec<_> = (0..self.players.len())
             .filter(|&owner| self.reveals_cities(owner))
             .collect();
+        let _profile = profiler.scope("visibility.refresh.city_reveal");
         for owner in city_reveal_owners {
             for city in &self.cities {
                 let tile = &mut self.tiles[self.map_wrap.index(city.x, city.y)];
@@ -273,12 +281,70 @@ impl Simulation {
                 tile.seen |= owner == HUMAN;
             }
         }
+        drop(_profile);
+        let _profile = profiler.scope("visibility.refresh.reconcile_workers");
         self.reconcile_city_workers();
+        drop(_profile);
+        let _profile = profiler.scope("visibility.refresh.remember_borders");
         self.remember_visible_borders();
+        drop(_profile);
+        let _profile = profiler.scope("visibility.refresh.remember_routes");
         self.remember_route_tiles(false);
+        drop(_profile);
+        let _profile = profiler.scope("visibility.refresh.remember_rivals");
         self.remember_visible_rivals();
-        self.remember_render_map(&render_seen);
+        drop(_profile);
+        let _profile = profiler.scope("visibility.refresh.remember_render_map");
+        let render_scope = self.visibility_render_scope.take();
+        self.remember_render_positions_with_sight(&render_seen, render_scope.as_deref(), true);
+        drop(_profile);
+        let _profile = profiler.scope("visibility.refresh.share_render_memory");
         self.share_render_memory();
+    }
+
+    pub(super) fn record_visibility_render_scope(
+        &mut self,
+        unit: &Unit,
+        from: (i32, i32),
+        to: (i32, i32),
+    ) {
+        let tile_count = self.tiles.len();
+        if self.visibility_pending_render_tiles.len() != tile_count {
+            self.visibility_pending_render_tiles = vec![false; tile_count];
+        }
+        for (x, y) in [from, to] {
+            let radius_sq = self.unit_vision_radius_sq_for(unit.owner, unit.kind, x, y);
+            let radius = (radius_sq as f32).sqrt().ceil() as i32;
+            for (tx, ty, distance) in self.map_wrap.civ3_radius(x, y, radius) {
+                if self.within_vision_distance_sq(distance, radius_sq) {
+                    let index = self.map_wrap.index(tx, ty);
+                    self.visibility_pending_render_tiles[index] = true;
+                }
+            }
+        }
+    }
+
+    pub(super) fn flush_deferred_visibility(&mut self) {
+        if self.visibility_refresh_deferred || !self.visibility_refresh_pending {
+            return;
+        }
+        self.visibility_refresh_pending = false;
+        let scope = self
+            .visibility_pending_render_tiles
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(index, visible)| {
+                if *visible {
+                    *visible = false;
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        self.visibility_render_scope = Some(scope);
+        self.refresh_visibility();
+        self.visibility_render_scope = None;
     }
 
     /// Knowledge flags remain current; unexplored callers must still honor `seen`.
@@ -310,8 +376,28 @@ impl Simulation {
 
     fn observed_city_with_occupancy(&self, city: &City, occupied: bool) -> ObservedCity {
         // Appearance needs luxury and mood, but not the forecast's upkeep scans/sorts.
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("observed_city.yields");
         let (_, _, trade) = self.city_yields(city);
+        drop(_profile);
+        let _profile = profiler.scope("observed_city.trade");
         let luxury = self.city_trade(city, trade)[2];
+        drop(_profile);
+        let _profile = profiler.scope("observed_city.era");
+        let civ3_era = Tech::all()
+            .filter(|&tech| self.has_tech(city.owner, tech))
+            .map(|tech| match tech.era() {
+                TechEra::Ancient => 0,
+                TechEra::MiddleAges => 1,
+                TechEra::Industrial => 2,
+                TechEra::Modern => 3,
+            })
+            .max()
+            .unwrap_or(0);
+        drop(_profile);
+        let _profile = profiler.scope("observed_city.mood");
+        let disorder = self.city_in_disorder(city, luxury);
+        drop(_profile);
         ObservedCity {
             city: city.clone(),
             // Civ III supplies five cultural sheets; the default mapping is
@@ -322,18 +408,9 @@ impl Simulation {
                 .and_then(crate::rules::civilizations::by_id)
                 .map(|civilization| civilization.civ3_city_style)
                 .unwrap_or(2),
-            civ3_era: Tech::all()
-                .filter(|&tech| self.has_tech(city.owner, tech))
-                .map(|tech| match tech.era() {
-                    TechEra::Ancient => 0,
-                    TechEra::MiddleAges => 1,
-                    TechEra::Industrial => 2,
-                    TechEra::Modern => 3,
-                })
-                .max()
-                .unwrap_or(0),
+            civ3_era,
             occupied,
-            disorder: self.city_in_disorder(city, luxury),
+            disorder,
             remembered: false,
         }
     }
@@ -394,47 +471,103 @@ impl Simulation {
     }
 
     fn remember_render_positions(&mut self, visible: &[Vec<bool>], scope: Option<&[usize]>) {
+        self.remember_render_positions_with_sight(visible, scope, false);
+    }
+
+    fn remember_render_positions_with_sight(
+        &mut self,
+        visible: &[Vec<bool>],
+        scope: Option<&[usize]>,
+        visible_is_current_sight: bool,
+    ) {
         self.observed_map.revision = self.observed_map.revision.saturating_add(1);
         let revision = self.observed_map.revision;
-        let indices = scope
-            .map(|scope| scope.to_vec())
-            .unwrap_or_else(|| (0..self.tiles.len()).collect());
+        let mut occupied = vec![false; self.tiles.len()];
+        for unit in &self.units {
+            occupied[self.map_wrap.index(unit.x, unit.y)] = true;
+        }
+        let mut city_snapshots = vec![None; self.cities.len()];
         for (owner, visible) in visible.iter().enumerate() {
             if owner == BARBARIANS {
                 continue;
             }
             // Looking at a now-empty city tile removes only that observer's memory.
+            let _prune_profile = self
+                .trace
+                .profiler()
+                .scope("visibility.render_memory.city_prune");
             self.observed_map.cities.retain(|(viewer, _), (_, c)| {
                 let index = self.map_wrap.index(c.city.x, c.city.y);
-                *viewer != owner || !indices.contains(&index) || !visible[index]
+                *viewer != owner
+                    || scope.is_some_and(|indices| indices.binary_search(&index).is_err())
+                    || !visible[index]
             });
-            for &index in &indices {
-                if visible[index] {
-                    let mut tile = self.tiles[index].clone();
-                    tile.seen = true;
-                    tile.visible = false;
-                    tile.stealth_visible = false;
-                    self.observed_map
-                        .tiles
-                        .insert((owner, index), (revision, tile));
+            drop(_prune_profile);
+            let _tile_profile = self
+                .trace
+                .profiler()
+                .scope("visibility.render_memory.tile_snapshots");
+            if let Some(indices) = scope {
+                for &index in indices {
+                    if visible[index] {
+                        let mut tile = self.tiles[index].clone();
+                        tile.seen = true;
+                        tile.visible = false;
+                        tile.stealth_visible = false;
+                        self.observed_map
+                            .tiles
+                            .insert((owner, index), (revision, tile));
+                    }
+                }
+            } else {
+                for (index, &is_visible) in visible.iter().enumerate() {
+                    if is_visible {
+                        let mut tile = self.tiles[index].clone();
+                        tile.seen = true;
+                        tile.visible = false;
+                        tile.stealth_visible = false;
+                        self.observed_map
+                            .tiles
+                            .insert((owner, index), (revision, tile));
+                    }
                 }
             }
-            for city in &self.cities {
+            drop(_tile_profile);
+            let _city_profile = self
+                .trace
+                .profiler()
+                .scope("visibility.render_memory.city_snapshots");
+            for (city_index, city) in self.cities.iter().enumerate() {
                 let index = self.map_wrap.index(city.x, city.y);
-                if indices.contains(&index) && (visible[index] || self.reveals_cities(owner)) {
+                if scope.is_none_or(|indices| indices.binary_search(&index).is_ok())
+                    && (visible[index] || self.reveals_cities(owner))
+                {
                     // City visibility and unit visibility are independent.
                     // A map-show operation can reveal a city site while its
                     // garrison remains hidden.
-                    let occupied = self.has_main_sight_at(owner, city.x, city.y)
-                        && self
-                            .units
-                            .iter()
-                            .any(|unit| (unit.x, unit.y) == (city.x, city.y));
-                    let mut observed = self.observed_city_with_occupancy(city, occupied);
+                    let has_sight = if visible_is_current_sight {
+                        visible[index]
+                    } else {
+                        self.has_main_sight_at(owner, city.x, city.y)
+                    };
+                    let _appearance_profile = self
+                        .trace
+                        .profiler()
+                        .scope("visibility.render_memory.city_appearance");
+                    let base = city_snapshots[city_index]
+                        .get_or_insert_with(|| self.observed_city_with_occupancy(city, false));
+                    drop(_appearance_profile);
+                    let mut observed = base.clone();
+                    observed.occupied = has_sight && occupied[index];
                     observed.remembered = true;
+                    let _store_profile = self
+                        .trace
+                        .profiler()
+                        .scope("visibility.render_memory.city_store");
                     self.observed_map
                         .cities
                         .insert((owner, city.id), (revision, observed));
+                    drop(_store_profile);
                 }
             }
         }

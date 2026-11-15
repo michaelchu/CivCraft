@@ -1,7 +1,7 @@
 //! Unit metadata types and the Conquests-backed unit metadata accessor.
 use super::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum UnitClass {
     Land,
     SmallLand,
