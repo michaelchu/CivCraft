@@ -591,13 +591,17 @@ impl Simulation {
         // vision updates.
         let radius_sq = ruleset_unit_vision_radius_sq(RulesetData::campaign_default(), unit_kind);
         let radius = (radius_sq.max(0) as f64).sqrt().ceil() as i32;
-        let indices = self
+        let mut indices = self
             .map_wrap
             .civ3_radius(x, y, radius)
             .into_iter()
             .filter(|(_, _, distance)| distance * distance <= radius_sq.max(0))
             .map(|(tx, ty, _)| self.map_wrap.index(tx, ty))
             .collect::<Vec<_>>();
+        // remember_render_positions_with_sight uses binary_search on scoped
+        // indices when storing and pruning city memories. civ3_radius returns
+        // breadth-first order, not index order.
+        indices.sort_unstable();
         let recipients = self.vision_recipients(owner);
         let mut remembered = vec![vec![false; self.tiles.len()]; self.players.len()];
         for &index in &indices {
