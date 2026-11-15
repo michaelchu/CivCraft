@@ -5,10 +5,12 @@ III: Conquests campaign.  It is intentionally separate from
 `civcraft_civ2civ3/`, whose `.ruleset` files currently provide the retained
 Freeciv engine configuration.
 
-The catalogs are currently loaded by migration/parity tests while the runtime
-still consumes the legacy TSV adapters.  Do not edit the TSVs directly for a
-rules change once the corresponding TOML field exists; regenerate only when
-reconciling source data, then keep the TOML and parity tests authoritative.
+The catalogs are the runtime source for the migrated campaign systems.  The
+legacy TSV extraction tables remain only as temporary source material for the
+conversion tool while building rules and Freeciv effect adapters are being
+cut over.  Do not edit the TSVs directly for a rules change once the
+corresponding TOML field exists; regenerate only when reconciling source data,
+then keep the TOML and focused tests authoritative.
 
 Current catalogs:
 

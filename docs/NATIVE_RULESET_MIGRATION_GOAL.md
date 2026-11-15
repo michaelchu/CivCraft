@@ -23,14 +23,14 @@ records may be selected as gameplay content.
 
 Native TOML now contains the complete 92-unit, 31-civilization, 83-building,
 and 83-technology Conquests catalogs, plus the eight-government tables and
-native economy/settlement settings.  Native loaders and parity tests are in
-place beside the remaining TSV-backed adapters.  Economy and settlement AI
-consumers now read the native TOML settings; content identity and government
-effect consumers still need a deliberate runtime cutover.
+native economy/settlement settings.  The source-content catalog and migrated
+unit consumers now load TOML directly.  Unit upkeep, roles, flags, build cost,
+and action requirements prefer native values; building effects and government
+effects still need a deliberate runtime cutover.
 
 ## Order of work
 
-1. Migrate buildings and their bindings.
+1. Migrate building identities, values, requirements, effects, and bindings.
 2. Migrate the technology graph and research/economic parameters.
 3. Migrate governments, settlement founding/city rules, and settlement AI
    tuning into native TOML.
