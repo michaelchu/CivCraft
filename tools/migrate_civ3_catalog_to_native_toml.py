@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from pathlib import Path
 
 
@@ -29,6 +30,29 @@ def read_bridge_tsv(name: str) -> list[dict[str, str]]:
     ) as stream:
         rows = [line for line in stream if line.strip() and not line.startswith("#")]
     return list(csv.DictReader(rows, delimiter="\t"))
+
+
+def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
+    profiles: dict[str, dict[str, object]] = {}
+    current: dict[str, object] | None = None
+    for raw_line in (ROOT / "data/rulesets/civcraft_civ2civ3/units.ruleset").read_text(
+        encoding="utf-8"
+    ).splitlines():
+        line = raw_line.strip()
+        if line.startswith("[unit_") and line.endswith("]"):
+            current = {}
+            profiles[line[1:-1]] = current
+            continue
+        if current is None or "=" not in line or line.startswith(";"):
+            continue
+        key, value = (part.strip() for part in line.split("=", 1))
+        if key in {"uk_food", "uk_shield", "uk_gold", "uk_happy", "build_cost"}:
+            match = re.search(r"-?\d+", value)
+            if match:
+                current[key] = int(match.group())
+        elif key in {"flags", "roles"}:
+            current[key] = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', value)
+    return profiles
 
 
 def string(value: str) -> str:
@@ -359,12 +383,16 @@ def write_governments() -> None:
 
 
 def write_unit_economics() -> None:
+    profiles = read_c2c3_unit_profiles()
     lines = [
         "schema_version = 1",
         'source = "CivCraft native unit-economics bindings"',
         "",
     ]
     for row in read_bridge_tsv("unit_economics.tsv"):
+        profile = profiles.get(row["c2c3_record"], {})
+        flags = profile.get("flags", [])
+        roles = profile.get("roles", [])
         lines.extend(
             [
                 "[[bindings]]",
@@ -372,6 +400,13 @@ def write_unit_economics() -> None:
                 f'profile = {string(row["c2c3_record"])}',
                 f'mapping_kind = {string(row["mapping_kind"])}',
                 f'basis = {string(row["basis"])}',
+                f'build_cost = {profile.get("build_cost", 0)}',
+                f'support_food = {profile.get("uk_food", 0)}',
+                f'support_shields = {profile.get("uk_shield", 0)}',
+                f'support_gold = {profile.get("uk_gold", 0)}',
+                f'happiness = {profile.get("uk_happy", 0)}',
+                f'flags = {json.dumps(flags, ensure_ascii=False)}',
+                f'roles = {json.dumps(roles, ensure_ascii=False)}',
                 "",
             ]
         )

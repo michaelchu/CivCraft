@@ -6,549 +6,1193 @@ civ3_unit_id = "settler"
 profile = "unit_settlers"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 30
+support_food = 1
+support_shields = 0
+support_gold = 0
+happiness = 0
+flags = ["Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "AddToCity"]
+roles = ["CitiesStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "worker"
 profile = "unit_worker"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 20
+support_food = 0
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "Fortress"]
+roles = ["Settlers", "WorkerStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "scout"
 profile = "unit_explorer"
 mapping_kind = "alias"
 basis = "BIQ scout/exploration role maps to the selected C2C3 Explorer archetype."
+build_cost = 30
+support_food = 0
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify"]
+roles = ["Explorer", "ExplorerStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "explorer"
 profile = "unit_explorer"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 30
+support_food = 0
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify"]
+roles = ["Explorer", "ExplorerStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "marine"
 profile = "unit_marines"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress"]
+roles = ["DefendGood", "DefendOkStartUnit", "FirstBuild", "BarbarianSeaTech"]
 
 [[bindings]]
 civ3_unit_id = "modern_paratrooper"
 profile = "unit_paratroopers"
 mapping_kind = "alias"
 basis = "BIQ paratrooper role maps to the selected C2C3 Paratroopers archetype."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Paratroopers", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk"]
 
 [[bindings]]
 civ3_unit_id = "warrior"
 profile = "unit_warriors"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 10
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "DefendOkStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "archer"
 profile = "unit_archers"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "Hut"]
 
 [[bindings]]
 civ3_unit_id = "spearman"
 profile = "unit_phalanx"
 mapping_kind = "alias"
 basis = "BIQ Land unit attack/defense/move 1/2/1 matches the C2C3 Phalanx archetype."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "swordsman"
 profile = "unit_legion"
 mapping_kind = "alias"
 basis = "BIQ Land melee infantry role maps to the selected C2C3 Legion archetype."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
 
 [[bindings]]
 civ3_unit_id = "chariot"
 profile = "unit_chariot"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["AttackFastStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "horseman"
 profile = "unit_horsemen"
 mapping_kind = "alias"
 basis = "BIQ attack/defense/move 2/1/2 matches the C2C3 Horsemen archetype."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["AttackFastStartUnit", "Hut", "Barbarian", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "pikeman"
 profile = "unit_pikemen"
 mapping_kind = "alias"
 basis = "BIQ anti-cavalry Land unit maps to the selected C2C3 Pikemen archetype."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "longbowman"
 profile = "unit_archers"
 mapping_kind = "alias"
 basis = "BIQ ranged infantry role maps to the selected C2C3 Archers archetype."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "Hut"]
 
 [[bindings]]
 civ3_unit_id = "musketman"
 profile = "unit_musketeers"
 mapping_kind = "alias"
 basis = "BIQ gunpowder infantry role maps to the selected C2C3 Musketeers archetype."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild", "HutTech"]
 
 [[bindings]]
 civ3_unit_id = "knight"
 profile = "unit_knights"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "rifleman"
 profile = "unit_riflemen"
 mapping_kind = "alias"
 basis = "BIQ rifle infantry role maps to the selected C2C3 Riflemen archetype."
+build_cost = 50
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "cavalry"
 profile = "unit_cavalry"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["AttackFastStartUnit", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "infantry"
 profile = "unit_riflemen"
 mapping_kind = "alias"
 basis = "BIQ Rifleman-to-Infantry upgrade line keeps the C2C3 Riflemen infantry economics archetype."
+build_cost = 50
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "tank"
 profile = "unit_armor"
 mapping_kind = "alias"
 basis = "BIQ armored-vehicle role maps to the selected C2C3 Armor archetype."
+build_cost = 90
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "mech_infantry"
 profile = "unit_mech_inf"
 mapping_kind = "alias"
 basis = "BIQ mechanized infantry role maps to the selected C2C3 Mech Inf. archetype."
+build_cost = 70
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = [""]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "modern_armor"
 profile = "unit_armor"
 mapping_kind = "alias"
 basis = "BIQ modern armored-vehicle role maps to the selected C2C3 Armor archetype."
+build_cost = 90
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "catapult"
 profile = "unit_catapult"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["ShieldToGold"]
+roles = ["AttackStrongStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "cannon"
 profile = "unit_cannon"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 50
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["ShieldToGold"]
+roles = ["AttackStrongStartUnit", "BarbarianTech", "BarbarianBuildTech"]
 
 [[bindings]]
 civ3_unit_id = "artillery"
 profile = "unit_artillery"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["CityBuster"]
+roles = ["AttackStrongStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "radar_artillery"
 profile = "unit_howitzer"
 mapping_kind = "alias"
 basis = "BIQ bombard-only artillery (strength 16, range 2) maps to the selected C2C3 Howitzer archetype."
+build_cost = 80
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["CityBuster", "ShieldToGold"]
+roles = ["AttackStrongStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "cruise_missile"
 profile = "unit_cruise_missile"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 50
+support_food = 0
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["OneAttack", "AirAttacker", "CityBuster", "HasNoZOC"]
+roles = [""]
 
 [[bindings]]
 civ3_unit_id = "tactical_nuke"
 profile = "unit_nuclear"
 mapping_kind = "alias"
 basis = "BIQ nuclear-weapon type maps to C2C3 single Nuclear archetype."
+build_cost = 160
+support_food = 0
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["FieldUnit", "OneAttack", "Nuclear", "HasNoZOC", "ShieldToGold"]
+roles = [""]
 
 [[bindings]]
 civ3_unit_id = "icbm"
 profile = "unit_nuclear"
 mapping_kind = "alias"
 basis = "BIQ nuclear-weapon type maps to C2C3 single Nuclear archetype."
+build_cost = 160
+support_food = 0
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["FieldUnit", "OneAttack", "Nuclear", "HasNoZOC", "ShieldToGold"]
+roles = [""]
 
 [[bindings]]
 civ3_unit_id = "galley"
 profile = "unit_trireme"
 mapping_kind = "alias"
 basis = "Existing CivCraft gameplay-role alias, explicitly extended to economics."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil"]
+roles = ["Ferryboat", "FerryStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "caravel"
 profile = "unit_caravel"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["BadCityDefender", "Only_Native_Attack", "HasNoZOC"]
+roles = ["Ferryboat", "FerryStartUnit", "BarbarianBoat"]
 
 [[bindings]]
 civ3_unit_id = "frigate"
 profile = "unit_frigate"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "ShieldToGold"]
+roles = ["Hunter"]
 
 [[bindings]]
 civ3_unit_id = "galleon"
 profile = "unit_galleon"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil"]
+roles = ["Ferryboat", "FerryStartUnit", "BarbarianBoat"]
 
 [[bindings]]
 civ3_unit_id = "ironclad"
 profile = "unit_ironclad"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 50
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "ShieldToGold"]
+roles = ["Hunter"]
 
 [[bindings]]
 civ3_unit_id = "transport"
 profile = "unit_transport"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 50
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["Workers", "BadCityDefender", "HasNoZOC"]
+roles = ["Ferryboat", "FerryStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "carrier"
 profile = "unit_carrier"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 150
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["BadCityDefender", "HasNoZOC", "Provoking", "ShieldToGold"]
+roles = ["DefendGood"]
 
 [[bindings]]
 civ3_unit_id = "submarine"
 profile = "unit_submarine"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 70
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "Only_Native_Attack"]
+roles = ["Hunter"]
 
 [[bindings]]
 civ3_unit_id = "destroyer"
 profile = "unit_destroyer"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "ShieldToGold"]
+roles = ["Hunter"]
 
 [[bindings]]
 civ3_unit_id = "battleship"
 profile = "unit_battleship"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 160
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "ShieldToGold"]
+roles = ["DefendOk", "DefendOkStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "aegis_cruiser"
 profile = "unit_aegis_cruiser"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 100
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "nuclear_submarine"
 profile = "unit_submarine"
 mapping_kind = "alias"
 basis = "Existing CivCraft transport-role alias, explicitly extended to economics."
+build_cost = 70
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "Only_Native_Attack"]
+roles = ["Hunter"]
 
 [[bindings]]
 civ3_unit_id = "fighter"
 profile = "unit_fighter"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["AirAttacker", "HasNoZOC", "ShieldToGold"]
+roles = ["DefendOk", "DefendOkStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "bomber"
 profile = "unit_bomber"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 100
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["FieldUnit", "OneAttack", "AirAttacker", "Bombarder"]
+roles = [""]
 
 [[bindings]]
 civ3_unit_id = "helicopter"
 profile = "unit_helicopter"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 70
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["OneAttack", "AirAttacker", "Bombarder", "HasNoZOC"]
+roles = [""]
 
 [[bindings]]
 civ3_unit_id = "jet_fighter"
 profile = "unit_fighter"
 mapping_kind = "alias"
 basis = "BIQ air fighter role maps to the selected C2C3 Fighter archetype."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["AirAttacker", "HasNoZOC", "ShieldToGold"]
+roles = ["DefendOk", "DefendOkStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "stealth_fighter"
 profile = "unit_stealth_fighter"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 80
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["AirAttacker", "HasNoZOC", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "stealth_bomber"
 profile = "unit_stealth_bomber"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 120
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["FieldUnit", "OneAttack", "AirAttacker", "Bombarder"]
+roles = ["DefendOk", "DefendOkStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "leader"
 profile = "unit_leader"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 10
+support_food = 0
+support_shields = 0
+support_gold = 0
+happiness = 0
+flags = ["IgZOC", "NonMil", "NoBuild", "NoHome", "SuperSpy"]
+roles = ["KingStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "army"
 profile = "unit_warriors"
 mapping_kind = "alias"
 basis = "Civ III Army is an aggregate combat unit with no C2C3 counterpart; use the generic Land combat upkeep profile only. This is an economics adaptation, not an identity match."
+build_cost = 10
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "DefendOkStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "jaguar_warrior"
 profile = "unit_warriors"
 mapping_kind = "alias"
 basis = "BIQ replaces=Warrior; inherit that selected base archetype for economics."
+build_cost = 10
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "DefendOkStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "bowman"
 profile = "unit_archers"
 mapping_kind = "alias"
 basis = "BIQ replaces=Archer; inherit that selected base archetype for economics."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "Hut"]
 
 [[bindings]]
 civ3_unit_id = "hoplite"
 profile = "unit_phalanx"
 mapping_kind = "alias"
 basis = "BIQ replaces=Spearman; inherit that selected base archetype for economics."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "impi"
 profile = "unit_phalanx"
 mapping_kind = "alias"
 basis = "BIQ replaces=Spearman; inherit that selected base archetype for economics."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "legionary"
 profile = "unit_legion"
 mapping_kind = "alias"
 basis = "BIQ replaces=Swordsman; inherit that selected base archetype for economics."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
 
 [[bindings]]
 civ3_unit_id = "immortals"
 profile = "unit_legion"
 mapping_kind = "alias"
 basis = "BIQ replaces=Swordsman; inherit that selected base archetype for economics."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
 
 [[bindings]]
 civ3_unit_id = "war_chariot"
 profile = "unit_chariot"
 mapping_kind = "alias"
 basis = "BIQ replaces=Chariot; inherit that selected base archetype for economics."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["AttackFastStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "rider"
 profile = "unit_knights"
 mapping_kind = "alias"
 basis = "BIQ replaces=Knight; inherit that selected base archetype for economics."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "mounted_warrior"
 profile = "unit_horsemen"
 mapping_kind = "alias"
 basis = "BIQ replaces=Horseman; inherit that selected base archetype for economics."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["AttackFastStartUnit", "Hut", "Barbarian", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "musketeer"
 profile = "unit_musketeers"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild", "HutTech"]
 
 [[bindings]]
 civ3_unit_id = "samurai"
 profile = "unit_knights"
 mapping_kind = "alias"
 basis = "BIQ replaces=Knight; inherit that selected base archetype for economics."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "war_elephant"
 profile = "unit_knights"
 mapping_kind = "alias"
 basis = "BIQ replaces=Knight; inherit that selected base archetype for economics."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "cossack"
 profile = "unit_cavalry"
 mapping_kind = "alias"
 basis = "BIQ replaces=Cavalry; inherit that selected base archetype for economics."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["AttackFastStartUnit", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "panzer"
 profile = "unit_armor"
 mapping_kind = "alias"
 basis = "BIQ replaces=Tank; inherit that selected base archetype for economics."
+build_cost = 90
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "man_o_war"
 profile = "unit_frigate"
 mapping_kind = "alias"
 basis = "BIQ replaces=Frigate; inherit that selected base archetype for economics."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "ShieldToGold"]
+roles = ["Hunter"]
 
 [[bindings]]
 civ3_unit_id = "f_15"
 profile = "unit_fighter"
 mapping_kind = "alias"
 basis = "BIQ replaces=Jet Fighter; inherit that selected base archetype for economics."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["AirAttacker", "HasNoZOC", "ShieldToGold"]
+roles = ["DefendOk", "DefendOkStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "privateer"
 profile = "unit_frigate"
 mapping_kind = "alias"
 basis = "C2C3 has no Privateer archetype; use the selected Frigate combat-ship upkeep profile only. Civ III attack values and naval-raider identity remain unchanged."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "ShieldToGold"]
+roles = ["Hunter"]
 
 [[bindings]]
 civ3_unit_id = "keshik"
 profile = "unit_knights"
 mapping_kind = "alias"
 basis = "BIQ replaces=Knight; inherit that selected base archetype for economics."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "conquistador"
 profile = "unit_explorer"
 mapping_kind = "alias"
 basis = "BIQ replaces=Explorer; inherit that selected base archetype for economics."
+build_cost = 30
+support_food = 0
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify"]
+roles = ["Explorer", "ExplorerStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "berserk"
 profile = "unit_archers"
 mapping_kind = "alias"
 basis = "BIQ replaces=Longbowman; inherit that selected base archetype for economics."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "Hut"]
 
 [[bindings]]
 civ3_unit_id = "sipahi"
 profile = "unit_cavalry"
 mapping_kind = "alias"
 basis = "BIQ replaces=Cavalry; inherit that selected base archetype for economics."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["AttackFastStartUnit", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "gallic_swordsman"
 profile = "unit_legion"
 mapping_kind = "alias"
 basis = "BIQ replaces=Swordsman; inherit that selected base archetype for economics."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
 
 [[bindings]]
 civ3_unit_id = "ansar_warrior"
 profile = "unit_knights"
 mapping_kind = "alias"
 basis = "BIQ replaces=Knight; inherit that selected base archetype for economics."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "numidian_mercenary"
 profile = "unit_phalanx"
 mapping_kind = "alias"
 basis = "BIQ replaces=Spearman; inherit that selected base archetype for economics."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "hwach_a"
 profile = "unit_cannon"
 mapping_kind = "alias"
 basis = "BIQ replaces=Cannon; inherit that selected base archetype for economics."
+build_cost = 50
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["ShieldToGold"]
+roles = ["AttackStrongStartUnit", "BarbarianTech", "BarbarianBuildTech"]
 
 [[bindings]]
 civ3_unit_id = "medieval_infantry"
 profile = "unit_legion"
 mapping_kind = "alias"
 basis = "BIQ Land combat profile 4/2/1 matches the C2C3 Legion archetype."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
 
 [[bindings]]
 civ3_unit_id = "guerilla"
 profile = "unit_partisan"
 mapping_kind = "alias"
 basis = "BIQ Guerilla role maps to the selected C2C3 Partisan archetype."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["IgTer", "IgZOC", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "Partisan", "BarbarianTech"]
 
 [[bindings]]
 civ3_unit_id = "enkidu_warrior"
 profile = "unit_warriors"
 mapping_kind = "alias"
 basis = "BIQ replaces=Warrior; inherit that selected base archetype for economics."
+build_cost = 10
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "DefendOkStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "three_man_chariot"
 profile = "unit_chariot"
 mapping_kind = "alias"
 basis = "BIQ replaces=Chariot; inherit that selected base archetype for economics."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["AttackFastStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "carrack"
 profile = "unit_caravel"
 mapping_kind = "alias"
 basis = "BIQ replaces=Caravel; inherit that selected base archetype for economics."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["BadCityDefender", "Only_Native_Attack", "HasNoZOC"]
+roles = ["Ferryboat", "FerryStartUnit", "BarbarianBoat"]
 
 [[bindings]]
 civ3_unit_id = "swiss_mercenary"
 profile = "unit_pikemen"
 mapping_kind = "alias"
 basis = "BIQ replaces=Pikeman; inherit that selected base archetype for economics."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "trebuchet"
 profile = "unit_catapult"
 mapping_kind = "alias"
 basis = "BIQ bombard-only siege role maps to the selected C2C3 Catapult archetype."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["ShieldToGold"]
+roles = ["AttackStrongStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "chasqui_scout"
 profile = "unit_explorer"
 mapping_kind = "alias"
 basis = "BIQ replaces=Scout; inherit that selected base archetype for economics."
+build_cost = 30
+support_food = 0
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify"]
+roles = ["Explorer", "ExplorerStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "javelin_thrower"
 profile = "unit_archers"
 mapping_kind = "alias"
 basis = "BIQ replaces=Archer; inherit that selected base archetype for economics."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk", "Hut"]
 
 [[bindings]]
 civ3_unit_id = "dromon"
 profile = "unit_trireme"
 mapping_kind = "alias"
 basis = "BIQ replaces=Galley; inherit that selected base archetype for economics."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil"]
+roles = ["Ferryboat", "FerryStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "cruiser"
 profile = "unit_cruiser"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 80
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["BadCityDefender", "ShieldToGold"]
+roles = ["DefendOk", "DefendOkStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "crusader"
 profile = "unit_crusaders"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 40
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["Capturer", "ShieldToGold"]
+roles = ["AttackFastStartUnit", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "ancient_cavalry"
 profile = "unit_elephants"
 mapping_kind = "alias"
 basis = "BIQ combat profile 3/2/2 matches the C2C3 Elephants archetype."
+build_cost = 30
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Capturer", "ShieldToGold"]
+roles = ["DefendOk", "AttackFastStartUnit", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "curragh"
 profile = "unit_trireme"
 mapping_kind = "alias"
 basis = "BIQ replaces=Galley and the existing Galley adapter uses C2C3 Trireme; extend that early coastal-vessel mapping to upkeep fields only."
+build_cost = 20
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 0
+flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil"]
+roles = ["Ferryboat", "FerryStartUnit"]
 
 [[bindings]]
 civ3_unit_id = "paratrooper"
 profile = "unit_paratroopers"
 mapping_kind = "direct"
 basis = "Existing CivCraft exact-identity C2C3 adapter."
+build_cost = 60
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Paratroopers", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendOk"]
 
 [[bindings]]
 civ3_unit_id = "tow_infantry"
 profile = "unit_mech_inf"
 mapping_kind = "alias"
 basis = "C2C3 has no TOW or anti-tank infantry type; use its modern mechanized infantry upkeep profile only. Civ III attack/defense/movement remain authoritative."
+build_cost = 70
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = [""]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "flak"
 profile = "unit_riflemen"
 mapping_kind = "alias"
 basis = "C2C3 has no land-based anti-air type; use the Land infantry upkeep profile only. Civ III attack values remain authoritative."
+build_cost = 50
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
 
 [[bindings]]
 civ3_unit_id = "mobile_sam"
 profile = "unit_mech_inf"
 mapping_kind = "alias"
 basis = "C2C3 has no mobile anti-air type; use the modern mechanized Land upkeep profile only. Civ III attack values remain authoritative."
+build_cost = 70
+support_food = 1
+support_shields = 1
+support_gold = 0
+happiness = 1
+flags = [""]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]

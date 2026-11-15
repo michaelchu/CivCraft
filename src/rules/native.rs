@@ -268,6 +268,13 @@ pub(crate) struct NativeUnitEconomicsBinding {
     pub(crate) profile: String,
     pub(crate) mapping_kind: String,
     pub(crate) basis: String,
+    pub(crate) build_cost: i32,
+    pub(crate) support_food: i32,
+    pub(crate) support_shields: i32,
+    pub(crate) support_gold: i32,
+    pub(crate) happiness: i32,
+    pub(crate) flags: Vec<String>,
+    pub(crate) roles: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
