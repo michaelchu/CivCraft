@@ -43,6 +43,7 @@ pub(crate) struct SimulationRequirementContext<'a> {
     celebrating: Option<bool>,
     disordered: Option<bool>,
     unit_type_flag_record: Option<&'static crate::rules::freeciv::ContentRecord>,
+    native_unit_economics: Option<&'static crate::rules::native::NativeUnitEconomicsBinding>,
     unbound_content_is_absent: bool,
 }
 
@@ -75,6 +76,7 @@ impl<'a> SimulationRequirementContext<'a> {
             celebrating: None,
             disordered: None,
             unit_type_flag_record: None,
+            native_unit_economics: native_unit_economics_binding(unit.kind),
             unbound_content_is_absent: false,
         }
     }
@@ -103,6 +105,7 @@ impl<'a> SimulationRequirementContext<'a> {
             celebrating: None,
             disordered: None,
             unit_type_flag_record: None,
+            native_unit_economics: None,
             unbound_content_is_absent: false,
         }
     }
@@ -131,6 +134,7 @@ impl<'a> SimulationRequirementContext<'a> {
             celebrating: None,
             disordered: None,
             unit_type_flag_record: None,
+            native_unit_economics: None,
             unbound_content_is_absent: true,
         }
     }
@@ -170,6 +174,7 @@ impl<'a> SimulationRequirementContext<'a> {
     pub(crate) fn with_unit(mut self, unit: &'a Unit) -> Self {
         self.owner = unit.owner;
         self.unit = Some(unit);
+        self.native_unit_economics = native_unit_economics_binding(unit.kind);
         self
     }
 
@@ -178,6 +183,7 @@ impl<'a> SimulationRequirementContext<'a> {
     /// target city's buildings and the attacking unit's class/type.
     pub(crate) fn with_unit_preserving_owner(mut self, unit: &'a Unit) -> Self {
         self.unit = Some(unit);
+        self.native_unit_economics = native_unit_economics_binding(unit.kind);
         self
     }
 
@@ -236,6 +242,7 @@ impl<'a> SimulationRequirementContext<'a> {
             celebrating: self.celebrating,
             disordered: self.disordered,
             unit_type_flag_record: self.unit_type_flag_record,
+            native_unit_economics: self.native_unit_economics,
             unbound_content_is_absent: self.unbound_content_is_absent,
         }
     }
@@ -1130,6 +1137,14 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             }
             "unittype" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
+                if let Some(native) = self.native_unit_economics {
+                    return Ok(native.profile.eq_ignore_ascii_case(&format!("unit_{name}"))
+                        || (name.eq_ignore_ascii_case("Nuclear")
+                            && native
+                                .flags
+                                .iter()
+                                .any(|flag| flag.eq_ignore_ascii_case("Nuclear"))));
+                }
                 if let Some(record) = self.unit_type_flag_record {
                     return Ok(record.rule_name.eq_ignore_ascii_case(name)
                         || record
@@ -1161,6 +1176,12 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             }
             "unittypeflag" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
+                if let Some(native) = self.native_unit_economics {
+                    return Ok(native
+                        .flags
+                        .iter()
+                        .any(|flag| flag.eq_ignore_ascii_case(name)));
+                }
                 if let Some(record) = self.unit_type_flag_record {
                     let flags = record
                         .string_list_field("flags")
@@ -2515,6 +2536,15 @@ pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsReco
         record,
         native,
         kind,
+    }
+}
+
+fn native_unit_economics_binding(
+    unit: UnitKind,
+) -> Option<&'static crate::rules::native::NativeUnitEconomicsBinding> {
+    match freeciv_unit_economics_record(unit) {
+        UnitEconomicsRecordBinding::Mapped { native, .. } => Some(native),
+        UnitEconomicsRecordBinding::Unsupported { .. } => None,
     }
 }
 
