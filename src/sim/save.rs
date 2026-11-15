@@ -39,7 +39,7 @@ where
 // incompatible. Achievement culture now goes directly into Player.history,
 // matching Freeciv's persisted player-history field.
 // Earlier save versions remain unsupported rather than silently discarding it.
-const HEADER: &[u8] = b"CIVCRAFT\0\x23";
+const HEADER: &[u8] = b"CIVCRAFT\0\x26";
 const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
 
 type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;

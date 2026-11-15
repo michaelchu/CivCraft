@@ -771,6 +771,86 @@ impl Simulation {
         self.nation_scores[winner.owner].units_killed += (before - self.units.len()) as i32;
     }
 
+    /// Conquests units with Bombard strength can fire one defensive shot
+    /// when their tile is attacked or when a nearby Fortress unit fires at
+    /// a passing enemy. The reaction is nonlethal and is spent whether it hits
+    /// or misses.
+    pub(in crate::sim) fn try_defensive_bombard(
+        &mut self,
+        attacker_id: u32,
+        x: i32,
+        y: i32,
+    ) -> bool {
+        let Some(attacker) = self.unit_by_id(attacker_id).cloned() else {
+            return false;
+        };
+        let mut shooter = None;
+        for (sx, sy, _) in self.map_wrap.civ3_radius(x, y, 1) {
+            if (sx, sy) != (x, y) && self.tile(sx, sy).base != Some(Base::Fortress) {
+                continue;
+            }
+            shooter = self
+                .tile_units_ordered(sx, sy)
+                .find(|unit| {
+                    self.at_war(unit.owner, attacker.owner)
+                        && unit.transport.is_none()
+                        && unit.kind.bombard_strength() > 0
+                        && unit.kind.bombard_rate() > 0
+                        && !unit.defensive_bombarded
+                })
+                .cloned();
+            if shooter.is_some() {
+                break;
+            }
+        }
+        if shooter.is_none() && attacker.kind.is_naval() {
+            let coastal_fortress = self.cities.iter().find(|city| {
+                self.at_war(city.owner, attacker.owner)
+                    && city.has_building(crate::rules::Building::COASTAL_DEFENSE)
+                    && self.map_wrap.civ3_distance(city.x, city.y, x, y) == 1
+            });
+            if coastal_fortress.is_some() {
+                // Civ III's Coastal Fortress has naval bombardment strength 8
+                // (the manual documents the reaction shot, the value is from
+                // the Civ III unit/building reference).
+                let attack = 8;
+                let defense = self.defense_power_against(
+                    &attacker,
+                    attacker.x,
+                    attacker.y,
+                    UnitKind::Battleship,
+                );
+                if attack + defense > 0 && self.rand_below(attack + defense) < attack {
+                    if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == attacker_id) {
+                        unit.hp = (unit.hp - 1).max(1);
+                    }
+                }
+                return true;
+            }
+        }
+        let Some(shooter) = shooter else {
+            return false;
+        };
+
+        if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == shooter.id) {
+            unit.defensive_bombarded = true;
+        }
+        let attack = self.attack_power_against_with_base_for_action(
+            &shooter,
+            attacker.x,
+            attacker.y,
+            shooter.kind.bombard_strength(),
+            "Bombard",
+        );
+        let defense = self.defense_power_against(&attacker, attacker.x, attacker.y, shooter.kind);
+        if attack + defense > 0 && self.rand_below(attack + defense) < attack {
+            if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == attacker_id) {
+                unit.hp = (unit.hp - 1).max(1);
+            }
+        }
+        true
+    }
+
     pub(in crate::sim) fn resolve_combat(
         &mut self,
         attacker_id: u32,
@@ -779,6 +859,26 @@ impl Simulation {
         ny: i32,
         facing: Option<u8>,
     ) {
+        self.resolve_combat_inner(attacker_id, defender_id, nx, ny, facing, true);
+    }
+
+    pub(in crate::sim) fn resolve_combat_inner(
+        &mut self,
+        attacker_id: u32,
+        defender_id: u32,
+        nx: i32,
+        ny: i32,
+        facing: Option<u8>,
+        check_air_superiority: bool,
+    ) {
+        if check_air_superiority
+            && self
+                .unit_by_id(attacker_id)
+                .is_some_and(|attacker| attacker.kind.is_aircraft())
+            && !self.try_air_superiority_interceptions(attacker_id, (nx, ny))
+        {
+            return;
+        }
         let Some(attacker_index) = self.unit_index_by_id(attacker_id) else {
             return;
         };
@@ -795,14 +895,23 @@ impl Simulation {
         let defender_moves_used = (self.unit_move_rate(&defender) - defender.moves_left).max(0);
         let (attack_firepower, defense_firepower) = self.combat_firepower(&attacker, &defender);
 
-        let attack_power = self.attack_power_against_with_base_for_action(
-            &attacker,
-            nx,
-            ny,
-            attacker.kind.attack_strength(),
-            attack_action,
-        );
-        let defense_power = self.defense_power_against(&defender, nx, ny, attacker.kind);
+        let air_to_air = attacker.kind.is_aircraft() && defender.kind.is_aircraft();
+        let attack_power = if air_to_air {
+            attacker.kind.stats().attack
+        } else {
+            self.attack_power_against_with_base_for_action(
+                &attacker,
+                nx,
+                ny,
+                attacker.kind.attack_strength(),
+                attack_action,
+            )
+        };
+        let defense_power = if air_to_air {
+            defender.kind.stats().defense
+        } else {
+            self.defense_power_against(&defender, nx, ny, attacker.kind)
+        };
         let attacker_strength =
             i64::from(attack_power) * i64::from(attacker.hp) * i64::from(attack_firepower);
         let defender_strength =

@@ -52,14 +52,19 @@ Limitations or conflicts:
 - Pages, table, figure, or section: p. 43–44, diplomacy changes and absence of
   Diplomat/Spy units; pp. 138–139, embassies and diplomatic actions; pp. 148–149,
   espionage and international incidents; p. 80, Hit Points and Damage; p. 83,
-  Bombardment; pp. 96–97, Nationalism and mobilization; pp. 206–207, terrain
+  Bombardment, Air Superiority, and Fortresses; p. 110, bombardment damage to
+  improvements; pp. 96–97, Nationalism and mobilization; pp. 206–207, terrain
   yield and resource tables
-- Retrieved or checked date: 2026-11-13
+- Retrieved or checked date: 2026-11-14
 - Claims this source supports: Coast, Sea, and Ocean base yields and resource
   habitats; Flood Plains and shield yielding Grassland yields; new units
   generally have 3 hit points, Veterans 4, and Elites 5 (p. 80); bombardment
   is a ranged attack that can damage units, defensive fortifications,
-  population, and city improvements without moving the attacker (p. 83).
+  population, and city improvements without moving the attacker (p. 83); Air
+  Superiority can intercept enemy air units entering its defensive radius (p.
+  83); Coastal Fortresses can fire on passing enemy ships and units stationed
+  in Fortresses can take free shots at passing enemies (pp. 83–84); city
+  improvements can be lost to bombardment (p. 110).
 - Supplementary claims: Civilization III has no moving Diplomat or Spy units;
   embassies provide diplomatic actions and city intelligence after Writing,
   and espionage missions require Espionage plus the Intelligence Agency and
@@ -96,9 +101,9 @@ Limitations or conflicts:
 - URL or local file: <https://oldapplestuff.com/download/Macintosh/Macintosh_Garden/manuals/Civilization_III_PTW_strategy_guide.pdf>
 - Source type: Official publication
 - Edition / expansion / patch scope: Play the World expansion strategy guide; its introduction states that, unless an item is marked PTW-only, strategies also apply to original Civilization III
-- Pages, table, figure, or section: printed pp. 108–110, “Those Wonderful Workers” and “The Workers you capture”; pp. 115–116, “Bombardment and Bombing”
+- Pages, table, figure, or section: printed pp. 108–110, “Those Wonderful Workers” and “The Workers you capture”; pp. 113–116, “Bombardment and Bombing”; p. 168, building quick-reference table
 - Retrieved or checked date: 2026-11-14
-- Claims this source supports: captured foreign Workers complete jobs at half the rate of the owner's native Workers; stacking Workers combines their progress rates. The bombardment section gives city target weights of 25% population, 25% buildings, and 50% units; gives buildings, citizens, and terrain improvements 16 defense and 1 HP; and documents terrain-improvement destruction priority.
+- Claims this source supports: captured foreign Workers complete jobs at half the rate of the owner's native Workers; stacking Workers combines their progress rates. The bombardment section gives city target weights of 25% population, 25% buildings, and 50% units; gives buildings, citizens, and terrain improvements 16 base defense and 1 HP, modified by applicable defense bonuses; and documents terrain-improvement destruction priority. The air-combat section identifies Fighters, Jet Fighters, F-15s, and Stealth Fighters as interceptors, with 50% detection of ordinary missions, 5% of stealth missions, and one shot per successful detection per turn. The quick-reference table gives Coastal Fortress naval bombardment defense 8 and says it automatically bombards passing enemy ships.
 - Limitations or conflicts: This is a PTW-era guide, not a Conquests manual. Its bombardment target probabilities and object order are supplementary evidence and have not been confirmed against the Conquests executable. Conquests PRTO `WorkerStrength` remains authoritative for the editable source value, and the installed campaign value (1.0 for Worker) is interpreted against the native worker progress baseline of 2.
 
 - Source ID: CIVFANATICS-CIV3-FAQ
@@ -123,22 +128,33 @@ Limitations or conflicts:
 
 - Source ID: CIV3-CONQUESTS-MANUAL
 - Title / publisher: *Civilization III: Conquests*, Firaxis Games
-- URL or local file: [online manual](https://www.scribd.com/document/764777075/Sid-Meier-s-Civilization-III-Conquests-Manual)
+- URL or local file: [online manual](https://manualmachine.com/gamespc/sidmeierscivilizationiiiconquests/1118672-user-manual/)
 - Source type: Original game material
 - Edition / expansion / patch scope: Civilization III: Conquests
-- Pages, table, figure, or section: pp. 36–39, “Airfield” and “Radar Tower”
-  worker actions; “Clear Damage” worker action
-- Retrieved or checked date: 2026-11-13
-- Claims this source supports: Workers can build Airfields after Flight; an
-  Airfield can host air units for re-basing and air operations (pp. 36–37).
-  Bombardment can cause craters; Workers clear them with the Clear Damage
-  command (pp. 38–39).
+- Pages, table, figure, or section: pp. 30–31, “Automated Bombard, Bombing,
+  and Precision Bombing”; pp. 36–39, “Airfield” and “Radar Tower” worker
+  actions; “Clear Damage” worker action; p. 83, “Air Battles,” “Bombardment,”
+  and “Fortresses”
+- Retrieved or checked date: 2026-11-14
+- Claims this source supports: Automated bombard, bombing, and precision
+  bombing repeatedly act on one target without a new order each turn; Auto
+  Precision Bombing targets city improvements only (pp. 30–31). Workers can
+  build Airfields after Flight; an Airfield can host air units for re-basing
+  and air operations (pp. 36–37). Bombardment can cause craters; Workers clear
+  them with the Clear Damage command (pp. 38–39). Air Superiority units can
+  intercept enemy air missions entering their defensive radius, and Coastal
+  Fortresses fire on passing enemy ships (p. 83). Bombardment can affect units,
+  fortifications, population, and city improvements (p. 83).
 - Supplementary claim: The selected C2C3 Airstrip/Airbase requirements name
   Freeciv Radio, which is absent from the Conquests research catalog. The
   campaign adapter binds those requirements to Civ III Flight, matching the
   manual's Airfield prerequisite without adding Radio as a researchable
   advance.
-- Limitations or conflicts: The manual does not specify which unit field enables craters, the exact creation probability, or the yield penalty.
+- Limitations or conflicts: The manual does not specify which unit field enables
+  craters, the exact creation probability, or the yield penalty. It does not
+  specify target selection probabilities, Air Superiority interception chance,
+  or the detailed Coastal Fortress firing procedure; those remain unresolved
+  for Conquests and are not inferred from Freeciv.
 
 - Source ID: CIV3-CONQUESTS-CIVILOPEDIA
 - Title / publisher: *Conquests* installed Civilopedia text, Firaxis Games
@@ -300,10 +316,10 @@ Limitations or conflicts:
 - Implementation: editable Civ III unit records now determine Bombard
   capability, strength, rate of fire, per-unit tile range, aircraft operational
   range, lethal land/sea outcomes, and Bombard Fx presentation. A direct
-  aircraft bombard action requires a refueling site. AI aircraft use the
-  dedicated air-strike path instead of the ground-style bombard order. Under
-  selected C2C3 rules, rate of fire reduces as a unit loses HP, with a minimum
-  of one shot; target
+  aircraft bombard action requires a refueling site or carrier. AI aircraft
+  can bombard targets from a known refueling site. Under selected C2C3 rules,
+  rate of fire reduces
+  as a unit loses HP, with a minimum of one shot; target
   damage uses the selected ruleset's per-shot combat roll. Each defender must
   be visible and reachable under the selected C2C3 class rules.
 - Freeciv implementation context: the pinned C2C3 ruleset sets
@@ -313,17 +329,31 @@ Limitations or conflicts:
 - AI: Freeciv checks capture/ransom before bombard. CivCraft does the same for
   conventional bombard units, trying an in-range shot before movement and
   scoring candidate tiles by expected defender damage, unit value,
-  lethal-kill potential, and citizen losses. Fuelled aircraft use the separate
-  air-strike path.
-- Unresolved: Conquests bombardment can damage city population, buildings,
-  fortifications, and terrain improvements, but this simulation currently
-  resolves only eligible units and selected C2C3 citizen casualties. Exact
-  target selection and object-defense rules need more Conquests-specific
-  evidence before implementation. The PTW guide's target weights and priority
-  are recorded above but are not assumed to be Conquests rules. Conventional
-  AI bombard units can now move toward a scored firing position, but the AI
-  does not keep a repeated bombard order. The UI does not yet draw the full red
-  target grid.
+  lethal-kill potential, citizen losses, and known hostile terrain
+  improvements. Fuelled aircraft can bombard hostile units and improved tiles
+  from a known refueling site. AI aircraft can route across turns to a known
+  refueling site that brings a worthwhile target into range. Missions do not
+  simulate an automatic return flight after bombardment.
+- City bombardment: CivCraft applies the PTW guide's 25% population, 25%
+  improvement, and 50% garrison target weights. City objects have one hit point
+  and defense 16 with terrain, city-size, Walls, and Coastal Defense modifiers;
+  hits can remove one citizen or an ordinary city improvement. Empty terrain
+  targets use the guide's defense 16 and improvement priority. These details
+  are supplementary PTW evidence, not confirmed Conquests probabilities.
+- AI bombard units re-evaluate targets each turn. The player bombard selection
+  outlines legal target tiles in range. Auto Bombard repeats for aircraft from
+  a refueling site, but flight out and return are not simulated. Precision
+  Bombing is available to Stealth Fighters and Stealth Bombers after Smart
+  Weapons; it targets city improvements, then population when none remain, and
+  can repeat automatically. The implementation chooses randomly among ordinary
+  improvements; the manual does not specify the choice rule. AI aircraft select
+  it for eligible cities. Air Superiority orders persist at a base and use the
+  guide's detection chances, half-range radius, air combat stats, and one shot
+  per successful detection. Coastal Fortress makes a strength-8 reaction roll
+  against an adjacent enemy ship; the manual confirms the shot and the guide
+  provides strength 8. Defensive bombard fires once per unit turn from a
+  bombard-capable unit on the attacked tile or from a unit in a nearby Fortress;
+  exact Conquests defensive eligibility and reaction timing remain unverified.
 
 ### Bombard visual effects and craters
 
@@ -335,10 +365,13 @@ Limitations or conflicts:
   pp. 38–39; CIV3-CONQUESTS-CIVILOPEDIA, “Craters”; CivFanatics “Editor Rules - Explained,”
   “Bombard Fx” and “Create Craters” entries.
 - Implementation: `BombardEffects` drives a target explosion overlay through
-  the existing combat event. The source `CreateCraters` flag is loaded, and
-  tile crater state already affects yield and can be cleared, but bombardment
-  does not currently create craters. Bombardment does not yet destroy terrain
-  improvements or city buildings.
+  the existing combat event. Empty-tile bombardment can destroy terrain
+  improvements. The source `CreateCraters` flag is loaded, and tile crater state
+  already affects yield and can be cleared, but bombardment does not currently
+  create craters. City improvements can now be destroyed by a successful city
+  bombardment target roll. The
+  Conquests Automated Bombard order repeats its selected target each turn and
+  survives save/load.
 - Unresolved: the Civilopedia says a crater "may be formed" when bombardment
   removes the last unit or terrain improvement; the checked source does not
   specify the probability or exact trigger ordering. `CreateCraters` is

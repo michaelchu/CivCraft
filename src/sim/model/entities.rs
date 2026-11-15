@@ -38,6 +38,18 @@ pub(crate) enum UnitOrder {
         destination: (i32, i32),
         returning: bool,
     },
+    Bombard {
+        x: i32,
+        y: i32,
+    },
+    AirSuperiority {
+        x: i32,
+        y: i32,
+    },
+    PrecisionBombard {
+        x: i32,
+        y: i32,
+    },
 }
 
 impl WorkKind {
@@ -81,6 +93,12 @@ pub(crate) struct Unit {
     pub(crate) moves_left: i32,
     pub(crate) state: UnitState,
     pub(crate) moved: bool,
+    /// Conquests defensive-bombard units get at most one reaction shot per
+    /// owner turn. Reset with the unit's movement allowance.
+    #[serde(default)]
+    pub(crate) defensive_bombarded: bool,
+    #[serde(default)]
+    pub(crate) air_superiority_shot: bool,
     pub(crate) automated: bool,
     pub(crate) work_kind: Option<WorkKind>,
     pub(crate) work_left: i32,
@@ -118,6 +136,8 @@ impl Unit {
             moves_left: 0,
             state: UnitState::Idle,
             moved: false,
+            defensive_bombarded: false,
+            air_superiority_shot: false,
             automated: false,
             work_kind: None,
             work_left: 0,

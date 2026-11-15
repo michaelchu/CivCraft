@@ -495,6 +495,39 @@ impl<'a> Civ3WorldPainter<'a> {
             }
             self.draw_map_base(x, y, center, tile_w, tile_h);
         }
+        if game.bombard_mode
+            && let Some(unit_id) = game.selected_unit
+        {
+            let targets = if game.precision_bombard_mode {
+                game.sim.precision_bombardable_targets_in_range(unit_id)
+            } else {
+                game.sim.bombardable_targets_in_range(unit_id)
+            };
+            for (x, y) in targets {
+                let center = game.world_screen_position(x, y);
+                if center.x < viewport.x - tile_w
+                    || center.x > viewport.right() + tile_w
+                    || center.y < viewport.y - tile_h
+                    || center.y > viewport.bottom() + tile_h
+                {
+                    continue;
+                }
+                let color = Color::from_rgba(236, 68, 54, 205);
+                let half_w = tile_w * 0.5;
+                let half_h = tile_h * 0.5;
+                let corners = [
+                    Vec2::new(center.x, center.y - half_h),
+                    Vec2::new(center.x + half_w, center.y),
+                    Vec2::new(center.x, center.y + half_h),
+                    Vec2::new(center.x - half_w, center.y),
+                ];
+                for index in 0..corners.len() {
+                    let from = corners[index];
+                    let to = corners[(index + 1) % corners.len()];
+                    draw_line(from.x, from.y, to.x, to.y, 2.0, color);
+                }
+            }
+        }
         for layer in map_layers::MAP_LAYERS {
             for &(x, y, center) in &order {
                 if !game.sim.render_tile_view(x, y).seen {

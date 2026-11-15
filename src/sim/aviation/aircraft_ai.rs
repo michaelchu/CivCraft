@@ -297,6 +297,52 @@ impl Simulation {
         Some((map.path(self, destination.0, destination.1)?, destination))
     }
 
+    /// Rebase a strike aircraft to a refueling site from which it can bombard
+    /// a valuable hostile target, then use the normal bombard selector there.
+    pub(super) fn aircraft_bombard_base_route(
+        &self,
+        plane: &Unit,
+        bases: &[(i32, i32)],
+    ) -> Option<AircraftBaseRoute> {
+        let mut map = super::fuel_paths::FuelPaths::new(self, plane, true)?;
+        let mut best: Option<(f64, i32, (i32, i32))> = None;
+        for &(x, y) in bases {
+            let Some(cost) = map.movement_cost(self, x, y) else {
+                continue;
+            };
+            let carrier = self.units.iter().find(|ship| {
+                (ship.x, ship.y) == (x, y)
+                    && self.allied(plane.owner, ship.owner)
+                    && self.ruleset_transport_pair_allowed_fail_closed(ship.kind, plane.kind)
+            });
+            let mut staged = plane.clone();
+            staged.x = x;
+            staged.y = y;
+            staged.transport = carrier.map(|ship| ship.id);
+            staged.moves_left = self.unit_move_rate(plane);
+            let value = self
+                .map_wrap
+                .civ3_radius(x, y, Self::civ3_bombard_range(plane.kind))
+                .into_iter()
+                .filter_map(|(tx, ty, _)| {
+                    self.can_bombard_tile(&staged, tx, ty)
+                        .then(|| self.ai_bombard_tile_value(&staged, tx, ty))
+                })
+                .fold(0.0_f64, f64::max);
+            if value <= 0.0 {
+                continue;
+            }
+            let score = value / (1.0 + f64::from(cost) / f64::from(self.unit_move_rate(plane)));
+            if best
+                .is_none_or(|(old, old_cost, _)| score > old || (score == old && cost < old_cost))
+            {
+                best = Some((score, cost, (x, y)));
+            }
+        }
+        let (_, _, destination) = best?;
+        Some((map.path(self, destination.0, destination.1)?, destination))
+    }
+
     pub(super) fn strategic_airbase(
         &self,
         plane: &Unit,
@@ -376,6 +422,9 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn run_ai_strike_aircraft(&mut self, aircraft: &Unit) {
+        if matches!(aircraft.order, Some(UnitOrder::AirSuperiority { .. })) {
+            return;
+        }
         let position = (aircraft.x, aircraft.y);
         let mut bases = Vec::new();
         for (index, _) in self.tiles.iter().enumerate() {
@@ -406,13 +455,23 @@ impl Simulation {
         }
         let on_base = self.refuel_site(aircraft.owner, position.0, position.1)
             || self.aboard_refueling_transport(aircraft);
+        if on_base && self.run_ai_bombard(aircraft) {
+            return;
+        }
         if on_base && aircraft.fuel < aircraft.kind.fuel_capacity() {
+            return;
+        }
+        if on_base
+            && self.aircraft_attack_path(aircraft).is_none()
+            && self.ai_assign_air_superiority(aircraft)
+        {
             return;
         }
         let before = aircraft.moves_left;
         let route = if on_base {
             self.aircraft_attack_path(aircraft)
                 .map(|(path, target, _)| (path, target))
+                .or_else(|| self.aircraft_bombard_base_route(aircraft, &bases))
                 .or_else(|| self.strategic_airbase(aircraft, &bases))
         } else {
             let old_goal = self
@@ -427,8 +486,14 @@ impl Simulation {
                 })
                 .or_else(|| self.aircraft_refuel_route(aircraft, &bases))
         };
-        if let Some((path, _destination)) = route {
-            self.follow_source_ai_path(aircraft.id, path);
+        if let Some((path, destination)) = route {
+            if bases.contains(&destination) {
+                self.unit_goto_tiles.insert(aircraft.id, destination);
+            }
+            let movement = self.follow_source_ai_path(aircraft.id, path);
+            if movement.at_goal {
+                self.unit_goto_tiles.remove(&aircraft.id);
+            }
             if let Some(live) = self
                 .units
                 .iter()
@@ -440,5 +505,22 @@ impl Simulation {
                 self.run_ai_strike_aircraft(&live);
             }
         }
+    }
+
+    fn ai_assign_air_superiority(&mut self, aircraft: &Unit) -> bool {
+        if !self.players[aircraft.owner].ai || !self.can_set_air_superiority(aircraft) {
+            return false;
+        }
+        let radius = aircraft.kind.operational_range() / 2;
+        let threatened = self.units.iter().any(|enemy| {
+            enemy.kind.is_aircraft()
+                && self.at_war(aircraft.owner, enemy.owner)
+                && self.unit_visible_to(aircraft.owner, enemy)
+                && self
+                    .map_wrap
+                    .civ3_distance(aircraft.x, aircraft.y, enemy.x, enemy.y)
+                    <= radius
+        });
+        threatened && self.start_air_superiority(aircraft.id)
     }
 }

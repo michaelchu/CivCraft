@@ -169,6 +169,8 @@ impl Simulation {
         let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
         unit.hp = hp;
         unit.moved = false;
+        unit.defensive_bombarded = false;
+        unit.air_superiority_shot = false;
         unit.paradropped = false;
         if hp <= 0 {
             self.remove_units_with_cargo(vec![id]);

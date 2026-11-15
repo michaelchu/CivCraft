@@ -149,6 +149,10 @@ impl Simulation {
             upgrade,
             paradrop: self.can_begin_paradrop(unit),
             bombard: self.can_begin_bombard(unit),
+            precision_bombard: self.can_precision_bomb(unit),
+            air_superiority: self.can_set_air_superiority(unit)
+                && !matches!(unit.order, Some(UnitOrder::AirSuperiority { .. })),
+            has_order: unit.order.is_some(),
             capture_units: self.can_begin_capture_units(unit),
             cities,
             nuclear_weapon: unit.kind.is_nuclear_weapon(),

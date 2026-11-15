@@ -155,6 +155,11 @@ pub(crate) enum UiAction {
     BeginCaptureUnits,
     CaptureUnitsTo(i32, i32),
     BeginBombard,
+    BeginAutoBombard,
+    BeginPrecisionBombard,
+    BeginAutoPrecisionBombard,
+    AirSuperiority,
+    CancelUnitOrder,
     BombardTo(i32, i32),
     NuclearStrikeTo(i32, i32),
     UpgradeUnit(UnitKind, i32),
@@ -239,6 +244,8 @@ pub(crate) struct Game {
     paradrop_mode: bool,
     capture_units_mode: bool,
     bombard_mode: bool,
+    auto_bombard_mode: bool,
+    precision_bombard_mode: bool,
     nuclear_mode: bool,
     research_open: bool,
     government_open: bool,
@@ -318,6 +325,8 @@ impl Game {
             paradrop_mode: false,
             capture_units_mode: false,
             bombard_mode: false,
+            auto_bombard_mode: false,
+            precision_bombard_mode: false,
             nuclear_mode: false,
             research_open: false,
             government_open: false,
@@ -528,6 +537,8 @@ impl Game {
                 "PARADROP: choose a landing tile"
             } else if self.capture_units_mode {
                 "CAPTURE UNITS: choose an adjacent enemy stack"
+            } else if self.bombard_mode && self.precision_bombard_mode {
+                "PRECISION BOMBING: choose an enemy city"
             } else if self.bombard_mode {
                 "BOMBARD: choose an enemy tile"
             } else if self.nuclear_mode {

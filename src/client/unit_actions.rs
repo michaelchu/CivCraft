@@ -34,6 +34,41 @@ impl Game {
                 }
                 if view.bombard {
                     entries.insert(0, ("Bombard".to_owned(), UiAction::BeginBombard, true));
+                    entries.insert(
+                        0,
+                        ("Auto Bombard".to_owned(), UiAction::BeginAutoBombard, true),
+                    );
+                }
+                if view.precision_bombard {
+                    entries.insert(
+                        0,
+                        (
+                            "Precision Bombing".to_owned(),
+                            UiAction::BeginPrecisionBombard,
+                            true,
+                        ),
+                    );
+                    entries.insert(
+                        0,
+                        (
+                            "Auto Precision Bombing".to_owned(),
+                            UiAction::BeginAutoPrecisionBombard,
+                            true,
+                        ),
+                    );
+                }
+                if view.air_superiority {
+                    entries.insert(
+                        0,
+                        ("Air Superiority".to_owned(), UiAction::AirSuperiority, true),
+                    );
+                }
+                if view.has_order {
+                    entries.push((
+                        "Cancel unit order".to_owned(),
+                        UiAction::CancelUnitOrder,
+                        true,
+                    ));
                 }
                 for city in &view.cities {
                     if city.can_airlift {
@@ -255,7 +290,12 @@ pub(super) fn unit_action_icon(action: UiAction) -> HudIcon {
         UiAction::Wait => HudIcon::Pause,
         UiAction::UpgradeUnit(..) => HudIcon::Upgrade,
         UiAction::BeginParadrop => HudIcon::Parachute,
-        UiAction::BeginBombard => HudIcon::Target,
+        UiAction::BeginBombard
+        | UiAction::BeginAutoBombard
+        | UiAction::BeginPrecisionBombard
+        | UiAction::BeginAutoPrecisionBombard => HudIcon::Target,
+        UiAction::AirSuperiority => HudIcon::Shield,
+        UiAction::CancelUnitOrder => HudIcon::Cross,
         UiAction::Airlift(_) => HudIcon::Plane,
         UiAction::BoardOrDeboard => HudIcon::Boat,
         UiAction::HelpWonder(_) => HudIcon::Wonder,

@@ -44,6 +44,30 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         .find(|unit| unit.id == veteran_unit)
         .unwrap()
         .paradropped = true;
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == veteran_unit)
+        .unwrap()
+        .order = Some(UnitOrder::Bombard { x: 13, y: 20 });
+    let air_superiority_unit = game.spawn_unit(HUMAN, UnitKind::Fighter, 12, 20);
+    let fighter = game.unit_by_id(air_superiority_unit).unwrap();
+    let fighter_position = (fighter.x, fighter.y);
+    let fighter = game
+        .units
+        .iter_mut()
+        .find(|unit| unit.id == air_superiority_unit)
+        .unwrap();
+    fighter.order = Some(UnitOrder::AirSuperiority {
+        x: fighter_position.0,
+        y: fighter_position.1,
+    });
+    fighter.air_superiority_shot = true;
+    let precision_unit = game.spawn_unit(HUMAN, UnitKind::StealthBomber, 14, 20);
+    game.units
+        .iter_mut()
+        .find(|unit| unit.id == precision_unit)
+        .unwrap()
+        .order = Some(UnitOrder::PrecisionBombard { x: 15, y: 20 });
     game.cities[0].history = 375;
     game.players[HUMAN].history = 125;
     let culture_without_achievement = game.civilization_culture(HUMAN);
@@ -96,6 +120,24 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     assert_eq!(loaded.turn, game.turn);
     assert_eq!(loaded.unit_by_id(veteran_unit).unwrap().c2c3_veteran, 2);
     assert!(loaded.unit_by_id(veteran_unit).unwrap().paradropped);
+    assert_eq!(
+        loaded.unit_by_id(veteran_unit).unwrap().order,
+        Some(UnitOrder::Bombard { x: 13, y: 20 })
+    );
+    assert_eq!(
+        loaded.unit_by_id(air_superiority_unit).unwrap().order,
+        Some(UnitOrder::AirSuperiority { x: 12, y: 20 })
+    );
+    assert_eq!(
+        loaded.unit_by_id(precision_unit).unwrap().order,
+        Some(UnitOrder::PrecisionBombard { x: 15, y: 20 })
+    );
+    assert!(
+        loaded
+            .unit_by_id(air_superiority_unit)
+            .unwrap()
+            .air_superiority_shot
+    );
     assert_eq!(loaded.global_advances, game.global_advances);
     assert_eq!(loaded.year, game.year);
     assert_eq!(loaded.year_0_hack, game.year_0_hack);
@@ -261,6 +303,9 @@ fn old_save_headers_and_corrupt_current_payloads_are_rejected() {
         b"CIVCRAFT\0\x1E".as_slice(),
         b"CIVCRAFT\0\x1F".as_slice(),
         b"CIVCRAFT\0\x20".as_slice(),
+        b"CIVCRAFT\0\x23".as_slice(),
+        b"CIVCRAFT\0\x24".as_slice(),
+        b"CIVCRAFT\0\x25".as_slice(),
     ] {
         fs::write(&path, [header, b"previous payload"].concat()).unwrap();
         assert!(Simulation::load_campaign(&path).is_err());

@@ -978,6 +978,7 @@ impl Simulation {
             // Freeciv wakes nearby sentries before resolving the attack, so
             // a defender survives combat in its normal active state.
             self.wake_neighbor_sentries(unit_id);
+            self.try_defensive_bombard(unit_id, nx, ny);
             self.resolve_combat(unit_id, defender_id, nx, ny, facing);
             return MoveResult::Fought;
         }
@@ -1018,6 +1019,9 @@ impl Simulation {
             return MoveResult::Blocked;
         }
 
+        // A unit fortified in a Fortress can bombard an enemy passing within
+        // one tile, even when the destination tile itself is empty.
+        self.try_defensive_bombard(unit_id, nx, ny);
         let carrier = unit
             .kind
             .is_aircraft()
@@ -1216,6 +1220,15 @@ impl Simulation {
         true
     }
 
+    pub(super) fn cancel_unit_order(&mut self, id: u32) -> bool {
+        let Some(index) = self.unit_index_by_id(id) else {
+            return false;
+        };
+        let had_order = self.units[index].order.take().is_some();
+        self.unit_goto_tiles.remove(&id);
+        had_order
+    }
+
     fn continue_unit_orders(&mut self) {
         let orders: Vec<_> = self
             .units
@@ -1225,6 +1238,13 @@ impl Simulation {
             .collect();
         for (id, order) in orders {
             match order {
+                UnitOrder::AirSuperiority { x, y } => {
+                    if self.unit_by_id(id).is_none_or(|unit| {
+                        (unit.x, unit.y) != (x, y) || !self.can_set_air_superiority(unit)
+                    }) {
+                        self.cancel_unit_order(id);
+                    }
+                }
                 UnitOrder::Patrol {
                     origin,
                     destination,
@@ -1252,6 +1272,34 @@ impl Simulation {
                         {
                             *returning = !*returning;
                         }
+                    }
+                }
+                UnitOrder::Bombard { x, y } => {
+                    let Some(unit) = self.unit_by_id(id).cloned() else {
+                        continue;
+                    };
+                    if !self.can_bombard_tile(&unit, x, y)
+                        || self.try_ranged_bombard(id, x, y) == MoveResult::Blocked
+                    {
+                        self.cancel_unit_order(id);
+                    } else if self
+                        .unit_by_id(id)
+                        .is_none_or(|unit| !self.repeated_bombard_target_remains(unit, x, y))
+                    {
+                        self.cancel_unit_order(id);
+                    }
+                }
+                UnitOrder::PrecisionBombard { x, y } => {
+                    let Some(unit) = self.unit_by_id(id).cloned() else {
+                        continue;
+                    };
+                    if !self.repeated_precision_bombard_target_remains(&unit, x, y)
+                        || self.try_precision_bombard(id, x, y) == MoveResult::Blocked
+                        || self.unit_by_id(id).is_none_or(|unit| {
+                            !self.repeated_precision_bombard_target_remains(unit, x, y)
+                        })
+                    {
+                        self.cancel_unit_order(id);
                     }
                 }
                 UnitOrder::Connect { x, y } => {

@@ -17,6 +17,11 @@ pub(crate) enum Command {
     MoveCiv3(u32, usize),
     CaptureUnits(u32, i32, i32),
     Bombard(u32, i32, i32),
+    AutoBombard(u32, i32, i32),
+    PrecisionBombard(u32, i32, i32),
+    AutoPrecisionBombard(u32, i32, i32),
+    AirSuperiority(u32),
+    CancelOrder(u32),
     GoTo(u32, i32, i32),
     Connect(u32, i32, i32),
     Patrol(u32, i32, i32),
@@ -77,6 +82,11 @@ impl Simulation {
             | MoveCiv3(id, _)
             | CaptureUnits(id, ..)
             | Bombard(id, ..)
+            | AutoBombard(id, ..)
+            | PrecisionBombard(id, ..)
+            | AutoPrecisionBombard(id, ..)
+            | AirSuperiority(id)
+            | CancelOrder(id)
             | GoTo(id, ..)
             | Connect(id, ..)
             | Patrol(id, ..)
@@ -111,7 +121,24 @@ impl Simulation {
                 self.try_move_unit_civ3(id, direction) != MoveResult::Blocked
             }
             CaptureUnits(id, x, y) => self.try_capture_units_by_id(id, x, y),
-            Bombard(id, x, y) => self.try_ranged_bombard(id, x, y) != MoveResult::Blocked,
+            Bombard(id, x, y) => {
+                let succeeded = self.try_ranged_bombard(id, x, y) != MoveResult::Blocked;
+                if succeeded {
+                    self.cancel_unit_order(id);
+                }
+                succeeded
+            }
+            AutoBombard(id, x, y) => self.start_repeated_bombard(id, x, y),
+            PrecisionBombard(id, x, y) => {
+                let succeeded = self.try_precision_bombard(id, x, y) != MoveResult::Blocked;
+                if succeeded {
+                    self.cancel_unit_order(id);
+                }
+                succeeded
+            }
+            AutoPrecisionBombard(id, x, y) => self.start_repeated_precision_bombard(id, x, y),
+            AirSuperiority(id) => self.start_air_superiority(id),
+            CancelOrder(id) => self.cancel_unit_order(id),
             GoTo(id, x, y) => {
                 if !(0..self.map_wrap.width()).contains(&x)
                     || !(0..self.map_wrap.height()).contains(&y)

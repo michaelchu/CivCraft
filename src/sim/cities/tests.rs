@@ -48,7 +48,7 @@ fn combat_population_loss_uses_killcitizen_and_selected_protection_effects() {
 }
 
 #[test]
-fn combat_population_loss_respects_class_flags_and_bombard_effect_context() {
+fn melee_population_loss_respects_class_flags_and_cannot_destroy_a_city() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -65,13 +65,11 @@ fn combat_population_loss_respects_class_flags_and_bombard_effect_context() {
     game.apply_combat_population_loss(&warrior, 20, 24);
     assert_eq!(game.cities[0].size, 3, "Land has no KillCitizen flag");
 
-    let bombard_id = game.spawn_unit(HUMAN, kill_citizen_unit_kind(), 19, 24);
-    let bombard = game.unit_by_id(bombard_id).unwrap().clone();
-    game.apply_bombard_population_loss(&bombard, 20, 24);
+    assert!(game.reduce_city_population_from_bombard(game.cities[0].id, HUMAN));
     assert_eq!(game.cities[0].size, 2);
 
     game.cities[0].size = 1;
-    game.apply_bombard_population_loss(&bombard, 20, 24);
+    assert!(!game.reduce_city_population_from_bombard(game.cities[0].id, HUMAN));
     assert_eq!(
         game.cities[0].size, 1,
         "Bombard cannot destroy a size-one city"
@@ -287,8 +285,6 @@ fn conquest_invokes_partisans_after_transfer_and_population_loss() {
     game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(HUMAN, UnitKind::Swordsman, center.0, center.1);
 
-    game.create_city(1, 30, 24); // Partisans survive only while their civilization survives.
-
     let (seed, captured) = (1..=256)
         .find_map(|seed| {
             let mut candidate = game.clone();
@@ -340,7 +336,6 @@ fn conquest_transfers_center_garrison_and_resolves_unique_game_loss_conflicts() 
     assert_eq!(transferred.home_city, Some(city_id));
 
     let (mut game, _city_id, attacker, center) = conquest_fixture();
-    game.create_city(1, 30, 24); // Keep the giver alive to isolate unit bouncing.
     assert_eq!(
         crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
         Some(true)
@@ -435,7 +430,6 @@ fn conquest_transfer_bounces_units_from_other_nonallied_cities() {
 #[test]
 fn conquest_transfer_unloads_unallied_cargo_before_bouncing_illegal_city_occupants() {
     let (mut game, _, attacker, _) = conquest_fixture();
-    game.create_city(1, 30, 24); // Keep the giver alive to isolate unit bouncing.
     let foreign_city = (10, 24);
     let mut bounce_area = game
         .map_wrap
@@ -481,7 +475,6 @@ fn conquest_transfer_unloads_unallied_cargo_before_bouncing_illegal_city_occupan
 #[test]
 fn conquest_transfer_bounces_both_players_from_newly_hostile_mixed_stacks() {
     let (mut game, _, attacker, _) = conquest_fixture();
-    game.create_city(1, 30, 24); // Keep the giver alive to isolate unit bouncing.
     let stack = (18, 24);
     let giver_unit = game.spawn_unit(1, UnitKind::Warrior, stack.0, stack.1);
     let taker_unit = game.spawn_unit(HUMAN, UnitKind::Worker, stack.0, stack.1);

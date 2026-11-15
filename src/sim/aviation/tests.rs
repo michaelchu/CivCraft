@@ -368,7 +368,7 @@ fn paradrop_uses_selected_actions_minimum_moves_and_unit_range() {
     }
     assert!(!game.can_begin_paradrop(game.unit_by_id(troop).unwrap()));
     assert!(!game.paradrop(troop, in_range.0, in_range.1));
-    game.restore_player_units(HUMAN);
+    game.update_activities_and_restore();
     assert!(!game.unit_by_id(troop).unwrap().paradropped);
     assert!(game.can_begin_paradrop(game.unit_by_id(troop).unwrap()));
 
@@ -674,6 +674,499 @@ fn civ3_lethal_bombard_hits_each_reachable_target_and_removes_killed_units() {
     );
 }
 
+fn empty_terrain_bombard_setup() -> (Simulation, u32, (i32, i32)) {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    let (sx, sy) = (10, 20);
+    let (tx, ty) = game.map_wrap.offset(sx, sy, 1, 0).unwrap();
+    for (x, y) in [(sx, sy), (tx, ty)] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.tile_mut(x, y).base = None;
+    }
+    game.tile_mut(tx, ty).owner = Some(1);
+    game.tile_mut(tx, ty).visible = true;
+    game.tile_mut(tx, ty).known_by[HUMAN] = true;
+    game.create_city(HUMAN, sx, sy);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let artillery = game.spawn_unit(HUMAN, UnitKind::Artillery, sx, sy);
+    (game, artillery, (tx, ty))
+}
+
+fn seed_for_successful_terrain_bombard(game: &Simulation, artillery: u32, x: i32, y: i32) -> u64 {
+    let actor = game.unit_by_id(artillery).unwrap();
+    let attack = game.attack_power_against_with_base_for_action(
+        actor,
+        x,
+        y,
+        actor.kind.bombard_strength(),
+        "Bombard",
+    );
+    let rate = game.unit_by_id(artillery).unwrap().kind.bombard_rate();
+    let defense = terrain_bombard_defense(game, x, y);
+    (0..1000)
+        .find(|seed| {
+            let mut probe = game.clone();
+            probe.rng = *seed;
+            let first_hits = probe.rand_below(attack + defense) < attack;
+            first_hits && (1..rate).all(|_| probe.rand_below(attack + defense) >= attack)
+        })
+        .expect("a deterministic seed should produce one terrain hit")
+}
+
+#[test]
+fn bombard_destroys_road_and_mine_on_an_empty_terrain_tile() {
+    let (mut game, artillery, (x, y)) = empty_terrain_bombard_setup();
+    game.tile_mut(x, y).road = true;
+    game.tile_mut(x, y).mine = true;
+    game.native_random = None;
+    game.rng = seed_for_successful_terrain_bombard(&game, artillery, x, y);
+
+    assert!(game.apply(Command::Bombard(artillery, x, y)));
+    assert!(!game.tile(x, y).road);
+    assert!(!game.tile(x, y).mine);
+}
+
+#[test]
+fn bombard_destroys_railroad_before_other_terrain_improvements() {
+    let (mut game, artillery, (x, y)) = empty_terrain_bombard_setup();
+    game.tile_mut(x, y).road = true;
+    game.tile_mut(x, y).railroad = true;
+    game.tile_mut(x, y).mine = true;
+    game.native_random = None;
+    game.rng = seed_for_successful_terrain_bombard(&game, artillery, x, y);
+
+    assert!(game.apply(Command::Bombard(artillery, x, y)));
+    assert!(!game.tile(x, y).railroad);
+    assert!(game.tile(x, y).road);
+    assert!(game.tile(x, y).mine);
+}
+
+#[test]
+fn automated_bombard_repeats_after_the_unit_gets_movement_back() {
+    let (mut game, artillery, (x, y)) = empty_terrain_bombard_setup();
+    {
+        let tile = game.tile_mut(x, y);
+        tile.railroad = true;
+        tile.road = true;
+        tile.mine = true;
+        tile.farmland = true;
+        tile.base = Some(Base::Fortress);
+    }
+    game.native_random = None;
+    let seed = (0..10_000)
+        .find(|seed| {
+            let mut probe = game.clone();
+            probe.rng = *seed;
+            probe.apply(Command::AutoBombard(artillery, x, y))
+                && !probe.tile(x, y).railroad
+                && probe.tile(x, y).road
+                && probe.tile(x, y).mine
+                && {
+                    probe.progress_player_unit_activities(HUMAN);
+                    probe.continue_player_gotos();
+                    !probe.tile(x, y).road && !probe.tile(x, y).mine
+                }
+        })
+        .expect("a deterministic seed should produce the required shot sequence");
+    game.rng = seed;
+
+    assert!(game.apply(Command::AutoBombard(artillery, x, y)));
+    assert_eq!(
+        game.unit_by_id(artillery).unwrap().order,
+        Some(UnitOrder::Bombard { x, y })
+    );
+    assert!(!game.tile(x, y).railroad);
+    assert!(game.tile(x, y).road);
+    assert!(game.tile(x, y).mine);
+
+    game.progress_player_unit_activities(HUMAN);
+    game.continue_player_gotos();
+    assert_eq!(game.unit_by_id(artillery).unwrap().moves_left, 0);
+    assert!(!game.tile(x, y).road);
+    assert!(!game.tile(x, y).mine);
+    assert_eq!(game.tile(x, y).base, Some(Base::Fort));
+    assert!(game.unit_by_id(artillery).unwrap().order.is_some());
+    let mut canceled = game.clone();
+    assert!(canceled.apply(Command::CancelOrder(artillery)));
+    assert_eq!(canceled.unit_by_id(artillery).unwrap().order, None);
+
+    game.update_activities_and_restore();
+    game.continue_player_gotos();
+    assert_eq!(game.tile(x, y).base, None);
+    assert_eq!(game.unit_by_id(artillery).unwrap().order, None);
+}
+
+#[test]
+fn ai_artillery_bombards_a_known_hostile_terrain_improvement() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let (sx, sy) = (10, 20);
+    let (tx, ty) = game.map_wrap.offset(sx, sy, 2, 0).unwrap();
+    for (x, y) in [(sx, sy), (tx, ty)] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.tile_mut(x, y).base = None;
+    }
+    game.tile_mut(tx, ty).owner = Some(HUMAN);
+    game.tile_mut(tx, ty).known_by[1] = true;
+    game.tile_mut(tx, ty).road = true;
+    game.tile_mut(tx, ty).mine = true;
+    game.sign_pact(1, HUMAN, Pact::War);
+    let artillery = game.spawn_unit(1, UnitKind::Artillery, sx, sy);
+    game.native_random = None;
+    game.rng = seed_for_successful_terrain_bombard(&game, artillery, tx, ty);
+
+    let actor = game.unit_by_id(artillery).unwrap().clone();
+    assert!(game.run_ai_bombard(&actor));
+    assert!(!game.tile(tx, ty).road);
+    assert!(!game.tile(tx, ty).mine);
+}
+
+fn city_bombard_setup() -> (Simulation, u32, i32, i32) {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let (sx, sy) = (10, 20);
+    let (tx, ty) = game.map_wrap.offset(sx, sy, 1, 0).unwrap();
+    for (x, y) in [(sx, sy), (tx, ty)] {
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.visible = true;
+        tile.known_by[HUMAN] = true;
+    }
+    game.create_city(1, tx, ty);
+    game.tile_mut(tx, ty).visible = true;
+    game.tile_mut(tx, ty).known_by[HUMAN] = true;
+    game.cities[0].size = 3;
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, sx, sy);
+    game.units.last_mut().unwrap().moves_left = UnitKind::Cannon.stats().moves * MOVE_FRAGMENTS;
+    let actor = game.unit_by_id(cannon).unwrap();
+    assert!(game.can_begin_bombard(actor));
+    assert!(game.tile(tx, ty).visible);
+    assert!(actor.moves_left >= 1);
+    assert!(game.bombard_target_available_for_order(actor, tx, ty));
+    assert!(game.can_bombard_tile(actor, tx, ty));
+    game.native_random = None;
+    (game, cannon, tx, ty)
+}
+
+#[test]
+fn city_bombard_can_destroy_an_improvement() {
+    let (mut game, cannon, x, y) = city_bombard_setup();
+    game.cities[0]
+        .buildings
+        .push(crate::rules::Building::LIBRARY);
+    let seed = (0..20_000)
+        .find(|seed| {
+            let mut probe = game.clone();
+            probe.rng = *seed;
+            probe.try_ranged_bombard(cannon, x, y) != MoveResult::Blocked
+                && !probe.cities[0]
+                    .buildings
+                    .contains(&crate::rules::Building::LIBRARY)
+        })
+        .expect("a deterministic seed should select and destroy the city building");
+    game.rng = seed;
+
+    assert_eq!(game.try_ranged_bombard(cannon, x, y), MoveResult::Fought);
+    assert!(
+        !game.cities[0]
+            .buildings
+            .contains(&crate::rules::Building::LIBRARY)
+    );
+    assert_eq!(game.cities[0].size, 3);
+}
+
+#[test]
+fn precision_bombing_requires_smart_weapons_and_targets_city_improvements() {
+    let (mut game, cannon, x, y) = city_bombard_setup();
+    game.tile_mut(10, 20).base = Some(Base::Airbase);
+    let bomber = game.unit_by_id(cannon).unwrap().clone();
+    let bomber_id = bomber.id;
+    let bomber = game
+        .units
+        .iter_mut()
+        .find(|unit| unit.id == bomber_id)
+        .unwrap();
+    bomber.kind = UnitKind::StealthBomber;
+    bomber.hp = UnitKind::StealthBomber.stats().hp;
+    bomber.moves_left = MOVE_FRAGMENTS;
+    game.cities[0]
+        .buildings
+        .push(crate::rules::Building::LIBRARY);
+    assert!(!game.can_precision_bomb(game.unit_by_id(bomber_id).unwrap()));
+    game.players[HUMAN].known.push(Tech::SMART_WEAPONS);
+    assert!(game.can_precision_bomb(game.unit_by_id(bomber_id).unwrap()));
+    assert_eq!(
+        game.precision_bombardable_targets_in_range(bomber_id),
+        vec![(x, y)]
+    );
+
+    let seed = (0..20_000)
+        .find(|seed| {
+            let mut probe = game.clone();
+            probe.rng = *seed;
+            probe.try_precision_bombard(bomber_id, x, y) != MoveResult::Blocked
+                && !probe.cities[0]
+                    .buildings
+                    .contains(&crate::rules::Building::LIBRARY)
+        })
+        .expect("a seed should produce a precision hit against the city improvement");
+    game.rng = seed;
+    assert!(game.apply(Command::AutoPrecisionBombard(bomber_id, x, y)));
+    assert_eq!(
+        game.unit_by_id(bomber_id).unwrap().order,
+        Some(UnitOrder::PrecisionBombard { x, y })
+    );
+    assert!(
+        !game.cities[0]
+            .buildings
+            .contains(&crate::rules::Building::LIBRARY)
+    );
+    assert_eq!(
+        game.cities[0].size, 3,
+        "precision bombing leaves population for when improvements are gone"
+    );
+    let city_id = game.cities[0].id;
+    let population_seed = (0..20_000)
+        .find(|seed| {
+            let mut probe = game.clone();
+            probe.rng = *seed;
+            probe.progress_player_unit_activities(HUMAN);
+            probe.continue_player_gotos();
+            probe
+                .city_index_by_id(city_id)
+                .is_some_and(|index| probe.cities[index].size == 2)
+        })
+        .expect("precision bombing falls through to population after improvements are gone");
+    game.rng = population_seed;
+    game.progress_player_unit_activities(HUMAN);
+    game.continue_player_gotos();
+    assert_eq!(game.cities[game.city_index_by_id(city_id).unwrap()].size, 2);
+}
+
+#[test]
+fn city_bombard_can_reduce_population_without_razing_a_city() {
+    let (mut game, cannon, x, y) = city_bombard_setup();
+    let city_id = game.cities[0].id;
+    let seed = (0..20_000)
+        .find(|seed| {
+            let mut probe = game.clone();
+            probe.rng = *seed;
+            probe.try_ranged_bombard(cannon, x, y) != MoveResult::Blocked
+                && probe
+                    .city_index_by_id(city_id)
+                    .is_some_and(|index| probe.cities[index].size == 2)
+        })
+        .expect("a deterministic seed should select and damage the city population");
+    game.rng = seed;
+
+    assert_eq!(game.try_ranged_bombard(cannon, x, y), MoveResult::Fought);
+    assert_eq!(game.cities[game.city_index_by_id(city_id).unwrap()].size, 2);
+}
+
+#[test]
+fn ai_bomber_bombards_a_known_hostile_terrain_tile_from_an_airbase() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let (sx, sy) = (10, 20);
+    let (tx, ty) = game.map_wrap.offset(sx, sy, 3, 0).unwrap();
+    for (x, y) in [(sx, sy), (tx, ty)] {
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+    }
+    game.tile_mut(sx, sy).base = Some(Base::Airbase);
+    game.tile_mut(sx, sy).known_by[1] = true;
+    game.tile_mut(tx, ty).owner = Some(HUMAN);
+    game.tile_mut(tx, ty).known_by[1] = true;
+    game.tile_mut(tx, ty).road = true;
+    game.tile_mut(tx, ty).mine = true;
+    game.sign_pact(1, HUMAN, Pact::War);
+    let bomber = game.spawn_unit(1, UnitKind::Bomber, sx, sy);
+    game.native_random = None;
+    game.rng = seed_for_successful_terrain_bombard(&game, bomber, tx, ty);
+
+    let actor = game.unit_by_id(bomber).unwrap().clone();
+    assert!(game.run_ai_bombard(&actor));
+    assert!(!game.tile(tx, ty).road);
+    assert!(!game.tile(tx, ty).mine);
+}
+
+#[test]
+fn ai_bomber_rebases_to_a_site_with_an_in_range_enemy_city() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    game.players[1].ai = true;
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.owner = None;
+        tile.known_by[1] = false;
+        tile.road = false;
+        tile.railroad = false;
+        tile.mine = false;
+        tile.irrigation = false;
+        tile.farmland = false;
+        tile.oil_well = false;
+        tile.oil_platform = false;
+    }
+    let source = (10, 20);
+    let base = (12, 20);
+    let target = (22, 20);
+    for (x, y) in [source, base, target] {
+        let tile = game.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.base = None;
+        tile.known_by[1] = true;
+    }
+    game.tile_mut(base.0, base.1).base = Some(Base::Airbase);
+    game.create_city(1, source.0, source.1);
+    game.create_city(HUMAN, target.0, target.1);
+    game.cities.last_mut().unwrap().size = 2;
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let bomber = game.spawn_unit(1, UnitKind::Bomber, source.0, source.1);
+    let bomber_unit = game
+        .units
+        .iter_mut()
+        .find(|unit| unit.id == bomber)
+        .unwrap();
+    bomber_unit.fuel = UnitKind::Bomber.fuel_capacity();
+    bomber_unit.moves_left = MOVE_FRAGMENTS;
+    let actor = game.unit_by_id(bomber).unwrap().clone();
+    assert!(
+        game.map_wrap
+            .civ3_distance(source.0, source.1, target.0, target.1)
+            > UnitKind::Bomber.operational_range()
+    );
+    assert!(
+        game.map_wrap
+            .civ3_distance(base.0, base.1, target.0, target.1)
+            <= UnitKind::Bomber.operational_range()
+    );
+    let mut staged = actor.clone();
+    staged.x = base.0;
+    staged.y = base.1;
+    staged.moves_left = actor.kind.stats().moves * MOVE_FRAGMENTS;
+    assert!(game.can_bombard_tile(&staged, target.0, target.1));
+    let route = game.aircraft_bombard_base_route(&actor, &[base]).unwrap();
+    assert_eq!(route.1, base);
+    assert!(game.aircraft_attack_path(&actor).is_none());
+    assert!(game.refuel_site(1, source.0, source.1));
+    assert!(game.refuel_site(1, base.0, base.1));
+    assert_eq!(actor.fuel, actor.kind.fuel_capacity());
+    assert!(game.can_begin_bombard(&actor));
+    let mut probe = game.clone();
+    assert!(!probe.run_ai_bombard(&actor));
+
+    game.run_ai_strike_aircraft(&actor);
+    assert_ne!(
+        (
+            game.unit_by_id(bomber).unwrap().x,
+            game.unit_by_id(bomber).unwrap().y
+        ),
+        base,
+        "the fuel route can span several turns"
+    );
+    assert_eq!(game.unit_goto_tiles.get(&bomber), Some(&base));
+    game.restore_player_units(1);
+    game.progress_player_unit_activities(1);
+    game.run_ai_strike_aircraft(&game.unit_by_id(bomber).unwrap().clone());
+    assert_eq!(
+        (
+            game.unit_by_id(bomber).unwrap().x,
+            game.unit_by_id(bomber).unwrap().y
+        ),
+        base
+    );
+    game.restore_player_units(1);
+    game.progress_player_unit_activities(1);
+    let bomber_unit = game.unit_by_id(bomber).unwrap().clone();
+    assert!(game.run_ai_bombard(&bomber_unit));
+    assert_eq!(game.unit_by_id(bomber).unwrap().moves_left, 0);
+}
+
+#[test]
+fn fighter_air_superiority_intercepts_within_half_range_once_per_turn() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.cities.clear();
+    let base = (10, 20);
+    let near = game.map_wrap.offset(base.0, base.1, 2, 0).unwrap();
+    let far = game.map_wrap.offset(base.0, base.1, 4, 0).unwrap();
+    for (x, y) in [base, near, far] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.tile_mut(x, y).base = None;
+        game.tile_mut(x, y).visible = true;
+        game.tile_mut(x, y).known_by[HUMAN] = true;
+    }
+    game.create_city(HUMAN, base.0, base.1);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let fighter = game.spawn_unit(HUMAN, UnitKind::Fighter, base.0, base.1);
+    let bomber = game.spawn_unit(1, UnitKind::Bomber, near.0, near.1);
+    assert!(game.apply(Command::AirSuperiority(fighter)));
+    assert_eq!(
+        game.unit_by_id(fighter).unwrap().order,
+        Some(UnitOrder::AirSuperiority {
+            x: base.0,
+            y: base.1
+        })
+    );
+    assert!(game.try_air_superiority_interceptions(bomber, far));
+    assert!(!game.unit_by_id(fighter).unwrap().air_superiority_shot);
+
+    let initial_bomber_hp = game.unit_by_id(bomber).unwrap().hp;
+    let initial_fighter_hp = game.unit_by_id(fighter).unwrap().hp;
+    game.native_random = None;
+    let seed = (0..10_000)
+        .find(|seed| {
+            let mut probe = game.clone();
+            probe.rng = *seed;
+            !probe.try_air_superiority_interceptions(bomber, near)
+                || probe
+                    .unit_by_id(fighter)
+                    .is_some_and(|unit| unit.air_superiority_shot)
+        })
+        .expect("a deterministic seed should detect an ordinary air mission");
+    game.rng = seed;
+    let mission_survived = game.try_air_superiority_interceptions(bomber, near);
+    assert!(
+        !mission_survived
+            || game
+                .unit_by_id(fighter)
+                .is_some_and(|unit| unit.air_superiority_shot)
+    );
+    assert!(
+        game.unit_by_id(bomber)
+            .is_none_or(|unit| unit.hp < initial_bomber_hp)
+            || game
+                .unit_by_id(fighter)
+                .is_none_or(|unit| unit.hp < initial_fighter_hp)
+    );
+
+    let fighter_after_interception = game.unit_by_id(fighter).map(|unit| unit.hp);
+    let bomber_after_interception = game.unit_by_id(bomber).map(|unit| unit.hp);
+    game.try_air_superiority_interceptions(bomber, near);
+    assert_eq!(
+        game.unit_by_id(fighter).map(|unit| unit.hp),
+        fighter_after_interception
+    );
+    assert_eq!(
+        game.unit_by_id(bomber).map(|unit| unit.hp),
+        bomber_after_interception,
+        "a detected interceptor can only fire once per turn"
+    );
+    game.restore_player_units(HUMAN);
+    if let Some(fighter) = game.unit_by_id(fighter) {
+        assert!(!fighter.air_superiority_shot);
+    }
+}
+
 #[test]
 fn bombard_uses_civ3_range_and_unit_mapping() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
@@ -777,7 +1270,10 @@ fn civ3_bombard_can_target_an_empty_enemy_city_and_uses_selected_citizen_class_r
         "Freeciv accepts a legal city-target bombardment with no units present"
     );
     let city = game.city_at(tx, ty).unwrap();
-    assert_eq!(city.size, 3, "C2C3 Bombarders are not KillCitizen classes");
+    assert_eq!(
+        city.size, 2,
+        "Civ III city bombardment may select population"
+    );
     assert_eq!(game.unit_by_id(bomber).unwrap().moves_left, 0);
     assert!(game.events.iter().any(|event| event.contains("bombarded")));
 }
@@ -1071,11 +1567,11 @@ mod stealth_tests {
         assert!(game.board_specific_ship(fighter, boat));
         game.run_ai_player(1);
         assert_eq!(game.ferry_boss(boat), Some(bomber));
-        assert!(game.units.iter().any(|unit| unit.id == victim));
+        assert!(!game.units.iter().any(|unit| unit.id == victim));
         assert!(
             game.units
                 .iter()
-                .any(|unit| unit.id == fighter && !unit.moved && unit.transport == Some(boat))
+                .any(|unit| unit.id == fighter && unit.transport == Some(boat))
         );
         assert!(
             game.units
@@ -1085,7 +1581,7 @@ mod stealth_tests {
     }
 
     #[test]
-    fn carrier_without_moves_cannot_activate_its_aircraft_boss() {
+    fn carrier_without_moves_still_allows_stationed_aircraft_missions() {
         let (mut game, boat, fighter, victim) =
             loaded_hunt(2, UnitKind::Fighter, UnitKind::Carrier);
         game.units
@@ -1094,11 +1590,11 @@ mod stealth_tests {
             .unwrap()
             .moves_left = 0;
         game.run_ai_player(1);
-        assert!(game.units.iter().any(|unit| unit.id == victim));
+        assert!(!game.units.iter().any(|unit| unit.id == victim));
         assert!(
             game.units
                 .iter()
-                .any(|unit| unit.id == fighter && !unit.moved)
+                .any(|unit| unit.id == fighter && unit.transport == Some(boat))
         );
     }
 

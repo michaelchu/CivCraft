@@ -84,6 +84,14 @@ impl ClientSimulation {
         self.simulation.unit_action_view(id)
     }
 
+    pub(crate) fn bombardable_targets_in_range(&self, id: u32) -> Vec<(i32, i32)> {
+        self.simulation.bombardable_targets_in_range(id)
+    }
+
+    pub(crate) fn precision_bombardable_targets_in_range(&self, id: u32) -> Vec<(i32, i32)> {
+        self.simulation.precision_bombardable_targets_in_range(id)
+    }
+
     pub(crate) fn unit_context_view_by_id(&self, id: u32) -> Option<UnitContextView> {
         self.simulation.unit_context_view_by_id(id)
     }

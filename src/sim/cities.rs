@@ -194,8 +194,23 @@ impl Simulation {
         self.apply_civilian_casualties(attacker, x, y, "Attack");
     }
 
-    pub(super) fn apply_bombard_population_loss(&mut self, attacker: &Unit, x: i32, y: i32) {
-        self.apply_civilian_casualties(attacker, x, y, "Bombard");
+    pub(super) fn reduce_city_population_from_bombard(
+        &mut self,
+        city_id: u32,
+        attacker_owner: usize,
+    ) -> bool {
+        let Some(index) = self.city_index_by_id(city_id) else {
+            return false;
+        };
+        if self.cities[index].size <= 1 {
+            return false;
+        }
+        let city_name = self.cities[index].name.clone();
+        self.reduce_city_population(index);
+        if attacker_owner == HUMAN || self.cities[index].owner == HUMAN {
+            self.add_event(format!("{city_name} lost one citizen during bombardment."));
+        }
+        true
     }
 
     fn apply_civilian_casualties(&mut self, attacker: &Unit, x: i32, y: i32, action: &str) {

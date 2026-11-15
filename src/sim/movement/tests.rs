@@ -324,6 +324,135 @@ fn military_move_does_not_capture_non_capturable_worker() {
 }
 
 #[test]
+fn zero_range_bombarder_fires_one_defensive_shot_on_tile_attack() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    let (sx, sy) = (10, 24);
+    let (tx, ty) = game.map_wrap.offset(sx, sy, 1, 0).unwrap();
+    for (x, y) in [(sx, sy), (tx, ty)] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.tile_mut(x, y).base = None;
+    }
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(1, UnitKind::Warrior, sx, sy);
+    game.spawn_unit(HUMAN, UnitKind::Spearman, tx, ty);
+    let archer = game.spawn_unit(HUMAN, UnitKind::Archer, tx, ty);
+    assert_eq!(UnitKind::Archer.bombard_range(), 0);
+    assert!(UnitKind::Archer.bombard_strength() > 0);
+
+    assert_eq!(game.try_move_unit(attacker, 1, 0), MoveResult::Fought);
+    assert!(game.unit_by_id(archer).unwrap().defensive_bombarded);
+
+    game.update_activities_and_restore();
+    assert!(!game.unit_by_id(archer).unwrap().defensive_bombarded);
+}
+
+#[test]
+fn ranged_bombarder_can_fire_a_defensive_shot() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    let (sx, sy) = (10, 24);
+    let (tx, ty) = game.map_wrap.offset(sx, sy, 1, 0).unwrap();
+    for (x, y) in [(sx, sy), (tx, ty)] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.tile_mut(x, y).base = None;
+    }
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(1, UnitKind::Warrior, sx, sy);
+    game.spawn_unit(HUMAN, UnitKind::Spearman, tx, ty);
+    let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, tx, ty);
+    assert!(UnitKind::Cannon.bombard_range() > 0);
+
+    let attacker_unit = game.unit_by_id(attacker).unwrap().clone();
+    let cannon_unit = game.unit_by_id(cannon).unwrap().clone();
+    let attack = game.attack_power_against_with_base_for_action(
+        &cannon_unit,
+        attacker_unit.x,
+        attacker_unit.y,
+        UnitKind::Cannon.bombard_strength(),
+        "Bombard",
+    );
+    let defense = game.defense_power_against(
+        &attacker_unit,
+        attacker_unit.x,
+        attacker_unit.y,
+        UnitKind::Cannon,
+    );
+    let winning_seed = (0..1000)
+        .find(|seed| {
+            let mut probe = game.clone();
+            probe.rng = *seed;
+            probe.rand_below(attack + defense) < attack
+        })
+        .expect("a deterministic seed should hit");
+    game.rng = winning_seed;
+    let hp_before = attacker_unit.hp;
+
+    assert!(game.try_defensive_bombard(attacker, tx, ty));
+    assert!(game.unit_by_id(cannon).unwrap().defensive_bombarded);
+    assert_eq!(game.unit_by_id(attacker).unwrap().hp, hp_before - 1);
+    assert!(!game.try_defensive_bombard(attacker, tx, ty));
+
+    game.update_activities_and_restore();
+    assert!(!game.unit_by_id(cannon).unwrap().defensive_bombarded);
+}
+
+#[test]
+fn fortress_bombarder_can_fire_at_an_attacker_on_a_neighboring_tile() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    let (sx, sy) = (10, 24);
+    let (tx, ty) = game.map_wrap.offset(sx, sy, 1, 0).unwrap();
+    let (fx, fy) = game.map_wrap.offset(tx, ty, 0, -1).unwrap();
+    for (x, y) in [(sx, sy), (tx, ty), (fx, fy)] {
+        game.tile_mut(x, y).terrain = Terrain::Grassland;
+        game.tile_mut(x, y).base = None;
+    }
+    game.tile_mut(fx, fy).base = Some(Base::Fortress);
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(1, UnitKind::Warrior, sx, sy);
+    game.spawn_unit(HUMAN, UnitKind::Spearman, tx, ty);
+    let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, fx, fy);
+
+    assert_eq!(game.try_move_unit(attacker, 1, 0), MoveResult::Fought);
+    assert!(game.unit_by_id(cannon).unwrap().defensive_bombarded);
+}
+
+#[test]
+fn coastal_fortress_reacts_to_a_passing_enemy_ship() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    let (cx, cy) = (10, 24);
+    let (sx, sy) = game.map_wrap.offset(cx, cy, 1, 0).unwrap();
+    game.tile_mut(cx, cy).terrain = Terrain::Grassland;
+    game.tile_mut(sx, sy).terrain = Terrain::Sea;
+    game.sign_pact(1, HUMAN, Pact::War);
+    game.create_city(1, cx, cy);
+    game.cities[0]
+        .buildings
+        .push(crate::rules::Building::COASTAL_DEFENSE);
+    let ship = game.spawn_unit(HUMAN, UnitKind::Frigate, sx, sy);
+    let attacker = game.unit_by_id(ship).unwrap().clone();
+    let defense = game.defense_power_against(&attacker, sx, sy, UnitKind::Battleship);
+    game.native_random = None;
+    game.rng = (0..1000)
+        .find(|seed| {
+            let mut probe = game.clone();
+            probe.rng = *seed;
+            probe.rand_below(8 + defense) < 8
+        })
+        .expect("a deterministic seed should hit");
+    let hp_before = attacker.hp;
+
+    assert!(game.try_defensive_bombard(ship, sx, sy));
+    assert_eq!(game.unit_by_id(ship).unwrap().hp, hp_before - 1);
+}
+
+#[test]
 fn imported_marine_small_land_units_can_occupy_cities() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();

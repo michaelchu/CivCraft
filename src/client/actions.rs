@@ -108,7 +108,10 @@ impl Game {
                 }
                 self.capture_units_mode = false;
             }
-            UiAction::BeginBombard => {
+            UiAction::BeginBombard
+            | UiAction::BeginAutoBombard
+            | UiAction::BeginPrecisionBombard
+            | UiAction::BeginAutoPrecisionBombard => {
                 self.goto_mode = false;
                 self.paradrop_mode = false;
                 self.capture_units_mode = false;
@@ -116,15 +119,53 @@ impl Game {
                 self.bombard_mode = self
                     .selected_unit
                     .and_then(|id| self.sim.unit_action_view(id))
-                    .is_some_and(|view| view.bombard);
+                    .is_some_and(|view| {
+                        if matches!(
+                            action,
+                            UiAction::BeginPrecisionBombard | UiAction::BeginAutoPrecisionBombard
+                        ) {
+                            view.precision_bombard
+                        } else {
+                            view.bombard
+                        }
+                    });
+                self.precision_bombard_mode = matches!(
+                    action,
+                    UiAction::BeginPrecisionBombard | UiAction::BeginAutoPrecisionBombard
+                );
+                self.auto_bombard_mode = matches!(
+                    action,
+                    UiAction::BeginAutoBombard | UiAction::BeginAutoPrecisionBombard
+                );
             }
             UiAction::BombardTo(x, y) => {
                 if self.bombard_mode
                     && let Some(id) = self.selected_unit
                 {
-                    self.move_selected(Command::Bombard(id, x, y), id);
+                    let command = if self.precision_bombard_mode && self.auto_bombard_mode {
+                        Command::AutoPrecisionBombard(id, x, y)
+                    } else if self.precision_bombard_mode {
+                        Command::PrecisionBombard(id, x, y)
+                    } else if self.auto_bombard_mode {
+                        Command::AutoBombard(id, x, y)
+                    } else {
+                        Command::Bombard(id, x, y)
+                    };
+                    self.move_selected(command, id);
                 }
                 self.bombard_mode = false;
+                self.auto_bombard_mode = false;
+                self.precision_bombard_mode = false;
+            }
+            UiAction::CancelUnitOrder => {
+                if let Some(id) = self.selected_unit {
+                    self.sim.apply(Command::CancelOrder(id));
+                }
+            }
+            UiAction::AirSuperiority => {
+                if let Some(id) = self.selected_unit {
+                    self.sim.apply(Command::AirSuperiority(id));
+                }
             }
             UiAction::NuclearStrikeTo(x, y) => {
                 if self.nuclear_mode
