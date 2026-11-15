@@ -465,7 +465,7 @@ impl Simulation {
         }
 
         for source in &sources {
-            for tile_index in 0..self.tiles.len() {
+            for (tile_index, claim_slot) in claims.iter_mut().enumerate() {
                 let distance = source.distances[tile_index];
                 let distance_sq = i64::from(distance) * i64::from(distance);
                 if distance_sq > source.radius_sq {
@@ -485,7 +485,7 @@ impl Simulation {
                 if !tile_claimable(self, &regions, source.owner, target, (source.x, source.y)) {
                     continue;
                 }
-                let old = claims[tile_index];
+                let old = *claim_slot;
                 if old.is_some_and(|claim| claim.city_id == source.city_id) {
                     continue;
                 }
@@ -503,7 +503,7 @@ impl Simulation {
                         continue;
                     }
                 }
-                claims[tile_index] = Some(BorderClaim {
+                *claim_slot = Some(BorderClaim {
                     city_id: source.city_id,
                     owner: source.owner,
                     strength: source.strength_at(distance),

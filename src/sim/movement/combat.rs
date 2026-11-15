@@ -820,10 +820,11 @@ impl Simulation {
                     attacker.y,
                     UnitKind::Battleship,
                 );
-                if attack + defense > 0 && self.rand_below(attack + defense) < attack {
-                    if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == attacker_id) {
-                        unit.hp = (unit.hp - 1).max(1);
-                    }
+                if attack + defense > 0
+                    && self.rand_below(attack + defense) < attack
+                    && let Some(unit) = self.units.iter_mut().find(|unit| unit.id == attacker_id)
+                {
+                    unit.hp = (unit.hp - 1).max(1);
                 }
                 return true;
             }
@@ -843,10 +844,11 @@ impl Simulation {
             "Bombard",
         );
         let defense = self.defense_power_against(&attacker, attacker.x, attacker.y, shooter.kind);
-        if attack + defense > 0 && self.rand_below(attack + defense) < attack {
-            if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == attacker_id) {
-                unit.hp = (unit.hp - 1).max(1);
-            }
+        if attack + defense > 0
+            && self.rand_below(attack + defense) < attack
+            && let Some(unit) = self.units.iter_mut().find(|unit| unit.id == attacker_id)
+        {
+            unit.hp = (unit.hp - 1).max(1);
         }
         true
     }

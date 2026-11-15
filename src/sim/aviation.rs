@@ -139,9 +139,7 @@ fn city_object_bombard_defense(sim: &Simulation, city: &City, attacker: &Unit) -
         };
     defense += if city.size >= 13 {
         16
-    } else if city.size >= 7 {
-        8
-    } else if city.has_building(crate::rules::Building::CITY_WALLS) {
+    } else if city.size >= 7 || city.has_building(crate::rules::Building::CITY_WALLS) {
         8
     } else {
         0
@@ -580,7 +578,8 @@ impl Simulation {
             }
         }
 
-        let mut best: Option<(f64, i32, Vec<(i32, i32)>)> = None;
+        type ScoredFiringPosition = (f64, i32, Vec<(i32, i32)>);
+        let mut best: Option<ScoredFiringPosition> = None;
         for (tx, ty) in target_tiles {
             for (px, py, distance) in self.map_wrap.civ3_radius(tx, ty, range) {
                 if distance == 0
@@ -675,7 +674,7 @@ impl Simulation {
             .filter(|city| city.owner != attacker.owner && self.at_war(attacker.owner, city.owner));
         let city_unit_weight = if hostile_city.is_some() { 0.5 } else { 1.0 };
         let attack = self.attack_power_against_with_base_for_action(
-            &attacker,
+            attacker,
             x,
             y,
             attacker.kind.bombard_strength(),

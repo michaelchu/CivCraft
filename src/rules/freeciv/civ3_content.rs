@@ -380,7 +380,7 @@ fn attach_building_bindings(
                 &format!("mapping status/index disagree for {:?}", row[binding_id]),
             ));
         }
-        if (row[status] == "unmapped") != !row[note].is_empty() {
+        if (row[status] == "unmapped") == row[note].is_empty() {
             return Err(Table::error(
                 &bindings.path,
                 &format!(

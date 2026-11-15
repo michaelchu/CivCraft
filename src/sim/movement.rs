@@ -1280,11 +1280,9 @@ impl Simulation {
                     };
                     if !self.can_bombard_tile(&unit, x, y)
                         || self.try_ranged_bombard(id, x, y) == MoveResult::Blocked
-                    {
-                        self.cancel_unit_order(id);
-                    } else if self
-                        .unit_by_id(id)
-                        .is_none_or(|unit| !self.repeated_bombard_target_remains(unit, x, y))
+                        || self
+                            .unit_by_id(id)
+                            .is_none_or(|unit| !self.repeated_bombard_target_remains(unit, x, y))
                     {
                         self.cancel_unit_order(id);
                     }

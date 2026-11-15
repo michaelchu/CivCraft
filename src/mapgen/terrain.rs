@@ -173,8 +173,8 @@ fn pick_freeciv_terrain(
 ) -> Option<Terrain> {
     let eligible = |terrain: &&TerrainMapgenProperties| {
         civ3_terrain_for_freeciv_rule(&terrain.rule_name).is_some()
-            && !avoid.is_some_and(|property| property.value(terrain) > 0)
-            && !prefer.is_some_and(|property| property.value(terrain) == 0)
+            && avoid.is_none_or(|property| property.value(terrain) <= 0)
+            && prefer.is_none_or(|property| property.value(terrain) != 0)
     };
     let total_weight = terrains
         .iter()

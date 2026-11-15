@@ -112,9 +112,8 @@ impl Simulation {
         // default. The selected C2C3 ruleset has no Rapture_Grow effect, but
         // resolving the effect here keeps the population/upkeep ordering
         // correct if that ruleset is intentionally adjusted later.
-        const RAPTURE_DELAY: i32 = 1;
         let rapture = self.city_rapture.get(&city.id).copied().unwrap_or(0);
-        if rapture <= 0 || food_surplus <= 0 || rapture % RAPTURE_DELAY != 0 {
+        if rapture <= 0 || food_surplus <= 0 {
             return false;
         }
         let government = self.players[city.owner].government;

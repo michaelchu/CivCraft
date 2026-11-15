@@ -324,10 +324,8 @@ impl Simulation {
                 .map_wrap
                 .civ3_radius(x, y, Self::civ3_bombard_range(plane.kind))
                 .into_iter()
-                .filter_map(|(tx, ty, _)| {
-                    self.can_bombard_tile(&staged, tx, ty)
-                        .then(|| self.ai_bombard_tile_value(&staged, tx, ty))
-                })
+                .filter(|&(tx, ty, _)| self.can_bombard_tile(&staged, tx, ty))
+                .map(|(tx, ty, _)| self.ai_bombard_tile_value(&staged, tx, ty))
                 .fold(0.0_f64, f64::max);
             if value <= 0.0 {
                 continue;

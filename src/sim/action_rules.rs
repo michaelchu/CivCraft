@@ -3660,9 +3660,8 @@ mod tests {
             Err(RequirementEvaluationError::Unsupported { .. })
         ));
         assert!(
-            !game
-                .action_available(worker_id, "Not an action", (10, 20))
-                .is_ok()
+            game.action_available(worker_id, "Not an action", (10, 20))
+                .is_err()
         );
         assert!(matches!(
             game.action_available(worker_id, "Not an action", (10, 20)),

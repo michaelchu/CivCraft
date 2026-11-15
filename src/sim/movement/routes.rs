@@ -3,6 +3,12 @@
 use super::super::pathfinding::reconstruct_path;
 use super::*;
 
+type RouteSearchResult = (
+    Vec<(i32, usize)>,
+    Option<Vec<Option<(usize, (i32, i32))>>>,
+    u64,
+);
+
 impl Simulation {
     pub(in crate::sim) fn path_to(&self, unit_id: u32, tx: i32, ty: i32) -> Vec<(i32, i32)> {
         let Some(unit) = self.unit_by_id(unit_id) else {
@@ -133,11 +139,7 @@ impl Simulation {
         limit: i32,
         observed: bool,
         capture_path: bool,
-    ) -> (
-        Vec<(i32, usize)>,
-        Option<Vec<Option<(usize, (i32, i32))>>>,
-        u64,
-    ) {
+    ) -> RouteSearchResult {
         let start = self.map_wrap.index(unit.x, unit.y);
         let mut goal_tiles = vec![false; self.tiles.len()];
         for &goal in goals {

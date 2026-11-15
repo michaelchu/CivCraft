@@ -430,9 +430,9 @@ impl Simulation {
                 // A previous carrier loss can unload or rescue this unit.
                 // Freeciv iterates the live tile list, so units moved off the
                 // blast tile are no longer casualties in this iteration.
-                if !self
+                if self
                     .unit_by_id(unit_id)
-                    .is_some_and(|unit| (unit.x, unit.y) == (tx, ty))
+                    .is_none_or(|unit| (unit.x, unit.y) != (tx, ty))
                 {
                     continue;
                 }
