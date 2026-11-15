@@ -1340,10 +1340,8 @@ fn c2c3_government_rule_name(government: super::Government) -> Option<&'static s
         super::Government::Federation => "Federation",
         super::Government::Republic => "Republic",
         super::Government::Democracy => "Democracy",
-        // Fascism and Feudalism are Civ III governments without a direct
-        // identity in the selected C2C3 government catalog. P8 replaces these
-        // runtime identities; do not infer Fundamentalism or Federation here.
-        super::Government::Fascism | super::Government::Feudalism => return None,
+        super::Government::Fascism => "Fascism",
+        super::Government::Feudalism => "Feudalism",
     })
 }
 

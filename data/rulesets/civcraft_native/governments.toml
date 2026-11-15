@@ -3,6 +3,8 @@ source = "Civilization III: Conquests"
 
 [[governments]]
 government = "anarchy"
+name = "Anarchy"
+required_technology = ""
 town_free_units = 0
 city_free_units = 0
 metropolis_free_units = 0
@@ -10,6 +12,9 @@ cost_per_excess_unit_gold = 1
 
 [[governments]]
 government = "despotism"
+name = "Despotism"
+required_technology = ""
+preferred_government = "monarchy"
 town_free_units = 4
 city_free_units = 4
 metropolis_free_units = 4
@@ -17,6 +22,8 @@ cost_per_excess_unit_gold = 1
 
 [[governments]]
 government = "monarchy"
+name = "Monarchy"
+required_technology = "Monarchy"
 town_free_units = 2
 city_free_units = 4
 metropolis_free_units = 8
@@ -24,6 +31,8 @@ cost_per_excess_unit_gold = 1
 
 [[governments]]
 government = "communism"
+name = "Communism"
+required_technology = "Communism"
 town_free_units = 6
 city_free_units = 6
 metropolis_free_units = 6
@@ -31,6 +40,8 @@ cost_per_excess_unit_gold = 1
 
 [[governments]]
 government = "republic"
+name = "Republic"
+required_technology = "The Republic"
 town_free_units = 1
 city_free_units = 3
 metropolis_free_units = 4
@@ -38,6 +49,8 @@ cost_per_excess_unit_gold = 2
 
 [[governments]]
 government = "democracy"
+name = "Democracy"
+required_technology = "Democracy"
 town_free_units = 0
 city_free_units = 0
 metropolis_free_units = 0
@@ -45,6 +58,8 @@ cost_per_excess_unit_gold = 1
 
 [[governments]]
 government = "fascism"
+name = "Fascism"
+required_technology = "Fascism"
 town_free_units = 4
 city_free_units = 7
 metropolis_free_units = 10
@@ -52,6 +67,8 @@ cost_per_excess_unit_gold = 1
 
 [[governments]]
 government = "feudalism"
+name = "Feudalism"
+required_technology = "Feudalism"
 town_free_units = 5
 city_free_units = 2
 metropolis_free_units = 1

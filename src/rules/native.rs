@@ -174,9 +174,22 @@ pub(crate) struct GovernmentCatalog {
     pub(crate) military_law: Vec<NativeMilitaryLaw>,
 }
 
+impl GovernmentCatalog {
+    pub(crate) fn get(&self, name: &str) -> Option<&NativeGovernment> {
+        self.governments
+            .iter()
+            .find(|government| government.government.eq_ignore_ascii_case(name))
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeGovernment {
     pub(crate) government: String,
+    pub(crate) name: String,
+    #[serde(default)]
+    pub(crate) required_technology: String,
+    #[serde(default)]
+    pub(crate) preferred_government: Option<String>,
     pub(crate) town_free_units: i32,
     pub(crate) city_free_units: i32,
     pub(crate) metropolis_free_units: i32,
@@ -480,6 +493,34 @@ mod tests {
         assert_eq!(technologies().technologies.len(), 83);
         assert_eq!(governments().schema_version, 1);
         assert_eq!(governments().governments.len(), 8);
+        assert!(governments().governments.iter().all(|government| {
+            !government.government.is_empty() && !government.name.is_empty()
+        }));
+        assert_eq!(
+            governments()
+                .governments
+                .iter()
+                .map(|government| government.government.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "anarchy",
+                "despotism",
+                "monarchy",
+                "communism",
+                "republic",
+                "democracy",
+                "fascism",
+                "feudalism"
+            ]
+        );
+        assert_eq!(
+            governments().get("monarchy").unwrap().required_technology,
+            "Monarchy"
+        );
+        assert_eq!(
+            governments().get("republic").unwrap().required_technology,
+            "The Republic"
+        );
         assert_eq!(governments().assimilation.len(), 8);
         assert_eq!(governments().resistance.len(), 64);
         assert_eq!(governments().military_law.len(), 8);
