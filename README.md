@@ -1,21 +1,13 @@
 # CivCraft
 
-CivCraft is an offline Rust strategy game targeting Civilization III: Conquests.
-Its civilization catalog supports all 31 Conquests civilizations:
+CivCraft is an offline strategy game written in Rust. Its gameplay rules are
+based on Freeciv, with Civilization III: Conquests graphics. Choose from the
+full roster of 31 civilizations:
 
-| Civilization | Civilization | Civilization |
-| --- | --- | --- |
-| America | Arabia | Aztecs |
-| Babylonians | Byzantines | Carthage |
-| Celts | Chinese | Egyptians |
-| England | France | Germany |
-| Greeks | Hittites | Inca |
-| India | Iroquois | Japanese |
-| Korea | Maya | Mongols |
-| Netherlands | Ottomans | Persia |
-| Portugal | Romans | Russia |
-| Scandinavia | Spain | Sumeria |
-| Zululand | | |
+America · Arabia · Aztecs · Babylonians · Byzantines · Carthage · Celts ·
+Chinese · Egyptians · England · France · Germany · Greeks · Hittites · Inca ·
+India · Iroquois · Japan · Korea · Maya · Mongols · Netherlands · Ottomans ·
+Persia · Portugal · Rome · Russia · Scandinavia · Spain · Sumeria · Zululand
 
 ## Start a game
 
