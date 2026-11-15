@@ -88,7 +88,7 @@ impl Simulation {
                     })
                     .collect::<Vec<_>>();
                 drop(_tech_profile);
-                let next = self.turn + self.stable_advice_interval(city.id, 0x0044_4f4d_5445_4348);
+                let next = self.turn + self.stable_advice_interval(city.id, 0x444f_4d54_4543_48);
                 if let Some(index) = self.city_index_by_id(city.id) {
                     self.cities[index].ai_domestic_tech_wants = Some(wants.clone());
                     self.cities[index].ai_domestic_tech_rates = rates;
@@ -545,6 +545,27 @@ fn improvement_buildings_for_tech(tech: Tech) -> &'static [Building] {
         .map_or(&[], |(_, buildings)| buildings)
 }
 
+#[cfg(test)]
+mod building_tech_index_tests {
+    use super::*;
+
+    #[test]
+    fn per_tech_building_index_preserves_the_full_scan_and_source_order() {
+        for &tech in improvement_unlock_techs() {
+            let expected: Vec<_> = Building::all()
+                .filter(|building| {
+                    let data = building.data();
+                    data.genus == Genus::Improvement
+                        && data
+                            .requirements
+                            .contains(&(Requirement::Tech(tech.0), true))
+                })
+                .collect();
+            assert_eq!(improvement_buildings_for_tech(tech), expected);
+        }
+    }
+}
+
 fn city_effect_techs() -> &'static [Tech] {
     static TECHS: std::sync::OnceLock<Vec<Tech>> = std::sync::OnceLock::new();
     TECHS.get_or_init(|| {
@@ -597,26 +618,5 @@ fn bound_player_tech(
             Some((tech, requirement.present))
         }
         FreecivTechBinding::Bound(_) | FreecivTechBinding::MissingFromCiv3Catalog => None,
-    }
-}
-
-#[cfg(test)]
-mod building_tech_index_tests {
-    use super::*;
-
-    #[test]
-    fn per_tech_building_index_preserves_the_full_scan_and_source_order() {
-        for &tech in improvement_unlock_techs() {
-            let expected: Vec<_> = Building::all()
-                .filter(|building| {
-                    let data = building.data();
-                    data.genus == Genus::Improvement
-                        && data
-                            .requirements
-                            .contains(&(Requirement::Tech(tech.0), true))
-                })
-                .collect();
-            assert_eq!(improvement_buildings_for_tech(tech), expected);
-        }
     }
 }

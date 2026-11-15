@@ -365,25 +365,26 @@ impl super::Simulation {
         self.trace.count_operation("offensive.candidate_routes", 1);
         let mut pf = NormalPaths::enemy_map(self, candidate);
         let mut turns = None;
-        if let (Some(boat), Some(fmap)) = (target.ferry.as_ref(), ferry_map)
-            && let Some((x, y, _)) =
+        if let (Some(boat), Some(fmap)) = (target.ferry.as_ref(), ferry_map) {
+            if let Some((x, y, _)) =
                 self.offensive_beachhead(fmap, candidate.kind, candidate.owner, target.x, target.y)
-        {
-            turns = fmap.position_turn(self, x, y);
-            let mut first = None;
-            while let Some(position) = pf.next_position(self) {
-                if (position.0, position.1) == (boat.x, boat.y)
-                    || (position.0, position.1) == (target.x, target.y)
-                {
-                    first = Some(position);
-                    break;
+            {
+                turns = fmap.position_turn(self, x, y);
+                let mut first = None;
+                while let Some(position) = pf.next_position(self) {
+                    if (position.0, position.1) == (boat.x, boat.y)
+                        || (position.0, position.1) == (target.x, target.y)
+                    {
+                        first = Some(position);
+                        break;
+                    }
                 }
-            }
-            if let Some((x, y, travel, _)) = first {
-                if (x, y) == (target.x, target.y) {
-                    turns = Some(travel);
-                } else {
-                    turns = turns.map(|sea| sea + travel);
+                if let Some((x, y, travel, _)) = first {
+                    if (x, y) == (target.x, target.y) {
+                        turns = Some(travel);
+                    } else {
+                        turns = turns.map(|sea| sea + travel);
+                    }
                 }
             }
         }

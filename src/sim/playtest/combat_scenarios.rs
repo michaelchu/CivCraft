@@ -79,7 +79,7 @@ impl Simulation {
                 unit.c2c3_veteran = u8::MAX as usize;
             }
             self.native_random = None;
-            self.rng = 0x0C13 + case_index as u64;
+            self.rng = 0xC1_3 + case_index as u64;
             self.refresh_visibility();
 
             let direction = self

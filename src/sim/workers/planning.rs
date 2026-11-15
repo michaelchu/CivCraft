@@ -738,7 +738,7 @@ impl Simulation {
                 self.trace
                     .count_operation("worker.candidates_considered", 1);
                 let new = self.cached_worker_projected_value(
-                    state, city_cache, city, position, activity, tile,
+                    state, city_cache, &city, position, activity, tile,
                 );
                 let extra = match activity {
                     WorkKind::Road => self.worker_road_extra_with_activities(
