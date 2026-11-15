@@ -1,7 +1,7 @@
 //! Civ III source content attached to a Freeciv ruleset without changing its
 //! stable runtime wrapper IDs.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use super::ContentKind;
 
@@ -52,7 +52,7 @@ impl std::fmt::Display for CatalogLoadError {
 impl std::error::Error for CatalogLoadError {}
 
 impl Civ3ContentCatalog {
-    pub(crate) fn load(_directory: &Path) -> Result<Self, CatalogLoadError> {
+    pub(crate) fn load() -> Result<Self, CatalogLoadError> {
         Self::load_native()
     }
 
