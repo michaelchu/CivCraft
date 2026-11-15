@@ -74,35 +74,17 @@ pub(super) struct ExperienceRule {
 fn experience_levels() -> &'static [ExperienceRule] {
     static LEVELS: OnceLock<Vec<ExperienceRule>> = OnceLock::new();
     LEVELS.get_or_init(|| {
-        let mut lines =
-            include_str!("../../data/rulesets/civ3_conquests/experience_levels.tsv").lines();
-        let header = lines.next().expect("Civ III experience table has a header");
-        let expected_columns = header.split('\t').count();
-        let mut parsed = Vec::new();
-        for (line_number, line) in lines.enumerate() {
-            let fields = line.split('\t').collect::<Vec<_>>();
-            assert_eq!(
-                fields.len(),
-                expected_columns,
-                "invalid Civ III experience table row {}",
-                line_number + 2
-            );
-            let number = |column: usize| {
-                fields[column].parse::<i32>().unwrap_or_else(|error| {
-                    panic!(
-                        "invalid experience value on row {}: {error}",
-                        line_number + 2
-                    )
-                })
-            };
-            parsed.push(ExperienceRule {
-                name: fields[1],
-                base_hit_points: number(2),
-                retreat_bonus_percent: number(3),
-                promotion_chance_per_mille: number(4),
-                is_default: fields[5] == "true",
-            });
-        }
+        let parsed = crate::rules::native::experience()
+            .levels
+            .iter()
+            .map(|level| ExperienceRule {
+                name: leak(&level.name),
+                base_hit_points: level.base_hit_points,
+                retreat_bonus_percent: level.retreat_bonus_percent,
+                promotion_chance_per_mille: level.promotion_chance_per_mille,
+                is_default: level.default_rank,
+            })
+            .collect::<Vec<_>>();
         assert_eq!(
             parsed.len(),
             4,

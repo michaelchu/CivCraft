@@ -246,6 +246,23 @@ pub(crate) struct NativeVillageRules {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct ExperienceCatalog {
+    pub(crate) schema_version: u32,
+    pub(crate) source: String,
+    pub(crate) levels: Vec<NativeExperienceLevel>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeExperienceLevel {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) base_hit_points: i32,
+    pub(crate) retreat_bonus_percent: i32,
+    pub(crate) promotion_chance_per_mille: i32,
+    pub(crate) default_rank: bool,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct NativeTechnology {
     pub(crate) id: String,
     pub(crate) source_record_index: usize,
@@ -371,6 +388,16 @@ pub(crate) fn settlements() -> &'static SettlementCatalog {
     })
 }
 
+pub(crate) fn experience() -> &'static ExperienceCatalog {
+    static CATALOG: OnceLock<ExperienceCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft_native/experience_levels.toml"
+        ))
+        .expect("native experience TOML must be valid")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,6 +424,27 @@ mod tests {
         assert_eq!(governments().military_law.len(), 8);
         assert_eq!(economy().schema_version, 1);
         assert_eq!(settlements().schema_version, 1);
+        assert_eq!(experience().schema_version, 1);
+        assert_eq!(experience().levels.len(), 4);
+        assert_eq!(
+            experience()
+                .levels
+                .iter()
+                .map(|level| (
+                    level.name.as_str(),
+                    level.base_hit_points,
+                    level.retreat_bonus_percent,
+                    level.promotion_chance_per_mille,
+                    level.default_rank,
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("Conscript", 2, 34, 500, false),
+                ("Regular", 3, 50, 250, true),
+                ("Veteran", 4, 58, 125, false),
+                ("Elite", 5, 66, 0, false),
+            ]
+        );
     }
 
     #[test]
