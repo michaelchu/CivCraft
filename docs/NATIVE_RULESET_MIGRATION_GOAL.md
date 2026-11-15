@@ -21,8 +21,9 @@ records may be selected as gameplay content.
 
 ## Implemented slice
 
-Native TOML now contains the complete 92-unit, 31-civilization, 83-building,
-and 83-technology Conquests catalogs, plus the eight-government tables and
+Native TOML now contains the complete 92-unit, 31-civilization, 83-source /
+91-runtime-rule building, and 83-technology Conquests catalogs, plus the
+eight-government tables and
 native economy/settlement settings.  The source-content catalog and migrated
 unit consumers now load TOML directly.  Unit upkeep, roles, flags, build cost,
 and action requirements prefer native values; building effects and government

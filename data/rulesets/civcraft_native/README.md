@@ -17,7 +17,8 @@ Current catalogs:
 - `units.toml`: 92 native unit identities and tuneable source values.
 - `civilizations.toml`: 31 civilizations, city lists, starting technologies,
   and starting-unit profiles.
-- `buildings.toml`: 83 building records plus explicit legacy binding status.
+- `buildings.toml`: 83 source building records, 91 stable runtime rules, and
+  explicit legacy binding status.
 - `technologies.toml`: 83 advances, source coordinates, costs, and prerequisite
   graph inputs.
 - `governments.toml`: the eight Conquests governments and their support,

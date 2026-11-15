@@ -1,15 +1,13 @@
-//! Building identifiers and catalog data for the Civ2Civ3 ruleset.
+//! Stable building identifiers backed by the native TOML ruleset.
 //!
-//! This module stores building names, costs, obsolescence, genera, and
-//! requirement descriptions. It is data, not the resolver for construction or
-//! effects: city production and simulation effect systems consume these
-//! definitions. Requirements are represented explicitly so availability can
-//! be checked against player technologies, government, and other rule state.
+//! The runtime IDs remain stable for saves and UI code; editable names, costs,
+//! genera, and requirements are loaded from `civcraft_native`.
 //!
 //! Keep catalog indices and native ordering stable because saves and several
 //! deterministic selection paths refer to these entries.
 
-// Catalog from Freeciv data/civ2civ3/buildings.ruleset, revision eb8c7033.
+use std::sync::OnceLock;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Building(pub(crate) usize);
 
@@ -36,6 +34,7 @@ pub(crate) enum Requirement {
     Resource(usize),
 }
 
+#[derive(Clone)]
 pub(crate) struct BuildingData {
     pub(crate) name: &'static str,
     pub(crate) genus: Genus,
@@ -44,6 +43,8 @@ pub(crate) struct BuildingData {
     pub(crate) requirements: &'static [(Requirement, bool)],
     pub(crate) obsolete: &'static [(Requirement, bool)],
 }
+
+const BUILDING_COUNT: usize = 91;
 
 #[allow(dead_code)] // The catalog includes entries reserved for the Civ III ruleset.
 impl Building {
@@ -141,764 +142,72 @@ impl Building {
     pub(crate) const SECRET_POLICE_HQ: Self = Self(90);
 
     pub(crate) fn all() -> impl Iterator<Item = Self> {
-        (0..BUILDINGS.len()).map(Self)
+        (0..BUILDING_COUNT).map(Self)
     }
 
     pub(crate) fn data(self) -> &'static BuildingData {
-        &BUILDINGS[self.0]
+        static DATA: OnceLock<Vec<BuildingData>> = OnceLock::new();
+        DATA.get_or_init(|| {
+            let rules = crate::rules::native::buildings().rules.as_slice();
+            assert_eq!(rules.len(), BUILDING_COUNT);
+            rules.iter().map(native_building_data).collect()
+        })
+        .get(self.0)
+        .expect("building runtime ID is present in native TOML")
     }
 }
 
-use Requirement::*;
-const BUILDINGS: &[BuildingData] = &[
-    BuildingData {
-        name: "Airport",
-        genus: Genus::Improvement,
-        cost: 120,
-        upkeep: 3,
-        requirements: &[(Tech(29), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Aqueduct",
-        genus: Genus::Improvement,
-        cost: 60,
-        upkeep: 1,
-        requirements: &[(Tech(18), true), (River, false), (Lake, false)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Aqueduct, Lake",
-        genus: Genus::Improvement,
-        cost: 20,
-        upkeep: 0,
-        requirements: &[(Lake, true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Aqueduct, River",
-        genus: Genus::Improvement,
-        cost: 20,
-        upkeep: 0,
-        requirements: &[(River, true), (Lake, false)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Bank",
-        genus: Genus::Improvement,
-        cost: 80,
-        upkeep: 1,
-        requirements: &[(Tech(6), true), (Improvement(18), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Barracks",
-        genus: Genus::Improvement,
-        cost: 30,
-        upkeep: 1,
-        requirements: &[],
-        obsolete: &[
-            (Tech(33), true),
-            (Improvement(6), true),
-            (Improvement(7), true),
-        ],
-    },
-    BuildingData {
-        name: "Barracks II",
-        genus: Genus::Improvement,
-        cost: 30,
-        upkeep: 1,
-        requirements: &[(Tech(33), true)],
-        obsolete: &[(Tech(51), true), (Improvement(7), true)],
-    },
-    BuildingData {
-        name: "Barracks III",
-        genus: Genus::Improvement,
-        cost: 30,
-        upkeep: 1,
-        requirements: &[(Tech(51), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Cathedral",
-        genus: Genus::Improvement,
-        cost: 80,
-        upkeep: 3,
-        requirements: &[(Tech(53), true), (Improvement(40), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "City Walls",
-        genus: Genus::Improvement,
-        cost: 30,
-        upkeep: 0,
-        requirements: &[(Tech(45), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Coastal Defense",
-        genus: Genus::Improvement,
-        cost: 60,
-        upkeep: 1,
-        requirements: &[(Tech(49), true), (Water, true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Amphitheater",
-        genus: Genus::Improvement,
-        cost: 70,
-        upkeep: 3,
-        requirements: &[(Tech(18), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Courthouse",
-        genus: Genus::Improvement,
-        cost: 60,
-        upkeep: 1,
-        requirements: &[(Tech(12), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Factory",
-        genus: Genus::Improvement,
-        cost: 140,
-        upkeep: 3,
-        requirements: &[(Tech(35), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Granary",
-        genus: Genus::Improvement,
-        cost: 40,
-        upkeep: 1,
-        requirements: &[(Tech(62), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Harbor",
-        genus: Genus::Improvement,
-        cost: 40,
-        upkeep: 1,
-        requirements: &[(Tech(44), true), (Sea, true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Hydro Plant",
-        genus: Genus::Improvement,
-        cost: 180,
-        upkeep: 4,
-        requirements: &[(Tech(23), true), (Improvement(13), true), (River, true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Library",
-        genus: Genus::Improvement,
-        cost: 60,
-        upkeep: 1,
-        requirements: &[(Tech(90), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Marketplace",
-        genus: Genus::Improvement,
-        cost: 60,
-        upkeep: 0,
-        requirements: &[(Tech(19), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Mass Transit",
-        genus: Genus::Improvement,
-        cost: 120,
-        upkeep: 2,
-        requirements: &[(Tech(25), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Mfg. Plant",
-        genus: Genus::Improvement,
-        cost: 220,
-        upkeep: 4,
-        requirements: &[(Tech(68), true), (Improvement(13), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Nuclear Plant",
-        genus: Genus::Improvement,
-        cost: 240,
-        upkeep: 2,
-        requirements: &[(Tech(57), true), (Improvement(13), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Offshore Platform",
-        genus: Genus::Improvement,
-        cost: 120,
-        upkeep: 3,
-        requirements: &[(Tech(50), true), (Water, true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Palace",
-        genus: Genus::SmallWonder,
-        cost: 70,
-        upkeep: 0,
-        requirements: &[],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Ecclesiastical Palace",
-        genus: Genus::SmallWonder,
-        cost: 140,
-        upkeep: 0,
-        requirements: &[(Tech(81), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Police Station",
-        genus: Genus::Improvement,
-        cost: 50,
-        upkeep: 2,
-        requirements: &[(Tech(15), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Port Facility",
-        genus: Genus::Improvement,
-        cost: 60,
-        upkeep: 2,
-        requirements: &[(Tech(2), true), (Water, true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Power Plant",
-        genus: Genus::Improvement,
-        cost: 130,
-        upkeep: 4,
-        requirements: &[(Tech(35), true), (Improvement(13), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Recycling Center",
-        genus: Genus::Improvement,
-        cost: 140,
-        upkeep: 2,
-        requirements: &[(Tech(65), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Research Lab",
-        genus: Genus::Improvement,
-        cost: 120,
-        upkeep: 3,
-        requirements: &[(Tech(16), true), (Improvement(41), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "SAM Battery",
-        genus: Genus::Improvement,
-        cost: 70,
-        upkeep: 2,
-        requirements: &[(Tech(69), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "SDI Defense",
-        genus: Genus::SmallWonder,
-        cost: 140,
-        upkeep: 3,
-        requirements: &[(Tech(89), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Sewer System",
-        genus: Genus::Improvement,
-        cost: 80,
-        upkeep: 2,
-        requirements: &[(Tech(70), true), (MinSize(9), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Solar Plant",
-        genus: Genus::Improvement,
-        cost: 320,
-        upkeep: 4,
-        requirements: &[(Tech(25), true), (Improvement(13), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Space Component",
-        genus: Genus::Special,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[
-            (Tech(76), true),
-            (Improvement(13), true),
-            (Improvement(17), true),
-            (Improvement(41), true),
-            (Improvement(29), true),
-        ],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Space Module",
-        genus: Genus::Special,
-        cost: 600,
-        upkeep: 0,
-        requirements: &[
-            (Tech(25), true),
-            (Improvement(13), true),
-            (Improvement(17), true),
-            (Improvement(41), true),
-            (Improvement(29), true),
-        ],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Space Structural",
-        genus: Genus::Special,
-        cost: 150,
-        upkeep: 0,
-        requirements: &[
-            (Tech(72), true),
-            (Improvement(13), true),
-            (Improvement(17), true),
-            (Improvement(41), true),
-            (Improvement(29), true),
-        ],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Stock Exchange",
-        genus: Genus::Improvement,
-        cost: 120,
-        upkeep: 2,
-        requirements: &[(Tech(21), true), (Improvement(4), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Super Highways",
-        genus: Genus::Improvement,
-        cost: 120,
-        upkeep: 3,
-        requirements: &[(Tech(5), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Supermarket",
-        genus: Genus::Improvement,
-        cost: 80,
-        upkeep: 3,
-        requirements: &[(Tech(70), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Temple",
-        genus: Genus::Improvement,
-        cost: 30,
-        upkeep: 1,
-        requirements: &[(Tech(9), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "University",
-        genus: Genus::Improvement,
-        cost: 120,
-        upkeep: 2,
-        requirements: &[(Tech(84), true), (Improvement(17), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Apollo Program",
-        genus: Genus::SmallWonder,
-        cost: 600,
-        upkeep: 0,
-        requirements: &[(Tech(72), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "A.Smith's Trading Co.",
-        genus: Genus::GreatWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(Tech(21), true), (Improvement(37), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Colossus",
-        genus: Genus::GreatWonder,
-        cost: 200,
-        upkeep: 0,
-        requirements: &[(Tech(8), true)],
-        obsolete: &[(Tech(29), true)],
-    },
-    BuildingData {
-        name: "Copernicus' Observatory",
-        genus: Genus::GreatWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Tech(3), true)],
-        obsolete: &[(Tech(16), true)],
-    },
-    BuildingData {
-        name: "Cure For Cancer",
-        genus: Genus::GreatWonder,
-        cost: 600,
-        upkeep: 0,
-        requirements: &[(Tech(88), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Darwin's Voyage",
-        genus: Genus::GreatWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Tech(74), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Eiffel Tower",
-        genus: Genus::GreatWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Tech(64), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Great Library",
-        genus: Genus::GreatWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Tech(90), true), (Improvement(17), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Great Wall",
-        genus: Genus::GreatWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Tech(18), true)],
-        obsolete: &[(Tech(49), true)],
-    },
-    BuildingData {
-        name: "Hanging Gardens",
-        genus: Genus::GreatWonder,
-        cost: 200,
-        upkeep: 0,
-        requirements: &[(Tech(52), true)],
-        obsolete: &[(Tech(97), true)],
-    },
-    BuildingData {
-        name: "Hoover Dam",
-        genus: Genus::GreatWonder,
-        cost: 600,
-        upkeep: 0,
-        requirements: &[(Tech(23), true), (River, true), (Improvement(13), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Isaac Newton's College",
-        genus: Genus::GreatWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(Tech(82), true), (Improvement(41), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "J.S. Bach's Cathedral",
-        genus: Genus::GreatWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(Tech(92), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "King Richard's Crusade",
-        genus: Genus::GreatWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Tech(11), true)],
-        obsolete: &[(Tech(15), true)],
-    },
-    BuildingData {
-        name: "Leonardo's Workshop",
-        genus: Genus::GreatWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(Tech(36), true)],
-        obsolete: &[(Tech(14), true)],
-    },
-    BuildingData {
-        name: "Lighthouse",
-        genus: Genus::GreatWonder,
-        cost: 200,
-        upkeep: 0,
-        requirements: &[(Tech(44), true), (Sea, true)],
-        obsolete: &[(Tech(43), true)],
-    },
-    BuildingData {
-        name: "Magellan's Expedition",
-        genus: Genus::GreatWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(Tech(55), true), (Sea, true)],
-        obsolete: &[(Tech(57), true)],
-    },
-    BuildingData {
-        name: "Manhattan Project",
-        genus: Genus::GreatWonder,
-        cost: 600,
-        upkeep: 0,
-        requirements: &[(Tech(56), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Marco Polo's Embassy",
-        genus: Genus::GreatWonder,
-        cost: 200,
-        upkeep: 0,
-        requirements: &[(Tech(83), true)],
-        obsolete: &[(Tech(20), true)],
-    },
-    BuildingData {
-        name: "Michelangelo's Chapel",
-        genus: Genus::GreatWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(Tech(81), true), (Improvement(8), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Mausoleum of Mausolos",
-        genus: Genus::GreatWonder,
-        cost: 200,
-        upkeep: 0,
-        requirements: &[(Tech(58), true)],
-        obsolete: &[(Tech(70), true)],
-    },
-    BuildingData {
-        name: "Statue of Zeus",
-        genus: Genus::GreatWonder,
-        cost: 200,
-        upkeep: 0,
-        requirements: &[(Tech(47), true)],
-        obsolete: &[(Tech(49), true)],
-    },
-    BuildingData {
-        name: "Temple of Artemis",
-        genus: Genus::GreatWonder,
-        cost: 200,
-        upkeep: 0,
-        requirements: &[(Tech(61), true), (Improvement(40), true)],
-        obsolete: &[(Tech(84), true)],
-    },
-    BuildingData {
-        name: "Pyramids",
-        genus: Genus::GreatWonder,
-        cost: 200,
-        upkeep: 0,
-        requirements: &[(Tech(45), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Internet",
-        genus: Genus::GreatWonder,
-        cost: 600,
-        upkeep: 0,
-        requirements: &[(Tech(16), true), (Improvement(29), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Shakespeare's Theater",
-        genus: Genus::GreatWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Tech(87), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Statue of Liberty",
-        genus: Genus::GreatWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(Tech(20), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Sun Tzu's War Academy",
-        genus: Genus::GreatWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Tech(28), true)],
-        obsolete: &[(Tech(51), true)],
-    },
-    BuildingData {
-        name: "United Nations",
-        genus: Genus::GreatWonder,
-        cost: 600,
-        upkeep: 0,
-        requirements: &[(Tech(56), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Women's Suffrage",
-        genus: Genus::GreatWonder,
-        cost: 600,
-        upkeep: 0,
-        requirements: &[(Tech(17), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Coinage",
-        genus: Genus::Convert,
-        cost: 999,
-        upkeep: 0,
-        requirements: &[],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Colosseum",
-        genus: Genus::Improvement,
-        cost: 100,
-        upkeep: 2,
-        requirements: &[(Tech(18), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Hospital",
-        genus: Genus::Improvement,
-        cost: 160,
-        upkeep: 2,
-        requirements: &[(Tech(70), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Longevity",
-        genus: Genus::GreatWonder,
-        cost: 700,
-        upkeep: 0,
-        requirements: &[(Tech(88), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Oracle",
-        genus: Genus::GreatWonder,
-        cost: 260,
-        upkeep: 0,
-        requirements: &[(Tech(54), true)],
-        obsolete: &[(Tech(81), true)],
-    },
-    BuildingData {
-        name: "Theory of Evolution",
-        genus: Genus::GreatWonder,
-        cost: 550,
-        upkeep: 0,
-        requirements: &[(Tech(96), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Universal Suffrage",
-        genus: Genus::GreatWonder,
-        cost: 580,
-        upkeep: 0,
-        requirements: &[(Tech(35), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "SETI Program",
-        genus: Genus::GreatWonder,
-        cost: 700,
-        upkeep: 0,
-        requirements: &[(Tech(16), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Forbidden Palace",
-        genus: Genus::SmallWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(OwnerCityCount(8), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Heroic Epic",
-        genus: Genus::SmallWonder,
-        cost: 200,
-        upkeep: 0,
-        requirements: &[],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Iron Works",
-        genus: Genus::SmallWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Resource(1), true), (Resource(3), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Military Academy",
-        genus: Genus::SmallWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(Tech(91), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Pentagon",
-        genus: Genus::SmallWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Wall Street",
-        genus: Genus::SmallWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(OwnerBuildingCount(4, 5), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Intelligence Agency",
-        genus: Genus::SmallWonder,
-        cost: 400,
-        upkeep: 0,
-        requirements: &[(Tech(26), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Battlefield Medicine",
-        genus: Genus::SmallWonder,
-        cost: 500,
-        upkeep: 0,
-        requirements: &[(OwnerBuildingCount(74, 5), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Sistine Chapel",
-        genus: Genus::GreatWonder,
-        cost: 600,
-        upkeep: 0,
-        requirements: &[(Tech(81), true)],
-        obsolete: &[],
-    },
-    BuildingData {
-        name: "Knights Templar",
-        genus: Genus::GreatWonder,
-        cost: 300,
-        upkeep: 0,
-        requirements: &[(Tech(11), true)],
-        obsolete: &[(Tech(97), true)],
-    },
-    BuildingData {
-        name: "Secret Police HQ",
-        genus: Genus::SmallWonder,
-        cost: 20,
-        upkeep: 0,
-        requirements: &[(Tech(26), true)],
-        obsolete: &[],
-    },
-];
+fn native_building_data(rule: &crate::rules::native::NativeBuildingRule) -> BuildingData {
+    BuildingData {
+        name: Box::leak(rule.name.clone().into_boxed_str()),
+        genus: match rule.genus.as_str() {
+            "Improvement" => Genus::Improvement,
+            "SmallWonder" => Genus::SmallWonder,
+            "GreatWonder" => Genus::GreatWonder,
+            "Special" => Genus::Special,
+            "Convert" => Genus::Convert,
+            other => panic!("unknown native building genus {other:?}"),
+        },
+        cost: rule.cost,
+        upkeep: rule.upkeep,
+        requirements: Box::leak(
+            rule.requirements
+                .iter()
+                .map(native_building_requirement)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        ),
+        obsolete: Box::leak(
+            rule.obsolete
+                .iter()
+                .map(native_building_requirement)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        ),
+    }
+}
+
+fn native_building_requirement(
+    requirement: &crate::rules::native::NativeBuildingRequirement,
+) -> (Requirement, bool) {
+    let value = usize::try_from(requirement.value)
+        .unwrap_or_else(|_| panic!("native building requirement value is negative"));
+    let parsed = match requirement.kind.as_str() {
+        "Tech" => Requirement::Tech(value),
+        "Improvement" => Requirement::Improvement(value),
+        "River" => Requirement::River,
+        "Lake" => Requirement::Lake,
+        "Sea" => Requirement::Sea,
+        "Water" => Requirement::Water,
+        "MinSize" => Requirement::MinSize(requirement.value),
+        "OwnerCityCount" => Requirement::OwnerCityCount(value),
+        "OwnerBuildingCount" => Requirement::OwnerBuildingCount(
+            value,
+            usize::try_from(requirement.second_value)
+                .unwrap_or_else(|_| panic!("native building count is negative")),
+        ),
+        "Resource" => Requirement::Resource(value),
+        other => panic!("unknown native building requirement {other:?}"),
+    };
+    (parsed, requirement.present)
+}

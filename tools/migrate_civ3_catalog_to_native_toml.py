@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+import tomllib
 from pathlib import Path
 
 
@@ -72,6 +73,22 @@ def strings(value: str, separator: str = ";") -> str:
 
 def integers(value: str, separator: str = ";") -> str:
     return "[" + ", ".join(part for part in value.split(separator) if part) + "]"
+
+
+def inline_tables(value: list[dict[str, object]]) -> str:
+    def encoded(item: dict[str, object]) -> str:
+        fields = []
+        for key, part in item.items():
+            if isinstance(part, str):
+                rendered = string(part)
+            elif isinstance(part, bool):
+                rendered = str(part).lower()
+            else:
+                rendered = str(part)
+            fields.append(f"{key} = {rendered}")
+        return "{ " + ", ".join(fields) + " }"
+
+    return "[" + ", ".join(encoded(item) for item in value) + "]"
 
 
 def write_units() -> None:
@@ -205,6 +222,17 @@ def write_civilizations() -> None:
     (DEST / "civilizations.toml").write_text("\n".join(lines), encoding="utf-8")
 
 
+def read_native_building_rules() -> list[dict[str, object]]:
+    path = DEST / "buildings.toml"
+    if not path.is_file():
+        raise RuntimeError("native building rules are missing; create buildings.toml first")
+    with path.open("rb") as stream:
+        rules = tomllib.load(stream).get("rules", [])
+    if len(rules) != 91:
+        raise RuntimeError(f"expected 91 native building rules, found {len(rules)}")
+    return rules
+
+
 def write_buildings() -> None:
     rows = read_tsv("buildings.tsv")
     bindings = read_tsv("building_catalog_bindings.tsv")
@@ -276,6 +304,20 @@ def write_buildings() -> None:
         lines.append(f'mapping_status = {string(row["mapping_status"])}')
         lines.append(f'mapping_note = {string(row["mapping_note"])}')
         lines.append("")
+    for rule in read_native_building_rules():
+        lines.extend(
+            [
+                "[[rules]]",
+                f'legacy_runtime_index = {rule["legacy_runtime_index"]}',
+                f'name = {string(rule["name"])}',
+                f'genus = {string(rule["genus"])}',
+                f'cost = {rule["cost"]}',
+                f'upkeep = {rule["upkeep"]}',
+                f'requirements = {inline_tables(rule["requirements"])}',
+                f'obsolete = {inline_tables(rule["obsolete"])}',
+                "",
+            ]
+        )
     (DEST / "buildings.toml").write_text("\n".join(lines), encoding="utf-8")
 
 

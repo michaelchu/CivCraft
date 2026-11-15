@@ -76,6 +76,29 @@ pub(crate) struct BuildingCatalog {
     pub(crate) buildings: Vec<NativeBuilding>,
     #[serde(default)]
     pub(crate) bindings: Vec<NativeBuildingBinding>,
+    #[serde(default)]
+    pub(crate) rules: Vec<NativeBuildingRule>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeBuildingRule {
+    pub(crate) legacy_runtime_index: usize,
+    pub(crate) name: String,
+    pub(crate) genus: String,
+    pub(crate) cost: i32,
+    pub(crate) upkeep: i32,
+    pub(crate) requirements: Vec<NativeBuildingRequirement>,
+    pub(crate) obsolete: Vec<NativeBuildingRequirement>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeBuildingRequirement {
+    pub(crate) kind: String,
+    #[serde(default)]
+    pub(crate) value: i32,
+    #[serde(default)]
+    pub(crate) second_value: i32,
+    pub(crate) present: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -451,6 +474,7 @@ mod tests {
         assert_eq!(buildings().source, "Civilization III: Conquests");
         assert_eq!(buildings().buildings.len(), 83);
         assert_eq!(buildings().bindings.len(), 83);
+        assert_eq!(buildings().rules.len(), 91);
         assert_eq!(technologies().schema_version, 1);
         assert_eq!(technologies().source, "Civilization III: Conquests");
         assert_eq!(technologies().technologies.len(), 83);
