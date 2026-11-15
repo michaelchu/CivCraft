@@ -260,8 +260,8 @@ impl Simulation {
         {
             return obsolete;
         }
-        // A Civ III building with no selected C2C3 content record retains the
-        // catalog rule until its explicit Freeciv mapping is added.
+        // A Civ III building with no native source binding retains the stable
+        // catalog fallback until its explicit TOML mapping is added.
         building
             .data()
             .obsolete

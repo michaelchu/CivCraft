@@ -297,12 +297,7 @@ mod tests {
     #[test]
     fn civ3_source_content_binds_to_stable_ids_and_reports_catalog_gaps() {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-        let rules = RulesetData::load_with_civ3_catalog(
-            &data_root,
-            "civcraft_civ2civ3",
-            &data_root.join("civ3_conquests"),
-        )
-        .unwrap();
+        let rules = RulesetData::load_with_native_catalog(&data_root, "civcraft_civ2civ3").unwrap();
         let bindings = Civ3ContentBindings::build(&rules).unwrap();
 
         assert_eq!(
@@ -350,12 +345,7 @@ mod tests {
     #[test]
     fn calendar_technology_effects_use_explicit_civ3_bindings() {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-        let rules = RulesetData::load_with_civ3_catalog(
-            &data_root,
-            "civcraft_civ2civ3",
-            &data_root.join("civ3_conquests"),
-        )
-        .unwrap();
+        let rules = RulesetData::load_with_native_catalog(&data_root, "civcraft_civ2civ3").unwrap();
 
         assert_eq!(
             bind_freeciv_technology(&rules, "Space Flight"),

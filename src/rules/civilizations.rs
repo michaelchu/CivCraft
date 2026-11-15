@@ -1,6 +1,6 @@
 //! Source-backed Civilization III: Conquests civilization catalog.
 //!
-//! `civilizations.tsv` contains the playable RACE records in the installed
+//! The native TOML catalog contains the playable RACE records in the installed
 //! Conquests BIQ order. OpenCiv3's ruleset JSON is the checked-in extraction
 //! reference; the original BIQ remains the authority for names and city order.
 //! City-style IDs are a renderer mapping because the BIQ stores culture groups,
@@ -32,13 +32,6 @@ pub(crate) struct Civilization {
     pub(crate) culture_group_index: i32,
 }
 
-fn field<'a>(fields: &'a [&str], index: usize, line: usize) -> &'a str {
-    fields
-        .get(index)
-        .copied()
-        .unwrap_or_else(|| panic!("missing civilization catalog field on row {line}"))
-}
-
 fn parse_tech(name: &str, line: usize) -> Tech {
     Tech::all()
         .find(|&tech| tech.name() == name)
@@ -46,71 +39,38 @@ fn parse_tech(name: &str, line: usize) -> Tech {
 }
 
 fn parse_catalog() -> Vec<Civilization> {
-    let mut lines = include_str!("../../data/rulesets/civ3_conquests/civilizations.tsv").lines();
-    let header = lines.next().expect("civilization catalog has a header");
-    assert_eq!(
-        header.split('\t').count(),
-        15,
-        "civilization catalog schema changed"
-    );
     let mut result = Vec::new();
-    for (zero_line, line) in lines.enumerate() {
-        let line_number = zero_line + 2;
-        let fields = line.split('\t').collect::<Vec<_>>();
-        assert_eq!(
-            fields.len(),
-            15,
-            "invalid civilization catalog row {line_number}"
-        );
-        let parse_index = |index: usize| {
-            field(&fields, index, line_number)
-                .parse::<usize>()
-                .unwrap_or_else(|error| {
-                    panic!("invalid catalog index on row {line_number}: {error}")
-                })
-        };
-        let parse_color = |index: usize| {
-            u8::try_from(parse_index(index))
-                .unwrap_or_else(|error| panic!("invalid color index on row {line_number}: {error}"))
-        };
-        let source_race_index = parse_index(12);
+    for (index, native) in crate::rules::native::civilizations()
+        .civilizations
+        .iter()
+        .enumerate()
+    {
+        let source_race_index = native.source_race_index;
         assert_eq!(
             source_race_index,
             result.len() + 1,
             "catalog must preserve BIQ RACE order"
         );
-        let cities = field(&fields, 13, line_number)
-            .split('|')
-            .filter(|city| !city.is_empty())
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
-        assert!(!cities.is_empty(), "empty city list on row {line_number}");
+        assert_eq!(native.starting_techs.len(), 2);
+        assert!(!native.cities.is_empty(), "empty city list on row {index}");
         result.push(Civilization {
-            id: field(&fields, 0, line_number).to_owned(),
-            name: field(&fields, 1, line_number).to_owned(),
-            source_name: field(&fields, 2, line_number).to_owned(),
-            noun: field(&fields, 3, line_number).to_owned(),
-            adjective: field(&fields, 4, line_number).to_owned(),
-            leader: field(&fields, 5, line_number).to_owned(),
-            primary_color_index: parse_color(6),
-            secondary_color_index: parse_color(7),
-            civ3_city_style: parse_color(8),
+            id: native.id.clone(),
+            name: native.name.clone(),
+            source_name: native.source_name.clone(),
+            noun: native.noun.clone(),
+            adjective: native.adjective.clone(),
+            leader: native.leader.clone(),
+            primary_color_index: native.primary_color_index,
+            secondary_color_index: native.secondary_color_index,
+            civ3_city_style: native.city_style,
             starting_techs: [
-                parse_tech(field(&fields, 9, line_number), line_number),
-                parse_tech(field(&fields, 10, line_number), line_number),
+                parse_tech(&native.starting_techs[0], index + 1),
+                parse_tech(&native.starting_techs[1], index + 1),
             ],
-            legacy_names: field(&fields, 11, line_number)
-                .split(';')
-                .filter(|name| !name.is_empty())
-                .map(str::to_owned)
-                .collect(),
+            legacy_names: native.legacy_names.clone(),
             source_race_index,
-            culture_group_index: field(&fields, 14, line_number)
-                .parse::<i32>()
-                .unwrap_or_else(|error| {
-                    panic!("invalid culture group index on row {line_number}: {error}")
-                }),
-            cities,
+            culture_group_index: native.culture_group_index,
+            cities: native.cities.clone(),
         });
     }
     assert_eq!(
@@ -229,6 +189,44 @@ mod tests {
             );
         }
         assert_eq!(by_id("rome").unwrap().culture_group_index, 2);
+    }
+
+    #[test]
+    fn native_toml_civilizations_match_the_legacy_extraction() {
+        let native = crate::rules::native::civilizations();
+        assert_eq!(native.civilizations.len(), all().len());
+        for source in all() {
+            let migrated = native
+                .civilizations
+                .iter()
+                .find(|civilization| civilization.id == source.id)
+                .unwrap_or_else(|| panic!("native TOML is missing {}", source.id));
+            assert_eq!(migrated.source_name, source.source_name);
+            assert_eq!(migrated.name, source.name);
+            assert_eq!(migrated.noun, source.noun);
+            assert_eq!(migrated.adjective, source.adjective);
+            assert_eq!(migrated.leader, source.leader);
+            assert_eq!(migrated.primary_color_index, source.primary_color_index);
+            assert_eq!(migrated.secondary_color_index, source.secondary_color_index);
+            assert_eq!(migrated.city_style, source.civ3_city_style);
+            assert_eq!(migrated.source_race_index, source.source_race_index);
+            assert_eq!(migrated.culture_group_index, source.culture_group_index);
+            assert_eq!(migrated.legacy_names, source.legacy_names);
+            assert_eq!(migrated.cities, source.cities);
+            assert_eq!(
+                migrated.starting_techs,
+                source
+                    .starting_techs
+                    .iter()
+                    .map(|tech| tech.name().to_owned())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(migrated.starting_units.len(), 2);
+            assert_eq!(migrated.starting_units[0].id, "Settler");
+            assert_eq!(migrated.starting_units[0].count, 1);
+            assert_eq!(migrated.starting_units[1].id, "Worker");
+            assert_eq!(migrated.starting_units[1].count, 1);
+        }
     }
 
     #[test]

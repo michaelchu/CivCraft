@@ -1,11 +1,7 @@
 //! Government selection and government-dependent rules.
 
 use super::*;
-use crate::rules::freeciv::{
-    EffectContext, GovernmentRulesetCatalog, Requirement, RequirementContext,
-    RequirementEvaluationError, RequirementRange, RequirementValue, RulesetData, effect_value,
-    requirements_met,
-};
+use crate::rules::freeciv::{RulesetData, effect_value};
 use crate::sim::action_rules::SimulationRequirementContext;
 use std::sync::OnceLock;
 
@@ -35,27 +31,21 @@ pub(super) struct GovernmentAdvisorCache {
 
 impl Government {
     pub(crate) fn during_revolution() -> Self {
-        Self::from_rule_name(&campaign_government_catalog().during_revolution_id)
-            .expect("selected temporary government has a stable runtime identity")
+        Self::Anarchy
     }
 
     pub(crate) fn targets() -> &'static [Self] {
         static TARGETS: OnceLock<Vec<Government>> = OnceLock::new();
         TARGETS.get_or_init(|| {
-            let catalog = campaign_government_catalog();
-            catalog
+            crate::rules::native::governments()
                 .governments
                 .iter()
-                .filter(|government| {
-                    !government
-                        .id
-                        .eq_ignore_ascii_case(&catalog.during_revolution_id)
-                })
+                .filter(|government| !government.government.eq_ignore_ascii_case("anarchy"))
                 .map(|government| {
-                    Self::from_rule_name(&government.id).unwrap_or_else(|| {
+                    Self::from_rule_name(&government.government).unwrap_or_else(|| {
                         panic!(
                             "selected government {:?} has no stable runtime identity",
-                            government.id
+                            government.government
                         )
                     })
                 })
@@ -74,6 +64,8 @@ impl Government {
             "federation" => Self::Federation,
             "republic" => Self::Republic,
             "democracy" => Self::Democracy,
+            "fascism" => Self::Fascism,
+            "feudalism" => Self::Feudalism,
             _ => return None,
         })
     }
@@ -89,110 +81,59 @@ impl Government {
             Self::Federation => "Federation",
             Self::Republic => "Republic",
             Self::Democracy => "Democracy",
-            Self::Fascism | Self::Feudalism => return None,
+            Self::Fascism => "Fascism",
+            Self::Feudalism => "Feudalism",
         })
     }
 
     pub(crate) fn name(self) -> &'static str {
         self.rule_name()
-            .and_then(|name| campaign_government_catalog().get(name))
+            .and_then(|name| crate::rules::native::governments().get(name))
             .map(|government| government.name.as_str())
-            .unwrap_or(match self {
-                Self::Fascism => "Fascism",
-                Self::Feudalism => "Feudalism",
-                _ => "Unknown Government",
-            })
+            .unwrap_or_else(|| self.rule_name().unwrap_or("Unknown Government"))
     }
 
     pub(crate) fn requirement(self) -> Option<Tech> {
-        let record = self.ruleset_record()?;
-        record
-            .requirements
-            .iter()
-            .find(|requirement| {
-                requirement.kind.eq_ignore_ascii_case("Tech")
-                    && requirement.range == RequirementRange::Player
-                    && requirement.present
-            })
-            .and_then(|requirement| match &requirement.name {
-                RequirementValue::String(name) => {
-                    Tech::all().find(|tech| tech.name().eq_ignore_ascii_case(name))
-                }
-                _ => None,
-            })
+        let name = self.rule_name()?;
+        let technology = crate::rules::native::governments()
+            .get(name)
+            .map(|government| government.required_technology.as_str())
+            .filter(|name| !name.is_empty())?;
+        Tech::all().find(|tech| tech.name().eq_ignore_ascii_case(technology))
+    }
+
+    fn native_record(self) -> Option<&'static crate::rules::native::NativeGovernment> {
+        self.rule_name()
+            .and_then(|name| crate::rules::native::governments().get(name))
     }
 
     pub(crate) fn max_rate(self) -> i32 {
-        if let Some(value) = self.ruleset_effect_value("Max_Rates") {
-            return i32::try_from(value).expect("government Max_Rates fits i32");
-        }
-        match self {
-            Self::Fascism => 70,
-            Self::Feudalism => 60,
-            _ => unreachable!("selected government has a ruleset record"),
-        }
+        self.ruleset_effect_value("Max_Rates")
+            .expect("selected government has a native Max_Rates value") as i32
     }
 
     pub(super) fn empire_size(self) -> i32 {
-        if let Some(value) = self.ruleset_effect_value("Empire_Size_Base") {
-            return i32::try_from(value).expect("government Empire_Size_Base fits i32");
-        }
-        match self {
-            Self::Fascism => 20,
-            Self::Feudalism => 14,
-            _ => unreachable!("selected government has a ruleset record"),
-        }
-    }
-
-    fn ruleset_record(self) -> Option<&'static crate::rules::freeciv::GovernmentRulesetRecord> {
-        self.rule_name()
-            .and_then(|name| campaign_government_catalog().get(name))
+        self.ruleset_effect_value("Empire_Size_Base")
+            .expect("selected government has a native Empire_Size_Base value") as i32
     }
 
     pub(crate) fn ruleset_effect_value(self, kind: &str) -> Option<i64> {
-        let record = self.ruleset_record()?;
-        let context = GovernmentOnlyContext {
-            government: record.id.as_str(),
-        };
-        Some(
-            record.effect_value(kind, &context).unwrap_or_else(|error| {
-                panic!("invalid {kind} effect for {}: {error:?}", record.id)
-            }),
-        )
-    }
-}
-
-fn campaign_government_catalog() -> &'static GovernmentRulesetCatalog {
-    static CATALOG: OnceLock<GovernmentRulesetCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        RulesetData::campaign_default()
-            .government_catalog()
-            .unwrap_or_else(|error| panic!("invalid C2C3 government rules: {error}"))
-    })
-}
-
-struct GovernmentOnlyContext<'a> {
-    government: &'a str,
-}
-
-impl RequirementContext for GovernmentOnlyContext<'_> {
-    fn is_present(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
-        if requirement.kind.eq_ignore_ascii_case("Gov")
-            && requirement.range == RequirementRange::Player
-            && let RequirementValue::String(name) = &requirement.name
-        {
-            return Ok(name.eq_ignore_ascii_case(self.government));
-        }
-        Err(RequirementEvaluationError::Unsupported {
-            kind: requirement.kind.clone(),
-            name: requirement.name.clone(),
+        let record = self.native_record()?;
+        Some(match kind {
+            "Civil_War_Chance" => record.civil_war_chance.into(),
+            "Empire_Size_Base" => record.empire_size_base.into(),
+            "Max_Rates" => record.max_rates.into(),
+            _ => return None,
         })
     }
-}
 
-impl EffectContext for GovernmentOnlyContext<'_> {
-    fn multiplier_percent(&self, _multiplier: &str) -> Option<i64> {
-        None
+    pub(crate) fn has_flag(self, flag: &str) -> bool {
+        self.native_record().is_some_and(|record| {
+            record
+                .flags
+                .iter()
+                .any(|candidate| candidate.eq_ignore_ascii_case(flag))
+        })
     }
 }
 
@@ -333,13 +274,9 @@ impl Simulation {
     }
 
     fn government_requirements_met(&self, owner: usize, target: Government) -> bool {
-        let Some(rule_name) = target.rule_name() else {
+        if target.native_record().is_none() {
             return false;
-        };
-        let catalog = campaign_government_catalog();
-        let Some(government) = catalog.get(rule_name) else {
-            return false;
-        };
+        }
         let rules = RulesetData::campaign_default();
         let context = SimulationRequirementContext::for_player_at(self, owner, None)
             .with_government(self.players[owner].government);
@@ -348,12 +285,9 @@ impl Simulation {
         if any_government > 0 {
             return true;
         }
-        requirements_met(&government.requirements, &context).unwrap_or_else(|error| {
-            panic!(
-                "could not evaluate requirements for government {}: {error:?}",
-                government.id
-            )
-        })
+        target
+            .requirement()
+            .is_none_or(|technology| self.has_tech(owner, technology))
     }
 
     pub(super) fn begin_ai_war_revolution(&mut self, owner: usize) -> bool {
@@ -476,7 +410,7 @@ impl Simulation {
         self.rand_below(max_turns) + 1
     }
 
-    fn government_effect_value(&self, owner: usize, kind: &str) -> i64 {
+    pub(crate) fn government_effect_value(&self, owner: usize, kind: &str) -> i64 {
         let rules = RulesetData::campaign_default();
         let context = SimulationRequirementContext::for_player_at(self, owner, None)
             .with_government(self.players[owner].government);

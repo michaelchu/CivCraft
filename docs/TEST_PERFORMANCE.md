@@ -93,7 +93,9 @@ Both executables now call a shared library. Desktop startup and its argument
 tests live in `src/desktop.rs`; `src/main.rs` retains the Macroquad entry point.
 The headless wrapper calls the library CLI. Both binaries disable their empty
 unit-test harnesses, so shared tests run once, without making the simulation
-internals public.
+internals public. Audio is a desktop-only feature; default tests use no-op
+audio backends and do not require the Linux ALSA development library. Use
+`--features desktop-audio` when building the interactive desktop binary.
 
 Previously `cargo test` executed 987 desktop tests and 909 headless tests:
 899 names overlapped, for 1,896 executions of 997 distinct tests. The combined

@@ -826,16 +826,15 @@ impl std::fmt::Display for LoadError {
 impl std::error::Error for LoadError {}
 
 impl RulesetData {
-    /// Load the Freeciv mechanics ruleset and attach Civ III Conquests source
-    /// records from an explicitly selected catalog directory.
-    pub(crate) fn load_with_civ3_catalog(
+    /// Load the Freeciv mechanics engine and attach CivCraft-owned native
+    /// source records from the TOML campaign catalogs.
+    pub(crate) fn load_with_native_catalog(
         data_root: &Path,
         ruleset_name: &str,
-        civ3_catalog_dir: &Path,
     ) -> Result<Self, LoadError> {
         let mut rules = Self::load(data_root, ruleset_name)?;
-        let source_catalog = Civ3ContentCatalog::load(civ3_catalog_dir)
-            .map_err(|error| LoadError::new(error.to_string()))?;
+        let source_catalog =
+            Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
         rules.source_content = source_catalog.records;
         Ok(rules)
     }
@@ -847,12 +846,8 @@ impl RulesetData {
         static RULESET: OnceLock<RulesetData> = OnceLock::new();
         RULESET.get_or_init(|| {
             let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-            Self::load_with_civ3_catalog(
-                &data_root,
-                "civcraft_civ2civ3",
-                &data_root.join("civ3_conquests"),
-            )
-            .unwrap_or_else(|error| panic!("failed to load campaign ruleset: {error}"))
+            Self::load_with_native_catalog(&data_root, "civcraft_civ2civ3")
+                .unwrap_or_else(|error| panic!("failed to load campaign ruleset: {error}"))
         })
     }
 
@@ -3139,12 +3134,7 @@ mod tests {
     #[test]
     fn campaign_ruleset_keeps_civ3_source_catalog_separate_and_identifiable() {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-        let rules = RulesetData::load_with_civ3_catalog(
-            &data_root,
-            "civcraft_civ2civ3",
-            &data_root.join("civ3_conquests"),
-        )
-        .unwrap();
+        let rules = RulesetData::load_with_native_catalog(&data_root, "civcraft_civ2civ3").unwrap();
 
         assert_eq!(
             rules

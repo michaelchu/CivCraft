@@ -2,7 +2,7 @@
 //!
 //! Stable advance IDs retain the Freeciv-derived aliases used by existing
 //! effects and requirements. Researchable Civ III advances and their direct
-//! prerequisite graph are loaded from the checked-in Conquests technology TSV.
+//! prerequisite graph are loaded from the checked-in native TOML catalog.
 //! Research eligibility and progress are resolved in `sim::research` and
 //! `sim::research_phase`.
 //!
@@ -12,7 +12,7 @@
 use std::sync::OnceLock;
 
 // Legacy catalog transcribed from Freeciv data/civ2civ3/techs.ruleset. The
-// checked-in Conquests TSV overrides the researchable graph while these
+// checked-in native catalog overrides the researchable graph while these
 // stable IDs and labels remain available for Freeciv effect bindings.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -1086,39 +1086,18 @@ fn civ3_tech_catalog() -> &'static Civ3TechCatalog {
 }
 
 fn build_civ3_tech_catalog() -> Civ3TechCatalog {
-    const SOURCE: &str = include_str!("../../data/rulesets/civ3_conquests/technologies.tsv");
-    let mut lines = SOURCE.lines();
-    let header = lines.next().expect("Civ III technology catalog header");
-    let columns: Vec<_> = header.split('\t').collect();
-    let name_column = columns
-        .iter()
-        .position(|column| *column == "name")
-        .expect("Civ III technology name column");
-    let prerequisite_columns: Vec<_> = (1..=4)
-        .map(|index| {
-            let expected = format!("prerequisite_{index}_name");
-            columns
-                .iter()
-                .position(|column| *column == expected.as_str())
-                .expect("Civ III technology prerequisite column")
-        })
-        .collect();
-
     let mut raw_advances = Vec::new();
     let mut seen_runtime_ids = vec![false; ADVANCES.len()];
-    for (line_number, line) in lines.enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let fields: Vec<_> = line.split('\t').collect();
-        let source_name = fields
-            .get(name_column)
-            .copied()
-            .expect("Civ III technology name field");
+    for (line_number, native) in crate::rules::native::technologies()
+        .technologies
+        .iter()
+        .enumerate()
+    {
+        let source_name = native.name.as_str();
         let tech = civ3_tech_by_name(source_name).unwrap_or_else(|| {
             panic!(
                 "unmapped Civ III BIQ technology {source_name:?} on row {}",
-                line_number + 2
+                line_number + 1
             )
         });
         assert!(
@@ -1128,10 +1107,9 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
         );
         seen_runtime_ids[tech.0] = true;
 
-        let prerequisites = prerequisite_columns
+        let prerequisites = native
+            .prerequisites
             .iter()
-            .filter_map(|&column| fields.get(column).copied())
-            .filter(|name| !name.is_empty())
             .map(|name| {
                 civ3_tech_by_name(name).unwrap_or_else(|| {
                     panic!("unmapped Civ III BIQ prerequisite {name:?} for {source_name:?}")

@@ -218,19 +218,19 @@ fn ruleset_no_anarchy_effect_allows_and_defers_a_human_government_change() {
     game.create_city(HUMAN, 10, 20);
     game.cities[0].buildings.push(Building::STATUE_OF_LIBERTY);
 
-    assert!(game.change_government(HUMAN, Government::Federation));
+    assert!(game.change_government(HUMAN, Government::Fascism));
     assert_eq!(
         game.players[HUMAN].government,
         Government::during_revolution()
     );
     assert_eq!(
         game.players[HUMAN].revolution_target,
-        Some(Government::Federation)
+        Some(Government::Fascism)
     );
     assert_eq!(game.players[HUMAN].revolution_turn, Some(game.turn));
 
     game.finish_revolutions();
-    assert_eq!(game.players[HUMAN].government, Government::Federation);
+    assert_eq!(game.players[HUMAN].government, Government::Fascism);
 }
 
 #[test]

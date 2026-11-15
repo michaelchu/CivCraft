@@ -94,6 +94,7 @@ fn selected_partisan_unit() -> UnitKind {
                 super::action_rules::UnitEconomicsRecordBinding::Mapped {
                     record,
                     kind: mapping,
+                    ..
                 } if mapping == super::action_rules::UnitEconomicsBindingKind::RoleAlias
                     && record
                         .string_list_field("roles")
@@ -270,6 +271,7 @@ mod tests {
         let super::super::action_rules::UnitEconomicsRecordBinding::Mapped {
             record,
             kind: super::super::action_rules::UnitEconomicsBindingKind::RoleAlias,
+            ..
         } = super::super::action_rules::freeciv_unit_economics_record(kind)
         else {
             panic!("C2C3 Partisan must use an explicit Civ III role alias");

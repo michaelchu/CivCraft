@@ -6,8 +6,6 @@
 
 use std::sync::OnceLock;
 
-use super::{LoadError, RulesetData, required_parameter};
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SettlementAiSettings {
     pub(crate) food_priority: i32,
@@ -34,60 +32,33 @@ impl SettlementAiSettings {
     pub(crate) fn campaign() -> &'static Self {
         static SETTINGS: OnceLock<SettlementAiSettings> = OnceLock::new();
         SETTINGS.get_or_init(|| {
-            Self::from_ruleset(RulesetData::campaign_default())
-                .unwrap_or_else(|error| panic!("invalid settlement AI settings: {error}"))
+            let native = &crate::rules::native::settlements().ai;
+            assert!(native.growth_potential_deemphasis > 0);
+            assert!(native.discount_period > 0);
+            assert!(native.wonder_city_pop_founder_divisor > 0);
+            assert!(native.wonder_city_other_founder_divisor > 0);
+            assert!(native.expansionist_trait_baseline > 0);
+            assert!(native.ferry_cost_divisor > 0);
+            Self {
+                food_priority: native.food_priority,
+                shield_priority: native.shield_priority,
+                trade_priority: native.trade_priority,
+                research_priority_percent: native.research_priority_percent,
+                no_research_priority: native.no_research_priority,
+                growth_priority: native.growth_priority,
+                growth_potential_deemphasis: native.growth_potential_deemphasis,
+                growth_food_threshold: native.growth_food_threshold,
+                perfection: native.perfection,
+                good_enough: native.good_enough,
+                discount_period: native.discount_period,
+                defense_emphasis: native.defense_emphasis,
+                naval_emphasis: native.naval_emphasis,
+                wonder_city_pop_founder_divisor: native.wonder_city_pop_founder_divisor,
+                wonder_city_other_founder_divisor: native.wonder_city_other_founder_divisor,
+                expansionist_trait_baseline: native.expansionist_trait_baseline,
+                ferry_cost_divisor: native.ferry_cost_divisor,
+                ferry_tech_want: native.ferry_tech_want,
+            }
         })
-    }
-
-    fn from_ruleset(rules: &RulesetData) -> Result<Self, LoadError> {
-        let integer = |key: &str| -> Result<i32, LoadError> {
-            let parameter =
-                required_parameter(rules, "game.ruleset", "civcraft_settlement_ai", key)?;
-            let value = parameter
-                .integer_value()
-                .map_err(|error| LoadError::new(format!("invalid settlement AI setting: {error}")))?
-                .ok_or_else(|| {
-                    LoadError::new(format!(
-                        "game.ruleset [civcraft_settlement_ai].{key} has no integer value"
-                    ))
-                })?;
-            i32::try_from(value).map_err(|_| {
-                LoadError::new(format!(
-                    "game.ruleset [civcraft_settlement_ai].{key} is outside the supported range"
-                ))
-            })
-        };
-        let settings = Self {
-            food_priority: integer("food_priority")?,
-            shield_priority: integer("shield_priority")?,
-            trade_priority: integer("trade_priority")?,
-            research_priority_percent: integer("research_priority_percent")?,
-            no_research_priority: integer("no_research_priority")?,
-            growth_priority: integer("growth_priority")?,
-            growth_potential_deemphasis: integer("growth_potential_deemphasis")?,
-            growth_food_threshold: integer("growth_food_threshold")?,
-            perfection: integer("perfection")?,
-            good_enough: integer("good_enough")?,
-            discount_period: integer("discount_period")?,
-            defense_emphasis: integer("defense_emphasis")?,
-            naval_emphasis: integer("naval_emphasis")?,
-            wonder_city_pop_founder_divisor: integer("wonder_city_pop_founder_divisor")?,
-            wonder_city_other_founder_divisor: integer("wonder_city_other_founder_divisor")?,
-            expansionist_trait_baseline: integer("expansionist_trait_baseline")?,
-            ferry_cost_divisor: integer("ferry_cost_divisor")?,
-            ferry_tech_want: integer("ferry_tech_want")?,
-        };
-        if settings.growth_potential_deemphasis <= 0
-            || settings.discount_period <= 0
-            || settings.wonder_city_pop_founder_divisor <= 0
-            || settings.wonder_city_other_founder_divisor <= 0
-            || settings.expansionist_trait_baseline <= 0
-            || settings.ferry_cost_divisor <= 0
-        {
-            return Err(LoadError::new(
-                "settlement AI divisors must be greater than zero",
-            ));
-        }
-        Ok(settings)
     }
 }

@@ -143,16 +143,17 @@ impl Simulation {
         };
         let mut unhappiness = 0;
         for (unit, mapping) in mappings {
-            let UnitEconomicsRecordBinding::Mapped { record, .. } = mapping else {
+            let UnitEconomicsRecordBinding::Mapped { record, native, .. } = mapping else {
                 continue;
             };
-            if record_has_flag(record, "NoHome") {
+            if native_has_flag(native, "NoHome") {
                 continue;
             }
             unhappiness += self.c2c3_unit_unhappiness(
                 city,
                 unit,
                 record,
+                native,
                 government,
                 &mut free_unhappy,
                 allocation_complete,
@@ -180,11 +181,11 @@ impl Simulation {
             .filter(|unit| unit.owner == owner && unit.home_city.is_none())
         {
             let mapping = freeciv_unit_economics_record(unit.kind);
-            let record = match mapping {
-                UnitEconomicsRecordBinding::Mapped { record, .. } => record,
+            let (record, native) = match mapping {
+                UnitEconomicsRecordBinding::Mapped { record, native, .. } => (record, native),
                 UnitEconomicsRecordBinding::Unsupported { .. } => continue,
             };
-            let cost = self.c2c3_unit_upkeep_cost(unit, record, "Gold", government);
+            let cost = self.c2c3_unit_upkeep_cost(unit, record, native, "Gold", government);
             if cost > 0 {
                 paid.push((unit.id, cost));
             }
@@ -272,8 +273,8 @@ impl Simulation {
         let mut gold_paid = Vec::new();
 
         for (unit, mapping) in mappings {
-            let record = match mapping {
-                UnitEconomicsRecordBinding::Mapped { record, .. } => record,
+            let (record, native) = match mapping {
+                UnitEconomicsRecordBinding::Mapped { record, native, .. } => (record, native),
                 UnitEconomicsRecordBinding::Unsupported { source_id, basis } => {
                     upkeep.per_unit.push(UnitUpkeepRow {
                         unit_id: unit.id,
@@ -286,14 +287,14 @@ impl Simulation {
                     continue;
                 }
             };
-            if record_has_flag(record, "NoHome") {
+            if native_has_flag(native, "NoHome") {
                 continue;
             }
 
             let raw = UnitOutputCosts {
-                food: self.c2c3_unit_upkeep_cost(unit, record, "Food", government),
-                shields: self.c2c3_unit_upkeep_cost(unit, record, "Shield", government),
-                gold: self.c2c3_unit_upkeep_cost(unit, record, "Gold", government),
+                food: self.c2c3_unit_upkeep_cost(unit, record, native, "Food", government),
+                shields: self.c2c3_unit_upkeep_cost(unit, record, native, "Shield", government),
+                gold: self.c2c3_unit_upkeep_cost(unit, record, native, "Gold", government),
             };
             let mut net = raw;
             if allocation_complete {
@@ -316,6 +317,7 @@ impl Simulation {
                 city,
                 unit,
                 record,
+                native,
                 government,
                 &mut free_unhappy,
                 allocation_complete,
@@ -328,22 +330,22 @@ impl Simulation {
         &self,
         unit: &Unit,
         record: &'static ContentRecord,
+        native: &'static crate::rules::native::NativeUnitEconomicsBinding,
         output: &str,
         government: Government,
     ) -> i32 {
-        if record_has_flag(record, "Fanatic")
+        if native_has_flag(native, "Fanatic")
             && self.c2c3_unit_effect(unit, record, "Fanatics", None, government) > 0
         {
             return 0;
         }
 
-        let field = match output {
-            "Food" => "uk_food",
-            "Shield" => "uk_shield",
-            "Gold" => "uk_gold",
+        let mut cost = match output {
+            "Food" => native.support_food,
+            "Shield" => native.support_shields,
+            "Gold" => native.support_gold,
             _ => unreachable!("unit upkeep only covers Food, Shield, and Gold"),
         };
-        let mut cost = record_integer(record, field);
 
         if matches!(output, "Gold" | "Shield") {
             let shield_to_gold =
@@ -351,7 +353,7 @@ impl Simulation {
             if shield_to_gold > 0 {
                 cost = match output {
                     "Gold" => {
-                        let shield_cost = record_integer(record, "uk_shield");
+                        let shield_cost = native.support_shields;
                         (shield_cost * shield_to_gold + 99) / 100
                     }
                     "Shield" => 0,
@@ -370,11 +372,12 @@ impl Simulation {
         city: &City,
         unit: &Unit,
         record: &'static ContentRecord,
+        native: &'static crate::rules::native::NativeUnitEconomicsBinding,
         government: Government,
         free_unhappy: &mut i32,
         apply_free_unhappy: bool,
     ) -> i32 {
-        let happy_cost = record_integer(record, "uk_happy").saturating_mul(self.city_rule_effect(
+        let happy_cost = native.happiness.saturating_mul(self.city_rule_effect(
             city,
             "Unhappy_Factor",
             None,
@@ -385,7 +388,7 @@ impl Simulation {
             None,
         ));
         if happy_cost <= 0
-            || (!unit_being_aggressive(self, unit, record) && !record_has_flag(record, "FieldUnit"))
+            || (!unit_being_aggressive(self, unit, record) && !native_has_flag(native, "FieldUnit"))
         {
             return 0;
         }
@@ -481,18 +484,15 @@ impl Simulation {
         let Some(unit) = self.unit_by_id(unit_id).cloned() else {
             return false;
         };
-        let UnitEconomicsRecordBinding::Mapped { record, .. } =
+        let UnitEconomicsRecordBinding::Mapped { record, native, .. } =
             freeciv_unit_economics_record(unit.kind)
         else {
             return false;
         };
         let settings = missing_unit_upkeep_settings().for_output(output);
-        let flags = record
-            .string_list_field("flags")
-            .unwrap_or_else(|error| panic!("invalid {}.flags: {error}", record.section))
-            .unwrap_or_default();
         let protected = settings.protected_flags.iter().any(|protected| {
-            flags
+            native
+                .flags
                 .iter()
                 .any(|flag| flag.eq_ignore_ascii_case(protected))
         });
@@ -524,7 +524,7 @@ impl Simulation {
 
             if requires_city {
                 let target_city_id = target_city.unwrap().id;
-                let shield_value = self.unit_shield_value_for_action(&unit, record, action);
+                let shield_value = self.unit_shield_value_for_action(&unit, record, native, action);
                 if let Some(index) = self.city_index_by_id(target_city_id) {
                     self.cities[index].shields += shield_value;
                 }
@@ -566,12 +566,10 @@ impl Simulation {
         &self,
         unit: &Unit,
         record: &'static ContentRecord,
+        native: &'static crate::rules::native::NativeUnitEconomicsBinding,
         action: &str,
     ) -> i32 {
-        let base = record
-            .integer_field("build_cost")
-            .unwrap_or_else(|error| panic!("invalid {}.build_cost: {error}", record.section))
-            .unwrap_or_else(|| panic!("{} has no C2C3 build_cost", record.section));
+        let base = native.build_cost;
         let context = SimulationRequirementContext::for_unit(self, unit)
             .with_unit_type_flag_record(record)
             .with_action(action);
@@ -581,7 +579,7 @@ impl Simulation {
             &context,
         )
         .unwrap_or_else(|error| panic!("could not evaluate C2C3 unit shield value: {error:?}"));
-        let value = base + base * percent / 100;
+        let value = i64::from(base) + i64::from(base) * percent / 100;
         i32::try_from(value).unwrap_or_else(|_| panic!("unit shield value exceeds i32"))
     }
 
@@ -641,19 +639,9 @@ impl Simulation {
     }
 }
 
-fn record_integer(record: &ContentRecord, field: &str) -> i32 {
-    let value = record
-        .integer_field(field)
-        .unwrap_or_else(|error| panic!("invalid {}.{field}: {error}", record.section))
-        .unwrap_or(0);
-    i32::try_from(value).unwrap_or_else(|_| panic!("{}.{} exceeds i32", record.section, field))
-}
-
-fn record_has_flag(record: &ContentRecord, flag: &str) -> bool {
+fn native_has_flag(record: &crate::rules::native::NativeUnitEconomicsBinding, flag: &str) -> bool {
     record
-        .string_list_field("flags")
-        .unwrap_or_else(|error| panic!("invalid {}.flags: {error}", record.section))
-        .unwrap_or_default()
+        .flags
         .iter()
         .any(|candidate| candidate.eq_ignore_ascii_case(flag))
 }

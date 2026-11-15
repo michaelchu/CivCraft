@@ -1,6 +1,6 @@
 //! Editable source rules imported from the installed Conquests campaign BIQ.
 //!
-//! This is the runtime reader for `data/rulesets/civ3_conquests/units.tsv`.
+//! This is the runtime reader for the native TOML unit catalog.
 //! Keep simulation code independent of individual unit values so rebalance
 //! edits to the table do not require changes to rule logic.
 
@@ -74,35 +74,17 @@ pub(super) struct ExperienceRule {
 fn experience_levels() -> &'static [ExperienceRule] {
     static LEVELS: OnceLock<Vec<ExperienceRule>> = OnceLock::new();
     LEVELS.get_or_init(|| {
-        let mut lines =
-            include_str!("../../data/rulesets/civ3_conquests/experience_levels.tsv").lines();
-        let header = lines.next().expect("Civ III experience table has a header");
-        let expected_columns = header.split('\t').count();
-        let mut parsed = Vec::new();
-        for (line_number, line) in lines.enumerate() {
-            let fields = line.split('\t').collect::<Vec<_>>();
-            assert_eq!(
-                fields.len(),
-                expected_columns,
-                "invalid Civ III experience table row {}",
-                line_number + 2
-            );
-            let number = |column: usize| {
-                fields[column].parse::<i32>().unwrap_or_else(|error| {
-                    panic!(
-                        "invalid experience value on row {}: {error}",
-                        line_number + 2
-                    )
-                })
-            };
-            parsed.push(ExperienceRule {
-                name: fields[1],
-                base_hit_points: number(2),
-                retreat_bonus_percent: number(3),
-                promotion_chance_per_mille: number(4),
-                is_default: fields[5] == "true",
-            });
-        }
+        let parsed = crate::rules::native::experience()
+            .levels
+            .iter()
+            .map(|level| ExperienceRule {
+                name: leak(&level.name),
+                base_hit_points: level.base_hit_points,
+                retreat_bonus_percent: level.retreat_bonus_percent,
+                promotion_chance_per_mille: level.promotion_chance_per_mille,
+                is_default: level.default_rank,
+            })
+            .collect::<Vec<_>>();
         assert_eq!(
             parsed.len(),
             4,
@@ -340,17 +322,6 @@ impl UnitRule {
     }
 }
 
-fn validate_prototype_indices(value: &str, row: usize, field: &str) {
-    if value.is_empty() {
-        return;
-    }
-    for index in value.split(';') {
-        index.parse::<u16>().unwrap_or_else(|error| {
-            panic!("invalid {field} PRTO index on Civ III unit table row {row}: {error}")
-        });
-    }
-}
-
 fn parse_ai_strategy_mask(profiles: &str, row: usize) -> u32 {
     profiles.split('|').fold(0, |strategies, profile| {
         let mut parts = profile.split(':');
@@ -375,117 +346,96 @@ fn parse_ai_strategy_mask(profiles: &str, row: usize) -> u32 {
     })
 }
 
+fn leak(value: &str) -> &'static str {
+    Box::leak(value.to_owned().into_boxed_str())
+}
+
+fn join_indices(values: &[i32]) -> &'static str {
+    leak(
+        &values
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(";"),
+    )
+}
+
+fn parse_hex<const N: usize>(value: &str, row: usize, field: &str) -> [u8; N] {
+    assert_eq!(
+        value.len(),
+        N * 2,
+        "invalid {field} length on native unit row {row}"
+    );
+    let bytes = value
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| {
+            let pair = std::str::from_utf8(pair).expect("native unit hex bytes");
+            u8::from_str_radix(pair, 16)
+                .unwrap_or_else(|error| panic!("invalid {field} on native unit row {row}: {error}"))
+        })
+        .collect::<Vec<_>>();
+    bytes
+        .try_into()
+        .unwrap_or_else(|_| panic!("invalid {field} length on native unit row {row}"))
+}
+
 fn rules() -> &'static [UnitRule] {
     static RULES: OnceLock<Vec<UnitRule>> = OnceLock::new();
     RULES.get_or_init(|| {
-        let mut lines = include_str!("../../data/rulesets/civ3_conquests/units.tsv").lines();
-        let header = lines.next().expect("Civ III unit table has a header");
-        let expected_columns = header.split('\t').count();
         let mut parsed = Vec::new();
-        let parse_bytes = |value: &str, row: usize| -> Vec<u8> {
-            assert_eq!(value.len() % 2, 0, "invalid flag bytes on row {row}");
-            value
-                .as_bytes()
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|pair| {
-                    let pair = std::str::from_utf8(pair).unwrap();
-                    u8::from_str_radix(pair, 16)
-                        .unwrap_or_else(|error| panic!("invalid flag bytes on row {row}: {error}"))
-                })
-                .collect()
-        };
-        for (line_number, line) in lines.enumerate() {
-            let fields = line.split('\t').collect::<Vec<_>>();
-            assert_eq!(
-                fields.len(),
-                expected_columns,
-                "invalid Civ III unit table row {}",
-                line_number + 2
-            );
-            let number = |column: usize| {
-                fields[column].parse::<i32>().unwrap_or_else(|error| {
-                    panic!(
-                        "invalid numeric field on Civ III unit table row {}: {error}",
-                        line_number + 2
-                    )
-                })
-            };
-            validate_prototype_indices(fields[4], line_number + 2, "source prototype");
-            validate_prototype_indices(fields[38], line_number + 2, "stealth target");
-            let flags_1 = parse_bytes(fields[25], line_number + 2);
-            let flags_2 = parse_bytes(fields[26], line_number + 2);
-            let flags_3 = parse_bytes(fields[27], line_number + 2);
-            let flags_1: [u8; 8] = flags_1.try_into().unwrap_or_else(|_| {
-                panic!(
-                    "invalid flags_1 length on Civ III unit table row {}",
-                    line_number + 2
-                )
-            });
-            let flags_2: [u8; 8] = flags_2.try_into().unwrap_or_else(|_| {
-                panic!(
-                    "invalid flags_2 length on Civ III unit table row {}",
-                    line_number + 2
-                )
-            });
-            let flags_3: [u8; 20] = flags_3.try_into().unwrap_or_else(|_| {
-                panic!(
-                    "invalid flags_3 length on Civ III unit table row {}",
-                    line_number + 2
-                )
-            });
-            let ignore_movement_cost: [u8; 14] = parse_bytes(fields[33], line_number + 2)
-                .try_into()
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "invalid ignore_movement_cost length on Civ III unit table row {}",
-                        line_number + 2
-                    )
-                });
-            let ai_strategies = parse_ai_strategy_mask(fields[30], line_number + 2);
+        for (index, native) in crate::rules::native::units().units.iter().enumerate() {
+            let row = index + 1;
+            let mut required_resources = [""; 3];
+            for (slot, resource) in native.required_resources.iter().take(3).enumerate() {
+                required_resources[slot] = leak(resource);
+            }
+            let available_to = leak(&native.available_to.join(";"));
+            let unique_civilization = leak(&native.unique_civilization);
+            let replaces = leak(&native.replaces);
             parsed.push(UnitRule {
-                id: fields[0],
-                name: fields[1],
-                category: fields[2],
-                source_prototypes: fields[4],
-                required_technology: fields[16],
-                required_resources: [fields[17], fields[18], fields[19]],
-                upgrade_to: fields[20],
-                cost: number(6),
-                population_cost: number(7),
-                attack: number(8),
-                defense: number(9),
-                moves: number(10),
-                unit_type: number(24),
-                capacity: number(15) as usize,
-                operational_range: number(14),
-                bombard_strength: number(11),
-                bombard_range: number(12),
-                rate_of_fire: number(13),
-                hit_point_bonus: number(28),
-                flags_1,
-                flags_2,
-                flags_3,
-                ai_strategies,
-                ignore_movement_cost,
-                zone_of_control: number(34),
-                bombard_effects: number(35),
-                require_support: number(36),
-                enslave_result_prototype_index: number(37),
-                create_craters: number(39),
-                worker_strength: fields[40].parse::<f32>().unwrap_or_else(|error| {
-                    panic!(
-                        "invalid worker strength on Civ III unit table row {}: {error}",
-                        line_number + 2
-                    )
-                }),
-                air_defense: number(41),
-                icon_index: number(42),
-                civilopedia_entry: fields[43],
-                available_to: fields[21],
-                unique_civilization: fields[22],
-                replaces: fields[23],
+                id: leak(&native.id),
+                name: leak(&native.name),
+                category: leak(&native.category),
+                source_prototypes: join_indices(&native.source_prototypes),
+                required_technology: leak(&native.required_technology),
+                required_resources,
+                upgrade_to: leak(&native.upgrade_to),
+                cost: native.cost_shields,
+                population_cost: native.population_cost,
+                attack: native.attack,
+                defense: native.defense,
+                moves: native.moves,
+                unit_type: native.unit_type,
+                capacity: native.capacity,
+                operational_range: native.operational_range,
+                bombard_strength: native.bombard_strength,
+                bombard_range: native.bombard_range,
+                rate_of_fire: native.rate_of_fire,
+                hit_point_bonus: native.hit_point_bonus,
+                flags_1: parse_hex(&native.flags_1_hex, row, "flags_1_hex"),
+                flags_2: parse_hex(&native.flags_2_hex, row, "flags_2_hex"),
+                flags_3: parse_hex(&native.flags_3_hex, row, "flags_3_hex"),
+                ai_strategies: parse_ai_strategy_mask(&native.source_ai_profiles, row),
+                ignore_movement_cost: parse_hex(
+                    &native.ignore_movement_cost_hex,
+                    row,
+                    "ignore_movement_cost_hex",
+                ),
+                zone_of_control: native.zone_of_control,
+                bombard_effects: native.bombard_effects,
+                require_support: native.require_support,
+                enslave_result_prototype_index: native.enslave_result_prototype_index,
+                create_craters: native.create_craters,
+                worker_strength: native.worker_strength,
+                air_defense: native.air_defense,
+                icon_index: native.icon_index,
+                civilopedia_entry: leak(&native.civilopedia_entry),
+                available_to,
+                unique_civilization,
+                replaces,
             });
         }
         assert_eq!(
@@ -608,5 +558,77 @@ mod tests {
             assert!(!base.available_to(civilization), "{}", unit.id);
             assert!(unit.available_to(civilization), "{}", unit.id);
         }
+    }
+
+    #[test]
+    fn native_toml_unit_catalog_matches_the_legacy_extraction() {
+        let native = crate::rules::native::units();
+        assert_eq!(native.units.len(), rules().len());
+        for source in rules() {
+            let migrated = native
+                .units
+                .iter()
+                .find(|unit| unit.id == source.id)
+                .unwrap_or_else(|| panic!("native TOML is missing {}", source.id));
+            assert_eq!(migrated.name, source.name);
+            assert_eq!(migrated.category, source.category);
+            assert_eq!(migrated.cost_shields, source.cost);
+            assert_eq!(migrated.population_cost, source.population_cost);
+            assert_eq!(migrated.attack, source.attack);
+            assert_eq!(migrated.defense, source.defense);
+            assert_eq!(migrated.moves, source.moves);
+            assert_eq!(migrated.bombard_strength, source.bombard_strength);
+            assert_eq!(migrated.bombard_range, source.bombard_range);
+            assert_eq!(migrated.rate_of_fire, source.rate_of_fire);
+            assert_eq!(migrated.operational_range, source.operational_range);
+            assert_eq!(migrated.capacity, source.capacity);
+            assert_eq!(migrated.required_technology, source.required_technology);
+            assert_eq!(
+                migrated.required_resources,
+                source
+                    .required_resources
+                    .iter()
+                    .filter(|resource| !resource.is_empty())
+                    .map(|resource| (*resource).to_owned())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(migrated.upgrade_to, source.upgrade_to);
+            assert_eq!(
+                migrated.available_to,
+                source
+                    .available_to
+                    .split(';')
+                    .filter(|civilization| !civilization.is_empty())
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(migrated.unique_civilization, source.unique_civilization);
+            assert_eq!(migrated.replaces, source.replaces);
+            assert_eq!(migrated.unit_type, source.unit_type);
+            assert_eq!(migrated.flags_1_hex, hex(source.flags_1));
+            assert_eq!(migrated.flags_2_hex, hex(source.flags_2));
+            assert_eq!(migrated.flags_3_hex, hex(source.flags_3));
+            assert_eq!(migrated.hit_point_bonus, source.hit_point_bonus);
+            assert_eq!(
+                migrated.ignore_movement_cost_hex,
+                hex(source.ignore_movement_cost)
+            );
+            assert_eq!(migrated.zone_of_control, source.zone_of_control);
+            assert_eq!(migrated.bombard_effects, source.bombard_effects);
+            assert_eq!(migrated.require_support, source.require_support);
+            assert_eq!(
+                migrated.enslave_result_prototype_index,
+                source.enslave_result_prototype_index
+            );
+            assert_eq!(migrated.create_craters, source.create_craters);
+            assert_eq!(migrated.worker_strength, source.worker_strength);
+            assert_eq!(migrated.air_defense, source.air_defense);
+            assert_eq!(migrated.icon_index, source.icon_index);
+            assert_eq!(migrated.civilopedia_entry, source.civilopedia_entry);
+        }
+    }
+
+    fn hex<const N: usize>(bytes: [u8; N]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
     }
 }

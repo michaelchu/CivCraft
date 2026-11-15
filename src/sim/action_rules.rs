@@ -43,6 +43,7 @@ pub(crate) struct SimulationRequirementContext<'a> {
     celebrating: Option<bool>,
     disordered: Option<bool>,
     unit_type_flag_record: Option<&'static crate::rules::freeciv::ContentRecord>,
+    native_unit_economics: Option<&'static crate::rules::native::NativeUnitEconomicsBinding>,
     unbound_content_is_absent: bool,
 }
 
@@ -75,6 +76,7 @@ impl<'a> SimulationRequirementContext<'a> {
             celebrating: None,
             disordered: None,
             unit_type_flag_record: None,
+            native_unit_economics: native_unit_economics_binding(unit.kind),
             unbound_content_is_absent: false,
         }
     }
@@ -103,6 +105,7 @@ impl<'a> SimulationRequirementContext<'a> {
             celebrating: None,
             disordered: None,
             unit_type_flag_record: None,
+            native_unit_economics: None,
             unbound_content_is_absent: false,
         }
     }
@@ -131,6 +134,7 @@ impl<'a> SimulationRequirementContext<'a> {
             celebrating: None,
             disordered: None,
             unit_type_flag_record: None,
+            native_unit_economics: None,
             unbound_content_is_absent: true,
         }
     }
@@ -170,6 +174,7 @@ impl<'a> SimulationRequirementContext<'a> {
     pub(crate) fn with_unit(mut self, unit: &'a Unit) -> Self {
         self.owner = unit.owner;
         self.unit = Some(unit);
+        self.native_unit_economics = native_unit_economics_binding(unit.kind);
         self
     }
 
@@ -178,6 +183,7 @@ impl<'a> SimulationRequirementContext<'a> {
     /// target city's buildings and the attacking unit's class/type.
     pub(crate) fn with_unit_preserving_owner(mut self, unit: &'a Unit) -> Self {
         self.unit = Some(unit);
+        self.native_unit_economics = native_unit_economics_binding(unit.kind);
         self
     }
 
@@ -236,6 +242,7 @@ impl<'a> SimulationRequirementContext<'a> {
             celebrating: self.celebrating,
             disordered: self.disordered,
             unit_type_flag_record: self.unit_type_flag_record,
+            native_unit_economics: self.native_unit_economics,
             unbound_content_is_absent: self.unbound_content_is_absent,
         }
     }
@@ -968,28 +975,21 @@ pub(crate) fn selected_building_is_obsolete(
     building: Building,
     granted: Option<Tech>,
 ) -> Option<bool> {
-    let context =
-        SimulationRequirementContext::for_city_at(simulation, city, Some((city.x, city.y)))
-            .with_building_override(Some(building))
-            .with_granted_tech(granted);
-    let record = context.ruleset.content.iter().find(|record| {
-        record.kind == crate::rules::freeciv::ContentKind::Building
-            && context.runtime_building_for_record(record) == Some(building)
-    })?;
-    for requirement in &record.obsolete_by {
-        match crate::rules::freeciv::requirements_met(std::slice::from_ref(requirement), &context) {
-            Ok(true) => return Some(true),
-            Ok(false) => (),
-            Err(error) => {
-                eprintln!(
-                    "Freeciv obsolescence evaluation for {} failed: {error:?}; treating it as obsolete",
-                    record.rule_name
-                );
-                return Some(true);
-            }
-        }
+    let native = native_building_for_runtime(building)?;
+    let obsolete_by = native.rendered_obsolete_by_advance_name.trim();
+    if obsolete_by.is_empty() {
+        return Some(false);
     }
-    Some(false)
+    let Some(technology) =
+        Tech::all().find(|technology| technology.name().eq_ignore_ascii_case(obsolete_by))
+    else {
+        eprintln!(
+            "native obsolescence for {} names unknown technology {obsolete_by:?}; treating it as obsolete",
+            native.name
+        );
+        return Some(true);
+    };
+    Some(granted == Some(technology) || simulation.has_tech(city.owner, technology))
 }
 
 impl RequirementContext for SimulationRequirementContext<'_> {
@@ -1044,19 +1044,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 let government = self
                     .government
                     .unwrap_or(self.simulation.players[self.owner].government);
-                let Some(rule_name) = government.rule_name() else {
-                    return Ok(false);
-                };
-                let catalog = self
-                    .ruleset
-                    .government_catalog()
-                    .map_err(|_| unsupported())?;
-                Ok(catalog.get(rule_name).is_some_and(|record| {
-                    record
-                        .flags
-                        .iter()
-                        .any(|flag| flag.eq_ignore_ascii_case(name))
-                }))
+                Ok(government.has_flag(name))
             }
             "outputtype" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
@@ -1130,6 +1118,14 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             }
             "unittype" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
+                if let Some(native) = self.native_unit_economics {
+                    return Ok(native.profile.eq_ignore_ascii_case(&format!("unit_{name}"))
+                        || (name.eq_ignore_ascii_case("Nuclear")
+                            && native
+                                .flags
+                                .iter()
+                                .any(|flag| flag.eq_ignore_ascii_case("Nuclear"))));
+                }
                 if let Some(record) = self.unit_type_flag_record {
                     return Ok(record.rule_name.eq_ignore_ascii_case(name)
                         || record
@@ -1161,6 +1157,12 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             }
             "unittypeflag" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
+                if let Some(native) = self.native_unit_economics {
+                    return Ok(native
+                        .flags
+                        .iter()
+                        .any(|flag| flag.eq_ignore_ascii_case(name)));
+                }
                 if let Some(record) = self.unit_type_flag_record {
                     let flags = record
                         .string_list_field("flags")
@@ -1326,10 +1328,8 @@ fn c2c3_government_rule_name(government: super::Government) -> Option<&'static s
         super::Government::Federation => "Federation",
         super::Government::Republic => "Republic",
         super::Government::Democracy => "Democracy",
-        // Fascism and Feudalism are Civ III governments without a direct
-        // identity in the selected C2C3 government catalog. P8 replaces these
-        // runtime identities; do not infer Fundamentalism or Federation here.
-        super::Government::Fascism | super::Government::Feudalism => return None,
+        super::Government::Fascism => "Fascism",
+        super::Government::Feudalism => "Feudalism",
     })
 }
 
@@ -1339,6 +1339,20 @@ fn c2c3_building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
         "Shakespeare's Theater" => &["Shakespeare's Theatre"],
         _ => &[],
     }
+}
+
+fn native_building_for_runtime(
+    building: Building,
+) -> Option<&'static crate::rules::native::NativeBuilding> {
+    let catalog = crate::rules::native::buildings();
+    let binding = catalog
+        .bindings
+        .iter()
+        .find(|binding| binding.legacy_runtime_index == building.0 as i32)?;
+    catalog
+        .buildings
+        .iter()
+        .find(|candidate| candidate.id == binding.civ3_id)
 }
 
 impl Simulation {
@@ -2410,6 +2424,7 @@ pub(crate) enum UnitEconomicsBindingKind {
 pub(crate) enum UnitEconomicsRecordBinding {
     Mapped {
         record: &'static crate::rules::freeciv::ContentRecord,
+        native: &'static crate::rules::native::NativeUnitEconomicsBinding,
         kind: UnitEconomicsBindingKind,
     },
     Unsupported {
@@ -2429,52 +2444,31 @@ struct UnitEconomicsRule {
 fn unit_economics_rules() -> &'static [UnitEconomicsRule] {
     static RULES: OnceLock<Vec<UnitEconomicsRule>> = OnceLock::new();
     RULES.get_or_init(|| {
-        const SOURCE: &str =
-            include_str!("../../data/rulesets/civcraft_civ2civ3/unit_economics.tsv");
         let mut rules = Vec::new();
-        let mut header_seen = false;
-        for (line_index, line) in SOURCE.lines().enumerate() {
-            if line.trim().is_empty() || line.starts_with('#') {
-                continue;
-            }
-            if !header_seen {
-                assert_eq!(
-                    line.split('\t').collect::<Vec<_>>(),
-                    ["civ3_unit_id", "c2c3_record", "mapping_kind", "basis"],
-                    "invalid selected unit economics mapping header"
-                );
-                header_seen = true;
-                continue;
-            }
-            let fields: Vec<_> = line.split('\t').collect();
-            assert_eq!(
-                fields.len(),
-                4,
-                "invalid unit economics mapping row {}",
-                line_index + 1
-            );
-            let kind = match fields[2] {
+        for (index, native) in crate::rules::native::unit_economics()
+            .bindings
+            .iter()
+            .enumerate()
+        {
+            let kind = match native.mapping_kind.as_str() {
                 "direct" => Some(UnitEconomicsBindingKind::Direct),
                 "alias" => Some(UnitEconomicsBindingKind::RoleAlias),
                 "unsupported" => None,
-                other => panic!("unknown unit economics mapping kind {other:?}"),
+                other => panic!("unknown native unit economics mapping kind {other:?}"),
             };
             if kind.is_none() {
-                assert_eq!(fields[1], "-", "unsupported unit mapping has a target");
+                assert_eq!(native.profile, "-", "unsupported unit mapping has a target");
             } else {
-                assert_ne!(fields[1], "-", "mapped unit record is missing");
+                assert_ne!(native.profile, "-", "mapped unit record is missing");
             }
             rules.push(UnitEconomicsRule {
-                civ3_unit_id: fields[0],
-                c2c3_record: fields[1],
+                civ3_unit_id: Box::leak(native.civ3_unit_id.clone().into_boxed_str()),
+                c2c3_record: Box::leak(native.profile.clone().into_boxed_str()),
                 kind,
-                basis: fields[3],
+                basis: Box::leak(native.basis.clone().into_boxed_str()),
             });
+            assert!(index < 92, "native unit economics binding count changed");
         }
-        assert!(
-            header_seen,
-            "missing selected unit economics mapping header"
-        );
         assert_eq!(
             rules.len(),
             92,
@@ -2494,7 +2488,7 @@ fn unit_economics_rules() -> &'static [UnitEconomicsRule] {
 }
 
 /// Resolve the C2C3 unit record used only for upkeep and supported-unit
-/// happiness. Unsupported rows are retained as decisions in the TSV and are
+/// happiness. Unsupported rows are retained as decisions in the native TOML and are
 /// returned with their recorded basis rather than falling back to Civ III.
 pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsRecordBinding {
     let Some(source_id) = unit.conquests_id() else {
@@ -2526,7 +2520,25 @@ pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsReco
                 && record.section.eq_ignore_ascii_case(rule.c2c3_record)
         })
         .unwrap_or_else(|| panic!("missing selected C2C3 unit record {:?}", rule.c2c3_record));
-    UnitEconomicsRecordBinding::Mapped { record, kind }
+    let native = crate::rules::native::unit_economics()
+        .bindings
+        .iter()
+        .find(|binding| binding.civ3_unit_id.eq_ignore_ascii_case(source_id))
+        .unwrap_or_else(|| panic!("missing native unit economics record {source_id:?}"));
+    UnitEconomicsRecordBinding::Mapped {
+        record,
+        native,
+        kind,
+    }
+}
+
+fn native_unit_economics_binding(
+    unit: UnitKind,
+) -> Option<&'static crate::rules::native::NativeUnitEconomicsBinding> {
+    match freeciv_unit_economics_record(unit) {
+        UnitEconomicsRecordBinding::Mapped { native, .. } => Some(native),
+        UnitEconomicsRecordBinding::Unsupported { .. } => None,
+    }
 }
 
 /// Whether the explicit gameplay identity for a Civ III unit carries a
@@ -2535,72 +2547,30 @@ pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsReco
 /// selected ruleset roles because Civ III strategy bits do not include roles
 /// such as `Hunter`.
 pub(crate) fn freeciv_unit_has_role(unit: UnitKind, role: &str) -> bool {
-    selected_c2c3_unit_role_record(unit)
-        .and_then(|record| {
-            record
-                .string_list_field("roles")
-                .expect("selected C2C3 unit role list is valid")
-        })
-        .is_some_and(|roles| {
-            roles
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(role))
-        })
+    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
+    else {
+        return false;
+    };
+    native
+        .roles
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(role))
 }
 
 /// Freeciv's base AI site score subtracts `unit_build_shield_cost_base`.
 /// Read the cost and shieldbox scale from the selected ruleset/settings rather
 /// than Civ III's separate production catalog.
 pub(crate) fn freeciv_unit_build_cost(unit: UnitKind) -> i32 {
-    let record = direct_c2c3_unit_record(unit)
-        .unwrap_or_else(|| panic!("missing selected C2C3 unit record for {}", unit.name()));
-    let build_cost = record
-        .integer_field("build_cost")
-        .unwrap_or_else(|error| panic!("invalid {}.build_cost: {error}", record.section))
-        .unwrap_or_else(|| panic!("{} has no C2C3 build_cost", record.section));
+    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
+    else {
+        panic!("missing native unit economics record for {}", unit.name());
+    };
     let shieldbox = crate::rules::freeciv::RulesetData::campaign_default()
         .integer_setting_value("shieldbox")
         .unwrap_or_else(|error| panic!("invalid C2C3 shieldbox: {error}"));
-    i32::try_from((build_cost * i64::from(shieldbox) / 100).max(1))
+    i32::try_from((i64::from(native.build_cost) * i64::from(shieldbox) / 100).max(1))
         .unwrap_or_else(|_| panic!("selected C2C3 unit build cost exceeds i32"))
 }
-
-/// C2C3 role bindings for Civ III units without the same-name C2C3 record.
-/// This is intentionally separate from the upkeep crosswalk: only selected
-/// combat archetypes whose roles drive a migrated AI decision are listed.
-fn selected_c2c3_unit_role_record(
-    unit: UnitKind,
-) -> Option<&'static crate::rules::freeciv::ContentRecord> {
-    direct_c2c3_unit_record(unit).or_else(|| {
-        let id = unit.conquests_id()?;
-        let section = C2C3_UNIT_ROLE_ALIASES
-            .iter()
-            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(id))?
-            .1;
-        RulesetData::campaign_default()
-            .content
-            .iter()
-            .find(|record| {
-                record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case(section)
-            })
-    })
-}
-
-/// BIQ-to-C2C3 role archetypes used by military AI. Keep upkeep-only aliases
-/// such as Curragh, Dromon, Army, and Privateer out of this list.
-const C2C3_UNIT_ROLE_ALIASES: &[(&str, &str)] = &[
-    ("spearman", "unit_phalanx"),
-    ("swordsman", "unit_legion"),
-    ("horseman", "unit_horsemen"),
-    ("pikeman", "unit_pikemen"),
-    ("longbowman", "unit_archers"),
-    ("musketman", "unit_musketeers"),
-    ("rifleman", "unit_riflemen"),
-    ("infantry", "unit_riflemen"),
-    ("mech_infantry", "unit_mech_inf"),
-    ("tank", "unit_armor"),
-    ("modern_armor", "unit_armor"),
-];
 
 /// C2C3 records that define transport capacity and cargo compatibility.
 /// Galley maps to the early Trireme role; Nuclear Submarine maps to the
@@ -2763,25 +2733,11 @@ pub(crate) fn freeciv_unit_type_section(unit: UnitKind) -> Option<String> {
 /// gameplay rule; the Civ III operational-range field remains available on
 /// the source catalog record and continues to govern sortie distance.
 pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
-    // Civ III's Tactical Nuke maps only this one fuel property to C2C3's
-    // Nuclear type; the remaining unit fields stay with the Civ III catalog.
-    let record = direct_c2c3_unit_record(unit).or_else(|| {
-        (unit == UnitKind::TacticalNuke).then(|| {
-            RulesetData::campaign_default()
-                .content
-                .iter()
-                .find(|record| {
-                    record.kind == ContentKind::Unit
-                        && record.section.eq_ignore_ascii_case("unit_nuclear")
-                })
-                .expect("selected C2C3 Nuclear unit record")
-        })
-    })?;
-    let fuel = record
-        .integer_field("fuel")
-        .expect("selected C2C3 unit fuel field is valid")
-        .expect("selected C2C3 unit record declares fuel");
-    Some(u8::try_from(fuel).expect("selected C2C3 unit fuel fits in u8"))
+    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
+    else {
+        return None;
+    };
+    Some(u8::try_from(native.fuel).expect("native unit fuel fits in u8"))
 }
 
 /// Civ III records expose the Cruise Missile's offensive strength as
@@ -2825,34 +2781,17 @@ fn direct_c2c3_unit_record(
 /// `Some(false)` for a roster ID in the audited no-type-flag ledger and
 /// `None` when the ID or selected unit record has no declared binding.
 pub(crate) fn freeciv_unit_type_flag(unit: UnitKind, flag: &str) -> Option<bool> {
-    if flag.eq_ignore_ascii_case("Nuclear") && unit.is_nuclear_weapon() {
-        let rules = RulesetData::campaign_default();
-        let record = rules.content.iter().find(|record| {
-            record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case("unit_nuclear")
-        })?;
-        let flags = record.string_list_field("flags").ok().flatten()?;
-        return Some(
-            flags
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case("Nuclear")),
-        );
-    }
-    let conquests_id = unit.conquests_id()?;
-    if let Some(record) = direct_c2c3_unit_record(unit) {
-        let flags = record.string_list_field("flags").ok().flatten()?;
-        Some(
-            flags
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(flag)),
-        )
-    } else if C2C3_DEFAULT_NO_TYPE_FLAGS
-        .iter()
-        .any(|id| id.eq_ignore_ascii_case(conquests_id))
-    {
-        Some(false)
-    } else {
-        None
-    }
+    unit.conquests_id()?;
+    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
+    else {
+        return Some(false);
+    };
+    Some(
+        native
+            .flags
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(flag)),
+    )
 }
 
 /// Resolve whether a selected C2C3 unit record can attack a defender's class.

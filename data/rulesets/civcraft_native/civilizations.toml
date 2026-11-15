@@ -1,0 +1,902 @@
+schema_version = 1
+source = "Civilization III: Conquests"
+
+[[civilizations]]
+id = "rome"
+source_id = "romans"
+source_biq = "Conquests/conquests.biq#RACE[1]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Romans"
+source_name = "Rome"
+noun = "Romans"
+adjective = "Roman"
+leader = "Caesar"
+primary_color_index = 1
+secondary_color_index = 1
+city_style = 4
+starting_techs = ["Warrior Code", "Alphabet"]
+legacy_names = ["Rome", "Crimson League"]
+source_race_index = 1
+cities = ["Rome", "Veii", "Antium", "Cumae", "Neapolis", "Pompeii", "Pisae", "Ravenna", "Hispalis", "Viroconium", "Lugdunum", "Lutetia", "Byzantium", "Brundisium", "Syracuse", "Caesaraugusta", "Palmyra", "Jerusalem", "Caesarea", "Tarentum", "Nicomedia", "Seleucia", "Artaxata", "Aurelianorum", "Hippo Regius", "Nicopolis", "Londinium", "Eburacum", "Arretium", "Gordion", "Agrippina", "Cyrene", "Tyrus", "Verona", "Corfinium", "Mediolanum", "Treveri", "Sirmium", "Augustadorum", "Trapezus", "Bagacum", "Lauriacum", "Teurnia", "Curia"]
+culture_group_index = 2
+expansionist = false
+militaristic = true
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "egypt"
+source_id = "egyptians"
+source_biq = "Conquests/conquests.biq#RACE[2]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Egyptians"
+source_name = "Egypt"
+noun = "Egyptians"
+adjective = "Egyptian"
+leader = "Cleopatra"
+primary_color_index = 3
+secondary_color_index = 3
+city_style = 3
+starting_techs = ["Ceremonial Burial", "Masonry"]
+legacy_names = ["Egypt", "Azure Assembly"]
+source_race_index = 2
+cities = ["Thebes", "Memphis", "Heliopolis", "Elephantine", "Alexandria", "Pi-Ramesses", "Giza", "Byblos", "El-Amarna", "Hieraconpolis", "Abydos", "Asyut", "Avaris", "Lisht", "Buto", "Edfu", "Pithom", "Busiris", "Kahun", "Athribis", "Mendes", "El-Ashmunein", "Tanis", "Buhen", "Bubastis", "This", "Oryx", "Sebennytus", "Cairo"]
+culture_group_index = 2
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "greece"
+source_id = "greeks"
+source_biq = "Conquests/conquests.biq#RACE[3]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Greeks"
+source_name = "Greece"
+noun = "Greeks"
+adjective = "Greek"
+leader = "Alexander"
+primary_color_index = 10
+secondary_color_index = 10
+city_style = 2
+starting_techs = ["Alphabet", "Bronze Working"]
+legacy_names = ["Greece", "Golden Compact"]
+source_race_index = 3
+cities = ["Athens", "Sparta", "Thermopylae", "Corinth", "Delphi", "Pharsalos", "Knossos", "Argos", "Mycenae", "Herakleia", "Ephesus", "Thessalonica", "Rhodes", "Eretria", "Troy", "Marathon", "Halicarnassus", "Pergamon", "Miletos", "Artemisium", "Megara", "Phocaea", "Sicyon", "Gortyn", "Mytilene", "Tegea", "Syracuse", "Apollonia", "Apolyton"]
+culture_group_index = 2
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "babylon"
+source_id = "babylonians"
+source_biq = "Conquests/conquests.biq#RACE[4]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Babylonians"
+source_name = "Babylon"
+noun = "Babylonians"
+adjective = "Babylonian"
+leader = "Hammurabi"
+primary_color_index = 1
+secondary_color_index = 13
+city_style = 3
+starting_techs = ["Bronze Working", "Ceremonial Burial"]
+legacy_names = ["Babylon", "Violet Court"]
+source_race_index = 4
+cities = ["Babylon", "Nineveh", "Ashur", "Ellipi", "Akkad", "Uruk", "Eridu", "Samarra", "Eulbar", "Nippur", "Shuruppak", "Zariqum", "Sippar", "Izibia", "Carchemish", "Mari", "Larsa", "Nimrud", "Zamua", "Khorsabad", "Hindana", "Tell Wilaya", "Karana", "Adab", "Telloh", "Nina", "Ebla"]
+culture_group_index = 3
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "germany"
+source_id = "germans"
+source_biq = "Conquests/conquests.biq#RACE[5]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Germany"
+source_name = "Germany"
+noun = "Germans"
+adjective = "German"
+leader = "Bismarck"
+primary_color_index = 6
+secondary_color_index = 6
+city_style = 2
+starting_techs = ["Warrior Code", "Bronze Working"]
+legacy_names = ["Germans", "Iron Confederation"]
+source_race_index = 5
+cities = ["Berlin", "Leipzig", "Hamburg", "Konigsberg", "Frankfurt", "Munich", "Heidelburg", "Nuremberg", "Cologne", "Hannover", "Bremen", "Stuttgart", "Bonn", "Salzburg", "Dortmund", "Brandenburg"]
+culture_group_index = 1
+expansionist = false
+militaristic = true
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "russia"
+source_id = "russians"
+source_biq = "Conquests/conquests.biq#RACE[6]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Russia"
+source_name = "Russia"
+noun = "Russians"
+adjective = "Russian"
+leader = "Catherine"
+primary_color_index = 9
+secondary_color_index = 9
+city_style = 2
+starting_techs = ["Pottery", "Bronze Working"]
+legacy_names = ["Russians", "Northern Union"]
+source_race_index = 6
+cities = ["Moscow", "St. Petersburg", "Novgorod", "Rostov", "Yaroslavl'", "Yekaterinburg", "Yakutsk", "Vladivostok", "Smolensk", "Orenburg", "Krasnoyarsk", "Khabarovsk", "Bryansk", "Tver'", "Kazan'", "Novosibirsk", "Magadan", "Murmansk", "Irkutsk", "Chita", "Samara", "Arkhangel'sk", "Chelyabinsk", "Tobol'sk", "Vologda", "Omsk", "Astrakhan'", "Kursk", "Saratov", "Tula", "Vladimir", "Perm'", "Voronezh", "Pskov", "Staraya Russa", "Kostroma", "Nizhniy Novgorod", "Suzdal'", "Magnitogorsk"]
+culture_group_index = 1
+expansionist = true
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations.bonus_units]]
+id = "Scout"
+count = 1
+
+[[civilizations]]
+id = "china"
+source_id = "chinese"
+source_biq = "Conquests/conquests.biq#RACE[7]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Chinese"
+source_name = "China"
+noun = "Chinese"
+adjective = "Chinese"
+leader = "Mao"
+primary_color_index = 5
+secondary_color_index = 15
+city_style = 0
+starting_techs = ["Warrior Code", "Masonry"]
+legacy_names = ["China", "Amber Union"]
+source_race_index = 7
+cities = ["Beijing", "Shanghai", "Canton", "Nanking", "Tsingtao", "Xinjian", "Chengdu", "Hangchow", "Tientsin", "Tatung", "Macao", "Anyang", "Shantung", "Chinan", "Kaifeng", "Ningpo", "Paoting", "Yangchow"]
+culture_group_index = 4
+expansionist = false
+militaristic = true
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "america"
+source_id = "americans"
+source_biq = "Conquests/conquests.biq#RACE[8]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "America"
+source_name = "America"
+noun = "Americans"
+adjective = "American"
+leader = "Lincoln"
+primary_color_index = 5
+secondary_color_index = 5
+city_style = 1
+starting_techs = ["Pottery", "Masonry"]
+legacy_names = ["Americans", "Free States"]
+source_race_index = 8
+cities = ["Washington", "New York", "Boston", "Philadelphia", "Atlanta", "Chicago", "Seattle", "San Francisco", "Miami", "Houston", "Buffalo", "St. Louis", "Detroit", "New Orleans", "Baltimore", "Denver", "Cincinnati", "Dallas", "Memphis", "Los Angeles", "Cleveland", "Kansas City", "San Diego", "Richmond", "Las Vegas", "Phoenix", "Albuquerque", "Portland", "Minneapolis", "Pittsburgh", "Oakland", "Tampa Bay", "Orlando", "Tacoma", "Santa Fe", "Olympia", "Hunt Valley", "Springfield", "Palo Alto", "Spokane"]
+culture_group_index = 0
+expansionist = true
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations.bonus_units]]
+id = "Scout"
+count = 1
+
+[[civilizations]]
+id = "japan"
+source_id = "japanese"
+source_biq = "Conquests/conquests.biq#RACE[9]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Japanese"
+source_name = "Japan"
+noun = "Japanese"
+adjective = "Japanese"
+leader = "Tokugawa"
+primary_color_index = 4
+secondary_color_index = 11
+city_style = 0
+starting_techs = ["The Wheel", "Ceremonial Burial"]
+legacy_names = ["Japan", "Rose Confederacy"]
+source_race_index = 9
+cities = ["Kyoto", "Osaka", "Tokyo", "Edo", "Satsuma", "Kagoshima", "Nara", "Nagoya", "Izumo", "Nagasaki", "Yokohama", "Shimonoseki", "Matsuyama", "Sapporo", "Hakodate", "Ise", "Toyama", "Fukushima", "Suo", "Bizen", "Echizen", "Izumi", "Omi", "Echigo", "Kozuke", "Sado"]
+culture_group_index = 4
+expansionist = false
+militaristic = true
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "france"
+source_id = "french"
+source_biq = "Conquests/conquests.biq#RACE[10]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "France"
+source_name = "France"
+noun = "French"
+adjective = "French"
+leader = "Joan d'Arc"
+primary_color_index = 7
+secondary_color_index = 7
+city_style = 2
+starting_techs = ["Alphabet", "Masonry"]
+legacy_names = ["French", "Silver Republic"]
+source_race_index = 10
+cities = ["Paris", "Orleans", "Lyons", "Rheims", "Tours", "Marseilles", "Chartres", "Avignon", "Besancon", "Rouen", "Grenoble", "Dijon", "Amiens", "Cherbourg", "Poitiers", "Toulouse", "Bayonne", "Strasbourg", "Brest", "Bordeaux", "Rennes"]
+culture_group_index = 1
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "india"
+source_id = "indians"
+source_biq = "Conquests/conquests.biq#RACE[11]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "India"
+source_name = "India"
+noun = "Indians"
+adjective = "Indian"
+leader = "Gandhi"
+primary_color_index = 8
+secondary_color_index = 12
+city_style = 0
+starting_techs = ["Alphabet", "Ceremonial Burial"]
+legacy_names = ["Indians", "Indus Union"]
+source_race_index = 11
+cities = ["Delhi", "Bombay", "Madras", "Bangalore", "Calcutta", "Lahore", "Karachi", "Kolhapur", "Jaipur", "Hyderabad", "Bengal", "Chittagong", "Punjab", "Dacca", "Indus", "Ganges", "Pune"]
+culture_group_index = 4
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "persia"
+source_id = "persians"
+source_biq = "Conquests/conquests.biq#RACE[12]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Persia"
+source_name = "Persia"
+noun = "Persians"
+adjective = "Persian"
+leader = "Xerxes"
+primary_color_index = 10
+secondary_color_index = 14
+city_style = 3
+starting_techs = ["Bronze Working", "Masonry"]
+legacy_names = ["Persians", "Sunlit Empire"]
+source_race_index = 12
+cities = ["Persepolis", "Pasargadae", "Arbela", "Antioch", "Gordium", "Bactra", "Sidon", "Tyre", "Sardis", "Samaria", "Hamadan", "Ergili", "Dariush Kabir", "Ghulaman", "Zohak", "Istakhr", "Jinjan", "Borazjan", "Herat", "Dakyanus", "Bampur", "Tureng Tepe", "Merv", "Behistun", "Kandahar", "Altin Tepe", "Bunyan", "Charsadda", "Ura Tyube"]
+culture_group_index = 3
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "aztecs"
+source_id = "aztecs"
+source_biq = "Conquests/conquests.biq#RACE[13]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Aztecs"
+source_name = "Aztecs"
+noun = "Aztecs"
+adjective = "Aztec"
+leader = "Montezuma"
+primary_color_index = 4
+secondary_color_index = 4
+city_style = 1
+starting_techs = ["Warrior Code", "Pottery"]
+legacy_names = ["Obsidian Empire"]
+source_race_index = 13
+cities = ["Tenochtitlan", "Teotihuacan", "Tlatelolco", "Texcoco", "Tlaxcala", "Calixtlahuaca", "Xochicalco", "Tlacopan", "Atzcapotzalco", "Tzintzuntzen", "Malinalco", "Tula", "Tamuin", "Teayo", "Cempoala", "Chalco", "Tlalmanalco", "Ixtapaluca", "Huexotla", "Tepexpan", "Tepetlaoxtoc", "Chiconautla", "Zitlaltepec", "Coyotepec", "Tequixquiac", "Jilotzingo", "Tlapanaloya", "Tultitlan", "Ecatepec", "Coatepec", "Chalchihuites", "Chiauhtia", "Chapultepec", "Itzapalapa", "Ayotzinco", "Iztapam"]
+culture_group_index = 0
+expansionist = false
+militaristic = true
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "zululand"
+source_id = "zulus"
+source_biq = "Conquests/conquests.biq#RACE[14]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Zululand"
+source_name = "Zululand"
+noun = "Zulu"
+adjective = "Zulu"
+leader = "Shaka"
+primary_color_index = 3
+secondary_color_index = 16
+city_style = 3
+starting_techs = ["Warrior Code", "Pottery"]
+legacy_names = ["Zulu", "Red Shield"]
+source_race_index = 14
+cities = ["Zimbabwe", "Ulundi", "Bapedi", "Hlobane", "Isandhlwana", "Intombe", "Mpondo", "Ngome", "Swazi", "Tugela", "Umtata", "Umfolozi", "Ibabanago", "Isipezi", "Amatikulu", "Zunguin"]
+culture_group_index = 3
+expansionist = true
+militaristic = true
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations.bonus_units]]
+id = "Scout"
+count = 1
+
+[[civilizations]]
+id = "iroquois"
+source_id = "iroquois"
+source_biq = "Conquests/conquests.biq#RACE[15]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Iroquois"
+source_name = "Iroquois"
+noun = "Iroquois"
+adjective = "Iroquois"
+leader = "Hiawatha"
+primary_color_index = 8
+secondary_color_index = 8
+city_style = 1
+starting_techs = ["Pottery", "Alphabet"]
+legacy_names = ["Haudenosaunee"]
+source_race_index = 15
+cities = ["Salamanca", "Niagara Falls", "Grand River", "Allegheny", "Cattaraugus", "Oil Springs", "Tonawanda", "Mauch Chunk", "St. Regis", "Centralia", "Akwesasne", "Tyendenaga", "Kahnawake", "Caughnawaga", "Oka", "Chondote", "Gandasetaigon", "Ganogeh", "Gayagaahe", "Gewauga", "Goigouen", "Kawauka", "Kente", "Kiohero", "Owego", "Neodakheat", "Oiogouen", "Skannayutenate", "Onnontare"]
+culture_group_index = 0
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "england"
+source_id = "english"
+source_biq = "Conquests/conquests.biq#RACE[16]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "England"
+source_name = "England"
+noun = "English"
+adjective = "English"
+leader = "Elizabeth"
+primary_color_index = 2
+secondary_color_index = 2
+city_style = 2
+starting_techs = ["Alphabet", "Pottery"]
+legacy_names = ["English", "Lion Kingdom"]
+source_race_index = 16
+cities = ["London", "York", "Nottingham", "Hastings", "Canterbury", "Coventry", "Warwick", "Newcastle", "Oxford", "Liverpool", "Dover", "Brighton", "Norwich", "Leeds", "Reading", "Birmingham", "Richmond", "Exeter", "Cambridge", "Gloucester", "Manchester", "Bristol", "Leicester", "Carlisle", "Ipswich", "Portsmouth", "Berwick", "Bath", "The Mumbles"]
+culture_group_index = 1
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "mongols"
+source_id = "mongols"
+source_biq = "Conquests/conquests.biq#RACE[17]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Mongols"
+source_name = "Mongols"
+noun = "Mongols"
+adjective = "Mongol"
+leader = "Temujin"
+primary_color_index = 3
+secondary_color_index = 26
+city_style = 0
+starting_techs = ["Warrior Code", "Pottery"]
+legacy_names = []
+source_race_index = 17
+cities = ["Karakorum", "Ta-Tu", "Kazan", "Almarikh", "Tabriz", "Ulaanbaatar", "Hovd", "Darhan", "Dalandzadgad", "Mandalgovi", "Choybalsan", "Erdenet", "Tsetserleg", "Baruun-Urt", "Ereen", "Batshireet", "Choyr", "Ulaangom", "Tosontsengel", "Atlay", "Uliastay", "Bayanhongor", "Har-Ayrag", "Nalayh", "Tes", "Hutag", "Arvayheer", "Ondorhaan", "Saynshand", "Tumentsogt"]
+culture_group_index = 4
+expansionist = true
+militaristic = true
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations.bonus_units]]
+id = "Scout"
+count = 1
+
+[[civilizations]]
+id = "spain"
+source_id = "spanish"
+source_biq = "Conquests/conquests.biq#RACE[18]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Spain"
+source_name = "Spain"
+noun = "Spanish"
+adjective = "Spanish"
+leader = "Isabella"
+primary_color_index = 5
+secondary_color_index = 20
+city_style = 2
+starting_techs = ["Alphabet", "Ceremonial Burial"]
+legacy_names = ["Spanish"]
+source_race_index = 18
+cities = ["Madrid", "Barcelona", "Seville", "Toledo", "Santiago", "Salamanca", "Murcia", "Valencia", "Zaragoza", "Pamplona", "Vitoria", "Santander", "Asturias", "Jaen", "Logrono", "Valladolid", "Palma", "Cordoba", "Teruel", "Almeria", "Leon", "Zamora", "Mérida", "Lugo", "Alicante", "Cadiz", "Elche", "Alcorcon", "Burgos", "Vigo", "Badajoz"]
+culture_group_index = 1
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "scandinavia"
+source_id = "vikings"
+source_biq = "Conquests/conquests.biq#RACE[19]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Scandinavia"
+source_name = "Scandinavia"
+noun = "Vikings"
+adjective = "Viking"
+leader = "Ragnar Lodbrok"
+primary_color_index = 8
+secondary_color_index = 31
+city_style = 2
+starting_techs = ["Warrior Code", "Alphabet"]
+legacy_names = ["Vikings"]
+source_race_index = 19
+cities = ["Trondheim", "Bergen", "Copenhagen", "Reykjavik", "Oslo", "Stockholm", "Birka", "Aarhus", "Stavanger", "Odense", "Hareid", "Molde", "Alesund", "Bodo", "Karasjok", "Tromso", "Vadso", "Farsund", "Risor", "Fauske", "Karistad", "Batsfjord", "Hammerfest", "Honningsvag", "Svolvaer", "Haugesund", "Sarpsborg", "Lillehammer", "Elverurn", "Falun", "Helsinki", "Keflavik", "Thunderfall"]
+culture_group_index = 1
+expansionist = false
+militaristic = true
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "ottomans"
+source_id = "ottomans"
+source_biq = "Conquests/conquests.biq#RACE[20]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Ottomans"
+source_name = "Ottomans"
+noun = "Ottomans"
+adjective = "Ottoman"
+leader = "Osman"
+primary_color_index = 2
+secondary_color_index = 18
+city_style = 3
+starting_techs = ["Bronze Working", "Masonry"]
+legacy_names = []
+source_race_index = 20
+cities = ["Istanbul", "Edrine", "Bursa", "Iznik", "Uskudar", "Izmit", "Aydin", "Antalya", "Konya", "Sinop", "Kafa", "Ankara", "Salonika", "Mugla", "Denizli", "Bolu", "Urfa", "Bingol", "Riza", "Zonguldak", "Kirklareli", "Karabuk", "Cankiri", "Iskenderun", "Tunceli", "Sivas", "Yozgat", "Tokat", "Van"]
+culture_group_index = 3
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "celts"
+source_id = "celts"
+source_biq = "Conquests/conquests.biq#RACE[21]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Celts"
+source_name = "Celts"
+noun = "Celts"
+adjective = "Celtic"
+leader = "Brennus"
+primary_color_index = 4
+secondary_color_index = 25
+city_style = 2
+starting_techs = ["Pottery", "Ceremonial Burial"]
+legacy_names = []
+source_race_index = 21
+cities = ["Entremont", "Alesia", "Lugdunum", "Camulodunum", "Richborough", "Verulamium", "Gergovia", "Augustodurum", "Agedincum", "Eboracum", "Burdigala", "Cataractonium", "Lapurdum", "Ratae Coritanorum", "Tolosa", "Lindum", "Nemausus", "Curovernum", "Glanum", "Isca", "Segusio", "Rutupiae", "Monguntiacum", "Glevum", "Axima", "Deva", "Lezoux", "Noviomagus", "Arausio", "Durocortorum"]
+culture_group_index = 1
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "arabia"
+source_id = "arabs"
+source_biq = "Conquests/conquests.biq#RACE[22]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Arabia"
+source_name = "Arabia"
+noun = "Arabs"
+adjective = "Arabic"
+leader = "Abu Bakr"
+primary_color_index = 7
+secondary_color_index = 30
+city_style = 3
+starting_techs = ["Pottery", "Ceremonial Burial"]
+legacy_names = ["Arabs"]
+source_race_index = 22
+cities = ["Mecca", "Medina", "Damascus", "Baghdad", "Najran", "Kufah", "Basra", "Khurasan", "Anjar", "Fustat", "Aden", "Yamama", "Muscat", "Mansura", "Bukhara", "Fez", "Shiraz", "Merw", "Balkh", "Mosul", "Aydab", "Bayt Ras", "Suhar", "Taif", "Hama", "Tabuk", "Sana'a", "Shihr"]
+culture_group_index = 3
+expansionist = true
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations.bonus_units]]
+id = "Scout"
+count = 1
+
+[[civilizations]]
+id = "carthage"
+source_id = "carthaginians"
+source_biq = "Conquests/conquests.biq#RACE[23]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Carthage"
+source_name = "Carthage"
+noun = "Carthaginians"
+adjective = "Carthaginian"
+leader = "Hannibal"
+primary_color_index = 9
+secondary_color_index = 11
+city_style = 3
+starting_techs = ["Alphabet", "Masonry"]
+legacy_names = ["Carthaginians"]
+source_race_index = 23
+cities = ["Carthage", "Utica", "Leptis Magna", "Theveste", "Hippo", "Leptis Minor", "Sabratha", "Rusicade", "Oea", "Hadrumetum", "Cadiz", "Cirta", "Nora", "Rusaddir", "Sulcis", "Saldae", "Carthago Novo", "Malaca", "Gades", "Calaris", "Tingis", "Iol", "Rusguniae", "Thaenae", "Rusuccuru", "al-Kaf", "Zouchis", "Gigthis", "Tacape", "Zama"]
+culture_group_index = 2
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "korea"
+source_id = "koreans"
+source_biq = "Conquests/conquests.biq#RACE[24]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Korea"
+source_name = "Korea"
+noun = "Koreans"
+adjective = "Korean"
+leader = "Wang Kon"
+primary_color_index = 6
+secondary_color_index = 19
+city_style = 0
+starting_techs = ["Bronze Working", "Alphabet"]
+legacy_names = ["Koreans"]
+source_race_index = 24
+cities = ["Seoul", "P'yongyang", "Wonsan", "Pusan", "Namp'o", "Cheju", "Hyangsan", "Ulsan", "Inch'on", "Pyongsong", "Taejon", "Paegam", "Manp'o", "Kaesong", "Chonju", "Sariwon", "Suwon", "Haeju", "Taegu", "Chinje", "Tokch'on", "Ch'ongfu", "Taegwon", "Sokch'o", "Hamhung", "Iri", "Huich'on", "Namwon", "Kumgang", "Oijongbu"]
+culture_group_index = 4
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "sumeria"
+source_id = "sumerians"
+source_biq = "Conquests/conquests.biq#RACE[25]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Sumeria"
+source_name = "Sumeria"
+noun = "Sumerians"
+adjective = "Sumerian"
+leader = "Gilgamesh"
+primary_color_index = 5
+secondary_color_index = 20
+city_style = 3
+starting_techs = ["Pottery", "Bronze Working"]
+legacy_names = ["Sumerians"]
+source_race_index = 25
+cities = ["Ur", "Sumer", "Lagash", "Kish", "Umma", "Bad-tibira", "Agade", "Erech", "Isin", "Akshak", "Zabalam", "Kisurra", "Der", "Kua", "Marad", "Kuara", "Kutha", "Nagsu", "Susa", "Tutub", "Kutallu", "Anshan", "Babil", "Apisala", "Dabrum"]
+culture_group_index = 3
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "hittites"
+source_id = "hittites"
+source_biq = "Conquests/conquests.biq#RACE[26]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Hittites"
+source_name = "Hittites"
+noun = "Hittites"
+adjective = "Hittite"
+leader = "Mursilis"
+primary_color_index = 14
+secondary_color_index = 27
+city_style = 3
+starting_techs = ["Pottery", "Alphabet"]
+legacy_names = []
+source_race_index = 26
+cities = ["Hattusas", "Tarsus", "Ugarit", "Harran", "Hattusha", "Tyrana", "Aleppo", "Ankuwa", "Kadesh", "Adana", "Hubishna", "Alaca Huyuk", "Emar", "Alalah", "Ivriz", "Kanesh", "Karhuyuk", "Karatepe", "Kummanni", "Malatya", "Samuha", "Yalburt", "Katna", "Kultepe", "Alisar Huyuk"]
+culture_group_index = 3
+expansionist = true
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations.bonus_units]]
+id = "Scout"
+count = 1
+
+[[civilizations]]
+id = "netherlands"
+source_id = "dutch"
+source_biq = "Conquests/conquests.biq#RACE[27]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Netherlands"
+source_name = "Netherlands"
+noun = "Dutch"
+adjective = "Dutch"
+leader = "William"
+primary_color_index = 2
+secondary_color_index = 18
+city_style = 2
+starting_techs = ["Pottery", "Alphabet"]
+legacy_names = ["Dutch"]
+source_race_index = 27
+cities = ["Amsterdam", "Rotterdam", "The Hague", "Utrecht", "Groningen", "Eindhoven", "Arnhem", "Maastricht", "Haarlem", "Holwerd", "Middelburg", "Delft", "Breda", "Leiden", "Den Helder", "Harlingen", "Lauwersoog", "Enschede", "Tilburg", "Zwolle", "Gouda", "Dordrecht", "Leerdam", "Hilversum", "Roosendaal"]
+culture_group_index = 1
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "portugal"
+source_id = "portuguese"
+source_biq = "Conquests/conquests.biq#RACE[28]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Portugal"
+source_name = "Portugal"
+noun = "Portuguese"
+adjective = "Portuguese"
+leader = "Henry"
+primary_color_index = 8
+secondary_color_index = 17
+city_style = 2
+starting_techs = ["Alphabet", "Pottery"]
+legacy_names = ["Portuguese"]
+source_race_index = 28
+cities = ["Lisbon", "Oporto", "Guimarães", "Lagos", "Emerita", "Sagres", "Coimbra", "Leiria", "Évora", "Braga", "Faro", "Rio Janeiro", "São Paulo", "Luanda", "Alcácer do Sal", "Guarda", "Castelo Branco", "Badajoz", "Lourenço Marques", "Viseu", "São Mamede", "Ourique", "Goa", "Diu", "Tavira", "Cacela", "Alcobaça", "Bissau", "Óbidos", "Nazaré", "Avis", "Praia", "Tomar", "Atoleiros", "Mina", "Pederneira"]
+culture_group_index = 1
+expansionist = true
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations.bonus_units]]
+id = "Scout"
+count = 1
+
+[[civilizations]]
+id = "byzantines"
+source_id = "byzantines"
+source_biq = "Conquests/conquests.biq#RACE[29]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Byzantines"
+source_name = "Byzantines"
+noun = "Byzantines"
+adjective = "Byzantine"
+leader = "Theodora"
+primary_color_index = 11
+secondary_color_index = 1
+city_style = 2
+starting_techs = ["Bronze Working", "Alphabet"]
+legacy_names = []
+source_race_index = 29
+cities = ["Constantinople", "Adrianople", "Caesarea", "Nicaea", "Varna", "Smyrna", "Heraclea", "Trebizond", "Chalcedon", "Sardica", "Naissus", "Dyrrachium", "Septum", "Nicomedia", "Amorium", "Ancyra", "Brusa", "Iconium", "Prilep", "Ohrid", "Vidin", "Samosata", "Ani", "Edessa", "Taormina"]
+culture_group_index = 2
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations]]
+id = "inca"
+source_id = "inca"
+source_biq = "Conquests/conquests.biq#RACE[30]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Inca"
+source_name = "Inca"
+noun = "Inca"
+adjective = "Incan"
+leader = "Pachacuti"
+primary_color_index = 7
+secondary_color_index = 8
+city_style = 1
+starting_techs = ["Pottery", "Masonry"]
+legacy_names = []
+source_race_index = 30
+cities = ["Cuzco", "Tiwanaku", "Machu Picchu", "Ollantaytambo", "Corihuayrachina", "Huamanga", "Vilcas", "Vilcabamba", "Vitcos", "Andahuaylas", "Ica", "Arequipa", "Nasca", "Atico", "Juli", "Chuito", "Chuquiapo", "Huanuco Pampa", "Tamboccocha", "Huaras", "Riobamba", "Caxamalca", "Sausa", "Tambo Colorado", "Huaca"]
+culture_group_index = 0
+expansionist = true
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1
+
+[[civilizations.bonus_units]]
+id = "Chasqui Scout"
+count = 1
+
+[[civilizations]]
+id = "maya"
+source_id = "mayans"
+source_biq = "Conquests/conquests.biq#RACE[31]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Maya"
+source_name = "Maya"
+noun = "Maya"
+adjective = "Mayan"
+leader = "Smoke-Jaguar"
+primary_color_index = 6
+secondary_color_index = 5
+city_style = 1
+starting_techs = ["Masonry", "Pottery"]
+legacy_names = ["Mayans"]
+source_race_index = 31
+cities = ["Chichén Itza", "Copán", "Palenque", "Tikal", "Yaxchilán", "Bonampak", "Lagartero", "Quiriguá", "Calakmul", "Lazapa", "Kaminaljuyú", "Piedras Negras", "Uaxactún", "Cuello", "Tulúm", "Cobá", "Dzibilchaltun", "Uxmal", "Mayapán", "Kabáh", "Aké", "Xcalumkin", "Ek Balam", "Tazumal", "Cozumel"]
+culture_group_index = 0
+expansionist = false
+militaristic = false
+
+[[civilizations.starting_units]]
+id = "Settler"
+count = 1
+
+[[civilizations.starting_units]]
+id = "Worker"
+count = 1

@@ -1,0 +1,5137 @@
+schema_version = 1
+source = "Civilization III: Conquests"
+
+[[buildings]]
+id = "BLDG_Palace"
+source_biq = "Conquests/conquests.biq#BLDG[0]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Palace"
+civilopedia_entry = "BLDG_Palace"
+flags_hex = "01000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Masonry"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 0
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 10
+culture = 1
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Barracks"
+source_biq = "Conquests/conquests.biq#BLDG[1]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Barracks"
+civilopedia_entry = "BLDG_Barracks"
+flags_hex = "02000000020000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = ""
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 1
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 4
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = -1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Granary"
+source_biq = "Conquests/conquests.biq#BLDG[2]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Granary"
+civilopedia_entry = "BLDG_Granary"
+flags_hex = "00020000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Pottery"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 2
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 6
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 3
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Temple"
+source_biq = "Conquests/conquests.biq#BLDG[3]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Temple"
+civilopedia_entry = "BLDG_Temple"
+flags_hex = "00000000000100000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Ceremonial Burial"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 3
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 6
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 1
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 6
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Marketplace"
+source_biq = "Conquests/conquests.biq#BLDG[4]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Marketplace"
+civilopedia_entry = "BLDG_Marketplace"
+flags_hex = "10040000400000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Currency"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 4
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 10
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 17
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Library"
+source_biq = "Conquests/conquests.biq#BLDG[5]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Library"
+civilopedia_entry = "BLDG_Library"
+flags_hex = "04000000200000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Literature"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 5
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 8
+culture = 3
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 13
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Courthouse"
+source_biq = "Conquests/conquests.biq#BLDG[6]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Courthouse"
+civilopedia_entry = "BLDG_Courthouse"
+flags_hex = "80010000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Code of Laws"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 6
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 8
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 12
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Walls"
+source_biq = "Conquests/conquests.biq#BLDG[7]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Walls"
+civilopedia_entry = "BLDG_Walls"
+flags_hex = "00000000020000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Masonry"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 7
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 2
+culture = 0
+bombard_defense = 8
+naval_bombard_defense = 0
+defense_bonus = 50
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Aqueduct"
+source_biq = "Conquests/conquests.biq#BLDG[8]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Aqueduct"
+civilopedia_entry = "BLDG_Aqueduct"
+flags_hex = "00080000000400000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Construction"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 8
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 10
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 20
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Bank"
+source_biq = "Conquests/conquests.biq#BLDG[9]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Bank"
+civilopedia_entry = "BLDG_Bank"
+flags_hex = "10000000400000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Marketplace"
+required_advance_name = "Banking"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 9
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 4
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 31
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Cathedral"
+source_biq = "Conquests/conquests.biq#BLDG[10]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Cathedral"
+civilopedia_entry = "BLDG_Cathedral"
+flags_hex = "00000000000100000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Temple"
+required_advance_name = "Monotheism"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 10
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 3
+cost = 16
+culture = 3
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 3
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 21
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_University"
+source_biq = "Conquests/conquests.biq#BLDG[11]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "University"
+civilopedia_entry = "BLDG_University"
+flags_hex = "04000000200000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Library"
+required_advance_name = "Education"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 11
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 5
+cost = 20
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 29
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Colosseum"
+source_biq = "Conquests/conquests.biq#BLDG[12]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Colosseum"
+civilopedia_entry = "BLDG_Colosseum"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Construction"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 12
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 12
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 2
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 20
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Factory"
+source_biq = "Conquests/conquests.biq#BLDG[13]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Factory"
+civilopedia_entry = "BLDG_Factory"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Industrialization"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Iron"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 13
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 24
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 3
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 2
+production = 2
+required_government = -1
+spaceship_part = -1
+required_advance_index = 47
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Manufacturing_Plant"
+source_biq = "Conquests/conquests.biq#BLDG[14]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Manufacturing Plant"
+civilopedia_entry = "BLDG_Manufacturing_Plant"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Factory"
+required_advance_name = "Robotics"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 14
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 13
+cost = 32
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 3
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 2
+production = 2
+required_government = -1
+spaceship_part = -1
+required_advance_index = 79
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Recycling_Center"
+source_biq = "Conquests/conquests.biq#BLDG[15]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Recycling Center"
+civilopedia_entry = "BLDG_Recycling_Center"
+flags_hex = "40000000000400000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Recycling"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 15
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 20
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 67
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Coal_Plant"
+source_biq = "Conquests/conquests.biq#BLDG[16]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Coal Plant"
+civilopedia_entry = "BLDG_Coal_Plant"
+flags_hex = "00200000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Factory"
+required_advance_name = "Industrialization"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Coal"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 16
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 13
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 3
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 2
+production = 2
+required_government = -1
+spaceship_part = -1
+required_advance_index = 47
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 3
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Hydro_Plant"
+source_biq = "Conquests/conquests.biq#BLDG[17]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Hydro Plant"
+civilopedia_entry = "BLDG_Hydro_Plant"
+flags_hex = "00a00000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Factory"
+required_advance_name = "Electronics"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 17
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 13
+cost = 24
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 3
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 2
+required_government = -1
+spaceship_part = -1
+required_advance_index = 61
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Nuclear_Plant"
+source_biq = "Conquests/conquests.biq#BLDG[18]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Nuclear Plant"
+civilopedia_entry = "BLDG_Nuclear_Plant"
+flags_hex = "00600100000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Factory"
+required_advance_name = "Nuclear Power"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Uranium"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 18
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 13
+cost = 24
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 3
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 4
+required_government = -1
+spaceship_part = -1
+required_advance_index = 69
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 7
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Hospital"
+source_biq = "Conquests/conquests.biq#BLDG[19]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Hospital"
+civilopedia_entry = "BLDG_Hospital"
+flags_hex = "00100000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Sanitation"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 19
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 50
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Lab"
+source_biq = "Conquests/conquests.biq#BLDG[20]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Research Lab"
+civilopedia_entry = "BLDG_Lab"
+flags_hex = "04000000200000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "University"
+required_advance_name = "Computers"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 20
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 11
+cost = 20
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 1
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 66
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Mass_Transit_System"
+source_biq = "Conquests/conquests.biq#BLDG[21]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Mass Transit System"
+civilopedia_entry = "BLDG_Mass_Transit_System"
+flags_hex = "20000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Ecology"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Rubber"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 21
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 20
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 72
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 5
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SAM_Missile_Battery"
+source_biq = "Conquests/conquests.biq#BLDG[22]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SAM Missile Battery"
+civilopedia_entry = "BLDG_SAM_Missile_Battery"
+flags_hex = "00000000020000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Rocketry"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 22
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 8
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 8
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 64
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Coastal_Fortress"
+source_biq = "Conquests/conquests.biq#BLDG[23]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Coastal Fortress"
+civilopedia_entry = "BLDG_Coastal_Fortress"
+flags_hex = "00000000030800000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Metallurgy"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Iron"
+required_resource_2_name = "Saltpeter"
+unit_produced_name = ""
+source_record_index = 23
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 4
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 8
+defense_bonus = 0
+naval_defense_bonus = 50
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 8
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 38
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 1
+required_resource_2_index = 2
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Solar_Plant"
+source_biq = "Conquests/conquests.biq#BLDG[24]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Solar Plant"
+civilopedia_entry = "BLDG_Solar_Plant"
+flags_hex = "00200000000400000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Factory"
+required_advance_name = "Ecology"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 24
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 13
+cost = 32
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 3
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 2
+required_government = -1
+spaceship_part = -1
+required_advance_index = 72
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Harbor"
+source_biq = "Conquests/conquests.biq#BLDG[25]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Harbor"
+civilopedia_entry = "BLDG_Harbor"
+flags_hex = "00001201430800000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Map Making"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 25
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 6
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 14
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Offshore_Platform"
+source_biq = "Conquests/conquests.biq#BLDG[26]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Offshore Platform"
+civilopedia_entry = "BLDG_Offshore_Platform"
+flags_hex = "00008000010800000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Miniaturization"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 26
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 24
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 3
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 2
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 71
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Airport"
+source_biq = "Conquests/conquests.biq#BLDG[27]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Airport"
+civilopedia_entry = "BLDG_Airport"
+flags_hex = "00002400420000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Flight"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 27
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 1
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 58
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Police_Station"
+source_biq = "Conquests/conquests.biq#BLDG[28]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Police Station"
+civilopedia_entry = "BLDG_Police_Station"
+flags_hex = "00014000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Communism"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 28
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 46
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Wealth"
+source_biq = "Conquests/conquests.biq#BLDG[29]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Wealth"
+civilopedia_entry = "BLDG_Wealth"
+flags_hex = "00000800000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = ""
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 29
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 0
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = -1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Pyramids"
+source_biq = "Conquests/conquests.biq#BLDG[30]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Pyramids"
+civilopedia_entry = "BLDG_Pyramids"
+flags_hex = "00000000040700000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Masonry"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 30
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = 2
+required_building_index = -1
+cost = 40
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Hanging_Gardens"
+source_biq = "Conquests/conquests.biq#BLDG[31]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Hanging Gardens"
+civilopedia_entry = "BLDG_Hanging_Gardens"
+flags_hex = "00000000040600000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Monarchy"
+rendered_obsolete_by_advance_name = "Steam Power"
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 31
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 30
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 1
+content_faces = 3
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 19
+rendered_obsolete_by_advance_index = 44
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Colossus"
+source_biq = "Conquests/conquests.biq#BLDG[32]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Colossus"
+civilopedia_entry = "BLDG_Colossus"
+flags_hex = "00000000c50800000000000020000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Bronze Working"
+rendered_obsolete_by_advance_name = "Flight"
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 32
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 20
+culture = 3
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 0
+rendered_obsolete_by_advance_index = 58
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Lighthouse"
+source_biq = "Conquests/conquests.biq#BLDG[33]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Great Lighthouse"
+civilopedia_entry = "BLDG_Lighthouse"
+flags_hex = "00000000c50800000000000009000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Map Making"
+rendered_obsolete_by_advance_name = "Magnetism"
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 33
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 30
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 14
+rendered_obsolete_by_advance_index = 41
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Great_Library"
+source_biq = "Conquests/conquests.biq#BLDG[34]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Great Library"
+civilopedia_entry = "BLDG_Great_Library"
+flags_hex = "00000000240000000000000002000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Literature"
+rendered_obsolete_by_advance_name = "Education"
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 34
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 40
+culture = 6
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 13
+rendered_obsolete_by_advance_index = 29
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Oracle"
+source_biq = "Conquests/conquests.biq#BLDG[35]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Oracle"
+civilopedia_entry = "BLDG_Oracle"
+flags_hex = "00000000040100000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Mysticism"
+rendered_obsolete_by_advance_name = "Theology"
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 35
+doubles_happiness = 3
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 30
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 9
+rendered_obsolete_by_advance_index = 24
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Great_Wall"
+source_biq = "Conquests/conquests.biq#BLDG[36]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Great Wall"
+civilopedia_entry = "BLDG_Great_Wall"
+flags_hex = "00000000060200000000000004000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Construction"
+rendered_obsolete_by_advance_name = "Metallurgy"
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 36
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = 7
+required_building_index = -1
+cost = 30
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 20
+rendered_obsolete_by_advance_index = 38
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Art_of_War"
+source_biq = "Conquests/conquests.biq#BLDG[37]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Sun Tzu's Art of War"
+civilopedia_entry = "BLDG_Art_of_War"
+flags_hex = "00000000060000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Feudalism"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 37
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = 1
+required_building_index = -1
+cost = 60
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 22
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Sistine_Chapel"
+source_biq = "Conquests/conquests.biq#BLDG[38]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Sistine Chapel"
+civilopedia_entry = "BLDG_Sistine_Chapel"
+flags_hex = "00000000040100000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Theology"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 38
+doubles_happiness = 10
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 60
+culture = 6
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 24
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Circumnavigation"
+source_biq = "Conquests/conquests.biq#BLDG[39]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Magellan's Voyage"
+civilopedia_entry = "BLDG_Circumnavigation"
+flags_hex = "00000000c50800000000000008000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Navigation"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 39
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 40
+culture = 3
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 36
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Solar_System"
+source_biq = "Conquests/conquests.biq#BLDG[40]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Copernicus' Observatory"
+civilopedia_entry = "BLDG_Solar_System"
+flags_hex = "00000000840000000000000010000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Astronomy"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 40
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 40
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 32
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Great_Playhouse"
+source_biq = "Conquests/conquests.biq#BLDG[41]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Shakespeare's Theater"
+civilopedia_entry = "BLDG_Great_Playhouse"
+flags_hex = "00100000040000000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Free Artistry"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 41
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 45
+culture = 8
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 8
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 39
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Inventor's_Workshop"
+source_biq = "Conquests/conquests.biq#BLDG[42]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Leonardo's Workshop"
+civilopedia_entry = "BLDG_Inventor's_Workshop"
+flags_hex = "00000000060000000000000040000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Invention"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 42
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 60
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 26
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Grand_Cathedral"
+source_biq = "Conquests/conquests.biq#BLDG[43]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "JS Bach's Cathedral"
+civilopedia_entry = "BLDG_Grand_Cathedral"
+flags_hex = "00000000140100000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Music Theory"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 43
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 60
+culture = 6
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 2
+content_faces = 2
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 28
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Great_University"
+source_biq = "Conquests/conquests.biq#BLDG[44]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Newton's University"
+civilopedia_entry = "BLDG_Great_University"
+flags_hex = "00000000240000000000000010000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Theory of Gravity"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 44
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 40
+culture = 6
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 40
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Trading_Company"
+source_biq = "Conquests/conquests.biq#BLDG[45]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Smith's Trading Company"
+civilopedia_entry = "BLDG_Trading_Company"
+flags_hex = "00000000440800000000000080000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Economics"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 45
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 60
+culture = 3
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 35
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Universal_Suffrage"
+source_biq = "Conquests/conquests.biq#BLDG[46]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Universal Suffrage"
+civilopedia_entry = "BLDG_Universal_Suffrage"
+flags_hex = "00000000040400000000000000080000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Industrialization"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 46
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 80
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 47
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Hoover_Dam"
+source_biq = "Conquests/conquests.biq#BLDG[47]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Hoover Dam"
+civilopedia_entry = "BLDG_Hoover_Dam"
+flags_hex = "00800000040600000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Electronics"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 47
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = 17
+required_building_index = -1
+cost = 80
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 61
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Theory_of_Evolution"
+source_biq = "Conquests/conquests.biq#BLDG[48]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Theory of Evolution"
+civilopedia_entry = "BLDG_Theory_of_Evolution"
+flags_hex = "00000000240000000000000000040000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Scientific Method"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 48
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 60
+culture = 3
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 49
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_United_Nations"
+source_biq = "Conquests/conquests.biq#BLDG[49]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The United Nations"
+civilopedia_entry = "BLDG_United_Nations"
+flags_hex = "00000000440000000000000000200200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Fission"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 49
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 100
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 65
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Manhattan_Project"
+source_biq = "Conquests/conquests.biq#BLDG[50]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Manhattan Project"
+civilopedia_entry = "BLDG_Manhattan_Project"
+flags_hex = "00000000060200000000000000010000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Fission"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Uranium"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 50
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 80
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 65
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 7
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Cure_for_Cancer"
+source_biq = "Conquests/conquests.biq#BLDG[51]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Cure for Cancer"
+civilopedia_entry = "BLDG_Cure_for_Cancer"
+flags_hex = "00000000240400000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Genetics"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 51
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 100
+culture = 3
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 1
+content_faces = 1
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 76
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Longevity"
+source_biq = "Conquests/conquests.biq#BLDG[52]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Longevity"
+civilopedia_entry = "BLDG_Longevity"
+flags_hex = "00000000240000000000000000020000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Genetics"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 52
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 100
+culture = 3
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 76
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SETI_Program"
+source_biq = "Conquests/conquests.biq#BLDG[53]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SETI program"
+civilopedia_entry = "BLDG_SETI_Program"
+flags_hex = "00000000840000000000000010000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Computers"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 53
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 100
+culture = 3
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 66
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Epic"
+source_biq = "Conquests/conquests.biq#BLDG[54]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Heroic Epic"
+civilopedia_entry = "BLDG_Epic"
+flags_hex = "00000000080900000104000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = ""
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 54
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 20
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = -1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Great_Ironworks"
+source_biq = "Conquests/conquests.biq#BLDG[55]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Iron Works"
+civilopedia_entry = "BLDG_Great_Ironworks"
+flags_hex = "00000080080000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = ""
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Iron"
+required_resource_2_name = "Coal"
+unit_produced_name = ""
+source_record_index = 55
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 30
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 4
+production = 4
+required_government = -1
+spaceship_part = -1
+required_advance_index = -1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 1
+required_resource_2_index = 3
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Forbidden_Palace"
+source_biq = "Conquests/conquests.biq#BLDG[56]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Forbidden Palace"
+civilopedia_entry = "BLDG_Forbidden_Palace"
+flags_hex = "00000000080100002000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = ""
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 56
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 20
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = -1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Military_Academy"
+source_biq = "Conquests/conquests.biq#BLDG[57]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Military Academy"
+civilopedia_entry = "BLDG_Military_Academy"
+flags_hex = "000000000a0000000204000000000100"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Military Tradition"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 57
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 40
+culture = 1
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 42
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Pentagon"
+source_biq = "Conquests/conquests.biq#BLDG[58]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Pentagon"
+civilopedia_entry = "BLDG_Pentagon"
+flags_hex = "000000000a0000000400000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = ""
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 58
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 40
+culture = 1
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = -1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 3
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Wall_Street"
+source_biq = "Conquests/conquests.biq#BLDG[59]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Wall Street"
+civilopedia_entry = "BLDG_Wall_Street"
+flags_hex = "00000000080000000800000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Stock Exchange"
+required_advance_name = ""
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 59
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 76
+cost = 30
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 5
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = -1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Apollo_Project"
+source_biq = "Conquests/conquests.biq#BLDG[60]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Apollo Program"
+civilopedia_entry = "BLDG_Apollo_Project"
+flags_hex = "00000000280000001000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Space Flight"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 60
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 50
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 68
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SDI"
+source_biq = "Conquests/conquests.biq#BLDG[61]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Strategic Missile Defense"
+civilopedia_entry = "BLDG_SDI"
+flags_hex = "000000000a0000004000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "SAM Missile Battery"
+required_advance_name = "Integrated Defense"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 61
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 22
+cost = 50
+culture = 1
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 5
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 80
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Intelligence_Center"
+source_biq = "Conquests/conquests.biq#BLDG[62]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Intelligence Agency"
+civilopedia_entry = "BLDG_Intelligence_Center"
+flags_hex = "000000002a0000008000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Espionage"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 62
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 40
+culture = 1
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 51
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Battlefield_Medicine"
+source_biq = "Conquests/conquests.biq#BLDG[63]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Battlefield Medicine"
+civilopedia_entry = "BLDG_Battlefield_Medicine"
+flags_hex = "000000000a0000000001000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Hospital"
+required_advance_name = ""
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 63
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 19
+cost = 50
+culture = 1
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 5
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = -1
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Thrusters"
+source_biq = "Conquests/conquests.biq#BLDG[64]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Thrusters"
+civilopedia_entry = "BLDG_SS_Thrusters"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Satellites"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 64
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 32
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 0
+required_advance_index = 74
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Engine"
+source_biq = "Conquests/conquests.biq#BLDG[65]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Engine"
+civilopedia_entry = "BLDG_SS_Engine"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Space Flight"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 65
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 64
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 1
+required_advance_index = 68
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Landing_Docking_Bay"
+source_biq = "Conquests/conquests.biq#BLDG[66]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Docking Bay"
+civilopedia_entry = "BLDG_SS_Landing_Docking_Bay"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Space Flight"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 66
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 2
+required_advance_index = 68
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Cockpit"
+source_biq = "Conquests/conquests.biq#BLDG[67]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Cockpit"
+civilopedia_entry = "BLDG_SS_Cockpit"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Space Flight"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 67
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 32
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 3
+required_advance_index = 68
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Fuel_Cells"
+source_biq = "Conquests/conquests.biq#BLDG[68]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Fuel Cells"
+civilopedia_entry = "BLDG_SS_Fuel_Cells"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Superconductor"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Uranium"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 68
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 4
+required_advance_index = 70
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 7
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Life_Support_System"
+source_biq = "Conquests/conquests.biq#BLDG[69]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Life Support System"
+civilopedia_entry = "BLDG_SS_Life_Support_System"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Superconductor"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 69
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 32
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 5
+required_advance_index = 70
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Stasis_Chamber"
+source_biq = "Conquests/conquests.biq#BLDG[70]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Stasis Chamber"
+civilopedia_entry = "BLDG_SS_Stasis_Chamber"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Robotics"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = "Uranium"
+unit_produced_name = ""
+source_record_index = 70
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 32
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 6
+required_advance_index = 79
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = 7
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Storage_Supply"
+source_biq = "Conquests/conquests.biq#BLDG[71]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Storage/Supply"
+civilopedia_entry = "BLDG_SS_Storage_Supply"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Synthetic Fibers"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 71
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 7
+required_advance_index = 73
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Planetary_Party_Lounge"
+source_biq = "Conquests/conquests.biq#BLDG[72]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Planetary Party Lounge"
+civilopedia_entry = "BLDG_SS_Planetary_Party_Lounge"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "The Laser"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 72
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 8
+required_advance_index = 75
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_SS_Exterior_Casing"
+source_biq = "Conquests/conquests.biq#BLDG[73]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "SS Exterior Casing"
+civilopedia_entry = "BLDG_SS_Exterior_Casing"
+flags_hex = "00000000000000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Synthetic Fibers"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = "Aluminum"
+required_resource_2_name = "Rubber"
+unit_produced_name = ""
+source_record_index = 73
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 64
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = 9
+required_advance_index = 73
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = 6
+required_resource_2_index = 5
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Internet"
+source_biq = "Conquests/conquests.biq#BLDG[74]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Internet"
+civilopedia_entry = "BLDG_Internet"
+flags_hex = "00000000e60f00000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Miniaturization"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 74
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = 20
+required_building_index = -1
+cost = 100
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 71
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Civil_Defense"
+source_biq = "Conquests/conquests.biq#BLDG[75]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Civil Defense"
+civilopedia_entry = "BLDG_Civil_Defense"
+flags_hex = "00000000020000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Barracks"
+required_advance_name = "Electronics"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 75
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 1
+cost = 12
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 50
+naval_defense_bonus = 0
+maintenance_cost = 1
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 61
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Stock_Exchange"
+source_biq = "Conquests/conquests.biq#BLDG[76]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Stock Exchange"
+civilopedia_entry = "BLDG_Stock_Exchange"
+flags_hex = "10000000400000000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Bank"
+required_advance_name = "The Corporation"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 76
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 9
+cost = 20
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 3
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 52
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Commercial_Dock"
+source_biq = "Conquests/conquests.biq#BLDG[77]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Commercial Dock"
+civilopedia_entry = "BLDG_Commercial_Dock"
+flags_hex = "00000002400800000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = "Harbor"
+required_advance_name = "Mass Production"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 77
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = 25
+cost = 16
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 2
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 1
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 60
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Artemis"
+source_biq = "Conquests/conquests.biq#BLDG[78]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Temple of Artemis"
+civilopedia_entry = "BLDG_Artemis"
+flags_hex = "00000000040100000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Polytheism"
+rendered_obsolete_by_advance_name = "Education"
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 78
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = 3
+required_building_index = -1
+cost = 50
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 16
+rendered_obsolete_by_advance_index = 29
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Zeus"
+source_biq = "Conquests/conquests.biq#BLDG[79]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Statue of Zeus"
+civilopedia_entry = "BLDG_Zeus"
+flags_hex = "00000040060100000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Mathematics"
+rendered_obsolete_by_advance_name = "Metallurgy"
+required_resource_1_name = "Ivory"
+required_resource_2_name = ""
+unit_produced_name = "Ancient Cavalry"
+source_record_index = 79
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 20
+culture = 4
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 10
+rendered_obsolete_by_advance_index = 38
+required_resource_1_index = 13
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = 118
+unit_frequency = 5
+
+[[buildings]]
+id = "BLDG_Mausoleum"
+source_biq = "Conquests/conquests.biq#BLDG[80]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "The Mausoleum of Mausollos"
+civilopedia_entry = "BLDG_Mausoleum"
+flags_hex = "00000000240800000000000000000200"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Philosophy"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 80
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 20
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 3
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 11
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[buildings]]
+id = "BLDG_Knights_Templar"
+source_biq = "Conquests/conquests.biq#BLDG[81]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Knights Templar"
+civilopedia_entry = "BLDG_Knights_Templar"
+flags_hex = "00000040060100000000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Chivalry"
+rendered_obsolete_by_advance_name = "Steam Power"
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = "Crusader"
+source_record_index = 81
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 30
+culture = 2
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = -1
+spaceship_part = -1
+required_advance_index = 25
+rendered_obsolete_by_advance_index = 44
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = 117
+unit_frequency = 5
+
+[[buildings]]
+id = "BLDG_Secret_Police_HQ"
+source_biq = "Conquests/conquests.biq#BLDG[82]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+name = "Secret Police HQ"
+civilopedia_entry = "BLDG_Secret_Police_HQ"
+flags_hex = "00000000080000002000000000000000"
+unknown_tail_hex = "04000000"
+required_building_name = ""
+required_advance_name = "Espionage"
+rendered_obsolete_by_advance_name = ""
+required_resource_1_name = ""
+required_resource_2_name = ""
+unit_produced_name = ""
+source_record_index = 82
+doubles_happiness = -1
+gain_in_every_city = -1
+gain_in_every_city_on_continent = -1
+required_building_index = -1
+cost = 20
+culture = 0
+bombard_defense = 0
+naval_bombard_defense = 0
+defense_bonus = 0
+naval_defense_bonus = 0
+maintenance_cost = 0
+content_faces_all_cities = 0
+content_faces = 0
+unhappy_faces_all_cities = 0
+unhappy_faces = 0
+number_of_required_buildings = 1
+air_power = 0
+naval_power = 0
+pollution = 0
+production = 0
+required_government = 3
+spaceship_part = -1
+required_advance_index = 51
+rendered_obsolete_by_advance_index = -1
+required_resource_1_index = -1
+required_resource_2_index = -1
+number_of_armies_required = 0
+flavors = 0
+unit_produced_index = -1
+unit_frequency = 1
+
+[[bindings]]
+civ3_id = "BLDG_Palace"
+source_record_index = 0
+legacy_runtime_index = 23
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Barracks"
+source_record_index = 1
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Granary"
+source_record_index = 2
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Temple"
+source_record_index = 3
+legacy_runtime_index = 40
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Marketplace"
+source_record_index = 4
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Library"
+source_record_index = 5
+legacy_runtime_index = 17
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Courthouse"
+source_record_index = 6
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Walls"
+source_record_index = 7
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Aqueduct"
+source_record_index = 8
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Bank"
+source_record_index = 9
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Cathedral"
+source_record_index = 10
+legacy_runtime_index = 8
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_University"
+source_record_index = 11
+legacy_runtime_index = 41
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Colosseum"
+source_record_index = 12
+legacy_runtime_index = 73
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Factory"
+source_record_index = 13
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Manufacturing_Plant"
+source_record_index = 14
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Recycling_Center"
+source_record_index = 15
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Coal_Plant"
+source_record_index = 16
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Hydro_Plant"
+source_record_index = 17
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Nuclear_Plant"
+source_record_index = 18
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Hospital"
+source_record_index = 19
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Lab"
+source_record_index = 20
+legacy_runtime_index = 29
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Mass_Transit_System"
+source_record_index = 21
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SAM_Missile_Battery"
+source_record_index = 22
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Coastal_Fortress"
+source_record_index = 23
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Solar_Plant"
+source_record_index = 24
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Harbor"
+source_record_index = 25
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Offshore_Platform"
+source_record_index = 26
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Airport"
+source_record_index = 27
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Police_Station"
+source_record_index = 28
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Wealth"
+source_record_index = 29
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Pyramids"
+source_record_index = 30
+legacy_runtime_index = 65
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Hanging_Gardens"
+source_record_index = 31
+legacy_runtime_index = 51
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Colossus"
+source_record_index = 32
+legacy_runtime_index = 44
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Lighthouse"
+source_record_index = 33
+legacy_runtime_index = 57
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Great_Library"
+source_record_index = 34
+legacy_runtime_index = 49
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Oracle"
+source_record_index = 35
+legacy_runtime_index = 76
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Great_Wall"
+source_record_index = 36
+legacy_runtime_index = 50
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Art_of_War"
+source_record_index = 37
+legacy_runtime_index = 69
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Sistine_Chapel"
+source_record_index = 38
+legacy_runtime_index = 88
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Circumnavigation"
+source_record_index = 39
+legacy_runtime_index = 58
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Solar_System"
+source_record_index = 40
+legacy_runtime_index = 45
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Great_Playhouse"
+source_record_index = 41
+legacy_runtime_index = 67
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Inventor's_Workshop"
+source_record_index = 42
+legacy_runtime_index = 56
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Grand_Cathedral"
+source_record_index = 43
+legacy_runtime_index = 54
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Great_University"
+source_record_index = 44
+legacy_runtime_index = 53
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Trading_Company"
+source_record_index = 45
+legacy_runtime_index = 43
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Universal_Suffrage"
+source_record_index = 46
+legacy_runtime_index = 78
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Hoover_Dam"
+source_record_index = 47
+legacy_runtime_index = 52
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Theory_of_Evolution"
+source_record_index = 48
+legacy_runtime_index = 77
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_United_Nations"
+source_record_index = 49
+legacy_runtime_index = 70
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Manhattan_Project"
+source_record_index = 50
+legacy_runtime_index = 59
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Cure_for_Cancer"
+source_record_index = 51
+legacy_runtime_index = 46
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Longevity"
+source_record_index = 52
+legacy_runtime_index = 75
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_SETI_Program"
+source_record_index = 53
+legacy_runtime_index = 79
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Epic"
+source_record_index = 54
+legacy_runtime_index = 81
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Great_Ironworks"
+source_record_index = 55
+legacy_runtime_index = 82
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Forbidden_Palace"
+source_record_index = 56
+legacy_runtime_index = 80
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Military_Academy"
+source_record_index = 57
+legacy_runtime_index = 83
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Pentagon"
+source_record_index = 58
+legacy_runtime_index = 84
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Wall_Street"
+source_record_index = 59
+legacy_runtime_index = 85
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Apollo_Project"
+source_record_index = 60
+legacy_runtime_index = 42
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_SDI"
+source_record_index = 61
+legacy_runtime_index = 31
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Intelligence_Center"
+source_record_index = 62
+legacy_runtime_index = 86
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Battlefield_Medicine"
+source_record_index = 63
+legacy_runtime_index = 87
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_SS_Thrusters"
+source_record_index = 64
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SS_Engine"
+source_record_index = 65
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SS_Landing_Docking_Bay"
+source_record_index = 66
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SS_Cockpit"
+source_record_index = 67
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SS_Fuel_Cells"
+source_record_index = 68
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SS_Life_Support_System"
+source_record_index = 69
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SS_Stasis_Chamber"
+source_record_index = 70
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SS_Storage_Supply"
+source_record_index = 71
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SS_Planetary_Party_Lounge"
+source_record_index = 72
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_SS_Exterior_Casing"
+source_record_index = 73
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Internet"
+source_record_index = 74
+legacy_runtime_index = 66
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Civil_Defense"
+source_record_index = 75
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Stock_Exchange"
+source_record_index = 76
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Commercial_Dock"
+source_record_index = 77
+legacy_runtime_index = -1
+mapping_status = "unmapped"
+mapping_note = "No legacy Building wrapper has been assigned to this BIQ record."
+
+[[bindings]]
+civ3_id = "BLDG_Artemis"
+source_record_index = 78
+legacy_runtime_index = 64
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Zeus"
+source_record_index = 79
+legacy_runtime_index = 63
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Mausoleum"
+source_record_index = 80
+legacy_runtime_index = 62
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Knights_Templar"
+source_record_index = 81
+legacy_runtime_index = 89
+mapping_status = "mapped"
+mapping_note = ""
+
+[[bindings]]
+civ3_id = "BLDG_Secret_Police_HQ"
+source_record_index = 82
+legacy_runtime_index = 90
+mapping_status = "mapped"
+mapping_note = ""
+
+[[rules]]
+legacy_runtime_index = 0
+name = "Airport"
+genus = "Improvement"
+cost = 120
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, value = 29 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 1
+name = "Aqueduct"
+genus = "Improvement"
+cost = 60
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 18 }, { kind = "River", present = false }, { kind = "Lake", present = false }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 2
+name = "Aqueduct, Lake"
+genus = "Improvement"
+cost = 20
+upkeep = 0
+requirements = [{ kind = "Lake", present = true }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 3
+name = "Aqueduct, River"
+genus = "Improvement"
+cost = 20
+upkeep = 0
+requirements = [{ kind = "River", present = true }, { kind = "Lake", present = false }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 4
+name = "Bank"
+genus = "Improvement"
+cost = 80
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 6 }, { kind = "Improvement", present = true, value = 18 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 5
+name = "Barracks"
+genus = "Improvement"
+cost = 30
+upkeep = 1
+requirements = []
+obsolete = [{ kind = "Tech", present = true, value = 33 }, { kind = "Improvement", present = true, value = 6 }, { kind = "Improvement", present = true, value = 7 }]
+
+[[rules]]
+legacy_runtime_index = 6
+name = "Barracks II"
+genus = "Improvement"
+cost = 30
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 33 }]
+obsolete = [{ kind = "Tech", present = true, value = 51 }, { kind = "Improvement", present = true, value = 7 }]
+
+[[rules]]
+legacy_runtime_index = 7
+name = "Barracks III"
+genus = "Improvement"
+cost = 30
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 51 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 8
+name = "Cathedral"
+genus = "Improvement"
+cost = 80
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, value = 53 }, { kind = "Improvement", present = true, value = 40 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 9
+name = "City Walls"
+genus = "Improvement"
+cost = 30
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 45 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 10
+name = "Coastal Defense"
+genus = "Improvement"
+cost = 60
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 49 }, { kind = "Water", present = true }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 11
+name = "Amphitheater"
+genus = "Improvement"
+cost = 70
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, value = 18 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 12
+name = "Courthouse"
+genus = "Improvement"
+cost = 60
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 12 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 13
+name = "Factory"
+genus = "Improvement"
+cost = 140
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, value = 35 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 14
+name = "Granary"
+genus = "Improvement"
+cost = 40
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 62 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 15
+name = "Harbor"
+genus = "Improvement"
+cost = 40
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 44 }, { kind = "Sea", present = true }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 16
+name = "Hydro Plant"
+genus = "Improvement"
+cost = 180
+upkeep = 4
+requirements = [{ kind = "Tech", present = true, value = 23 }, { kind = "Improvement", present = true, value = 13 }, { kind = "River", present = true }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 17
+name = "Library"
+genus = "Improvement"
+cost = 60
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 90 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 18
+name = "Marketplace"
+genus = "Improvement"
+cost = 60
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 19 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 19
+name = "Mass Transit"
+genus = "Improvement"
+cost = 120
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 25 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 20
+name = "Mfg. Plant"
+genus = "Improvement"
+cost = 220
+upkeep = 4
+requirements = [{ kind = "Tech", present = true, value = 68 }, { kind = "Improvement", present = true, value = 13 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 21
+name = "Nuclear Plant"
+genus = "Improvement"
+cost = 240
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 57 }, { kind = "Improvement", present = true, value = 13 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 22
+name = "Offshore Platform"
+genus = "Improvement"
+cost = 120
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, value = 50 }, { kind = "Water", present = true }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 23
+name = "Palace"
+genus = "SmallWonder"
+cost = 70
+upkeep = 0
+requirements = []
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 24
+name = "Ecclesiastical Palace"
+genus = "SmallWonder"
+cost = 140
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 81 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 25
+name = "Police Station"
+genus = "Improvement"
+cost = 50
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 15 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 26
+name = "Port Facility"
+genus = "Improvement"
+cost = 60
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 2 }, { kind = "Water", present = true }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 27
+name = "Power Plant"
+genus = "Improvement"
+cost = 130
+upkeep = 4
+requirements = [{ kind = "Tech", present = true, value = 35 }, { kind = "Improvement", present = true, value = 13 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 28
+name = "Recycling Center"
+genus = "Improvement"
+cost = 140
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 65 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 29
+name = "Research Lab"
+genus = "Improvement"
+cost = 120
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, value = 16 }, { kind = "Improvement", present = true, value = 41 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 30
+name = "SAM Battery"
+genus = "Improvement"
+cost = 70
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 69 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 31
+name = "SDI Defense"
+genus = "SmallWonder"
+cost = 140
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, value = 89 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 32
+name = "Sewer System"
+genus = "Improvement"
+cost = 80
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 70 }, { kind = "MinSize", present = true, value = 9 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 33
+name = "Solar Plant"
+genus = "Improvement"
+cost = 320
+upkeep = 4
+requirements = [{ kind = "Tech", present = true, value = 25 }, { kind = "Improvement", present = true, value = 13 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 34
+name = "Space Component"
+genus = "Special"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 76 }, { kind = "Improvement", present = true, value = 13 }, { kind = "Improvement", present = true, value = 17 }, { kind = "Improvement", present = true, value = 41 }, { kind = "Improvement", present = true, value = 29 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 35
+name = "Space Module"
+genus = "Special"
+cost = 600
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 25 }, { kind = "Improvement", present = true, value = 13 }, { kind = "Improvement", present = true, value = 17 }, { kind = "Improvement", present = true, value = 41 }, { kind = "Improvement", present = true, value = 29 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 36
+name = "Space Structural"
+genus = "Special"
+cost = 150
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 72 }, { kind = "Improvement", present = true, value = 13 }, { kind = "Improvement", present = true, value = 17 }, { kind = "Improvement", present = true, value = 41 }, { kind = "Improvement", present = true, value = 29 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 37
+name = "Stock Exchange"
+genus = "Improvement"
+cost = 120
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 21 }, { kind = "Improvement", present = true, value = 4 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 38
+name = "Super Highways"
+genus = "Improvement"
+cost = 120
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, value = 5 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 39
+name = "Supermarket"
+genus = "Improvement"
+cost = 80
+upkeep = 3
+requirements = [{ kind = "Tech", present = true, value = 70 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 40
+name = "Temple"
+genus = "Improvement"
+cost = 30
+upkeep = 1
+requirements = [{ kind = "Tech", present = true, value = 9 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 41
+name = "University"
+genus = "Improvement"
+cost = 120
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 84 }, { kind = "Improvement", present = true, value = 17 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 42
+name = "Apollo Program"
+genus = "SmallWonder"
+cost = 600
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 72 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 43
+name = "A.Smith's Trading Co."
+genus = "GreatWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 21 }, { kind = "Improvement", present = true, value = 37 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 44
+name = "Colossus"
+genus = "GreatWonder"
+cost = 200
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 8 }]
+obsolete = [{ kind = "Tech", present = true, value = 29 }]
+
+[[rules]]
+legacy_runtime_index = 45
+name = "Copernicus' Observatory"
+genus = "GreatWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 3 }]
+obsolete = [{ kind = "Tech", present = true, value = 16 }]
+
+[[rules]]
+legacy_runtime_index = 46
+name = "Cure For Cancer"
+genus = "GreatWonder"
+cost = 600
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 88 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 47
+name = "Darwin's Voyage"
+genus = "GreatWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 74 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 48
+name = "Eiffel Tower"
+genus = "GreatWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 64 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 49
+name = "Great Library"
+genus = "GreatWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 90 }, { kind = "Improvement", present = true, value = 17 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 50
+name = "Great Wall"
+genus = "GreatWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 18 }]
+obsolete = [{ kind = "Tech", present = true, value = 49 }]
+
+[[rules]]
+legacy_runtime_index = 51
+name = "Hanging Gardens"
+genus = "GreatWonder"
+cost = 200
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 52 }]
+obsolete = [{ kind = "Tech", present = true, value = 97 }]
+
+[[rules]]
+legacy_runtime_index = 52
+name = "Hoover Dam"
+genus = "GreatWonder"
+cost = 600
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 23 }, { kind = "River", present = true }, { kind = "Improvement", present = true, value = 13 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 53
+name = "Isaac Newton's College"
+genus = "GreatWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 82 }, { kind = "Improvement", present = true, value = 41 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 54
+name = "J.S. Bach's Cathedral"
+genus = "GreatWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 92 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 55
+name = "King Richard's Crusade"
+genus = "GreatWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 11 }]
+obsolete = [{ kind = "Tech", present = true, value = 15 }]
+
+[[rules]]
+legacy_runtime_index = 56
+name = "Leonardo's Workshop"
+genus = "GreatWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 36 }]
+obsolete = [{ kind = "Tech", present = true, value = 14 }]
+
+[[rules]]
+legacy_runtime_index = 57
+name = "Lighthouse"
+genus = "GreatWonder"
+cost = 200
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 44 }, { kind = "Sea", present = true }]
+obsolete = [{ kind = "Tech", present = true, value = 43 }]
+
+[[rules]]
+legacy_runtime_index = 58
+name = "Magellan's Expedition"
+genus = "GreatWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 55 }, { kind = "Sea", present = true }]
+obsolete = [{ kind = "Tech", present = true, value = 57 }]
+
+[[rules]]
+legacy_runtime_index = 59
+name = "Manhattan Project"
+genus = "GreatWonder"
+cost = 600
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 56 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 60
+name = "Marco Polo's Embassy"
+genus = "GreatWonder"
+cost = 200
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 83 }]
+obsolete = [{ kind = "Tech", present = true, value = 20 }]
+
+[[rules]]
+legacy_runtime_index = 61
+name = "Michelangelo's Chapel"
+genus = "GreatWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 81 }, { kind = "Improvement", present = true, value = 8 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 62
+name = "Mausoleum of Mausolos"
+genus = "GreatWonder"
+cost = 200
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 58 }]
+obsolete = [{ kind = "Tech", present = true, value = 70 }]
+
+[[rules]]
+legacy_runtime_index = 63
+name = "Statue of Zeus"
+genus = "GreatWonder"
+cost = 200
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 47 }]
+obsolete = [{ kind = "Tech", present = true, value = 49 }]
+
+[[rules]]
+legacy_runtime_index = 64
+name = "Temple of Artemis"
+genus = "GreatWonder"
+cost = 200
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 61 }, { kind = "Improvement", present = true, value = 40 }]
+obsolete = [{ kind = "Tech", present = true, value = 84 }]
+
+[[rules]]
+legacy_runtime_index = 65
+name = "Pyramids"
+genus = "GreatWonder"
+cost = 200
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 45 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 66
+name = "Internet"
+genus = "GreatWonder"
+cost = 600
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 16 }, { kind = "Improvement", present = true, value = 29 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 67
+name = "Shakespeare's Theater"
+genus = "GreatWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 87 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 68
+name = "Statue of Liberty"
+genus = "GreatWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 20 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 69
+name = "Sun Tzu's War Academy"
+genus = "GreatWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 28 }]
+obsolete = [{ kind = "Tech", present = true, value = 51 }]
+
+[[rules]]
+legacy_runtime_index = 70
+name = "United Nations"
+genus = "GreatWonder"
+cost = 600
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 56 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 71
+name = "Women's Suffrage"
+genus = "GreatWonder"
+cost = 600
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 17 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 72
+name = "Coinage"
+genus = "Convert"
+cost = 999
+upkeep = 0
+requirements = []
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 73
+name = "Colosseum"
+genus = "Improvement"
+cost = 100
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 18 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 74
+name = "Hospital"
+genus = "Improvement"
+cost = 160
+upkeep = 2
+requirements = [{ kind = "Tech", present = true, value = 70 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 75
+name = "Longevity"
+genus = "GreatWonder"
+cost = 700
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 88 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 76
+name = "Oracle"
+genus = "GreatWonder"
+cost = 260
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 54 }]
+obsolete = [{ kind = "Tech", present = true, value = 81 }]
+
+[[rules]]
+legacy_runtime_index = 77
+name = "Theory of Evolution"
+genus = "GreatWonder"
+cost = 550
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 96 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 78
+name = "Universal Suffrage"
+genus = "GreatWonder"
+cost = 580
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 35 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 79
+name = "SETI Program"
+genus = "GreatWonder"
+cost = 700
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 16 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 80
+name = "Forbidden Palace"
+genus = "SmallWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "OwnerCityCount", present = true, value = 8 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 81
+name = "Heroic Epic"
+genus = "SmallWonder"
+cost = 200
+upkeep = 0
+requirements = []
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 82
+name = "Iron Works"
+genus = "SmallWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Resource", present = true, value = 1 }, { kind = "Resource", present = true, value = 3 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 83
+name = "Military Academy"
+genus = "SmallWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 91 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 84
+name = "Pentagon"
+genus = "SmallWonder"
+cost = 400
+upkeep = 0
+requirements = []
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 85
+name = "Wall Street"
+genus = "SmallWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "OwnerBuildingCount", present = true, value = 4, second_value = 5 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 86
+name = "Intelligence Agency"
+genus = "SmallWonder"
+cost = 400
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 26 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 87
+name = "Battlefield Medicine"
+genus = "SmallWonder"
+cost = 500
+upkeep = 0
+requirements = [{ kind = "OwnerBuildingCount", present = true, value = 74, second_value = 5 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 88
+name = "Sistine Chapel"
+genus = "GreatWonder"
+cost = 600
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 81 }]
+obsolete = []
+
+[[rules]]
+legacy_runtime_index = 89
+name = "Knights Templar"
+genus = "GreatWonder"
+cost = 300
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 11 }]
+obsolete = [{ kind = "Tech", present = true, value = 97 }]
+
+[[rules]]
+legacy_runtime_index = 90
+name = "Secret Police HQ"
+genus = "SmallWonder"
+cost = 20
+upkeep = 0
+requirements = [{ kind = "Tech", present = true, value = 26 }]
+obsolete = []

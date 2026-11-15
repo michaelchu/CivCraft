@@ -164,7 +164,6 @@ impl super::Simulation {
         let _profile = profiler.scope("government.score_evaluation");
         let original = self.players[owner].government;
         let rates = self.players[owner].rates;
-        let catalog = super::campaign_government_catalog();
         let city_ids: Vec<_> = self
             .player_cities_ordered(owner)
             .map(|city| city.id)
@@ -175,7 +174,7 @@ impl super::Simulation {
             self.units.len().try_into().unwrap_or(u64::MAX),
         );
         for &government in Government::targets() {
-            if has_available_preferred_government(self, owner, government, catalog) {
+            if has_available_preferred_government(self, owner, government) {
                 continue;
             }
             self.players[owner].government = government;
@@ -375,12 +374,11 @@ impl super::Simulation {
     }
 }
 
-fn preferred_government(
-    catalog: &crate::rules::freeciv::GovernmentRulesetCatalog,
-    government: Government,
-) -> Option<Government> {
-    let id = government.rule_name()?;
-    let preferred = catalog.get(id)?.ai_better.as_deref()?;
+fn preferred_government(government: Government) -> Option<Government> {
+    let preferred = government
+        .native_record()?
+        .preferred_government
+        .as_deref()?;
     Government::from_rule_name(preferred)
 }
 
@@ -388,9 +386,8 @@ fn has_available_preferred_government(
     simulation: &Simulation,
     owner: usize,
     government: Government,
-    catalog: &crate::rules::freeciv::GovernmentRulesetCatalog,
 ) -> bool {
-    preferred_government(catalog, government)
+    preferred_government(government)
         .is_some_and(|preferred| simulation.government_available(owner, preferred))
 }
 
@@ -409,41 +406,23 @@ mod ruleset_government_tests {
     }
 
     #[test]
-    fn government_advisor_reads_ai_better_from_ruleset_records() {
+    fn government_advisor_reads_native_preferred_government() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
-        let mut catalog = super::super::campaign_government_catalog().clone();
 
-        // Tribal's selected-ruleset ai_better points to Republic, so it is
-        // suppressed once the Republic requirement is satisfied.
-        game.players[1].known.push(Tech::THE_REPUBLIC);
+        // Native Despotism data prefers Monarchy once its requirement is
+        // available.
+        game.players[1].known.push(Tech::MONARCHY);
         assert!(has_available_preferred_government(
             &game,
             1,
-            Government::Tribal,
-            &catalog
-        ));
-
-        // Changing the parsed preference changes advisor selection without a
-        // government-specific code branch.
-        catalog
-            .governments
-            .iter_mut()
-            .find(|government| government.id == "Despotism")
-            .unwrap()
-            .ai_better = Some("Republic".to_owned());
-        assert!(has_available_preferred_government(
-            &game,
-            1,
-            Government::Despotism,
-            &catalog
+            Government::Despotism
         ));
 
         game.players[1].known.clear();
         assert!(!has_available_preferred_government(
             &game,
             1,
-            Government::Despotism,
-            &catalog
+            Government::Despotism
         ));
     }
 

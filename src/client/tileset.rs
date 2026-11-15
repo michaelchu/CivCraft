@@ -441,26 +441,21 @@ fn load_campaign_unit_ini_paths(
     ]
     .into_iter()
     .collect::<HashMap<_, _>>();
-    let data = include_str!("../../data/rulesets/civ3_conquests/units.tsv");
     let mut identities = 0;
-    for line in data.lines().skip(1) {
-        let fields = line.split('\t').collect::<Vec<_>>();
-        if fields.len() < 33 {
-            return Err("Civ III unit catalog has a malformed row while loading art".into());
-        }
+    for unit in &crate::rules::native::units().units {
         identities += 1;
-        let role = format!("unit-{}", fields[0].replace('_', "-"));
-        let folders = fields[31].split('|').collect::<Vec<_>>();
-        let labels = fields[32].split('|').collect::<Vec<_>>();
+        let role = format!("unit-{}", unit.id.replace('_', "-"));
+        let folders = unit.art_folder.split('|').collect::<Vec<_>>();
+        let labels = unit.art_root.split('|').collect::<Vec<_>>();
         if folders.len() != labels.len() {
             return Err(format!(
                 "{} has unmatched art folder/root variants",
-                fields[1]
+                unit.name
             ));
         }
         for (variant, (folder, label)) in folders.into_iter().zip(labels).enumerate() {
             let Some(root) = roots.get(label) else {
-                return Err(format!("{} has unknown art root '{label}'", fields[1]));
+                return Err(format!("{} has unknown art root '{label}'", unit.name));
             };
             let directory = root.join(folder);
             let ini = fs::read_dir(&directory)
@@ -482,7 +477,7 @@ fn load_campaign_unit_ini_paths(
                     "modern-times",
                 ]
                 .get(variant)
-                .ok_or_else(|| format!("{} has too many era art variants", fields[1]))?;
+                .ok_or_else(|| format!("{} has too many era art variants", unit.name))?;
                 format!("{role}-era-{era}")
             };
             paths

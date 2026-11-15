@@ -1,4 +1,4 @@
-//! Editable Conquests campaign starting-unit profiles.
+//! Editable Conquests campaign starting-unit profiles from native TOML.
 
 use std::sync::OnceLock;
 
@@ -35,34 +35,25 @@ impl StartProfile {
 fn profiles() -> &'static [StartProfile] {
     static PROFILES: OnceLock<Vec<StartProfile>> = OnceLock::new();
     PROFILES.get_or_init(|| {
-        let mut lines =
-            include_str!("../../data/rulesets/civ3_conquests/civilization_starts.tsv").lines();
-        let header = lines.next().expect("Civ III start table has a header");
-        let expected_columns = header.split('\t').count();
         let mut parsed = Vec::new();
-        for (line_number, line) in lines.enumerate() {
-            let fields = line.split('\t').collect::<Vec<_>>();
-            assert_eq!(
-                fields.len(),
-                expected_columns,
-                "invalid Civ III start profile row {}",
-                line_number + 2
-            );
-            let count = |column: usize| {
-                fields[column].parse::<usize>().unwrap_or_else(|error| {
-                    panic!("invalid start count on row {}: {error}", line_number + 2)
-                })
+        for civilization in &crate::rules::native::civilizations().civilizations {
+            assert_eq!(civilization.starting_units.len(), 2);
+            let source_civilization = match civilization.source_id.as_str() {
+                "zulus" => "Zulus",
+                "mayans" => "Mayans",
+                _ => civilization.noun.as_str(),
             };
+            let bonus = civilization.bonus_units.first();
             parsed.push(StartProfile {
-                civilization: fields[1],
-                starting_unit_1: fields[5],
-                starting_unit_1_count: count(6),
-                starting_unit_2: fields[7],
-                starting_unit_2_count: count(8),
-                expansionist: fields[3] == "true",
-                militaristic: fields[4] == "true",
-                expansionist_bonus_unit: fields[9],
-                bonus_count: count(10),
+                civilization: leak(source_civilization),
+                starting_unit_1: leak(&civilization.starting_units[0].id),
+                starting_unit_1_count: civilization.starting_units[0].count as usize,
+                starting_unit_2: leak(&civilization.starting_units[1].id),
+                starting_unit_2_count: civilization.starting_units[1].count as usize,
+                expansionist: civilization.expansionist,
+                militaristic: civilization.militaristic,
+                expansionist_bonus_unit: bonus.map_or("", |unit| leak(&unit.id)),
+                bonus_count: bonus.map_or(0, |unit| unit.count as usize),
             });
         }
         assert_eq!(
@@ -72,6 +63,10 @@ fn profiles() -> &'static [StartProfile] {
         );
         parsed
     })
+}
+
+fn leak(value: &str) -> &'static str {
+    Box::leak(value.to_owned().into_boxed_str())
 }
 
 pub(super) fn get(civilization: &str) -> Option<&'static StartProfile> {
@@ -137,6 +132,48 @@ mod tests {
             ("England", "English"),
         ] {
             assert_eq!(get(display).unwrap().civilization, source);
+        }
+    }
+
+    #[test]
+    fn native_toml_starting_profiles_match_the_legacy_extraction() {
+        let native = crate::rules::native::civilizations();
+        for profile in profiles() {
+            let migrated = native
+                .civilizations
+                .iter()
+                .find(|civilization| {
+                    civilization
+                        .source_id
+                        .eq_ignore_ascii_case(profile.civilization)
+                })
+                .unwrap_or_else(|| panic!("native TOML is missing {}", profile.civilization));
+            assert_eq!(migrated.expansionist, profile.expansionist);
+            assert_eq!(migrated.militaristic, profile.militaristic);
+            assert_eq!(
+                migrated
+                    .starting_units
+                    .iter()
+                    .map(|stack| (stack.id.as_str(), stack.count as usize))
+                    .collect::<Vec<_>>(),
+                vec![
+                    (profile.starting_unit_1, profile.starting_unit_1_count),
+                    (profile.starting_unit_2, profile.starting_unit_2_count),
+                ]
+            );
+            let expected_bonus = if profile.expansionist && profile.bonus_count > 0 {
+                vec![(profile.expansionist_bonus_unit, profile.bonus_count)]
+            } else {
+                Vec::new()
+            };
+            assert_eq!(
+                migrated
+                    .bonus_units
+                    .iter()
+                    .map(|stack| (stack.id.as_str(), stack.count as usize))
+                    .collect::<Vec<_>>(),
+                expected_bonus
+            );
         }
     }
 
