@@ -2524,72 +2524,30 @@ pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsReco
 /// selected ruleset roles because Civ III strategy bits do not include roles
 /// such as `Hunter`.
 pub(crate) fn freeciv_unit_has_role(unit: UnitKind, role: &str) -> bool {
-    selected_c2c3_unit_role_record(unit)
-        .and_then(|record| {
-            record
-                .string_list_field("roles")
-                .expect("selected C2C3 unit role list is valid")
-        })
-        .is_some_and(|roles| {
-            roles
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(role))
-        })
+    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
+    else {
+        return false;
+    };
+    native
+        .roles
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(role))
 }
 
 /// Freeciv's base AI site score subtracts `unit_build_shield_cost_base`.
 /// Read the cost and shieldbox scale from the selected ruleset/settings rather
 /// than Civ III's separate production catalog.
 pub(crate) fn freeciv_unit_build_cost(unit: UnitKind) -> i32 {
-    let record = direct_c2c3_unit_record(unit)
-        .unwrap_or_else(|| panic!("missing selected C2C3 unit record for {}", unit.name()));
-    let build_cost = record
-        .integer_field("build_cost")
-        .unwrap_or_else(|error| panic!("invalid {}.build_cost: {error}", record.section))
-        .unwrap_or_else(|| panic!("{} has no C2C3 build_cost", record.section));
+    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
+    else {
+        panic!("missing native unit economics record for {}", unit.name());
+    };
     let shieldbox = crate::rules::freeciv::RulesetData::campaign_default()
         .integer_setting_value("shieldbox")
         .unwrap_or_else(|error| panic!("invalid C2C3 shieldbox: {error}"));
-    i32::try_from((build_cost * i64::from(shieldbox) / 100).max(1))
+    i32::try_from((i64::from(native.build_cost) * i64::from(shieldbox) / 100).max(1))
         .unwrap_or_else(|_| panic!("selected C2C3 unit build cost exceeds i32"))
 }
-
-/// C2C3 role bindings for Civ III units without the same-name C2C3 record.
-/// This is intentionally separate from the upkeep crosswalk: only selected
-/// combat archetypes whose roles drive a migrated AI decision are listed.
-fn selected_c2c3_unit_role_record(
-    unit: UnitKind,
-) -> Option<&'static crate::rules::freeciv::ContentRecord> {
-    direct_c2c3_unit_record(unit).or_else(|| {
-        let id = unit.conquests_id()?;
-        let section = C2C3_UNIT_ROLE_ALIASES
-            .iter()
-            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(id))?
-            .1;
-        RulesetData::campaign_default()
-            .content
-            .iter()
-            .find(|record| {
-                record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case(section)
-            })
-    })
-}
-
-/// BIQ-to-C2C3 role archetypes used by military AI. Keep upkeep-only aliases
-/// such as Curragh, Dromon, Army, and Privateer out of this list.
-const C2C3_UNIT_ROLE_ALIASES: &[(&str, &str)] = &[
-    ("spearman", "unit_phalanx"),
-    ("swordsman", "unit_legion"),
-    ("horseman", "unit_horsemen"),
-    ("pikeman", "unit_pikemen"),
-    ("longbowman", "unit_archers"),
-    ("musketman", "unit_musketeers"),
-    ("rifleman", "unit_riflemen"),
-    ("infantry", "unit_riflemen"),
-    ("mech_infantry", "unit_mech_inf"),
-    ("tank", "unit_armor"),
-    ("modern_armor", "unit_armor"),
-];
 
 /// C2C3 records that define transport capacity and cargo compatibility.
 /// Galley maps to the early Trireme role; Nuclear Submarine maps to the
@@ -2814,34 +2772,17 @@ fn direct_c2c3_unit_record(
 /// `Some(false)` for a roster ID in the audited no-type-flag ledger and
 /// `None` when the ID or selected unit record has no declared binding.
 pub(crate) fn freeciv_unit_type_flag(unit: UnitKind, flag: &str) -> Option<bool> {
-    if flag.eq_ignore_ascii_case("Nuclear") && unit.is_nuclear_weapon() {
-        let rules = RulesetData::campaign_default();
-        let record = rules.content.iter().find(|record| {
-            record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case("unit_nuclear")
-        })?;
-        let flags = record.string_list_field("flags").ok().flatten()?;
-        return Some(
-            flags
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case("Nuclear")),
-        );
-    }
-    let conquests_id = unit.conquests_id()?;
-    if let Some(record) = direct_c2c3_unit_record(unit) {
-        let flags = record.string_list_field("flags").ok().flatten()?;
-        Some(
-            flags
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(flag)),
-        )
-    } else if C2C3_DEFAULT_NO_TYPE_FLAGS
-        .iter()
-        .any(|id| id.eq_ignore_ascii_case(conquests_id))
-    {
-        Some(false)
-    } else {
-        None
-    }
+    unit.conquests_id()?;
+    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
+    else {
+        return Some(false);
+    };
+    Some(
+        native
+            .flags
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(flag)),
+    )
 }
 
 /// Resolve whether a selected C2C3 unit record can attack a defender's class.
