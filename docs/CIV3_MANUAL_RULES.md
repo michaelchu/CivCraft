@@ -86,6 +86,16 @@ Limitations or conflicts:
   does not claim the C2C3 prerequisites or all effects of the two advances are
   identical.
 
+- Source ID: CIV3-COMPLETE-MANUAL
+- Title / publisher: *Civilization III Complete Manual*, Firaxis Games / 2K Games
+- URL or local file: <https://steamcdn-a.akamaihd.net/steam/apps/3910/manuals/manual.pdf?t=1569013660>
+- Source type: Official publication
+- Edition / expansion / patch scope: Civilization III Complete, including Conquests
+- Pages, table, figure, or section: Tutorial, PDF p. 29; Settler cost, PDF p. 34
+- Retrieved or checked date: 2026-11-15
+- Claims this source supports: Settler production costs two population; the tutorial advises accounting for city growth to size 3 before the Settler completes, after which the population falls by two.
+- Limitations or conflicts: This manual does not specify ongoing food upkeep for Settlers or an AI production desirability rule. The food-surplus gate in CivCraft is explicitly an imported Freeciv/Civ2Civ3 AI heuristic, not a Civ III rule.
+
 - Source ID: PRIMA-CIV3-GUIDE
 - Title / publisher: *Prima's Official Strategy Guide*, David Ellis, Prima Games
 - URL or local file: <https://device.report/m/d76e460361da693c0ec91ddff041d42d7a117f67b42cd55f945543fbd819c27a.pdf>

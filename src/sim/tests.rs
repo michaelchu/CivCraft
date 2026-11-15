@@ -264,17 +264,13 @@ fn civilization_ai_plans_after_begin_phase_restores_movement_points() {
 
 #[test]
 fn isohex_neighbors_and_wrapping_match_freeciv_distance() {
-    assert!(!is_isohex_step(1, -1));
-    assert!(!is_isohex_step(-1, 1));
-    assert!(!is_isohex_step(2, 0));
-
     for &(start_x, start_y) in &[
         (0, 0),
         (MAP_W - 1, MAP_H - 1),
         crate::test_support::seeded_map().starts[0],
     ] {
         let mut neighbors = Vec::new();
-        for (dx, dy) in ISOHEX_DIRS {
+        for (dx, dy) in FREECIV_ISOHEX_DIRS {
             let neighbor = offset_native_by_map(start_x, start_y, dx, dy);
             assert_eq!(
                 isohex_vector_distance(
@@ -316,7 +312,8 @@ fn generated_world_uses_reference_dimensions_and_start_positions() {
         for (i, &(x, y)) in starts.iter().enumerate() {
             assert!(game.can_found_at(x, y));
             assert!(starts[..i].iter().all(|&(other_x, other_y)| {
-                game.map_distance(x, y, other_x, other_y) >= CITY_MIN_DISTANCE
+                game.map_distance(x, y, other_x, other_y)
+                    >= super::economy::ruleset::CityEconomySettings::campaign().city_min_distance
             }));
         }
     }

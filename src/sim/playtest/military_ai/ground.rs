@@ -269,6 +269,8 @@ impl Simulation {
                 if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
                     || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk"));
         self.sign_pact(1, HUMAN, Pact::War);
+        self.units
+            .retain(|unit| !(unit.owner == 1 && (unit.x, unit.y) == (x, y)));
         self.spawn_unit(HUMAN, UnitKind::Warrior, nx, ny);
         self.prepare_ai_city_defenses(1);
         let responded = matches!(self.cities[0].production, Production::Unit(kind)

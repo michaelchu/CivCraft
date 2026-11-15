@@ -2548,6 +2548,23 @@ pub(crate) fn freeciv_unit_has_role(unit: UnitKind, role: &str) -> bool {
         })
 }
 
+/// Freeciv's base AI site score subtracts `unit_build_shield_cost_base`.
+/// Read the cost and shieldbox scale from the selected ruleset/settings rather
+/// than Civ III's separate production catalog.
+pub(crate) fn freeciv_unit_build_cost(unit: UnitKind) -> i32 {
+    let record = direct_c2c3_unit_record(unit)
+        .unwrap_or_else(|| panic!("missing selected C2C3 unit record for {}", unit.name()));
+    let build_cost = record
+        .integer_field("build_cost")
+        .unwrap_or_else(|error| panic!("invalid {}.build_cost: {error}", record.section))
+        .unwrap_or_else(|| panic!("{} has no C2C3 build_cost", record.section));
+    let shieldbox = crate::rules::freeciv::RulesetData::campaign_default()
+        .integer_setting_value("shieldbox")
+        .unwrap_or_else(|error| panic!("invalid C2C3 shieldbox: {error}"));
+    i32::try_from((build_cost * i64::from(shieldbox) / 100).max(1))
+        .unwrap_or_else(|_| panic!("selected C2C3 unit build cost exceeds i32"))
+}
+
 /// C2C3 role bindings for Civ III units without the same-name C2C3 record.
 /// This is intentionally separate from the upkeep crosswalk: only selected
 /// combat archetypes whose roles drive a migrated AI decision are listed.

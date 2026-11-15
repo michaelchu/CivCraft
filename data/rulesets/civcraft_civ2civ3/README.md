@@ -43,16 +43,17 @@ files or values are sourced from `classic` or another Freeciv gameplay ruleset.
 All eleven required gameplay files are present in this selected directory; the
 sibling `default/` folder contains include and script data only.
 
-For P8, the same `[settings]` table also records seven pinned Freeciv engine
+For P8, the same `[settings]` table also records eight pinned Freeciv engine
 defaults that C2C3 does not set itself: `sciencebox = 100`, `techpenalty = 100`,
 `techleak = 100`, `techlost_recv = 0`, `techlost_donor = 0`,
-`diplbulbcost = 0`, and `revolen = 5`. It also records
+`diplbulbcost = 0`, `revolen = 5`, and `shieldbox = 100`. It also records
 `happyborders = "NATIONAL"` so unit unrest follows an editable, explicit
 setting rather than a hidden engine default.
 Their values come from `common/game.h` (`GAME_DEFAULT_SCIENCEBOX`,
 `GAME_DEFAULT_TECHPENALTY`, `GAME_DEFAULT_TECHLEAK`,
 `GAME_DEFAULT_TECHLOST_RECV`, `GAME_DEFAULT_TECHLOST_DONOR`, and
-`GAME_DEFAULT_DIPLBULBCOST`, `GAME_DEFAULT_REVOLUTION_LENGTH`, and
+`GAME_DEFAULT_DIPLBULBCOST`, `GAME_DEFAULT_REVOLUTION_LENGTH`,
+`GAME_DEFAULT_SHIELDBOX`, and
 `GAME_DEFAULT_HAPPYBORDERS`) in revision
 `9ff184b6eb128ca636c7ad6269e27aa959600006`. C2C3's explicit
 `techlossforgiveness = 0`, `techlossrestore = 50`, and
@@ -89,6 +90,16 @@ alongside the selected `Airlift` effect and action range.
 CivCraft's playable civilization roster is the Civ III catalog in
 `../civ3_conquests/civilizations.tsv`. The selected ruleset keeps only three
 embedded special non-player nation records for barbarian and animal mechanics.
+
+CivCraft also extends `game.ruleset` with `[civcraft_settlement_ai]`. These
+values preserve the pinned Freeciv default AI settlement weights, discount,
+early-stop threshold, and wonder-city adjustment while keeping them editable
+as ruleset data. They tune the advisor algorithm; they are not Civ III gameplay
+rules. The AI reads Settler and ferry build costs and Settler upkeep from the
+selected C2C3 unit records, and reads city spacing and shieldbox from the
+selected game settings. The algorithm reference is the `reference/freeciv`
+checkout at `3efab1385e792dd367e955aee538bafd5ccadd05`; the selected C2C3 ruleset
+data remains the separately pinned revision recorded above.
 
 ## License and distribution note
 

@@ -158,7 +158,15 @@ compare its map expansions with the number of pickup destinations queried.
 The `production` analyzer is an event-only example. It subscribes to
 `production.completed`, keeps a counter, and publishes a metric. The `growth`
 analyzer shows stateful comparisons across typed snapshots. The `settlement`
-analyzer shows periodic checks using multiple providers.
+analyzer shows periodic checks using multiple providers. Its
+`expansion_by_civilization` metric compares Settlers produced, cities founded,
+active founder-capable units, selected sites, and viable site candidates found
+across searches. Candidate totals count repeated geographic sites again when
+separate searches revisit them; they are search activity, not a count of unique
+available locations. `settlement.site_search_completed` reports candidate
+counts and expanded tiles for each active Settler's assignment search; virtual
+searches used only to rank city production choices are not included in those
+per-civilization search counters.
 
 Callbacks:
 

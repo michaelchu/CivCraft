@@ -24,6 +24,8 @@ mod combat;
 mod identifiers;
 #[path = "freeciv/loader.rs"]
 mod loader;
+#[path = "freeciv/settlement_ai.rs"]
+mod settlement_ai;
 #[path = "freeciv/trade_routes.rs"]
 mod trade_routes;
 #[path = "freeciv/veterancy.rs"]
@@ -38,6 +40,7 @@ pub(crate) use combat::{
 };
 #[cfg(test)]
 pub(crate) use loader::RULESET_FILES;
+pub(crate) use settlement_ai::SettlementAiSettings;
 #[allow(unused_imports)]
 pub(crate) use trade_routes::{
     CaravanBonusStyle, GoodsSelection, TradeGoodFlag, TradeGoodRulesetRecord, TradeRevenueStyle,
@@ -2253,7 +2256,7 @@ mod tests {
     #[test]
     fn campaign_map_generation_settings_are_explicit_and_validated() {
         let mut rules = RulesetData::campaign_default().clone();
-        assert_eq!(rules.settings.len(), 46);
+        assert_eq!(rules.settings.len(), 47);
         let defaults = rules.map_generation_settings().unwrap();
         assert_eq!(defaults.landmass_percent, 30);
         assert_eq!(defaults.ocean_coverage_percent(), 70);

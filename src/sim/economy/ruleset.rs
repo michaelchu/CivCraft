@@ -34,6 +34,7 @@ pub(in crate::sim) enum GoldUpkeepStyle {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::sim) struct CityEconomySettings {
+    pub(in crate::sim) city_min_distance: i32,
     pub(in crate::sim) food_cost: i32,
     pub(in crate::sim) happy_cost: i32,
     pub(in crate::sim) granary_food_initial: Vec<i32>,
@@ -91,6 +92,9 @@ impl CityEconomySettings {
         .map(|key| integer("game.ruleset", "civstyle", key));
 
         Self {
+            city_min_distance: rules
+                .integer_setting_value("citymindist")
+                .unwrap_or_else(|error| panic!("invalid C2C3 citymindist: {error}")),
             food_cost: integer("game.ruleset", "civstyle", "food_cost"),
             happy_cost: integer("game.ruleset", "civstyle", "happy_cost"),
             granary_food_initial,

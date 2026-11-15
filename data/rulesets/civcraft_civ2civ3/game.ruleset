@@ -848,6 +848,7 @@ set =
       "savepalace", TRUE
       "homecaughtunits", TRUE
       "sciencebox", 100
+      "shieldbox", 100
       "techpenalty", 100
       "techleak", 100
       "techlost_recv", 0
@@ -869,3 +870,27 @@ set =
       "disasters", 100
       "animals", 14
     }
+
+; CivCraft adapter values for the Freeciv default AI settlement algorithm.
+; These tune the advisor implementation and do not define Civ III gameplay.
+; Values are pinned from server/advisors/advbuilding.h, ai/default/daisettler.c,
+; ai/default/daidomestic.c, server/advisors/advtools.h, and common/traits.h.
+[civcraft_settlement_ai]
+food_priority = 30
+shield_priority = 17
+trade_priority = 18
+research_priority_percent = 120
+no_research_priority = 1
+growth_priority = 15
+growth_potential_deemphasis = 8
+growth_food_threshold = 2
+perfection = 3
+good_enough = 250
+discount_period = 24
+defense_emphasis = 20
+naval_emphasis = 20
+wonder_city_pop_founder_divisor = 5
+wonder_city_other_founder_divisor = 2
+expansionist_trait_baseline = 50
+ferry_cost_divisor = 3
+ferry_tech_want = 500

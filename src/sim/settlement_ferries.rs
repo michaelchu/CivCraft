@@ -72,15 +72,18 @@ impl Simulation {
             })
             .count() as i32;
         // Freeciv's settlement advisor assigns this want to the first ferry role's tech.
-        500 * ports
+        crate::rules::freeciv::SettlementAiSettings::campaign().ferry_tech_want * ports
     }
 
     fn local_settlement_site_is_sufficient(&self, owner: usize, city: &City) -> bool {
         // daisettler.c::find_best_city_placement stops before the ferry search
-        // when the local search finds a result above RESULT_IS_ENOUGH (250).
+        // when the local search clears the ruleset's Freeciv advisor threshold.
         let virtual_settler = self.make_unit(u32::MAX, owner, UnitKind::Settler, city.x, city.y);
         self.best_city_site(&virtual_settler)
-            .is_some_and(|(_, _, score)| score > 250.0)
+            .is_some_and(|(_, _, score)| {
+                score
+                    > f64::from(crate::rules::freeciv::SettlementAiSettings::campaign().good_enough)
+            })
     }
 
     pub(super) fn settlement_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
@@ -88,44 +91,50 @@ impl Simulation {
         let _profile = profiler.scope("settlement.production_choice");
         self.trace
             .count_operation("settlement.production_choice_calls", 1);
-        let waiting = self.units.iter().find(|unit| {
-            unit.owner == city.owner
-                && unit.kind == UnitKind::Settler
-                && unit.transport.is_none()
-                && (unit.x, unit.y) == (city.x, city.y)
-        });
-        if waiting.is_none() && city.size <= UnitKind::Settler.stats().pop_cost {
+        // Freeciv's contemplate_new_city evaluates a virtual founder for every
+        // city each planning pass; it does not suppress the want because a
+        // Settler is waiting in the city or because current population delays
+        // production completion.
+        let virtual_founder = self.make_unit(0, city.owner, UnitKind::Settler, city.x, city.y);
+        // Freeciv's default AI only considers founder production when the
+        // city's food surplus can cover the Settler's raw food upkeep. This
+        // is an advisor heuristic (not a Settler upkeep rule documented by
+        // the Civ III manual); city production applies the population cost
+        // from Civ III data when the unit completes.
+        // Do not substitute a magic-number default if the selected
+        // Civ2Civ3 unit-economics ruleset stops defining this value.
+        let upkeep = self
+            .virtual_unit_raw_food_upkeep(city, &virtual_founder)
+            .expect("Civ2Civ3 Settler food upkeep must resolve from the selected ruleset");
+        let forecast = self.city_forecast(city);
+        if forecast.food_surplus(city.size, forecast.support.food) < upkeep {
             return None;
         }
-        let virtual_founder = self.make_unit(0, city.owner, UnitKind::Settler, city.x, city.y);
-        let founder = waiting.unwrap_or(&virtual_founder);
+        let founder = &virtual_founder;
         let land = self
             .best_city_site(founder)
             .map_or(0.0, |(_, _, value)| value);
-        if land > 250.0 {
+        if land > f64::from(crate::rules::freeciv::SettlementAiSettings::campaign().good_enough) {
             self.trace
                 .count_operation("settlement.local_sites_above_ferry_cutoff", 1);
             self.trace
                 .count_operation("settlement.ferry_searches_skipped_good_local_site", 1);
             // Freeciv's find_best_city_placement returns the local result
             // above RESULT_IS_ENOUGH before it searches for a ferry.
-            return waiting.is_none().then_some((UnitKind::Settler, land));
+            return Some((UnitKind::Settler, land));
         }
         let existing = self
             .best_settlement_ferry(founder, |_| false)
             .map_or(0.0, |(_, plan)| plan.value);
         if existing > 0.0 {
-            return waiting
-                .is_none()
-                .then_some((UnitKind::Settler, existing.max(land)));
+            return Some((UnitKind::Settler, existing.max(land)));
         }
 
         if !self.is_port(city) {
-            return (waiting.is_none() && land > 0.0).then_some((UnitKind::Settler, land));
+            return (land > 0.0).then_some((UnitKind::Settler, land));
         }
         let forecast = self.city_forecast(city);
-        let surplus = forecast.shields - forecast.support.shields;
-        if surplus > 0 && !forecast.disorder {
+        if !forecast.disorder {
             let labels = self.advisor_continent_labels();
             let origin = labels[self.map_wrap.index(city.x, city.y)];
             let new_ferry = Self::settlement_ferry_unit_kinds()
@@ -157,7 +166,7 @@ impl Simulation {
                 return Some((kind, value));
             }
         }
-        (waiting.is_none() && land > 0.0).then_some((UnitKind::Settler, land))
+        (land > 0.0).then_some((UnitKind::Settler, land))
     }
 
     fn settler_rendezvous_points(&self, founder: &Unit, ship: &Unit) -> Vec<Rendezvous> {
@@ -470,7 +479,10 @@ impl Simulation {
         traveler.transport = None;
         let mut best = None;
         let mut best_value = 0.0;
-        let unit_cost = founder.kind.stats().cost + ship.kind.stats().cost / 3;
+        let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
+        let unit_cost = crate::sim::action_rules::freeciv_unit_build_cost(founder.kind)
+            + crate::sim::action_rules::freeciv_unit_build_cost(ship.kind)
+                / settings.ferry_cost_divisor;
         let mut land_expansions = 0_u64;
         while let Some(Reverse((cost, index))) = land_queue.pop() {
             if cost != land_costs[index] {
@@ -478,7 +490,10 @@ impl Simulation {
             }
             land_expansions += 1;
             let turns = cost / turn_cost;
-            let discount = (23.0_f64 / 24.0).powi(3 * turns);
+            let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
+            let discount = ((settings.discount_period - 1) as f64
+                / settings.discount_period as f64)
+                .powi(settings.perfection * turns);
             let (x, y) = self.map_wrap.position(index);
             if assigned.is_none_or(|destination| destination == (x, y))
                 && let Some(site) =
@@ -567,7 +582,8 @@ impl Simulation {
             } else {
                 None
             };
-            if matches!(local_site, Some(Some(land)) if land > 250.0) {
+            if matches!(local_site, Some(Some(land)) if land > f64::from(crate::rules::freeciv::SettlementAiSettings::campaign().good_enough))
+            {
                 self.trace
                     .count_operation("settlement.local_sites_above_ferry_cutoff", 1);
                 self.trace

@@ -36,9 +36,10 @@ impl Simulation {
         if !self.tile(x, y).terrain.allows_city() {
             return false;
         }
-        self.cities
-            .iter()
-            .all(|c| self.map_distance(x, y, c.x, c.y) >= CITY_MIN_DISTANCE)
+        self.cities.iter().all(|c| {
+            self.map_distance(x, y, c.x, c.y)
+                >= super::economy::ruleset::CityEconomySettings::campaign().city_min_distance
+        })
     }
 
     pub(super) fn city_name(&self, owner: usize) -> String {

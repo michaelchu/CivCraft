@@ -309,7 +309,21 @@ impl Simulation {
         if founder.work_left > 0 {
             return false;
         }
-        let city = self.best_city_site(founder);
+        let (city, expanded_tiles, viable_candidates) = self.best_city_site_with_stats(founder);
+        self.trace.emit(
+            self.turn,
+            || {
+                vec![
+                    trace::Entity::Unit(founder.id),
+                    trace::Entity::Civilization(founder.owner),
+                ]
+            },
+            || observations::SiteSearchCompleted {
+                expanded_tiles,
+                viable_candidates,
+                selected: city.is_some(),
+            },
+        );
         // daisettler.c:dai_auto_settler_run chooses a city only when its
         // adv_want is STRICTLY greater; equal wants keep terrain work.
         if let Some((destination, path, _)) = city.filter(|(_, _, want)| *want as f32 > improvement)
@@ -336,7 +350,12 @@ impl Simulation {
     }
 
     pub(super) fn best_city_site(&self, founder: &Unit) -> Option<ScoredCitySite> {
+        self.best_city_site_with_stats(founder).0
+    }
+
+    fn best_city_site_with_stats(&self, founder: &Unit) -> (Option<ScoredCitySite>, u64, u64) {
         use std::{cmp::Reverse, collections::BinaryHeap};
+        let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("settlement.best_city_site");
         self.trace.count_operation("settlement.site_searches", 1);
@@ -364,6 +383,7 @@ impl Simulation {
         let mut traveler = founder.clone();
         let allowance = self.unit_move_rate(founder).max(1);
         let mut expanded = 0_u64;
+        let mut viable_candidates = 0_u64;
         while let Some(Reverse((cost, index))) = queue.pop() {
             if cost != costs[index] {
                 continue;
@@ -374,14 +394,22 @@ impl Simulation {
             if let Some(site) =
                 self.advisor_city_site_result_with_threat_map(founder, x, y, &context)
             {
-                let score = site.value * (23.0_f64 / 24.0).powi(3 * turns)
-                    - f64::from(founder.kind.stats().cost);
+                viable_candidates += 1;
+                let score = site.value
+                    * ((settings.discount_period - 1) as f64 / settings.discount_period as f64)
+                        .powi(settings.perfection * turns)
+                    - f64::from(crate::sim::action_rules::freeciv_unit_build_cost(
+                        founder.kind,
+                    ));
                 if score > best_score {
                     best = Some(index);
                     best_score = score;
                     best_turn = turns;
                 }
-                if best_score > 250.0 && turns > allowance && best_turn < turns {
+                if best_score > f64::from(settings.good_enough)
+                    && turns > allowance
+                    && best_turn < turns
+                {
                     break;
                 }
             }
@@ -415,9 +443,11 @@ impl Simulation {
         self.trace
             .count_operation("settlement.site_route_allied_cache_hits", allied_cache_hits);
 
-        let destination = best?;
-        let (_, path) = reconstruct_path_to_root(&previous, destination)?;
-        Some((self.map_wrap.position(destination), path, best_score))
+        let result = best.and_then(|destination| {
+            let (_, path) = reconstruct_path_to_root(&previous, destination)?;
+            Some((self.map_wrap.position(destination), path, best_score))
+        });
+        (result, expanded, viable_candidates)
     }
 
     pub(super) fn settler_land_steps<'a>(
@@ -527,9 +557,9 @@ impl Simulation {
             frontier.clear();
             frontier.push(center);
 
-            // CITY_MIN_DISTANCE is three, so the forbidden area is the city
-            // center plus the first two steps on the Civ III neighbor graph.
-            for _ in 1..CITY_MIN_DISTANCE {
+            // The ruleset's citymindist defines how far to expand the
+            // forbidden zone from each existing city center.
+            for _ in 1..super::economy::ruleset::CityEconomySettings::campaign().city_min_distance {
                 next.clear();
                 for &index in &frontier {
                     let (x, y) = self.map_wrap.position(index);
@@ -556,6 +586,7 @@ impl Simulation {
         y: i32,
         context: &CitySiteSearchContext<'_>,
     ) -> Option<CitySite> {
+        let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
         self.trace
             .count_operation("settlement.site_candidate_evaluations", 1);
         let tile = self.tile(x, y);
@@ -591,19 +622,27 @@ impl Simulation {
             return None;
         }
         let city = City::new(u32::MAX, owner, x, y, String::new(), self.turn);
+        // Freeciv's advdata uses 1 when research is no longer useful, and
+        // TRADE_WEIGHTING * 1.2 otherwise. Civ2Civ3 has no Tech_Parasite
+        // effect, so Future Tech is the only false case in this campaign.
         let science = if self.players[owner].researching == Tech::FUTURE {
-            1.0
+            f64::from(settings.no_research_priority)
         } else {
-            21.0
+            f64::from(settings.trade_priority) * f64::from(settings.research_priority_percent)
+                / 100.0
         };
         let weighted = |(food, shields, trade): (i32, i32, i32), reservation: i32| {
-            let mut value =
-                (f64::from(food * 30 + shields * 17) + f64::from(trade) * science) as i32;
-            if food >= 2 {
+            let weighted =
+                f64::from(food * settings.food_priority + shields * settings.shield_priority)
+                    + f64::from(trade) * science;
+            // cityresult_fill stores the weighted total as int, balances it
+            // by integer PERFECTION / 2, then doubles food tiles at 2+ food.
+            let mut value = weighted as i32 * (settings.perfection / 2);
+            if food >= settings.growth_food_threshold {
                 value *= 2;
             }
             if value > 0 {
-                value -= (reservation * 15).min(value - 1);
+                value -= (reservation * settings.growth_priority).min(value - 1);
             }
             value
         };
@@ -640,11 +679,11 @@ impl Simulation {
             let value = weighted(output, reserved(tx, ty));
             if best.is_none_or(|(score, _, _)| value > score) {
                 if let Some((score, _, _)) = best {
-                    remaining += score.max(0) / 8;
+                    remaining += score.max(0) / settings.growth_potential_deemphasis;
                 }
                 best = Some((value, output, (tx, ty)));
             } else {
-                remaining += value.max(0) / 8;
+                remaining += value.max(0) / settings.growth_potential_deemphasis;
             }
         }
         self.trace
@@ -664,7 +703,7 @@ impl Simulation {
             context.government,
         );
         let total = (weighted(center, reserved(x, y)) + best_value
-            - 17 * (gross_shields - net_shields)
+            - settings.shield_priority * (gross_shields - net_shields)
             - (science * f64::from(gross_trade - net_trade)) as i32)
             .max(0);
         let mut total = total as f32;
@@ -672,13 +711,13 @@ impl Simulation {
         // defense tie-breaker and integer per-tile growth rounding.
         let mut defense = 10 + tile.terrain.defense_bonus() / 10;
         defense += defense * tile.base.map_or(0, |base| base.defense_bonus()) / 100;
-        total += 100.0 / (total + 1.0) * (100 / defense * 20) as f32;
+        total += 100.0 / (total + 1.0) * (100 / defense * settings.defense_emphasis) as f32;
         if self
             .map_wrap
             .civ3_neighbors(x, y)
             .any(|(nx, ny)| self.tile(nx, ny).terrain.is_water())
         {
-            total += total * 20.0 / 100.0;
+            total += total * settings.naval_emphasis as f32 / 100.0;
         }
         Some(CitySite {
             value: f64::from(total + remaining as f32),

@@ -56,10 +56,18 @@ impl Simulation {
         self.trace
             .count_operation("advisor.settlement_recalculations", 1);
         let choice = self.settlement_production_choice(city).map(|(kind, want)| {
-            let want =
-                want * f64::from(super::super::ai_traits::fixed_default("expansionist")) / 50.0;
+            let want = want * f64::from(super::super::ai_traits::fixed_default("expansionist"))
+                / f64::from(
+                    crate::rules::freeciv::SettlementAiSettings::campaign()
+                        .expansionist_trait_baseline,
+                );
             let want = if wonder_city == Some(city.id) {
-                want / if kind.stats().pop_cost > 0 { 5.0 } else { 2.0 }
+                let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
+                want / f64::from(if kind.stats().pop_cost > 0 {
+                    settings.wonder_city_pop_founder_divisor
+                } else {
+                    settings.wonder_city_other_founder_divisor
+                })
             } else {
                 want
             };
@@ -668,7 +676,9 @@ impl Simulation {
         let _profile = profiler.scope("advisor.build.military");
         let (_, military) = self.military_build_advice_with_wonder_city(city, wonder_city);
         drop(_profile);
-        if military.is_some() && self.ai_on_war_footing(city.owner) {
+        if military.as_ref().is_some_and(|choice| {
+            self.ai_on_war_footing(city.owner) || choice.want >= MILITARY_EMERGENCY_WANT
+        }) {
             return military;
         }
 

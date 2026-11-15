@@ -26,3 +26,12 @@ pub(crate) struct SiteSelected {
 impl Payload for SiteSelected {
     const KIND: &'static str = "settlement.site_selected";
 }
+#[derive(Serialize)]
+pub(crate) struct SiteSearchCompleted {
+    pub expanded_tiles: u64,
+    pub viable_candidates: u64,
+    pub selected: bool,
+}
+impl Payload for SiteSearchCompleted {
+    const KIND: &'static str = "settlement.site_search_completed";
+}

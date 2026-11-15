@@ -139,7 +139,6 @@ pub(crate) const BARBARIANS: usize = MAX_CIVILIZATIONS;
 const FREECIV_GAME_IDENTIFIER_DRAWS: usize = 32;
 const FREECIV_BASE64URL_CHARACTERS: u32 = 64;
 const PERCENT_SCALE: i32 = crate::world::PERCENT_SCALE;
-const CITY_MIN_DISTANCE: i32 = 3;
 pub(crate) const MOVE_FRAGMENTS: i32 = 6;
 const ACTIVITY_FACTOR: i32 = 10;
 const POWER_FACTOR: i32 = 10;

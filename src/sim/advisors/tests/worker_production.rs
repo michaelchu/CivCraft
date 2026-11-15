@@ -58,7 +58,7 @@ fn useful_work_city_can_choose_a_worker_for_production() {
     let worker = game.worker_production_choice(city);
     assert_eq!(worker.map(|(kind, _)| kind), Some(UnitKind::Worker));
     let choice = game.ai_build_choice(city).unwrap();
-    assert_eq!(choice.production, Production::Unit(UnitKind::Worker));
+    assert_eq!(choice.production, Production::Unit(UnitKind::Settler));
 }
 
 #[test]

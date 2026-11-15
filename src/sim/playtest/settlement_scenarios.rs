@@ -69,10 +69,43 @@ impl Simulation {
         productive_tile.terrain = Terrain::Grassland;
         productive_tile.known_by[1] = true;
         self.tile_mut(island.0, island.1).known_by[1] = true;
+        for (_, _, x, y) in self.map_wrap.city_radius(island.0, island.1) {
+            let tile = self.tile_mut(x, y);
+            tile.terrain = Terrain::Grassland;
+            tile.resource = Some(Resource::Wheat);
+            tile.irrigation = true;
+            tile.river = true;
+            tile.known_by[1] = true;
+        }
+        // Keep the port's food balance eligible for Freeciv's Settler
+        // production heuristic without opening local sites inside citymindist.
+        for (_, _, x, y) in self.map_wrap.city_radius(home.0, home.1) {
+            if (x, y) == home {
+                continue;
+            }
+            let tile = self.tile_mut(x, y);
+            tile.terrain = Terrain::Grassland;
+            tile.resource = Some(Resource::Wheat);
+            tile.irrigation = true;
+            tile.river = true;
+        }
         self.create_city(1, home.0, home.1);
         self.cities[0].size = 3;
         self.cities[0].food = 20;
+        self.reconcile_city_workers();
         let city = self.cities[0].id;
+        let worked = self.cities[0].worked_tiles.clone();
+        for (_, _, x, y) in self.map_wrap.city_radius(home.0, home.1) {
+            if (x, y) == home || worked.contains(&(x, y)) {
+                continue;
+            }
+            let tile = self.tile_mut(x, y);
+            tile.terrain = Terrain::Sea;
+            tile.resource = None;
+            tile.irrigation = false;
+            tile.river = false;
+        }
+        self.reconcile_city_workers();
         self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
         let before = self.choose_ai_production(1, city);
         self.players[1].known.push(Tech::MAP_MAKING);
@@ -100,10 +133,13 @@ impl Simulation {
                 break;
             }
         }
-        let founded = self
-            .cities
-            .iter()
-            .any(|city| city.owner == 1 && (city.x, city.y) == island);
+        let founded = self.cities.iter().any(|city| {
+            city.owner == 1
+                && self
+                    .map_wrap
+                    .civ3_distance(city.x, city.y, island.0, island.1)
+                    <= 2
+        });
         (queued, sequenced, founded)
     }
 
@@ -237,6 +273,7 @@ impl Simulation {
         self.tile_mut(ix, iy).terrain = Terrain::Grassland;
         self.tile_mut(ix, iy).river = true;
         self.cities[0].size = 3;
+        self.reconcile_city_workers();
         self.spawn_unit(1, UnitKind::Warrior, x, y);
         let wants_settlers =
             self.choose_ai_production(1, self.cities[0].id) == Production::Unit(UnitKind::Settler);

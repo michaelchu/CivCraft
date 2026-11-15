@@ -531,7 +531,7 @@ impl Simulation {
     }
 
     /// Mirror `common/movement.c::can_exist_at_tile` for a campaign unit.
-    /// C2C3 `citymindist` is 3, so its one-tile city-channel exception cannot
+    /// C2C3 `citymindist` is currently 3, so its one-tile city-channel exception cannot
     /// apply; cities still admit BuildAnywhere classes and classes native at
     /// the city center or an adjacent tile.
     fn combat_unit_can_exist_at_tile(&self, unit: &Unit, x: i32, y: i32) -> bool {
