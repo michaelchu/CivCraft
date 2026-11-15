@@ -182,7 +182,8 @@ impl Simulation {
         let mut queue = BinaryHeap::from([Reverse((0, start))]);
         let mut rendezvous = vec![None; self.tiles.len()];
         let mut pickup_land_candidates = vec![Vec::<(i32, i32, usize)>::new(); self.tiles.len()];
-        let (blocked_units, _, blocked_land) = self.settlement_route_blocked_tiles(founder.owner);
+        let (blocked_units, _, blocked_land, _) =
+            self.settlement_route_blocked_tiles(founder.owner);
         let mut route_zone_cache = WorkerRouteZoneCache::new(self);
         let movement_profile = self.worker_route_movement_profile(founder.kind);
         costs[start] = 0;
@@ -394,7 +395,7 @@ impl Simulation {
             .get(&founder.id)
             .filter(|reservation| reservation.owner == founder.owner)
             .map(|reservation| reservation.destination);
-        let (blocked_units, blocked_cities, blocked_land) =
+        let (blocked_units, blocked_cities, blocked_land, hostile_military) =
             self.settlement_route_blocked_tiles(founder.owner);
         let mut route_zone_cache = WorkerRouteZoneCache::new(self);
         let movement_profile = self.worker_route_movement_profile(founder.kind);
@@ -473,8 +474,14 @@ impl Simulation {
             let discount = (23.0_f64 / 24.0).powi(3 * turns);
             let (x, y) = self.map_wrap.position(index);
             if assigned.is_none_or(|destination| destination == (x, y))
-                && let Some(site) =
-                    self.advisor_city_site_result(founder, x, y, government, &reservations)
+                && let Some(site) = self.advisor_city_site_result_with_threat_map(
+                    founder,
+                    x,
+                    y,
+                    government,
+                    &reservations,
+                    &hostile_military,
+                )
             {
                 let value = site.value * discount - f64::from(unit_cost);
                 if value > best_value {
