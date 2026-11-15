@@ -6,6 +6,30 @@ Freeciv code may remain as an engine/schema implementation detail, but no
 Freeciv units, buildings, governments, technologies, nations, or settlement
 records may be selected as gameplay content.
 
+## Completion goal
+
+Finish the migration so the native TOML catalog is the authoritative runtime
+source for every gameplay rule. The completed migration must:
+
+- remove runtime dependencies on Freeciv unit, building, government,
+  civilization, nation, and technology content records;
+- replace the remaining Freeciv effect, action, terrain, economy, settlement,
+  combat, culture, diplomacy, AI, and victory bindings with native TOML data or
+  explicitly engine-owned algorithms;
+- migrate the remaining unit classes, roles, flags, targetability, vision,
+  combat modifiers, and special abilities into native unit rules;
+- make building effects and all government support/effect tables authoritative
+  from native TOML;
+- keep stable save identifiers and provide explicit migrations for any removed
+  compatibility identities; and
+- delete obsolete TSV catalogs and the migration converter once parity tests,
+  documentation, and source manifests no longer require them.
+
+The migration is complete only when a normal default build and test run do not
+load Freeciv gameplay content, native TOML validation and parity tests pass,
+and the remaining Freeciv module is limited to reusable engine algorithms and
+parser infrastructure.
+
 ## Acceptance criteria
 
 - Units, buildings, technologies, governments, civilizations, settlement
@@ -37,7 +61,9 @@ effect graphs still need a deliberate runtime cutover.
 2. Migrate the technology graph and research/economic parameters.
 3. Migrate governments, settlement founding/city rules, and settlement AI
    tuning into native TOML.
-4. Switch simulation adapters to native catalogs and remove Freeciv content
-   records from the selected runtime closure.
-5. Delete TSV inputs and the conversion tool after a final clean migration and
+4. Migrate the remaining unit, building, government, terrain, action, combat,
+   culture, diplomacy, AI, victory, and world effects into native TOML.
+5. Switch all simulation adapters to native catalogs and remove Freeciv
+   gameplay content records from the selected runtime closure.
+6. Delete TSV inputs and the conversion tool after a final clean migration and
    full test run.
