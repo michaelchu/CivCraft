@@ -1044,19 +1044,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 let government = self
                     .government
                     .unwrap_or(self.simulation.players[self.owner].government);
-                let Some(rule_name) = government.rule_name() else {
-                    return Ok(false);
-                };
-                let catalog = self
-                    .ruleset
-                    .government_catalog()
-                    .map_err(|_| unsupported())?;
-                Ok(catalog.get(rule_name).is_some_and(|record| {
-                    record
-                        .flags
-                        .iter()
-                        .any(|flag| flag.eq_ignore_ascii_case(name))
-                }))
+                Ok(government.has_flag(name))
             }
             "outputtype" if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;

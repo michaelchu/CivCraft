@@ -190,6 +190,11 @@ pub(crate) struct NativeGovernment {
     pub(crate) required_technology: String,
     #[serde(default)]
     pub(crate) preferred_government: Option<String>,
+    #[serde(default)]
+    pub(crate) flags: Vec<String>,
+    pub(crate) civil_war_chance: i32,
+    pub(crate) empire_size_base: i32,
+    pub(crate) max_rates: i32,
     pub(crate) town_free_units: i32,
     pub(crate) city_free_units: i32,
     pub(crate) metropolis_free_units: i32,

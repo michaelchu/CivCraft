@@ -21,7 +21,8 @@ Current catalogs:
   explicit legacy binding status.
 - `technologies.toml`: 83 advances, source coordinates, costs, and prerequisite
   graph inputs.
-- `governments.toml`: the eight Conquests governments and their support,
-  assimilation, resistance, and military-law tables.
+- `governments.toml`: the eight Conquests governments, names, prerequisites,
+  AI preferences, flags, core scalar values, and support/assimilation/
+  resistance/military-law tables.
 - `economy.toml`: city growth, output, upkeep, and founding parameters.
 - `settlements.toml`: settlement AI and village outcome parameters.
