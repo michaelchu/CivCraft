@@ -115,6 +115,11 @@ impl super::Simulation {
         let _profile = profiler.scope("offense.target_search");
         self.trace.count_operation("offensive.target_searches", 1);
         let mut map = NormalPaths::attack_map(self, seed);
+        let target_cities: Vec<_> = (0..self.players.len())
+            .filter(|&owner| self.ai_potentially_hostile(seed.owner, owner))
+            .flat_map(|owner| self.player_cities_ordered(owner))
+            .collect();
+        let invasion_support = self.invasion_support_many(seed.owner, &target_cities, 0);
         let mut best: Option<OffensiveTarget> = None;
         let mut fallback = 0.0_f32;
         let rating = Self::offensive_attack_rating(seed);
@@ -171,7 +176,10 @@ impl super::Simulation {
                     .as_ref()
                     .map_or(0.0, |d| d.kind.stats().cost as f32);
                 let (helper, helper_cost) = self.offensive_helpers(seed, enemy);
-                let (invaders, occupiers) = self.invasion_support(seed.owner, enemy, 0);
+                let (invaders, occupiers) = invasion_support
+                    .get(&enemy.id)
+                    .copied()
+                    .unwrap_or_default();
                 let victims = self.tile_units_ordered(enemy.x, enemy.y).count() as i32;
                 let reserves = invaders - victims
                     + if seed.kind.has_flag(UnitFlag::OneAttack) {
@@ -353,6 +361,7 @@ impl super::Simulation {
         target: &OffensiveTarget,
         ferry_map: Option<&mut NormalPaths>,
     ) -> Option<i32> {
+        let _profile = self.trace.profiler().scope("offense.candidate_route");
         self.trace.count_operation("offensive.candidate_routes", 1);
         let mut pf = NormalPaths::enemy_map(self, candidate);
         let mut turns = None;

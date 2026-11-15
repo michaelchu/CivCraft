@@ -237,10 +237,16 @@ impl Simulation {
             }
             // Ranged bombardment is an action on the current tile; try it
             // before city defense, guard, or movement automation spends moves.
-            if self.run_ai_bombard(&unit) {
+            let _profile = profiler.scope("ai.units.bombard");
+            let bombarded = self.run_ai_bombard(&unit);
+            drop(_profile);
+            if bombarded {
                 continue;
             }
-            if self.run_ai_bombard_approach(&unit) {
+            let _profile = profiler.scope("ai.units.bombard_approach");
+            let approached = self.run_ai_bombard_approach(&unit);
+            drop(_profile);
+            if approached {
                 continue;
             }
             if let Some(home) = city_defender_homes.get(&id).copied() {
@@ -248,18 +254,25 @@ impl Simulation {
                 // DEFEND_HOME task, even for a unit selected by dai_set_defenders.
                 if owner != BARBARIANS
                     && super::action_rules::freeciv_unit_has_role(unit.kind, "Hunter")
-                    && self.run_existing_hunter(&unit, &mut claimed_targets)
                 {
-                    continue;
+                    let _profile = profiler.scope("ai.units.city_hunter");
+                    if self.run_existing_hunter(&unit, &mut claimed_targets) {
+                        continue;
+                    }
                 }
+                let _profile = profiler.scope("ai.units.city_defender");
                 self.manage_ai_city_defender(id, home);
                 continue;
             }
             if unit.kind.is_nuclear_weapon() {
+                let _profile = profiler.scope("ai.units.nuclear");
                 self.run_ai_nuclear_strike(id);
                 continue;
             }
-            if self.ai_guard_targets.contains_key(&id) && self.run_ai_guard(id) {
+            let _profile = profiler.scope("ai.units.assigned_guard");
+            let guarded = self.ai_guard_targets.contains_key(&id) && self.run_ai_guard(id);
+            drop(_profile);
+            if guarded {
                 continue;
             }
             if ferry_managed.contains(&id)
@@ -273,6 +286,7 @@ impl Simulation {
                 continue;
             }
             if unit.kind.fuel_capacity() > 0 {
+                let _profile = profiler.scope("ai.units.aircraft");
                 self.run_ai_strike_aircraft(&unit);
                 continue;
             }
@@ -292,7 +306,9 @@ impl Simulation {
                 && unit.kind.transport_capacity() > 0
                 && !self.hunter_targets.contains_key(&id)
             {
+                let _profile = profiler.scope("ai.units.source_ferry");
                 let (handled, done) = self.run_source_air_ferry(&unit);
+                drop(_profile);
                 ferry_managed.extend(done);
                 if handled {
                     continue;
@@ -301,24 +317,31 @@ impl Simulation {
                     self.run_settlement_ferry(id, plan);
                     continue;
                 }
+                let _profile = profiler.scope("ai.units.transport_raider");
                 if !self.clean_current_tile(&unit) {
                     self.run_raider_transport(&unit);
                 }
+                drop(_profile);
                 continue;
             }
             if owner != BARBARIANS
                 && super::action_rules::freeciv_unit_has_role(unit.kind, "Hunter")
-                && self.run_existing_hunter(&unit, &mut claimed_targets)
             {
-                continue;
+                let _profile = profiler.scope("ai.units.hunter");
+                if self.run_existing_hunter(&unit, &mut claimed_targets) {
+                    continue;
+                }
             }
-            if unit.kind.is_military()
+            let _profile = profiler.scope("ai.units.guard_assignment");
+            let assigned_guard = unit.kind.is_military()
                 && !unit.kind.is_aircraft()
                 && !Self::is_ai_ferry(unit.kind)
-                && self.run_ai_guard(id)
-            {
+                && self.run_ai_guard(id);
+            drop(_profile);
+            if assigned_guard {
                 continue;
             }
+            let _profile = profiler.scope("ai.units.fallback_movement");
             match unit.kind {
                 // Founders and workers share the late-phase workermap.
                 UnitKind::Settler | UnitKind::Worker => {}
@@ -387,6 +410,7 @@ impl Simulation {
                     }
                 }
             }
+            drop(_profile);
         }
         drop(_profile);
         true

@@ -125,6 +125,16 @@ counts show the remaining search work relative to the destinations the planner
 can use. Use the existing worker route, offensive search, government
 evaluation, and city-manager iteration counters alongside the new measurements.
 
+AI ramp investigations also have `ai.units.*` branch timings and
+`offense.candidate_route`. `movement.route_costs_to_many` measures shared
+destination searches; the `movement.route_search_graph_multi_*` counters show
+their calls and expanded nodes. Ground invasion planning records
+`ai.invasion_support.batch_calls` and `ai.invasion_support.units_scanned` for
+its per-attacker city-marker pass. In Freeciv's `ai/default/daiunit.c`,
+`find_something_to_kill()` initializes invasion markers once per attacker and
+uses one pathfinder map to score multiple cities. Keep that shape when adding
+target scoring so a new city does not trigger another full route traversal.
+
 Settlement profiling separates `settlement.best_city_site`,
 `settlement.ferry.rendezvous`, `settlement.ferry.route`,
 `settlement.ferry.best_plan`, `settlement.ferry.dispatch`, and

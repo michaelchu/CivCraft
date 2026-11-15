@@ -137,28 +137,51 @@ impl Simulation {
         rating * rating
     }
 
-    fn offensive_helpers(&self, unit: &Unit, city: &City) -> (i32, i32) {
+    pub(in crate::sim) fn offensive_helpers(&self, unit: &Unit, city: &City) -> (i32, i32) {
         let mut attack = 0;
         let mut cost = 0;
-        for helper in &self.units {
-            if helper.id == unit.id && unit.id != 0 || !self.allied(unit.owner, helper.owner) {
+        let mut nearby_ids = std::collections::HashSet::new();
+        // Freeciv's reinforcements_cost_and_value checks the local radius
+        // around a target. Query those tiles directly instead of scanning the
+        // entire unit roster for every target city.
+        for (x, y, _) in self.map_wrap.civ3_radius(city.x, city.y, 1) {
+            for helper in self.tile_units_ordered(x, y) {
+                if helper.id == unit.id && unit.id != 0
+                    || !self.allied(unit.owner, helper.owner)
+                    || !nearby_ids.insert(helper.id)
+                {
+                    continue;
+                }
+                let rating = Self::offensive_attack_rating(helper);
+                if rating == 0 {
+                    continue;
+                }
+                let going = i32::from(
+                    helper.owner == unit.owner
+                        && self.ai_ground_targets.get(&helper.id) == Some(&city.id),
+                );
+                attack += rating * (1 + going);
+                cost += helper.kind.stats().cost * (1 + going);
+            }
+        }
+        // A unit assigned to this target can contribute from beyond the
+        // adjacent tiles. Count only assigned ids here; nearby assigned units
+        // were already counted with both contributions above.
+        for (&id, &target) in &self.ai_ground_targets {
+            if target != city.id || nearby_ids.contains(&id) || id == unit.id && unit.id != 0 {
+                continue;
+            }
+            let Some(helper) = self.unit_by_id(id) else {
+                continue;
+            };
+            if helper.owner != unit.owner {
                 continue;
             }
             let rating = Self::offensive_attack_rating(helper);
-            if rating == 0 {
-                continue;
+            if rating != 0 {
+                attack += rating;
+                cost += helper.kind.stats().cost;
             }
-            let nearby = i32::from(
-                self.map_wrap
-                    .civ3_distance(helper.x, helper.y, city.x, city.y)
-                    <= 1,
-            );
-            let going = i32::from(
-                helper.owner == unit.owner
-                    && self.ai_ground_targets.get(&helper.id) == Some(&city.id),
-            );
-            attack += rating * (nearby + going);
-            cost += helper.kind.stats().cost * (nearby + going);
         }
         (attack, cost)
     }
