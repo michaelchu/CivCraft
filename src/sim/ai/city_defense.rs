@@ -334,10 +334,11 @@ impl Simulation {
                 .filter(|&(_, danger, _)| danger > 0)
                 .collect()
         };
-        // Threat routes are now collected. Reinforcement may move garrison
-        // units below, so release any locally built spatial snapshot first.
+        // Threat routes are now collected. Reinforcement may move friendly
+        // garrisons below, so drop location and guard snapshots but retain
+        // hostile arrival routes, which do not depend on friendly positions.
         if owns_advisor_cache {
-            self.end_ai_advisor_cache();
+            self.end_ai_advisor_cache_preserving_threat_routes();
         }
         let mut cities = cities;
         cities.sort_by_key(|&(id, danger, _)| (std::cmp::Reverse(danger), id));
@@ -447,6 +448,9 @@ impl Simulation {
                     dispatched.insert(id);
                 }
             }
+        }
+        if owns_advisor_cache {
+            self.clear_ai_threat_route_cache();
         }
         dispatched
     }

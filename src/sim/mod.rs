@@ -312,6 +312,8 @@ pub(crate) struct Simulation {
     #[serde(skip)]
     ai_advisor_cache_enabled: std::cell::Cell<bool>,
     #[serde(skip)]
+    ai_threat_route_cache_enabled: std::cell::Cell<bool>,
+    #[serde(skip)]
     ai_threat_arrival_cache:
         std::cell::RefCell<std::collections::BTreeMap<(u32, u32), Option<i32>>>,
     #[serde(skip)]
@@ -656,6 +658,7 @@ impl Simulation {
             ai_government_cache: Default::default(),
             diplomatic_contact_until: Default::default(),
             ai_advisor_cache_enabled: Default::default(),
+            ai_threat_route_cache_enabled: Default::default(),
             ai_threat_arrival_cache: Default::default(),
             ai_danger_route_cache: Default::default(),
             movement_step_cost_cache: Default::default(),

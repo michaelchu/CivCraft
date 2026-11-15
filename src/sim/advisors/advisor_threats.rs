@@ -40,13 +40,27 @@ impl Simulation {
         }
         spatial.continent_labels = self.continent_labels();
         self.ai_advisor_cache_enabled.set(true);
+        self.ai_threat_route_cache_enabled.set(true);
     }
 
     pub(in crate::sim) fn end_ai_advisor_cache(&self) {
         self.ai_advisor_cache_enabled.set(false);
+        self.ai_threat_route_cache_enabled.set(false);
         self.ai_threat_arrival_cache.borrow_mut().clear();
         self.ai_danger_route_cache.borrow_mut().clear();
         *self.ai_spatial_index.borrow_mut() = Default::default();
+    }
+
+    pub(in crate::sim) fn end_ai_advisor_cache_preserving_threat_routes(&self) {
+        self.ai_advisor_cache_enabled.set(false);
+        *self.ai_spatial_index.borrow_mut() = Default::default();
+        self.ai_threat_route_cache_enabled.set(true);
+    }
+
+    pub(in crate::sim) fn clear_ai_threat_route_cache(&self) {
+        self.ai_threat_route_cache_enabled.set(false);
+        self.ai_threat_arrival_cache.borrow_mut().clear();
+        self.ai_danger_route_cache.borrow_mut().clear();
     }
 
     pub(in crate::sim) fn any_unit_at(
@@ -118,7 +132,7 @@ impl Simulation {
     }
 
     pub(super) fn danger_route_turns(&self, unit: &Unit, city: &City) -> Option<i32> {
-        if self.ai_advisor_cache_enabled.get() && !unit.kind.is_naval() {
+        if self.ai_threat_route_cache_enabled.get() && !unit.kind.is_naval() {
             let goal = self.map_wrap.index(city.x, city.y);
             if let Some(costs) = self.ai_danger_route_cache.borrow().get(&unit.id) {
                 let spent = costs[goal];
@@ -215,7 +229,7 @@ impl Simulation {
     }
 
     pub(super) fn city_danger_arrival(&self, unit: &Unit, city: &City) -> Option<i32> {
-        if self.ai_advisor_cache_enabled.get() {
+        if self.ai_threat_route_cache_enabled.get() {
             let key = (unit.id, city.id);
             if let Some(turns) = self.ai_threat_arrival_cache.borrow().get(&key) {
                 return *turns;
