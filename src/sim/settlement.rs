@@ -43,8 +43,11 @@ impl Simulation {
             .get(&founder.owner)
             .and_then(|sites| sites[index].as_ref())
         {
+            self.trace.count_operation("settlement.site_cache_hits", 1);
             return cached.clone();
         }
+        self.trace
+            .count_operation("settlement.site_cache_misses", 1);
         let result = self.city_site_result(founder.owner, x, y, government, reservations);
         let mut spatial = self.ai_spatial_index.borrow_mut();
         let sites = spatial
@@ -242,6 +245,9 @@ impl Simulation {
 
     pub(super) fn best_city_site(&self, founder: &Unit) -> Option<ScoredCitySite> {
         use std::{cmp::Reverse, collections::BinaryHeap};
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("settlement.best_city_site");
+        self.trace.count_operation("settlement.site_searches", 1);
         let government = self.ai_goal_government(founder.owner);
         let reservations = self.settlement_citymap(founder.owner, Some(founder.id));
         let start = self.map_wrap.index(founder.x, founder.y);
@@ -254,10 +260,12 @@ impl Simulation {
         let mut best_turn = 0;
         let mut traveler = founder.clone();
         let allowance = self.unit_move_rate(founder).max(1);
+        let mut expanded = 0_u64;
         while let Some(Reverse((cost, index))) = queue.pop() {
             if cost != costs[index] {
                 continue;
             }
+            expanded += 1;
             let (x, y) = self.map_wrap.position(index);
             let turns = cost / allowance;
             if let Some(site) =
@@ -291,6 +299,8 @@ impl Simulation {
                 }
             }
         }
+        self.trace
+            .count_operation("settlement.site_search_expansions", expanded);
 
         let destination = best?;
         let (_, path) = reconstruct_path_to_root(&previous, destination)?;
@@ -331,6 +341,8 @@ impl Simulation {
         government: Government,
         reservations: &[i32],
     ) -> Option<CitySite> {
+        self.trace
+            .count_operation("settlement.site_candidate_evaluations", 1);
         let tile = self.tile(x, y);
         if !self.can_found_at(x, y)
             || self
@@ -374,6 +386,7 @@ impl Simulation {
         let center = self.city_tile_yields_under_government(&city, x, y, true, None, government);
         let mut best = None;
         let mut remaining = 0;
+        let mut radius_tiles_scored = 0_u64;
         let mut city_tiles: Vec<_> = self.map_city_radius_at(x, y).collect();
         // daisettler.c:cityresult_fill uses native city indices and only
         // replaces best_other on a strictly greater want. Equal output
@@ -385,6 +398,7 @@ impl Simulation {
             }
             let output =
                 self.city_tile_yields_under_government(&city, tx, ty, false, None, government);
+            radius_tiles_scored += 1;
             let value = weighted(output, reserved(tx, ty));
             if best.is_none_or(|(score, _, _)| value > score) {
                 if let Some((score, _, _)) = best {
@@ -395,6 +409,8 @@ impl Simulation {
                 remaining += value.max(0) / 8;
             }
         }
+        self.trace
+            .count_operation("settlement.site_radius_tiles_scored", radius_tiles_scored);
         let worker = best.map(|(_, _, tile)| tile);
         let (best_value, best_output, _) = best.unwrap_or((0, (0, 0, 0), (x, y)));
         if center.0 + best_output.0 <= Self::citizen_food_cost() || center.1 + best_output.1 == 0 {

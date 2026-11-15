@@ -125,6 +125,18 @@ counts show the remaining search work relative to the destinations the planner
 can use. Use the existing worker route, offensive search, government
 evaluation, and city-manager iteration counters alongside the new measurements.
 
+Settlement profiling separates `settlement.best_city_site`,
+`settlement.ferry.rendezvous`, `settlement.ferry.route`,
+`settlement.ferry.best_plan`, `settlement.ferry.dispatch`, and
+`settlement.ferry.pickup_route_search` per rendezvous, nested under
+`advisor.build.settlement` or `ai.transports_and_settlement`. Compare exclusive
+times to avoid double-counting nested scopes. Per-turn counters report site
+search expansions and candidate evaluations, ferry pickup candidates,
+destinations and searches per rendezvous, eligible ships and founders,
+sea/land route expansions, and generic route-search calls and expansions.
+`movement.route_costs_to_many` reports a shared multi-destination traversal;
+compare its map expansions with the number of pickup destinations queried.
+
 ## Add an analyzer
 
 1. Create a module under `src/analytics/analyzers/` and implement `Analyzer`.

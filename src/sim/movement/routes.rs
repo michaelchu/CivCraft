@@ -45,8 +45,47 @@ impl Simulation {
         y: i32,
         limit: i32,
     ) -> Option<i32> {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("movement.route_cost_within");
+        self.trace
+            .count_operation("movement.route_cost_within_calls", 1);
         self.search_route(unit, x, y, false, limit)
             .map(|(_, cost)| cost)
+    }
+
+    /// Return route costs to several destinations from one shared search.
+    ///
+    /// Destination-specific terminal rules apply to every requested tile, as
+    /// they do when searching for each destination independently.
+    pub(in crate::sim) fn route_costs_to_many(
+        &self,
+        unit: &Unit,
+        destinations: &[(i32, i32)],
+    ) -> Vec<Option<i32>> {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("movement.route_costs_to_many");
+        self.trace
+            .count_operation("movement.route_costs_to_many_calls", 1);
+        if destinations.is_empty() {
+            return Vec::new();
+        }
+        let goals = destinations
+            .iter()
+            .map(|&(x, y)| self.map_wrap.index(x, y))
+            .collect::<Vec<_>>();
+        self.trace
+            .count_operation("movement.route_search_graph_calls", 1);
+        self.trace
+            .count_operation("movement.route_search_graph_multi_calls", 1);
+        let (best, _, expanded) = self.search_route_graph_map(unit, &goals, i32::MAX, false, false);
+        self.trace
+            .count_operation("movement.route_search_graph_expansions", expanded);
+        self.trace
+            .count_operation("movement.route_search_graph_multi_expansions", expanded);
+        goals
+            .into_iter()
+            .map(|goal| (best[goal].0 != i32::MAX).then_some(best[goal].0))
+            .collect()
     }
 
     pub(in crate::sim) fn search_route(
@@ -68,24 +107,68 @@ impl Simulation {
         observed: bool,
         limit: i32,
     ) -> Option<(Vec<(i32, i32)>, i32)> {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("movement.route_search_graph");
+        self.trace
+            .count_operation("movement.route_search_graph_calls", 1);
         let start = self.map_wrap.index(unit.x, unit.y);
         let goal = self.map_wrap.index(tx, ty);
         if start == goal {
             return Some((Vec::new(), 0));
         }
+        let (best, previous, expanded) =
+            self.search_route_graph_map(unit, &[goal], limit, observed, true);
+        self.trace
+            .count_operation("movement.route_search_graph_expansions", expanded);
+        let previous = previous.expect("single-destination route search records its path");
+        previous[goal]?;
+        let path = reconstruct_path(&previous, start, goal)?;
+        Some((path, best[goal].0))
+    }
+
+    fn search_route_graph_map(
+        &self,
+        unit: &Unit,
+        goals: &[usize],
+        limit: i32,
+        observed: bool,
+        capture_path: bool,
+    ) -> (
+        Vec<(i32, usize)>,
+        Option<Vec<Option<(usize, (i32, i32))>>>,
+        u64,
+    ) {
+        let start = self.map_wrap.index(unit.x, unit.y);
+        let mut goal_tiles = vec![false; self.tiles.len()];
+        for &goal in goals {
+            goal_tiles[goal] = true;
+        }
+        let goal_count = goal_tiles.iter().filter(|&&goal| goal).count();
+        let mut goal_tiles_settled = vec![false; self.tiles.len()];
+        let mut terminal_only = vec![false; self.tiles.len()];
+        let mut settled_goal_count = 0;
         let mut queue = BinaryHeap::from([Reverse((0, 0, 0, start))]);
         let mut best = vec![(i32::MAX, usize::MAX); self.tiles.len()];
-        let mut previous = vec![None; self.tiles.len()];
+        let mut previous = capture_path.then(|| vec![None; self.tiles.len()]);
         let mut sequence = 0;
         let mut step_unit = unit.clone();
         let allowance = self.unit_move_rate(unit).max(1);
         best[start] = (0, 0);
+        let mut expanded = 0_u64;
         while let Some(Reverse((spent, steps, _, current))) = queue.pop() {
             if best[current] != (spent, steps) {
                 continue;
             }
-            if current == goal {
+            expanded += 1;
+            if goal_tiles[current] && !goal_tiles_settled[current] {
+                goal_tiles_settled[current] = true;
+                settled_goal_count += 1;
+            }
+            if settled_goal_count == goal_count {
                 break;
+            }
+            if terminal_only[current] {
+                continue;
             }
             let (cx, cy) = self.map_wrap.position(current);
             (step_unit.x, step_unit.y) = (cx, cy);
@@ -106,14 +189,14 @@ impl Simulation {
                     self.observed_move_cost(&step_unit, nx, ny, remembered)
                 } else {
                     self.movement_cost_for(&step_unit, nx, ny)
-                }
-                .or_else(|| {
-                    (ni == goal
-                        && (!observed || dest.visible)
-                        && dest.terrain.is_water()
-                        && self.boarding_target(unit, nx, ny).is_some())
-                    .then(|| self.raw_move_cost_for(unit, nx, ny))
-                });
+                };
+                let terminal_fallback = cost.is_none()
+                    && goal_tiles[ni]
+                    && (!observed || dest.visible)
+                    && dest.terrain.is_water()
+                    && self.boarding_target(unit, nx, ny).is_some();
+                let cost = cost
+                    .or_else(|| terminal_fallback.then(|| self.raw_move_cost_for(unit, nx, ny)));
                 let Some(cost) = cost else {
                     continue;
                 };
@@ -133,7 +216,7 @@ impl Simulation {
                         .chain(remembered.and_then(|tile| tile.city_owner));
                     let blocked = rivals.clone().any(|owner| {
                         !self.allied(unit.owner, owner)
-                            && (ni != goal
+                            && (!goal_tiles[ni]
                                 || !unit.kind.is_military()
                                 || !self.at_war(unit.owner, owner))
                     }) || !unit.kind.is_civilian()
@@ -152,7 +235,7 @@ impl Simulation {
                     }
                     enemy_block =
                         self.any_unit_at(nx, ny, |other| self.at_war(other.owner, unit.owner));
-                    if enemy_block && ni != goal {
+                    if enemy_block && !goal_tiles[ni] {
                         continue;
                     }
                 }
@@ -163,13 +246,14 @@ impl Simulation {
                     continue;
                 }
                 best[ni] = candidate;
-                previous[ni] = Some((current, (dx, dy)));
+                terminal_only[ni] = terminal_fallback || enemy_block;
+                if let Some(previous) = &mut previous {
+                    previous[ni] = Some((current, (dx, dy)));
+                }
                 sequence += 1;
                 queue.push(Reverse((candidate.0, candidate.1, sequence, ni)));
             }
         }
-        previous[goal]?;
-        let path = reconstruct_path(&previous, start, goal)?;
-        Some((path, best[goal].0))
+        (best, previous, expanded)
     }
 }
