@@ -143,7 +143,6 @@ impl Simulation {
         self.city_founders.remove(&removed.id);
         self.city_rapture.remove(&removed.id);
         self.rebuild_city_ownership_for_city_event(removed.id);
-        self.eliminate_if_cityless(removed.owner);
     }
 
     pub(in crate::sim) fn change_production(&mut self, city_id: u32, target: Production) -> bool {
@@ -420,7 +419,6 @@ impl Simulation {
                 self.city_founders.remove(&removed.id);
                 self.city_rapture.remove(&removed.id);
                 self.rebuild_city_ownership_for_city_event(removed.id);
-                self.eliminate_if_cityless(removed.owner);
                 if snapshot.owner == HUMAN {
                     self.add_event(format!("Famine destroyed {} entirely.", snapshot.name));
                 }

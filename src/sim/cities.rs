@@ -262,7 +262,6 @@ impl Simulation {
         self.city_founders.remove(&removed.id);
         self.city_rapture.remove(&removed.id);
         self.rebuild_city_ownership_for_city_event(removed.id);
-        self.eliminate_if_cityless(removed.owner);
     }
 
     pub(super) fn reduce_city_population(&mut self, index: usize) {
@@ -340,7 +339,6 @@ impl Simulation {
             self.cities[index].production = self.choose_ai_production(buyer, id);
         }
         self.rebuild_city_ownership_for_city_event(id);
-        self.eliminate_if_cityless(original);
         self.refresh_diplomatic_contact_at(buyer, center.0, center.1);
         self.refresh_visibility();
     }
@@ -560,7 +558,6 @@ impl Simulation {
         if let Some(index) = self.city_index_by_id(city_id) {
             self.inspire_partisans(index, old_owner);
         }
-        self.eliminate_if_cityless(old_owner);
         self.refresh_diplomatic_contact_at(unit.owner, x, y);
         self.refresh_visibility();
         if unit.owner == HUMAN || old_owner == HUMAN {
