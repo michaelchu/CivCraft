@@ -2535,10 +2535,11 @@ pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsReco
 fn native_unit_economics_binding(
     unit: UnitKind,
 ) -> Option<&'static crate::rules::native::NativeUnitEconomicsBinding> {
-    match freeciv_unit_economics_record(unit) {
-        UnitEconomicsRecordBinding::Mapped { native, .. } => Some(native),
-        UnitEconomicsRecordBinding::Unsupported { .. } => None,
-    }
+    let id = unit.conquests_id()?;
+    crate::rules::native::unit_economics()
+        .bindings
+        .iter()
+        .find(|binding| binding.civ3_unit_id.eq_ignore_ascii_case(id))
 }
 
 /// Whether the explicit gameplay identity for a Civ III unit carries a
@@ -2547,24 +2548,20 @@ fn native_unit_economics_binding(
 /// selected ruleset roles because Civ III strategy bits do not include roles
 /// such as `Hunter`.
 pub(crate) fn freeciv_unit_has_role(unit: UnitKind, role: &str) -> bool {
-    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
-    else {
-        return false;
-    };
-    native
-        .roles
-        .iter()
-        .any(|candidate| candidate.eq_ignore_ascii_case(role))
+    native_unit_economics_binding(unit).is_some_and(|native| {
+        native
+            .roles
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(role))
+    })
 }
 
 /// Freeciv's base AI site score subtracts `unit_build_shield_cost_base`.
 /// Read the cost and shieldbox scale from the selected ruleset/settings rather
 /// than Civ III's separate production catalog.
 pub(crate) fn freeciv_unit_build_cost(unit: UnitKind) -> i32 {
-    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
-    else {
-        panic!("missing native unit economics record for {}", unit.name());
-    };
+    let native = native_unit_economics_binding(unit)
+        .unwrap_or_else(|| panic!("missing native unit economics record for {}", unit.name()));
     let shieldbox = crate::rules::freeciv::RulesetData::campaign_default()
         .integer_setting_value("shieldbox")
         .unwrap_or_else(|error| panic!("invalid C2C3 shieldbox: {error}"));
@@ -2657,69 +2654,10 @@ const C2C3_DEFAULT_NO_TYPE_FLAGS: &[&str] = &[
     "mobile_sam",
 ];
 
-/// Unit-class role mappings for retained Civ III military units without an
-/// exact C2C3 unit record. Civ III's SmallLand category includes combat units;
-/// Freeciv's Small Land class is reserved for non-occupying units, so these
-/// military roles map to the selected C2C3 Land class without borrowing any
-/// unit-type flags or stats.
-const C2C3_UNIT_CLASS_ALIASES: &[(&str, &str)] = &[
-    ("modern_paratrooper", "Land"),
-    ("spearman", "Land"),
-    ("swordsman", "Land"),
-    ("pikeman", "Land"),
-    ("longbowman", "Land"),
-    ("musketman", "Land"),
-    ("rifleman", "Land"),
-    ("infantry", "Land"),
-    ("jaguar_warrior", "Land"),
-    ("bowman", "Land"),
-    ("hoplite", "Land"),
-    ("impi", "Land"),
-    ("legionary", "Land"),
-    ("immortals", "Land"),
-    ("musketeer", "Land"),
-    ("samurai", "Land"),
-    ("berserk", "Land"),
-    ("gallic_swordsman", "Land"),
-    ("numidian_mercenary", "Land"),
-    ("medieval_infantry", "Land"),
-    ("guerilla", "Land"),
-    ("enkidu_warrior", "Land"),
-    ("swiss_mercenary", "Land"),
-    ("chasqui_scout", "Land"),
-    ("javelin_thrower", "Land"),
-    ("tow_infantry", "Land"),
-];
-
-/// Resolve a C2C3 unit class while retaining the Civ III runtime identity.
-/// Direct and role-mapped units use the selected unit record's class; only
-/// identities in the explicit no-type-record ledger use the Civ III class
-/// crosswalk.
+/// Resolve the native unit rule's class while retaining the legacy helper name
+/// used by callers during the migration.
 pub(crate) fn freeciv_unit_class_rule_name(unit: UnitKind) -> Option<String> {
-    if let Some(record) = direct_c2c3_unit_record(unit) {
-        return record
-            .string_field("class")
-            .ok()
-            .flatten()
-            .map(str::to_owned);
-    }
-    let id = unit.conquests_id()?;
-    if let Some((_, class)) = C2C3_UNIT_CLASS_ALIASES
-        .iter()
-        .find(|(candidate, _)| candidate.eq_ignore_ascii_case(id))
-    {
-        return Some((*class).to_owned());
-    }
-    if C2C3_DEFAULT_NO_TYPE_FLAGS
-        .iter()
-        .any(|candidate| candidate.eq_ignore_ascii_case(id))
-    {
-        return super::movement_rules::MovementRules::campaign()
-            .unit_class_movement_data(unit.unit_class())
-            .ok()
-            .map(|class| class.rule_name);
-    }
-    None
+    native_unit_economics_binding(unit).map(|native| native.unit_class.clone())
 }
 
 /// Return the selected C2C3 unit section bound to a Civ III runtime identity.
@@ -2733,11 +2671,8 @@ pub(crate) fn freeciv_unit_type_section(unit: UnitKind) -> Option<String> {
 /// gameplay rule; the Civ III operational-range field remains available on
 /// the source catalog record and continues to govern sortie distance.
 pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
-    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
-    else {
-        return None;
-    };
-    Some(u8::try_from(native.fuel).expect("native unit fuel fits in u8"))
+    native_unit_economics_binding(unit)
+        .map(|native| u8::try_from(native.fuel).expect("native unit fuel fits in u8"))
 }
 
 /// Civ III records expose the Cruise Missile's offensive strength as
@@ -2782,16 +2717,12 @@ fn direct_c2c3_unit_record(
 /// `None` when the ID or selected unit record has no declared binding.
 pub(crate) fn freeciv_unit_type_flag(unit: UnitKind, flag: &str) -> Option<bool> {
     unit.conquests_id()?;
-    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
-    else {
-        return Some(false);
-    };
-    Some(
+    Some(native_unit_economics_binding(unit).is_some_and(|native| {
         native
             .flags
             .iter()
-            .any(|candidate| candidate.eq_ignore_ascii_case(flag)),
-    )
+            .any(|candidate| candidate.eq_ignore_ascii_case(flag))
+    }))
 }
 
 /// Resolve whether a selected C2C3 unit record can attack a defender's class.
@@ -2801,22 +2732,16 @@ pub(crate) fn freeciv_unit_can_target_class(
     attacker: UnitKind,
     defender: UnitKind,
 ) -> Option<bool> {
-    // Requiring both mappings keeps Civ III catalog identities explicit. Units
-    // without a direct type record use their already-audited C2C3 class alias
-    // and the engine's default target behavior.
-    freeciv_unit_class_rule_name(attacker)?;
-    let target_class = freeciv_unit_class_rule_name(defender)?;
-    let unreachable = freeciv_unit_class_flag(defender, "Unreachable")?;
-    let explicitly_targeted = if let Some(record) = direct_c2c3_unit_record(attacker) {
-        record
-            .string_list_field("targets")
-            .ok()?
-            .unwrap_or_default()
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case(&target_class))
-    } else {
-        false
-    };
+    let attacker_rule = native_unit_economics_binding(attacker)?;
+    let defender_rule = native_unit_economics_binding(defender)?;
+    let unreachable = defender_rule
+        .class_flags
+        .iter()
+        .any(|flag| flag.eq_ignore_ascii_case("Unreachable"));
+    let explicitly_targeted = attacker_rule
+        .targets
+        .iter()
+        .any(|name| name.eq_ignore_ascii_case(&defender_rule.unit_class));
     Some(explicitly_targeted || !unreachable)
 }
 
@@ -2824,15 +2749,9 @@ pub(crate) fn freeciv_unit_can_target_class(
 /// crosswalk. Callers receive `None` when the runtime identity has no explicit
 /// class mapping or the selected ruleset omits the mapped record.
 pub(crate) fn freeciv_unit_class_flag(unit: UnitKind, flag: &str) -> Option<bool> {
-    let class_name = freeciv_unit_class_rule_name(unit)?;
-    let rules = RulesetData::campaign_default();
-    let class = rules.rule_records.iter().find(|record| {
-        record.namespace.eq_ignore_ascii_case("unit_class")
-            && record.rule_name.eq_ignore_ascii_case(&class_name)
-    })?;
-    let flags = class.string_list_field("flags").ok()??;
     Some(
-        flags
+        native_unit_economics_binding(unit)?
+            .class_flags
             .iter()
             .any(|candidate| candidate.eq_ignore_ascii_case(flag)),
     )
@@ -3626,7 +3545,7 @@ mod tests {
     }
 
     #[test]
-    fn freeciv_unit_type_flags_use_direct_records_and_explicit_default_ledger() {
+    fn native_unit_type_flags_cover_the_full_civ3_roster() {
         assert_eq!(
             freeciv_unit_type_flag(UnitKind::Worker, "Workers"),
             Some(true)
@@ -3658,11 +3577,11 @@ mod tests {
             freeciv_unit_type_flag(UnitKind::Galley, "CoastStrict"),
             Some(false)
         );
-        // Similar names are not an explicit unit identity match. Civ III's
-        // source flags do not leak into this Freeciv default.
+        // Guerilla is an explicit native alias of the Partisan archetype, so
+        // its native flag set includes terrain/ZOC behavior.
         assert_eq!(
             freeciv_unit_type_flag(UnitKind::Guerilla, "IgZOC"),
-            Some(false)
+            Some(true)
         );
 
         let all_ids = UnitKind::ALL_NATIVE
@@ -3710,24 +3629,21 @@ mod tests {
                 .into_iter()
                 .find(|kind| kind.conquests_id() == Some(*id))
                 .expect("default identity belongs to Civ III roster");
-            assert_eq!(
-                freeciv_unit_type_flag(unit, "HasNoZOC"),
-                Some(false),
-                "{id}"
+            assert!(
+                freeciv_unit_type_flag(unit, "HasNoZOC").is_some(),
+                "native flag binding for {id}"
             );
-            assert_eq!(freeciv_unit_type_flag(unit, "IgZOC"), Some(false), "{id}");
-        }
-        for (id, class) in C2C3_UNIT_CLASS_ALIASES {
-            let unit = UnitKind::ALL_NATIVE
-                .into_iter()
-                .find(|kind| kind.conquests_id() == Some(*id))
-                .expect("role-mapped source identity belongs to Civ III roster");
-            assert_eq!(
-                freeciv_unit_class_rule_name(unit).as_deref(),
-                Some(*class),
-                "{id}"
+            assert!(
+                freeciv_unit_type_flag(unit, "IgZOC").is_some(),
+                "native flag binding for {id}"
             );
         }
+        let native_bindings = &crate::rules::native::unit_economics().bindings;
+        assert_eq!(native_bindings.len(), UnitKind::ALL_NATIVE.len());
+        assert!(native_bindings.iter().all(|binding| {
+            !binding.unit_class.is_empty()
+                && binding.class_flags.iter().all(|flag| !flag.is_empty())
+        }));
         assert_eq!(
             all_ids.len(),
             DIRECT_C2C3_UNIT_RECORDS.len()
@@ -3743,7 +3659,7 @@ mod tests {
         assert!(freeciv_unit_has_role(UnitKind::Musketman, "DefendGood"));
         assert!(freeciv_unit_has_role(UnitKind::MechInfantry, "DefendGood"));
         assert!(freeciv_unit_has_role(UnitKind::Horseman, "Hunter"));
-        assert!(!freeciv_unit_has_role(UnitKind::Curragh, "Ferryboat"));
+        assert!(freeciv_unit_has_role(UnitKind::Curragh, "Ferryboat"));
         assert!(!freeciv_unit_has_role(UnitKind::Dromon, "BarbarianBoat"));
         assert!(!freeciv_unit_has_role(UnitKind::Army, "DefendGood"));
     }

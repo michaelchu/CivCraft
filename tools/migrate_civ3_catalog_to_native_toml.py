@@ -47,19 +47,47 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
         if current is None or "=" not in line or line.startswith(";"):
             continue
         key, value = (part.strip() for part in line.split("=", 1))
-        if key in {
+        if key in {"class"}:
+            match = re.search(r'"([^"]+)"', value)
+            if match:
+                current["unit_class"] = match.group(1)
+        elif key in {
             "uk_food",
             "uk_shield",
             "uk_gold",
             "uk_happy",
             "build_cost",
             "fuel",
+            "paratroopers_range",
         }:
             match = re.search(r"-?\d+", value)
             if match:
                 current[key] = int(match.group())
-        elif key in {"flags", "roles"}:
+        elif key in {"flags", "roles", "targets"}:
             current[key] = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', value)
+    class_blocks = re.finditer(
+        r"\[unitclass_[^\]]+\](.*?)(?=\n\[|\Z)",
+        (ROOT / "data/rulesets/civcraft_civ2civ3/units.ruleset").read_text(
+            encoding="utf-8"
+        ),
+        re.DOTALL,
+    )
+    class_flags: dict[str, list[str]] = {}
+    for block_match in class_blocks:
+        block = block_match.group(1)
+        name_match = re.search(
+            r'^name\s*=.*?"(?:\?unitclass:)?([^"]+)"', block, re.MULTILINE
+        )
+        flags_match = re.search(r"^flags\s*=\s*(.*)", block, re.MULTILINE | re.DOTALL)
+        if name_match and flags_match:
+            class_flags[name_match.group(1)] = re.findall(
+                r'"([^"\\]*(?:\\.[^"\\]*)*)"', flags_match.group(1)
+            )
+    for profile in profiles.values():
+        unit_class = profile.get("unit_class")
+        profile["class_flags"] = class_flags.get(str(unit_class), [])
+        profile.setdefault("targets", [])
+        profile.setdefault("paratroopers_range", -1)
     return profiles
 
 
@@ -449,6 +477,10 @@ def write_unit_economics() -> None:
                 f'profile = {string(row["c2c3_record"])}',
                 f'mapping_kind = {string(row["mapping_kind"])}',
                 f'basis = {string(row["basis"])}',
+                f'unit_class = {string(profile.get("unit_class", ""))}',
+                f'class_flags = {json.dumps(profile.get("class_flags", []), ensure_ascii=False)}',
+                f'targets = {json.dumps(profile.get("targets", []), ensure_ascii=False)}',
+                f'paratroopers_range = {profile.get("paratroopers_range", -1)}',
                 f'build_cost = {profile.get("build_cost", 0)}',
                 f'fuel = {profile.get("fuel", 0)}',
                 f'support_food = {profile.get("uk_food", 0)}',
@@ -463,10 +495,11 @@ def write_unit_economics() -> None:
     (DEST / "unit_economics.toml").write_text("\n".join(lines), encoding="utf-8")
 
 
-DEST.mkdir(parents=True, exist_ok=True)
-write_units()
-write_civilizations()
-write_buildings()
-write_technologies()
-write_governments()
-write_unit_economics()
+if __name__ == "__main__":
+    DEST.mkdir(parents=True, exist_ok=True)
+    write_units()
+    write_civilizations()
+    write_buildings()
+    write_technologies()
+    write_governments()
+    write_unit_economics()

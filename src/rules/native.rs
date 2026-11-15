@@ -309,6 +309,10 @@ pub(crate) struct NativeUnitEconomicsBinding {
     pub(crate) profile: String,
     pub(crate) mapping_kind: String,
     pub(crate) basis: String,
+    pub(crate) unit_class: String,
+    pub(crate) class_flags: Vec<String>,
+    pub(crate) targets: Vec<String>,
+    pub(crate) paratroopers_range: i32,
     pub(crate) build_cost: i32,
     pub(crate) fuel: i32,
     pub(crate) support_food: i32,
@@ -541,6 +545,10 @@ mod tests {
                 .iter()
                 .all(|binding| binding.fuel >= 0)
         );
+        assert!(unit_economics().bindings.iter().all(|binding| {
+            !binding.unit_class.is_empty()
+                && binding.class_flags.iter().all(|flag| !flag.is_empty())
+        }));
         assert_eq!(
             unit_economics()
                 .bindings

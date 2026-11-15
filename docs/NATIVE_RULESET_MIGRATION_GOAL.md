@@ -50,7 +50,9 @@ Native TOML now contains the complete 92-unit, 31-civilization, 83-source /
 eight-government tables and
 native economy/settlement settings.  The source-content catalog and migrated
 unit consumers now load TOML directly.  Unit upkeep, roles, flags, build cost,
-and action requirements prefer native values. Building identities and rules,
+classes, targetability, and action requirements now prefer native values;
+unit upkeep still retains a compatibility adapter for effect evaluation.
+Building identities and rules,
 government identity/selection/prerequisites, government flags, and core
 government scalar values now load from TOML; broader building and government
 effect graphs still need a deliberate runtime cutover.

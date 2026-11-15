@@ -21,6 +21,9 @@ Current catalogs:
   explicit legacy binding status.
 - `technologies.toml`: 83 advances, source coordinates, costs, and prerequisite
   graph inputs.
+- `unit_economics.toml`: native unit classes, class flags, target classes,
+  gameplay roles, fuel, build cost, support, and happiness bindings for all
+  92 Conquests units.
 - `governments.toml`: the eight Conquests governments, names, prerequisites,
   AI preferences, flags, core scalar values, and support/assimilation/
   resistance/military-law tables.

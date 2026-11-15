@@ -367,6 +367,10 @@ impl Simulation {
         cost.saturating_mul(upkeep_percent) / 100
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Unit happiness needs the explicit city, unit, ruleset binding, government, and allowance state."
+    )]
     fn c2c3_unit_unhappiness(
         &self,
         city: &City,
