@@ -1,5 +1,6 @@
 //! City founding and settlement-site selection.
 
+use super::movement::{WorkerRouteMovementProfile, WorkerRouteZoneCache};
 use super::pathfinding::reconstruct_path_to_root;
 pub(super) mod observations;
 
@@ -290,6 +291,9 @@ impl Simulation {
         let government = self.ai_goal_government(founder.owner);
         let reservations = self.settlement_citymap(founder.owner, Some(founder.id));
         let start = self.map_wrap.index(founder.x, founder.y);
+        let (_, _, blocked_land) = self.settlement_route_blocked_tiles(founder.owner);
+        let mut route_zone_cache = WorkerRouteZoneCache::new(self);
+        let movement_profile = self.worker_route_movement_profile(founder.kind);
         let mut costs = vec![i32::MAX; self.tiles.len()];
         let mut previous = vec![None; self.tiles.len()];
         costs[start] = 0;
@@ -328,7 +332,12 @@ impl Simulation {
                 allowance - (cost - founder.moves_left.max(0)) % allowance
             };
             traveler.moves_left = remaining;
-            for (nx, ny, step, direction) in self.settler_land_steps(&traveler) {
+            for (nx, ny, step, direction) in self.settler_land_steps(
+                &traveler,
+                &blocked_land,
+                &mut route_zone_cache,
+                &movement_profile,
+            ) {
                 let next = self.map_wrap.index(nx, ny);
                 let next_cost = cost + step.min(remaining);
                 if next_cost < costs[next] {
@@ -340,6 +349,11 @@ impl Simulation {
         }
         self.trace
             .count_operation("settlement.site_search_expansions", expanded);
+        let (zoc_cache_hits, allied_cache_hits) = route_zone_cache.cache_hits();
+        self.trace
+            .count_operation("settlement.site_route_zoc_cache_hits", zoc_cache_hits);
+        self.trace
+            .count_operation("settlement.site_route_allied_cache_hits", allied_cache_hits);
 
         let destination = best?;
         let (_, path) = reconstruct_path_to_root(&previous, destination)?;
@@ -349,20 +363,54 @@ impl Simulation {
     pub(super) fn settler_land_steps<'a>(
         &'a self,
         traveler: &'a Unit,
+        blocked_land: &'a [bool],
+        route_zone_cache: &'a mut WorkerRouteZoneCache,
+        movement_profile: &'a WorkerRouteMovementProfile,
     ) -> impl Iterator<Item = (i32, i32, i32, (i32, i32))> + 'a {
+        // All callers search for a founder. The civilian treaty check only
+        // rejects occupied tiles, which blocked_land already covers; its
+        // non-civilian peaceful-border rule does not apply here.
+        debug_assert!(traveler.kind.is_civilian());
         CIV3_DIRS.into_iter().filter_map(move |direction| {
             let (dx, dy) = direction;
             let (nx, ny) = self.map_wrap.civ3_offset(traveler.x, traveler.y, dx, dy)?;
-            if self.treaty_blocks_move(traveler, nx, ny)
-                || self.zone_blocks_step(traveler, (traveler.x, traveler.y), (nx, ny))
-                || self.any_unit_at(nx, ny, |other| !self.allied(other.owner, traveler.owner))
-                || self.any_city_at(nx, ny, |city| !self.allied(city.owner, traveler.owner))
+            if blocked_land[self.map_wrap.index(nx, ny)]
+                || self.zone_blocks_worker_route_step_with_profile(
+                    traveler,
+                    (traveler.x, traveler.y),
+                    (nx, ny),
+                    route_zone_cache,
+                    movement_profile,
+                )
             {
                 return None;
             }
             self.movement_cost_for(traveler, nx, ny)
                 .map(|step| (nx, ny, step, direction))
         })
+    }
+
+    pub(super) fn settlement_route_blocked_tiles(
+        &self,
+        owner: usize,
+    ) -> (Vec<bool>, Vec<bool>, Vec<bool>) {
+        let mut blocked_units = vec![false; self.tiles.len()];
+        for unit in &self.units {
+            if !self.allied(unit.owner, owner) {
+                blocked_units[self.map_wrap.index(unit.x, unit.y)] = true;
+            }
+        }
+        let mut blocked_cities = vec![false; self.tiles.len()];
+        for city in &self.cities {
+            if !self.allied(city.owner, owner) {
+                blocked_cities[self.map_wrap.index(city.x, city.y)] = true;
+            }
+        }
+        let mut blocked_land = blocked_units.clone();
+        for (land, &city) in blocked_land.iter_mut().zip(&blocked_cities) {
+            *land |= city;
+        }
+        (blocked_units, blocked_cities, blocked_land)
     }
 
     pub(super) fn city_site_value(&self, owner: usize, x: i32, y: i32) -> Option<f64> {

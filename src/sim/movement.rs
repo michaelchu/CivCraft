@@ -64,7 +64,7 @@ impl WorkerRouteZoneCache {
         (self.enemy_zoc_hits, self.allied_unit_hits)
     }
 
-    fn city_at<'a>(&self, sim: &'a Simulation, x: i32, y: i32) -> Option<&'a City> {
+    pub(super) fn city_at<'a>(&self, sim: &'a Simulation, x: i32, y: i32) -> Option<&'a City> {
         self.city_indices[sim.map_wrap.index(x, y)].and_then(|index| sim.cities.get(index))
     }
 

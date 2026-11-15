@@ -1,5 +1,6 @@
 //! Ferry planning that moves settlers to viable founding sites.
 
+use super::movement::WorkerRouteZoneCache;
 use super::normal_paths::GotoTask;
 use super::*;
 
@@ -181,6 +182,9 @@ impl Simulation {
         let mut queue = BinaryHeap::from([Reverse((0, start))]);
         let mut rendezvous = vec![None; self.tiles.len()];
         let mut pickup_land_candidates = vec![Vec::<(i32, i32, usize)>::new(); self.tiles.len()];
+        let (blocked_units, _, blocked_land) = self.settlement_route_blocked_tiles(founder.owner);
+        let mut route_zone_cache = WorkerRouteZoneCache::new(self);
+        let movement_profile = self.worker_route_movement_profile(founder.kind);
         costs[start] = 0;
         let mut traveler = founder.clone();
         let mut expanded = 0_u64;
@@ -204,21 +208,16 @@ impl Simulation {
             let (x, y) = self.map_wrap.position(index);
             (traveler.x, traveler.y) = (x, y);
             traveler.moves_left = step_remaining;
-            let port = self.cities.iter().any(|city| {
-                self.allied(city.owner, founder.owner)
-                    && (city.x, city.y) == (x, y)
-                    && self.is_port(city)
-            });
+            let port = route_zone_cache
+                .city_at(self, x, y)
+                .is_some_and(|city| self.allied(city.owner, founder.owner) && self.is_port(city));
             for pickup in
                 port.then_some((x, y))
                     .into_iter()
                     .chain(self.map_wrap.civ3_neighbors(x, y).filter(|&(sx, sy)| {
                         self.tile(sx, sy).terrain.is_water()
                             && !self.treaty_blocks_move(&traveler, sx, sy)
-                            && !self.units.iter().any(|unit| {
-                                (unit.x, unit.y) == (sx, sy)
-                                    && !self.allied(unit.owner, founder.owner)
-                            })
+                            && !blocked_units[self.map_wrap.index(sx, sy)]
                     }))
             {
                 pickup_candidates += 1;
@@ -230,7 +229,12 @@ impl Simulation {
                 let land_ready = land_turns + i32::from(pickup != (x, y) && arrival_remaining == 0);
                 pickup_land_candidates[pickup_index].push((land_ready, cost, index));
             }
-            for (nx, ny, step, direction) in self.settler_land_steps(&traveler) {
+            for (nx, ny, step, direction) in self.settler_land_steps(
+                &traveler,
+                &blocked_land,
+                &mut route_zone_cache,
+                &movement_profile,
+            ) {
                 let next = self.map_wrap.index(nx, ny);
                 let next_cost = cost + step.min(step_remaining);
                 if next_cost < costs[next] {
@@ -244,6 +248,13 @@ impl Simulation {
             .count_operation("settlement.ferry.rendezvous_expansions", expanded);
         self.trace
             .count_operation("settlement.ferry.pickup_candidates", pickup_candidates);
+        let (zoc_cache_hits, allied_cache_hits) = route_zone_cache.cache_hits();
+        self.trace
+            .count_operation("settlement.ferry.rendezvous_zoc_cache_hits", zoc_cache_hits);
+        self.trace.count_operation(
+            "settlement.ferry.rendezvous_allied_cache_hits",
+            allied_cache_hits,
+        );
         let pickup_goals = pickup_land_candidates
             .iter()
             .enumerate()
@@ -383,6 +394,10 @@ impl Simulation {
             .get(&founder.id)
             .filter(|reservation| reservation.owner == founder.owner)
             .map(|reservation| reservation.destination);
+        let (blocked_units, blocked_cities, blocked_land) =
+            self.settlement_route_blocked_tiles(founder.owner);
+        let mut route_zone_cache = WorkerRouteZoneCache::new(self);
+        let movement_profile = self.worker_route_movement_profile(founder.kind);
         let sea_speed = self.unit_move_rate(ship);
         let land_speed = self.unit_move_rate(founder);
         let turn_cost = sea_speed * land_speed;
@@ -409,18 +424,19 @@ impl Simulation {
             (staged.x, staged.y) = (x, y);
             for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
                 let index = self.map_wrap.index(nx, ny);
-                let blocked = self.units.iter().any(|unit| {
-                    (unit.x, unit.y) == (nx, ny) && !self.allied(unit.owner, founder.owner)
-                });
+                let blocked = blocked_units[index];
                 if labels[index] > 0
                     && labels[index] != origin
                     && self.tile(x, y).terrain.is_water()
                     && !blocked
-                    && !self.treaty_blocks_move(founder, nx, ny)
-                    && !self.zone_blocks_step(founder, (x, y), (nx, ny))
-                    && !self.cities.iter().any(|city| {
-                        (city.x, city.y) == (nx, ny) && !self.allied(city.owner, founder.owner)
-                    })
+                    && !blocked_cities[index]
+                    && !self.zone_blocks_worker_route_step_with_profile(
+                        founder,
+                        (x, y),
+                        (nx, ny),
+                        &mut route_zone_cache,
+                        &movement_profile,
+                    )
                 {
                     let cost = cost + turn_cost;
                     if cost < land_costs[index] {
@@ -467,7 +483,12 @@ impl Simulation {
                 }
             }
             (traveler.x, traveler.y) = (x, y);
-            for (nx, ny, step, direction) in self.settler_land_steps(&traveler) {
+            for (nx, ny, step, direction) in self.settler_land_steps(
+                &traveler,
+                &blocked_land,
+                &mut route_zone_cache,
+                &movement_profile,
+            ) {
                 let next = self.map_wrap.index(nx, ny);
                 let cost = cost + step * sea_speed;
                 if cost < land_costs[next] {
@@ -482,6 +503,13 @@ impl Simulation {
             .count_operation("settlement.ferry.route_sea_expansions", sea_expansions);
         self.trace
             .count_operation("settlement.ferry.route_land_expansions", land_expansions);
+        let (zoc_cache_hits, allied_cache_hits) = route_zone_cache.cache_hits();
+        self.trace
+            .count_operation("settlement.ferry.route_zoc_cache_hits", zoc_cache_hits);
+        self.trace.count_operation(
+            "settlement.ferry.route_allied_cache_hits",
+            allied_cache_hits,
+        );
         let destination = best?;
         let (cursor, inland_path) =
             super::pathfinding::reconstruct_path_to_root(&previous, destination)?;
