@@ -655,13 +655,13 @@ mod upkeep_tests {
         assert_eq!(forecast.support.shields, 1);
         forecast.shields = 0;
         let unit = game.unit_by_id(older).unwrap().clone();
-        let UnitEconomicsRecordBinding::Mapped { record, .. } =
+        let UnitEconomicsRecordBinding::Mapped { record, native, .. } =
             freeciv_unit_economics_record(UnitKind::Warrior)
         else {
             panic!("Warrior has a selected C2C3 economics record");
         };
         let recover_value =
-            game.unit_shield_value_for_action(&unit, record, "Disband Unit Recover");
+            game.unit_shield_value_for_action(&unit, record, native, "Disband Unit Recover");
 
         assert_eq!(game.resolve_city_shield_upkeep(city_id, &forecast), Some(0));
         assert!(game.unit_by_id(older).is_none());

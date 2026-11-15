@@ -2410,6 +2410,7 @@ pub(crate) enum UnitEconomicsBindingKind {
 pub(crate) enum UnitEconomicsRecordBinding {
     Mapped {
         record: &'static crate::rules::freeciv::ContentRecord,
+        native: &'static crate::rules::native::NativeUnitEconomicsBinding,
         kind: UnitEconomicsBindingKind,
     },
     Unsupported {
@@ -2505,7 +2506,16 @@ pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsReco
                 && record.section.eq_ignore_ascii_case(rule.c2c3_record)
         })
         .unwrap_or_else(|| panic!("missing selected C2C3 unit record {:?}", rule.c2c3_record));
-    UnitEconomicsRecordBinding::Mapped { record, kind }
+    let native = crate::rules::native::unit_economics()
+        .bindings
+        .iter()
+        .find(|binding| binding.civ3_unit_id.eq_ignore_ascii_case(source_id))
+        .unwrap_or_else(|| panic!("missing native unit economics record {source_id:?}"));
+    UnitEconomicsRecordBinding::Mapped {
+        record,
+        native,
+        kind,
+    }
 }
 
 /// Whether the explicit gameplay identity for a Civ III unit carries a
