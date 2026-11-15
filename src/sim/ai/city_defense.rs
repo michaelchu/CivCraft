@@ -74,41 +74,11 @@ impl Simulation {
             // then adds entertainers because it prefers a police unit to the
             // luxury specialist. CivCraft's city model has aggregate moods.
             let martless_unhappy = unhappy + angry + city.specialists[2].max(0);
-            let mut candidates: Vec<_> = self
+            let candidates: Vec<_> = self
                 .tile_units_ordered(city.x, city.y)
                 .filter(|unit| unit.owner == owner && unit.transport.is_none())
-                .map(|unit| {
-                    let id = unit.id;
-                    let assigned_to_this_city = matches!(
-                        self.ai_guard_targets.get(&id),
-                        Some(super::super::guards::GuardTarget::City(target))
-                            if *target == city.id
-                    );
-                    let has_other_job = self.ai_guard_targets.contains_key(&id)
-                        && !assigned_to_this_city
-                        || self.ai_ground_targets.contains_key(&id)
-                        || self.ai_settlement_targets.contains_key(&id)
-                        || self.hunter_targets.contains_key(&id)
-                        || self.ai_ferries.passengers.contains_key(&id)
-                        || self.ai_ferries.boats.contains_key(&id)
-                        || self
-                            .unit_goto_tiles
-                            .get(&id)
-                            .is_some_and(|target| *target != (city.x, city.y));
-                    let mut want = self.advisor_garrison_defense_rating(&city, unit);
-                    if has_defense {
-                        want = want * walls / 10;
-                    }
-                    (id, want.saturating_mul(want), has_other_job)
-                })
+                .map(|unit| unit.id)
                 .collect();
-            // dai_set_defenders rescans the city's units after every selected
-            // defender. A selection only changes that unit's task; all other
-            // candidates keep the same score. Stable sorting preserves the
-            // original first-candidate tie break.
-            candidates.sort_by_key(|&(_, want, _)| std::cmp::Reverse(want));
-            self.trace
-                .count_operation("city_defenders.rating_evaluations", candidates.len() as u64);
             let mut count = 0_i32;
             let mut emergency = false;
 
@@ -121,16 +91,43 @@ impl Simulation {
                     break;
                 }
 
-                let mut scanned = 0;
-                let best = candidates
-                    .iter()
-                    .find(|&&(id, want, has_other_job)| {
-                        scanned += 1;
-                        want > 0 && !reserved.contains(&id) && (emergency || !has_other_job)
-                    })
-                    .map(|&(id, want, _)| (id, want));
-                self.trace
-                    .count_operation("city_defenders.selection_scan_entries", scanned as u64);
+                let mut best: Option<(u32, i32)> = None;
+                for id in candidates.iter().copied() {
+                    if reserved.contains(&id) {
+                        continue;
+                    }
+                    let Some(unit) = self.unit_by_id(id) else {
+                        continue;
+                    };
+                    let assigned_to_this_city = matches!(
+                        self.ai_guard_targets.get(&id),
+                        Some(super::super::guards::GuardTarget::City(target)) if *target == city.id
+                    );
+                    let has_other_job = self.ai_guard_targets.contains_key(&id)
+                        && !assigned_to_this_city
+                        || self.ai_ground_targets.contains_key(&id)
+                        || self.ai_settlement_targets.contains_key(&id)
+                        || self.hunter_targets.contains_key(&id)
+                        || self.ai_ferries.passengers.contains_key(&id)
+                        || self.ai_ferries.boats.contains_key(&id)
+                        || self
+                            .unit_goto_tiles
+                            .get(&id)
+                            .is_some_and(|target| *target != (city.x, city.y));
+                    if !emergency && has_other_job {
+                        continue;
+                    }
+                    let mut want = self.advisor_garrison_defense_rating(&city, unit);
+                    if has_defense {
+                        want = want * walls / 10;
+                    }
+                    // assess_defense_unit returns a squared rating, applying
+                    // the same wall value used by assess_defense_quadratic.
+                    want = want.saturating_mul(want);
+                    if want > best.map_or(0, |(_, best_want)| best_want) {
+                        best = Some((id, want));
+                    }
+                }
 
                 let Some((id, want)) = best else {
                     if defense_needed && !emergency {
