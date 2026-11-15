@@ -15,14 +15,14 @@ Set `CIVCRAFT_SOURCE_DIR` to a Civilization III installation containing the
 original `Conquests/Art`, `civ3PTW/Art`, and base `Art` folders, then run:
 
 ```sh
-CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release
+CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release --features desktop-audio
 ```
 
 CivCraft starts a new game with a generated seed. Pass `--seed N` to replay a
 world, or add supported world setup options to the same command:
 
 ```sh
-CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release -- \
+CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release --features desktop-audio -- \
   --seed 42 --map-size standard --ocean-coverage 70 --climate normal \
   --world-age 4 --landform continents --temperature temperate --tileset civ3
 ```

@@ -13,8 +13,13 @@
 //! through the normal frame path.
 
 mod actions;
+#[cfg(feature = "desktop-audio")]
 mod amb;
 mod assets;
+#[cfg(feature = "desktop-audio")]
+mod audio;
+#[cfg(not(feature = "desktop-audio"))]
+#[path = "audio_stub.rs"]
 mod audio;
 mod sprite_metadata;
 pub(crate) use assets::{Assets, window_conf};
@@ -66,6 +71,10 @@ mod ui;
 mod ui_review;
 mod unit_actions;
 mod unit_animation_pacing;
+#[cfg(feature = "desktop-audio")]
+mod unit_sound;
+#[cfg(not(feature = "desktop-audio"))]
+#[path = "unit_sound_stub.rs"]
 mod unit_sound;
 mod world;
 pub(crate) use ui::set_review_pointer;
