@@ -176,10 +176,8 @@ impl super::Simulation {
                     .as_ref()
                     .map_or(0.0, |d| d.kind.stats().cost as f32);
                 let (helper, helper_cost) = self.offensive_helpers(seed, enemy);
-                let (invaders, occupiers) = invasion_support
-                    .get(&enemy.id)
-                    .copied()
-                    .unwrap_or_default();
+                let (invaders, occupiers) =
+                    invasion_support.get(&enemy.id).copied().unwrap_or_default();
                 let victims = self.tile_units_ordered(enemy.x, enemy.y).count() as i32;
                 let reserves = invaders - victims
                     + if seed.kind.has_flag(UnitFlag::OneAttack) {
@@ -363,30 +361,62 @@ impl super::Simulation {
     ) -> Option<i32> {
         let _profile = self.trace.profiler().scope("offense.candidate_route");
         self.trace.count_operation("offensive.candidate_routes", 1);
+        let _map_profile = self
+            .trace
+            .profiler()
+            .scope("offense.candidate_route.map_build");
         let mut pf = NormalPaths::enemy_map(self, candidate);
+        drop(_map_profile);
         let mut turns = None;
-        if let (Some(boat), Some(fmap)) = (target.ferry.as_ref(), ferry_map)
-            && let Some((x, y, _)) =
+        if let (Some(boat), Some(fmap)) = (target.ferry.as_ref(), ferry_map) {
+            let beachhead = {
+                let _profile = self
+                    .trace
+                    .profiler()
+                    .scope("offense.candidate_route.beachhead");
                 self.offensive_beachhead(fmap, candidate.kind, candidate.owner, target.x, target.y)
-        {
-            turns = fmap.position_turn(self, x, y);
-            let mut first = None;
-            while let Some(position) = pf.next_position(self) {
-                if (position.0, position.1) == (boat.x, boat.y)
-                    || (position.0, position.1) == (target.x, target.y)
+            };
+            if let Some((x, y, _)) = beachhead {
                 {
-                    first = Some(position);
-                    break;
+                    let _profile = self
+                        .trace
+                        .profiler()
+                        .scope("offense.candidate_route.ferry_sea_reach");
+                    turns = fmap.position_turn(self, x, y);
                 }
-            }
-            if let Some((x, y, travel, _)) = first {
-                if (x, y) == (target.x, target.y) {
-                    turns = Some(travel);
-                } else {
-                    turns = turns.map(|sea| sea + travel);
+                let first = {
+                    let _profile = self
+                        .trace
+                        .profiler()
+                        .scope("offense.candidate_route.ferry_land_scan");
+                    let mut first = None;
+                    while let Some(position) = pf.next_position(self) {
+                        if (position.0, position.1) == (boat.x, boat.y)
+                            || (position.0, position.1) == (target.x, target.y)
+                        {
+                            first = Some(position);
+                            break;
+                        }
+                    }
+                    first
+                };
+                if let Some((x, y, travel, _)) = first {
+                    if (x, y) == (target.x, target.y) {
+                        turns = Some(travel);
+                    } else {
+                        turns = turns.map(|sea| sea + travel);
+                    }
                 }
             }
         }
-        turns.or_else(|| pf.position_turn(self, target.x, target.y))
+        if let Some(turns) = turns {
+            Some(turns)
+        } else {
+            let _profile = self
+                .trace
+                .profiler()
+                .scope("offense.candidate_route.target_reach");
+            pf.position_turn_astar(self, target.x, target.y)
+        }
     }
 }

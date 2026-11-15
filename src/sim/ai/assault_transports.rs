@@ -10,7 +10,8 @@ impl Simulation {
         troops: Option<&[&Unit]>,
         companions: &[&Unit],
     ) -> Option<(i32, i32, i32, (i32, i32))> {
-        self.cities
+        let landings: Vec<_> = self
+            .cities
             .iter()
             .filter(|city| {
                 self.at_war(city.owner, boat.owner)
@@ -46,15 +47,26 @@ impl Simulation {
                     })
             })
             .filter(|&((x, y), _)| self.tile(x, y).terrain.is_water())
-            .filter_map(|((x, y), direction)| {
+            .map(|((x, y), direction)| (x, y, direction))
+            .collect();
+        let destinations: Vec<_> = landings.iter().map(|&(x, y, _)| (x, y)).collect();
+        let ships: Vec<_> = std::iter::once(boat)
+            .chain(companions.iter().copied())
+            .collect();
+        let route_costs: Vec<_> = ships
+            .iter()
+            .map(|ship| self.route_costs_to_many(ship, &destinations))
+            .collect();
+        landings
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, (x, y, direction))| {
                 let mut distance = 0;
-                for ship in std::iter::once(boat).chain(companions.iter().copied()) {
-                    if (ship.x, ship.y) != (x, y) {
-                        let cost = self.route_cost_within(ship, x, y, i32::MAX)?;
-                        let allowance = self.unit_move_rate(ship).max(1);
-                        let turns = ((cost - ship.moves_left).max(0) + allowance - 1) / allowance;
-                        distance = distance.max(turns);
-                    }
+                for (ship, costs) in ships.iter().zip(&route_costs) {
+                    let cost = costs[index]?;
+                    let allowance = self.unit_move_rate(ship).max(1);
+                    let turns = ((cost - ship.moves_left).max(0) + allowance - 1) / allowance;
+                    distance = distance.max(turns);
                 }
                 Some((distance, x, y, direction))
             })

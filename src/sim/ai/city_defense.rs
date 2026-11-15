@@ -16,9 +16,14 @@ impl Simulation {
         &mut self,
         owner: usize,
     ) -> std::collections::HashSet<u32> {
+        let _profile = self.trace.profiler().scope("ai.city_defenders.assignment");
         let mut reserved = std::collections::HashSet::new();
         if owner == BARBARIANS {
             return reserved;
+        }
+        let owns_advisor_cache = !self.ai_advisor_cache_enabled.get();
+        if owns_advisor_cache {
+            self.begin_ai_advisor_cache();
         }
 
         let city_ids: Vec<_> = self
@@ -178,6 +183,9 @@ impl Simulation {
                 count += 1;
             }
         }
+        if owns_advisor_cache {
+            self.end_ai_advisor_cache();
+        }
         reserved
     }
 
@@ -221,11 +229,9 @@ impl Simulation {
         for (x, y) in cities {
             loop {
                 let garrison: Vec<_> = self
-                    .units
-                    .iter()
+                    .tile_units_ordered(x, y)
                     .filter(|unit| {
                         unit.owner == owner
-                            && (unit.x, unit.y) == (x, y)
                             && unit.kind.is_military()
                             && !unit.kind.is_naval()
                             && !unit.kind.is_aircraft()
@@ -254,7 +260,7 @@ impl Simulation {
                         if !self.tile(tx, ty).known_by[owner]
                             || self.treaty_blocks_move(attacker, tx, ty)
                             || self.movement_cost_for(attacker, tx, ty).is_none()
-                            || self.cities.iter().any(|city| (city.x, city.y) == (tx, ty))
+                            || self.any_city_at_cached(tx, ty)
                         {
                             continue;
                         }
@@ -297,24 +303,39 @@ impl Simulation {
         owner: usize,
         reserved_defenders: &std::collections::HashSet<u32>,
     ) -> std::collections::HashSet<u32> {
+        let _profile = self.trace.profiler().scope("ai.reinforcement");
         let mut dispatched = std::collections::HashSet::new();
         if owner == BARBARIANS {
             return dispatched;
         }
-        let cities: Vec<_> = self
-            .cities
-            .iter()
-            .filter(|city| city.owner == owner)
-            .map(|city| {
-                (
-                    city.id,
-                    self.city_threats(city)
-                        .map(|(_, danger)| danger)
-                        .sum::<i32>(),
-                )
-            })
-            .filter(|&(_, danger)| danger > 0)
-            .collect();
+        let owns_advisor_cache = !self.ai_advisor_cache_enabled.get();
+        if owns_advisor_cache {
+            self.begin_ai_advisor_cache();
+        }
+        let cities: Vec<_> = {
+            let _profile = self
+                .trace
+                .profiler()
+                .scope("ai.reinforcement.threat_collection");
+            self.cities
+                .iter()
+                .filter(|city| city.owner == owner)
+                .map(|city| {
+                    (
+                        city.id,
+                        self.city_threats(city)
+                            .map(|(_, danger)| danger)
+                            .sum::<i32>(),
+                    )
+                })
+                .filter(|&(_, danger)| danger > 0)
+                .collect()
+        };
+        // Threat routes are now collected. Reinforcement may move garrison
+        // units below, so release any locally built spatial snapshot first.
+        if owns_advisor_cache {
+            self.end_ai_advisor_cache();
+        }
         let mut cities = cities;
         cities.sort_by_key(|&(id, danger)| (std::cmp::Reverse(danger), id));
         let is_defender = |unit: &Unit| {
@@ -324,13 +345,24 @@ impl Simulation {
                 && !unit.kind.is_aircraft()
                 && unit.transport.is_none()
         };
-        for &(city_id, _) in &cities {
+        let destinations: Vec<_> = cities
+            .iter()
+            .map(|&(id, _)| {
+                let city = self.city_by_id(id).expect("threatened city remains present");
+                (city.x, city.y)
+            })
+            .collect();
+        let mut defender_route_costs = std::collections::HashMap::new();
+        for (city_index, &(city_id, _)) in cities.iter().enumerate() {
+            let _profile = self
+                .trace
+                .profiler()
+                .scope("ai.reinforcement.city_response");
             let city = self.city_by_id(city_id).unwrap();
             let target = (city.x, city.y);
             let garrison: Vec<_> = self
-                .units
-                .iter()
-                .filter(|unit| is_defender(unit) && (unit.x, unit.y) == target)
+                .tile_units_ordered(target.0, target.1)
+                .filter(|unit| is_defender(unit))
                 .collect();
             let threatened: Vec<_> = self
                 .city_threats(city)
@@ -381,7 +413,10 @@ impl Simulation {
                 if self.map_distance(unit.x, unit.y, city.x, city.y) > budget {
                     continue;
                 }
-                let Some(cost) = self.route_cost_within(unit, city.x, city.y, budget) else {
+                let costs = defender_route_costs
+                    .entry(unit.id)
+                    .or_insert_with(|| self.route_costs_to_many_within(unit, &destinations, budget));
+                let Some(Some(cost)) = costs.get(city_index).copied() else {
                     continue;
                 };
                 let mut stationed = unit.clone();

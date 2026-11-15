@@ -100,19 +100,20 @@ impl Simulation {
             "ai.invasion_support.units_scanned",
             (self.units.len() * 3) as u64,
         );
-        let add_actor_marker = |result: &mut [(i32, i32)], index: usize, marks: i32, actor: &Unit| {
-            result[index].0 += marks
-                * if actor.kind.bombard_rate() > 0 {
-                    1
-                } else {
-                    actor.kind.stats().moves * MOVE_FRAGMENTS
-                };
-            result[index].1 += marks * i32::from(actor.kind.can_occupy_city());
-            if let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&actor.id) {
-                result[index].0 += marks * cargo_attacks;
-                result[index].1 += marks * cargo_occupiers;
-            }
-        };
+        let add_actor_marker =
+            |result: &mut [(i32, i32)], index: usize, marks: i32, actor: &Unit| {
+                result[index].0 += marks
+                    * if actor.kind.bombard_rate() > 0 {
+                        1
+                    } else {
+                        actor.kind.stats().moves * MOVE_FRAGMENTS
+                    };
+                result[index].1 += marks * i32::from(actor.kind.can_occupy_city());
+                if let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&actor.id) {
+                    result[index].0 += marks * cargo_attacks;
+                    result[index].1 += marks * cargo_occupiers;
+                }
+            };
         for actor in self.units.iter().filter(|u| {
             u.owner == owner && u.id != except && u.kind.is_military() && u.transport.is_none()
         }) {
@@ -292,6 +293,8 @@ impl Simulation {
     }
 
     pub(super) fn follow_ground_invasion_path(&mut self, id: u32, path: Vec<(i32, i32)>) {
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("ai.ground_invasion.follow_path");
         let Some(actor) = self.unit_by_id(id).cloned() else {
             return;
         };
@@ -303,12 +306,15 @@ impl Simulation {
         if goal == (actor.x, actor.y) {
             return;
         }
+        let _profile = profiler.scope("ai.ground_invasion.destination_guard");
         self.ai_guard_for_destination(id, goal.0, goal.1);
+        drop(_profile);
         self.unit_goto_tiles.insert(id, goal);
         let Some((path, _)) = self.ai_goto_path(&actor, goal, GotoTask::Attack) else {
             return;
         };
         let length = path.len();
+        let _profile = profiler.scope("ai.ground_invasion.step_execution");
         for (position, (dx, dy)) in path.into_iter().enumerate() {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 return;

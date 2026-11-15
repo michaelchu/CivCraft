@@ -134,11 +134,18 @@ impl Simulation {
                 .aircraft_attack_path(plane)
                 .map(|(_, (x, y), value)| (x, y, value));
         }
-        self.units
+        let targets: Vec<_> = self
+            .units
             .iter()
             .filter(|u| self.at_war(plane.owner, u.owner) && u.transport.is_none())
-            .filter_map(|u| {
-                self.route_cost_within(plane, u.x, u.y, plane.moves_left)?;
+            .collect();
+        let destinations: Vec<_> = targets.iter().map(|u| (u.x, u.y)).collect();
+        let route_costs = self.route_costs_to_many_within(plane, &destinations, plane.moves_left);
+        targets
+            .into_iter()
+            .zip(route_costs)
+            .filter_map(|(u, cost)| {
+                cost?;
                 let value = self.aircraft_target_value(plane, u.x, u.y);
                 (value > 0.0).then_some((u.x, u.y, value))
             })

@@ -58,6 +58,45 @@ impl Simulation {
         result
     }
 
+    fn advisor_virtual_city_tile_yield(
+        &self,
+        city: &City,
+        x: i32,
+        y: i32,
+        government: Government,
+    ) -> (i32, i32, i32) {
+        if !self.ai_advisor_cache_enabled.get() {
+            return self.city_tile_yields_under_government(city, x, y, false, None, government);
+        }
+        let owner = city.owner;
+        let index = self.map_wrap.index(x, y);
+        if let Some((cached_government, yields)) = self
+            .ai_spatial_index
+            .borrow()
+            .virtual_city_tile_yields
+            .get(&owner)
+            && *cached_government == government
+            && let Some(Some(output)) = yields.get(index)
+        {
+            self.trace
+                .count_operation("settlement.tile_yield_cache_hits", 1);
+            return *output;
+        }
+        self.trace
+            .count_operation("settlement.tile_yield_cache_misses", 1);
+        let output = self.city_tile_yields_under_government(city, x, y, false, None, government);
+        let mut spatial = self.ai_spatial_index.borrow_mut();
+        let entry = spatial
+            .virtual_city_tile_yields
+            .entry(owner)
+            .or_insert_with(|| (government, vec![None; self.tiles.len()]));
+        if entry.0 != government {
+            *entry = (government, vec![None; self.tiles.len()]);
+        }
+        entry.1[index] = Some(output);
+        output
+    }
+
     pub(super) fn settlement_citymap(&self, owner: usize, except: Option<u32>) -> Vec<i32> {
         let mut map = vec![0; self.tiles.len()];
         for city in &self.cities {
@@ -387,17 +426,29 @@ impl Simulation {
         let mut best = None;
         let mut remaining = 0;
         let mut radius_tiles_scored = 0_u64;
-        let mut city_tiles: Vec<_> = self.map_city_radius_at(x, y).collect();
+        // The Civ III city radius has 21 entries. Keep this short-lived list
+        // on the stack; site searches score hundreds of candidate cities and
+        // allocating a Vec for every candidate adds avoidable churn.
+        let mut city_tiles = [(0, 0, 0, 0); 21];
+        let mut city_tile_count = 0;
+        for tile in self.map_city_radius_at(x, y) {
+            city_tiles[city_tile_count] = tile;
+            city_tile_count += 1;
+        }
+        debug_assert!(city_tile_count <= city_tiles.len());
         // daisettler.c:cityresult_fill uses native city indices and only
         // replaces best_other on a strictly greater want. Equal output
         // workers therefore use city.c:compare_iter_index, not row order.
-        city_tiles.sort_by_key(|&(dx, dy, _, _)| city_radius_order_key(dx, dy));
-        for (_, _, tx, ty) in city_tiles {
+        city_tiles[..city_tile_count].sort_by_key(|&(dx, dy, _, _)| city_radius_order_key(dx, dy));
+        let _radius_profile = self
+            .trace
+            .profiler()
+            .scope("settlement.site_scoring.radius");
+        for &(_, _, tx, ty) in &city_tiles[..city_tile_count] {
             if (tx, ty) == (x, y) || reserved(tx, ty) < 0 {
                 continue;
             }
-            let output =
-                self.city_tile_yields_under_government(&city, tx, ty, false, None, government);
+            let output = self.advisor_virtual_city_tile_yield(&city, tx, ty, government);
             radius_tiles_scored += 1;
             let value = weighted(output, reserved(tx, ty));
             if best.is_none_or(|(score, _, _)| value > score) {
