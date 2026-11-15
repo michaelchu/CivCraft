@@ -347,7 +347,7 @@ impl Simulation {
         let mut costs = vec![i32::MAX; self.tiles.len()];
         let start = self.map_wrap.index(guard.x, guard.y);
         costs[start] = 0;
-        let mut queue = exploration::ExplorerQueue::default();
+        let mut queue = exploration::IndexedExplorerQueue::new(self.tiles.len());
         queue.put(0, start);
         let mut sites = Vec::new();
         let mut actor = guard.clone();
@@ -382,6 +382,21 @@ impl Simulation {
                 let next = self.map_wrap.index(x, y);
                 let candidate = spent + step.min(remaining);
                 if candidate <= limit && candidate < costs[next] {
+                    let new_entry = costs[next] == i32::MAX;
+                    self.trace.count_operation(
+                        if new_entry {
+                            "guard_route.queue_inserts"
+                        } else {
+                            "guard_route.queue_decrease_keys"
+                        },
+                        1,
+                    );
+                    if !new_entry {
+                        self.trace.count_operation(
+                            "guard_route.queue_frontier_entries_at_decrease_key",
+                            queue.frontier_len() as u64,
+                        );
+                    }
                     costs[next] = candidate;
                     queue.put(i64::from(candidate), next);
                 }

@@ -1,6 +1,6 @@
 //! Leader selection and leader-specific game behavior.
 
-use super::exploration::ExplorerQueue;
+use super::exploration::IndexedExplorerQueue;
 use super::pf_actions::PfAction;
 use super::*;
 
@@ -73,7 +73,7 @@ impl Simulation {
             return result;
         }
         result.costs[start] = 0;
-        let mut queue = ExplorerQueue::default();
+        let mut queue = IndexedExplorerQueue::new(self.tiles.len());
         queue.put(0, start);
         while let Some((spent, current)) = queue.pop() {
             let spent = spent as i32;
@@ -179,6 +179,21 @@ impl Simulation {
                 };
                 let candidate = spent + cost.min(remaining);
                 if candidate < result.costs[next] && (reverse.is_none() || candidate < 4 * rate) {
+                    let new_entry = result.costs[next] == i32::MAX;
+                    self.trace.count_operation(
+                        if new_entry {
+                            "leader_route.queue_inserts"
+                        } else {
+                            "leader_route.queue_decrease_keys"
+                        },
+                        1,
+                    );
+                    if !new_entry {
+                        self.trace.count_operation(
+                            "leader_route.queue_frontier_entries_at_decrease_key",
+                            queue.frontier_len() as u64,
+                        );
+                    }
                     result.costs[next] = candidate;
                     queue.put(i64::from(candidate), next);
                 }
