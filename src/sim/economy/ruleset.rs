@@ -11,6 +11,20 @@ use crate::rules::freeciv::{ContentKind, RuleParameter, RulesetData, effect_valu
 use crate::sim::action_rules::SimulationRequirementContext;
 use crate::world::{Resource, Terrain};
 
+#[derive(Clone, Copy)]
+pub(in crate::sim) struct CityOutputRuleCache {
+    rules: [(i32, i32, i32, i32); 3],
+    distance: Option<i32>,
+    pub(in crate::sim) trade: CityTradeRuleCache,
+}
+
+#[derive(Clone, Copy)]
+pub(in crate::sim) struct CityTradeRuleCache {
+    pub(in crate::sim) output_additions: [i32; 3],
+    pub(in crate::sim) output_bonuses: [i32; 3],
+    pub(in crate::sim) happiness_to_gold: i32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::sim) enum GoldUpkeepStyle {
     City,
@@ -226,6 +240,146 @@ fn resource_name(resource: Resource) -> Option<&'static str> {
 }
 
 impl Simulation {
+    pub(super) fn city_output_rule_cache(
+        &self,
+        city: &City,
+        government: Government,
+        granted_tech: Option<Tech>,
+    ) -> CityOutputRuleCache {
+        let output_types = ["Food", "Shield", "Trade"];
+        let rules = output_types.map(|output| {
+            (
+                self.city_output_bonus_percent(city, output, government, granted_tech),
+                self.city_rule_effect(
+                    city,
+                    "Output_Waste_By_Distance",
+                    None,
+                    Some(output),
+                    None,
+                    false,
+                    government,
+                    granted_tech,
+                ),
+                self.city_rule_effect(
+                    city,
+                    "Output_Waste",
+                    None,
+                    Some(output),
+                    None,
+                    false,
+                    government,
+                    granted_tech,
+                ),
+                self.city_rule_effect(
+                    city,
+                    "Output_Waste_Pct",
+                    None,
+                    Some(output),
+                    None,
+                    false,
+                    government,
+                    granted_tech,
+                ),
+            )
+        });
+        let trade_output_types = ["Science", "Gold", "Luxury"];
+        let trade = CityTradeRuleCache {
+            output_additions: trade_output_types
+                .map(|output| self.c2c3_city_output_additions(city, output, government)),
+            output_bonuses: trade_output_types.map(|output| {
+                self.city_output_bonus_percent(city, output, government, granted_tech)
+            }),
+            happiness_to_gold: if self.city_rule_effect(
+                city,
+                "Happiness_To_Gold",
+                None,
+                None,
+                None,
+                false,
+                government,
+                granted_tech,
+            ) > 0
+            {
+                self.city_rule_effect(
+                    city,
+                    "Make_Content",
+                    None,
+                    None,
+                    None,
+                    false,
+                    government,
+                    granted_tech,
+                ) + self.city_rule_effect(
+                    city,
+                    "Force_Content",
+                    None,
+                    None,
+                    None,
+                    false,
+                    government,
+                    granted_tech,
+                )
+            } else {
+                0
+            },
+        };
+        CityOutputRuleCache {
+            rules,
+            distance: self.government_center_distance(city),
+            trade,
+        }
+    }
+
+    pub(super) fn c2c3_finalize_city_outputs_cached(
+        &self,
+        city: &City,
+        gross: (i32, i32, i32),
+        cache: &CityOutputRuleCache,
+    ) -> (i32, i32, i32) {
+        let values = [gross.0, gross.1, gross.2];
+        let result: [i32; 3] = std::array::from_fn(|index| {
+            let (bonus, distance_factor, base_waste, reduction) = cache.rules[index];
+            let produced = values[index].wrapping_mul(bonus) / 100;
+            let settings = CityEconomySettings::campaign();
+            let (size_penalty, remaining) = if index == 2 {
+                let no_trade = settings.no_trade_size.min(settings.full_trade_size);
+                let full_trade = settings.no_trade_size.max(settings.full_trade_size);
+                let penalty = if city.size <= no_trade {
+                    produced
+                } else if city.size >= full_trade || full_trade == no_trade {
+                    0
+                } else {
+                    produced * (full_trade - city.size) / (full_trade - no_trade)
+                };
+                (penalty, produced - penalty)
+            } else {
+                (0, produced)
+            };
+            let mut waste_all = false;
+            let mut waste_level = base_waste;
+            if remaining > 0 && distance_factor > 0 {
+                if let Some(distance) = cache.distance {
+                    waste_level += distance_factor * distance / 100;
+                } else {
+                    waste_all = true;
+                }
+            }
+            let mut waste = if waste_all {
+                remaining
+            } else if waste_level > 0 {
+                remaining.wrapping_mul(waste_level) / 100
+            } else {
+                0
+            };
+            if !waste_all {
+                waste -= waste * reduction / 100;
+            }
+            let waste = waste.clamp(0, remaining.max(0));
+            (produced - size_penalty - waste).max(0)
+        });
+        (result[0], result[1], result[2])
+    }
+
     #[expect(
         clippy::too_many_arguments,
         reason = "Effect evaluation needs the explicit city, tile, output, and hypothetical government context."

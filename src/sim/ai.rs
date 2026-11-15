@@ -181,7 +181,10 @@ impl Simulation {
         }
         drop(_profile);
         let _profile = profiler.scope("ai.counterattack_and_reinforcement");
-        let counterattacks = self.counterattack_from_ai_cities(owner, &city_defenders);
+        let counterattacks = {
+            let _profile = profiler.scope("ai.counterattack");
+            self.counterattack_from_ai_cities(owner, &city_defenders)
+        };
         let reinforcements = self.reinforce_ai_cities(owner, &city_defenders);
         let paratroopers: Vec<_> = self
             .units
@@ -233,6 +236,10 @@ impl Simulation {
                 continue;
             };
             if drops.contains(&id) {
+                continue;
+            }
+            if unit.moves_left <= 0 {
+                self.trace.count_operation("ai.units.no_moves_skipped", 1);
                 continue;
             }
             // Ranged bombardment is an action on the current tile; try it
@@ -349,6 +356,7 @@ impl Simulation {
                     self.run_auto_explorer(id);
                 }
                 _ => {
+                    let _profile = profiler.scope("ai.fallback.city_garrison_check");
                     let on_city = self
                         .cities
                         .iter()
@@ -371,11 +379,13 @@ impl Simulation {
                             continue;
                         }
                     }
+                    drop(_profile);
                     if unit.kind.is_military()
                         && !unit.kind.is_aircraft()
                         && !unit.kind.is_naval()
                         && owner != BARBARIANS
                     {
+                        let _profile = profiler.scope("ai.fallback.ground_mission");
                         let mission = self
                             .ai_ground_targets
                             .get(&id)
@@ -393,6 +403,7 @@ impl Simulation {
                         }
                         continue;
                     }
+                    let _profile = profiler.scope("ai.fallback.enemy_city_response");
                     if let Some(target) = self
                         .cities
                         .iter()

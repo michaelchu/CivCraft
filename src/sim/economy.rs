@@ -33,6 +33,19 @@ pub(crate) struct CityForecast {
     pub(super) happy: bool,
 }
 
+pub(super) struct CityManagerCandidateOutputs {
+    pub(super) food: i32,
+    pub(super) shields: i32,
+    pub(super) trade: i32,
+    pub(super) science: i32,
+    pub(super) gold: i32,
+    pub(super) luxury: i32,
+    pub(super) disorder: bool,
+    pub(super) happy: bool,
+}
+
+pub(super) type CityManagerMoodCache = std::collections::BTreeMap<([i32; 3], i32), (bool, bool)>;
+
 impl CityForecast {
     pub(crate) fn food_surplus(&self, size: i32, support_food: i32) -> i32 {
         let surplus =
@@ -85,7 +98,61 @@ impl Simulation {
         city: &City,
         granted: Option<Tech>,
     ) -> CityForecast {
-        let (food, shields, trade) = self.city_yields_with_tech(city, granted);
+        let yields = self.city_yields_with_tech(city, granted);
+        self.city_forecast_from_final_yields(city, yields)
+    }
+
+    pub(super) fn city_manager_candidate_outputs(
+        &self,
+        city: &City,
+        raw: (i32, i32, i32),
+        output_rules: &ruleset::CityOutputRuleCache,
+        mood_cache: &mut CityManagerMoodCache,
+    ) -> CityManagerCandidateOutputs {
+        // Freeciv's common/city.c caches each city's tile outputs for the
+        // duration of city-manager search. CivCraft's lattice already summed
+        // those outputs into `raw`; only route trade and city-wide effects
+        // remain to produce a candidate forecast.
+        let mut gross = raw;
+        gross.2 += self.trade_route_income(city, None);
+        let yields = self.c2c3_finalize_city_outputs_cached(city, gross, output_rules);
+        let [science, gold, luxury] = {
+            let _profile = self
+                .trace
+                .profiler()
+                .scope("city_manager.query.leaf_trade_split");
+            self.city_trade(city, yields.2)
+        };
+        let mood_key = (city.specialists, luxury);
+        let (disorder, happy) = if let Some(&mood) = mood_cache.get(&mood_key) {
+            self.trace
+                .count_operation("city_manager.mood_cache_hits", 1);
+            mood
+        } else {
+            self.trace
+                .count_operation("city_manager.mood_cache_misses", 1);
+            let _profile = self.trace.profiler().scope("city_manager.query.leaf_mood");
+            let mood = self.city_mood(city, luxury);
+            mood_cache.insert(mood_key, mood);
+            mood
+        };
+        CityManagerCandidateOutputs {
+            food: yields.0,
+            shields: yields.1,
+            trade: yields.2,
+            science: if disorder { 0 } else { science },
+            gold: if disorder { 0 } else { gold },
+            luxury,
+            disorder,
+            happy,
+        }
+    }
+
+    fn city_forecast_from_final_yields(
+        &self,
+        city: &City,
+        (food, shields, trade): (i32, i32, i32),
+    ) -> CityForecast {
         let [science, gold, luxury] = self.city_trade(city, trade);
         let (disorder, happy) = self.city_mood(city, luxury);
         CityForecast {
@@ -225,6 +292,31 @@ impl Simulation {
             output[index] += self.c2c3_city_output_additions(city, output_type, government);
             let bonus = self.city_output_bonus_percent(city, output_type, government, None);
             output[index] = (i64::from(output[index]) * i64::from(bonus) / 100)
+                .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        }
+        output
+    }
+
+    pub(in crate::sim) fn split_city_trade_from_citizens_cached(
+        &self,
+        city: &City,
+        trade: i32,
+        mut rates: [i32; 3],
+        citizens: [i32; 3],
+        cache: &ruleset::CityTradeRuleCache,
+    ) -> [i32; 3] {
+        let government = self.players[city.owner].government;
+        if government == Government::during_revolution() {
+            rates = [0, 0, 100];
+        }
+        let mut output = Self::distribute_trade(trade, rates);
+        for (value, citizen_output) in output.iter_mut().zip(citizens) {
+            *value += citizen_output;
+        }
+        output[1] += cache.happiness_to_gold;
+        for (index, value) in output.iter_mut().enumerate() {
+            *value += cache.output_additions[index];
+            *value = (i64::from(*value) * i64::from(cache.output_bonuses[index]) / 100)
                 .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
         }
         output

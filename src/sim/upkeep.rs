@@ -102,6 +102,65 @@ impl Simulation {
         self.city_unit_economics(city, None).upkeep
     }
 
+    /// Compute only the military unhappiness consumed by city mood. The full
+    /// upkeep projection also evaluates food, shield, and gold costs, which
+    /// are unrelated to citizen happiness and needlessly repeated by mood
+    /// checks during movement visibility refreshes.
+    pub(crate) fn city_unit_happiness(&self, city: &City) -> i32 {
+        let mut units: Vec<_> = self
+            .units
+            .iter()
+            .filter(|unit| unit.owner == city.owner && unit.home_city == Some(city.id))
+            .collect();
+        if units.is_empty() {
+            return 0;
+        }
+        // Freeciv prepends a unit to its home city's supported list both when
+        // created and rehomed, so preserve the same newest-first allowance.
+        units.sort_by_key(|unit| std::cmp::Reverse((unit.home_order, unit.id)));
+        let mappings: Vec<_> = units
+            .into_iter()
+            .map(|unit| (unit, freeciv_unit_economics_record(unit.kind)))
+            .collect();
+        let allocation_complete = mappings
+            .iter()
+            .all(|(_, mapping)| matches!(mapping, UnitEconomicsRecordBinding::Mapped { .. }));
+        let government = self.players[city.owner].government;
+        let mut free_unhappy = if allocation_complete {
+            self.city_rule_effect(
+                city,
+                "Make_Content_Mil",
+                None,
+                None,
+                None,
+                false,
+                government,
+                None,
+            )
+            .max(0)
+        } else {
+            0
+        };
+        let mut unhappiness = 0;
+        for (unit, mapping) in mappings {
+            let UnitEconomicsRecordBinding::Mapped { record, .. } = mapping else {
+                continue;
+            };
+            if record_has_flag(record, "NoHome") {
+                continue;
+            }
+            unhappiness += self.c2c3_unit_unhappiness(
+                city,
+                unit,
+                record,
+                government,
+                &mut free_unhappy,
+                allocation_complete,
+            );
+        }
+        unhappiness
+    }
+
     pub(super) fn city_gold_upkeep(&self, city: &City) -> UnitGoldUpkeep {
         let economics = self.city_unit_economics(city, None);
         UnitGoldUpkeep {

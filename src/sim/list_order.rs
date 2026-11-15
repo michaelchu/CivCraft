@@ -8,6 +8,8 @@ pub(super) struct ListOrder {
     pub(super) next: u64,
     units: BTreeMap<u32, UnitOrder>,
     cities: BTreeMap<u32, CityOrder>,
+    #[serde(skip)]
+    tile_revision: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -33,6 +35,7 @@ impl ListOrder {
     pub(super) fn unit(&mut self, unit: &Unit) {
         let Some(old) = self.units.get(&unit.id) else {
             let stamp = self.stamp();
+            self.tile_revision = self.tile_revision.wrapping_add(1);
             self.units.insert(
                 unit.id,
                 UnitOrder {
@@ -48,6 +51,9 @@ impl ListOrder {
         let changed_tile = old.tile != (unit.x, unit.y);
         let player = changed_owner.then(|| self.stamp());
         let arrival = changed_tile.then(|| self.stamp());
+        if changed_tile {
+            self.tile_revision = self.tile_revision.wrapping_add(1);
+        }
         let old = self.units.get_mut(&unit.id).unwrap();
         old.owner = unit.owner;
         old.tile = (unit.x, unit.y);
@@ -78,7 +84,20 @@ impl ListOrder {
     }
 
     pub(super) fn forget_unit(&mut self, id: u32) {
-        self.units.remove(&id);
+        if self.units.remove(&id).is_some() {
+            self.tile_revision = self.tile_revision.wrapping_add(1);
+        }
+    }
+
+    pub(super) fn tile_revision(&self) -> u64 {
+        self.tile_revision
+    }
+
+    pub(super) fn tile_unit_order_key(&self, unit: &Unit, tile: (i32, i32)) -> (bool, u64) {
+        self.units
+            .get(&unit.id)
+            .filter(|order| order.tile == tile)
+            .map_or((true, u64::from(unit.id)), |order| (false, order.arrival))
     }
 
     pub(super) fn synchronize(&mut self, units: &[Unit], cities: &[City]) {
@@ -247,20 +266,47 @@ impl Simulation {
     }
 
     pub(super) fn tile_units_ordered(&self, x: i32, y: i32) -> impl Iterator<Item = &Unit> {
+        self.trace.count_operation("tile_units_ordered.calls", 1);
+        let indexed_units = if self.ai_advisor_cache_enabled.get() {
+            let tile_index = self.map_wrap.index(x, y);
+            let spatial = self.ai_spatial_index.borrow();
+            (spatial.tile_unit_revision == self.list_order.tile_revision())
+                .then(|| spatial.tile_unit_indices.as_ref())
+                .flatten()
+                .map(|tiles| {
+                    tiles[tile_index]
+                        .iter()
+                        .map(|&unit_index| &self.units[unit_index])
+                        .collect::<Vec<_>>()
+                })
+        } else {
+            None
+        };
+        if let Some(units) = indexed_units {
+            self.trace
+                .count_operation("tile_units_ordered.index_hits", 1);
+            self.trace.count_operation(
+                "tile_units_ordered.entries_returned",
+                units.len().try_into().unwrap_or(u64::MAX),
+            );
+            return units.into_iter();
+        }
+        self.trace.count_operation(
+            "tile_units_ordered.units_scanned",
+            self.units.len().try_into().unwrap_or(u64::MAX),
+        );
         let mut units: Vec<_> = self
             .units
             .iter()
             .filter(|unit| (unit.x, unit.y) == (x, y))
             .collect();
         units.sort_by_key(|unit| {
-            std::cmp::Reverse(
-                self.list_order
-                    .units
-                    .get(&unit.id)
-                    .filter(|order| order.tile == (x, y))
-                    .map_or((true, u64::from(unit.id)), |order| (false, order.arrival)),
-            )
+            std::cmp::Reverse(self.list_order.tile_unit_order_key(unit, (x, y)))
         });
+        self.trace.count_operation(
+            "tile_units_ordered.entries_returned",
+            units.len().try_into().unwrap_or(u64::MAX),
+        );
         units.into_iter()
     }
 

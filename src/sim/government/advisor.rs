@@ -105,7 +105,7 @@ impl super::Simulation {
         let military_content = |amount: i32| unhappy * amount * supported * 2 + (amount + 2).max(1);
         // adv_want is float. Each source += rounds separately, including
         // the city output and each effect in effects.ruleset iteration order.
-        *total += self.advisor_city_output_exact(city, None) as f32;
+        *total += self.advisor_city_output_from_forecast(city, &forecast) as f32;
         if government != Government::Republic {
             *total -= military_content(1) as f32;
         }
@@ -184,8 +184,11 @@ impl super::Simulation {
             } else {
                 rates_after_government_change(rates, government.max_rate())
             };
+            let _profile = profiler.scope("government.worker_arrangement");
             self.arrange_government_workers(owner);
+            drop(_profile);
             let mut value = 0.0_f32;
+            let _profile = profiler.scope("government.city_scoring");
             for &city_id in &city_ids {
                 let city = self
                     .city_by_id(city_id)
@@ -193,19 +196,24 @@ impl super::Simulation {
                 self.government_advisor_add_city_value_with_facts(city, &mut value, &facts);
                 self.trace.count_operation("government.city_evaluations", 1);
             }
+            drop(_profile);
+            let _profile = profiler.scope("government.effect_scoring");
             let mut bonus = self.government_player_bonus(owner, government);
             let revolution_unhappiness = self.government_revolution_unhappiness(owner, government);
             if revolution_unhappiness > 0 {
                 bonus -= 6 / revolution_unhappiness;
             }
             value += value * bonus as f32 / 100.0;
+            drop(_profile);
             // advdata/daidata apply at least one amortization turn for every
             // technology requirement, even if already known or bypassed.
+            let _profile = profiler.scope("government.research_distance");
             let distance = government.requirement().map_or(0, |tech| {
                 self.research_path(owner, tech).len().max(1) as i32
             });
             scores[government as usize] =
                 f64::from((f64::from(value) * (23.0_f64 / 24.0).powi(distance)) as f32);
+            drop(_profile);
         }
         self.players[owner].government = original;
         self.players[owner].rates = rates;

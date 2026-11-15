@@ -190,11 +190,14 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn production_defender_tech_wants(&self, city: &City) -> Vec<(Tech, f32)> {
-        let techs: Vec<_> = Tech::all()
-            .filter(|&tech| {
-                Self::production_defender_types().any(|kind| kind.required_tech() == Some(tech))
-            })
-            .collect();
+        let defender_types: Vec<_> = Self::production_defender_types().collect();
+        let mut has_tech = vec![false; Tech::all().count()];
+        for kind in &defender_types {
+            if let Some(tech) = kind.required_tech() {
+                has_tech[tech.0] = true;
+            }
+        }
+        let techs: Vec<_> = Tech::all().filter(|tech| has_tech[tech.0]).collect();
         // The side effect belongs to dai_process_defender_want, not every
         // tactical call to dai_choose_defender_versus. Mirror the production
         // caller's gates before evaluating future defenders.
@@ -229,42 +232,53 @@ impl Simulation {
         }
         let total = danger as f32 + martial;
         let cities = self.player_cities_ordered(city.owner).count().max(1) as i32;
-        techs
+        let mut tech_indices = vec![None; Tech::all().count()];
+        let mut wants: Vec<_> = techs
             .into_iter()
-            .map(|tech| {
-                let mut want = 0.0_f32;
-                for kind in Self::production_defender_types() {
-                    if self.unit_buildable(city, kind)
-                        || !self.unit_buildable_later(city, kind)
-                        || kind.required_tech() != Some(tech)
-                    {
-                        continue;
-                    }
-                    let mut desire = Self::production_defender_desire(kind, danger);
-                    if desire <= 0.0 {
-                        continue;
-                    }
-                    // Supported unit requirements are a single reachable advance;
-                    // goal cost includes its still-unknown prerequisites. The source
-                    // overwrites (not sums) costs for multi-tech requirements.
-                    let tech_cost = self
-                        .research_path(city.owner, tech)
-                        .into_iter()
-                        .map(|required| self.target_cost(city.owner, required))
-                        .sum::<i32>()
-                        / 4
-                        / cities;
-                    if !kind.has_flag(UnitFlag::BadCityDefender) {
-                        desire *= wallvalue;
-                        desire /= POWER_FACTOR as f32;
-                    }
-                    let tech_desire = desire * total / (kind.stats().cost + tech_cost) as f32;
-                    if tech_desire > 0.0 {
-                        want += tech_desire * best_cost as f32 / best;
-                    }
-                }
-                (tech, want)
+            .enumerate()
+            .map(|(index, tech)| {
+                tech_indices[tech.0] = Some(index);
+                (tech, 0.0_f32)
             })
-            .collect()
+            .collect();
+        let mut tech_costs = vec![None; wants.len()];
+        // daimilitary.c::dai_process_defender_want walks defender unit types
+        // once, accumulating tech_desire by unit. The previous city adapter
+        // rescanned every defender list for every technology.
+        for kind in defender_types {
+            if self.unit_buildable(city, kind) || !self.unit_buildable_later(city, kind) {
+                continue;
+            }
+            let Some(tech) = kind.required_tech() else {
+                continue;
+            };
+            let Some(index) = tech_indices.get(tech.0).and_then(|index| *index) else {
+                continue;
+            };
+            let mut desire = Self::production_defender_desire(kind, danger);
+            if desire <= 0.0 {
+                continue;
+            }
+            // Supported unit requirements are a single reachable advance;
+            // goal cost includes its still-unknown prerequisites. The source
+            // overwrites (not sums) costs for multi-tech requirements.
+            let tech_cost = *tech_costs[index].get_or_insert_with(|| {
+                self.research_path(city.owner, tech)
+                    .into_iter()
+                    .map(|required| self.target_cost(city.owner, required))
+                    .sum::<i32>()
+                    / 4
+                    / cities
+            });
+            if !kind.has_flag(UnitFlag::BadCityDefender) {
+                desire *= wallvalue;
+                desire /= POWER_FACTOR as f32;
+            }
+            let tech_desire = desire * total / (kind.stats().cost + tech_cost) as f32;
+            if tech_desire > 0.0 {
+                wants[index].1 += tech_desire * best_cost as f32 / best;
+            }
+        }
+        wants
     }
 }

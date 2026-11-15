@@ -165,7 +165,7 @@ impl Simulation {
         self.advisor_city_output_from_forecast(city, &forecast)
     }
 
-    pub(super) fn advisor_city_output_from_forecast(
+    pub(in crate::sim) fn advisor_city_output_from_forecast(
         &self,
         city: &City,
         forecast: &crate::sim::economy::CityForecast,

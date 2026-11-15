@@ -110,7 +110,10 @@ impl Simulation {
         let effect = |kind: &str| {
             self.city_rule_effect(city, kind, None, None, None, false, government, None)
         };
+        let profiler = self.trace.profiler();
+        let _profile = profiler.scope("city_mood.effect_stage");
         let effect_stage = self.city_feelings_effect_stage(city, luxury);
+        drop(_profile);
         let CitizenFeelingCounts {
             mut happy,
             mut content,
@@ -120,6 +123,7 @@ impl Simulation {
 
         // C2C3 martial law applies to non-civilian units physically present
         // in the city. Each unit's effect is evaluated through its own type.
+        let _profile = profiler.scope("city_mood.martial_law");
         if martial_enabled {
             let max_law = effect("Martial_Law_Max").max(0);
             let mut martial_values: Vec<_> = self
@@ -152,10 +156,12 @@ impl Simulation {
                 martial -= 1;
             }
         }
+        drop(_profile);
 
         // city.c:citizen_happy_units applies unit unrest after martial law.
         // The conversion also runs when martial law is disabled by government.
-        let mut unit_unhappiness = self.city_unit_upkeep(city).unit_happiness;
+        let _profile = profiler.scope("city_mood.unit_upkeep");
+        let mut unit_unhappiness = self.city_unit_happiness(city);
         while unit_unhappiness > 0 && content > 0 {
             content -= 1;
             unhappy += 1;
@@ -171,6 +177,7 @@ impl Simulation {
             content += 1;
             unit_unhappiness -= 1;
         }
+        drop(_profile);
         let martial_stage = CitizenFeelingCounts {
             happy,
             content,
@@ -179,6 +186,7 @@ impl Simulation {
         };
         // Make_Happy precedes No_Unhappy and Force_Content in the final mood
         // stage; these effects are data-driven and also cover wonders.
+        let _profile = profiler.scope("city_mood.final_effects");
         let mut happy_faces = effect("Make_Happy").max(0);
         while happy_faces > 0 && content > 0 {
             content -= 1;
@@ -205,6 +213,7 @@ impl Simulation {
                 force_faces -= 1;
             }
         }
+        drop(_profile);
 
         CitizenFeelingStages {
             effect: effect_stage,

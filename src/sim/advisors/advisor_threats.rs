@@ -7,7 +7,23 @@ impl Simulation {
         self.ai_threat_arrival_cache.borrow_mut().clear();
         self.ai_danger_route_cache.borrow_mut().clear();
         let tile_count = self.tiles.len();
+        let mut tile_unit_indices = vec![Vec::new(); tile_count];
+        for (unit_index, unit) in self.units.iter().enumerate() {
+            tile_unit_indices[self.map_wrap.index(unit.x, unit.y)].push(unit_index);
+        }
+        for (tile_index, indices) in tile_unit_indices.iter_mut().enumerate() {
+            let position = self.map_wrap.position(tile_index);
+            indices.sort_by_key(|&unit_index| {
+                std::cmp::Reverse(
+                    self.list_order
+                        .tile_unit_order_key(&self.units[unit_index], position),
+                )
+            });
+        }
+        let tile_unit_revision = self.list_order.tile_revision();
         let mut spatial = self.ai_spatial_index.borrow_mut();
+        spatial.tile_unit_indices = Some(tile_unit_indices);
+        spatial.tile_unit_revision = tile_unit_revision;
         spatial.unit_head.clear();
         spatial.unit_head.resize(tile_count, None);
         spatial.unit_next.clear();
@@ -436,24 +452,26 @@ impl Simulation {
         &'a self,
         city: &'a City,
     ) -> impl Iterator<Item = (&'a Unit, i32, i32)> + 'a {
-        (0..self.players.len())
-            .flat_map(move |owner| self.player_units_ordered(owner))
-            .filter_map(|unit| {
-                let stats = unit.kind.stats();
-                let carries_occupiers = unit.kind.can_carry(UnitKind::Warrior);
-                if (!unit.kind.is_military() && !carries_occupiers)
-                    || !self.advisor_player_dangerous(city.owner, unit.owner)
-                {
-                    return None;
-                }
-                let turns = self.city_danger_arrival(unit, city)?;
-                let rating = percent_of(POWER_FACTOR * stats.attack, unit.veteran_power())
-                    * unit.hp
-                    * stats.firepower
-                    / ADVISOR_POWER_DIVIDER;
-                // Even an empty occupation transport requires some protection;
-                // source assess_danger clamps its zero attack rating to one.
-                Some((unit, rating.max(1) / turns.max(1), turns))
-            })
+        // Threat consumers aggregate values or only test whether any threat
+        // exists; player-list order cannot affect the result. Scan the unit
+        // vector once instead of rebuilding and sorting one owner list per
+        // player for every city assessment.
+        self.units.iter().filter_map(move |unit| {
+            let stats = unit.kind.stats();
+            let carries_occupiers = unit.kind.can_carry(UnitKind::Warrior);
+            if (!unit.kind.is_military() && !carries_occupiers)
+                || !self.advisor_player_dangerous(city.owner, unit.owner)
+            {
+                return None;
+            }
+            let turns = self.city_danger_arrival(unit, city)?;
+            let rating = percent_of(POWER_FACTOR * stats.attack, unit.veteran_power())
+                * unit.hp
+                * stats.firepower
+                / ADVISOR_POWER_DIVIDER;
+            // Even an empty occupation transport requires some protection;
+            // source assess_danger clamps its zero attack rating to one.
+            Some((unit, rating.max(1) / turns.max(1), turns))
+        })
     }
 }

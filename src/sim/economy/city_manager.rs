@@ -1,7 +1,8 @@
 //! Automated city worker assignment and production management.
 
-use super::ruleset::{CityEconomySettings, GoldUpkeepStyle};
+use super::ruleset::{CityEconomySettings, CityOutputRuleCache, GoldUpkeepStyle};
 use super::*;
+use crate::sim::upkeep::UnitUpkeep;
 
 // common/aicore/cm.c:estimate_fitness and compare_tile_type_by_fitness.
 pub(super) fn cm_estimated_fitness(
@@ -108,6 +109,41 @@ impl Simulation {
             forecast.gold_surplus(forecast.support.gold),
             forecast.luxury,
             forecast.science,
+        ]
+    }
+
+    fn city_manager_candidate_surplus(
+        city: &City,
+        output: &CityManagerCandidateOutputs,
+        support: &UnitUpkeep,
+        building_upkeep: i32,
+    ) -> [i32; 6] {
+        let settings = CityEconomySettings::campaign();
+        let unit_gold = if settings.gold_upkeep_style == GoldUpkeepStyle::City {
+            support.gold
+        } else {
+            0
+        };
+        let building_gold = if settings.gold_upkeep_style == GoldUpkeepStyle::Nation {
+            0
+        } else {
+            building_upkeep
+        };
+        [
+            if output.disorder {
+                (output.food - city.size * Self::citizen_food_cost() - support.food).min(0)
+            } else {
+                output.food - city.size * Self::citizen_food_cost() - support.food
+            },
+            if output.disorder {
+                (output.shields - support.shields).min(0)
+            } else {
+                output.shields - support.shields
+            },
+            output.trade,
+            output.gold - building_gold - unit_gold,
+            output.luxury,
+            output.science,
         ]
     }
 
@@ -300,6 +336,7 @@ impl Simulation {
             by_stat,
         };
         let original = self.city_manager_surplus(city, &self.city_forecast(city));
+        let mut mood_cache = CityManagerMoodCache::new();
         for stage in 0..4 {
             let minima = match stage {
                 0 => [i32::from(!full), 1, 0, -CM_INFINITY, 0, 0],
@@ -314,13 +351,14 @@ impl Simulation {
                 ],
                 _ => [-CM_INFINITY; 6],
             };
-            let result = self.city_manager_query(
+            let result = self.city_manager_query_with_mood_cache(
                 city,
                 &lattice,
                 food_factor,
                 minima,
                 stage == 3,
                 CM_MAX_LOOP,
+                &mut mood_cache,
             );
             // cityturn.c deliberately checks validity, not the abort flag:
             // a sufficient incumbent from a truncated search is applied.
@@ -349,25 +387,43 @@ impl Simulation {
         result
     }
 
+    #[cfg(test)]
     pub(in crate::sim) fn city_manager_raw_production(
         &self,
         city: &City,
         raw: [i32; 6],
     ) -> [i32; 6] {
+        let center = self.city_manager_center_yields(city);
+        let rules = self.city_output_rule_cache(city, self.players[city.owner].government, None);
+        self.city_manager_raw_production_with_center(city, raw, center, &rules)
+    }
+
+    fn city_manager_center_yields(&self, city: &City) -> (i32, i32, i32) {
+        self.trace
+            .count_operation("city_manager.center_yield_evaluations", 1);
+        self.city_tile_yields(city, city.x, city.y, true, None)
+    }
+
+    fn city_manager_raw_production_with_center(
+        &self,
+        city: &City,
+        raw: [i32; 6],
+        center: (i32, i32, i32),
+        output_rules: &CityOutputRuleCache,
+    ) -> [i32; 6] {
         // cm.c:compute_max_stats_heuristic combines maxima for six different
         // completions into a synthetic citizen_base, then set_city_production.
-        let center = self.city_tile_yields(city, city.x, city.y, true, None);
-        let (food, shield, trade) = self.c2c3_finalize_city_outputs(
+        let (food, shield, trade) = self.c2c3_finalize_city_outputs_cached(
             city,
             (raw[0] + center.0, raw[1] + center.1, raw[2] + center.2),
-            self.players[city.owner].government,
-            None,
+            output_rules,
         );
-        let [science, gold, luxury] = self.split_city_trade_from_citizens(
+        let [science, gold, luxury] = self.split_city_trade_from_citizens_cached(
             city,
             trade,
             self.players[city.owner].rates,
             [raw[5], raw[3], raw[4]],
+            &output_rules.trade,
         );
         [
             food,
@@ -379,6 +435,7 @@ impl Simulation {
         ]
     }
 
+    #[cfg(test)]
     pub(super) fn city_manager_query(
         &self,
         city: &City,
@@ -387,6 +444,32 @@ impl Simulation {
         minima: [i32; 6],
         emergency: bool,
         limit: usize,
+    ) -> CmQueryResult {
+        let mut mood_cache = CityManagerMoodCache::new();
+        self.city_manager_query_with_mood_cache(
+            city,
+            lattice,
+            food_factor,
+            minima,
+            emergency,
+            limit,
+            &mut mood_cache,
+        )
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "The city-manager search context is explicit and its mood cache must span staged queries."
+    )]
+    fn city_manager_query_with_mood_cache(
+        &self,
+        city: &City,
+        lattice: &CmLattice,
+        food_factor: i32,
+        minima: [i32; 6],
+        emergency: bool,
+        limit: usize,
+        mood_cache: &mut CityManagerMoodCache,
     ) -> CmQueryResult {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("city_manager.query");
@@ -448,25 +531,53 @@ impl Simulation {
             .city_base_content(city, self.players[city.owner].government)
             .max(0);
         let happy_cost = CityEconomySettings::campaign().happy_cost.max(1);
+        // Freeciv's common/city.c maintains a city-tile output cache across
+        // repeated CM branch bounds. The center tile is constant throughout
+        // this query, so evaluate it once instead of once per bound check.
+        let center = self.city_manager_center_yields(city);
+        let output_rules =
+            self.city_output_rule_cache(city, self.players[city.owner].government, None);
         loop {
             if current.idle == 0 {
+                let _leaf_profile = profiler.scope("city_manager.query.leaf_evaluation");
+                self.trace
+                    .count_operation("city_manager.leaf_evaluations", 1);
                 let candidate = self.city_manager_apply(city, lattice, &current);
-                let forecast = self.city_forecast(&candidate);
-                let surplus = self.city_manager_surplus(&candidate, &forecast);
-                if forecast.disorder {
+                // Emergency searches seed each output with -CM_INFINITY so
+                // the initial synthetic incumbent cannot satisfy a minimum.
+                // Remove that search sentinel before using the partial sums
+                // as real gross tile output.
+                let raw_offset = if emergency { CM_INFINITY } else { 0 };
+                let output = self.city_manager_candidate_outputs(
+                    &candidate,
+                    (
+                        current.production[0].wrapping_add(raw_offset) + center.0,
+                        current.production[1].wrapping_add(raw_offset) + center.1,
+                        current.production[2].wrapping_add(raw_offset) + center.2,
+                    ),
+                    &output_rules,
+                    mood_cache,
+                );
+                let surplus = Self::city_manager_candidate_surplus(
+                    &candidate,
+                    &output,
+                    &initial.support,
+                    initial.building_upkeep,
+                );
+                if output.disorder {
                     min_luxury = surplus[4]
                         + happy_cost
                             * (candidate.specialists.iter().sum::<i32>() - max_content).max(0)
                         + 1;
                 }
-                let sufficient = (emergency || !forecast.disorder)
+                let sufficient = (emergency || !output.disorder)
                     && (0..6).all(|index| surplus[index] >= minima[index]);
                 let fitness = (
                     sufficient,
                     (0..6)
                         .map(|index| i64::from(surplus[index]) * i64::from(factors[index]))
                         .sum::<i64>()
-                        + i64::from(emergency && forecast.happy),
+                        + i64::from(emergency && output.happy),
                 );
                 if fitness > best_fitness {
                     best = current.clone();
@@ -474,6 +585,10 @@ impl Simulation {
                 }
             }
             let mut promising = |partial: &CmPartial, kind: usize| {
+                let _bound_profile = profiler.scope("city_manager.query.branch_bound");
+                self.trace
+                    .count_operation("city_manager.branch_bound_calls", 1);
+                let _completion_profile = profiler.scope("city_manager.query.bound_completion");
                 let mut raw = [0; 6];
                 if partial.idle == 1 {
                     raw = std::array::from_fn(|output| {
@@ -509,7 +624,12 @@ impl Simulation {
                         *raw_output = completion.production[output];
                     }
                 }
-                let production = self.city_manager_raw_production(city, raw);
+                drop(_completion_profile);
+                let _output_profile = profiler.scope("city_manager.query.bound_output");
+                let production =
+                    self.city_manager_raw_production_with_center(city, raw, center, &output_rules);
+                drop(_output_profile);
+                let _prune_profile = profiler.scope("city_manager.query.bound_prune");
                 let meets_min = (0..6).all(|output| production[output] >= min_production[output]);
                 let beats_best = (0..6).any(|output| {
                     factors[output] > 0 && production[output] > best.production[output]
@@ -521,7 +641,9 @@ impl Simulation {
                 if luxury < min_luxury {
                     disorder_prunes.set(disorder_prunes.get() + 1);
                 }
-                meets_min && beats_best && luxury >= min_luxury
+                let promising = meets_min && beats_best && luxury >= min_luxury;
+                drop(_prune_profile);
+                promising
             };
             let mut next = |partial: &CmPartial, start: usize| {
                 (start..order.len()).find(|&position| {
