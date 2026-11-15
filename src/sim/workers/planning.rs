@@ -37,6 +37,9 @@ const ROAD_BONUS_OFFSETS: [(i32, i32); 12] = [
 ];
 
 type WorkerActivityTiles = Vec<bool>;
+type CachedWorkerProjection = Option<Option<(Tile, i32)>>;
+type WorkerActivityProjections = [CachedWorkerProjection; ACTIVITIES.len()];
+type WorkerProjectionCache = BTreeMap<(usize, usize, usize), WorkerActivityProjections>;
 
 fn freeciv_square_road_connector_bonus(
     real_road: &[bool; ROAD_BONUS_OFFSETS.len()],
@@ -148,11 +151,19 @@ pub(super) struct WorkMap {
     // worker-specific, while these yield projections are shared by every real
     // or virtual worker considered in the phase.
     infrastructure: Vec<WorkerCityValueCache>,
+    // Work action eligibility and terrain projection depend on player, unit
+    // type, tile, and activity. This cache is phase-local and is invalidated
+    // when a founder creates a city during the worker phase.
+    projections: WorkerProjectionCache,
     safety_owner: Option<usize>,
     safety: Vec<Option<bool>>,
 }
 
 impl WorkMap {
+    pub(super) fn clear_projections(&mut self) {
+        self.projections.clear();
+    }
+
     fn city_cache(&mut self, city: u32) -> usize {
         if let Some(index) = self
             .infrastructure
@@ -182,6 +193,17 @@ impl WorkMap {
             .tiles
             .push((tile, WorkerTileValueCache::default()));
         index
+    }
+
+    fn projection_cache(
+        &mut self,
+        owner: usize,
+        kind: UnitKind,
+        tile: usize,
+    ) -> &mut WorkerActivityProjections {
+        self.projections
+            .entry((owner, kind as usize, tile))
+            .or_insert_with(|| std::array::from_fn(|_| None))
     }
 }
 
@@ -440,6 +462,34 @@ impl Simulation {
         (time > 0).then_some((tile, time))
     }
 
+    fn cached_worker_projection(
+        &self,
+        state: &mut WorkMap,
+        actor: &Unit,
+        activity: WorkKind,
+    ) -> Option<(Tile, i32)> {
+        let Some(activity_index) = ACTIVITIES
+            .iter()
+            .position(|&candidate| candidate == activity)
+        else {
+            return self.worker_projection(actor, activity);
+        };
+        let tile = self.map_wrap.index(actor.x, actor.y);
+        if let Some(result) =
+            state.projection_cache(actor.owner, actor.kind, tile)[activity_index].clone()
+        {
+            self.trace
+                .count_operation("worker.projection_cache_hits", 1);
+            return result;
+        }
+        self.trace
+            .count_operation("worker.projection_cache_misses", 1);
+        let result = self.worker_projection(actor, activity);
+        state.projection_cache(actor.owner, actor.kind, tile)[activity_index] =
+            Some(result.clone());
+        result
+    }
+
     pub(super) fn worker_tile_value(
         &mut self,
         city: &City,
@@ -617,6 +667,7 @@ impl Simulation {
                 u.id != actor.id && u.owner == actor.owner && u.kind.is_worker()
             })
         };
+        let _discovery_profile = profiler.scope("worker.plan.worksite_discovery");
         let cities: Vec<_> = self
             .cities
             .iter()
@@ -653,7 +704,9 @@ impl Simulation {
             "worker.worksite_candidates",
             worksite_candidates.len() as u64,
         );
+        drop(_discovery_profile);
         let routes = self.worker_routes_to(actor, Some(route_targets));
+        let _request_profile = profiler.scope("worker.plan.request_selection");
         let mut best_request = None;
         let mut request_value = -1;
         let mut request_distance = i32::MAX;
@@ -678,7 +731,10 @@ impl Simulation {
             }
             let mut at = actor.clone();
             (at.x, at.y) = request.destination;
-            if self.worker_projection(&at, request.activity).is_none() {
+            if self
+                .cached_worker_projection(state, &at, request.activity)
+                .is_none()
+            {
                 continue;
             }
             let value = (request.want + 1) * 10 / (arrival + 1);
@@ -688,7 +744,7 @@ impl Simulation {
                 best_request = Some(WorkerPlan {
                     destination: request.destination,
                     activity: request.activity,
-                    path: routes.path(request.destination)?,
+                    path: Vec::new(),
                     arrival,
                     delay: arrival,
                     old: 0.0,
@@ -699,10 +755,16 @@ impl Simulation {
                 });
             }
         }
-        if best_request.is_some() {
-            return best_request;
+        if let Some(mut plan) = best_request {
+            self.trace.count_operation("worker.paths_reconstructed", 1);
+            plan.path = routes.path(plan.destination)?;
+            return Some(plan);
         }
+        drop(_request_profile);
+        let _activity_profile = profiler.scope("worker.plan.activity_context");
         let (road_activity, railroad_activity) = self.worker_activity_tiles();
+        drop(_activity_profile);
+        let _scoring_profile = profiler.scope("worker.plan.candidate_scoring");
         let mut best = None;
         let mut reachable_worksites = 0_u64;
         for (city_index, position, worked) in worksite_candidates {
@@ -730,16 +792,27 @@ impl Simulation {
             };
             let mut at = actor.clone();
             (at.x, at.y) = position;
-            let old = self.cached_worker_old_value(state, city_cache, city, position);
+            let old = {
+                let _profile = profiler.scope("worker.plan.old_value");
+                self.cached_worker_old_value(state, city_cache, city, position)
+            };
             for &activity in ACTIVITIES {
-                let Some((tile, time)) = self.worker_projection(&at, activity) else {
+                let projection = {
+                    let _profile = profiler.scope("worker.plan.projection");
+                    self.cached_worker_projection(state, &at, activity)
+                };
+                let Some((tile, time)) = projection else {
                     continue;
                 };
                 self.trace
                     .count_operation("worker.candidates_considered", 1);
-                let new = self.cached_worker_projected_value(
-                    state, city_cache, city, position, activity, tile,
-                );
+                let new = {
+                    let _profile = profiler.scope("worker.plan.projected_value");
+                    self.cached_worker_projected_value(
+                        state, city_cache, city, position, activity, tile,
+                    )
+                };
+                let _extra_profile = profiler.scope("worker.plan.activity_extra");
                 let extra = match activity {
                     WorkKind::Road => self.worker_road_extra_with_activities(
                         position,
@@ -762,12 +835,14 @@ impl Simulation {
                 let rate = self.activity_rate(actor);
                 let work = (time * ACTIVITY_FACTOR + rate - 1) / rate;
                 let delay = arrival + work + i32::from(remaining == 0);
+                drop(_extra_profile);
+                let _compare_profile = profiler.scope("worker.plan.compare_action");
                 consider_action(
                     &mut best,
                     WorkerPlan {
                         destination: position,
                         activity,
-                        path: routes.path(position)?,
+                        path: Vec::new(),
                         arrival,
                         delay,
                         old,
@@ -777,11 +852,13 @@ impl Simulation {
                         request: None,
                     },
                 );
+                drop(_compare_profile);
             }
             // A missing road can be worth building for its ruleset-enabled
             // railroad successor; source adds both cached total values.
             if !self.tile(x, y).road
-                && let Some((road, time)) = self.worker_projection(&at, WorkKind::Road)
+                && let Some((road, time)) =
+                    self.cached_worker_projection(state, &at, WorkKind::Road)
                 && self.work_action_available_for_unit_with_tile_fail_closed(
                     &at,
                     WorkKind::Railroad,
@@ -800,7 +877,7 @@ impl Simulation {
                     WorkerPlan {
                         destination: position,
                         activity: WorkKind::Road,
-                        path: routes.path(position)?,
+                        path: Vec::new(),
                         arrival,
                         delay: arrival + work + i32::from(remaining == 0),
                         old,
@@ -819,11 +896,14 @@ impl Simulation {
         }
         self.trace
             .count_operation("worker.reachable_worksites", reachable_worksites);
-        best.filter(|plan| {
+        let mut best = best.filter(|plan| {
             amortize(
                 (plan.new - plan.old + plan.extra) * WORKER_FACTOR,
                 plan.delay,
             ) > 0.0
-        })
+        })?;
+        self.trace.count_operation("worker.paths_reconstructed", 1);
+        best.path = routes.path(best.destination)?;
+        Some(best)
     }
 }

@@ -106,6 +106,21 @@ impl Simulation {
         result.costs[start] = 0;
         let mut queue = BinaryHeap::from([Reverse((0, 0, start))]);
         let mut expanded = 0_u64;
+        let movement_profile = self.worker_route_movement_profile(unit.kind);
+        // Worker routing runs before the advisor spatial index is built.
+        // Freeciv's PF queries tile-local unit lists; calling any_unit_at here
+        // instead scans every unit for every neighbor examined. Build the
+        // equivalent hostile occupancy view once for this route search.
+        let mut hostile_units = vec![false; self.tiles.len()];
+        for other in &self.units {
+            if !self.allied(unit.owner, other.owner) {
+                hostile_units[self.map_wrap.index(other.x, other.y)] = true;
+            }
+        }
+        self.trace.count_operation(
+            "worker.route_hostile_units_indexed",
+            self.units.len().try_into().unwrap_or(u64::MAX),
+        );
         let mut remaining_targets = targets;
         if let Some(targets) = &mut remaining_targets {
             targets.remove(&start);
@@ -146,26 +161,29 @@ impl Simulation {
                     .owner
                     .is_some_and(|other| !self.allied(unit.owner, other))
                     || self.treaty_blocks_move(&actor, x, y)
-                    || self.zone_blocks_worker_route_step(
+                    || self.zone_blocks_worker_route_step_with_profile(
                         &actor,
                         (actor.x, actor.y),
                         (x, y),
                         &mut route_zone_cache,
+                        &movement_profile,
                     )
-                    || self.any_unit_at(x, y, |u| !self.allied(unit.owner, u.owner))
-                    || self.any_city_at(x, y, |c| !self.allied(unit.owner, c.owner))
+                    || hostile_units[self.map_wrap.index(x, y)]
+                    || route_zone_cache.foreign_city_at(self, unit.owner, x, y)
                 {
                     continue;
                 }
                 let cost = if !self.players[unit.owner].ai && !self.tile(x, y).known_by[unit.owner]
                 {
-                    Some(
-                        super::movement_rules::MovementRules::campaign()
-                            .unknown_tile_move_cost(unit.kind)
-                            .expect("selected C2C3 unknown-tile movement cost"),
-                    )
+                    Some(movement_profile.unknown_tile_cost)
                 } else {
-                    self.movement_cost_for(&actor, x, y)
+                    self.movement_cost_for_worker_route(
+                        &actor,
+                        x,
+                        y,
+                        &route_zone_cache,
+                        &movement_profile,
+                    )
                 };
                 let Some(cost) = cost else {
                     continue;
@@ -363,7 +381,11 @@ impl Simulation {
                             ) / WORKER_FACTOR
                         }
                     });
+                let cities_before = self.cities.len();
                 if self.run_ai_founder_with_improvement(&actor, want) {
+                    if self.cities.len() != cities_before {
+                        state.clear_projections();
+                    }
                     continue;
                 }
             }
