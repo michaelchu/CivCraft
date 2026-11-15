@@ -67,6 +67,104 @@ pub(crate) struct CivilizationCatalog {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct BuildingCatalog {
+    pub(crate) schema_version: u32,
+    pub(crate) source: String,
+    pub(crate) buildings: Vec<NativeBuilding>,
+    #[serde(default)]
+    pub(crate) bindings: Vec<NativeBuildingBinding>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeBuilding {
+    pub(crate) id: String,
+    pub(crate) source_record_index: usize,
+    pub(crate) source_biq: String,
+    pub(crate) name: String,
+    pub(crate) civilopedia_entry: String,
+    pub(crate) doubles_happiness: i32,
+    pub(crate) gain_in_every_city: i32,
+    pub(crate) gain_in_every_city_on_continent: i32,
+    pub(crate) required_building_index: i32,
+    pub(crate) cost: i32,
+    pub(crate) culture: i32,
+    pub(crate) bombard_defense: i32,
+    pub(crate) naval_bombard_defense: i32,
+    pub(crate) defense_bonus: i32,
+    pub(crate) naval_defense_bonus: i32,
+    pub(crate) maintenance_cost: i32,
+    pub(crate) content_faces_all_cities: i32,
+    pub(crate) content_faces: i32,
+    pub(crate) unhappy_faces_all_cities: i32,
+    pub(crate) unhappy_faces: i32,
+    pub(crate) number_of_required_buildings: i32,
+    pub(crate) air_power: i32,
+    pub(crate) naval_power: i32,
+    pub(crate) pollution: i32,
+    pub(crate) production: i32,
+    pub(crate) required_government: i32,
+    pub(crate) spaceship_part: i32,
+    pub(crate) required_advance_index: i32,
+    pub(crate) rendered_obsolete_by_advance_index: i32,
+    pub(crate) required_resource_1_index: i32,
+    pub(crate) required_resource_2_index: i32,
+    pub(crate) flags_hex: String,
+    pub(crate) number_of_armies_required: i32,
+    pub(crate) flavors: i32,
+    pub(crate) unknown_tail_hex: String,
+    pub(crate) unit_produced_index: i32,
+    pub(crate) unit_frequency: i32,
+    pub(crate) required_building_name: String,
+    pub(crate) required_advance_name: String,
+    pub(crate) rendered_obsolete_by_advance_name: String,
+    pub(crate) required_resource_1_name: String,
+    pub(crate) required_resource_2_name: String,
+    pub(crate) unit_produced_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeBuildingBinding {
+    pub(crate) civ3_id: String,
+    pub(crate) source_record_index: usize,
+    pub(crate) legacy_runtime_index: i32,
+    pub(crate) mapping_status: String,
+    pub(crate) mapping_note: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct TechnologyCatalog {
+    pub(crate) schema_version: u32,
+    pub(crate) source: String,
+    pub(crate) technologies: Vec<NativeTechnology>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeTechnology {
+    pub(crate) id: String,
+    pub(crate) source_record_index: usize,
+    pub(crate) source_biq: String,
+    pub(crate) name: String,
+    pub(crate) civilopedia_entry: String,
+    pub(crate) cost: i32,
+    pub(crate) era: i32,
+    pub(crate) advance_icon: i32,
+    pub(crate) x: i32,
+    pub(crate) y: i32,
+    pub(crate) prerequisite_1_index: i32,
+    pub(crate) prerequisite_2_index: i32,
+    pub(crate) prerequisite_3_index: i32,
+    pub(crate) prerequisite_4_index: i32,
+    pub(crate) flags_hex: String,
+    pub(crate) flavors: i32,
+    pub(crate) unknown_tail_hex: String,
+    pub(crate) prerequisite_1_name: String,
+    pub(crate) prerequisite_2_name: String,
+    pub(crate) prerequisite_3_name: String,
+    pub(crate) prerequisite_4_name: String,
+    pub(crate) prerequisites: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct NativeCivilization {
     pub(crate) id: String,
     pub(crate) source_id: String,
@@ -116,6 +214,26 @@ pub(crate) fn civilizations() -> &'static CivilizationCatalog {
     })
 }
 
+pub(crate) fn buildings() -> &'static BuildingCatalog {
+    static CATALOG: OnceLock<BuildingCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft_native/buildings.toml"
+        ))
+        .expect("native building TOML must be valid")
+    })
+}
+
+pub(crate) fn technologies() -> &'static TechnologyCatalog {
+    static CATALOG: OnceLock<TechnologyCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft_native/technologies.toml"
+        ))
+        .expect("native technology TOML must be valid")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,6 +246,13 @@ mod tests {
         assert_eq!(civilizations().schema_version, 1);
         assert_eq!(civilizations().source, "Civilization III: Conquests");
         assert_eq!(civilizations().civilizations.len(), 31);
+        assert_eq!(buildings().schema_version, 1);
+        assert_eq!(buildings().source, "Civilization III: Conquests");
+        assert_eq!(buildings().buildings.len(), 83);
+        assert_eq!(buildings().bindings.len(), 83);
+        assert_eq!(technologies().schema_version, 1);
+        assert_eq!(technologies().source, "Civilization III: Conquests");
+        assert_eq!(technologies().technologies.len(), 83);
     }
 
     #[test]
@@ -149,5 +274,81 @@ mod tests {
                     .all(|stack| stack.count > 0)
             );
         }
+    }
+
+    #[test]
+    fn native_buildings_and_bindings_match_the_extracted_tables() {
+        let rows = tsv_rows(include_str!(
+            "../../data/rulesets/civ3_conquests/buildings.tsv"
+        ));
+        assert_eq!(rows.len(), buildings().buildings.len());
+        for (native, row) in buildings().buildings.iter().zip(rows) {
+            assert_eq!(native.id, row[0]);
+            assert_eq!(native.source_record_index.to_string(), row[1]);
+            assert_eq!(native.source_biq, row[2]);
+            assert_eq!(native.name, row[3]);
+            assert_eq!(native.cost.to_string(), row[9]);
+            assert_eq!(native.culture.to_string(), row[10]);
+            assert_eq!(native.maintenance_cost.to_string(), row[15]);
+            assert_eq!(native.required_advance_index.to_string(), row[27]);
+            assert_eq!(native.flags_hex, row[31]);
+            assert_eq!(native.required_building_name, row[37]);
+            assert_eq!(native.required_advance_name, row[38]);
+            assert_eq!(native.unit_produced_name, row[42]);
+        }
+
+        let bindings = tsv_rows(include_str!(
+            "../../data/rulesets/civ3_conquests/building_catalog_bindings.tsv"
+        ));
+        assert_eq!(buildings().bindings.len(), bindings.len());
+        for (native, row) in buildings().bindings.iter().zip(bindings) {
+            assert_eq!(native.civ3_id, row[0]);
+            assert_eq!(native.source_record_index.to_string(), row[1]);
+            let expected_legacy_index = row[2].parse::<i32>().unwrap_or(-1);
+            assert_eq!(native.legacy_runtime_index, expected_legacy_index);
+            assert_eq!(native.mapping_status, row[3]);
+            assert_eq!(native.mapping_note, row[4]);
+        }
+    }
+
+    #[test]
+    fn native_technologies_match_the_extracted_technology_table() {
+        let rows = tsv_rows(include_str!(
+            "../../data/rulesets/civ3_conquests/technologies.tsv"
+        ));
+        assert_eq!(technologies().technologies.len(), rows.len());
+        for (native, row) in technologies().technologies.iter().zip(rows) {
+            assert_eq!(native.id, row[0]);
+            assert_eq!(native.source_record_index.to_string(), row[1]);
+            assert_eq!(native.source_biq, row[2]);
+            assert_eq!(native.name, row[3]);
+            assert_eq!(native.cost.to_string(), row[5]);
+            assert_eq!(native.era.to_string(), row[6]);
+            assert_eq!(native.advance_icon.to_string(), row[7]);
+            assert_eq!(native.x.to_string(), row[8]);
+            assert_eq!(native.y.to_string(), row[9]);
+            assert_eq!(native.flags_hex, row[14]);
+            assert_eq!(native.prerequisite_1_name, row[17]);
+            assert_eq!(native.prerequisite_2_name, row[18]);
+            assert_eq!(native.prerequisite_3_name, row[19]);
+            assert_eq!(native.prerequisite_4_name, row[20]);
+            assert_eq!(
+                native.prerequisites,
+                row[17..21]
+                    .iter()
+                    .filter(|name| !name.is_empty())
+                    .map(|name| (*name).to_owned())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    fn tsv_rows(source: &'static str) -> Vec<Vec<&'static str>> {
+        source
+            .lines()
+            .skip(1)
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| line.split('\t').collect())
+            .collect()
     }
 }

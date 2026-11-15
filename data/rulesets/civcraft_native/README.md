@@ -9,3 +9,12 @@ The catalogs are currently loaded by migration/parity tests while the runtime
 still consumes the legacy TSV adapters.  Do not edit the TSVs directly for a
 rules change once the corresponding TOML field exists; regenerate only when
 reconciling source data, then keep the TOML and parity tests authoritative.
+
+Current catalogs:
+
+- `units.toml`: 92 native unit identities and tuneable source values.
+- `civilizations.toml`: 31 civilizations, city lists, starting technologies,
+  and starting-unit profiles.
+- `buildings.toml`: 83 building records plus explicit legacy binding status.
+- `technologies.toml`: 83 advances, source coordinates, costs, and prerequisite
+  graph inputs.

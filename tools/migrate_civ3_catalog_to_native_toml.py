@@ -162,6 +162,134 @@ def write_civilizations() -> None:
     (DEST / "civilizations.toml").write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_buildings() -> None:
+    rows = read_tsv("buildings.tsv")
+    bindings = read_tsv("building_catalog_bindings.tsv")
+    integer_fields = [
+        "source_record_index",
+        "doubles_happiness",
+        "gain_in_every_city",
+        "gain_in_every_city_on_continent",
+        "required_building_index",
+        "cost",
+        "culture",
+        "bombard_defense",
+        "naval_bombard_defense",
+        "defense_bonus",
+        "naval_defense_bonus",
+        "maintenance_cost",
+        "content_faces_all_cities",
+        "content_faces",
+        "unhappy_faces_all_cities",
+        "unhappy_faces",
+        "number_of_required_buildings",
+        "air_power",
+        "naval_power",
+        "pollution",
+        "production",
+        "required_government",
+        "spaceship_part",
+        "required_advance_index",
+        "rendered_obsolete_by_advance_index",
+        "required_resource_1_index",
+        "required_resource_2_index",
+        "number_of_armies_required",
+        "flavors",
+        "unit_produced_index",
+        "unit_frequency",
+    ]
+    string_fields = [
+        "id",
+        "source_biq",
+        "name",
+        "civilopedia_entry",
+        "flags_hex",
+        "unknown_tail_hex",
+        "required_building_name",
+        "required_advance_name",
+        "rendered_obsolete_by_advance_name",
+        "required_resource_1_name",
+        "required_resource_2_name",
+        "unit_produced_name",
+    ]
+    lines = [
+        "schema_version = 1",
+        'source = "Civilization III: Conquests"',
+        "",
+    ]
+    for row in rows:
+        lines.append("[[buildings]]")
+        for field in string_fields:
+            lines.append(f"{field} = {string(row[field])}")
+        for field in integer_fields:
+            lines.append(f"{field} = {row[field]}")
+        lines.append("")
+    for row in bindings:
+        lines.append("[[bindings]]")
+        lines.append(f'civ3_id = {string(row["civ3_id"])}')
+        lines.append(f'source_record_index = {row["source_record_index"]}')
+        legacy_index = row["legacy_runtime_index"]
+        lines.append(f"legacy_runtime_index = {legacy_index or -1}")
+        lines.append(f'mapping_status = {string(row["mapping_status"])}')
+        lines.append(f'mapping_note = {string(row["mapping_note"])}')
+        lines.append("")
+    (DEST / "buildings.toml").write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_technologies() -> None:
+    rows = read_tsv("technologies.tsv")
+    integer_fields = [
+        "source_record_index",
+        "cost",
+        "era",
+        "advance_icon",
+        "x",
+        "y",
+        "prerequisite_1_index",
+        "prerequisite_2_index",
+        "prerequisite_3_index",
+        "prerequisite_4_index",
+        "flavors",
+    ]
+    string_fields = [
+        "id",
+        "source_biq",
+        "name",
+        "civilopedia_entry",
+        "flags_hex",
+        "unknown_tail_hex",
+        "prerequisite_1_name",
+        "prerequisite_2_name",
+        "prerequisite_3_name",
+        "prerequisite_4_name",
+    ]
+    lines = [
+        "schema_version = 1",
+        'source = "Civilization III: Conquests"',
+        "",
+    ]
+    for row in rows:
+        lines.append("[[technologies]]")
+        for field in string_fields:
+            lines.append(f"{field} = {string(row[field])}")
+        for field in integer_fields:
+            lines.append(f"{field} = {row[field]}")
+        lines.append(
+            "prerequisites = "
+            + "["
+            + ", ".join(
+                string(row[f"prerequisite_{index}_name"])
+                for index in range(1, 5)
+                if row[f"prerequisite_{index}_name"]
+            )
+            + "]"
+        )
+        lines.append("")
+    (DEST / "technologies.toml").write_text("\n".join(lines), encoding="utf-8")
+
+
 DEST.mkdir(parents=True, exist_ok=True)
 write_units()
 write_civilizations()
+write_buildings()
+write_technologies()
