@@ -20,7 +20,8 @@ impl Simulation {
             return;
         }
 
-        let message = match self.rand_below(14) {
+        let outcome_rolls = crate::rules::native::settlements().villages.outcome_rolls;
+        let message = match self.rand_below(outcome_rolls) {
             0 => self.village_gold(owner, 25),
             1..=3 => self.village_gold(owner, 50),
             4 => self.village_gold(owner, 100),
@@ -49,9 +50,17 @@ impl Simulation {
                 "Friendly nomads joined your expedition as Settlers.".into()
             }
             12..=13 => {
-                let reveal_radius = (30.0_f32.sqrt().ceil()) as i32;
+                let reveal_radius = (crate::rules::native::settlements()
+                    .villages
+                    .map_reveal_radius_squared as f32)
+                    .sqrt()
+                    .ceil() as i32;
                 for (nx, ny, distance) in self.map_wrap.civ3_radius(x, y, reveal_radius) {
-                    if distance * distance > 30 {
+                    if distance * distance
+                        > crate::rules::native::settlements()
+                            .villages
+                            .map_reveal_radius_squared
+                    {
                         continue;
                     }
                     let tile = self.tile_mut(nx, ny);
@@ -116,7 +125,11 @@ impl Simulation {
             return "The village was abandoned.".into();
         }
 
-        if self.turn >= BARBARIAN_ONSET {
+        if self.turn
+            >= crate::rules::native::settlements()
+                .villages
+                .barbarian_onset_turn
+        {
             let (land, water): (Vec<_>, Vec<_>) = self
                 .map_wrap
                 .civ3_neighbors(x, y)

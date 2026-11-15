@@ -1,0 +1,16 @@
+schema_version = 1
+source = "CivCraft native economy rules"
+
+[city]
+city_min_distance = 3
+food_cost = 2
+happy_cost = 2
+granary_food_initial = [20, 20, 20, 20, 20, 30, 30, 40]
+granary_food_increment = 0
+foodbox_percent = 100
+output_granularity = 1
+city_center_minimum = [0, 0, 0]
+no_trade_size = 0
+full_trade_size = 1
+gold_upkeep_style = "Mixed"
+celebrate_size_limit = 3

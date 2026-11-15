@@ -288,8 +288,67 @@ def write_technologies() -> None:
     (DEST / "technologies.toml").write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_governments() -> None:
+    lines = [
+        "schema_version = 1",
+        'source = "Civilization III: Conquests"',
+        "",
+    ]
+    for row in read_tsv("government_unit_support.tsv"):
+        lines.extend(
+            [
+                "[[governments]]",
+                f'government = {string(row["government"])}',
+                f'town_free_units = {row["town_free_units"]}',
+                f'city_free_units = {row["city_free_units"]}',
+                f'metropolis_free_units = {row["metropolis_free_units"]}',
+                f'cost_per_excess_unit_gold = {row["cost_per_excess_unit_gold"]}',
+                "",
+            ]
+        )
+    for row in read_tsv("government_assimilation.tsv"):
+        lines.extend(
+            [
+                "[[assimilation]]",
+                f'source_section = {string(row["source_section"])}',
+                f'source_record_index = {row["source_record_index"]}',
+                f'government = {string(row["government"])}',
+                f'assimilation_chance_percent = {row["assimilation_chance_percent"]}',
+                f'biq_sha256 = {string(row["biq_sha256"])}',
+                "",
+            ]
+        )
+    for row in read_tsv("government_resistance.tsv"):
+        lines.extend(
+            [
+                "[[resistance]]",
+                f'captor_biq_index = {row["captor_biq_index"]}',
+                f'captor_name = {string(row["captor_name"])}',
+                f'defender_biq_index = {row["defender_biq_index"]}',
+                f'defender_name = {string(row["defender_name"])}',
+                f'modifier = {row["modifier"]}',
+                f'biq_sha256 = {string(row["biq_sha256"])}',
+                "",
+            ]
+        )
+    for row in read_tsv("resistance_military_law.tsv"):
+        lines.extend(
+            [
+                "[[military_law]]",
+                f'source_section = {string(row["source_section"])}',
+                f'source_record_index = {row["source_record_index"]}',
+                f'difficulty = {string(row["difficulty"])}',
+                f'military_law = {row["military_law"]}',
+                f'biq_sha256 = {string(row["biq_sha256"])}',
+                "",
+            ]
+        )
+    (DEST / "governments.toml").write_text("\n".join(lines), encoding="utf-8")
+
+
 DEST.mkdir(parents=True, exist_ok=True)
 write_units()
 write_civilizations()
 write_buildings()
 write_technologies()
+write_governments()

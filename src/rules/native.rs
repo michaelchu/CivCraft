@@ -139,6 +139,113 @@ pub(crate) struct TechnologyCatalog {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct GovernmentCatalog {
+    pub(crate) schema_version: u32,
+    pub(crate) source: String,
+    pub(crate) governments: Vec<NativeGovernment>,
+    pub(crate) assimilation: Vec<NativeAssimilation>,
+    pub(crate) resistance: Vec<NativeResistance>,
+    pub(crate) military_law: Vec<NativeMilitaryLaw>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeGovernment {
+    pub(crate) government: String,
+    pub(crate) town_free_units: i32,
+    pub(crate) city_free_units: i32,
+    pub(crate) metropolis_free_units: i32,
+    pub(crate) cost_per_excess_unit_gold: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeAssimilation {
+    pub(crate) source_section: String,
+    pub(crate) source_record_index: usize,
+    pub(crate) government: String,
+    pub(crate) assimilation_chance_percent: i32,
+    pub(crate) biq_sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeResistance {
+    pub(crate) captor_biq_index: usize,
+    pub(crate) captor_name: String,
+    pub(crate) defender_biq_index: usize,
+    pub(crate) defender_name: String,
+    pub(crate) modifier: i32,
+    pub(crate) biq_sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeMilitaryLaw {
+    pub(crate) source_section: String,
+    pub(crate) source_record_index: usize,
+    pub(crate) difficulty: String,
+    pub(crate) military_law: i32,
+    pub(crate) biq_sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct EconomyCatalog {
+    pub(crate) schema_version: u32,
+    pub(crate) source: String,
+    pub(crate) city: NativeCityEconomy,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeCityEconomy {
+    pub(crate) city_min_distance: i32,
+    pub(crate) food_cost: i32,
+    pub(crate) happy_cost: i32,
+    pub(crate) granary_food_initial: Vec<i32>,
+    pub(crate) granary_food_increment: i32,
+    pub(crate) foodbox_percent: i32,
+    pub(crate) output_granularity: i32,
+    pub(crate) city_center_minimum: [i32; 3],
+    pub(crate) no_trade_size: i32,
+    pub(crate) full_trade_size: i32,
+    pub(crate) gold_upkeep_style: String,
+    pub(crate) celebrate_size_limit: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct SettlementCatalog {
+    pub(crate) schema_version: u32,
+    pub(crate) source: String,
+    pub(crate) ai: NativeSettlementAi,
+    pub(crate) villages: NativeVillageRules,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeSettlementAi {
+    pub(crate) food_priority: i32,
+    pub(crate) shield_priority: i32,
+    pub(crate) trade_priority: i32,
+    pub(crate) research_priority_percent: i32,
+    pub(crate) no_research_priority: i32,
+    pub(crate) growth_priority: i32,
+    pub(crate) growth_potential_deemphasis: i32,
+    pub(crate) growth_food_threshold: i32,
+    pub(crate) perfection: i32,
+    pub(crate) good_enough: i32,
+    pub(crate) discount_period: i32,
+    pub(crate) defense_emphasis: i32,
+    pub(crate) naval_emphasis: i32,
+    pub(crate) wonder_city_pop_founder_divisor: i32,
+    pub(crate) wonder_city_other_founder_divisor: i32,
+    pub(crate) expansionist_trait_baseline: i32,
+    pub(crate) ferry_cost_divisor: i32,
+    pub(crate) ferry_tech_want: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeVillageRules {
+    pub(crate) barbarian_onset_turn: i32,
+    pub(crate) outcome_rolls: i32,
+    pub(crate) map_reveal_radius_squared: i32,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct NativeTechnology {
     pub(crate) id: String,
     pub(crate) source_record_index: usize,
@@ -234,6 +341,36 @@ pub(crate) fn technologies() -> &'static TechnologyCatalog {
     })
 }
 
+pub(crate) fn governments() -> &'static GovernmentCatalog {
+    static CATALOG: OnceLock<GovernmentCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft_native/governments.toml"
+        ))
+        .expect("native government TOML must be valid")
+    })
+}
+
+pub(crate) fn economy() -> &'static EconomyCatalog {
+    static CATALOG: OnceLock<EconomyCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft_native/economy.toml"
+        ))
+        .expect("native economy TOML must be valid")
+    })
+}
+
+pub(crate) fn settlements() -> &'static SettlementCatalog {
+    static CATALOG: OnceLock<SettlementCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft_native/settlements.toml"
+        ))
+        .expect("native settlement TOML must be valid")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,6 +390,13 @@ mod tests {
         assert_eq!(technologies().schema_version, 1);
         assert_eq!(technologies().source, "Civilization III: Conquests");
         assert_eq!(technologies().technologies.len(), 83);
+        assert_eq!(governments().schema_version, 1);
+        assert_eq!(governments().governments.len(), 8);
+        assert_eq!(governments().assimilation.len(), 8);
+        assert_eq!(governments().resistance.len(), 64);
+        assert_eq!(governments().military_law.len(), 8);
+        assert_eq!(economy().schema_version, 1);
+        assert_eq!(settlements().schema_version, 1);
     }
 
     #[test]

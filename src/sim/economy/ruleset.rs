@@ -7,7 +7,7 @@
 use std::sync::OnceLock;
 
 use super::*;
-use crate::rules::freeciv::{ContentKind, RuleParameter, RulesetData, effect_value};
+use crate::rules::freeciv::{ContentKind, RulesetData, effect_value};
 use crate::sim::action_rules::SimulationRequirementContext;
 use crate::world::{Resource, Terrain};
 
@@ -51,93 +51,31 @@ pub(in crate::sim) struct CityEconomySettings {
 impl CityEconomySettings {
     pub(in crate::sim) fn campaign() -> &'static Self {
         static SETTINGS: OnceLock<CityEconomySettings> = OnceLock::new();
-        SETTINGS.get_or_init(|| Self::from_ruleset(RulesetData::campaign_default()))
+        SETTINGS.get_or_init(|| {
+            let native = &crate::rules::native::economy().city;
+            let gold_upkeep_style = match native.gold_upkeep_style.to_ascii_lowercase().as_str() {
+                "city" => GoldUpkeepStyle::City,
+                "mixed" => GoldUpkeepStyle::Mixed,
+                "nation" => GoldUpkeepStyle::Nation,
+                other => panic!("unknown native gold_upkeep_style {other:?}"),
+            };
+            assert!(!native.granary_food_initial.is_empty());
+            Self {
+                city_min_distance: native.city_min_distance,
+                food_cost: native.food_cost,
+                happy_cost: native.happy_cost,
+                granary_food_initial: native.granary_food_initial.clone(),
+                granary_food_increment: native.granary_food_increment,
+                foodbox_percent: native.foodbox_percent,
+                output_granularity: native.output_granularity,
+                city_center_minimum: native.city_center_minimum,
+                no_trade_size: native.no_trade_size,
+                full_trade_size: native.full_trade_size,
+                gold_upkeep_style,
+                celebrate_size_limit: native.celebrate_size_limit,
+            }
+        })
     }
-
-    fn from_ruleset(rules: &RulesetData) -> Self {
-        let integer = |file: &str, section: &str, key: &str| {
-            let parameter = parameter(rules, file, section, key);
-            i32_value(parameter.integer_value(), parameter)
-        };
-        let granary = parameter(rules, "game.ruleset", "civstyle", "granary_food_ini");
-        let granary_food_initial = granary
-            .integer_list_value()
-            .unwrap_or_else(|error| panic!("invalid C2C3 granary_food_ini: {error}"))
-            .expect("C2C3 granary_food_ini is required")
-            .into_iter()
-            .map(|value| {
-                i32::try_from(value).expect("C2C3 granary_food_ini fits in the campaign range")
-            })
-            .collect::<Vec<_>>();
-        assert!(
-            !granary_food_initial.is_empty(),
-            "granary food list is empty"
-        );
-
-        let upkeep = parameter(rules, "game.ruleset", "civstyle", "gold_upkeep_style")
-            .string_value()
-            .unwrap_or_else(|error| panic!("invalid C2C3 gold_upkeep_style: {error}"))
-            .expect("C2C3 gold_upkeep_style is required");
-        let gold_upkeep_style = match upkeep.to_ascii_lowercase().as_str() {
-            "city" => GoldUpkeepStyle::City,
-            "mixed" => GoldUpkeepStyle::Mixed,
-            "nation" => GoldUpkeepStyle::Nation,
-            _ => panic!("unknown C2C3 gold_upkeep_style {upkeep:?}"),
-        };
-        let city_center_minimum = [
-            "min_city_center_food",
-            "min_city_center_shield",
-            "min_city_center_trade",
-        ]
-        .map(|key| integer("game.ruleset", "civstyle", key));
-
-        Self {
-            city_min_distance: rules
-                .integer_setting_value("citymindist")
-                .unwrap_or_else(|error| panic!("invalid C2C3 citymindist: {error}")),
-            food_cost: integer("game.ruleset", "civstyle", "food_cost"),
-            happy_cost: integer("game.ruleset", "civstyle", "happy_cost"),
-            granary_food_initial,
-            granary_food_increment: integer("game.ruleset", "civstyle", "granary_food_inc"),
-            // These are pinned Freeciv engine defaults, not ruleset parameters.
-            foodbox_percent: 100,
-            no_trade_size: 0,
-            full_trade_size: 1,
-            output_granularity: integer("game.ruleset", "civstyle", "output_granularity"),
-            city_center_minimum,
-            gold_upkeep_style,
-            celebrate_size_limit: integer("cities.ruleset", "parameters", "celebrate_size_limit"),
-        }
-    }
-}
-
-fn parameter<'a>(
-    rules: &'a RulesetData,
-    file: &str,
-    section: &str,
-    key: &str,
-) -> &'a RuleParameter {
-    let mut matches = rules.parameters.iter().filter(|parameter| {
-        parameter.file.eq_ignore_ascii_case(file)
-            && parameter.section.eq_ignore_ascii_case(section)
-            && parameter.key.eq_ignore_ascii_case(key)
-    });
-    let Some(parameter) = matches.next() else {
-        panic!("selected C2C3 ruleset is missing {file} [{section}].{key}");
-    };
-    assert!(
-        matches.next().is_none(),
-        "selected C2C3 repeats {file} [{section}].{key}"
-    );
-    parameter
-}
-
-fn i32_value(value: Result<Option<i64>, String>, parameter: &RuleParameter) -> i32 {
-    let value = value
-        .unwrap_or_else(|error| panic!("invalid C2C3 parameter {}: {error}", parameter.key))
-        .unwrap_or_else(|| panic!("C2C3 parameter {} has no value", parameter.key));
-    i32::try_from(value)
-        .unwrap_or_else(|_| panic!("C2C3 parameter {} does not fit in i32", parameter.key))
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
