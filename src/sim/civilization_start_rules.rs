@@ -141,6 +141,48 @@ mod tests {
     }
 
     #[test]
+    fn native_toml_starting_profiles_match_the_legacy_extraction() {
+        let native = crate::rules::native::civilizations();
+        for profile in profiles() {
+            let migrated = native
+                .civilizations
+                .iter()
+                .find(|civilization| {
+                    civilization
+                        .source_id
+                        .eq_ignore_ascii_case(profile.civilization)
+                })
+                .unwrap_or_else(|| panic!("native TOML is missing {}", profile.civilization));
+            assert_eq!(migrated.expansionist, profile.expansionist);
+            assert_eq!(migrated.militaristic, profile.militaristic);
+            assert_eq!(
+                migrated
+                    .starting_units
+                    .iter()
+                    .map(|stack| (stack.id.as_str(), stack.count as usize))
+                    .collect::<Vec<_>>(),
+                vec![
+                    (profile.starting_unit_1, profile.starting_unit_1_count),
+                    (profile.starting_unit_2, profile.starting_unit_2_count),
+                ]
+            );
+            let expected_bonus = if profile.expansionist && profile.bonus_count > 0 {
+                vec![(profile.expansionist_bonus_unit, profile.bonus_count)]
+            } else {
+                Vec::new()
+            };
+            assert_eq!(
+                migrated
+                    .bonus_units
+                    .iter()
+                    .map(|stack| (stack.id.as_str(), stack.count as usize))
+                    .collect::<Vec<_>>(),
+                expected_bonus
+            );
+        }
+    }
+
+    #[test]
     fn new_campaign_starting_units_use_the_source_profiles() {
         let game = Simulation::new(crate::mapgen::generate(42));
         for owner in 0..game.civilization_count {

@@ -232,6 +232,44 @@ mod tests {
     }
 
     #[test]
+    fn native_toml_civilizations_match_the_legacy_extraction() {
+        let native = crate::rules::native::civilizations();
+        assert_eq!(native.civilizations.len(), all().len());
+        for source in all() {
+            let migrated = native
+                .civilizations
+                .iter()
+                .find(|civilization| civilization.id == source.id)
+                .unwrap_or_else(|| panic!("native TOML is missing {}", source.id));
+            assert_eq!(migrated.source_name, source.source_name);
+            assert_eq!(migrated.name, source.name);
+            assert_eq!(migrated.noun, source.noun);
+            assert_eq!(migrated.adjective, source.adjective);
+            assert_eq!(migrated.leader, source.leader);
+            assert_eq!(migrated.primary_color_index, source.primary_color_index);
+            assert_eq!(migrated.secondary_color_index, source.secondary_color_index);
+            assert_eq!(migrated.city_style, source.civ3_city_style);
+            assert_eq!(migrated.source_race_index, source.source_race_index);
+            assert_eq!(migrated.culture_group_index, source.culture_group_index);
+            assert_eq!(migrated.legacy_names, source.legacy_names);
+            assert_eq!(migrated.cities, source.cities);
+            assert_eq!(
+                migrated.starting_techs,
+                source
+                    .starting_techs
+                    .iter()
+                    .map(|tech| tech.name().to_owned())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(migrated.starting_units.len(), 2);
+            assert_eq!(migrated.starting_units[0].id, "Settler");
+            assert_eq!(migrated.starting_units[0].count, 1);
+            assert_eq!(migrated.starting_units[1].id, "Worker");
+            assert_eq!(migrated.starting_units[1].count, 1);
+        }
+    }
+
+    #[test]
     fn source_names_and_legacy_save_labels_resolve_to_the_same_civilization() {
         assert_eq!(by_name("Germany").unwrap().id, "germany");
         assert_eq!(by_name("Germans").unwrap().id, "germany");

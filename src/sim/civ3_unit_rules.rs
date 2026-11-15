@@ -609,4 +609,76 @@ mod tests {
             assert!(unit.available_to(civilization), "{}", unit.id);
         }
     }
+
+    #[test]
+    fn native_toml_unit_catalog_matches_the_legacy_extraction() {
+        let native = crate::rules::native::units();
+        assert_eq!(native.units.len(), rules().len());
+        for source in rules() {
+            let migrated = native
+                .units
+                .iter()
+                .find(|unit| unit.id == source.id)
+                .unwrap_or_else(|| panic!("native TOML is missing {}", source.id));
+            assert_eq!(migrated.name, source.name);
+            assert_eq!(migrated.category, source.category);
+            assert_eq!(migrated.cost_shields, source.cost);
+            assert_eq!(migrated.population_cost, source.population_cost);
+            assert_eq!(migrated.attack, source.attack);
+            assert_eq!(migrated.defense, source.defense);
+            assert_eq!(migrated.moves, source.moves);
+            assert_eq!(migrated.bombard_strength, source.bombard_strength);
+            assert_eq!(migrated.bombard_range, source.bombard_range);
+            assert_eq!(migrated.rate_of_fire, source.rate_of_fire);
+            assert_eq!(migrated.operational_range, source.operational_range);
+            assert_eq!(migrated.capacity, source.capacity);
+            assert_eq!(migrated.required_technology, source.required_technology);
+            assert_eq!(
+                migrated.required_resources,
+                source
+                    .required_resources
+                    .iter()
+                    .filter(|resource| !resource.is_empty())
+                    .map(|resource| (*resource).to_owned())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(migrated.upgrade_to, source.upgrade_to);
+            assert_eq!(
+                migrated.available_to,
+                source
+                    .available_to
+                    .split(';')
+                    .filter(|civilization| !civilization.is_empty())
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(migrated.unique_civilization, source.unique_civilization);
+            assert_eq!(migrated.replaces, source.replaces);
+            assert_eq!(migrated.unit_type, source.unit_type);
+            assert_eq!(migrated.flags_1_hex, hex(source.flags_1));
+            assert_eq!(migrated.flags_2_hex, hex(source.flags_2));
+            assert_eq!(migrated.flags_3_hex, hex(source.flags_3));
+            assert_eq!(migrated.hit_point_bonus, source.hit_point_bonus);
+            assert_eq!(
+                migrated.ignore_movement_cost_hex,
+                hex(source.ignore_movement_cost)
+            );
+            assert_eq!(migrated.zone_of_control, source.zone_of_control);
+            assert_eq!(migrated.bombard_effects, source.bombard_effects);
+            assert_eq!(migrated.require_support, source.require_support);
+            assert_eq!(
+                migrated.enslave_result_prototype_index,
+                source.enslave_result_prototype_index
+            );
+            assert_eq!(migrated.create_craters, source.create_craters);
+            assert_eq!(migrated.worker_strength, source.worker_strength);
+            assert_eq!(migrated.air_defense, source.air_defense);
+            assert_eq!(migrated.icon_index, source.icon_index);
+            assert_eq!(migrated.civilopedia_entry, source.civilopedia_entry);
+        }
+    }
+
+    fn hex<const N: usize>(bytes: [u8; N]) -> String {
+        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
 }
