@@ -23,6 +23,14 @@ def read_tsv(name: str) -> list[dict[str, str]]:
         return list(csv.DictReader(stream, delimiter="\t"))
 
 
+def read_bridge_tsv(name: str) -> list[dict[str, str]]:
+    with (ROOT / "data/rulesets/civcraft_civ2civ3" / name).open(
+        newline="", encoding="utf-8"
+    ) as stream:
+        rows = [line for line in stream if line.strip() and not line.startswith("#")]
+    return list(csv.DictReader(rows, delimiter="\t"))
+
+
 def string(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
@@ -348,9 +356,30 @@ def write_governments() -> None:
     (DEST / "governments.toml").write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_unit_economics() -> None:
+    lines = [
+        "schema_version = 1",
+        'source = "CivCraft native unit-economics bindings"',
+        "",
+    ]
+    for row in read_bridge_tsv("unit_economics.tsv"):
+        lines.extend(
+            [
+                "[[bindings]]",
+                f'civ3_unit_id = {string(row["civ3_unit_id"])}',
+                f'profile = {string(row["c2c3_record"])}',
+                f'mapping_kind = {string(row["mapping_kind"])}',
+                f'basis = {string(row["basis"])}',
+                "",
+            ]
+        )
+    (DEST / "unit_economics.toml").write_text("\n".join(lines), encoding="utf-8")
+
+
 DEST.mkdir(parents=True, exist_ok=True)
 write_units()
 write_civilizations()
 write_buildings()
 write_technologies()
 write_governments()
+write_unit_economics()

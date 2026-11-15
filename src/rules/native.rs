@@ -255,6 +255,21 @@ pub(crate) struct ExperienceCatalog {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct UnitEconomicsCatalog {
+    pub(crate) schema_version: u32,
+    pub(crate) source: String,
+    pub(crate) bindings: Vec<NativeUnitEconomicsBinding>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeUnitEconomicsBinding {
+    pub(crate) civ3_unit_id: String,
+    pub(crate) profile: String,
+    pub(crate) mapping_kind: String,
+    pub(crate) basis: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct NativeExperienceLevel {
     pub(crate) id: String,
     pub(crate) name: String,
@@ -400,6 +415,16 @@ pub(crate) fn experience() -> &'static ExperienceCatalog {
     })
 }
 
+pub(crate) fn unit_economics() -> &'static UnitEconomicsCatalog {
+    static CATALOG: OnceLock<UnitEconomicsCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft_native/unit_economics.toml"
+        ))
+        .expect("native unit economics TOML must be valid")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -428,6 +453,8 @@ mod tests {
         assert_eq!(settlements().schema_version, 1);
         assert_eq!(experience().schema_version, 1);
         assert_eq!(experience().levels.len(), 4);
+        assert_eq!(unit_economics().schema_version, 1);
+        assert_eq!(unit_economics().bindings.len(), 92);
         assert_eq!(
             experience()
                 .levels

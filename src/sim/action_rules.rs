@@ -2429,52 +2429,31 @@ struct UnitEconomicsRule {
 fn unit_economics_rules() -> &'static [UnitEconomicsRule] {
     static RULES: OnceLock<Vec<UnitEconomicsRule>> = OnceLock::new();
     RULES.get_or_init(|| {
-        const SOURCE: &str =
-            include_str!("../../data/rulesets/civcraft_civ2civ3/unit_economics.tsv");
         let mut rules = Vec::new();
-        let mut header_seen = false;
-        for (line_index, line) in SOURCE.lines().enumerate() {
-            if line.trim().is_empty() || line.starts_with('#') {
-                continue;
-            }
-            if !header_seen {
-                assert_eq!(
-                    line.split('\t').collect::<Vec<_>>(),
-                    ["civ3_unit_id", "c2c3_record", "mapping_kind", "basis"],
-                    "invalid selected unit economics mapping header"
-                );
-                header_seen = true;
-                continue;
-            }
-            let fields: Vec<_> = line.split('\t').collect();
-            assert_eq!(
-                fields.len(),
-                4,
-                "invalid unit economics mapping row {}",
-                line_index + 1
-            );
-            let kind = match fields[2] {
+        for (index, native) in crate::rules::native::unit_economics()
+            .bindings
+            .iter()
+            .enumerate()
+        {
+            let kind = match native.mapping_kind.as_str() {
                 "direct" => Some(UnitEconomicsBindingKind::Direct),
                 "alias" => Some(UnitEconomicsBindingKind::RoleAlias),
                 "unsupported" => None,
-                other => panic!("unknown unit economics mapping kind {other:?}"),
+                other => panic!("unknown native unit economics mapping kind {other:?}"),
             };
             if kind.is_none() {
-                assert_eq!(fields[1], "-", "unsupported unit mapping has a target");
+                assert_eq!(native.profile, "-", "unsupported unit mapping has a target");
             } else {
-                assert_ne!(fields[1], "-", "mapped unit record is missing");
+                assert_ne!(native.profile, "-", "mapped unit record is missing");
             }
             rules.push(UnitEconomicsRule {
-                civ3_unit_id: fields[0],
-                c2c3_record: fields[1],
+                civ3_unit_id: Box::leak(native.civ3_unit_id.clone().into_boxed_str()),
+                c2c3_record: Box::leak(native.profile.clone().into_boxed_str()),
                 kind,
-                basis: fields[3],
+                basis: Box::leak(native.basis.clone().into_boxed_str()),
             });
+            assert!(index < 92, "native unit economics binding count changed");
         }
-        assert!(
-            header_seen,
-            "missing selected unit economics mapping header"
-        );
         assert_eq!(
             rules.len(),
             92,
@@ -2494,7 +2473,7 @@ fn unit_economics_rules() -> &'static [UnitEconomicsRule] {
 }
 
 /// Resolve the C2C3 unit record used only for upkeep and supported-unit
-/// happiness. Unsupported rows are retained as decisions in the TSV and are
+/// happiness. Unsupported rows are retained as decisions in the native TOML and are
 /// returned with their recorded basis rather than falling back to Civ III.
 pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsRecordBinding {
     let Some(source_id) = unit.conquests_id() else {
