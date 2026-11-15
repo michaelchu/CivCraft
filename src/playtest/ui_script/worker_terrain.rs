@@ -24,7 +24,10 @@ impl Playtest {
                 game.perform_action(action.clone());
             }
             let boarded = game.sim.playtest_state().cargo_count(ship) == 1;
-            let sailed = game.sim.playtest_harness().apply(Command::Move(ship, 1, 0));
+            let sailed = game
+                .sim
+                .playtest_harness()
+                .apply_move_civ3_by_offset(ship, 1, 0);
             let deboard_blocked = !game
                 .sim
                 .playtest_harness()
@@ -32,7 +35,7 @@ impl Playtest {
             let landed = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(passenger, 1, 0))
+                .apply_move_civ3_by_offset(passenger, 1, 0)
                 && game.sim.playtest_state().units().iter().any(|unit| {
                     unit.id == passenger && (unit.x, unit.y) == shore && unit.transport.is_none()
                 });
@@ -318,12 +321,12 @@ impl Playtest {
             let blocked = !game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(warrior, 1, 0));
+                .apply_move_civ3_by_offset(warrior, 1, 0);
             game.perform_action(UiAction::SelectUnit(diplomat));
             let bypassed = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(diplomat, 1, 0))
+                .apply_move_civ3_by_offset(diplomat, 1, 0)
                 && game
                     .sim
                     .playtest_state()

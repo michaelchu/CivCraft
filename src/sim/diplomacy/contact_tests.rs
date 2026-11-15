@@ -88,7 +88,7 @@ fn ordinary_combat_and_city_conquest_do_not_fabricate_incidents() {
             .unwrap()
     );
     assert!(game.physical_attack_stack_allowed(&attacker, target.0, target.1));
-    assert!(game.apply(Command::Move(actor, 1, 0)));
+    assert!(game.apply(Command::move_civ3_by_offset(&game, actor, 1, 0)));
     assert_eq!(
         game.cities
             .iter()
@@ -123,7 +123,7 @@ fn a_lost_attack_does_not_refresh_contact_without_actual_movement() {
     relation.cause_until[1] = 0;
     game.diplomatic_contact_until.clear();
     game.set_random_seed(1);
-    assert!(game.apply(Command::Move(actor, 1, 0)));
+    assert!(game.apply(Command::move_civ3_by_offset(&game, actor, 1, 0)));
     assert!(game.units.iter().all(|unit| unit.id != actor));
     assert!(!game.diplomatic_contact_until.contains_key(&(HUMAN, 1)));
     assert_eq!(game.diplomacy[&(HUMAN, 1)].trust[1], 0);

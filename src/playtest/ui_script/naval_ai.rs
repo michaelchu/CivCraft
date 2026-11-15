@@ -15,9 +15,15 @@ impl Playtest {
             game.perform_action(UiAction::SelectUnit(cargo));
             game.perform_action(UiAction::BoardOrDeboard);
             game.perform_action(UiAction::SelectUnit(ship));
-            let sailed = game.sim.playtest_harness().apply(Command::Move(ship, 1, 0));
+            let sailed = game
+                .sim
+                .playtest_harness()
+                .apply_move_civ3_by_offset(ship, 1, 0);
             let boarded = game.sim.playtest_state().cargo_count(ship) == 1;
-            let blocked = !game.sim.playtest_harness().apply(Command::Move(ship, 1, 0));
+            let blocked = !game
+                .sim
+                .playtest_harness()
+                .apply_move_civ3_by_offset(ship, 1, 0);
             self.results.push(("trireme", sailed && boarded && blocked,
                 format!("Trireme traveled along the river: {sailed}. Cargo stayed aboard: {boarded}. Deep ocean entry was blocked: {blocked}.")));
         }

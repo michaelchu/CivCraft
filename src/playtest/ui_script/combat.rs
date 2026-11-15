@@ -143,7 +143,7 @@ impl Playtest {
             let intercepted = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(fighter, 1, 0))
+                .apply_move_civ3_by_offset(fighter, 1, 0)
                 && game
                     .sim
                     .playtest_state()
@@ -171,12 +171,12 @@ impl Playtest {
             let landed = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(fighter, 1, 0))
+                .apply_move_civ3_by_offset(fighter, 1, 0)
                 && game.sim.playtest_state().cargo_count(carrier) == 1;
             let sailed = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(carrier, 1, 0));
+                .apply_move_civ3_by_offset(carrier, 1, 0);
             game.perform_action(UiAction::EndTurn);
             let fueled = game.sim.playtest_state().units().iter().any(|unit| {
                 unit.id == fighter && unit.transport == Some(carrier) && unit.fuel == 2
@@ -185,7 +185,7 @@ impl Playtest {
             let launched = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(fighter, 1, 0))
+                .apply_move_civ3_by_offset(fighter, 1, 0)
                 && game.sim.playtest_state().cargo_count(carrier) == 0;
             self.results.push(("carrier_operations", landed && sailed && fueled && launched,
                 format!("Fighter landed: {landed}. Carrier sailed: {sailed}. Fighter refueled: {fueled}. Fighter launched: {launched}.")));
@@ -241,7 +241,7 @@ impl Playtest {
             let flew = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(helicopter, 1, 0));
+                .apply_move_civ3_by_offset(helicopter, 1, 0);
             game.perform_action(UiAction::SelectUnit(passenger));
             game.perform_action(UiAction::BoardOrDeboard);
             let stayed_aboard = game.sim.playtest_state().cargo_count(helicopter) == 1;
@@ -274,7 +274,7 @@ impl Playtest {
             let attacked = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(helicopter, 1, 0));
+                .apply_move_civ3_by_offset(helicopter, 1, 0);
             let repelled = game
                 .sim
                 .playtest_state()
@@ -305,7 +305,7 @@ impl Playtest {
             let launched = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(missile, 1, 0));
+                .apply_move_civ3_by_offset(missile, 1, 0);
             let resolved = game
                 .sim
                 .playtest_state()

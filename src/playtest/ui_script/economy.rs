@@ -170,7 +170,10 @@ impl Playtest {
             super::reset_founded_city_scenario(game);
             let (unit, city) = game.sim.playtest_harness().multicultural_playtest_setup();
             game.perform_action(UiAction::SelectUnit(unit));
-            let captured = game.sim.playtest_harness().apply(Command::Move(unit, 1, 0))
+            let captured = game
+                .sim
+                .playtest_harness()
+                .apply_move_civ3_by_offset(unit, 1, 0)
                 && game.sim.playtest_state().cities().iter().any(|target| {
                     target.id == city
                         && target.owner == HUMAN
@@ -191,7 +194,10 @@ impl Playtest {
             super::reset_founded_city_scenario(game);
             let (unit, city) = game.sim.playtest_harness().partisan_playtest_setup();
             game.perform_action(UiAction::SelectUnit(unit));
-            let captured = game.sim.playtest_harness().apply(Command::Move(unit, 1, 0))
+            let captured = game
+                .sim
+                .playtest_harness()
+                .apply_move_civ3_by_offset(unit, 1, 0)
                 && game
                     .sim
                     .playtest_state()

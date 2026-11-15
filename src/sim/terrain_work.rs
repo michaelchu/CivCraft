@@ -3,7 +3,7 @@
 use super::*;
 
 pub(super) fn neighbors(x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> {
-    ISOHEX_DIRS
+    FREECIV_ISOHEX_DIRS
         .into_iter()
         .map(move |(dx, dy)| offset_native_by_map(x, y, dx, dy))
 }

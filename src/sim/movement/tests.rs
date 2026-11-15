@@ -314,7 +314,10 @@ fn military_move_does_not_capture_non_capturable_worker() {
     let worker = game.spawn_unit(1, UnitKind::Worker, nx, ny);
 
     assert!(!game.apply(Command::CaptureUnits(attacker, nx, ny)));
-    assert_eq!(game.try_move_unit(attacker, 1, 0), MoveResult::Fought);
+    assert_eq!(
+        game.try_move_unit_civ3_by_offset(attacker, 1, 0),
+        MoveResult::Fought
+    );
     assert!(
         game.units
             .iter()
@@ -341,7 +344,10 @@ fn zero_range_bombarder_fires_one_defensive_shot_on_tile_attack() {
     assert_eq!(UnitKind::Archer.bombard_range(), 0);
     assert!(UnitKind::Archer.bombard_strength() > 0);
 
-    assert_eq!(game.try_move_unit(attacker, 1, 0), MoveResult::Fought);
+    assert_eq!(
+        game.try_move_unit_civ3_by_offset(attacker, 1, 0),
+        MoveResult::Fought
+    );
     assert!(game.unit_by_id(archer).unwrap().defensive_bombarded);
 
     game.update_activities_and_restore();
@@ -417,7 +423,10 @@ fn fortress_bombarder_can_fire_at_an_attacker_on_a_neighboring_tile() {
     game.spawn_unit(HUMAN, UnitKind::Spearman, tx, ty);
     let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, fx, fy);
 
-    assert_eq!(game.try_move_unit(attacker, 1, 0), MoveResult::Fought);
+    assert_eq!(
+        game.try_move_unit_civ3_by_offset(attacker, 1, 0),
+        MoveResult::Fought
+    );
     assert!(game.unit_by_id(cannon).unwrap().defensive_bombarded);
 }
 
@@ -466,7 +475,7 @@ fn imported_marine_small_land_units_can_occupy_cities() {
     game.sign_pact(HUMAN, 1, Pact::War);
     let marine = game.spawn_unit(HUMAN, UnitKind::Marine, home.0, home.1);
     assert!(UnitKind::Marine.can_occupy_city());
-    assert!(game.apply(Command::Move(marine, 1, 0)));
+    assert!(game.apply(Command::move_civ3_by_offset(&game, marine, 1, 0)));
     assert_eq!(game.cities[0].owner, HUMAN);
 }
 
@@ -489,7 +498,10 @@ fn settlers_are_not_captured_by_military_move_under_c2c3() {
             .unwrap()
     );
 
-    assert_eq!(game.try_move_unit(attacker, 1, 0), MoveResult::Fought);
+    assert_eq!(
+        game.try_move_unit_civ3_by_offset(attacker, 1, 0),
+        MoveResult::Fought
+    );
     assert!(game.unit_by_id(settler).is_none());
     assert!(game.units.iter().all(|unit| unit.kind != UnitKind::Worker));
 }
@@ -1083,7 +1095,10 @@ fn moved_units_retain_the_matching_civ3_flic_direction_row() {
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, 20, 24);
     game.units.last_mut().unwrap().moves_left = 100;
     game.enable_visual_events();
-    assert_eq!(game.try_move_unit(id, 0, -1), MoveResult::Moved);
+    assert_eq!(
+        game.try_move_unit_civ3_by_offset(id, 0, -1),
+        MoveResult::Moved
+    );
     assert_eq!(game.unit_by_id(id).unwrap().facing, 4);
     let Some(VisualEvent::Move { unit, .. }) = game.take_visual_events().pop_front() else {
         panic!("movement publishes an animation event")
@@ -1488,7 +1503,7 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
     game.set_random_seed(42);
     let rng_before_zoc_attack = game.random_snapshot();
     let hp_before_zoc_attack = game.unit_by_id(warrior).unwrap().hp;
-    assert!(!game.apply(Command::Move(warrior, 1, 0)));
+    assert!(!game.apply(Command::move_civ3_by_offset(&game, warrior, 1, 0)));
     assert_eq!(game.random_snapshot(), rng_before_zoc_attack);
     assert_eq!(game.unit_by_id(warrior).unwrap().hp, hp_before_zoc_attack);
     assert_eq!(
@@ -1508,7 +1523,7 @@ fn pathfinding_routes_around_control_and_friendly_stacks_allow_entry() {
             .civ3_offset(start.x, start.y, path[0].0, path[0].1),
         Some((x, y))
     );
-    assert!(game.apply(Command::Move(friendly_mover, 1, 0)));
+    assert!(game.apply(Command::move_civ3_by_offset(&game, friendly_mover, 1, 0)));
 }
 
 #[test]
@@ -1719,7 +1734,7 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
         .find(|unit| unit.id == second)
         .unwrap()
         .hp = 1;
-    assert!(game.apply(Command::Move(attacker, 1, 0)));
+    assert!(game.apply(Command::move_civ3_by_offset(&game, attacker, 1, 0)));
     assert!(!game.units.iter().any(|unit| unit.id == second));
     assert!(
         game.unit_by_id(attacker)
@@ -1885,16 +1900,16 @@ mod transport_tests {
             .find(|unit| unit.kind == UnitKind::Transport)
             .unwrap()
             .id;
-        assert!(game.apply(Command::Move(ship, 1, 0)));
+        assert!(game.apply(Command::move_civ3_by_offset(&game, ship, 1, 0)));
         let transport_capacity = game
             .ruleset_transport_capacity(UnitKind::Transport)
             .unwrap();
         for _ in 0..transport_capacity {
             let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
-            assert!(game.apply(Command::Move(cannon, 1, 0)));
+            assert!(game.apply(Command::move_civ3_by_offset(&game, cannon, 1, 0)));
         }
         let cannon = game.spawn_unit(HUMAN, UnitKind::Cannon, x, y);
-        assert!(!game.apply(Command::Move(cannon, 1, 0)));
+        assert!(!game.apply(Command::move_civ3_by_offset(&game, cannon, 1, 0)));
         assert_eq!(game.cargo_count(ship), transport_capacity);
     }
 
@@ -1936,15 +1951,15 @@ mod transport_tests {
         game.tile_mut(sx, sy).terrain = Terrain::Sea;
         let ship = game.spawn_unit(HUMAN, UnitKind::Caravel, sx, sy);
         let warrior = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
-        assert!(game.apply(Command::Move(warrior, 1, 0)));
+        assert!(game.apply(Command::move_civ3_by_offset(&game, warrior, 1, 0)));
         assert_eq!(game.cargo_count(ship), 1);
         for _ in 0..2 {
             let cargo = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
-            assert!(game.apply(Command::Move(cargo, 1, 0)));
+            assert!(game.apply(Command::move_civ3_by_offset(&game, cargo, 1, 0)));
             assert!(!game.apply(Command::BoardOrDeboard(cargo)));
         }
         assert_eq!(game.cargo_count(ship), 3);
         let cargo = game.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
-        assert!(!game.apply(Command::Move(cargo, 1, 0)));
+        assert!(!game.apply(Command::move_civ3_by_offset(&game, cargo, 1, 0)));
     }
 }

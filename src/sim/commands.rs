@@ -13,7 +13,6 @@ use super::{
 use crate::rules::{Building, Tech};
 
 pub(crate) enum Command {
-    Move(u32, i32, i32),
     MoveCiv3(u32, usize),
     CaptureUnits(u32, i32, i32),
     Bombard(u32, i32, i32),
@@ -69,6 +68,22 @@ pub(crate) enum Command {
     EndTurn,
 }
 
+impl Command {
+    /// Build a Civ III direction command for an adjacent map-space offset.
+    /// This keeps coordinate-based fixtures on the eight-direction command path.
+    pub(crate) fn move_civ3_by_offset(
+        simulation: &Simulation,
+        unit_id: u32,
+        dx: i32,
+        dy: i32,
+    ) -> Self {
+        let direction = simulation
+            .civ3_direction_for_unit_offset(unit_id, dx, dy)
+            .unwrap_or(usize::MAX);
+        Self::MoveCiv3(unit_id, direction)
+    }
+}
+
 impl Simulation {
     /// Apply an action from the human player. AI calls the same rule methods
     /// after choosing actions for its own units.
@@ -78,8 +93,7 @@ impl Simulation {
             return false;
         }
         let unit_id = match command {
-            Move(id, ..)
-            | MoveCiv3(id, _)
+            MoveCiv3(id, _)
             | CaptureUnits(id, ..)
             | Bombard(id, ..)
             | AutoBombard(id, ..)
@@ -116,7 +130,6 @@ impl Simulation {
             return false;
         }
         match command {
-            Move(id, dx, dy) => self.try_move_unit(id, dx, dy) != MoveResult::Blocked,
             MoveCiv3(id, direction) => {
                 self.try_move_unit_civ3(id, direction) != MoveResult::Blocked
             }

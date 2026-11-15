@@ -306,13 +306,13 @@ impl Simulation {
             .find(|u| u.id == guard)
             .unwrap()
             .moves_left = 0;
-        let waited = self.try_move_unit(charge, 1, 0) == MoveResult::Blocked;
+        let waited = self.try_move_unit_civ3_by_offset(charge, 1, 0) == MoveResult::Blocked;
         self.units
             .iter_mut()
             .find(|u| u.id == guard)
             .unwrap()
             .moves_left = 6;
-        self.try_move_unit(charge, 1, 0);
+        self.try_move_unit_civ3_by_offset(charge, 1, 0);
         let actor = self.unit_by_id(charge).unwrap().clone();
         let followed = self
             .units
@@ -328,7 +328,7 @@ impl Simulation {
         let enemy = self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
         self.units.last_mut().unwrap().hp = 1;
         self.set_random_seed(1);
-        let attack = self.try_move_unit(charge, 1, 0) == MoveResult::Fought
+        let attack = self.try_move_unit_civ3_by_offset(charge, 1, 0) == MoveResult::Fought
             && self.units.iter().all(|u| u.id != enemy);
         (selected, waited && followed, attack)
     }

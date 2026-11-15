@@ -513,7 +513,7 @@ impl Simulation {
             .find(|u| u.id == explorer)
             .unwrap()
             .moves_left;
-        let embark_result = self.try_move_unit(explorer, 1, 0);
+        let embark_result = self.try_move_unit_civ3_by_offset(explorer, 1, 0);
         let (after_moves, carrier) = self
             .units
             .iter()
@@ -590,7 +590,7 @@ impl Simulation {
             let id = self.spawn_unit(HUMAN, kind, home.0, home.1);
             let unit = self.units.last().unwrap().clone();
             let planned = self.plan_route(&unit, goal.0, goal.1, true);
-            let moved = self.try_move_unit(id, 1, 0) == MoveResult::Moved;
+            let moved = self.try_move_unit_civ3_by_offset(id, 1, 0) == MoveResult::Moved;
             if planned.is_empty() == allowed || moved != allowed {
                 return false;
             }
@@ -600,7 +600,7 @@ impl Simulation {
         self.tile_mut(goal.0, goal.1).terrain = Terrain::Grassland;
         let explorer = self.spawn_unit(HUMAN, UnitKind::Explorer, home.0, home.1);
         self.spawn_unit(1, UnitKind::Warrior, goal.0, goal.1);
-        self.try_move_unit(explorer, 1, 0) == MoveResult::Blocked
+        self.try_move_unit_civ3_by_offset(explorer, 1, 0) == MoveResult::Blocked
     }
 
     pub(crate) fn damaged_movement_playtest(&mut self) -> bool {

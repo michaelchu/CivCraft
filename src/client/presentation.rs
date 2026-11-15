@@ -337,7 +337,7 @@ mod tests {
         let (id, target) =
             crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
         let before = sim.unit_by_id(id).unwrap().clone();
-        assert!(sim.apply(Command::Move(id, 1, 0)));
+        assert!(sim.apply(Command::move_civ3_by_offset(&sim, id, 1, 0)));
         let mut playback = Playback::default();
         playback.update(sim.take_presentation_event_views(), 10.0, Some(id));
         assert!(playback.pending());
@@ -364,7 +364,7 @@ mod tests {
     fn movement_sound_request_is_emitted_once_when_the_event_starts() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let (id, _) = crate::sim::scenarios::ui_review::ui_review_animation_setup(&mut sim, false);
-        assert!(sim.apply(Command::Move(id, 1, 0)));
+        assert!(sim.apply(Command::move_civ3_by_offset(&sim, id, 1, 0)));
         let mut playback = Playback::default();
         playback.update(sim.take_presentation_event_views(), 10.0, Some(id));
         let requests = playback.take_sound_requests();

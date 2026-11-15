@@ -959,18 +959,29 @@ impl Simulation {
             })
     }
 
-    pub(super) fn try_move_unit(&mut self, unit_id: u32, dx: i32, dy: i32) -> MoveResult {
-        if !is_isohex_step(dx, dy) {
-            return MoveResult::Blocked;
-        }
-        let Some(unit) = self.unit_by_id(unit_id).cloned() else {
+    pub(crate) fn civ3_direction_for_unit_offset(
+        &self,
+        unit_id: u32,
+        dx: i32,
+        dy: i32,
+    ) -> Option<usize> {
+        let unit = self.unit_by_id(unit_id)?;
+        let destination = self.map_wrap.offset(unit.x, unit.y, dx, dy)?;
+        self.map_wrap
+            .civ3_neighbors(unit.x, unit.y)
+            .position(|neighbor| neighbor == destination)
+    }
+
+    pub(crate) fn try_move_unit_civ3_by_offset(
+        &mut self,
+        unit_id: u32,
+        dx: i32,
+        dy: i32,
+    ) -> MoveResult {
+        let Some(direction) = self.civ3_direction_for_unit_offset(unit_id, dx, dy) else {
             return MoveResult::Blocked;
         };
-        let Some((nx, ny)) = self.map_wrap.offset(unit.x, unit.y, dx, dy) else {
-            return MoveResult::Blocked;
-        };
-        let facing = self.map_wrap.civ3_flic_direction(dx, dy);
-        self.try_move_unit_to(unit_id, nx, ny, facing)
+        self.try_move_unit_civ3(unit_id, direction)
     }
 
     pub(super) fn try_move_unit_civ3(&mut self, unit_id: u32, direction: usize) -> MoveResult {

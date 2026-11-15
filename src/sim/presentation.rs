@@ -182,8 +182,8 @@ mod tests {
             let mut unobserved = observed.clone();
             unobserved.visual_events = VisualEvents::default();
             assert_eq!(
-                observed.apply(Command::Move(id, 1, 0)),
-                unobserved.apply(Command::Move(id, 1, 0))
+                observed.apply(Command::move_civ3_by_offset(&observed, id, 1, 0)),
+                unobserved.apply(Command::move_civ3_by_offset(&unobserved, id, 1, 0))
             );
             assert_eq!(
                 bincode::serialize(&observed).unwrap(),

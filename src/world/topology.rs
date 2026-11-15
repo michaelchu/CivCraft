@@ -44,9 +44,8 @@ pub(crate) const MAP_LINEAR_SCALE: i32 =
 pub(crate) const MAP_W: i32 = MAP_X_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR;
 pub(crate) const MAP_H: i32 = MAP_Y_RATIO * MAP_LINEAR_SCALE * MAP_EVEN_FACTOR * MAP_ISO_FACTOR;
 
-// Legacy six-way steps retained only for systems not yet migrated to the
-// Civ III staggered-grid topology.
-pub(crate) const ISOHEX_DIRS: [(i32, i32); 6] =
+// Freeciv's six-way map-space basis remains useful for its radius metric.
+pub(crate) const FREECIV_ISOHEX_DIRS: [(i32, i32); 6] =
     [(0, -1), (1, 0), (1, 1), (0, 1), (-1, 0), (-1, -1)];
 
 /// Eight Civ III directions in staggered-grid coordinates, clockwise from N.
@@ -81,10 +80,6 @@ pub(crate) fn civ3_rank_distance(dx: i32, dy: i32) -> i32 {
 
 pub(crate) fn city_radius_order_key(dx: i32, dy: i32) -> (i32, i32, i32) {
     (civ3_rank_distance(dx, dy), dx, dy)
-}
-
-pub(crate) fn is_isohex_step(dx: i32, dy: i32) -> bool {
-    ISOHEX_DIRS.contains(&(dx, dy))
 }
 
 // The fixed map-space origin cancels in coordinate differences and inverse
@@ -215,20 +210,6 @@ impl MapWrap {
         let (mx, my) = native_to_map(x, y);
         let (nx, ny) = map_to_native(mx + dx, my + dy);
         self.normalize(nx, ny)
-    }
-    /// Map a legacy simulation step to OpenCiv3's FLC direction row order
-    /// (SW, S, SE, E, NE, N, NW, W). Pass the step before wrapping so a seam
-    /// crossing retains its intended direction.
-    pub(crate) fn civ3_flic_direction(self, dx: i32, dy: i32) -> Option<u8> {
-        match (dx, dy) {
-            (0, -1) => Some(4),
-            (1, 0) => Some(2),
-            (1, 1) => Some(1),
-            (0, 1) => Some(0),
-            (-1, 0) => Some(6),
-            (-1, -1) => Some(5),
-            _ => None,
-        }
     }
     pub(crate) fn civ3_flic_direction_index(self, direction: usize) -> Option<u8> {
         match direction {
@@ -375,25 +356,6 @@ mod civ3_flic_direction_tests {
     use super::*;
 
     #[test]
-    fn legacy_neighbor_steps_select_their_civ3_flic_direction_rows() {
-        let wrap = MapWrap::X;
-        let expected = [4, 2, 1, 0, 6, 5];
-        for ((dx, dy), row) in ISOHEX_DIRS.into_iter().zip(expected) {
-            assert_eq!(wrap.civ3_flic_direction(dx, dy), Some(row));
-        }
-    }
-
-    #[test]
-    fn flic_direction_selection_handles_horizontal_seam_neighbors() {
-        let wrap = MapWrap::X;
-        let from = (wrap.width() - 1, 1);
-        let step = (0, -1);
-        let to = wrap.offset(from.0, from.1, step.0, step.1).unwrap();
-        assert_eq!(to.0, 0);
-        assert_eq!(wrap.civ3_flic_direction(step.0, step.1), Some(4));
-    }
-
-    #[test]
     fn civ3_direction_indices_follow_flic_row_order() {
         let wrap = MapWrap::X;
         let expected_rows = [5, 4, 3, 2, 1, 0, 7, 6];
@@ -508,7 +470,7 @@ mod wrap_tests {
             }
             for y in 0..wrap.height() {
                 for x in 0..wrap.width() {
-                    for (dx, dy) in ISOHEX_DIRS {
+                    for (dx, dy) in FREECIV_ISOHEX_DIRS {
                         if let Some(neighbor) = wrap.offset(x, y, dx, dy) {
                             assert!((0..CIV3_DIRS.len()).any(|direction| {
                                 wrap.civ3_neighbor(x, y, direction) == Some(neighbor)

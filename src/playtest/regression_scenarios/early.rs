@@ -27,11 +27,11 @@ impl Playtest {
             let blocked = !game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(infantry, 1, 0));
+                .apply_move_civ3_by_offset(infantry, 1, 0);
             let fought = game
                 .sim
                 .playtest_harness()
-                .apply(Command::Move(marines, 1, 0))
+                .apply_move_civ3_by_offset(marines, 1, 0)
                 && game
                     .sim
                     .playtest_state()

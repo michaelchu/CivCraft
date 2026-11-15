@@ -161,7 +161,7 @@ impl Simulation {
         let battleship = self.spawn_unit(HUMAN, UnitKind::Battleship, nx, ny);
         let defender = self.spawn_unit(1, UnitKind::Worker, tx, ty);
         self.sign_pact(HUMAN, 1, Pact::War);
-        let shore_attack = self.apply(Command::Move(battleship, 1, 0))
+        let shore_attack = self.apply(Command::move_civ3_by_offset(self, battleship, 1, 0))
             && self.units.iter().all(|unit| unit.id != defender)
             && self
                 .units

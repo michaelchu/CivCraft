@@ -42,7 +42,7 @@ fn entering_a_village_resolves_every_reference_roll_once() {
         let before = game.units.len();
         let known = game.players[HUMAN].known.len();
         game.players[HUMAN].research = 7;
-        assert!(game.apply(Command::Move(id, 0, -1)));
+        assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
         assert!(!game.tile(x, y).hut);
         match roll {
             0 => assert_eq!(game.players[HUMAN].gold, 75),
@@ -80,7 +80,7 @@ fn villages_offer_nomads_or_leave_a_city_nearby_unharmed() {
         let (cx, cy) = offset_native_by_map(x, y, 0, 1);
         game.create_city(HUMAN, cx, cy);
         let before = game.units.len();
-        assert!(game.apply(Command::Move(id, 0, -1)));
+        assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
         assert_eq!(game.cities.len(), 1);
         assert!(game.units.iter().any(|unit| unit.id == id));
         assert_eq!(game.units.len(), before + usize::from(roll == 11));
@@ -98,7 +98,7 @@ fn late_hostile_village_spawns_land_raiders() {
     for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
         game.tile_mut(nx, ny).terrain = Terrain::Plains;
     }
-    assert!(game.apply(Command::Move(id, 0, -1)));
+    assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
     let raiders = game.units.iter().filter(|unit| unit.owner == BARBARIANS);
     assert!(
         raiders
@@ -117,7 +117,7 @@ fn hostile_village_uses_the_freeciv_onset_boundary() {
         game.tile_mut(nx, ny).terrain = Terrain::Plains;
     }
 
-    assert!(game.apply(Command::Move(id, 0, -1)));
+    assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
     assert!(game.units.iter().all(|unit| unit.id != id));
     assert!(game.units.iter().all(|unit| unit.owner != BARBARIANS));
 }
@@ -133,7 +133,7 @@ fn advanced_raiders_require_three_civilizations_with_the_technology() {
         for (nx, ny) in game.map_wrap.civ3_neighbors(x, y) {
             game.tile_mut(nx, ny).terrain = Terrain::Plains;
         }
-        assert!(game.apply(Command::Move(id, 0, -1)));
+        assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
         let expected = if civilizations == 3 {
             UnitKind::Cannon
         } else {
@@ -168,7 +168,7 @@ fn island_transport_loads_cargo_and_carries_it_to_a_landing() {
             Terrain::Sea
         };
     }
-    assert!(game.apply(Command::Move(id, 0, -1)));
+    assert!(game.apply(Command::move_civ3_by_offset(&game, id, 0, -1)));
     let boat = game
         .units
         .iter()

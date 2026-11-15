@@ -577,13 +577,19 @@ impl Game {
         if scene == 33 {
             if phase == 6 {
                 let id = self.selected_unit.unwrap();
-                let moved = self.move_selected(Command::Move(id, 0, -1), id);
+                let moved = self.move_selected(
+                    Command::move_civ3_by_offset(self.sim.review_simulation(), id, 0, -1),
+                    id,
+                );
                 sequence.check("movement_stops_at_polar_edge", !moved)?;
                 let unit = self.sim.review_simulation().unit_by_id(id).unwrap();
                 sequence.check("bounded_map_keeps_unit_in_place", unit.y == 0)?;
                 sequence.check(
                     "bounded_map_still_accepts_real_move",
-                    self.move_selected(Command::Move(id, 1, 0), id),
+                    self.move_selected(
+                        Command::move_civ3_by_offset(self.sim.review_simulation(), id, 1, 0),
+                        id,
+                    ),
                 )?;
                 self.sim.review_simulation_mut().take_visual_events();
                 self.playback.finish();
@@ -682,7 +688,10 @@ impl Game {
                 let id = self.selected_unit.unwrap();
                 sequence.check(
                     "fog_move_uses_real_command",
-                    self.move_selected(Command::Move(id, 1, 0), id),
+                    self.move_selected(
+                        Command::move_civ3_by_offset(self.sim.review_simulation(), id, 1, 0),
+                        id,
+                    ),
                 )?;
                 sequence.check("movement_refreshes_visibility", before != visibility(self))?;
                 return Ok(true);
@@ -694,7 +703,10 @@ impl Game {
                 let id = self.selected_unit.unwrap();
                 sequence.check(
                     "real_move_command_accepted",
-                    self.move_selected(Command::Move(id, 1, 0), id),
+                    self.move_selected(
+                        Command::move_civ3_by_offset(self.sim.review_simulation(), id, 1, 0),
+                        id,
+                    ),
                 )?;
             }
             if phase == 2 {

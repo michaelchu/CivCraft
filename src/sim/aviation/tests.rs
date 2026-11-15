@@ -1452,7 +1452,7 @@ mod fighter_tests {
         // A nonzero fallback RNG state exercises attacker wins (all-zero
         // xorshift state always produced defender hits).
         game.rng = 1;
-        assert!(game.apply(Command::Move(fighter, 1, 0)));
+        assert!(game.apply(Command::move_civ3_by_offset(&game, fighter, 1, 0)));
         assert!(
             game.unit_by_id(bomber).is_none(),
             "fighter combat result: fighter={:?}, bomber={:?}",
@@ -1828,7 +1828,7 @@ mod stealth_tests {
         assert!(game.tile(distant.0, distant.1).visible);
         assert!(!game.unit_visible_to_human(game.unit_by_id(hidden).unwrap()));
         let explorer = game.spawn_unit(HUMAN, UnitKind::Explorer, city.x, city.y);
-        assert!(game.apply(Command::Move(explorer, 1, 0)));
+        assert!(game.apply(Command::move_civ3_by_offset(&game, explorer, 1, 0)));
         assert!(game.unit_visible_to_human(game.unit_by_id(hidden).unwrap()));
 
         game.players[HUMAN].known.extend([

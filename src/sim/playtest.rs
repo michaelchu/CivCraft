@@ -15,6 +15,16 @@ impl<'a> PlaytestHarness<'a> {
     pub(crate) fn new(simulation: &'a mut Simulation) -> Self {
         Self { simulation }
     }
+
+    pub(crate) fn apply_move_civ3_by_offset(&mut self, unit_id: u32, dx: i32, dy: i32) -> bool {
+        let Some(direction) = self
+            .simulation
+            .civ3_direction_for_unit_offset(unit_id, dx, dy)
+        else {
+            return false;
+        };
+        self.simulation.apply(Command::MoveCiv3(unit_id, direction))
+    }
 }
 
 impl Deref for PlaytestHarness<'_> {

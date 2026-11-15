@@ -50,7 +50,7 @@ mod campaign_boundary_tests {
             let actor = sim.units[0].clone();
             let path = sim.plan_route(&actor, other.0, other.1, true);
             assert!(path.len() > 20);
-            assert!(!sim.apply(Command::Move(id, 0, -1)));
+            assert!(!sim.apply(Command::move_civ3_by_offset(&sim, id, 0, -1)));
             let city = sim.create_city(HUMAN, 10, 0);
             let _ = city;
             let radius: Vec<_> = sim.map_city_radius(sim.cities.last().unwrap()).collect();
