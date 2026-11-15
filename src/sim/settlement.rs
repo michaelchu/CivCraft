@@ -21,24 +21,22 @@ pub(super) struct CitySite {
 
 type ScoredCitySite = ((i32, i32), Vec<(i32, i32)>, f64);
 
+pub(super) struct CitySiteSearchContext<'a> {
+    pub(super) government: Government,
+    pub(super) reservations: &'a [i32],
+    pub(super) hostile_military: Option<&'a [bool]>,
+    pub(super) city_distance_blocked: Option<&'a [bool]>,
+}
+
 impl Simulation {
     pub(super) fn advisor_city_site_result_with_threat_map(
         &self,
         founder: &Unit,
         x: i32,
         y: i32,
-        government: Government,
-        reservations: &[i32],
-        hostile_military: &[bool],
+        context: &CitySiteSearchContext<'_>,
     ) -> Option<CitySite> {
-        self.advisor_city_site_result_impl(
-            founder,
-            x,
-            y,
-            government,
-            reservations,
-            Some(hostile_military),
-        )
+        self.advisor_city_site_result_impl(founder, x, y, context)
     }
 
     fn advisor_city_site_result_impl(
@@ -46,22 +44,13 @@ impl Simulation {
         founder: &Unit,
         x: i32,
         y: i32,
-        government: Government,
-        reservations: &[i32],
-        hostile_military: Option<&[bool]>,
+        context: &CitySiteSearchContext<'_>,
     ) -> Option<CitySite> {
         let cacheable = self.ai_advisor_cache_enabled.get()
             && matches!(founder.id, 0 | u32::MAX)
             && !self.units.iter().any(|unit| unit.id == founder.id);
         if !cacheable {
-            return self.city_site_result_impl(
-                founder.owner,
-                x,
-                y,
-                government,
-                reservations,
-                hostile_military,
-            );
+            return self.city_site_result_impl(founder.owner, x, y, context);
         }
         let index = self.map_wrap.index(x, y);
         if let Some(cached) = self
@@ -76,14 +65,7 @@ impl Simulation {
         }
         self.trace
             .count_operation("settlement.site_cache_misses", 1);
-        let result = self.city_site_result_impl(
-            founder.owner,
-            x,
-            y,
-            government,
-            reservations,
-            hostile_military,
-        );
+        let result = self.city_site_result_impl(founder.owner, x, y, context);
         let mut spatial = self.ai_spatial_index.borrow_mut();
         let sites = spatial
             .virtual_city_sites
@@ -360,9 +342,16 @@ impl Simulation {
         self.trace.count_operation("settlement.site_searches", 1);
         let government = self.ai_goal_government(founder.owner);
         let reservations = self.settlement_citymap(founder.owner, Some(founder.id));
+        let city_distance_blocked = self.city_distance_blocked_map();
         let start = self.map_wrap.index(founder.x, founder.y);
         let (_, _, blocked_land, hostile_military) =
             self.settlement_route_blocked_tiles(founder.owner);
+        let context = CitySiteSearchContext {
+            government,
+            reservations: &reservations,
+            hostile_military: Some(&hostile_military),
+            city_distance_blocked: Some(&city_distance_blocked),
+        };
         let mut route_zone_cache = WorkerRouteZoneCache::new(self);
         let movement_profile = self.worker_route_movement_profile(founder.kind);
         let mut costs = vec![i32::MAX; self.tiles.len()];
@@ -382,14 +371,9 @@ impl Simulation {
             expanded += 1;
             let (x, y) = self.map_wrap.position(index);
             let turns = cost / allowance;
-            if let Some(site) = self.advisor_city_site_result_with_threat_map(
-                founder,
-                x,
-                y,
-                government,
-                &reservations,
-                &hostile_military,
-            ) {
+            if let Some(site) =
+                self.advisor_city_site_result_with_threat_map(founder, x, y, &context)
+            {
                 let score = site.value * (23.0_f64 / 24.0).powi(3 * turns)
                     - f64::from(founder.kind.stats().cost);
                 if score > best_score {
@@ -513,7 +497,56 @@ impl Simulation {
         government: Government,
         reservations: &[i32],
     ) -> Option<CitySite> {
-        self.city_site_result_impl(owner, x, y, government, reservations, None)
+        self.city_site_result_impl(
+            owner,
+            x,
+            y,
+            &CitySiteSearchContext {
+                government,
+                reservations,
+                hostile_military: None,
+                city_distance_blocked: None,
+            },
+        )
+    }
+
+    /// Marks every tile too close to an existing city for founding. Build this
+    /// once per settlement search so candidate evaluation is constant-time in
+    /// city count, matching Freeciv's map-based city spacing checks.
+    pub(super) fn city_distance_blocked_map(&self) -> Vec<bool> {
+        let mut blocked = vec![false; self.tiles.len()];
+        let mut visited = vec![0_usize; self.tiles.len()];
+        let mut frontier = Vec::new();
+        let mut next = Vec::new();
+
+        for (city_index, city) in self.cities.iter().enumerate() {
+            let epoch = city_index + 1;
+            let center = self.map_wrap.index(city.x, city.y);
+            visited[center] = epoch;
+            blocked[center] = true;
+            frontier.clear();
+            frontier.push(center);
+
+            // CITY_MIN_DISTANCE is three, so the forbidden area is the city
+            // center plus the first two steps on the Civ III neighbor graph.
+            for _ in 1..CITY_MIN_DISTANCE {
+                next.clear();
+                for &index in &frontier {
+                    let (x, y) = self.map_wrap.position(index);
+                    for (nx, ny) in self.map_wrap.civ3_neighbors(x, y) {
+                        let neighbor = self.map_wrap.index(nx, ny);
+                        if visited[neighbor] == epoch {
+                            continue;
+                        }
+                        visited[neighbor] = epoch;
+                        blocked[neighbor] = true;
+                        next.push(neighbor);
+                    }
+                }
+                std::mem::swap(&mut frontier, &mut next);
+            }
+        }
+        blocked
     }
 
     fn city_site_result_impl(
@@ -521,17 +554,20 @@ impl Simulation {
         owner: usize,
         x: i32,
         y: i32,
-        government: Government,
-        reservations: &[i32],
-        hostile_military: Option<&[bool]>,
+        context: &CitySiteSearchContext<'_>,
     ) -> Option<CitySite> {
         self.trace
             .count_operation("settlement.site_candidate_evaluations", 1);
         let tile = self.tile(x, y);
-        if !self.can_found_at(x, y)
+        let can_found = tile.terrain.allows_city()
+            && context.city_distance_blocked.map_or_else(
+                || self.can_found_at(x, y),
+                |blocked| !blocked[self.map_wrap.index(x, y)],
+            );
+        if !can_found
             || self
                 .map_city_radius_at(x, y)
-                .any(|(_, _, tx, ty)| reservations[self.map_wrap.index(tx, ty)] < 0)
+                .any(|(_, _, tx, ty)| context.reservations[self.map_wrap.index(tx, ty)] < 0)
             || tile.owner.is_some_and(|other| {
                 other != owner
                     && matches!(
@@ -542,7 +578,7 @@ impl Simulation {
             || std::iter::once((x, y))
                 .chain(self.map_wrap.civ3_neighbors(x, y))
                 .any(|(tx, ty)| {
-                    hostile_military.map_or_else(
+                    context.hostile_military.map_or_else(
                         || {
                             self.any_unit_at(tx, ty, |unit| {
                                 unit.kind.is_military() && self.at_war(unit.owner, owner)
@@ -571,8 +607,9 @@ impl Simulation {
             }
             value
         };
-        let reserved = |tx, ty| reservations[self.map_wrap.index(tx, ty)];
-        let center = self.city_tile_yields_under_government(&city, x, y, true, None, government);
+        let reserved = |tx, ty| context.reservations[self.map_wrap.index(tx, ty)];
+        let center =
+            self.city_tile_yields_under_government(&city, x, y, true, None, context.government);
         let mut best = None;
         let mut remaining = 0;
         let mut radius_tiles_scored = 0_u64;
@@ -598,7 +635,7 @@ impl Simulation {
             if (tx, ty) == (x, y) || reserved(tx, ty) < 0 {
                 continue;
             }
-            let output = self.advisor_virtual_city_tile_yield(&city, tx, ty, government);
+            let output = self.advisor_virtual_city_tile_yield(&city, tx, ty, context.government);
             radius_tiles_scored += 1;
             let value = weighted(output, reserved(tx, ty));
             if best.is_none_or(|(score, _, _)| value > score) {
@@ -619,8 +656,13 @@ impl Simulation {
         }
         let gross_shields = center.1 + best_output.1;
         let gross_trade = center.2 + best_output.2;
-        let (net_shields, net_trade) =
-            self.government_output_waste_under(&city, gross_shields, gross_trade, None, government);
+        let (net_shields, net_trade) = self.government_output_waste_under(
+            &city,
+            gross_shields,
+            gross_trade,
+            None,
+            context.government,
+        );
         let total = (weighted(center, reserved(x, y)) + best_value
             - 17 * (gross_shields - net_shields)
             - (science * f64::from(gross_trade - net_trade)) as i32)

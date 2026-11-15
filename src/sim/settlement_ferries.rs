@@ -390,6 +390,7 @@ impl Simulation {
             .count_operation("settlement.ferry.route_searches", 1);
         let government = self.ai_goal_government(founder.owner);
         let reservations = self.settlement_citymap(founder.owner, Some(founder.id));
+        let city_distance_blocked = self.city_distance_blocked_map();
         let assigned = self
             .ai_settlement_targets
             .get(&founder.id)
@@ -397,6 +398,12 @@ impl Simulation {
             .map(|reservation| reservation.destination);
         let (blocked_units, blocked_cities, blocked_land, hostile_military) =
             self.settlement_route_blocked_tiles(founder.owner);
+        let site_context = super::settlement::CitySiteSearchContext {
+            government,
+            reservations: &reservations,
+            hostile_military: Some(&hostile_military),
+            city_distance_blocked: Some(&city_distance_blocked),
+        };
         let mut route_zone_cache = WorkerRouteZoneCache::new(self);
         let movement_profile = self.worker_route_movement_profile(founder.kind);
         let sea_speed = self.unit_move_rate(ship);
@@ -474,14 +481,8 @@ impl Simulation {
             let discount = (23.0_f64 / 24.0).powi(3 * turns);
             let (x, y) = self.map_wrap.position(index);
             if assigned.is_none_or(|destination| destination == (x, y))
-                && let Some(site) = self.advisor_city_site_result_with_threat_map(
-                    founder,
-                    x,
-                    y,
-                    government,
-                    &reservations,
-                    &hostile_military,
-                )
+                && let Some(site) =
+                    self.advisor_city_site_result_with_threat_map(founder, x, y, &site_context)
             {
                 let value = site.value * discount - f64::from(unit_cost);
                 if value > best_value {
