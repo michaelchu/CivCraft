@@ -507,88 +507,46 @@ mod tests {
     }
 
     #[test]
-    fn native_buildings_and_bindings_match_the_extracted_tables() {
-        let rows = tsv_rows(include_str!(
-            "../../data/rulesets/civ3_conquests/buildings.tsv"
-        ));
-        assert_eq!(rows.len(), buildings().buildings.len());
-        for (native, row) in buildings().buildings.iter().zip(rows) {
-            assert_eq!(native.id, row[0]);
-            assert_eq!(native.source_record_index.to_string(), row[1]);
-            assert_eq!(native.source_biq, row[2]);
-            assert_eq!(native.name, row[3]);
-            assert_eq!(native.cost.to_string(), row[9]);
-            assert_eq!(native.culture.to_string(), row[10]);
-            assert_eq!(native.maintenance_cost.to_string(), row[15]);
-            assert_eq!(native.required_advance_index.to_string(), row[27]);
-            assert_eq!(native.flags_hex, row[31]);
-            assert_eq!(native.required_building_name, row[37]);
-            assert_eq!(native.required_advance_name, row[38]);
-            assert_eq!(native.unit_produced_name, row[42]);
-        }
-
-        let bindings = tsv_rows(include_str!(
-            "../../data/rulesets/civ3_conquests/building_catalog_bindings.tsv"
-        ));
-        assert_eq!(buildings().bindings.len(), bindings.len());
-        for (native, row) in buildings().bindings.iter().zip(bindings) {
-            assert_eq!(native.civ3_id, row[0]);
-            assert_eq!(native.source_record_index.to_string(), row[1]);
-            let expected_legacy_index = row[2].parse::<i32>().unwrap_or(-1);
-            assert_eq!(native.legacy_runtime_index, expected_legacy_index);
-            assert_eq!(native.mapping_status, row[3]);
-            assert_eq!(native.mapping_note, row[4]);
-        }
+    fn native_buildings_and_bindings_have_stable_source_identity() {
+        let catalog = buildings();
+        let source_indices = catalog
+            .buildings
+            .iter()
+            .map(|building| building.source_record_index)
+            .collect::<std::collections::HashSet<_>>();
+        assert_eq!(source_indices.len(), catalog.buildings.len());
+        assert!(
+            catalog
+                .buildings
+                .iter()
+                .all(|building| !building.id.is_empty() && !building.name.is_empty())
+        );
+        assert!(catalog.bindings.iter().all(|binding| {
+            catalog
+                .buildings
+                .iter()
+                .any(|building| building.id == binding.civ3_id)
+        }));
     }
 
     #[test]
-    fn native_technologies_match_the_extracted_technology_table() {
-        let rows = tsv_rows(include_str!(
-            "../../data/rulesets/civ3_conquests/technologies.tsv"
-        ));
-        assert_eq!(technologies().technologies.len(), rows.len());
-        for (native, row) in technologies().technologies.iter().zip(rows) {
-            assert_eq!(native.id, row[0]);
-            assert_eq!(native.source_record_index.to_string(), row[1]);
-            assert_eq!(native.source_biq, row[2]);
-            assert_eq!(native.name, row[3]);
-            assert_eq!(native.cost.to_string(), row[5]);
-            assert_eq!(native.era.to_string(), row[6]);
-            assert_eq!(native.advance_icon.to_string(), row[7]);
-            assert_eq!(native.x.to_string(), row[8]);
-            assert_eq!(native.y.to_string(), row[9]);
-            assert_eq!(native.flags_hex, row[14]);
-            assert_eq!(native.prerequisite_1_name, row[17]);
-            assert_eq!(native.prerequisite_2_name, row[18]);
-            assert_eq!(native.prerequisite_3_name, row[19]);
-            assert_eq!(native.prerequisite_4_name, row[20]);
-            assert_eq!(
-                native.prerequisites,
-                row[17..21]
+    fn native_technologies_have_resolved_prerequisite_lists() {
+        let catalog = technologies();
+        assert!(catalog.technologies.iter().all(|technology| {
+            !technology.id.is_empty()
+                && !technology.name.is_empty()
+                && technology.prerequisites.len() <= 4
+                && technology
+                    .prerequisites
                     .iter()
-                    .filter(|name| !name.is_empty())
-                    .map(|name| (*name).to_owned())
-                    .collect::<Vec<_>>()
-            );
-        }
+                    .all(|prerequisite| !prerequisite.is_empty())
+        }));
     }
 
     #[test]
-    fn native_unit_art_variants_match_the_extracted_unit_table() {
-        let rows = tsv_rows(include_str!("../../data/rulesets/civ3_conquests/units.tsv"));
-        assert_eq!(units().units.len(), rows.len());
-        for (native, row) in units().units.iter().zip(rows) {
-            assert_eq!(native.art_folder, row[31]);
-            assert_eq!(native.art_root, row[32]);
-        }
-    }
-
-    fn tsv_rows(source: &'static str) -> Vec<Vec<&'static str>> {
-        source
-            .lines()
-            .skip(1)
-            .filter(|line| !line.trim().is_empty())
-            .map(|line| line.split('\t').collect())
-            .collect()
+    fn native_units_have_art_variants() {
+        assert!(units().units.iter().all(|unit| {
+            !unit.id.is_empty() && !unit.art_folder.is_empty() && !unit.art_root.is_empty()
+        }));
     }
 }

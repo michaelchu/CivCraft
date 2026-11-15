@@ -1,8 +1,6 @@
 //! Civ III source content attached to a Freeciv ruleset without changing its
 //! stable runtime wrapper IDs.
 
-use std::collections::HashSet;
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::ContentKind;
@@ -52,180 +50,6 @@ impl std::fmt::Display for CatalogLoadError {
 }
 
 impl std::error::Error for CatalogLoadError {}
-
-#[derive(Clone)]
-struct Table {
-    path: PathBuf,
-    headers: Vec<String>,
-    rows: Vec<Vec<String>>,
-}
-
-impl Table {
-    fn read(path: &Path) -> Result<Self, CatalogLoadError> {
-        let text = fs::read_to_string(path).map_err(|error| CatalogLoadError {
-            path: path.to_owned(),
-            message: error.to_string(),
-        })?;
-        let mut lines = text.lines();
-        let headers = lines
-            .next()
-            .ok_or_else(|| CatalogLoadError {
-                path: path.to_owned(),
-                message: "catalog is empty".to_owned(),
-            })?
-            .split('\t')
-            .map(str::to_owned)
-            .collect::<Vec<_>>();
-        if headers.is_empty() || headers.iter().any(String::is_empty) {
-            return Err(Self::error(path, "catalog header contains an empty field"));
-        }
-        let mut unique = HashSet::new();
-        if headers.iter().any(|name| !unique.insert(name.as_str())) {
-            return Err(Self::error(
-                path,
-                "catalog header contains duplicate fields",
-            ));
-        }
-        let mut rows = Vec::new();
-        for (line_index, line) in lines.enumerate() {
-            let values = line.split('\t').map(str::to_owned).collect::<Vec<_>>();
-            if values.len() != headers.len() {
-                return Err(Self::error(
-                    path,
-                    &format!(
-                        "row {} has {} fields; expected {}",
-                        line_index + 2,
-                        values.len(),
-                        headers.len()
-                    ),
-                ));
-            }
-            rows.push(values);
-        }
-        Ok(Self {
-            path: path.to_owned(),
-            headers,
-            rows,
-        })
-    }
-
-    fn error(path: &Path, message: &str) -> CatalogLoadError {
-        CatalogLoadError {
-            path: path.to_owned(),
-            message: message.to_owned(),
-        }
-    }
-
-    fn required(&self, name: &str) -> Result<usize, CatalogLoadError> {
-        self.headers
-            .iter()
-            .position(|field| field == name)
-            .ok_or_else(|| Self::error(&self.path, &format!("missing required field {name:?}")))
-    }
-
-    fn values<'a>(&self, row: &'a [String], name: &str) -> Result<&'a str, CatalogLoadError> {
-        let index = self.required(name)?;
-        Ok(&row[index])
-    }
-
-    fn source_identity(
-        &self,
-        row: &[String],
-        field: &str,
-        extra_indices: Option<&str>,
-    ) -> Result<SourceRecordIdentity, CatalogLoadError> {
-        let value = self.values(row, field)?;
-        let (path_and_key, sha256) = value.split_once('@').ok_or_else(|| {
-            Self::error(&self.path, &format!("invalid {field} provenance {value:?}"))
-        })?;
-        let (path, key) = path_and_key.split_once('#').ok_or_else(|| {
-            Self::error(&self.path, &format!("invalid {field} provenance {value:?}"))
-        })?;
-        let (section, bracketed) = key.split_once('[').ok_or_else(|| {
-            Self::error(&self.path, &format!("invalid source section key {key:?}"))
-        })?;
-        let end = bracketed
-            .find(']')
-            .ok_or_else(|| Self::error(&self.path, &format!("invalid source index key {key:?}")))?;
-        let indices_text = extra_indices.unwrap_or(&bracketed[..end]);
-        let mut record_indices = Vec::new();
-        for token in indices_text.split(';').filter(|token| !token.is_empty()) {
-            let index = token.parse::<usize>().map_err(|error| {
-                Self::error(
-                    &self.path,
-                    &format!("invalid source record index {token:?}: {error}"),
-                )
-            })?;
-            if !record_indices.contains(&index) {
-                record_indices.push(index);
-            }
-        }
-        if section.is_empty() || record_indices.is_empty() || sha256.len() != 64 {
-            return Err(Self::error(
-                &self.path,
-                &format!("incomplete source provenance {value:?}"),
-            ));
-        }
-        Ok(SourceRecordIdentity {
-            path: path.to_owned(),
-            section: section.to_owned(),
-            key: key.to_owned(),
-            record_indices,
-            sha256: sha256.to_owned(),
-        })
-    }
-
-    fn records(
-        &self,
-        kind: ContentKind,
-        source_field: &str,
-        source_index_field: Option<&str>,
-    ) -> Result<Vec<SourceContentRecord>, CatalogLoadError> {
-        let id_field = self.required("id")?;
-        let name_field = self.required("name")?;
-        let extra_indices_field = source_index_field
-            .map(|field| self.required(field))
-            .transpose()?;
-        let mut ids = HashSet::new();
-        self.rows
-            .iter()
-            .map(|row| {
-                let catalog_id = row[id_field].clone();
-                let display_name = row[name_field].clone();
-                if catalog_id.is_empty() || display_name.is_empty() {
-                    return Err(Self::error(
-                        &self.path,
-                        "source record has an empty id or name",
-                    ));
-                }
-                if !ids.insert(catalog_id.clone()) {
-                    return Err(Self::error(
-                        &self.path,
-                        &format!("duplicate catalog id {catalog_id:?}"),
-                    ));
-                }
-                let extra_indices = extra_indices_field.map(|index| row[index].as_str());
-                let source = self.source_identity(row, source_field, extra_indices)?;
-                let fields = self
-                    .headers
-                    .iter()
-                    .zip(row)
-                    .map(|(name, value)| SourceField {
-                        name: name.clone(),
-                        value: value.clone(),
-                    })
-                    .collect();
-                Ok(SourceContentRecord {
-                    kind,
-                    catalog_id,
-                    display_name,
-                    source,
-                    fields,
-                })
-            })
-            .collect()
-    }
-}
 
 impl Civ3ContentCatalog {
     pub(crate) fn load(_directory: &Path) -> Result<Self, CatalogLoadError> {
@@ -331,7 +155,7 @@ impl Civ3ContentCatalog {
         Ok(Self { records })
     }
 
-    #[allow(dead_code)]
+    #[cfg(any())]
     fn load_tsv_legacy(directory: &Path) -> Result<Self, CatalogLoadError> {
         let unit_table = Table::read(&directory.join("units.tsv"))?;
         let building_table = Table::read(&directory.join("buildings.tsv"))?;
@@ -499,6 +323,7 @@ fn native_source_identity(
     })
 }
 
+#[cfg(any())]
 fn attach_building_bindings(
     buildings: &mut [SourceContentRecord],
     bindings: &Table,
