@@ -46,6 +46,8 @@ pub(crate) struct NativeUnit {
     pub(crate) hit_point_bonus: i32,
     pub(crate) ai_other_strategy: i32,
     pub(crate) source_ai_profiles: String,
+    pub(crate) art_folder: String,
+    pub(crate) art_root: String,
     pub(crate) ignore_movement_cost_hex: String,
     pub(crate) zone_of_control: i32,
     pub(crate) bombard_effects: i32,
@@ -532,6 +534,16 @@ mod tests {
                     .map(|name| (*name).to_owned())
                     .collect::<Vec<_>>()
             );
+        }
+    }
+
+    #[test]
+    fn native_unit_art_variants_match_the_extracted_unit_table() {
+        let rows = tsv_rows(include_str!("../../data/rulesets/civ3_conquests/units.tsv"));
+        assert_eq!(units().units.len(), rows.len());
+        for (native, row) in units().units.iter().zip(rows) {
+            assert_eq!(native.art_folder, row[31]);
+            assert_eq!(native.art_root, row[32]);
         }
     }
 

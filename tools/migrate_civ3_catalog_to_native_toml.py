@@ -66,6 +66,8 @@ def write_units() -> None:
         ("hit_point_bonus", int),
         ("ai_other_strategy", int),
         ("source_ai_profiles", string),
+        ("art_folder", string),
+        ("art_root", string),
         ("ignore_movement_cost_hex", string),
         ("zone_of_control", int),
         ("bombard_effects", int),
