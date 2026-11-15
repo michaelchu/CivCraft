@@ -321,14 +321,17 @@ impl Simulation {
                 .iter()
                 .filter(|city| city.owner == owner)
                 .map(|city| {
+                    let threats: Vec<_> = self
+                        .city_threats(city)
+                        .map(|(enemy, danger)| (enemy.id, danger))
+                        .collect();
                     (
                         city.id,
-                        self.city_threats(city)
-                            .map(|(_, danger)| danger)
-                            .sum::<i32>(),
+                        threats.iter().map(|&(_, danger)| danger).sum::<i32>(),
+                        threats,
                     )
                 })
-                .filter(|&(_, danger)| danger > 0)
+                .filter(|&(_, danger, _)| danger > 0)
                 .collect()
         };
         // Threat routes are now collected. Reinforcement may move garrison
@@ -337,7 +340,7 @@ impl Simulation {
             self.end_ai_advisor_cache();
         }
         let mut cities = cities;
-        cities.sort_by_key(|&(id, danger)| (std::cmp::Reverse(danger), id));
+        cities.sort_by_key(|&(id, danger, _)| (std::cmp::Reverse(danger), id));
         let is_defender = |unit: &Unit| {
             unit.owner == owner
                 && unit.kind.is_military()
@@ -347,13 +350,15 @@ impl Simulation {
         };
         let destinations: Vec<_> = cities
             .iter()
-            .map(|&(id, _)| {
-                let city = self.city_by_id(id).expect("threatened city remains present");
+            .map(|&(id, _, _)| {
+                let city = self
+                    .city_by_id(id)
+                    .expect("threatened city remains present");
                 (city.x, city.y)
             })
             .collect();
         let mut defender_route_costs = std::collections::HashMap::new();
-        for (city_index, &(city_id, _)) in cities.iter().enumerate() {
+        for (city_index, &(city_id, _, ref threat_ids)) in cities.iter().enumerate() {
             let _profile = self
                 .trace
                 .profiler()
@@ -364,9 +369,10 @@ impl Simulation {
                 .tile_units_ordered(target.0, target.1)
                 .filter(|unit| is_defender(unit))
                 .collect();
-            let threatened: Vec<_> = self
-                .city_threats(city)
-                .filter_map(|(enemy, danger)| {
+            let threatened: Vec<_> = threat_ids
+                .iter()
+                .filter_map(|&(enemy_id, danger)| {
+                    let enemy = self.unit_by_id(enemy_id)?;
                     let odds = garrison
                         .iter()
                         .map(|unit| self.city_attacker_odds(city, enemy, unit, None))
@@ -404,7 +410,7 @@ impl Simulation {
                     && ((self.city_grave_danger(home) > 0
                         && self.advisor_guard_city_assessment(home).urgency
                             >= self.advisor_guard_city_assessment(city).urgency)
-                        || (cities.iter().any(|&(id, _)| id == home.id)
+                        || (cities.iter().any(|&(id, _, _)| id == home.id)
                             && self.city_grave_danger(city) == 0))
                 {
                     continue;
@@ -413,9 +419,9 @@ impl Simulation {
                 if self.map_distance(unit.x, unit.y, city.x, city.y) > budget {
                     continue;
                 }
-                let costs = defender_route_costs
-                    .entry(unit.id)
-                    .or_insert_with(|| self.route_costs_to_many_within(unit, &destinations, budget));
+                let costs = defender_route_costs.entry(unit.id).or_insert_with(|| {
+                    self.route_costs_to_many_within(unit, &destinations, budget)
+                });
                 let Some(Some(cost)) = costs.get(city_index).copied() else {
                     continue;
                 };
