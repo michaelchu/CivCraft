@@ -384,11 +384,6 @@ impl Simulation {
                 let mut candidate = self.make_unit(0, city.owner, kind, city.x, city.y);
                 candidate.veteran = self.trained_rank(city, kind);
                 candidate.hp = candidate.max_hit_points();
-                let Some(turns) =
-                    self.offensive_candidate_turns(&candidate, &target, ferry_path.as_mut())
-                else {
-                    continue;
-                };
                 let tech = kind.required_tech();
                 let missing =
                     tech.map_or_else(Vec::new, |tech| self.research_path(city.owner, tech));
@@ -405,7 +400,7 @@ impl Simulation {
                 let vulnerability = defender.as_ref().map_or(0, |def| {
                     self.offensive_defense_squared(def, kind, target.x, target.y, true)
                 });
-                let mut desire =
+                let desire =
                     if vulnerability == 0 && (kind.is_naval() || kind.fuel_capacity() > 0) {
                         0.0
                     } else {
@@ -436,23 +431,38 @@ impl Simulation {
                         }
                         desire
                     };
-                desire -= (tech_cost * 17) as f32;
-                desire -= (turns * 17) as f32;
+                let desire_before_route = desire - (tech_cost * 17) as f32;
                 let cost = Self::offensive_balanced_cost(kind)
                     + if target.new_ferry {
                         target.ferry.as_ref().unwrap().kind.stats().cost
                     } else {
                         0
                     };
+                let best_possible_want = self.offensive_amortize(city, desire_before_route, 1, cost);
+                let can_produce = missing.is_empty()
+                    && f64::from(best_possible_want) > selected.want
+                    && self.can_produce(city, Production::Unit(kind));
+                if best_possible_want <= 0.0
+                    || missing.is_empty()
+                        && (!can_produce || f64::from(best_possible_want) <= selected.want)
+                {
+                    self.trace
+                        .count_operation("offensive.candidate_route.pruned_by_upper_bound", 1);
+                    continue;
+                }
+                let Some(turns) =
+                    self.offensive_candidate_turns(&candidate, &target, ferry_path.as_mut())
+                else {
+                    continue;
+                };
+                let desire = desire_before_route - (turns * 17) as f32;
                 let want = self.offensive_amortize(city, desire, turns.max(1), cost);
                 if want > 0.0 {
                     if !missing.is_empty() {
                         if let Some(tech) = tech {
                             research.push((tech, want));
                         }
-                    } else if f64::from(want) > selected.want
-                        && self.can_produce(city, Production::Unit(kind))
-                    {
+                    } else if f64::from(want) > selected.want && can_produce {
                         selected = AiBuildChoice {
                             production: Production::Unit(kind),
                             want: f64::from(want),
