@@ -6,9 +6,14 @@ manual-to-code audit remains outstanding.
 
 ## Authority and interpretation
 
-- Use the supplied manual as the authority for the intended Civilization III
-  rule wherever it states the rule.
-- Record the manual page for every rule. Include a short quotation only when
+- Gameplay mechanics, formulas, and rule interpretation are governed by Freeciv
+  (pinned `civ2civ3` baseline), not by Civilization III. Entries in this catalog
+  that describe Civ III mechanics are reference records of the original game and
+  should be read alongside the Freeciv mechanic they inform; record any
+  difference in the port plan's ledger rather than silently overriding either.
+- The supplied manual is the authority for Civilization III content: units,
+  buildings, civilizations, and their stated values and identities. Record the
+  manual page for every content fact. Include a short quotation only when
   necessary; otherwise paraphrase the relevant passage.
 - Do not infer an exact formula, timing detail, exception, or random procedure
   from a general description. Record what the manual says and mark missing
@@ -20,9 +25,9 @@ manual-to-code audit remains outstanding.
   Prefer original game materials and official data, then well-sourced
   specialist references. Record the exact claim each source supports and any
   disagreement between sources.
-- Do not treat Freeciv behavior, implementation details, or existing tests as
-  Civ III evidence. They may be noted separately as implementation history,
-  never as the expected result for a manual-based rule.
+- Freeciv behavior is the expected result for gameplay mechanics. It is not
+  Civ III evidence for content values, and Civ III sources do not override it
+  for mechanics. Existing tests and implementation details are neither source.
 
 ## Source records
 

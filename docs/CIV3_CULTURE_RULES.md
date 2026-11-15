@@ -16,8 +16,11 @@ Use sources in this order:
    official text and BIQ do not specify.
 
 OpenCiv3 is a reverse-engineering and implementation lead, not a gameplay
-authority. Its implementation must not fill gaps by itself. Freeciv/Civ2Civ3
-behavior is not an expected Civ III rule.
+authority. Its implementation must not fill gaps by itself. Culture mechanics
+are gameplay logic, so the pinned Freeciv/Civ2Civ3 behavior governs them under
+the current project policy (see `AGENTS.md`). The Conquests sources above
+remain authoritative for the culture content values they record, such as
+configured values in the installed BIQ.
 
 For formula work, CivWiki and CivFanatics articles, FAQs, and forum posts are
 allowed as fan reverse-engineering sources. Record the exact source and the
@@ -138,15 +141,15 @@ documentation, not as evidence for field behavior.
 
 ## Explicit gameplay statements
 
-### Freeciv implementation comparison (fallback inspiration only)
+### Freeciv implementation comparison (gameplay authority)
 
-The user authorized consulting Freeciv to help fill remaining gaps when its
-approach is appropriate. The local comparison checkout is
-`../../freeciv`, clean at commit `9ff184b6eb128ca636c7ad6269e27aa959600006`
-(2026-11-09). This is implementation context, not evidence of Civilization
-III behavior. Use its mechanics only as an explicitly labeled fallback when
-there is no better Civ III-specific evidence and the mechanic maps cleanly;
-keep the choice replaceable and preserve the Conquests evidence gap.
+Freeciv is the gameplay authority for culture mechanics under the current
+project policy. The local comparison checkout is `../../freeciv`, clean at
+commit `9ff184b6eb128ca636c7ad6269e27aa959600006` (2026-11-09). Its mechanics
+are the expected behavior wherever the port plan maps them. Where Conquests
+content values are recorded in the sources above, they still supply those
+values. Preserve any remaining Conquests evidence gap as an explicit note, not
+as a Civ III mechanic.
 
 - **Culture values differ.** Freeciv `common/culture.c` computes city culture
   from city history plus performance/effects, and computes player culture from
