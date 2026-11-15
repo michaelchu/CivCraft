@@ -975,28 +975,21 @@ pub(crate) fn selected_building_is_obsolete(
     building: Building,
     granted: Option<Tech>,
 ) -> Option<bool> {
-    let context =
-        SimulationRequirementContext::for_city_at(simulation, city, Some((city.x, city.y)))
-            .with_building_override(Some(building))
-            .with_granted_tech(granted);
-    let record = context.ruleset.content.iter().find(|record| {
-        record.kind == crate::rules::freeciv::ContentKind::Building
-            && context.runtime_building_for_record(record) == Some(building)
-    })?;
-    for requirement in &record.obsolete_by {
-        match crate::rules::freeciv::requirements_met(std::slice::from_ref(requirement), &context) {
-            Ok(true) => return Some(true),
-            Ok(false) => (),
-            Err(error) => {
-                eprintln!(
-                    "Freeciv obsolescence evaluation for {} failed: {error:?}; treating it as obsolete",
-                    record.rule_name
-                );
-                return Some(true);
-            }
-        }
+    let native = native_building_for_runtime(building)?;
+    let obsolete_by = native.rendered_obsolete_by_advance_name.trim();
+    if obsolete_by.is_empty() {
+        return Some(false);
     }
-    Some(false)
+    let Some(technology) =
+        Tech::all().find(|technology| technology.name().eq_ignore_ascii_case(obsolete_by))
+    else {
+        eprintln!(
+            "native obsolescence for {} names unknown technology {obsolete_by:?}; treating it as obsolete",
+            native.name
+        );
+        return Some(true);
+    };
+    Some(granted == Some(technology) || simulation.has_tech(city.owner, technology))
 }
 
 impl RequirementContext for SimulationRequirementContext<'_> {
@@ -1360,6 +1353,20 @@ fn c2c3_building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
         "Shakespeare's Theater" => &["Shakespeare's Theatre"],
         _ => &[],
     }
+}
+
+fn native_building_for_runtime(
+    building: Building,
+) -> Option<&'static crate::rules::native::NativeBuilding> {
+    let catalog = crate::rules::native::buildings();
+    let binding = catalog
+        .bindings
+        .iter()
+        .find(|binding| binding.legacy_runtime_index == building.0 as i32)?;
+    catalog
+        .buildings
+        .iter()
+        .find(|candidate| candidate.id == binding.civ3_id)
 }
 
 impl Simulation {
