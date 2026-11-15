@@ -269,6 +269,7 @@ pub(crate) struct NativeUnitEconomicsBinding {
     pub(crate) mapping_kind: String,
     pub(crate) basis: String,
     pub(crate) build_cost: i32,
+    pub(crate) fuel: i32,
     pub(crate) support_food: i32,
     pub(crate) support_shields: i32,
     pub(crate) support_gold: i32,
@@ -464,6 +465,21 @@ mod tests {
         assert_eq!(experience().levels.len(), 4);
         assert_eq!(unit_economics().schema_version, 1);
         assert_eq!(unit_economics().bindings.len(), 92);
+        assert!(
+            unit_economics()
+                .bindings
+                .iter()
+                .all(|binding| binding.fuel >= 0)
+        );
+        assert_eq!(
+            unit_economics()
+                .bindings
+                .iter()
+                .find(|binding| binding.civ3_unit_id == "tactical_nuke")
+                .expect("native Tactical Nuke economics")
+                .fuel,
+            1
+        );
         assert_eq!(
             experience()
                 .levels

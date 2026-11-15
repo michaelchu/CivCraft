@@ -2740,25 +2740,11 @@ pub(crate) fn freeciv_unit_type_section(unit: UnitKind) -> Option<String> {
 /// gameplay rule; the Civ III operational-range field remains available on
 /// the source catalog record and continues to govern sortie distance.
 pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
-    // Civ III's Tactical Nuke maps only this one fuel property to C2C3's
-    // Nuclear type; the remaining unit fields stay with the Civ III catalog.
-    let record = direct_c2c3_unit_record(unit).or_else(|| {
-        (unit == UnitKind::TacticalNuke).then(|| {
-            RulesetData::campaign_default()
-                .content
-                .iter()
-                .find(|record| {
-                    record.kind == ContentKind::Unit
-                        && record.section.eq_ignore_ascii_case("unit_nuclear")
-                })
-                .expect("selected C2C3 Nuclear unit record")
-        })
-    })?;
-    let fuel = record
-        .integer_field("fuel")
-        .expect("selected C2C3 unit fuel field is valid")
-        .expect("selected C2C3 unit record declares fuel");
-    Some(u8::try_from(fuel).expect("selected C2C3 unit fuel fits in u8"))
+    let UnitEconomicsRecordBinding::Mapped { native, .. } = freeciv_unit_economics_record(unit)
+    else {
+        return None;
+    };
+    Some(u8::try_from(native.fuel).expect("native unit fuel fits in u8"))
 }
 
 /// Civ III records expose the Cruise Missile's offensive strength as

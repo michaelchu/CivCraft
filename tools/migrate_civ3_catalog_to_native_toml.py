@@ -46,7 +46,14 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
         if current is None or "=" not in line or line.startswith(";"):
             continue
         key, value = (part.strip() for part in line.split("=", 1))
-        if key in {"uk_food", "uk_shield", "uk_gold", "uk_happy", "build_cost"}:
+        if key in {
+            "uk_food",
+            "uk_shield",
+            "uk_gold",
+            "uk_happy",
+            "build_cost",
+            "fuel",
+        }:
             match = re.search(r"-?\d+", value)
             if match:
                 current[key] = int(match.group())
@@ -401,6 +408,7 @@ def write_unit_economics() -> None:
                 f'mapping_kind = {string(row["mapping_kind"])}',
                 f'basis = {string(row["basis"])}',
                 f'build_cost = {profile.get("build_cost", 0)}',
+                f'fuel = {profile.get("fuel", 0)}',
                 f'support_food = {profile.get("uk_food", 0)}',
                 f'support_shields = {profile.get("uk_shield", 0)}',
                 f'support_gold = {profile.get("uk_gold", 0)}',
