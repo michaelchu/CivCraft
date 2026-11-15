@@ -4,6 +4,7 @@ source = "Civilization III: Conquests"
 [[civilizations]]
 id = "rome"
 source_id = "romans"
+source_biq = "Conquests/conquests.biq#RACE[1]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Romans"
 source_name = "Rome"
 noun = "Romans"
@@ -31,6 +32,7 @@ count = 1
 [[civilizations]]
 id = "egypt"
 source_id = "egyptians"
+source_biq = "Conquests/conquests.biq#RACE[2]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Egyptians"
 source_name = "Egypt"
 noun = "Egyptians"
@@ -58,6 +60,7 @@ count = 1
 [[civilizations]]
 id = "greece"
 source_id = "greeks"
+source_biq = "Conquests/conquests.biq#RACE[3]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Greeks"
 source_name = "Greece"
 noun = "Greeks"
@@ -85,6 +88,7 @@ count = 1
 [[civilizations]]
 id = "babylon"
 source_id = "babylonians"
+source_biq = "Conquests/conquests.biq#RACE[4]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Babylonians"
 source_name = "Babylon"
 noun = "Babylonians"
@@ -112,6 +116,7 @@ count = 1
 [[civilizations]]
 id = "germany"
 source_id = "germans"
+source_biq = "Conquests/conquests.biq#RACE[5]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Germany"
 source_name = "Germany"
 noun = "Germans"
@@ -139,6 +144,7 @@ count = 1
 [[civilizations]]
 id = "russia"
 source_id = "russians"
+source_biq = "Conquests/conquests.biq#RACE[6]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Russia"
 source_name = "Russia"
 noun = "Russians"
@@ -170,6 +176,7 @@ count = 1
 [[civilizations]]
 id = "china"
 source_id = "chinese"
+source_biq = "Conquests/conquests.biq#RACE[7]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Chinese"
 source_name = "China"
 noun = "Chinese"
@@ -197,6 +204,7 @@ count = 1
 [[civilizations]]
 id = "america"
 source_id = "americans"
+source_biq = "Conquests/conquests.biq#RACE[8]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "America"
 source_name = "America"
 noun = "Americans"
@@ -228,6 +236,7 @@ count = 1
 [[civilizations]]
 id = "japan"
 source_id = "japanese"
+source_biq = "Conquests/conquests.biq#RACE[9]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Japanese"
 source_name = "Japan"
 noun = "Japanese"
@@ -255,6 +264,7 @@ count = 1
 [[civilizations]]
 id = "france"
 source_id = "french"
+source_biq = "Conquests/conquests.biq#RACE[10]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "France"
 source_name = "France"
 noun = "French"
@@ -282,6 +292,7 @@ count = 1
 [[civilizations]]
 id = "india"
 source_id = "indians"
+source_biq = "Conquests/conquests.biq#RACE[11]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "India"
 source_name = "India"
 noun = "Indians"
@@ -309,6 +320,7 @@ count = 1
 [[civilizations]]
 id = "persia"
 source_id = "persians"
+source_biq = "Conquests/conquests.biq#RACE[12]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Persia"
 source_name = "Persia"
 noun = "Persians"
@@ -336,6 +348,7 @@ count = 1
 [[civilizations]]
 id = "aztecs"
 source_id = "aztecs"
+source_biq = "Conquests/conquests.biq#RACE[13]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Aztecs"
 source_name = "Aztecs"
 noun = "Aztecs"
@@ -363,6 +376,7 @@ count = 1
 [[civilizations]]
 id = "zululand"
 source_id = "zulus"
+source_biq = "Conquests/conquests.biq#RACE[14]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Zululand"
 source_name = "Zululand"
 noun = "Zulu"
@@ -394,6 +408,7 @@ count = 1
 [[civilizations]]
 id = "iroquois"
 source_id = "iroquois"
+source_biq = "Conquests/conquests.biq#RACE[15]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Iroquois"
 source_name = "Iroquois"
 noun = "Iroquois"
@@ -421,6 +436,7 @@ count = 1
 [[civilizations]]
 id = "england"
 source_id = "english"
+source_biq = "Conquests/conquests.biq#RACE[16]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "England"
 source_name = "England"
 noun = "English"
@@ -448,6 +464,7 @@ count = 1
 [[civilizations]]
 id = "mongols"
 source_id = "mongols"
+source_biq = "Conquests/conquests.biq#RACE[17]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Mongols"
 source_name = "Mongols"
 noun = "Mongols"
@@ -479,6 +496,7 @@ count = 1
 [[civilizations]]
 id = "spain"
 source_id = "spanish"
+source_biq = "Conquests/conquests.biq#RACE[18]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Spain"
 source_name = "Spain"
 noun = "Spanish"
@@ -506,6 +524,7 @@ count = 1
 [[civilizations]]
 id = "scandinavia"
 source_id = "vikings"
+source_biq = "Conquests/conquests.biq#RACE[19]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Scandinavia"
 source_name = "Scandinavia"
 noun = "Vikings"
@@ -533,6 +552,7 @@ count = 1
 [[civilizations]]
 id = "ottomans"
 source_id = "ottomans"
+source_biq = "Conquests/conquests.biq#RACE[20]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Ottomans"
 source_name = "Ottomans"
 noun = "Ottomans"
@@ -560,6 +580,7 @@ count = 1
 [[civilizations]]
 id = "celts"
 source_id = "celts"
+source_biq = "Conquests/conquests.biq#RACE[21]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Celts"
 source_name = "Celts"
 noun = "Celts"
@@ -587,6 +608,7 @@ count = 1
 [[civilizations]]
 id = "arabia"
 source_id = "arabs"
+source_biq = "Conquests/conquests.biq#RACE[22]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Arabia"
 source_name = "Arabia"
 noun = "Arabs"
@@ -618,6 +640,7 @@ count = 1
 [[civilizations]]
 id = "carthage"
 source_id = "carthaginians"
+source_biq = "Conquests/conquests.biq#RACE[23]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Carthage"
 source_name = "Carthage"
 noun = "Carthaginians"
@@ -645,6 +668,7 @@ count = 1
 [[civilizations]]
 id = "korea"
 source_id = "koreans"
+source_biq = "Conquests/conquests.biq#RACE[24]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Korea"
 source_name = "Korea"
 noun = "Koreans"
@@ -672,6 +696,7 @@ count = 1
 [[civilizations]]
 id = "sumeria"
 source_id = "sumerians"
+source_biq = "Conquests/conquests.biq#RACE[25]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Sumeria"
 source_name = "Sumeria"
 noun = "Sumerians"
@@ -699,6 +724,7 @@ count = 1
 [[civilizations]]
 id = "hittites"
 source_id = "hittites"
+source_biq = "Conquests/conquests.biq#RACE[26]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Hittites"
 source_name = "Hittites"
 noun = "Hittites"
@@ -730,6 +756,7 @@ count = 1
 [[civilizations]]
 id = "netherlands"
 source_id = "dutch"
+source_biq = "Conquests/conquests.biq#RACE[27]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Netherlands"
 source_name = "Netherlands"
 noun = "Dutch"
@@ -757,6 +784,7 @@ count = 1
 [[civilizations]]
 id = "portugal"
 source_id = "portuguese"
+source_biq = "Conquests/conquests.biq#RACE[28]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Portugal"
 source_name = "Portugal"
 noun = "Portuguese"
@@ -788,6 +816,7 @@ count = 1
 [[civilizations]]
 id = "byzantines"
 source_id = "byzantines"
+source_biq = "Conquests/conquests.biq#RACE[29]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Byzantines"
 source_name = "Byzantines"
 noun = "Byzantines"
@@ -815,6 +844,7 @@ count = 1
 [[civilizations]]
 id = "inca"
 source_id = "inca"
+source_biq = "Conquests/conquests.biq#RACE[30]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Inca"
 source_name = "Inca"
 noun = "Inca"
@@ -846,6 +876,7 @@ count = 1
 [[civilizations]]
 id = "maya"
 source_id = "mayans"
+source_biq = "Conquests/conquests.biq#RACE[31]+RULE@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Maya"
 source_name = "Maya"
 noun = "Maya"

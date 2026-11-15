@@ -22,6 +22,7 @@ pub(crate) struct NativeUnit {
     pub(crate) name: String,
     pub(crate) category: String,
     pub(crate) expansion: String,
+    pub(crate) source_biq: String,
     pub(crate) source_prototypes: Vec<i32>,
     pub(crate) cost_shields: i32,
     pub(crate) population_cost: i32,
@@ -309,6 +310,7 @@ pub(crate) struct NativeTechnology {
 pub(crate) struct NativeCivilization {
     pub(crate) id: String,
     pub(crate) source_id: String,
+    pub(crate) source_biq: String,
     pub(crate) name: String,
     pub(crate) source_name: String,
     pub(crate) noun: String,
