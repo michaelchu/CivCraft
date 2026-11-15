@@ -114,15 +114,22 @@ impl Simulation {
         // before moving units; do_last_activities clears these wants later.
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("ai.tech_and_registries");
+        let _profile = profiler.scope("ai.first_activity.tech_wants");
         self.record_ai_first_activity_tech_wants(owner);
+        drop(_profile);
+        let _profile = profiler.scope("ai.registries.refresh_ferries");
         self.refresh_ai_ferries();
+        drop(_profile);
+        let _profile = profiler.scope("ai.registries.refresh_guards");
         self.refresh_ai_guards();
+        drop(_profile);
         let boats: Vec<_> = self
             .units
             .iter()
             .filter(|unit| unit.owner == owner && Self::is_ai_ferry(unit.kind))
             .map(|unit| unit.id)
             .collect();
+        let _profile = profiler.scope("ai.registries.refresh_ferry_bosses");
         for boat in boats {
             self.refresh_ferry_boss(boat);
         }
