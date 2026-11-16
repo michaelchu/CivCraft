@@ -3,6 +3,7 @@
 use super::*;
 
 impl Simulation {
+    #[cfg(test)]
     pub(crate) fn obsolete_wonders_playtest(&mut self) -> (bool, bool, bool) {
         let naval_speed = |game: &Self| {
             let city = &game.cities[0];
@@ -65,6 +66,7 @@ impl Simulation {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn theatre_output_playtest(&mut self) -> bool {
         let (x, y) = (self.cities[0].x, self.cities[0].y);
         let width = self.map_wrap.width();
@@ -87,6 +89,9 @@ impl Simulation {
         theatre && luxury(self, 0) == 0 && luxury(self, 2) == 3
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn wonder_output_playtest(&mut self) -> (bool, bool, bool, bool) {
         let (x, y) = (self.cities[0].x, self.cities[0].y);
         let (wx, wy) = self
@@ -151,6 +156,9 @@ impl Simulation {
         )
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn barracks_playtest(&mut self) -> (bool, bool, bool) {
         let index = self
             .cities

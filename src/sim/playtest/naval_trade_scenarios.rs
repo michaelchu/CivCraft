@@ -3,6 +3,7 @@
 use super::*;
 
 impl Simulation {
+    #[cfg(test)]
     pub(crate) fn hunter_production_playtest_setup(&mut self) -> (u32, u32) {
         let (x, y) = (10, 20);
         let (tx, ty) = offset_native_by_map(x, y, 1, 0);
@@ -41,6 +42,7 @@ impl Simulation {
         (city, target)
     }
 
+    #[cfg(test)]
     pub(crate) fn ai_submarine_playtest_setup(&mut self) -> (u32, u32, u32) {
         let (submarine, missile, target, _) = self.submarine_playtest_setup();
         self.sign_pact(1, HUMAN, Pact::War);
@@ -78,6 +80,7 @@ impl Simulation {
         (submarine, missile, target)
     }
 
+    #[cfg(test)]
     pub(crate) fn submarine_playtest_setup(&mut self) -> (u32, u32, u32, bool) {
         let (submarine, missile, target) = self.cruise_missile_playtest_setup();
         let ship = self
@@ -101,6 +104,9 @@ impl Simulation {
         (submarine, missile, target, doubled)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn surface_warship_playtest(&mut self) -> (bool, bool, bool) {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = (city.x, city.y);
@@ -174,6 +180,9 @@ impl Simulation {
         )
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn trireme_playtest_setup(&mut self) -> (u32, u32) {
         let (x, y) = (10, 20);
         for step in 0..=2 {
@@ -193,6 +202,9 @@ impl Simulation {
         (ship, cargo)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn naval_bonus_playtest(&mut self) -> (i32, i32, i32, usize) {
         let city = self
             .cities

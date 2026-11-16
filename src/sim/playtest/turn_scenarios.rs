@@ -3,6 +3,7 @@
 use super::*;
 
 impl Simulation {
+    #[cfg(test)]
     pub(crate) fn government_ui_playtest_setup(&mut self) {
         // Start from an unlocked government so the UI scenario can exercise
         // a real change to Despotism while Monarchy remains tech-locked.
@@ -16,46 +17,7 @@ impl Simulation {
         player.revolution_turn = None;
     }
 
-    pub(crate) fn city_healing_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.cities.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.resource = None;
-            tile.river = false;
-            tile.hut = false;
-            tile.base = None;
-            tile.pollution = false;
-            tile.fallout = false;
-        }
-        self.players[HUMAN].known = vec![Tech::BRONZE_WORKING, Tech::WARRIOR_CODE];
-        self.create_city(HUMAN, 10, 24);
-        self.cities[0].buildings.push(Building::BARRACKS);
-        let soldier = self.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
-        self.units.last_mut().unwrap().hp = 1;
-        self.restore_player_units(HUMAN);
-        let barracks_healed = self
-            .unit_by_id(soldier)
-            .is_some_and(|unit| unit.hp == unit.max_hit_points());
-        self.cities[0]
-            .buildings
-            .retain(|&building| building != Building::BARRACKS);
-        let unit = self
-            .units
-            .iter_mut()
-            .find(|unit| unit.id == soldier)
-            .unwrap();
-        unit.hp = 1;
-        unit.moved = false;
-        let unit = unit.clone();
-        let expected = unit.hp + self.unit_hitpoint_gain_at(&unit, unit.x, unit.y);
-        self.restore_player_units(HUMAN);
-        barracks_healed
-            && self
-                .unit_by_id(soldier)
-                .is_some_and(|unit| unit.hp == expected)
-    }
-
+    #[cfg(test)]
     pub(crate) fn despotism_upkeep_playtest(&mut self) -> bool {
         // Conquests charges excess unit support in gold. Run this in an
         // isolated playtest copy so fixture units and turn advancement do not

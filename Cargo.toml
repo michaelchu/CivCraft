@@ -30,8 +30,8 @@ image-compare = "0.5"
 
 [features]
 default = ["scenarios"]
-# Regression scenarios, playtest fixtures, and the modes that run them
-# (`civcraft --self-test`, `headless_sim --scenario`). Tests require it.
+# Regression scenarios and their fixtures, run by `headless_sim --scenario`.
+# Tests require it.
 scenarios = []
 desktop-audio = ["macroquad/audio"]
 

@@ -11,8 +11,6 @@ use super::{
     Tech, TechnologyResearchView, TopBarView, TreatyOffer, UnitActionView, UnitContextView,
     UnitFidgetView,
 };
-#[cfg(feature = "scenarios")]
-use super::{PlaytestHarness, PlaytestState};
 use crate::world::topology::MapWrap;
 use std::collections::VecDeque;
 use std::io;
@@ -36,25 +34,6 @@ impl ClientSimulation {
 
     pub(crate) fn save_campaign(&self, path: &Path) -> io::Result<()> {
         self.simulation.save_campaign(path)
-    }
-
-    #[cfg(feature = "scenarios")]
-    /// Mutable scenario and fixture access for the dedicated playtest harness.
-    pub(crate) fn playtest_harness(&mut self) -> PlaytestHarness<'_> {
-        PlaytestHarness::new(&mut self.simulation)
-    }
-
-    #[cfg(feature = "scenarios")]
-    /// Copy campaign state for a playtest scenario that advances turns or
-    /// changes fixtures without affecting the interactive review session.
-    pub(crate) fn isolated_playtest_copy(&self) -> Self {
-        Self::new(self.simulation.clone())
-    }
-
-    #[cfg(feature = "scenarios")]
-    /// Read-only state inspection for deterministic playtest assertions.
-    pub(crate) fn playtest_state(&self) -> PlaytestState<'_> {
-        PlaytestState::new(&self.simulation)
     }
 
     pub(crate) fn research_unit_unlocks(tech: Tech) -> Vec<&'static str> {

@@ -10,6 +10,12 @@ impl Simulation {
         }
     }
 
+    /// Whether a civilization's seat is driven by the AI.
+    #[cfg(test)]
+    pub(crate) fn civilization_is_ai(&self, owner: usize) -> bool {
+        self.players[owner].ai
+    }
+
     /// Advance one full campaign turn through the normal turn orchestrator.
     pub(crate) fn simulate_turn(&mut self) {
         self.trace

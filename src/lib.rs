@@ -5,7 +5,6 @@ mod client;
 mod desktop;
 mod headless;
 mod mapgen;
-mod playtest;
 mod random;
 mod rules;
 mod sim;

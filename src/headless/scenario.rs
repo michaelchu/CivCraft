@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn desktop_regressions_are_listed_and_keep_the_human_seat_until_they_run() {
+    fn registered_regressions_are_listed_and_keep_the_human_seat_until_they_run() {
         assert!(ids().contains(&"ai-paradrops"));
         let mut run = build(
             "ai-paradrops",
@@ -191,9 +191,9 @@ mod tests {
             Default::default(),
         )
         .unwrap();
-        assert!(!crate::sim::PlaytestState::new(&run.game).players()[crate::sim::HUMAN].ai);
+        assert!(!run.game.civilization_is_ai(crate::sim::HUMAN));
         run.execute_actions();
-        assert!(crate::sim::PlaytestState::new(&run.game).players()[crate::sim::HUMAN].ai);
+        assert!(run.game.civilization_is_ai(crate::sim::HUMAN));
         assert!(run.provenance.checks.iter().all(|check| check.passed));
     }
 }

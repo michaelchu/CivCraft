@@ -43,8 +43,8 @@ pub(crate) enum Command {
         Option<u32>,
         super::EspionageRisk,
     ),
-    // The client negotiates through treaty offers; only scenarios issue this.
-    #[cfg_attr(not(feature = "scenarios"), allow(dead_code))]
+    // The client negotiates through treaty offers; only tests issue this.
+    #[cfg_attr(not(test), allow(dead_code))]
     Negotiate(usize, super::Pact),
     ProposeTreaty(usize, super::TreatyOffer),
     ShareTreatyCityMap(usize, u32),

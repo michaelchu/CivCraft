@@ -84,7 +84,7 @@ impl Simulation {
         None
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(crate) fn normal_hunter_production_playtest(&self) -> (bool, bool, bool) {
         let mut game = self.clone();
         let (port, target) = game.hunter_production_playtest_setup();
@@ -106,6 +106,7 @@ impl Simulation {
     #[cfg(feature = "scenarios")]
     /// Source tactical hunter policies, isolated from the dedicated production
     /// gate (which Normal AI's handicap disables).
+    #[cfg(feature = "scenarios")]
     pub(crate) fn native_hunter_tactics_playtest(&self) -> (bool, bool, bool, bool) {
         use crate::sim::unit_catalog::UnitFlag;
         let mut sim = self.clone();

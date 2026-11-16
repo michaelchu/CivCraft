@@ -5,6 +5,7 @@ use super::*;
 impl Simulation {
     // The desktop self-test advances treaty timers with the armies held in place.
 
+    #[cfg(test)]
     pub(crate) fn cooperative_work_playtest_setup(&mut self) -> (u32, u32) {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = (city.x, city.y);
@@ -17,6 +18,7 @@ impl Simulation {
         (first, second)
     }
 
+    #[cfg(test)]
     pub(crate) fn upgrade_playtest_setup(&mut self) -> u32 {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = (city.x, city.y);
@@ -31,6 +33,7 @@ impl Simulation {
         id
     }
 
+    #[cfg(test)]
     pub(crate) fn veteran_playtest_setup(&mut self) -> (u32, usize) {
         let city = self
             .cities
@@ -49,6 +52,7 @@ impl Simulation {
         (id, expected_rank)
     }
 
+    #[cfg(test)]
     pub(crate) fn zone_control_playtest_setup(&mut self) -> (u32, u32, (i32, i32)) {
         self.units.clear();
         let (x, y) = (10, 20);
@@ -63,6 +67,9 @@ impl Simulation {
         (warrior, explorer, destination)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn oil_platform_playtest_setup(&mut self) -> u32 {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = offset_native_by_map(city.x, city.y, 1, 0);
@@ -71,6 +78,9 @@ impl Simulation {
         self.spawn_unit(HUMAN, UnitKind::Transport, x, y)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn naval_cleanup_playtest_setup(&mut self) -> u32 {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = offset_native_by_map(city.x, city.y, 1, 0);
@@ -80,6 +90,9 @@ impl Simulation {
         self.spawn_unit(HUMAN, UnitKind::Transport, x, y)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn cleanup_playtest_setup(&mut self) -> u32 {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = (city.x, city.y);
@@ -89,6 +102,7 @@ impl Simulation {
         self.spawn_unit(HUMAN, UnitKind::Worker, x, y)
     }
 
+    #[cfg(test)]
     pub(crate) fn base_playtest_setup(&mut self) -> u32 {
         if self.cities_owned_by(HUMAN).next().is_none() {
             let (x, y) = self
@@ -110,6 +124,9 @@ impl Simulation {
         self.spawn_unit(HUMAN, UnitKind::Worker, x, y)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn pillage_playtest_setup(&mut self) -> (u32, (i32, i32)) {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = offset_native_by_map(city.x, city.y, 1, 0);
@@ -120,6 +137,9 @@ impl Simulation {
         (self.spawn_unit(HUMAN, UnitKind::Warrior, x, y), (x, y))
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn farmland_playtest_setup(&mut self) -> u32 {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = (city.x, city.y);
@@ -133,6 +153,9 @@ impl Simulation {
         self.spawn_unit(HUMAN, UnitKind::Worker, x, y)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn production_playtest_setup(&mut self) -> (i32, i32) {
         let city = self
             .cities
@@ -147,6 +170,9 @@ impl Simulation {
         (city.x, city.y)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn transport_playtest_setup(&mut self) -> (u32, u32, (i32, i32)) {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = (city.x, city.y);
@@ -195,6 +221,9 @@ impl Simulation {
                 .is_some_and(|unit| unit.work_kind.is_none() && unit.transport == Some(ship))
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn transport_hud_playtest_setup(&mut self) -> u32 {
         self.units.clear();
         self.cities.clear();

@@ -28,6 +28,7 @@ impl Simulation {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_technologies(&mut self, exchange: bool) {
         self.players[HUMAN].known = vec![Tech::ALPHABET];
         self.players[1].known = vec![Tech::ALPHABET];
@@ -40,6 +41,7 @@ impl Simulation {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_allied_exchange(&mut self) {
         let currency = Tech::all().find(|tech| tech.name() == "Currency").unwrap();
         let human_path = self.research_path(HUMAN, currency);
@@ -65,6 +67,9 @@ impl Simulation {
         self.diplomacy_playtest_tick(13);
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_hidden_city(&self, owner: usize) -> Option<(i32, i32)> {
         self.cities
             .iter()
@@ -72,6 +77,7 @@ impl Simulation {
             .map(|city| (city.x, city.y))
     }
 
+    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_unit(
         &mut self,
         rival: usize,
@@ -99,6 +105,7 @@ impl Simulation {
         Some((id, x, y, direction))
     }
 
+    #[cfg(test)]
     /// Set up the late-game conditions used by the desktop self-test.
     pub(crate) fn civil_war_playtest(&mut self) -> Option<(u32, usize)> {
         let city = self.cities_owned_by(HUMAN).next()?;
@@ -149,12 +156,18 @@ impl Simulation {
         Some((self.spawn_unit(HUMAN, UnitKind::Warrior, x, y), direction))
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn civil_war_playtest_seed_capture(&mut self) {
         // The desktop scenario validates the civil-war capture path, not the
         // chance roll or generated opening's prior RNG history.
         self.set_random_seed(1);
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn civil_war_playtest_resume_diplomacy(&mut self) {
         // The following diplomacy checks need a fresh ceasefire after the
         // capital attack that exercised the civil-war split.

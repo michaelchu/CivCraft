@@ -140,6 +140,7 @@ impl Simulation {
         (defended, refused, captured)
     }
 
+    #[cfg(test)]
     pub(crate) fn paradrop_playtest_setup(&mut self) -> (u32, (i32, i32), bool) {
         self.units.clear();
         self.sign_pact(HUMAN, 1, Pact::War);

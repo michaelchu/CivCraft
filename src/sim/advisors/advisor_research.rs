@@ -139,6 +139,7 @@ impl Simulation {
     #[cfg(feature = "scenarios")]
     /// Explicit preview for isolated advisor scenarios. Runtime research and
     /// diplomacy read the retained phase vector instead of recomputing advice.
+    #[cfg(feature = "scenarios")]
     pub(in crate::sim) fn advisor_tech_wants(&self, owner: usize) -> Vec<f32> {
         let mut preview = self.clone();
         preview.clear_ai_tech_wants(owner);

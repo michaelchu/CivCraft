@@ -25,28 +25,8 @@ mod sprite_metadata;
 pub(crate) use assets::{Assets, window_conf};
 pub(crate) use audio::MusicPlayer;
 use sprite_metadata::player_color;
-#[cfg(feature = "scenarios")]
-use sprite_metadata::unit_art_role;
 pub(crate) use unit_sound::UnitSoundPlayer;
 
-#[cfg(feature = "scenarios")]
-pub(crate) fn native_campaign_unit_art_playtest() -> (bool, bool, bool) {
-    let roster = UnitKind::ALL_NATIVE;
-    let roles = roster.into_iter().map(unit_art_role).collect::<Vec<_>>();
-    let mapped = roster.iter().all(|kind| {
-        kind.conquests_id()
-            .is_some_and(|id| unit_art_role(*kind) == format!("unit-{}", id.replace('_', "-")))
-    });
-    let distinct = roles
-        .iter()
-        .collect::<std::collections::BTreeSet<_>>()
-        .len()
-        == 92;
-    let labels = roster
-        .into_iter()
-        .all(|kind| !short_unit_name(kind).is_empty());
-    (mapped, distinct, labels)
-}
 mod city_bar;
 mod city_manager;
 mod city_map;
@@ -285,6 +265,7 @@ pub(crate) struct Game {
 impl Game {
     #[cfg(feature = "scenarios")]
     /// Creates client state around a simulation.
+    #[cfg(test)]
     pub(crate) fn new(sim: crate::sim::Simulation) -> Self {
         Self::from_simulation(sim)
     }

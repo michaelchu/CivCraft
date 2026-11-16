@@ -67,7 +67,9 @@ impl Unit {
         ACTIVITY_FACTOR * self.kind.stats().moves.max(1) * self.veteran_power() / 100
     }
 
-    #[cfg(feature = "scenarios")]
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn work_turns_left(&self) -> i32 {
         let rate = self.activity_rate();
         (self.work_left + rate - 1) / rate

@@ -10,6 +10,7 @@ use crate::rules::Genus;
 impl Simulation {
     #[cfg(feature = "scenarios")]
     // Toroidal fixture convenience; gameplay uses the campaign-aware methods below.
+    #[cfg(feature = "scenarios")]
     pub(crate) fn city_radius(city: &City) -> impl Iterator<Item = (i32, i32, i32, i32)> + use<> {
         Self::city_radius_at(city.x, city.y)
     }

@@ -3,6 +3,7 @@
 use super::*;
 
 impl Simulation {
+    #[cfg(test)]
     pub(crate) fn nuclear_playtest_setup(&mut self, intercepted: bool) -> (u32, u32, u32) {
         // Civ III's normal opening has a Settler and Worker, not a founded
         // city. Stage both launch and target cities explicitly; C2C3 nuclear
@@ -39,6 +40,7 @@ impl Simulation {
         (missile, defender, city_id)
     }
 
+    #[cfg(test)]
     pub(crate) fn cruise_missile_playtest_setup(&mut self) -> (u32, u32, u32) {
         let (x, y) = (10, 20);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
@@ -60,6 +62,7 @@ impl Simulation {
         (carrier, missile, target)
     }
 
+    #[cfg(test)]
     pub(crate) fn aegis_playtest_setup(&mut self) -> (u32, u32) {
         let (x, y) = (10, 20);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
@@ -84,6 +87,7 @@ impl Simulation {
         (attacker, cruiser)
     }
 
+    #[cfg(test)]
     pub(crate) fn sam_battery_playtest_setup(&mut self, protected: bool) -> (u32, u32) {
         let (x, y) = (10, 20);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
@@ -112,6 +116,9 @@ impl Simulation {
         (bomber, defender)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn sam_battery_defense_playtest(&mut self, protected: bool) -> i32 {
         let (bomber, defender) = self.sam_battery_playtest_setup(protected);
         let attacker = self.unit_by_id(bomber).unwrap().clone();
@@ -119,6 +126,9 @@ impl Simulation {
         self.defense_power_against(&defender, defender.x, defender.y, attacker.kind)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn helicopter_playtest_setup(&mut self) -> (u32, u32) {
         let city = self.cities_owned_by(HUMAN).next().unwrap();
         let (x, y) = (city.x, city.y);
@@ -132,6 +142,7 @@ impl Simulation {
         (helicopter, passenger)
     }
 
+    #[cfg(test)]
     pub(crate) fn stealth_aircraft_playtest_setup(&mut self) -> (u32, u32) {
         if self.cities_owned_by(HUMAN).next().is_none() {
             self.tile_mut(10, 20).terrain = Terrain::Grassland;
@@ -168,6 +179,7 @@ impl Simulation {
         (bomber, target)
     }
 
+    #[cfg(test)]
     pub(crate) fn carrier_playtest_setup(&mut self) -> (u32, u32) {
         let (x, y) = (10, 20);
         let deck = offset_native_by_map(x, y, 1, 0);
@@ -183,6 +195,9 @@ impl Simulation {
         (carrier, fighter)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn fighter_playtest_setup(&mut self) -> (u32, u32) {
         let (x, y) = (10, 20);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
@@ -197,6 +212,7 @@ impl Simulation {
         (fighter, bomber)
     }
 
+    #[cfg(test)]
     pub(crate) fn bombard_playtest_setup(&mut self) -> (u32, [u32; 2]) {
         let (x, y) = (10, 20);
         let (nx, ny) = offset_native_by_map(x, y, 1, 0);
@@ -213,6 +229,7 @@ impl Simulation {
         (bomber, targets)
     }
 
+    #[cfg(test)]
     pub(crate) fn airlift_playtest_setup(&mut self) -> (u32, u32, u32) {
         let (x, y) = {
             let source = self

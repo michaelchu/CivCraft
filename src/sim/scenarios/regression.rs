@@ -2,8 +2,7 @@
 //!
 //! Each scenario mutates a freshly generated campaign through
 //! simulation-level helpers and records named pass/fail checks. The headless
-//! simulator runs one by its identifier, and the desktop self-test replays the
-//! same table, so a scenario is defined exactly once.
+//! simulator runs one by its identifier, and a unit test runs them all.
 
 use crate::sim::Simulation;
 
@@ -151,7 +150,7 @@ mod tests {
 
     /// Checks that fail on the reference campaign in a fresh process. They
     /// failed the same way before the scenarios were registered here (verified
-    /// against the pre-registration desktop blocks), so they are recorded
+    /// against the code before registration), so they are recorded
     /// rather than hidden: the test below fails if this list goes stale in
     /// either direction. Fix the rule or the scenario, then remove the entry.
     const KNOWN_FAILING_CHECKS: &[&str] = &[

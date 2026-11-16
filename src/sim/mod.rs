@@ -103,9 +103,9 @@ pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
 #[cfg(feature = "scenarios")]
-mod playtest;
+mod headless_scenarios;
 #[cfg(feature = "scenarios")]
-pub(crate) use playtest::{PlaytestHarness, PlaytestState};
+mod playtest;
 mod research;
 #[cfg(test)]
 mod research_phase;
@@ -476,6 +476,7 @@ impl Simulation {
     }
     #[cfg(feature = "scenarios")]
     /// Returns the accumulated player-facing event log.
+    #[cfg(test)]
     pub(crate) fn events(&self) -> &[String] {
         &self.events
     }
@@ -783,6 +784,7 @@ impl Simulation {
 
     #[cfg(feature = "scenarios")]
     /// Reports whether the native random stream remains usable in playtest state.
+    #[cfg(feature = "scenarios")]
     pub(crate) fn native_random_stream_playtest(&mut self) -> bool {
         let same = Self::new(crate::mapgen::generate_with_wrap(
             self.world_seed,

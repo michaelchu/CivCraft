@@ -28,6 +28,7 @@ impl Simulation {
             && self.pact_clause_value(1, HUMAN, Pact::Ceasefire) < 0
     }
 
+    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_friendship(&mut self) {
         let relation = self.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
         // Keep the AI above the native alliance clause threshold after
@@ -50,6 +51,7 @@ impl Simulation {
         self.diplomacy_playtest_alternate_contact();
     }
 
+    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_alliance_offer_setup(&mut self) {
         let relation = self.diplomacy.entry((HUMAN, 1)).or_default();
         relation.trust[1] = 10000;
@@ -67,6 +69,9 @@ impl Simulation {
         self.make_diplomatic_contact(1, HUMAN);
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_alliance_offer_diagnostics(&self) -> String {
         let key = Self::relation_key(HUMAN, 1);
         let relation = &self.diplomacy[&key];
@@ -105,6 +110,7 @@ impl Simulation {
         )
     }
 
+    #[cfg(test)]
     fn diplomacy_playtest_alternate_contact(&mut self) {
         if !self.player_alive(2)
             && let Some((x, y)) = (0..self.tiles.len())
@@ -131,6 +137,7 @@ impl Simulation {
         self.ai_war_plans.remove(&(2, 1));
     }
 
+    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_allied_trade_baseline(&self) -> Option<i32> {
         let currency = Tech::all().find(|tech| tech.name() == "Currency")?;
         Some(
@@ -139,6 +146,7 @@ impl Simulation {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_allied_sharing(&mut self) {
         // Arrange a trusted established alliance, preserving the technologies
         // and treasuries whose actual exchange is exercised by the UI.

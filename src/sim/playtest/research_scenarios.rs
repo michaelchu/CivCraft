@@ -109,6 +109,9 @@ impl Simulation {
         held && switched && self.players[1].researching == best && self.players[1].research == 3
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn unset_goal_hud_playtest_setup(&mut self) {
         self.players[HUMAN].research_goal = Tech::BRONZE_WORKING;
         self.players[HUMAN].researching = Tech::ALPHABET;

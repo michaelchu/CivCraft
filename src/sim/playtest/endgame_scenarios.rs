@@ -3,6 +3,9 @@
 use super::*;
 
 impl Simulation {
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn science_wonder_playtest(&mut self) -> (bool, i32, i32) {
         let home = self
             .cities
@@ -27,6 +30,9 @@ impl Simulation {
         )
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn amphitheater_playtest(&mut self) -> (bool, bool, i32) {
         let index = self
             .cities
@@ -46,6 +52,9 @@ impl Simulation {
         (before, after, history)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn partisan_playtest_setup(&mut self) -> (u32, u32) {
         let (unit, city) = self.multicultural_playtest_setup();
         self.players[1].government = Government::Communism;
@@ -62,6 +71,7 @@ impl Simulation {
         (unit, city)
     }
 
+    #[cfg(test)]
     pub(crate) fn multicultural_playtest_setup(&mut self) -> (u32, u32) {
         let home = self.cities_owned_by(HUMAN).next().unwrap();
         let (home_x, home_y) = (home.x, home.y);
@@ -88,6 +98,9 @@ impl Simulation {
         (unit, city_id)
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn achievement_playtest_setup(&mut self) -> i32 {
         let city = self
             .cities
@@ -123,11 +136,17 @@ impl Simulation {
         }
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn turn_limit_playtest_setup(&mut self) {
         self.turn = super::score::TURN_LIMIT;
         self.nation_scores[HUMAN].units_built = 1000;
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn manual_spaceship_playtest_build_structural(&mut self) {
         let city = self
             .cities
@@ -158,6 +177,9 @@ impl Simulation {
         self.year = 1880;
     }
 
+    // Fixture for a removed desktop self-test step; nothing calls it now.
+    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn spaceship_playtest_finish_flight(&mut self) {
         for _ in 0..30 {
             if !self.apply(Command::EndTurn) {
