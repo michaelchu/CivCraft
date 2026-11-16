@@ -78,7 +78,7 @@ impl Simulation {
         self.run_ai_worker_phase(BARBARIANS);
         drop(_profile);
         let _profile = profiler.scope("turn.prune_and_trade_routes");
-        self.ai.free_bulbs.clear();
+        self.ai.clear_free_bulbs();
         self.prune_ai_player_units();
         // Route connectivity is an actor-free CivCraft adapter for C2C3's
         // Caravan/Freight delivery step. Resolve it globally after all worker

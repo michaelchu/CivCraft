@@ -14,12 +14,11 @@ impl Simulation {
             .filter(|city| city.owner == owner)
             .map(|city| city.size)
             .sum::<i32>();
-        (2 * citizens).max(self.ai.purchase_reserve.get(&owner).copied().unwrap_or(0))
+        (2 * citizens).max(self.ai.purchase_reserve(owner))
     }
 
     fn record_ai_purchase_cost(&mut self, owner: usize, price: i32) {
-        let highest = self.ai.purchase_reserve.entry(owner).or_default();
-        *highest = (*highest).max(price);
+        self.ai.record_purchase_cost(owner, price);
     }
 
     /// Freeciv dai_manage_cities first sells one redundant, noncritical

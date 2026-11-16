@@ -30,6 +30,44 @@ pub(super) struct AiState {
         std::collections::BTreeMap<usize, super::government::GovernmentAdvisorCache>,
 }
 
+impl AiState {
+    pub(super) fn tech_want(&self, owner: usize, tech: crate::rules::Tech) -> f32 {
+        self.tech_wants
+            .get(&owner)
+            .and_then(|wants| wants.get(tech.0))
+            .copied()
+            .unwrap_or(0.0)
+    }
+
+    pub(super) fn clear_tech_wants(&mut self, owner: usize) {
+        self.tech_wants
+            .insert(owner, vec![0.0; crate::rules::Tech::all().count()]);
+    }
+
+    pub(super) fn add_tech_want(&mut self, owner: usize, tech: crate::rules::Tech, want: f32) {
+        let wants = self
+            .tech_wants
+            .entry(owner)
+            .or_insert_with(|| vec![0.0; crate::rules::Tech::all().count()]);
+        if let Some(value) = wants.get_mut(tech.0) {
+            *value += want;
+        }
+    }
+
+    pub(super) fn record_purchase_cost(&mut self, owner: usize, price: i32) {
+        let highest = self.purchase_reserve.entry(owner).or_default();
+        *highest = (*highest).max(price);
+    }
+
+    pub(super) fn purchase_reserve(&self, owner: usize) -> i32 {
+        self.purchase_reserve.get(&owner).copied().unwrap_or(0)
+    }
+
+    pub(super) fn clear_free_bulbs(&mut self) {
+        self.free_bulbs.clear();
+    }
+}
+
 /// Derived lookups and memoized results. Interior mutability lets read-only rule code fill them.
 #[derive(Clone, Default)]
 pub(super) struct Caches {
