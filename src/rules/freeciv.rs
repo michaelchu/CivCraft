@@ -834,6 +834,8 @@ impl RulesetData {
     ) -> Result<Self, LoadError> {
         let mut rules = Self::load(data_root, ruleset_name)?;
         rules.effects = native_effect_records()?;
+        rules.actions = native_action_records();
+        rules.action_enablers = native_action_enablers()?;
         let source_catalog =
             Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
         rules.source_content = source_catalog.records;
@@ -1603,39 +1605,7 @@ fn native_effect_records() -> Result<Vec<EffectRecord>, LoadError> {
                 .requirements
                 .iter()
                 .map(|requirement| {
-                    let range = match requirement.range.to_ascii_lowercase().as_str() {
-                        "local" => RequirementRange::Local,
-                        "tile" => RequirementRange::Tile,
-                        "cadjacent" => RequirementRange::CAdjacent,
-                        "adjacent" => RequirementRange::Adjacent,
-                        "city" => RequirementRange::City,
-                        "traderoute" => RequirementRange::Traderoute,
-                        "continent" => RequirementRange::Continent,
-                        "player" => RequirementRange::Player,
-                        "team" => RequirementRange::Team,
-                        "alliance" => RequirementRange::Alliance,
-                        "world" => RequirementRange::World,
-                        other => {
-                            return Err(LoadError::new(format!(
-                                "native effect {} has unknown requirement range {other:?}",
-                                effect.id
-                            )));
-                        }
-                    };
-                    Ok(Requirement {
-                        kind: requirement.kind.clone(),
-                        name: RequirementValue::String(requirement.name.clone()),
-                        range,
-                        present: requirement.present,
-                        survives: requirement.survives,
-                        quiet: requirement.quiet,
-                        source: RuleSourceLocation {
-                            file: PathBuf::from("data/rulesets/civcraft_native/effects.toml"),
-                            section: format!("effect_{}", effect.id),
-                            key: "requirements".to_owned(),
-                            line: 0,
-                        },
-                    })
+                    native_requirement("effects.toml", &effect.id, "requirements", requirement)
                 })
                 .collect::<Result<Vec<_>, LoadError>>()?;
             Ok(EffectRecord {
@@ -1644,6 +1614,96 @@ fn native_effect_records() -> Result<Vec<EffectRecord>, LoadError> {
                 value: effect.value,
                 multiplier: effect.multiplier.clone(),
                 requirements,
+            })
+        })
+        .collect()
+}
+
+fn native_requirement(
+    file: &str,
+    id: &str,
+    key: &str,
+    requirement: &crate::rules::native::NativeEffectRequirement,
+) -> Result<Requirement, LoadError> {
+    let range = match requirement.range.to_ascii_lowercase().as_str() {
+        "local" => RequirementRange::Local,
+        "tile" => RequirementRange::Tile,
+        "cadjacent" => RequirementRange::CAdjacent,
+        "adjacent" => RequirementRange::Adjacent,
+        "city" => RequirementRange::City,
+        "traderoute" => RequirementRange::Traderoute,
+        "continent" => RequirementRange::Continent,
+        "player" => RequirementRange::Player,
+        "team" => RequirementRange::Team,
+        "alliance" => RequirementRange::Alliance,
+        "world" => RequirementRange::World,
+        other => {
+            return Err(LoadError::new(format!(
+                "native record {id} has unknown requirement range {other:?}"
+            )));
+        }
+    };
+    Ok(Requirement {
+        kind: requirement.kind.clone(),
+        name: RequirementValue::String(requirement.name.clone()),
+        range,
+        present: requirement.present,
+        survives: requirement.survives,
+        quiet: requirement.quiet,
+        source: RuleSourceLocation {
+            file: PathBuf::from(format!("data/rulesets/civcraft_native/{file}")),
+            section: id.to_owned(),
+            key: key.to_owned(),
+            line: 0,
+        },
+    })
+}
+
+fn native_action_records() -> Vec<ActionRecord> {
+    crate::rules::native::actions()
+        .actions
+        .iter()
+        .map(|action| ActionRecord {
+            rule_name: action.id.clone(),
+            action: action.action.clone(),
+            fields: Vec::new(),
+        })
+        .collect()
+}
+
+fn native_action_enablers() -> Result<Vec<ActionEnabler>, LoadError> {
+    crate::rules::native::actions()
+        .enablers
+        .iter()
+        .map(|enabler| {
+            Ok(ActionEnabler {
+                rule_name: enabler.id.clone(),
+                action: enabler.action.clone(),
+                actor_requirements: enabler
+                    .actor_requirements
+                    .iter()
+                    .map(|requirement| {
+                        native_requirement(
+                            "actions.toml",
+                            &enabler.id,
+                            "actor_requirements",
+                            requirement,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                target_requirements: enabler
+                    .target_requirements
+                    .iter()
+                    .map(|requirement| {
+                        native_requirement(
+                            "actions.toml",
+                            &enabler.id,
+                            "target_requirements",
+                            requirement,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                fields: Vec::new(),
             })
         })
         .collect()

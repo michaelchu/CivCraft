@@ -141,6 +141,42 @@ def inline_tables(value: list[dict[str, object]]) -> str:
     return "[" + ", ".join(encoded(item) for item in value) + "]"
 
 
+def requirement_table(block: str, key: str, section: str) -> list[dict[str, object]]:
+    match = re.search(
+        rf"^{key}\s*=\s*\n\s*\{{(.*?)^\s*\}}",
+        block,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not match:
+        return []
+    header_line, *rows = match.group(1).splitlines()
+    columns = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', header_line)
+    requirements: list[dict[str, object]] = []
+    for row_line in rows:
+        if not row_line.strip() or row_line.lstrip().startswith(";"):
+            continue
+        tokens = [
+            quoted or bare
+            for quoted, bare in re.findall(
+                r'"([^"\\]*(?:\\.[^"\\]*)*)"|\b(TRUE|FALSE)\b', row_line
+            )
+        ]
+        if len(tokens) < 3 or len(tokens) > len(columns):
+            raise ValueError(f"{section} has malformed {key}")
+        row = dict(zip(columns, tokens))
+        requirements.append(
+            {
+                "kind": row["type"],
+                "name": row["name"],
+                "range": row["range"],
+                "present": row.get("present", "true").lower() == "true",
+                "survives": row.get("survives", "false").lower() == "true",
+                "quiet": row.get("quiet", "false").lower() == "true",
+            }
+        )
+    return requirements
+
+
 def write_units() -> None:
     rows = read_tsv("units.tsv")
     fields = [
@@ -558,37 +594,7 @@ def write_effects() -> None:
         value_match = re.search(r"^value\s*=\s*(-?\d+)", block, re.MULTILINE)
         if not type_match or not value_match:
             raise ValueError(f"effect {section} is missing type or value")
-        requirement_match = re.search(
-            r"^reqs\s*=\s*\n\s*\{(.*?)^\s*\}", block, re.MULTILINE | re.DOTALL
-        )
-        requirements: list[dict[str, object]] = []
-        if requirement_match:
-            table = requirement_match.group(1)
-            header_line, *rows = table.splitlines()
-            columns = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', header_line)
-            for row_line in rows:
-                if not row_line.strip() or row_line.lstrip().startswith(";"):
-                    continue
-                tokens = [
-                    quoted or bare
-                    for quoted, bare in re.findall(
-                        r'"([^"\\]*(?:\\.[^"\\]*)*)"|\b(TRUE|FALSE)\b',
-                        row_line,
-                    )
-                ]
-                if len(tokens) < 3 or len(tokens) > len(columns):
-                    raise ValueError(f"effect {section} has malformed requirements")
-                row = dict(zip(columns, tokens))
-                requirements.append(
-                    {
-                        "kind": row["type"],
-                        "name": row["name"],
-                        "range": row["range"],
-                        "present": row.get("present", "true").lower() == "true",
-                        "survives": row.get("survives", "false").lower() == "true",
-                        "quiet": row.get("quiet", "false").lower() == "true",
-                    }
-                )
+        requirements = requirement_table(block, "reqs", section)
         multiplier_match = re.search(
             r"^multiplier\s*=\s*\"([^\"]+)\"", block, re.MULTILINE
         )
@@ -607,6 +613,58 @@ def write_effects() -> None:
     (DEST / "effects.toml").write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_actions() -> None:
+    source = (ROOT / "data/rulesets/civcraft_civ2civ3/actions.ruleset").read_text(
+        encoding="utf-8"
+    )
+    lines = [
+        "schema_version = 1",
+        'source = "CivCraft native action graph"',
+        "",
+    ]
+    action_sections = re.finditer(
+        r"^\[(action_[^\]]+)\]\s*\n(.*?)(?=^\[|\Z)",
+        source,
+        re.MULTILINE | re.DOTALL,
+    )
+    for match in action_sections:
+        section, block = match.groups()
+        action = re.search(r"^action\s*=\s*\"([^\"]+)\"", block, re.MULTILINE)
+        if not action:
+            raise ValueError(f"{section} is missing action")
+        lines.extend(
+            [
+                "[[actions]]",
+                f'id = {string(section.removeprefix("action_"))}',
+                f'action = {string(action.group(1))}',
+                "",
+            ]
+        )
+    enabler_sections = re.finditer(
+        r"^\[(enabler_[^\]]+)\]\s*\n(.*?)(?=^\[|\Z)",
+        source,
+        re.MULTILINE | re.DOTALL,
+    )
+    for match in enabler_sections:
+        section, block = match.groups()
+        action = re.search(r"^action\s*=\s*\"([^\"]+)\"", block, re.MULTILINE)
+        if not action:
+            raise ValueError(f"{section} is missing action")
+        actor = requirement_table(block, "actor_reqs", section)
+        target = requirement_table(block, "target_reqs", section)
+        lines.extend(
+            [
+                "[[enablers]]",
+                f'id = {string(section.removeprefix("enabler_"))}',
+                f'action = {string(action.group(1))}',
+                f"actor_requirements = {inline_tables(actor)}",
+                f"target_requirements = {inline_tables(target)}",
+                "",
+            ]
+        )
+    (DEST / "actions.toml").write_text("\n".join(lines), encoding="utf-8")
+
+
 if __name__ == "__main__":
     DEST.mkdir(parents=True, exist_ok=True)
     write_units()
@@ -616,3 +674,4 @@ if __name__ == "__main__":
     write_governments()
     write_unit_economics()
     write_effects()
+    write_actions()

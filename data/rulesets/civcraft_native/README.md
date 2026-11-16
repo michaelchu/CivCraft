@@ -26,6 +26,8 @@ Current catalogs:
   92 Conquests units.
 - `effects.toml`: the complete 508-effect campaign graph, including typed
   requirements and multipliers.
+- `actions.toml`: the 19 campaign actions and 89 typed action-enabler
+  branches.
 - `governments.toml`: the eight Conquests governments, names, prerequisites,
   AI preferences, flags, core scalar values, and support/assimilation/
   resistance/military-law tables.

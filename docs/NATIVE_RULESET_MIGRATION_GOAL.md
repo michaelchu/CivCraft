@@ -63,6 +63,10 @@ and technology requirements bind directly to the native 83-advance catalog or
 an explicit CivCraft compatibility mapping. Multiline class flags and role
 lists are preserved by the migration tooling.
 
+The selected action graph is now native as well: `actions.toml` owns all 19
+actions and 89 actor/target enabler branches, while the engine continues to
+evaluate their typed requirements.
+
 ## Order of work
 
 1. Migrate building identities, values, requirements, effects, and bindings.

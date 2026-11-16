@@ -1,0 +1,612 @@
+schema_version = 1
+source = "CivCraft native action graph"
+
+[[actions]]
+id = "poison_city"
+action = "Poison City Escape"
+
+[[actions]]
+id = "sabotage_city_escape"
+action = "Sabotage City Escape"
+
+[[actions]]
+id = "industrial_sabotage"
+action = "Targeted Sabotage City Escape"
+
+[[actions]]
+id = "industrial_sabotage_production"
+action = "Sabotage City Production Escape"
+
+[[actions]]
+id = "industrial_espionage"
+action = "Targeted Steal Tech Escape Expected"
+
+[[actions]]
+id = "incite_a_revolt"
+action = "Incite City"
+
+[[actions]]
+id = "bribe_enemy_unit"
+action = "Bribe Unit"
+
+[[actions]]
+id = "sabotage_enemy_unit"
+action = "Sabotage Unit Escape"
+
+[[actions]]
+id = "build_city"
+action = "Found City"
+
+[[actions]]
+id = "add_to_city"
+action = "Join City"
+
+[[actions]]
+id = "explode_nuclear_in_place"
+action = "Explode Nuclear"
+
+[[actions]]
+id = "explode_missile"
+action = "Suicide Attack"
+
+[[actions]]
+id = "bombard"
+action = "Bombard"
+
+[[actions]]
+id = "disembark_from_non_native"
+action = "Transport Disembark 2"
+
+[[actions]]
+id = "eliminate_spy"
+action = "Spy Attack"
+
+[[actions]]
+id = "enter_hut_from_non_native"
+action = "Enter Hut 2"
+
+[[actions]]
+id = "frighten_htu_from_non_native"
+action = "Frighten Hut 2"
+
+[[actions]]
+id = "paradrop_to_contested_landing"
+action = "Paradrop Unit Enter Conquer"
+
+[[actions]]
+id = "keep_moving"
+action = "Unit Move"
+
+[[enablers]]
+id = "sabotage_city"
+action = "Sabotage City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Diplomat", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Spy", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "sabotage_city_spy"
+action = "Sabotage City Escape"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "sabotage_city_target"
+action = "Targeted Sabotage City Escape"
+actor_requirements = [{ kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "sabotage_city_production"
+action = "Sabotage City Production Escape"
+actor_requirements = [{ kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "establish_embassy"
+action = "Establish Embassy Stay"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Diplomat", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Has real embassy", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Spy", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "NationGroup", name = "Barbarian", range = "Player", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "establish_embassy_spy"
+action = "Establish Embassy"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Has real embassy", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "NationGroup", name = "Barbarian", range = "Player", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "establish_embassy_explorer"
+action = "Establish Embassy Stay"
+actor_requirements = [{ kind = "UnitType", name = "Explorer", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Has real embassy", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "NationGroup", name = "Barbarian", range = "Player", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "investigate_city"
+action = "Investigate City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Diplomat", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Spy", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "investigate_city_spy"
+action = "Investigate City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "investigate_city_explorer"
+action = "Investigate City"
+actor_requirements = [{ kind = "UnitType", name = "Explorer", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "steal_tech_random"
+action = "Steal Tech"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Diplomat", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "NationGroup", name = "Barbarian", range = "Player", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "steal_tech_random_esc"
+action = "Steal Tech Escape Expected"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "NationGroup", name = "Barbarian", range = "Player", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "steal_tech_target"
+action = "Targeted Steal Tech Escape Expected"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "NationGroup", name = "Barbarian", range = "Player", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "poison_city"
+action = "Poison City Escape"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "MinSize", name = "2", range = "City", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "incite_city"
+action = "Incite City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Diplomat", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Alliance", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Team", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Spy", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "Building", name = "Courthouse", range = "City", present = false, survives = false, quiet = false }, { kind = "Building", name = "Palace", range = "City", present = false, survives = false, quiet = false }, { kind = "Building", name = "Ecclesiastical Palace", range = "City", present = false, survives = false, quiet = false }, { kind = "Building", name = "Mausoleum of Mausolos", range = "Player", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "incite_city_spy"
+action = "Incite City Escape"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Alliance", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Team", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "Building", name = "Courthouse", range = "City", present = false, survives = false, quiet = false }, { kind = "Building", name = "Palace", range = "City", present = false, survives = false, quiet = false }, { kind = "Building", name = "Ecclesiastical Palace", range = "City", present = false, survives = false, quiet = false }, { kind = "Building", name = "Mausoleum of Mausolos", range = "Player", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "bribe_unit"
+action = "Bribe Unit"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Diplomat", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "HasHomeCity", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Alliance", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Team", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "UnitTypeFlag", name = "Unbribable", range = "Local", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = false, survives = false, quiet = false }, { kind = "MaxUnitsOnTile", name = "1", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "sabotage_unit"
+action = "Sabotage Unit Escape"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Center", range = "Tile", present = false, survives = false, quiet = false }, { kind = "MinHitPoints", name = "2", range = "Local", present = true, survives = false, quiet = false }, { kind = "MaxUnitsOnTile", name = "1", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "eliminate_spy"
+action = "Spy Attack"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Spy", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Alliance", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Team", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Center", range = "Tile", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "trade_route"
+action = "Establish Trade Route"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "TradeRoute", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "HasHomeCity", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "help_build_wonder"
+action = "Help Wonder"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "HelpWonder", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Armistice", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Cease-fire", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Peace", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "BuildingGenus", name = "GreatWonder", range = "Local", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "disband_unit_recover"
+action = "Disband Unit Recover"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "EvacuateFirst", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Cease-fire", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Armistice", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Peace", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "disband_unit"
+action = "Disband Unit"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "EvacuateFirst", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "capture"
+action = "Capture Units"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Capturer", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "UnitTypeFlag", name = "Capturable", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transporting", range = "Local", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "bombard_city"
+action = "Bombard"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Bombarder", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transported", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "TerrainClass", name = "Oceanic", range = "Tile", present = false, survives = false, quiet = false }, { kind = "DiplRelTileOther", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "bombard_no_city"
+action = "Bombard"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Bombarder", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transported", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "TerrainClass", name = "Oceanic", range = "Tile", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "build_city_pioneer"
+action = "Found City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Cities", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Claimed", range = "Tile", present = false, survives = false, quiet = false }, { kind = "TerrainFlag", name = "NoCities", range = "Tile", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "build_city_domestic"
+action = "Found City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Cities", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Claimed", range = "Tile", present = true, survives = false, quiet = false }, { kind = "TerrainFlag", name = "NoCities", range = "Tile", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "join_city"
+action = "Join City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "AddToCity", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "nuke"
+action = "Explode Nuclear"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Nuclear", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "nuke_city"
+action = "Nuke City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Nuclear", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "nuke_units"
+action = "Nuke Units"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Nuclear", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Center", range = "Tile", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "attack_from_native"
+action = "Attack"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "Missile", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnNativeTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "attack_marines"
+action = "Attack"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "Missile", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Marines", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "attack_att_from_non_native"
+action = "Attack"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "Missile", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "AttFromNonNative", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "ransom_from_native"
+action = "Collect Ransom"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "Missile", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnNativeTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "PlayerState", name = "Barbarian", range = "Player", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "ransom_marines"
+action = "Collect Ransom"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "Missile", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Marines", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "PlayerState", name = "Barbarian", range = "Player", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "ransom_att_from_non_native"
+action = "Collect Ransom"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "Missile", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "AttFromNonNative", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "PlayerState", name = "Barbarian", range = "Player", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "explode_missile"
+action = "Suicide Attack"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "Missile", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "conquer_city_native"
+action = "Conquer City Shrink"
+actor_requirements = [{ kind = "UnitClassFlag", name = "CanOccupyCity", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "Nation", name = "Animal Kingdom", range = "Player", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "MaxUnitsOnTile", name = "0", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "conquer_city_marines"
+action = "Conquer City Shrink 2"
+actor_requirements = [{ kind = "UnitClassFlag", name = "CanOccupyCity", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Marines", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnLivableTile", range = "Local", present = false, survives = false, quiet = false }, { kind = "Nation", name = "Animal Kingdom", range = "Player", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "MaxUnitsOnTile", name = "0", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "change_home_city"
+action = "Home City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "NoHome", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitState", name = "HasHomeCity", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "change_home_city_diplo"
+action = "Home City"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Diplomat", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Foreign", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "paradrop_base_to_claimed"
+action = "Paradrop Unit Enter"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Paratroopers", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "6", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transporting", range = "Local", present = false, survives = false, quiet = false }, { kind = "ExtraFlag", name = "ParadropFrom", range = "Tile", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Peace", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Claimed", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "paradrop_base_to_unclaimed"
+action = "Paradrop Unit Enter"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Paratroopers", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "6", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transporting", range = "Local", present = false, survives = false, quiet = false }, { kind = "ExtraFlag", name = "ParadropFrom", range = "Tile", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Claimed", range = "Tile", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "paradrop_base_to_war_conquer"
+action = "Paradrop Unit Enter Conquer"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Paratroopers", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "6", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transporting", range = "Local", present = false, survives = false, quiet = false }, { kind = "ExtraFlag", name = "ParadropFrom", range = "Tile", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "CanOccupyCity", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = false, survives = false, quiet = false }, { kind = "Nation", name = "Animal Kingdom", range = "Player", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Claimed", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "paradrop_city_to_claimed"
+action = "Paradrop Unit Enter"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Paratroopers", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "6", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transporting", range = "Local", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Peace", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Claimed", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "paradrop_city_to_unclaimed"
+action = "Paradrop Unit Enter"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Paratroopers", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "6", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transporting", range = "Local", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Claimed", range = "Tile", present = false, survives = false, quiet = false }]
+
+[[enablers]]
+id = "paradrop_city_to_war_conquer"
+action = "Paradrop Unit Enter Conquer"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Paratroopers", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "6", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transporting", range = "Local", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "CanOccupyCity", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "NonMil", range = "Local", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = false, survives = false, quiet = false }, { kind = "Nation", name = "Animal Kingdom", range = "Player", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "CityTile", name = "Claimed", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "upgrade_unit"
+action = "Upgrade Unit"
+actor_requirements = [{ kind = "DiplRel", name = "Foreign", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "airlift_unit"
+action = "Airlift Unit"
+actor_requirements = [{ kind = "UnitClassFlag", name = "Airliftable", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transporting", range = "Local", present = false, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "transform_terrain"
+action = "Transform Terrain"
+actor_requirements = [{ kind = "Tech", name = "Fusion Power", range = "Player", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Transform", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "cultivate"
+action = "Cultivate"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "plant"
+action = "Plant"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "pillage"
+action = "Pillage"
+actor_requirements = [{ kind = "UnitClassFlag", name = "CanPillage", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "clean"
+action = "Clean"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "fortify_terrain"
+action = "Fortify"
+actor_requirements = [{ kind = "UnitClassFlag", name = "CanFortify", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Cant_Fortify", range = "Local", present = false, survives = false, quiet = false }, { kind = "TerrainFlag", name = "NoFortify", range = "Tile", present = false, survives = false, quiet = false }, { kind = "Activity", name = "Fortified", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "fortify_city"
+action = "Fortify"
+actor_requirements = [{ kind = "UnitClassFlag", name = "CanFortify", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitTypeFlag", name = "Cant_Fortify", range = "Local", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = true, survives = false, quiet = false }, { kind = "Activity", name = "Fortified", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "road"
+action = "Build Road"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "TerrainAlter", name = "CanRoad", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "base"
+action = "Build Base"
+actor_requirements = []
+target_requirements = [{ kind = "TerrainAlter", name = "CanBase", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "mining"
+action = "Build Mine"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "Terrain", name = "Deep Ocean", range = "Tile", present = false, survives = false, quiet = false }, { kind = "TerrainAlter", name = "CanMine", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "mining_ocean"
+action = "Build Mine"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "Tech", name = "Miniaturization", range = "Player", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "Terrain", name = "Deep Ocean", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "irrigate_src_tech_basic_irrigation"
+action = "Build Irrigation"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "Tech", name = "Electricity", range = "Player", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "Extra", name = "Irrigation", range = "Tile", present = false, survives = false, quiet = false }, { kind = "TerrainAlter", name = "CanIrrigate", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "irrigate_src_ocean_basic_irrigation"
+action = "Build Irrigation"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "TerrainClass", name = "Oceanic", range = "CAdjacent", present = true, survives = false, quiet = false }, { kind = "Extra", name = "Irrigation", range = "Tile", present = false, survives = false, quiet = false }, { kind = "TerrainAlter", name = "CanIrrigate", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "irrigate_src_extra_basic_irrigation"
+action = "Build Irrigation"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "ExtraFlag", name = "IrrigationSource", range = "CAdjacent", present = true, survives = false, quiet = false }, { kind = "Extra", name = "Irrigation", range = "Tile", present = false, survives = false, quiet = false }, { kind = "TerrainAlter", name = "CanIrrigate", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "irrigate_src_tech_not_in_desert"
+action = "Build Irrigation"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "Tech", name = "Electricity", range = "Player", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "Terrain", name = "Desert", range = "Tile", present = false, survives = false, quiet = false }, { kind = "TerrainAlter", name = "CanIrrigate", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "irrigate_src_ocean_not_in_desert"
+action = "Build Irrigation"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "TerrainClass", name = "Oceanic", range = "CAdjacent", present = true, survives = false, quiet = false }, { kind = "Terrain", name = "Desert", range = "Tile", present = false, survives = false, quiet = false }, { kind = "TerrainAlter", name = "CanIrrigate", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "irrigate_src_extra_not_in_desert"
+action = "Build Irrigation"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "ExtraFlag", name = "IrrigationSource", range = "CAdjacent", present = true, survives = false, quiet = false }, { kind = "Terrain", name = "Desert", range = "Tile", present = false, survives = false, quiet = false }, { kind = "TerrainAlter", name = "CanIrrigate", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "irrigate_src_tech_desert_but_allowed"
+action = "Build Irrigation"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "Tech", name = "Electricity", range = "Player", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "Terrain", name = "Desert", range = "Tile", present = true, survives = false, quiet = false }, { kind = "ExtraFlag", name = "AllowsFarmlandOnDesert", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "irrigate_src_ocean_desert_but_allowed"
+action = "Build Irrigation"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "TerrainClass", name = "Oceanic", range = "CAdjacent", present = true, survives = false, quiet = false }, { kind = "Terrain", name = "Desert", range = "Tile", present = true, survives = false, quiet = false }, { kind = "ExtraFlag", name = "AllowsFarmlandOnDesert", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "irrigate_src_extra_desert_but_allowed"
+action = "Build Irrigation"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "Workers", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClass", name = "Sea", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = [{ kind = "ExtraFlag", name = "IrrigationSource", range = "CAdjacent", present = true, survives = false, quiet = false }, { kind = "Terrain", name = "Desert", range = "Tile", present = true, survives = false, quiet = false }, { kind = "ExtraFlag", name = "AllowsFarmlandOnDesert", range = "Tile", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "deboard"
+action = "Transport Deboard"
+actor_requirements = [{ kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transported", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "UnitState", name = "Transporting", range = "Local", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "board"
+action = "Transport Board"
+actor_requirements = [{ kind = "DiplRel", name = "Armistice", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Cease-fire", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Peace", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Never met", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "unload"
+action = "Transport Unload"
+actor_requirements = [{ kind = "UnitState", name = "Transporting", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = [{ kind = "UnitState", name = "OnLivableTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transported", range = "Local", present = true, survives = false, quiet = false }]
+
+[[enablers]]
+id = "disembark_from_native_tile"
+action = "Transport Disembark"
+actor_requirements = [{ kind = "UnitState", name = "Transported", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnNativeTile", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "disembark_from_native_city"
+action = "Transport Disembark"
+actor_requirements = [{ kind = "UnitState", name = "Transported", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "disembark_from_non_native"
+action = "Transport Disembark 2"
+actor_requirements = [{ kind = "UnitState", name = "Transported", range = "Local", present = true, survives = false, quiet = false }, { kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnNativeTile", range = "Local", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "embark"
+action = "Transport Embark"
+actor_requirements = [{ kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "DiplRel", name = "Armistice", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "War", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Cease-fire", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Peace", range = "Local", present = false, survives = false, quiet = false }, { kind = "DiplRel", name = "Never met", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "regular_move"
+action = "Unit Move"
+actor_requirements = [{ kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "Transported", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "hut_enter_from_native_tile"
+action = "Enter Hut"
+actor_requirements = [{ kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnNativeTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "hut_enter_from_native_city"
+action = "Enter Hut"
+actor_requirements = [{ kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "hut_enter_from_non_native"
+action = "Enter Hut 2"
+actor_requirements = [{ kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnNativeTile", range = "Local", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "hut_frighten_from_native_tile"
+action = "Frighten Hut"
+actor_requirements = [{ kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnNativeTile", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "hut_frighten_from_native_city"
+action = "Frighten Hut"
+actor_requirements = [{ kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = true, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "hut_frighten_from_non_native"
+action = "Frighten Hut 2"
+actor_requirements = [{ kind = "MinMoveFrags", name = "1", range = "Local", present = true, survives = false, quiet = false }, { kind = "UnitState", name = "OnNativeTile", range = "Local", present = false, survives = false, quiet = false }, { kind = "CityTile", name = "Center", range = "Tile", present = false, survives = false, quiet = false }, { kind = "UnitClassFlag", name = "HutFrighten", range = "Local", present = true, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "gain_veterancy"
+action = "Gain Veterancy"
+actor_requirements = [{ kind = "UnitTypeFlag", name = "NoVeteran", range = "Local", present = false, survives = false, quiet = false }]
+target_requirements = []
+
+[[enablers]]
+id = "civil_war"
+action = "Civil War"
+actor_requirements = []
+target_requirements = []
+
+[[enablers]]
+id = "finish_unit"
+action = "Finish Unit"
+actor_requirements = []
+target_requirements = []
+
+[[enablers]]
+id = "finish_building"
+action = "Finish Building"
+actor_requirements = []
+target_requirements = []

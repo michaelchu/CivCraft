@@ -462,20 +462,7 @@ impl<'a> SimulationRequirementContext<'a> {
         requirement: &Requirement,
     ) -> Result<bool, RequirementEvaluationError> {
         let name = Self::string_name(requirement)?;
-        let record = self
-            .ruleset
-            .content
-            .iter()
-            .find(|record| {
-                record.kind == ContentKind::Building
-                    && (record.rule_name.eq_ignore_ascii_case(name)
-                        || record
-                            .display_name
-                            .as_deref()
-                            .is_some_and(|display| display.eq_ignore_ascii_case(name)))
-            })
-            .ok_or_else(|| Self::unsupported(requirement))?;
-        let Some(building) = self.runtime_building_for_record(record) else {
+        let Some(building) = runtime_building_for_name(name) else {
             return if self.unbound_content_is_absent {
                 Ok(false)
             } else {
@@ -483,18 +470,17 @@ impl<'a> SimulationRequirementContext<'a> {
             };
         };
 
-        // Freeciv checks improvement_obsolete() before all building ranges.
-        // Use the selected C2C3 `obsolete_by` requirements here: Civ III's
-        // catalog can obsolete a wonder at a different technology point.
-        for obsolete_by in &record.obsolete_by {
-            if requirements_met(std::slice::from_ref(obsolete_by), self)? {
-                return Ok(false);
-            }
-        }
-
         let local_city = self
             .city
             .or_else(|| self.tile.and_then(|(x, y)| self.simulation.city_at(x, y)));
+        // The native building catalog owns the selected obsolescence advance.
+        // Evaluate it before applying any Freeciv-style building range.
+        if local_city.is_some_and(|city| {
+            selected_building_is_obsolete(self.simulation, city, building, self.granted_tech)
+                == Some(true)
+        }) {
+            return Ok(false);
+        }
         let hypothetical_here = self.building_override == Some(building)
             && local_city.is_some_and(|city| city.owner == self.owner);
         match requirement.range {
@@ -529,57 +515,23 @@ impl<'a> SimulationRequirementContext<'a> {
         }
     }
 
-    fn runtime_building_for_record(
-        &self,
-        record: &crate::rules::freeciv::ContentRecord,
-    ) -> Option<Building> {
-        Building::all().find(|building| {
-            building.data().name.eq_ignore_ascii_case(&record.rule_name)
-                || record
-                    .display_name
-                    .as_deref()
-                    .is_some_and(|display| building.data().name.eq_ignore_ascii_case(display))
-                || c2c3_building_name_aliases(building.data().name)
-                    .iter()
-                    .any(|alias| alias.eq_ignore_ascii_case(&record.rule_name))
-        })
-    }
-
     fn building_flag_present(
         &self,
         requirement: &Requirement,
     ) -> Result<bool, RequirementEvaluationError> {
         let flag = Self::string_name(requirement)?;
-        let mut records = Vec::new();
-        for record in self
-            .ruleset
-            .content
-            .iter()
-            .filter(|record| record.kind == ContentKind::Building)
-        {
-            let flags = record
-                .string_list_field("flags")
-                .map_err(|_| Self::unsupported(requirement))?;
-            if flags.is_some_and(|flags| {
-                flags
-                    .iter()
-                    .any(|candidate| candidate.eq_ignore_ascii_case(flag))
-            }) {
-                records.push(record);
+        let mapped = if flag.eq_ignore_ascii_case("Barracks") {
+            vec![
+                Building::BARRACKS,
+                Building::BARRACKS_II,
+                Building::BARRACKS_III,
+            ]
+        } else {
+            if self.unbound_content_is_absent {
+                return Ok(false);
             }
-        }
-        if records.is_empty() {
             return Err(Self::unsupported(requirement));
-        }
-
-        let mut mapped = Vec::new();
-        for record in records {
-            if let Some(building) = self.runtime_building_for_record(record) {
-                mapped.push(building);
-            } else if !self.unbound_content_is_absent {
-                return Err(Self::unsupported(requirement));
-            }
-        }
+        };
 
         let local_city = self
             .city
@@ -1317,6 +1269,15 @@ fn c2c3_building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
         "Shakespeare's Theater" => &["Shakespeare's Theatre"],
         _ => &[],
     }
+}
+
+fn runtime_building_for_name(name: &str) -> Option<Building> {
+    Building::all().find(|building| {
+        building.data().name.eq_ignore_ascii_case(name)
+            || c2c3_building_name_aliases(building.data().name)
+                .iter()
+                .any(|alias| alias.eq_ignore_ascii_case(name))
+    })
 }
 
 fn native_building_for_runtime(
@@ -3150,14 +3111,15 @@ mod tests {
         let worker_context =
             SimulationRequirementContext::for_unit(&game, game.unit_by_id(worker).unwrap());
         assert!(!worker_context.is_present(&nuclear).unwrap());
-        assert!(matches!(
-            worker_context.is_present(&requirement(
-                "UnitType",
-                "Cruise Missile",
-                RequirementRange::Local,
-            )),
-            Err(RequirementEvaluationError::Unsupported { .. })
-        ));
+        assert!(
+            !worker_context
+                .is_present(&requirement(
+                    "UnitType",
+                    "Cruise Missile",
+                    RequirementRange::Local,
+                ))
+                .unwrap()
+        );
     }
 
     #[test]
