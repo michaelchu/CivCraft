@@ -106,10 +106,19 @@ mod tests {
         let warrior = Production::Unit(UnitKind::Warrior);
         game.players[HUMAN].known.push(Tech::POTTERY);
         for target in [warrior, worker, granary] {
-            assert!(game.apply(Command::EditWorklist(id, WorklistEdit::Append(target))));
+            assert!(game.apply(Command::EditWorklist {
+                city_id: id,
+                edit: WorklistEdit::Append(target),
+            }));
         }
-        assert!(game.apply(Command::EditWorklist(id, WorklistEdit::Move(2, 0))));
-        assert!(game.apply(Command::EditWorklist(id, WorklistEdit::Remove(1))));
+        assert!(game.apply(Command::EditWorklist {
+            city_id: id,
+            edit: WorklistEdit::Move(2, 0),
+        }));
+        assert!(game.apply(Command::EditWorklist {
+            city_id: id,
+            edit: WorklistEdit::Remove(1),
+        }));
         game.players[HUMAN]
             .known
             .retain(|&tech| tech != Tech::POTTERY);

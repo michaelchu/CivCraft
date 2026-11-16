@@ -31,7 +31,10 @@ pub(crate) enum Command {
     Automate(u32),
     Produce(u32, Production),
     RushProduction(u32),
-    EditWorklist(u32, WorklistEdit),
+    EditWorklist {
+        city_id: u32,
+        edit: WorklistEdit,
+    },
     SellBuilding(u32, Building),
     Research(Tech),
     RaiseRate(usize),
@@ -51,8 +54,16 @@ pub(crate) enum Command {
     CancelSharedVision(usize),
     DeclineOffer(usize),
     AcceptOffer(usize, super::TreatyOffer),
-    Specialist(u32, usize, i32),
-    WorkCityTile(u32, i32, i32),
+    Specialist {
+        city_id: u32,
+        index: usize,
+        delta: i32,
+    },
+    WorkCityTile {
+        city_id: u32,
+        x: i32,
+        y: i32,
+    },
     HomeCity(u32),
     BoardOrDeboard(u32),
     UnloadAll(u32),
@@ -65,7 +76,9 @@ pub(crate) enum Command {
     UpgradeUnit(u32, UnitKind, i32),
     LaunchSpaceship,
     ToggleManualAssembly,
-    PlaceShipPart(super::ShipPart),
+    PlaceShipPart {
+        part: super::ShipPart,
+    },
     EndTurn,
 }
 
@@ -171,7 +184,7 @@ impl Simulation {
             FoundCity(id) => self.found_city(id),
             LaunchSpaceship => self.launch_spaceship(HUMAN),
             ToggleManualAssembly => self.toggle_manual_assembly(),
-            PlaceShipPart(part) => self.place_ship_part(part),
+            PlaceShipPart { part } => self.place_ship_part(part),
             Disband(id, city) => self.disband_unit(id, city),
             NuclearStrike(id, x, y) => self.launch_nuclear_strike(id, x, y),
             HelpWonder(id, city) => self.help_wonder(id, city),
@@ -204,7 +217,7 @@ impl Simulation {
                 self.add_event(format!("{name} automation {state}."));
                 true
             }
-            EditWorklist(id, edit) => self.edit_worklist(id, edit),
+            EditWorklist { city_id, edit } => self.edit_worklist(city_id, edit),
             RushProduction(id) => self.rush_production(HUMAN, id),
             SellBuilding(id, building) => self.sell_building(HUMAN, id, building),
             Produce(id, kind) => {
@@ -235,8 +248,12 @@ impl Simulation {
                 self.perform_espionage(owner, mission, city, risk)
             }
             RaiseRate(index) => self.raise_rate(HUMAN, index),
-            WorkCityTile(id, x, y) => self.toggle_city_tile(id, x, y),
-            Specialist(id, index, delta) => self.assign_specialist(id, index, delta),
+            WorkCityTile { city_id, x, y } => self.toggle_city_tile(city_id, x, y),
+            Specialist {
+                city_id,
+                index,
+                delta,
+            } => self.assign_specialist(city_id, index, delta),
             BoardOrDeboard(id) => self.board_or_deboard(id),
             UnloadAll(id) => self.unload_all(id),
             UpgradeUnit(id, target, price) => self.upgrade_unit(id, target, price),
