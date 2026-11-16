@@ -1,6 +1,7 @@
 //! Advisor assessment of military threats and urgency.
 
 use super::*;
+use crate::sim::pathfinding::{Frontier, moves_left_after};
 
 impl Simulation {
     pub(in crate::sim) fn begin_ai_advisor_cache(&self) {
@@ -149,24 +150,18 @@ impl Simulation {
     }
 
     fn danger_route_costs(&self, unit: &Unit) -> Option<Vec<i32>> {
-        use std::{cmp::Reverse, collections::BinaryHeap};
         let allowance = self.unit_move_rate(unit);
         if allowance <= 0 {
             return None;
         }
         let limit = 4 * allowance - 1; // normal assess_danger horizon: turns0..3
         let start = self.map_wrap.index(unit.x, unit.y);
-        let mut distance = vec![i32::MAX; self.tiles.len()];
-        let mut queue = BinaryHeap::from([Reverse((0, start))]);
-        distance[start] = 0;
+        let mut frontier = Frontier::from_start(self.tiles.len(), i32::MAX, start, 0);
         let mut actor = unit.clone();
         actor.moves_left = allowance;
-        while let Some(Reverse((spent, index))) = queue.pop() {
-            if distance[index] != spent {
-                continue;
-            }
+        while let Some((spent, index, ())) = frontier.pop() {
             (actor.x, actor.y) = self.map_wrap.position(index);
-            let remaining = allowance - spent % allowance;
+            let remaining = moves_left_after(spent, allowance, allowance);
             for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
                 let index = self.map_wrap.index(x, y);
                 let cost = self.movement_cost_for(&actor, x, y);
@@ -174,17 +169,15 @@ impl Simulation {
                     continue;
                 };
                 let candidate = spent + cost.min(remaining);
-                if candidate <= limit && candidate < distance[index] {
-                    distance[index] = candidate;
-                    queue.push(Reverse((candidate, index)));
+                if candidate <= limit {
+                    frontier.relax(index, candidate);
                 }
             }
         }
-        Some(distance)
+        Some(frontier.into_costs())
     }
 
     fn danger_route_turns_uncached(&self, unit: &Unit, city: &City) -> Option<i32> {
-        use std::{cmp::Reverse, collections::BinaryHeap};
         // pft_fill_reverse_parameter uses a terrain-only reverse map: no
         // current movement, diplomacy, ZOC, fog or intervening-unit blockers.
         let allowance = self.unit_move_rate(unit);
@@ -194,20 +187,15 @@ impl Simulation {
         let limit = 4 * allowance - 1;
         let start = self.map_wrap.index(unit.x, unit.y);
         let goal = self.map_wrap.index(city.x, city.y);
-        let mut distance = vec![i32::MAX; self.tiles.len()];
-        let mut queue = BinaryHeap::from([Reverse((0, start))]);
-        distance[start] = 0;
+        let mut frontier = Frontier::from_start(self.tiles.len(), i32::MAX, start, 0);
         let mut actor = unit.clone();
         actor.moves_left = allowance;
-        while let Some(Reverse((spent, index))) = queue.pop() {
-            if distance[index] != spent {
-                continue;
-            }
+        while let Some((spent, index, ())) = frontier.pop() {
             if index == goal {
                 return Some(spent / allowance);
             }
             (actor.x, actor.y) = self.map_wrap.position(index);
-            let remaining = allowance - spent % allowance;
+            let remaining = moves_left_after(spent, allowance, allowance);
             for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
                 let index = self.map_wrap.index(x, y);
                 let cost = self.movement_cost_for(&actor, x, y).or_else(|| {
@@ -219,9 +207,8 @@ impl Simulation {
                     continue;
                 };
                 let candidate = spent + cost.min(remaining);
-                if candidate <= limit && candidate < distance[index] {
-                    distance[index] = candidate;
-                    queue.push(Reverse((candidate, index)));
+                if candidate <= limit {
+                    frontier.relax(index, candidate);
                 }
             }
         }

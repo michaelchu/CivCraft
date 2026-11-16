@@ -1,7 +1,7 @@
 //! Worker automation, tile assignment, and terrain improvement planning.
 
 use super::movement::WorkerRouteZoneCache;
-use super::pathfinding::reconstruct_path;
+use super::pathfinding::{Frontier, moves_left_after, reconstruct_path};
 use super::*;
 
 mod planning;
@@ -10,8 +10,7 @@ mod playtest;
 use planning::{WORKER_FACTOR, WorkMap, amortize};
 #[cfg(test)]
 use planning::{WorkerPlan, consider_action};
-use std::cmp::Reverse;
-use std::collections::{BTreeMap, BinaryHeap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 /// Native city requests are real input orders. The default AI produces none;
 /// callers with a request producer can pass them to the same planner.
@@ -97,15 +96,16 @@ impl Simulation {
         let _profile = profiler.scope("worker.route_map");
         self.trace.count_operation("worker.route_maps_built", 1);
         let start = self.map_wrap.index(unit.x, unit.y);
+        // Equal-cost tiles settle in the order they were queued.
+        let mut frontier: Frontier<i32, u32> = Frontier::new(self.tiles.len(), i32::MAX);
+        frontier.push(start, 0, 0, ());
         let mut result = WorkerRoutes {
             map_wrap: self.map_wrap,
-            costs: vec![i32::MAX; self.tiles.len()],
+            costs: Vec::new(),
             previous: vec![None; self.tiles.len()],
             start,
             expanded_nodes: 0,
         };
-        result.costs[start] = 0;
-        let mut queue = BinaryHeap::from([Reverse((0, 0, start))]);
         let mut expanded = 0_u64;
         let movement_profile = self.worker_route_movement_profile(unit.kind);
         // Worker routing runs before the advisor spatial index is built.
@@ -128,6 +128,7 @@ impl Simulation {
             if targets.is_empty() {
                 self.trace
                     .count_operation("worker.route_expansions", expanded);
+                result.costs = frontier.into_costs();
                 result.expanded_nodes = expanded;
                 return result;
             }
@@ -136,10 +137,7 @@ impl Simulation {
         let allowance = self.unit_move_rate(unit).max(1);
         let mut sequence = 0;
         let mut actor = unit.clone();
-        while let Some(Reverse((spent, _, index))) = queue.pop() {
-            if result.costs[index] != spent {
-                continue;
-            }
+        while let Some((spent, index, ())) = frontier.pop() {
             expanded += 1;
             if let Some(targets) = &mut remaining_targets
                 && targets.remove(&index)
@@ -148,11 +146,7 @@ impl Simulation {
                 break;
             }
             (actor.x, actor.y) = self.map_wrap.position(index);
-            let remaining = if spent < unit.moves_left {
-                unit.moves_left - spent
-            } else {
-                allowance - (spent - unit.moves_left.max(0)) % allowance
-            };
+            let remaining = moves_left_after(spent, unit.moves_left, allowance);
             for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
                 let Some((x, y)) = self.map_wrap.civ3_neighbor(actor.x, actor.y, direction) else {
                     continue;
@@ -191,11 +185,10 @@ impl Simulation {
                 };
                 let next = self.map_wrap.index(x, y);
                 let candidate = spent + cost.min(remaining);
-                if candidate < result.costs[next] {
-                    result.costs[next] = candidate;
+                if frontier.improves(next, candidate) {
                     result.previous[next] = Some((index, (dx, dy)));
                     sequence += 1;
-                    queue.push(Reverse((candidate, sequence, next)));
+                    frontier.push(next, candidate, sequence, ());
                 }
             }
         }
@@ -206,6 +199,7 @@ impl Simulation {
             .count_operation("worker.route_zoc_cache_hits", zoc_hits);
         self.trace
             .count_operation("worker.route_allied_unit_cache_hits", allied_hits);
+        result.costs = frontier.into_costs();
         result.expanded_nodes = expanded;
         result
     }

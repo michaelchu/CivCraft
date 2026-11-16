@@ -1,7 +1,7 @@
 //! City founding and settlement-site selection.
 
 use super::movement::{WorkerRouteMovementProfile, WorkerRouteZoneCache};
-use super::pathfinding::reconstruct_path_to_root;
+use super::pathfinding::{Frontier, moves_left_after, reconstruct_path_to_root};
 pub(super) mod observations;
 
 use super::*;
@@ -355,7 +355,6 @@ impl Simulation {
     }
 
     fn best_city_site_with_stats(&self, founder: &Unit) -> (Option<ScoredCitySite>, u64, u64) {
-        use std::{cmp::Reverse, collections::BinaryHeap};
         let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("settlement.best_city_site");
@@ -374,10 +373,8 @@ impl Simulation {
         };
         let mut route_zone_cache = WorkerRouteZoneCache::new(self);
         let movement_profile = self.worker_route_movement_profile(founder.kind);
-        let mut costs = vec![i32::MAX; self.tiles.len()];
+        let mut frontier = Frontier::from_start(self.tiles.len(), i32::MAX, start, 0);
         let mut previous = vec![None; self.tiles.len()];
-        costs[start] = 0;
-        let mut queue = BinaryHeap::from([Reverse((0, start))]);
         let mut best = None;
         let mut best_score = 0.0;
         let mut best_turn = 0;
@@ -385,10 +382,7 @@ impl Simulation {
         let allowance = self.unit_move_rate(founder).max(1);
         let mut expanded = 0_u64;
         let mut viable_candidates = 0_u64;
-        while let Some(Reverse((cost, index))) = queue.pop() {
-            if cost != costs[index] {
-                continue;
-            }
+        while let Some((cost, index, ())) = frontier.pop() {
             expanded += 1;
             let (x, y) = self.map_wrap.position(index);
             let turns = cost / allowance;
@@ -413,11 +407,7 @@ impl Simulation {
                 }
             }
             (traveler.x, traveler.y) = (x, y);
-            let remaining = if cost < founder.moves_left {
-                founder.moves_left - cost
-            } else {
-                allowance - (cost - founder.moves_left.max(0)) % allowance
-            };
+            let remaining = moves_left_after(cost, founder.moves_left, allowance);
             traveler.moves_left = remaining;
             for (nx, ny, step, direction) in self.settler_land_steps(
                 &traveler,
@@ -426,11 +416,8 @@ impl Simulation {
                 &movement_profile,
             ) {
                 let next = self.map_wrap.index(nx, ny);
-                let next_cost = cost + step.min(remaining);
-                if next_cost < costs[next] {
-                    costs[next] = next_cost;
+                if frontier.relax(next, cost + step.min(remaining)) {
                     previous[next] = Some((index, direction));
-                    queue.push(Reverse((next_cost, next)));
                 }
             }
         }

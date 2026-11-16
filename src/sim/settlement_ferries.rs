@@ -2,14 +2,12 @@
 
 use super::movement::WorkerRouteZoneCache;
 use super::normal_paths::GotoTask;
+use super::pathfinding::{Frontier, moves_left_after};
 use super::*;
 
 #[cfg(feature = "scenarios")]
 mod playtest;
-use std::{
-    cmp::Reverse,
-    collections::{BTreeMap, BinaryHeap},
-};
+use std::collections::BTreeMap;
 
 const SETTLEMENT_FERRY_ROLE: &str = "Ferryboat";
 
@@ -187,23 +185,18 @@ impl Simulation {
                 (cost - initial + speed - 1) / speed
             }
         };
-        let mut costs = vec![i32::MAX; self.tiles.len()];
+        let mut frontier = Frontier::from_start(self.tiles.len(), i32::MAX, start, 0);
         let mut previous = vec![None; self.tiles.len()];
-        let mut queue = BinaryHeap::from([Reverse((0, start))]);
         let mut rendezvous = vec![None; self.tiles.len()];
         let mut pickup_land_candidates = vec![Vec::<(i32, i32, usize)>::new(); self.tiles.len()];
         let (blocked_units, _, blocked_land, _) =
             self.settlement_route_blocked_tiles(founder.owner);
         let mut route_zone_cache = WorkerRouteZoneCache::new(self);
         let movement_profile = self.worker_route_movement_profile(founder.kind);
-        costs[start] = 0;
         let mut traveler = founder.clone();
         let mut expanded = 0_u64;
         let mut pickup_candidates = 0_u64;
-        while let Some(Reverse((cost, index))) = queue.pop() {
-            if cost != costs[index] {
-                continue;
-            }
+        while let Some((cost, index, ())) = frontier.pop() {
             expanded += 1;
             let land_turns = arrival(cost, land_initial, land_speed);
             let arrival_remaining = if cost <= land_initial {
@@ -211,11 +204,7 @@ impl Simulation {
             } else {
                 land_speed - (cost - land_initial - 1) % land_speed - 1
             };
-            let step_remaining = if cost < land_initial {
-                land_initial - cost
-            } else {
-                land_speed - (cost - land_initial) % land_speed
-            };
+            let step_remaining = moves_left_after(cost, land_initial, land_speed);
             let (x, y) = self.map_wrap.position(index);
             (traveler.x, traveler.y) = (x, y);
             traveler.moves_left = step_remaining;
@@ -247,11 +236,8 @@ impl Simulation {
                 &movement_profile,
             ) {
                 let next = self.map_wrap.index(nx, ny);
-                let next_cost = cost + step.min(step_remaining);
-                if next_cost < costs[next] {
-                    costs[next] = next_cost;
+                if frontier.relax(next, cost + step.min(step_remaining)) {
                     previous[next] = Some((index, direction));
-                    queue.push(Reverse((next_cost, next)));
                 }
             }
         }
@@ -419,24 +405,19 @@ impl Simulation {
         let sea_speed = self.unit_move_rate(ship);
         let land_speed = self.unit_move_rate(founder);
         let turn_cost = sea_speed * land_speed;
-        let mut sea_costs = vec![i32::MAX; self.tiles.len()];
-        let mut sea_queue = BinaryHeap::new();
-        let mut land_costs = vec![i32::MAX; self.tiles.len()];
+        // The sea search starts from every rendezvous and carries which one
+        // each route began at; the land search continues from its beaches.
+        let mut sea: Frontier<i32, (), usize> = Frontier::new(self.tiles.len(), i32::MAX);
+        let mut land = Frontier::new(self.tiles.len(), i32::MAX);
         let mut beaches = vec![None; self.tiles.len()];
         let mut previous = vec![None; self.tiles.len()];
-        let mut land_queue = BinaryHeap::new();
         for (meeting, rendezvous) in rendezvous.iter().enumerate() {
             let index = self.map_wrap.index(rendezvous.tile.0, rendezvous.tile.1);
-            let cost = rendezvous.turns * turn_cost;
-            sea_costs[index] = cost;
-            sea_queue.push(Reverse((cost, index, meeting)));
+            sea.push(index, rendezvous.turns * turn_cost, (), meeting);
         }
         let mut staged = ship.clone();
         let mut sea_expansions = 0_u64;
-        while let Some(Reverse((cost, tile, meeting))) = sea_queue.pop() {
-            if cost != sea_costs[tile] {
-                continue;
-            }
+        while let Some((cost, tile, meeting)) = sea.pop() {
             sea_expansions += 1;
             let (x, y) = self.map_wrap.position(tile);
             (staged.x, staged.y) = (x, y);
@@ -455,23 +436,17 @@ impl Simulation {
                         &mut route_zone_cache,
                         &movement_profile,
                     )
+                    && land.relax(index, cost + turn_cost)
                 {
-                    let cost = cost + turn_cost;
-                    if cost < land_costs[index] {
-                        land_costs[index] = cost;
-                        beaches[index] = Some(((x, y), meeting));
-                        land_queue.push(Reverse((cost, index)));
-                    }
+                    beaches[index] = Some(((x, y), meeting));
                 }
-                if cost + MOVE_FRAGMENTS * land_speed < sea_costs[index]
+                if sea.improves(index, cost + MOVE_FRAGMENTS * land_speed)
                     && self.tile(nx, ny).terrain.is_water()
                     && self.movement_cost_for(&staged, nx, ny).is_some()
                     && !self.treaty_blocks_move(&staged, nx, ny)
                     && !blocked
                 {
-                    let cost = cost + MOVE_FRAGMENTS * land_speed;
-                    sea_costs[index] = cost;
-                    sea_queue.push(Reverse((cost, index, meeting)));
+                    sea.push(index, cost + MOVE_FRAGMENTS * land_speed, (), meeting);
                 }
             }
         }
@@ -484,10 +459,7 @@ impl Simulation {
         let unit_cost = crate::sim::action_rules::unit_build_cost(founder.kind)
             + crate::sim::action_rules::unit_build_cost(ship.kind) / settings.ferry_cost_divisor;
         let mut land_expansions = 0_u64;
-        while let Some(Reverse((cost, index))) = land_queue.pop() {
-            if cost != land_costs[index] {
-                continue;
-            }
+        while let Some((cost, index, ())) = land.pop() {
             land_expansions += 1;
             let turns = cost / turn_cost;
             let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
@@ -513,12 +485,9 @@ impl Simulation {
                 &movement_profile,
             ) {
                 let next = self.map_wrap.index(nx, ny);
-                let cost = cost + step * sea_speed;
-                if cost < land_costs[next] {
-                    land_costs[next] = cost;
+                if land.relax(next, cost + step * sea_speed) {
                     beaches[next] = None;
                     previous[next] = Some((index, direction));
-                    land_queue.push(Reverse((cost, next)));
                 }
             }
         }

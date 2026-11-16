@@ -19,7 +19,7 @@ mod combat;
 mod routes;
 mod sentry;
 mod transports;
-use std::{cmp::Reverse, collections::BinaryHeap, sync::OnceLock};
+use std::sync::OnceLock;
 
 pub(super) struct WorkerRouteZoneCache {
     city_owners: Vec<Option<usize>>,
