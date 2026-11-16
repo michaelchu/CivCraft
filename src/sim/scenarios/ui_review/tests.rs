@@ -83,3 +83,13 @@ fn resource_shadow_review_scene_contains_every_civ3_resource() {
         assert_eq!(tile.terrain, Terrain::Sea, "{resource:?}");
     }
 }
+
+#[test]
+fn wrap_seam_review_unit_can_move_after_polar_edge_rejection() {
+    let mut sim = Simulation::new(crate::test_support::seeded_map());
+    let unit = ui_review_wrap_seam(&mut sim);
+    assert!(!sim.apply(Command::move_civ3_by_offset(&sim, unit, 0, -1)));
+    assert_eq!(sim.unit_by_id(unit).unwrap().y, 0);
+    assert!(sim.apply(Command::move_civ3_by_offset(&sim, unit, 1, 0)));
+    assert_eq!(sim.unit_by_id(unit).unwrap().y, 1);
+}

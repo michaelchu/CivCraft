@@ -966,9 +966,9 @@ impl Simulation {
     ) -> Option<usize> {
         let unit = self.unit_by_id(unit_id)?;
         let destination = self.map_wrap.offset(unit.x, unit.y, dx, dy)?;
-        self.map_wrap
-            .civ3_neighbors(unit.x, unit.y)
-            .position(|neighbor| neighbor == destination)
+        (0..super::topology::CIV3_DIRS.len()).find(|&direction| {
+            self.map_wrap.civ3_neighbor(unit.x, unit.y, direction) == Some(destination)
+        })
     }
 
     #[cfg(test)]
