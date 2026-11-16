@@ -369,19 +369,7 @@ impl Simulation {
     }
     /// Finds a live unit's position in the stable unit collection.
     pub(crate) fn unit_index_by_id(&self, id: u32) -> Option<usize> {
-        if let Some(index) = self.caches.unit_ids.borrow().get(&id).copied()
-            && self.units.get(index).is_some_and(|unit| unit.id == id)
-        {
-            return Some(index);
-        }
-        let index = self.units.iter().position(|unit| unit.id == id);
-        let mut cache = self.caches.unit_ids.borrow_mut();
-        if let Some(index) = index {
-            cache.insert(id, index);
-        } else {
-            cache.remove(&id);
-        }
-        index
+        self.caches.unit_index_by_id(id, &self.units)
     }
     /// Returns all cities in their stable simulation order.
     pub(crate) fn cities(&self) -> &[City] {
@@ -407,19 +395,7 @@ impl Simulation {
     }
     /// Finds a city's index by its persistent identifier.
     pub(crate) fn city_index_by_id(&self, id: u32) -> Option<usize> {
-        if let Some(index) = self.caches.city_ids.borrow().get(&id).copied()
-            && self.cities.get(index).is_some_and(|city| city.id == id)
-        {
-            return Some(index);
-        }
-        let index = self.cities.iter().position(|city| city.id == id);
-        let mut cache = self.caches.city_ids.borrow_mut();
-        if let Some(index) = index {
-            cache.insert(id, index);
-        } else {
-            cache.remove(&id);
-        }
-        index
+        self.caches.city_index_by_id(id, &self.cities)
     }
     /// Returns players in their stable slot order.
     pub(crate) fn players(&self) -> &[Player] {

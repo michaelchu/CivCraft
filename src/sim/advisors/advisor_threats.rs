@@ -1,12 +1,18 @@
 //! Advisor assessment of military threats and urgency.
 
-use super::*;
+use super::{ADVISOR_POWER_DIVIDER, GuardCityAssessment};
+use crate::rules::freeciv::EffectKind;
 use crate::sim::pathfinding::{Frontier, moves_left_after};
+use crate::sim::unit_catalog::{UnitClass, UnitFlag};
+use crate::sim::{
+    Base, Building, CITY_DEFEND_BONUS, City, FORTIFY_DEFENSE_BONUS, LARGE_CITY_DEFEND_BONUS,
+    LARGE_CITY_SIZE, MOVE_FRAGMENTS, POWER_FACTOR, Simulation, Unit, UnitKind, apply_percent_bonus,
+    percent_of,
+};
 
 impl Simulation {
     pub(in crate::sim) fn begin_ai_advisor_cache(&self) {
-        self.caches.threat_arrivals.borrow_mut().clear();
-        self.caches.danger_routes.borrow_mut().clear();
+        self.caches.clear_advisor_threats();
         let tile_count = self.tiles.len();
         let mut tile_unit_indices = vec![Vec::new(); tile_count];
         for (unit_index, unit) in self.units.iter().enumerate() {
@@ -45,23 +51,15 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn end_ai_advisor_cache(&self) {
-        self.caches.advisor_enabled.set(false);
-        self.caches.threat_routes_enabled.set(false);
-        self.caches.threat_arrivals.borrow_mut().clear();
-        self.caches.danger_routes.borrow_mut().clear();
-        *self.caches.spatial.borrow_mut() = Default::default();
+        self.caches.end_advisor_cache();
     }
 
     pub(in crate::sim) fn end_ai_advisor_cache_preserving_threat_routes(&self) {
-        self.caches.advisor_enabled.set(false);
-        *self.caches.spatial.borrow_mut() = Default::default();
-        self.caches.threat_routes_enabled.set(true);
+        self.caches.end_advisor_cache_preserving_threat_routes();
     }
 
     pub(in crate::sim) fn clear_ai_threat_route_cache(&self) {
-        self.caches.threat_routes_enabled.set(false);
-        self.caches.threat_arrivals.borrow_mut().clear();
-        self.caches.danger_routes.borrow_mut().clear();
+        self.caches.clear_ai_threat_route_cache();
     }
 
     pub(in crate::sim) fn any_unit_at(
@@ -70,7 +68,7 @@ impl Simulation {
         y: i32,
         predicate: impl Fn(&Unit) -> bool,
     ) -> bool {
-        if !self.caches.advisor_enabled.get() {
+        if !self.caches.advisor_cache_enabled() {
             return self
                 .units
                 .iter()
@@ -92,7 +90,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn city_at_cached(&self, x: i32, y: i32) -> Option<&City> {
-        if self.caches.advisor_enabled.get() {
+        if self.caches.advisor_cache_enabled() {
             let index = self.caches.spatial.borrow().city_at[self.map_wrap.index(x, y)]?;
             self.cities.get(index)
         } else {
@@ -106,7 +104,7 @@ impl Simulation {
         y: i32,
         predicate: impl Fn(&City) -> bool,
     ) -> bool {
-        if !self.caches.advisor_enabled.get() {
+        if !self.caches.advisor_cache_enabled() {
             return self
                 .cities
                 .iter()
@@ -117,7 +115,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn advisor_continent_labels(&self) -> Vec<usize> {
-        if self.caches.advisor_enabled.get() {
+        if self.caches.advisor_cache_enabled() {
             self.caches.spatial.borrow().continent_labels.clone()
         } else {
             self.continent_labels()
@@ -133,18 +131,15 @@ impl Simulation {
     }
 
     pub(super) fn danger_route_turns(&self, unit: &Unit, city: &City) -> Option<i32> {
-        if self.caches.threat_routes_enabled.get() && !unit.kind.is_naval() {
+        if self.caches.threat_route_cache_enabled() && !unit.kind.is_naval() {
             let goal = self.map_wrap.index(city.x, city.y);
-            if let Some(costs) = self.caches.danger_routes.borrow().get(&unit.id) {
+            if let Some(costs) = self.caches.danger_route(unit.id) {
                 let spent = costs[goal];
                 return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
             }
             let costs = self.danger_route_costs(unit)?;
             let spent = costs[goal];
-            self.caches
-                .danger_routes
-                .borrow_mut()
-                .insert(unit.id, costs);
+            self.caches.store_danger_route(unit.id, costs);
             return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
         }
         self.danger_route_turns_uncached(unit, city)
@@ -217,13 +212,13 @@ impl Simulation {
     }
 
     pub(super) fn city_danger_arrival(&self, unit: &Unit, city: &City) -> Option<i32> {
-        if self.caches.threat_routes_enabled.get() {
+        if self.caches.threat_route_cache_enabled() {
             let key = (unit.id, city.id);
-            if let Some(turns) = self.caches.threat_arrivals.borrow().get(&key) {
-                return *turns;
+            if let Some(turns) = self.caches.threat_arrival(key) {
+                return turns;
             }
             let turns = self.city_danger_arrival_uncached(unit, city);
-            self.caches.threat_arrivals.borrow_mut().insert(key, turns);
+            self.caches.store_threat_arrival(key, turns);
             return turns;
         }
         self.city_danger_arrival_uncached(unit, city)
@@ -290,7 +285,7 @@ impl Simulation {
     /// three-turn horizon. Ratings remain integer at native assignment points.
     pub(in crate::sim) fn advisor_guard_city_assessment(&self, city: &City) -> GuardCityAssessment {
         self.trace.count_operation("guard_assessment.calls", 1);
-        let cache_enabled = self.caches.advisor_enabled.get();
+        let cache_enabled = self.caches.advisor_cache_enabled();
         if cache_enabled
             && let Some(assessment) = self
                 .caches
@@ -346,7 +341,7 @@ impl Simulation {
             defense += rating;
         }
         result.defense = defense.min(1 << 15).pow(2);
-        if self.caches.advisor_enabled.get() {
+        if self.caches.advisor_cache_enabled() {
             self.caches
                 .spatial
                 .borrow_mut()

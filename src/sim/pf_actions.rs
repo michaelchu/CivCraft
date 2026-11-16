@@ -45,14 +45,8 @@ impl Simulation {
             * EXTRA_COMBINATIONS)
             + extras;
         let cache_len = CLASS_COUNT * TERRAIN_COUNT * BASE_VARIANTS * EXTRA_COMBINATIONS;
-        {
-            let mut cache = self.caches.native_tiles.borrow_mut();
-            if cache.is_empty() {
-                cache.resize(cache_len, -1);
-            }
-            if cache[index] >= 0 {
-                return cache[index] != 0;
-            }
+        if let Some(native) = self.caches.native_tile(index, cache_len) {
+            return native;
         }
         let native = MovementRules::campaign()
             .movement_tile_native_to_class(
@@ -64,7 +58,7 @@ impl Simulation {
                 class,
             )
             .expect("campaign C2C3 movement native_to data");
-        self.caches.native_tiles.borrow_mut()[index] = i8::from(native);
+        self.caches.store_native_tile(index, native);
         native
     }
 
@@ -125,7 +119,7 @@ impl Simulation {
             restricted,
             ignores,
         );
-        if let Some(cost) = self.caches.step_costs.borrow().get(&key).copied() {
+        if let Some(cost) = self.caches.step_cost(&key) {
             return cost;
         }
         let cost = rules
@@ -138,7 +132,7 @@ impl Simulation {
                 ignores,
             )
             .expect("campaign C2C3 step movement data");
-        self.caches.step_costs.borrow_mut().insert(key, cost);
+        self.caches.store_step_cost(key, cost);
         cost
     }
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
