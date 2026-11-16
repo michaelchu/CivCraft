@@ -2,6 +2,7 @@
 
 use super::*;
 
+#[cfg(test)]
 pub(super) fn neighbors(x: i32, y: i32) -> impl Iterator<Item = (i32, i32)> {
     FREECIV_ISOHEX_DIRS
         .into_iter()

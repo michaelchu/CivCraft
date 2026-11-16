@@ -3,13 +3,13 @@
 //! Startup parses command-line options, chooses the map topology and
 //! tileset, then either creates a new [`sim::Simulation`] or restores one from
 //! a campaign save. The same frame loop serves interactive play, screenshots,
-//! desktop playtests, and UI review captures; automated modes disable ordinary
+//! and UI review captures; automated modes disable ordinary
 //! input and autosaving so a run has reproducible side effects.
 //!
 //! Keep mode validation and shared initialization here. Gameplay rules belong
 //! in `sim`, while rendering and user interaction belong in `client`.
 
-use crate::{client, ensure_parent, mapgen, playtest, sim, visual_test};
+use crate::{client, ensure_parent, mapgen, sim, visual_test};
 
 use crate::client::{Assets, Game, MusicPlayer, Tileset, UiAction, UnitSoundPlayer};
 use macroquad::prelude::*;
@@ -41,7 +41,7 @@ fn parse_map_size(value: &str) -> Result<mapgen::Civ3MapSize, String> {
     value.parse()
 }
 
-/// Starts the game or one of its automated capture and playtest modes.
+/// Starts the game or one of its automated capture modes.
 pub async fn run_desktop() {
     if env::args().any(|arg| arg == "--wrap") {
         eprintln!("--wrap has been removed; CivCraft uses the Civ III horizontal map topology.");
@@ -115,7 +115,6 @@ pub async fn run_desktop() {
         std::process::exit(2);
     });
     let screenshot_path = argument_value("--screenshot");
-    let self_test_path = argument_value("--self-test");
     let ui_review = argument_value("--ui-review");
     let ui_baseline = argument_value("--ui-baseline");
     let similarity_argument = argument_value("--ui-min-similarity");
@@ -130,8 +129,8 @@ pub async fn run_desktop() {
             std::process::exit(2);
         });
     let single_scene = argument_value("--ui-scene");
-    if ui_review.is_some() && (self_test_path.is_some() || screenshot_path.is_some()) {
-        eprintln!("--ui-review must run separately from --self-test and --screenshot");
+    if ui_review.is_some() && screenshot_path.is_some() {
+        eprintln!("--ui-review must run separately from --screenshot");
         std::process::exit(2);
     }
     if single_scene.is_some() && ui_review.is_none() {
@@ -156,7 +155,7 @@ pub async fn run_desktop() {
     } else {
         (0..client::UI_REVIEW_SCENES.len()).collect()
     };
-    let automated = screenshot_path.is_some() || self_test_path.is_some() || ui_review.is_some();
+    let automated = screenshot_path.is_some() || ui_review.is_some();
     let args: Vec<_> = env::args().collect();
     let seed = if let Some(index) = args.iter().position(|arg| arg == "--seed") {
         args.get(index + 1)
@@ -246,9 +245,6 @@ pub async fn run_desktop() {
     });
     let mut sequence = client::UiReviewSequence::default();
     let mut changed_page = false;
-    let mut playtest = self_test_path
-        .clone()
-        .map(|path| playtest::Playtest::new(path, seed));
     let review_duration = |scene: usize| if (13..=15).contains(&scene) { 120 } else { 10 };
     let review_total_frames = review_scenes
         .iter()
@@ -259,10 +255,6 @@ pub async fn run_desktop() {
         if !automated {
             game.handle_keyboard();
             game.handle_mouse(&buttons);
-        }
-
-        if let Some(playtest) = &mut playtest {
-            playtest.advance(frame, &mut game, &buttons);
         }
 
         let music_cue = game
@@ -479,16 +471,6 @@ pub async fn run_desktop() {
         {
             ensure_parent(path);
             get_screen_data().export_png(path);
-            if self_test_path.is_none() {
-                break;
-            }
-        }
-        if frame >= 805
-            && let Some(playtest) = &mut playtest
-        {
-            if !playtest.finish(game.hud_elements_drawn) {
-                std::process::exit(1);
-            }
             break;
         }
         next_frame().await;
@@ -541,6 +523,5 @@ mod argument_tests {
             parsed_argument(&args, "--ui-review").unwrap(),
             Some("/tmp/review".into())
         );
-        assert_eq!(parsed_argument(&args, "--self-test").unwrap(), None);
     }
 }

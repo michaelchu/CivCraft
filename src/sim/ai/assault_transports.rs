@@ -73,6 +73,7 @@ impl Simulation {
             .min_by_key(|candidate| candidate.0)
     }
 
+    #[cfg(test)]
     pub(crate) fn assault_transport_playtest_has_orders(&mut self, owner: usize) -> bool {
         !self
             .dispatch_assault_transports(owner, |_| false, |_| false)

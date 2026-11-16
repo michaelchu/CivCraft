@@ -104,8 +104,10 @@ pub(crate) use pillage::PillageTarget;
 pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
+mod headless_scenarios;
+#[cfg(test)]
+#[allow(dead_code)]
 mod playtest;
-pub(crate) use playtest::{PlaytestHarness, PlaytestState};
 mod research;
 #[cfg(test)]
 mod research_phase;
@@ -475,6 +477,7 @@ impl Simulation {
         &self.players
     }
     /// Returns the accumulated player-facing event log.
+    #[cfg(test)]
     pub(crate) fn events(&self) -> &[String] {
         &self.events
     }
@@ -765,19 +768,24 @@ impl Simulation {
         (self.rng % max as u64) as i32
     }
 
+    #[cfg(test)]
     fn set_random_seed(&mut self, seed: u32) {
         self.native_random = Some(FreecivRng::new(seed));
     }
 
+    #[cfg(test)]
     fn random_snapshot(&self) -> (u64, Option<FreecivRng>) {
         (self.rng, self.native_random.clone())
     }
 
+    #[cfg(test)]
     fn restore_random(&mut self, snapshot: (u64, Option<FreecivRng>)) {
         (self.rng, self.native_random) = snapshot;
     }
 
     /// Reports whether the native random stream remains usable in playtest state.
+    #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn native_random_stream_playtest(&mut self) -> bool {
         let same = Self::new(crate::mapgen::generate_with_wrap(
             self.world_seed,

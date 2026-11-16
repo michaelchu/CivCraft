@@ -4,6 +4,8 @@ use super::movement::WorkerRouteZoneCache;
 use super::normal_paths::GotoTask;
 use super::*;
 
+#[cfg(test)]
+#[allow(dead_code)]
 mod playtest;
 use std::{
     cmp::Reverse,

@@ -6,10 +6,10 @@
 use super::{
     CityContextView, CityManagerView, Command, DiplomacyMeetingView, DiplomacyRivalView,
     EspionageRivalView, GameOverView, GotoPreview, GovernmentView, MinimapCityView,
-    MinimapTileView, MusicCueView, Pact, PlaytestHarness, PlaytestState, PresentationEventView,
-    RenderTileView, RenderedCityView, RenderedUnitView, ResearchProgressView, SelectableUnitView,
-    Simulation, SpaceshipAssemblyView, Tech, TechnologyResearchView, TopBarView, TreatyOffer,
-    UnitActionView, UnitContextView, UnitFidgetView,
+    MinimapTileView, MusicCueView, Pact, PresentationEventView, RenderTileView, RenderedCityView,
+    RenderedUnitView, ResearchProgressView, SelectableUnitView, Simulation, SpaceshipAssemblyView,
+    Tech, TechnologyResearchView, TopBarView, TreatyOffer, UnitActionView, UnitContextView,
+    UnitFidgetView,
 };
 use crate::world::topology::MapWrap;
 use std::collections::VecDeque;
@@ -34,22 +34,6 @@ impl ClientSimulation {
 
     pub(crate) fn save_campaign(&self, path: &Path) -> io::Result<()> {
         self.simulation.save_campaign(path)
-    }
-
-    /// Mutable scenario and fixture access for the dedicated playtest harness.
-    pub(crate) fn playtest_harness(&mut self) -> PlaytestHarness<'_> {
-        PlaytestHarness::new(&mut self.simulation)
-    }
-
-    /// Copy campaign state for a playtest scenario that advances turns or
-    /// changes fixtures without affecting the interactive review session.
-    pub(crate) fn isolated_playtest_copy(&self) -> Self {
-        Self::new(self.simulation.clone())
-    }
-
-    /// Read-only state inspection for deterministic playtest assertions.
-    pub(crate) fn playtest_state(&self) -> PlaytestState<'_> {
-        PlaytestState::new(&self.simulation)
     }
 
     pub(crate) fn research_unit_unlocks(tech: Tech) -> Vec<&'static str> {

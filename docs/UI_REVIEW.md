@@ -94,14 +94,13 @@ Every scene produces its primary screenshot. A `-next.png` is saved only after a
 CPU draw-submission timings, setup/capture timings and border-cache statistics.
 Failed checks, baseline mismatches, missing controls, out-of-window hitboxes,
 unchanged next-page captures and report-write failures return a nonzero exit
-status. `--ui-review` runs separately from `--self-test` and `--screenshot` to
-keep their state mutations independent. Missing automation-flag arguments fail
+status. `--ui-review` runs separately from `--screenshot` to keep their state
+mutations independent. Missing automation-flag arguments fail
 rather than starting interactive play.
 
-Repeat at 800x600 and 1600x900 to inspect compact and wide layouts. Run the desktop interaction suite separately:
+Repeat at 800x600 and 1600x900 to inspect compact and wide layouts. Run the Rust test suite separately:
 
 ```sh
-./target/release/civcraft --seed 42 --self-test /tmp/civcraft-ui-interactions.json
 cargo test --offline
 ```
 

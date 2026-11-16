@@ -5,6 +5,7 @@ use super::*;
 
 impl UnitKind {
     // IgZOC and absence of UCF_ZOC are separate native exemptions.
+    #[cfg(test)]
     pub(super) fn ignores_zoc(self) -> bool {
         super::action_rules::freeciv_unit_type_flag(self, "IgZOC")
             .expect("campaign C2C3 unit-type IgZOC binding")

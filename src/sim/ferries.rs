@@ -127,6 +127,7 @@ impl Simulation {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn ferry_available_count(&self, owner: usize) -> usize {
         self.units
             .iter()

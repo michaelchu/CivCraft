@@ -14,6 +14,7 @@ impl Simulation {
             && city.was_happy
     }
 
+    #[cfg(test)]
     pub(super) fn government_food_output(
         &self,
         city: &City,

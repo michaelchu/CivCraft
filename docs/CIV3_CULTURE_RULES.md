@@ -1206,7 +1206,8 @@ verification.
   case confirms that the explicit 20,000 single-city victory remains active on
   the 36×48 campaign topology, while a 102,000 empire total does not assume a
   threshold the Conquests Civilopedia does not provide for custom maps.
-- Latest prescribed seed-42 desktop `--self-test` (2026-11-11), launched with
+- Latest prescribed seed-42 legacy desktop interaction test (2026-11-11), run
+  before the legacy interaction runner was removed, launched with
   desktop access after a successful release build, exited 1 and passed 175/217
   checks. The `culture_accumulation` assertion passed: a Temple accrued 2
   points at 999 years and 4 at the configured 1,000-year boundary; a city at 9
@@ -1293,7 +1294,7 @@ verification.
 - Latest `cargo test --offline culture -- --nocapture`: 20 passed, including
   the obsolete-Wonder case; these are implementation checks, not runtime
   observations of the original game.
-- Rebuilt release and ran the desktop `--self-test` with seed 42 and the
+- Rebuilt release and ran the legacy desktop interaction test with seed 42 and the
   installed source directory. The fresh report
   `/tmp/civcraft-playtest-culture-x232cJ/report.json` records 2/11 checks
   passing. Failures: move (no scripted move), act/economy (treasury/research
@@ -1408,8 +1409,8 @@ verification.
   to assimilate while the city nationality is not a strict majority, conversion
   when it is, two successful per-citizen rolls in one city turn, and the
   tied-population boundary.
-- After the assimilation change, rebuilt release and ran the seed-42 desktop
-  `--self-test` with `CIVCRAFT_SOURCE_DIR=../source`. The complete fresh report
+- After the assimilation change, rebuilt release and ran the seed-42 legacy
+  desktop interaction test with `CIVCRAFT_SOURCE_DIR=../source`. The complete fresh report
   `/tmp/civcraft-playtest-culture-assimilation-m1Ycec/report.json` records 2/11
   checks passing (HUD and city foundation). Movement, economy, city labor, and
   worker controls fail; government, civil-war, and diplomacy checks are skipped

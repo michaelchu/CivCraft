@@ -428,6 +428,7 @@ impl Simulation {
         (choice, martial)
     }
 
+    #[cfg(test)]
     pub(in crate::sim) fn city_defense_production(&self, city: &City) -> Option<Production> {
         self.native_city_defense_choice(city)
             .0
@@ -629,6 +630,7 @@ impl Simulation {
         (military, false, severe)
     }
 
+    #[cfg(test)]
     pub(in crate::sim) fn military_build_advice(
         &self,
         city: &City,

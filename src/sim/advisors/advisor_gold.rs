@@ -307,6 +307,7 @@ impl Simulation {
         self.ai_sell_for_solvency(owner);
     }
 
+    #[cfg(test)]
     pub(crate) fn spend_ai_defense_gold(&mut self, owner: usize) {
         let choices = self
             .player_cities_ordered(owner)

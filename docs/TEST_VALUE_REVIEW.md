@@ -41,7 +41,6 @@ problems below required inspecting what the assertions actually exercised.
 | Rules/catalog parsing | 47 | Retain source-data mappings, parser and malformed-input checks. |
 | World geometry | 14 | Retain coordinate, topology, seam, boundary and direction checks. |
 | Analytics/headless | 10 | Retain registration, typed provider serialization, configuration, finding lifecycle and evidence/report checks. Trace parity/collector checks are counted under simulation. |
-| Playtest report/harness | 5 | Retain prerequisite gating, failure reporting and UI-script/fixture integration checks. |
 | RNG | 4 | Retain native oracle/state checks. |
 | Visual review reports | 3 | Retain detection and preservation of failures rather than treating unchanged pixels as success. |
 | Desktop CLI | 2 | Retain malformed automation-flag and map-size checks. |

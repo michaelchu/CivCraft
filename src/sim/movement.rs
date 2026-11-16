@@ -971,6 +971,7 @@ impl Simulation {
             .position(|neighbor| neighbor == destination)
     }
 
+    #[cfg(test)]
     pub(crate) fn try_move_unit_civ3_by_offset(
         &mut self,
         unit_id: u32,

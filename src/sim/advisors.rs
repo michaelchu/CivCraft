@@ -12,6 +12,8 @@ use advisor_buildings::DefenseEffectContext;
 use super::unit_catalog::{UnitClass, UnitFlag};
 use super::*;
 
+#[cfg(test)]
+#[allow(dead_code)]
 mod playtest;
 use crate::rules::{Genus, Requirement};
 

@@ -43,6 +43,7 @@ pub(crate) enum Command {
         Option<u32>,
         super::EspionageRisk,
     ),
+    #[allow(dead_code)]
     Negotiate(usize, super::Pact),
     ProposeTreaty(usize, super::TreatyOffer),
     ShareTreatyCityMap(usize, u32),

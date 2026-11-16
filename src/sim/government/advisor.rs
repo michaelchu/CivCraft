@@ -314,6 +314,7 @@ impl super::Simulation {
             .0
     }
 
+    #[cfg(test)]
     pub(crate) fn ai_government_cache_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();

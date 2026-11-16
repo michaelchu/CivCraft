@@ -46,8 +46,8 @@ without scripted actions omit that extra boundary.
 
 Reusable state mutation belongs in simulation-level scenario helpers. Scenario
 definitions compose setup, actions, and checks; desktop-only input/rendering
-assertions stay in the desktop playtest layer. This allows engine scenarios to
-migrate out of `--self-test` without coupling the headless runner to UI code.
+assertions belong in the visual review path without coupling the headless
+runner to UI code.
 
 ## Add a game trace
 
