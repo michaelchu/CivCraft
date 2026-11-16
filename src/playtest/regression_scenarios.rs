@@ -123,21 +123,17 @@ const REGISTERED_SCENARIO_FRAMES: &[(u32, &str)] = &[
 /// independent of the campaign seed under test.
 const REGISTERED_SCENARIO_MAP_SEED: u64 = 42;
 
-impl Playtest {
-    pub(super) fn advance_regression_scenarios(
-        &mut self,
-        frame: u32,
-        game: &mut Game,
-        buttons: &[(Rect, UiAction)],
-    ) {
-        self.advance_registered_scenarios(frame);
-        self.advance_early_scenarios(frame, game, buttons);
-        self.advance_military_scenarios(frame, game, buttons);
-        self.advance_native_rule_scenarios(frame, game);
-        self.advance_research_scenarios(frame, game, buttons);
-    }
+/// The window-dependent regression scripts, evaluated each frame after the
+/// registered scenarios scheduled for it.
+pub(super) const SCRIPTS: &[&[Step]] = &[
+    early::STEPS,
+    military::STEPS,
+    native_rules::STEPS,
+    research::STEPS,
+];
 
-    fn advance_registered_scenarios(&mut self, frame: u32) {
+impl Playtest {
+    pub(super) fn advance_registered_scenarios(&mut self, frame: u32) {
         for &(_, id) in REGISTERED_SCENARIO_FRAMES
             .iter()
             .filter(|(scheduled, _)| *scheduled == frame)

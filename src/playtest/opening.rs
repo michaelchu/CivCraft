@@ -2,21 +2,16 @@
 
 use super::*;
 
-impl Playtest {
-    pub(super) fn advance_opening(
-        &mut self,
-        frame: u32,
-        game: &mut Game,
-        buttons: &[(Rect, UiAction)],
-    ) {
-        if frame == 12
-            && let Some(unit) = game
-                .sim
-                .playtest_state()
-                .units()
-                .iter()
-                .find(|unit| unit.owner == HUMAN && unit.kind != UnitKind::Settler)
-                .cloned()
+/// Scripted steps in the order the self-test evaluates them.
+pub(super) const STEPS: &[Step] = &[
+    Step::at(12, |test, game, _buttons| {
+        if let Some(unit) = game
+            .sim
+            .playtest_state()
+            .units()
+            .iter()
+            .find(|unit| unit.owner == HUMAN && unit.kind != UnitKind::Settler)
+            .cloned()
         {
             for direction in 0..CIV3_DIRS.len() {
                 if game
@@ -35,8 +30,8 @@ impl Playtest {
                             .sim
                             .playtest_state()
                             .map_distance(unit.x, unit.y, after.x, after.y);
-                        self.move_passed = distance > 0;
-                        self.move_detail = format!(
+                        test.move_passed = distance > 0;
+                        test.move_detail = format!(
                             "{} moved {distance} tile from {},{} to {},{} using terrain movement costs",
                             unit.kind.name(),
                             unit.x,
@@ -49,51 +44,50 @@ impl Playtest {
                 }
             }
         }
-
-        if frame == 30
-            && let Some(settler_id) = game
-                .sim
-                .playtest_state()
-                .units()
-                .iter()
-                .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settler)
-                .map(|u| u.id)
+    }),
+    Step::at(30, |test, game, _buttons| {
+        if let Some(settler_id) = game
+            .sim
+            .playtest_state()
+            .units()
+            .iter()
+            .find(|u| u.owner == HUMAN && u.kind == UnitKind::Settler)
+            .map(|u| u.id)
         {
             let cities_before = game.sim.playtest_state().cities().len();
             game.selected_unit = Some(settler_id);
             game.perform_action(UiAction::FoundCity);
             let cities_after = game.sim.playtest_state().cities().len();
-            self.act_passed = cities_after == cities_before + 1;
-            if self.act_passed {
+            test.act_passed = cities_after == cities_before + 1;
+            if test.act_passed {
                 game.complete_playtest_presentation();
             }
-            self.act_detail = if self.act_passed {
+            test.act_detail = if test.act_passed {
                 "Settlers founded a city, claimed its workable tiles, and opened city production"
                     .to_owned()
             } else {
                 "Settlers could not found a city at the scripted starting tile".to_owned()
             };
         }
-
-        if (34..=54).contains(&frame) {
-            self.advance_city_tiles(frame, game, buttons);
-        }
-
-        // Wait for the city panel and controls to be live before using them.
-        if (43..=54).contains(&frame)
-            && self.city_tiles_complete
-            && !self.city_manager_closed
+    }),
+    Step::during(34, 54, |test, game, buttons| {
+        test.advance_city_tiles(test.frame, game, buttons);
+    }),
+    // Wait for the city panel and controls to be live before using them.
+    Step::during(43, 54, |test, game, buttons| {
+        if test.city_tiles_complete
+            && !test.city_manager_closed
             && let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::CloseCity))
         {
             game.perform_action(action.clone());
-            self.city_manager_closed = true;
+            test.city_manager_closed = true;
         }
-
-        if (45..=54).contains(&frame)
-            && self.city_manager_closed
-            && !self.tax_step_complete
+    }),
+    Step::during(45, 54, |test, game, buttons| {
+        if test.city_manager_closed
+            && !test.tax_step_complete
             && let Some((_, rate_button)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::RaiseRate(1)))
@@ -115,26 +109,29 @@ impl Playtest {
             let expected_research = player.research + science;
             game.sim.playtest_harness().apply(Command::EndTurn);
             let player = &game.sim.playtest_state().players()[HUMAN];
-            self.act_passed = rate_changed
+            test.act_passed = rate_changed
                 && player.gold == expected_gold
                 && player.research == expected_research;
-            self.act_detail.push_str(&format!(
+            test.act_detail.push_str(&format!(
                 ". Used the tax control and ended the turn. Tax rate changed to the expected 50/50 split: {rate_changed}. Treasury {} (expected {expected_gold}), research {} (expected {expected_research}).",
                 player.gold,
                 player.research
             ));
-            self.tax_step_complete = true;
+            test.tax_step_complete = true;
         }
-        if frame == 54 && !self.tax_step_complete {
-            self.act_passed = false;
-            self.act_detail
+    }),
+    Step::at(54, |test, _game, _buttons| {
+        if !test.tax_step_complete {
+            test.act_passed = false;
+            test.act_detail
                 .push_str(". The city closed, but the tax control did not become available.");
-            self.tax_step_complete = true;
+            test.tax_step_complete = true;
         }
-        if (53..=54).contains(&frame)
-            && self.tax_step_complete
-            && self.act_passed
-            && !self.city_focus_selected
+    }),
+    Step::during(53, 54, |test, game, _buttons| {
+        if test.tax_step_complete
+            && test.act_passed
+            && !test.city_focus_selected
             && let Some(city) = game
                 .sim
                 .playtest_state()
@@ -143,20 +140,21 @@ impl Playtest {
                 .find(|city| city.owner == HUMAN)
         {
             game.select_at(city.x, city.y);
-            self.city_focus_selected = true;
+            test.city_focus_selected = true;
         }
-
-        // The city manager is modal: use its close control before touching HUD rates.
-        if frame == 76
-            && self.act_passed
+    }),
+    // The city manager is modal: use its close control before touching HUD rates.
+    Step::at(76, |test, game, buttons| {
+        if test.act_passed
             && let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::CloseCity))
         {
             game.perform_action(action.clone());
         }
-
-        if frame == 55 && self.act_passed {
+    }),
+    Step::at(55, |test, game, buttons| {
+        if test.act_passed {
             let city = game
                 .sim
                 .playtest_state()
@@ -180,13 +178,14 @@ impl Playtest {
                 .unwrap();
             let after = game.sim.playtest_state().city_yields(city);
             let science = game.sim.playtest_state().city_trade(city, 0)[0];
-            self.act_passed = city.specialists == [1, 0, 0] && before != after && science == 2;
-            self.act_detail.push_str(&format!(
+            test.act_passed = city.specialists == [1, 0, 0] && before != after && science == 2;
+            test.act_detail.push_str(&format!(
                 " Scientist replaced a tile worker and provided {science} science."
             ));
         }
-
-        if frame == 65 && self.act_passed {
+    }),
+    Step::at(65, |test, game, buttons| {
+        if test.act_passed {
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Specialist(_, 0, -1)))
@@ -195,7 +194,7 @@ impl Playtest {
             }
             let mut isolated = game.sim.isolated_playtest_copy();
             let verified = isolated.playtest_harness().despotism_upkeep_playtest();
-            self.results.push((
+            test.results.push((
                 "unit_upkeep",
                 verified,
                 format!(
@@ -203,8 +202,9 @@ impl Playtest {
                 ),
             ));
         }
-
-        if frame == 78 && self.act_passed {
+    }),
+    Step::at(78, |test, game, buttons| {
+        if test.act_passed {
             game.sim.playtest_harness().government_ui_playtest_setup();
             if let Some((_, action)) = buttons
                 .iter()
@@ -213,7 +213,9 @@ impl Playtest {
                 game.perform_action(action.clone());
             }
         }
-        if frame == 83 && self.act_passed {
+    }),
+    Step::at(83, |test, game, buttons| {
+        if test.act_passed {
             use sim::Government;
             let locked = !buttons.iter().any(|(_, action)| {
                 matches!(action, UiAction::ChangeGovernment(Government::Monarchy))
@@ -224,15 +226,17 @@ impl Playtest {
                 game.perform_action(action.clone());
             }
             let player = &game.sim.playtest_state().players()[HUMAN];
-            self.act_passed = locked
+            test.act_passed = locked
                 && player.government == Government::Anarchy
                 && player.revolution_target == Some(Government::Despotism);
-            self.act_detail.push_str(&format!(
+            test.act_detail.push_str(&format!(
                 " Government panel enforced the tech lock and started Anarchy: {}.",
-                self.act_passed
+                test.act_passed
             ));
         }
-        if frame == 90 && self.act_passed {
+    }),
+    Step::at(90, |test, game, _buttons| {
+        if test.act_passed {
             use sim::Government;
             let finish = game.sim.playtest_state().players()[HUMAN]
                 .revolution_turn
@@ -264,24 +268,25 @@ impl Playtest {
             let adopted =
                 game.sim.playtest_state().players()[HUMAN].government == Government::Despotism;
             game.sim.playtest_harness().apply(Command::EndTurn);
-            self.act_passed = adopted
+            test.act_passed = adopted
                 && upkeep.shields == 0
                 && game.sim.playtest_state().players()[HUMAN].gold == treasury;
-            self.act_detail.push_str(&format!(
+            test.act_detail.push_str(&format!(
                 " Despotism applied {} gold and {} shield unit upkeep and settled the treasury correctly: {}.",
-                upkeep.gold, upkeep.shields, self.act_passed
+                upkeep.gold, upkeep.shields, test.act_passed
             ));
         }
-
-        if frame == 98 && self.act_passed {
+    }),
+    Step::at(98, |test, game, buttons| {
+        if test.act_passed {
             if let Some((unit, direction)) = game.sim.playtest_harness().civil_war_playtest() {
                 game.selected_unit = Some(unit);
-                self.civil_war_attack_direction = Some(direction);
+                test.civil_war_attack_direction = Some(direction);
             } else {
                 game.selected_unit = None;
-                self.civil_war_attack_direction = None;
+                test.civil_war_attack_direction = None;
             }
-            self.act_passed = game.selected_unit.is_some();
+            test.act_passed = game.selected_unit.is_some();
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ToggleDiplomacy))
@@ -289,25 +294,31 @@ impl Playtest {
                 game.perform_action(action.clone());
             }
         }
-        if frame == 101 && self.act_passed {
+    }),
+    Step::at(101, |test, game, buttons| {
+        if test.act_passed {
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::OpenDiplomacyWith(1)))
             {
                 game.perform_action(action.clone());
             }
-            self.act_passed = game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::War;
+            test.act_passed = game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::War;
         }
-        if frame == 102 && self.act_passed {
+    }),
+    Step::at(102, |test, game, buttons| {
+        if test.act_passed {
             if let Some((_, action)) = buttons.iter().find(|(_, action)| {
                 matches!(action, UiAction::ProposeTreaty(1, offer)
                     if offer.pact == Some(sim::Pact::Ceasefire))
             }) {
                 game.perform_action(action.clone());
             }
-            self.act_passed = game.sim.playtest_state().pact_turns(HUMAN, 1) == 16;
+            test.act_passed = game.sim.playtest_state().pact_turns(HUMAN, 1) == 16;
         }
-        if frame == 105 && self.act_passed {
+    }),
+    Step::at(105, |test, game, buttons| {
+        if test.act_passed {
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::CancelPact(1)))
@@ -317,14 +328,16 @@ impl Playtest {
             let ceasefire_turns = game.sim.playtest_state().pact_turns(HUMAN, 1);
             let attack_blocked = !game.sim.playtest_harness().apply(Command::MoveCiv3(
                 game.selected_unit.unwrap(),
-                self.civil_war_attack_direction.unwrap(),
+                test.civil_war_attack_direction.unwrap(),
             ));
-            self.act_passed = ceasefire_turns == 16 && attack_blocked;
-            self.act_detail.push_str(&format!(
+            test.act_passed = ceasefire_turns == 16 && attack_blocked;
+            test.act_detail.push_str(&format!(
                 " Senate veto preserved the {ceasefire_turns}-turn ceasefire and blocked the attack: {attack_blocked}."
             ));
         }
-        if frame == 115 && self.act_passed {
+    }),
+    Step::at(115, |test, game, _buttons| {
+        if test.act_passed {
             game.sim
                 .playtest_harness()
                 .apply(Command::Government(sim::Government::Despotism));
@@ -336,7 +349,7 @@ impl Playtest {
             let rebel = game.sim.playtest_state().players().len();
             let moved = game.sim.playtest_harness().apply(Command::MoveCiv3(
                 game.selected_unit.unwrap(),
-                self.civil_war_attack_direction.unwrap(),
+                test.civil_war_attack_direction.unwrap(),
             ));
             let cities = game
                 .sim
@@ -352,15 +365,15 @@ impl Playtest {
                 .iter()
                 .filter(|city| city.owner == 1)
                 .count();
-            self.act_passed = moved
+            test.act_passed = moved
                 && cities == 4
                 && game.sim.playtest_state().players()[1].government == sim::Government::Anarchy;
-            if self.act_passed {
+            if test.act_passed {
                 game.sim
                     .playtest_harness()
                     .civil_war_playtest_resume_diplomacy();
                 game.sim.playtest_harness().apply(Command::EndTurn);
-                self.act_passed = game.sim.playtest_state().players()[1].government
+                test.act_passed = game.sim.playtest_state().players()[1].government
                     == sim::Government::Despotism
                     && game
                         .sim
@@ -369,19 +382,22 @@ impl Playtest {
                         .iter()
                         .any(|city| city.owner == rebel);
             }
-            self.act_detail.push_str(&format!(" Revolution lifted the veto; pact cancellation {cancellation}, capital move {moved}, remaining rival cities {rival_cities}, rebel cities {cities}: {}.", self.act_passed));
+            test.act_detail.push_str(&format!(" Revolution lifted the veto; pact cancellation {cancellation}, capital move {moved}, remaining rival cities {rival_cities}, rebel cities {cities}: {}.", test.act_passed));
         }
-
-        if frame == 122 && self.act_passed {
+    }),
+    Step::at(122, |test, game, _buttons| {
+        if test.act_passed {
             game.perform_action(UiAction::ToggleDiplomacy);
         }
-        if frame == 125 && self.act_passed {
+    }),
+    Step::at(125, |test, game, _buttons| {
+        if test.act_passed {
             game.perform_action(UiAction::OpenDiplomacyWith(1));
             let refused_early_peace = !game
                 .sim
                 .playtest_harness()
                 .apply(Command::Negotiate(1, sim::Pact::Peace));
-            self.act_passed = refused_early_peace
+            test.act_passed = refused_early_peace
                 && game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Ceasefire;
             let peace_refused = refused_early_peace;
             let ceasefire_held = game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Ceasefire;
@@ -390,12 +406,14 @@ impl Playtest {
                 .diplomacy_playtest_technologies(false);
             game.sim.playtest_harness().diplomacy_playtest_friendship();
             game.sim.playtest_harness().diplomacy_playtest_tick(12);
-            self.act_detail.push_str(&format!(
+            test.act_detail.push_str(&format!(
                 " Diplomacy setup: early peace refused {peace_refused}, ceasefire held {ceasefire_held}, AI offer {:?}.",
                 game.sim.playtest_state().pact_offer(1)
             ));
         }
-        if frame == 128 && self.act_passed {
+    }),
+    Step::at(128, |test, game, _buttons| {
+        if test.act_passed {
             let treaty_offer = game.sim.playtest_state().treaty_offer(1);
             let offered = treaty_offer
                 .as_ref()
@@ -403,7 +421,7 @@ impl Playtest {
             if let Some(offer) = treaty_offer.as_ref() {
                 game.perform_action(UiAction::AcceptOffer(1, offer.clone()));
             }
-            self.act_passed =
+            test.act_passed =
                 offered && game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Armistice;
             let accepted_offer = game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Armistice;
             let acceptance_event = game
@@ -418,23 +436,25 @@ impl Playtest {
                 .diplomacy_playtest_technologies(true);
             game.sim.playtest_harness().diplomacy_playtest_tick(16);
             let matured = game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Peace;
-            self.diplomacy_probe = game.sim.playtest_harness().diplomacy_playtest_unit(1);
+            test.diplomacy_probe = game.sim.playtest_harness().diplomacy_playtest_unit(1);
             game.sim
                 .playtest_harness()
                 .diplomacy_playtest_alliance_offer_setup();
             game.sim.playtest_harness().diplomacy_playtest_tick(1);
             let peace_held = game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Peace;
-            let entry_blocked = self.diplomacy_probe.is_some_and(|(unit, _, _, direction)| {
+            let entry_blocked = test.diplomacy_probe.is_some_and(|(unit, _, _, direction)| {
                 !game
                     .sim
                     .playtest_harness()
                     .apply(Command::MoveCiv3(unit, direction))
             });
-            self.act_passed &= peace_held && entry_blocked;
-            self.act_detail.push_str(&format!(" AI refused early peace, then offered it after the ceasefire held. Offer presented {offered} ({treaty_offer:?}), accepted {accepted_offer} ({acceptance_event}), armistice matured {matured}, peace held {peace_held}, peace blocked entry {entry_blocked}: {}.", self.act_passed));
+            test.act_passed &= peace_held && entry_blocked;
+            test.act_detail.push_str(&format!(" AI refused early peace, then offered it after the ceasefire held. Offer presented {offered} ({treaty_offer:?}), accepted {accepted_offer} ({acceptance_event}), armistice matured {matured}, peace held {peace_held}, peace blocked entry {entry_blocked}: {}.", test.act_passed));
         }
-        if frame == 132 && self.act_passed {
-            self.vision_probe = game
+    }),
+    Step::at(132, |test, game, _buttons| {
+        if test.act_passed {
+            test.vision_probe = game
                 .sim
                 .playtest_harness()
                 .diplomacy_playtest_hidden_city(1);
@@ -443,33 +463,35 @@ impl Playtest {
                 .playtest_state()
                 .treaty_offer(1)
                 .unwrap_or_default();
-            self.act_passed = offer.pact == Some(sim::Pact::Alliance) && !offer.bundled();
-            let diagnostics = if self.act_passed {
+            test.act_passed = offer.pact == Some(sim::Pact::Alliance) && !offer.bundled();
+            let diagnostics = if test.act_passed {
                 String::new()
             } else {
                 game.sim
                     .playtest_harness()
                     .diplomacy_playtest_alliance_offer_diagnostics()
             };
-            self.act_detail.push_str(&format!(
+            test.act_detail.push_str(&format!(
                 " Pure alliance proposal available: {} (offer {offer:?}, hidden-city probe: {}, {diagnostics}).",
-                self.act_passed,
-                self.vision_probe.is_some()
+                test.act_passed,
+                test.vision_probe.is_some()
             ));
         }
-        if frame == 136 && self.act_passed {
+    }),
+    Step::at(136, |test, game, buttons| {
+        if test.act_passed {
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::AcceptOffer(1, _)))
             {
                 game.perform_action(action.clone());
             }
-            let (unit, x, y, direction) = self.diplomacy_probe.unwrap();
+            let (unit, x, y, direction) = test.diplomacy_probe.unwrap();
             let entered = game
                 .sim
                 .playtest_harness()
                 .apply(Command::MoveCiv3(unit, direction));
-            self.act_passed = entered
+            test.act_passed = entered
                 && game.sim.playtest_state().pact(HUMAN, 1) == sim::Pact::Alliance
                 && game
                     .sim
@@ -477,25 +499,30 @@ impl Playtest {
                     .cities()
                     .iter()
                     .any(|city| (city.x, city.y, city.owner) == (x, y, 1));
-            self.act_detail.push_str(&format!(
+            test.act_detail.push_str(&format!(
                 " Reviewed a pure alliance proposal and entered the allied city peacefully: {}.",
-                self.act_passed
+                test.act_passed
             ));
         }
-        if frame == 138 && self.act_passed {
+    }),
+    Step::at(138, |test, game, _buttons| {
+        if test.act_passed {
             game.sim
                 .playtest_harness()
                 .diplomacy_playtest_allied_sharing();
         }
-        if frame == 141
-            && self.act_passed
+    }),
+    Step::at(141, |test, game, buttons| {
+        if test.act_passed
             && let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ReviewOffer(1, _)))
         {
             game.perform_action(action.clone());
         }
-        if frame == 144 && self.act_passed {
+    }),
+    Step::at(144, |test, game, buttons| {
+        if test.act_passed {
             let offer = game
                 .sim
                 .playtest_state()
@@ -510,7 +537,7 @@ impl Playtest {
                 game.perform_action(action.clone());
             }
             let gold = offer.terms[0].gold;
-            self.act_passed = offer.pact.is_none()
+            test.act_passed = offer.pact.is_none()
                 && gold > 0
                 && game.sim.playtest_state().players()[HUMAN].gold == human_gold - gold
                 && game.sim.playtest_state().players()[1].gold == ai_gold + gold
@@ -522,28 +549,33 @@ impl Playtest {
                     .known
                     .iter()
                     .any(|tech| tech.name() == "Pottery")
-                && self
+                && test
                     .vision_probe
                     .is_some_and(|(x, y)| game.sim.playtest_state().tile(x, y).visible);
-            self.act_detail.push_str(&format!(
+            test.act_detail.push_str(&format!(
                 " Established allies exchanged Pottery, Writing, {gold} gold, and live vision: {}.",
-                self.act_passed
+                test.act_passed
             ));
         }
-        if frame == 145 && self.act_passed {
+    }),
+    Step::at(145, |test, game, _buttons| {
+        if test.act_passed {
             game.sim
                 .playtest_harness()
                 .diplomacy_playtest_allied_exchange();
         }
-        if frame == 146
-            && self.act_passed
+    }),
+    Step::at(146, |test, game, buttons| {
+        if test.act_passed
             && let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::ReviewOffer(1, _)))
         {
             game.perform_action(action.clone());
         }
-        if frame == 147 && self.act_passed {
+    }),
+    Step::at(147, |test, game, buttons| {
+        if test.act_passed {
             let offer = game
                 .sim
                 .playtest_state()
@@ -561,7 +593,7 @@ impl Playtest {
                 game.perform_action(action.clone());
             }
             let paid = offer.terms[1].gold;
-            self.act_passed = offer.pact.is_none()
+            test.act_passed = offer.pact.is_none()
                 && baseline.is_some_and(|base| paid > base)
                 && game.sim.playtest_state().players()[HUMAN].gold == gold + paid
                 && game.sim.playtest_state().players()[HUMAN]
@@ -572,29 +604,33 @@ impl Playtest {
                     .known
                     .iter()
                     .any(|tech| tech.name() == "Currency");
-            self.act_detail.push_str(&format!(" Allied AI paid Warrior Code plus {paid} gold for Currency, above the {baseline:?}-gold base difference with current embassy leakage using a controlled retained prior-phase research snapshot: {}.", self.act_passed));
+            test.act_detail.push_str(&format!(" Allied AI paid Warrior Code plus {paid} gold for Currency, above the {baseline:?}-gold base difference with current embassy leakage using a controlled retained prior-phase research snapshot: {}.", test.act_passed));
         }
-        if frame == 148 && self.act_passed {
+    }),
+    Step::at(148, |test, game, _buttons| {
+        if test.act_passed {
             game.perform_action(UiAction::CancelPact(1));
             let alliance_cancelled =
                 game.sim.playtest_state().pact(HUMAN, 1) != sim::Pact::Alliance;
-            let explicit_vision_retained = self
+            let explicit_vision_retained = test
                 .vision_probe
                 .is_some_and(|(x, y)| game.sim.playtest_state().tile(x, y).visible);
             game.sim.playtest_harness().diplomacy_playtest_tick(1);
-            let vision_revoked = self.vision_probe.is_some_and(|(x, y)| {
+            let vision_revoked = test.vision_probe.is_some_and(|(x, y)| {
                 let tile = game.sim.playtest_state().tile(x, y);
                 tile.seen && !tile.visible
             });
-            self.act_passed = alliance_cancelled && explicit_vision_retained && vision_revoked;
-            self.act_detail.push_str(&format!(
+            test.act_passed = alliance_cancelled && explicit_vision_retained && vision_revoked;
+            test.act_detail.push_str(&format!(
                 " Explicit vision survived alliance cancellation, then the AI revoked its own grant on its next diplomacy phase while map knowledge remained: pact cancelled {alliance_cancelled}, vision retained {explicit_vision_retained}, revoked {vision_revoked}: {}.",
-                self.act_passed
+                test.act_passed
             ));
             game.perform_action(UiAction::ToggleDiplomacy);
         }
-    }
+    }),
+];
 
+impl Playtest {
     fn advance_city_tiles(&mut self, frame: u32, game: &mut Game, buttons: &[(Rect, UiAction)]) {
         if self.city_tiles_complete || !self.act_passed {
             return;

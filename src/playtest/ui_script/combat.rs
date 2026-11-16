@@ -2,14 +2,10 @@
 
 use super::*;
 
-impl Playtest {
-    pub(super) fn advance_combat_ui(
-        &mut self,
-        frame: u32,
-        game: &mut Game,
-        buttons: &[(Rect, UiAction)],
-    ) {
-        if frame == 252 && self.act_passed {
+/// Scripted steps in the order the self-test evaluates them.
+pub(super) const STEPS: &[Step] = &[
+    Step::at(252, |test, game, _buttons| {
+        if test.act_passed {
             super::reset_founded_city_scenario(game);
             let (home, expected_rank) = game.sim.playtest_harness().veteran_playtest_setup();
             game.perform_action(UiAction::EndTurn);
@@ -27,15 +23,19 @@ impl Playtest {
             if let Some(id) = trained {
                 game.perform_action(UiAction::SelectUnit(id));
             }
-            self.results.push(("veterancy", trained.is_some(),
+            test.results.push(("veterancy", trained.is_some(),
                 format!("A city with Barracks completed a veteran Warrior through the end-turn control: {}.", trained.is_some())));
         }
-        if frame == 256 && self.act_passed {
+    }),
+    Step::at(256, |test, game, _buttons| {
+        if test.act_passed {
             super::reset_founded_city_scenario(game);
             let warrior = game.sim.playtest_harness().upgrade_playtest_setup();
             game.perform_action(UiAction::SelectUnit(warrior));
         }
-        if frame == 258 && self.act_passed {
+    }),
+    Step::at(258, |test, game, buttons| {
+        if test.act_passed {
             let gold = game.sim.playtest_state().players()[HUMAN].gold;
             let upgrade = buttons.iter().find_map(|(_, action)| match action {
                 UiAction::UpgradeUnit(UnitKind::Legionary, price) => Some((action.clone(), *price)),
@@ -50,21 +50,23 @@ impl Playtest {
                         })
                     })
             });
-            self.results.push(("unit_upgrade", upgraded,
+            test.results.push(("unit_upgrade", upgraded,
                 format!("Paid the displayed upgrade price and converted a hardened Warrior into a veteran Legionary: {upgraded}.")));
         }
-        if frame == 267 && self.act_passed {
+    }),
+    Step::at(267, |test, game, _buttons| {
+        if test.act_passed {
             super::reset_founded_city_scenario(game);
             let team = game
                 .sim
                 .playtest_harness()
                 .cooperative_work_playtest_setup();
-            self.work_team = Some(team);
+            test.work_team = Some(team);
             game.perform_action(UiAction::SelectUnit(team.0));
         }
-        if frame == 269
-            && let Some((_, second)) = self.work_team
-        {
+    }),
+    Step::at(269, |test, game, buttons| {
+        if let Some((_, second)) = test.work_team {
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Irrigate))
@@ -73,9 +75,9 @@ impl Playtest {
             }
             game.perform_action(UiAction::SelectUnit(second));
         }
-        if frame == 271
-            && let Some((first, second)) = self.work_team
-        {
+    }),
+    Step::at(271, |test, game, buttons| {
+        if let Some((first, second)) = test.work_team {
             if let Some((_, action)) = buttons
                 .iter()
                 .find(|(_, action)| matches!(action, UiAction::Irrigate))
@@ -101,10 +103,12 @@ impl Playtest {
                             .any(|unit| unit.id == id && unit.work_kind.is_none())
                     })
             });
-            self.results.push(("cooperative_work", completed,
+            test.results.push(("cooperative_work", completed,
                 format!("Two Workers completed the same five-turn irrigation project in three turns: {completed}.")));
         }
-        if frame == 275 && self.act_passed {
+    }),
+    Step::at(275, |test, game, _buttons| {
+        if test.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (bomber, targets) = game.sim.playtest_harness().bombard_playtest_setup();
             let target = game
@@ -133,10 +137,12 @@ impl Playtest {
                     .units()
                     .iter()
                     .any(|unit| unit.id == bomber && unit.moves_left == 0);
-            self.results.push(("bombardment", bombarded,
+            test.results.push(("bombardment", bombarded,
                 format!("Bomber hit both ground targets without retaliation and spent its remaining movement: {bombarded}.")));
         }
-        if frame == 279 && self.act_passed {
+    }),
+    Step::at(279, |test, game, _buttons| {
+        if test.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (fighter, bomber) = game.sim.playtest_harness().fighter_playtest_setup();
             game.perform_action(UiAction::SelectUnit(fighter));
@@ -156,7 +162,7 @@ impl Playtest {
                     .units()
                     .iter()
                     .any(|unit| unit.id == fighter);
-            self.results.push((
+            test.results.push((
                 "fighter_interception",
                 intercepted,
                 format!(
@@ -164,7 +170,9 @@ impl Playtest {
                 ),
             ));
         }
-        if frame == 283 && self.act_passed {
+    }),
+    Step::at(283, |test, game, _buttons| {
+        if test.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (carrier, fighter) = game.sim.playtest_harness().carrier_playtest_setup();
             game.perform_action(UiAction::SelectUnit(fighter));
@@ -187,21 +195,23 @@ impl Playtest {
                 .playtest_harness()
                 .apply_move_civ3_by_offset(fighter, 1, 0)
                 && game.sim.playtest_state().cargo_count(carrier) == 0;
-            self.results.push(("carrier_operations", landed && sailed && fueled && launched,
+            test.results.push(("carrier_operations", landed && sailed && fueled && launched,
                 format!("Fighter landed: {landed}. Carrier sailed: {sailed}. Fighter refueled: {fueled}. Fighter launched: {launched}.")));
         }
-        if frame == 287 && self.act_passed {
+    }),
+    Step::at(287, |test, game, _buttons| {
+        if test.act_passed {
             super::reset_founded_city_scenario(game);
             let scenario = game
                 .sim
                 .playtest_harness()
                 .stealth_aircraft_playtest_setup();
-            self.stealth_aircraft = Some(scenario);
+            test.stealth_aircraft = Some(scenario);
             game.perform_action(UiAction::SelectUnit(scenario.0));
         }
-        if frame == 289
-            && let Some((bomber, target)) = self.stealth_aircraft
-        {
+    }),
+    Step::at(289, |test, game, _buttons| {
+        if let Some((bomber, target)) = test.stealth_aircraft {
             let mapped = game
                 .sim
                 .playtest_state()
@@ -228,10 +238,12 @@ impl Playtest {
                     .units()
                     .iter()
                     .any(|unit| unit.id == bomber && unit.moves_left == 0);
-            self.results.push(("stealth_aircraft", mapped && bombarded,
+            test.results.push(("stealth_aircraft", mapped && bombarded,
                 format!("Civ III catalog supplied the Stealth Bomber directly because it has no Bomber upgrade link: {mapped}. Its mapped bombard action consumed its remaining movement: {bombarded}.")));
         }
-        if frame == 290 && self.act_passed {
+    }),
+    Step::at(290, |test, game, _buttons| {
+        if test.act_passed {
             super::reset_founded_city_scenario(game);
             let (helicopter, passenger) = game.sim.playtest_harness().helicopter_playtest_setup();
             game.perform_action(UiAction::SelectUnit(passenger));
@@ -252,10 +264,12 @@ impl Playtest {
                 .units()
                 .iter()
                 .any(|unit| unit.id == helicopter && unit.hp == 3 && unit.fuel == 0);
-            self.results.push(("helicopter", boarded && flew && stayed_aboard && took_damage,
+            test.results.push(("helicopter", boarded && flew && stayed_aboard && took_damage,
                 format!("Boarded in city: {boarded}. Flew: {flew}. Field unloading was blocked: {stayed_aboard}. Retained Civ III HP and remained airborne: {took_damage}.")));
         }
-        if frame == 292 && self.act_passed {
+    }),
+    Step::at(292, |test, game, _buttons| {
+        if test.act_passed {
             let mut defense = [0; 2];
             for (index, protected) in [false, true].into_iter().enumerate() {
                 *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
@@ -264,10 +278,12 @@ impl Playtest {
                     .playtest_harness()
                     .sam_battery_defense_playtest(protected);
             }
-            self.results.push(("sam_battery", defense[1] > defense[0],
+            test.results.push(("sam_battery", defense[1] > defense[0],
                 format!("C2C3 defense against an Air attacker without and with a SAM Battery: {defense:?}.")));
         }
-        if frame == 294 && self.act_passed {
+    }),
+    Step::at(294, |test, game, _buttons| {
+        if test.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (helicopter, cruiser) = game.sim.playtest_harness().aegis_playtest_setup();
             game.perform_action(UiAction::SelectUnit(helicopter));
@@ -287,7 +303,7 @@ impl Playtest {
                     .units()
                     .iter()
                     .any(|unit| unit.id == cruiser);
-            self.results.push((
+            test.results.push((
                 "aegis_cruiser",
                 attacked && repelled,
                 format!(
@@ -295,7 +311,9 @@ impl Playtest {
                 ),
             ));
         }
-        if frame == 296 && self.act_passed {
+    }),
+    Step::at(296, |test, game, _buttons| {
+        if test.act_passed {
             *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
             let (carrier, missile, target) =
                 game.sim.playtest_harness().cruise_missile_playtest_setup();
@@ -318,10 +336,12 @@ impl Playtest {
                     .units()
                     .iter()
                     .any(|unit| unit.id == carrier);
-            self.results.push(("cruise_missile", boarded && launched && resolved,
+            test.results.push(("cruise_missile", boarded && launched && resolved,
                 format!("Missile boarded: {boarded}. Launched from transport: {launched}. Target destroyed and missile expended: {resolved}.")));
         }
-        if frame == 298 && self.act_passed {
+    }),
+    Step::at(298, |test, game, _buttons| {
+        if test.act_passed {
             let mut outcomes = [false; 2];
             for (index, intercepted) in [false, true].into_iter().enumerate() {
                 *game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
@@ -358,10 +378,12 @@ impl Playtest {
                         target.id == city && target.size == if intercepted { 4 } else { 2 }
                     });
             }
-            self.results.push(("nuclear_strike", outcomes == [true, true],
+            test.results.push(("nuclear_strike", outcomes == [true, true],
                 format!("Strike destroyed the garrison and halved the city's population: {}. Nearby SDI intercepted the other strike: {}.", outcomes[0], outcomes[1])));
         }
-        if frame == 300 && self.act_passed {
+    }),
+    Step::at(300, |test, game, _buttons| {
+        if test.act_passed {
             let mut outcomes = [false; 2];
             for (index, warming) in [true, false].into_iter().enumerate() {
                 super::reset_founded_city_scenario(game);
@@ -385,7 +407,7 @@ impl Playtest {
                         })
                     });
             }
-            self.results.push((
+            test.results.push((
                 "climate_change",
                 outcomes == [true, true],
                 format!(
@@ -394,5 +416,5 @@ impl Playtest {
                 ),
             ));
         }
-    }
-}
+    }),
+];

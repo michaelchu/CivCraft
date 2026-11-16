@@ -17,8 +17,60 @@ mod regression_scenarios;
 #[path = "ui_script.rs"]
 mod ui_script;
 
+/// One scripted action or assertion of the desktop self-test.
+type StepAction = fn(&mut Playtest, &mut Game, &[(Rect, UiAction)]);
+
+/// The frames on which a step is evaluated. Frame numbers are the self-test's
+/// timeline: later steps rely on the presentation and turn state that earlier
+/// frames produced, so they are data here rather than control flow.
+enum When {
+    At(u32),
+    Either(u32, u32),
+    /// Every frame of an inclusive window, for steps that wait on the UI.
+    During(u32, u32),
+}
+
+/// A step and the frames on which the self-test evaluates it.
+pub(super) struct Step {
+    when: When,
+    action: StepAction,
+}
+
+impl Step {
+    const fn at(frame: u32, action: StepAction) -> Self {
+        Self {
+            when: When::At(frame),
+            action,
+        }
+    }
+
+    const fn at_either(first: u32, second: u32, action: StepAction) -> Self {
+        Self {
+            when: When::Either(first, second),
+            action,
+        }
+    }
+
+    const fn during(first: u32, last: u32, action: StepAction) -> Self {
+        Self {
+            when: When::During(first, last),
+            action,
+        }
+    }
+
+    fn is_due(&self, frame: u32) -> bool {
+        match self.when {
+            When::At(at) => frame == at,
+            When::Either(first, second) => frame == first || frame == second,
+            When::During(first, last) => (first..=last).contains(&frame),
+        }
+    }
+}
+
 pub(crate) struct Playtest {
     path: String,
+    /// The frame currently being evaluated.
+    frame: u32,
     move_passed: bool,
     move_detail: String,
     act_passed: bool,
@@ -45,6 +97,7 @@ impl Playtest {
     pub(crate) fn new(path: String, seed: u64) -> Self {
         Self {
             path,
+            frame: 0,
             move_passed: false,
             move_detail: "No scripted move completed".to_owned(),
             act_passed: false,
@@ -69,9 +122,11 @@ impl Playtest {
     }
 
     pub(crate) fn advance(&mut self, frame: u32, game: &mut Game, buttons: &[(Rect, UiAction)]) {
-        self.advance_opening(frame, game, buttons);
-        self.advance_ui_script(frame, game, buttons);
-        self.advance_regression_scenarios(frame, game, buttons);
+        self.frame = frame;
+        self.run_due_steps(&[opening::STEPS], game, buttons);
+        self.run_due_steps(ui_script::SCRIPTS, game, buttons);
+        self.advance_registered_scenarios(frame);
+        self.run_due_steps(regression_scenarios::SCRIPTS, game, buttons);
         if let Some(step) = match frame {
             30 => Some("foundation"),
             65 => Some("economy"),
@@ -94,6 +149,20 @@ impl Playtest {
             }
             self.previous_passed = self.act_passed;
             self.detail_offset = self.act_detail.len();
+        }
+    }
+
+    /// Evaluates, in script and declaration order, every step due this frame.
+    fn run_due_steps(
+        &mut self,
+        scripts: &[&[Step]],
+        game: &mut Game,
+        buttons: &[(Rect, UiAction)],
+    ) {
+        for step in scripts.iter().flat_map(|script| script.iter()) {
+            if step.is_due(self.frame) {
+                (step.action)(self, game, buttons);
+            }
         }
     }
 
@@ -150,9 +219,9 @@ mod opening_scenario_tests {
         let mut game = Game::new(sim::Simulation::new(map));
         let mut playtest = Playtest::new("unused-report.json".to_owned(), 42);
 
-        playtest.advance_opening(12, &mut game, &[]);
+        playtest.advance(12, &mut game, &[]);
         assert!(playtest.move_passed, "{}", playtest.move_detail);
-        playtest.advance_opening(30, &mut game, &[]);
+        playtest.advance(30, &mut game, &[]);
         assert!(playtest.act_passed, "{}", playtest.act_detail);
     }
 }

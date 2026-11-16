@@ -19,16 +19,10 @@ fn reset_founded_city_scenario(game: &mut Game) {
     game.perform_action(UiAction::CloseCity);
 }
 
-impl Playtest {
-    pub(super) fn advance_ui_script(
-        &mut self,
-        frame: u32,
-        game: &mut Game,
-        buttons: &[(Rect, UiAction)],
-    ) {
-        self.advance_worker_terrain_ui(frame, game, buttons);
-        self.advance_combat_ui(frame, game, buttons);
-        self.advance_economy_ui(frame, game, buttons);
-        self.advance_naval_ai_ui(frame, game, buttons);
-    }
-}
+/// The UI scripts in the order the self-test evaluates them each frame.
+pub(super) const SCRIPTS: &[&[Step]] = &[
+    worker_terrain::STEPS,
+    combat::STEPS,
+    economy::STEPS,
+    naval_ai::STEPS,
+];
