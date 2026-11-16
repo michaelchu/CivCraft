@@ -9,7 +9,6 @@ mod observer;
 mod offers;
 mod pacts;
 #[cfg(test)]
-#[allow(dead_code)]
 mod scenarios;
 mod vision;
 mod war_planning;

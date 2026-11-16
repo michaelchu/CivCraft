@@ -101,7 +101,7 @@ fn founder_city_want_must_be_strictly_greater_than_actual_worker_want() {
 }
 
 #[test]
-fn settlement_goal_government_desktop_fixture() {
+fn settlement_goal_government_fixture() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_settlement_goal_government_playtest());
 }

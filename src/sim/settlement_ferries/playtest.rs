@@ -64,39 +64,4 @@ impl super::Simulation {
             && self.ferry_boss(small).is_none();
         (speculative, reselected, blocked)
     }
-
-    pub(crate) fn rendezvous_route_playtest(&mut self) -> bool {
-        self.units.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Sea;
-            tile.resource = None;
-        }
-        let early = (10, 24);
-        let later = offset_native_by_map(early.0, early.1, 10, 0);
-        let island = offset_native_by_map(later.0, later.1, 1, 0);
-        self.tile_mut(island.0, island.1).terrain = Terrain::Grassland;
-        let labels = self.continent_labels();
-        let founder = self.make_unit(0, 1, UnitKind::Settler, early.0, early.1);
-        let ship = self.make_unit(0, 1, UnitKind::Galley, early.0, early.1);
-        let meetings = [
-            Rendezvous {
-                tile: early,
-                turns: 0,
-                walk: Vec::new(),
-            },
-            Rendezvous {
-                tile: later,
-                turns: 2,
-                walk: vec![(1, 0)],
-            },
-        ];
-        let early_plan = self.settlement_ferry_route(&founder, &ship, &labels, 0, &meetings[..1]);
-        let combined = self.settlement_ferry_route(&founder, &ship, &labels, 0, &meetings);
-        early_plan.zip(combined).is_some_and(|(early, best)| {
-            best.pickup == later
-                && best.destination == island
-                && best.pickup_walk == meetings[1].walk
-                && best.value > early.value
-        })
-    }
 }

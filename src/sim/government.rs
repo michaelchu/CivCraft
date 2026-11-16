@@ -247,31 +247,6 @@ impl Simulation {
         (!available.is_empty()).then(|| available[self.rand_below(available.len() as i32) as usize])
     }
 
-    #[cfg(test)]
-    pub(super) fn government_city_value(&self, city: &City) -> i32 {
-        let forecast = self.city_forecast(city);
-        let food = forecast.food_surplus(city.size, forecast.support.food);
-        let shields = if forecast.disorder {
-            0
-        } else {
-            forecast.shields - forecast.support.shields
-        };
-        let gold = forecast.gold - forecast.building_upkeep - forecast.support.gold;
-        30 * food + 17 * shields + 18 * gold + 21 * forecast.science
-    }
-
-    #[cfg(test)]
-    pub(super) fn project_government_output(&self, owner: usize) -> i32 {
-        let mut projected = self.clone();
-        projected.arrange_government_workers(owner);
-        projected
-            .cities
-            .iter()
-            .filter(|city| city.owner == owner)
-            .map(|city| projected.government_city_value(city))
-            .sum()
-    }
-
     pub(crate) fn can_change_government(&self, owner: usize, target: Government) -> bool {
         target != self.players[owner].government && self.government_requirements_met(owner, target)
     }

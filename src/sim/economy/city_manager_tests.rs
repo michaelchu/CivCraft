@@ -312,7 +312,7 @@ fn conquests_governments_do_not_apply_fundamentalism_tithes() {
 }
 
 #[test]
-fn city_manager_desktop_fixture() {
+fn city_manager_fixture() {
     let game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_city_manager_playtest());
 }

@@ -3,7 +3,6 @@
 use super::*;
 
 #[cfg(test)]
-#[allow(dead_code)]
 mod playtest;
 
 // dai/default/daihand.c:dai_manage_taxes, Normal/Civ2Civ3 configuration.

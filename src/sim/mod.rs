@@ -106,7 +106,6 @@ use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
 mod headless_scenarios;
 #[cfg(test)]
-#[allow(dead_code)]
 mod playtest;
 mod research;
 #[cfg(test)]

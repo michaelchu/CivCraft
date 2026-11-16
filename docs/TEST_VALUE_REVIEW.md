@@ -1,10 +1,20 @@
 # Test-value review
 
-Baseline: `b6272ff` on main (merged shared-harness optimizations). This review
+This document records a historical review at baseline `b6272ff` on main
+(merged shared-harness optimizations). That review
 inventoried **998 Rust tests in 142 files** and **7 Python exporter tests in two
 files**. A one-time local inventory recorded each test's source location,
 screening result, and any specific action. It is not checked in because it would
 become stale as tests change; the lasting decisions are documented below.
+
+## Current main status
+
+On 2026-11-16, after removing obsolete test-only scenario helpers and consolidating
+test naming, the current main suite reports **1,080 passed and 1 ignored** across
+all targets. `cargo nextest run --profile ci --all-targets` reports the same
+suite as **1,081 tests run and 1 skipped**; `cargo test --doc` has zero doctests.
+The historical counts and failure lists below are retained as review evidence,
+not as the current suite status.
 
 ## Review criteria and scope
 
@@ -120,7 +130,7 @@ Seven newly independent scenario tests pass; ferry research preserves the
 existing failure. This improves execution coverage and diagnosis rather than
 hiding the failure or weakening an expected value.
 
-## Verification
+## Historical verification snapshot
 
 - Full Rust suite: **1,001 tests; 980 passed, 21 failed**, 33.29 seconds excluding
   compilation. Zero doctests. All eight split scenarios execute independently.
@@ -129,8 +139,9 @@ hiding the failure or weakening an expected value.
 - Checked every distinct moved metadata assertion against the catalog coverage.
 - Compared changed Rust files with their baseline after removing test functions,
   comments and whitespace: **non-test implementation tokens are unchanged**.
-- No tests are ignored, no failure expectations are relaxed, and no golden
-  fixtures, gameplay rules, source records or search budgets are changed.
+- The historical snapshot had no ignored tests. The current suite has one
+  intentionally ignored test; no failure expectations are relaxed, and no
+  golden fixtures, gameplay rules, source records or search budgets are changed.
 
 The net increase from 998 to 1,001 reflects splitting useful checks, not a goal
 of growing the test count. Further reductions need a concrete redundant contract

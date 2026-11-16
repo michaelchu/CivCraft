@@ -3,31 +3,6 @@
 use super::*;
 
 impl Simulation {
-    pub(crate) fn ai_war_planning_playtest(&mut self) -> bool {
-        self.units.clear();
-        for (owner, (x, y)) in [(HUMAN, (8, 20)), (1, (12, 24))] {
-            self.tile_mut(x, y).terrain = Terrain::Grassland;
-            self.create_city(owner, x, y);
-        }
-        self.turn = 30;
-        self.sign_pact(HUMAN, 1, Pact::Peace);
-        let relation = self.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
-        relation.pact = Pact::Peace;
-        relation.until = 0;
-        relation.first_contact = Some(1);
-        relation.trust[1] = -5000;
-        self.advance_ai_war_plans();
-        let preparing = self.ai_on_war_footing(1) && self.pact(HUMAN, 1) == Pact::Peace;
-        for _ in 0..4 + self.map_size_factor() {
-            self.advance_ai_war_plans();
-        }
-        preparing
-            && self.at_war(HUMAN, 1)
-            && !self.ai_on_war_footing(1)
-            && self.ai_war_countdown(1, HUMAN) == -20
-            && self.pact_clause_value(1, HUMAN, Pact::Ceasefire) < 0
-    }
-
     pub(crate) fn diplomacy_playtest_friendship(&mut self) {
         let relation = self.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
         // Keep the AI above the native alliance clause threshold after
@@ -55,9 +30,8 @@ impl Simulation {
         relation.trust[1] = 10000;
         relation.cause_until[1] = 0;
         relation.offer = None;
-        // The desktop scenario follows a capital attack and civil war. Treat
-        // this as a fresh alliance contact so the AI's old war-target ranking
-        // does not suppress the offer being tested.
+        // Treat this as a fresh alliance contact so the AI's old war-target
+        // ranking does not suppress the offer being tested.
         relation.first_contact = Some(self.turn);
         self.ai_war_plans.remove(&(1, HUMAN));
         self.ai_diplomatic_memory
@@ -65,44 +39,6 @@ impl Simulation {
             .or_default()
             .asked_alliance = 0;
         self.make_diplomatic_contact(1, HUMAN);
-    }
-
-    pub(crate) fn diplomacy_playtest_alliance_offer_diagnostics(&self) -> String {
-        let key = Self::relation_key(HUMAN, 1);
-        let relation = &self.diplomacy[&key];
-        let first_contact_age = relation
-            .first_contact
-            .map_or(-1, |turn| self.turn.saturating_sub(turn));
-        let target = (0..self.players.len())
-            .filter(|&other| {
-                other != 1
-                    && other != BARBARIANS
-                    && self.player_alive(other)
-                    && self
-                        .diplomacy
-                        .get(&Self::relation_key(1, other))
-                        .is_some_and(|relation| {
-                            relation.first_contact.is_some()
-                                && !self.diplomatic_at_war(1, other)
-                                && self.turn - relation.first_contact.unwrap() > 15
-                                && relation.trust[usize::from(1 > other)] < 10_000
-                        })
-            })
-            .min_by_key(|&other| {
-                self.diplomacy[&Self::relation_key(1, other)].trust[usize::from(1 > other)]
-            });
-        format!(
-            "pact {:?}, next {:?}, trust {}, clause {}, refusal {:?}, meeting {}, war plan {}, contact age {}, target {:?}",
-            relation.pact,
-            self.next_pact(HUMAN, 1),
-            relation.trust[1],
-            self.pact_clause_value(1, HUMAN, Pact::Alliance),
-            self.pact_refusal(1, HUMAN, Pact::Alliance),
-            self.diplomatic_meeting_possible(1, HUMAN),
-            self.ai_war_countdown(1, HUMAN),
-            first_contact_age,
-            target
-        )
     }
 
     fn diplomacy_playtest_alternate_contact(&mut self) {

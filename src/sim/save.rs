@@ -9,9 +9,6 @@
 
 use super::*;
 use bincode::Options;
-#[cfg(test)]
-#[allow(dead_code)]
-mod playtest;
 use std::{
     fs::{self, OpenOptions},
     io::{self, Read, Write},

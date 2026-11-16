@@ -1,14 +1,23 @@
 # Test performance
 
-Measured on 2026-11-13 with Rust 1.100.0 on Linux, four test threads and a
+The measurements in this document are historical: they were measured on
+2026-11-13 with Rust 1.100.0 on Linux, four test threads and a
 four-CPU allocation. Times exclude compilation and are approximate wall times.
+
+## Current main status
+
+On 2026-11-16, the current suite passes with **1,080 tests passed and 1 ignored**
+under `cargo test --all-targets`; `cargo nextest run --profile ci --all-targets`
+reports **1,081 tests run and 1 skipped**. There are zero doctests. The timing
+tables and known-failure inventory below describe the earlier performance review.
 
 ## Changes
 
 - Settlement unit tests use a 143-tile island and four nearby scoring probes.
   They still run the real settlement and worker planners. Reservation lifecycle
-  and crowding/choice checks have separate assertions. The broader desktop
-  scenario helpers remain available.
+  and crowding/choice checks have separate assertions. Obsolete desktop
+  self-test scenario helpers have since been removed; focused simulation
+  fixtures remain in the library test harness.
 - The test profile uses `opt-level = 1`. Debug symbols, debug assertions and
   overflow checks retain their normal test-profile settings. The search-budget
   tests still check their original iteration limits and results. Development

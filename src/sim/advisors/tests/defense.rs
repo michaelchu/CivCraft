@@ -131,7 +131,7 @@ fn defense_baseline_counts_untrusted_armistice_and_trusted_ceasefire_cities() {
 }
 
 #[test]
-fn desktop_city_defense_fixture_uses_imported_unit_classes() {
+fn city_defense_fixture_uses_imported_unit_classes() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.native_city_defense_advisor_playtest(),

@@ -5,7 +5,6 @@ use super::pf_actions::PfAction;
 use super::*;
 
 #[cfg(test)]
-#[allow(dead_code)]
 mod playtest;
 
 struct LeaderPaths {

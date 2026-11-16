@@ -6,7 +6,6 @@ use super::*;
 
 mod planning;
 #[cfg(test)]
-#[allow(dead_code)]
 mod playtest;
 use planning::{WORKER_FACTOR, WorkMap, amortize};
 #[cfg(test)]

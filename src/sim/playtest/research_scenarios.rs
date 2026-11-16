@@ -109,12 +109,6 @@ impl Simulation {
         held && switched && self.players[1].researching == best && self.players[1].research == 3
     }
 
-    pub(crate) fn unset_goal_hud_playtest_setup(&mut self) {
-        self.players[HUMAN].research_goal = Tech::BRONZE_WORKING;
-        self.players[HUMAN].researching = Tech::ALPHABET;
-        self.discover(HUMAN, Tech::BRONZE_WORKING);
-    }
-
     pub(crate) fn native_unset_goal_save_playtest(&self) -> bool {
         let mut game = self.clone();
         let human_goal = game.players[HUMAN].research_goal;

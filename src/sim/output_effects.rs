@@ -170,7 +170,7 @@ mod city_output_tests {
     }
 
     #[test]
-    fn shared_city_output_desktop_fixture() {
+    fn shared_city_output_fixture() {
         let mut game = fixture();
         assert!(game.city_output_rules_playtest());
     }

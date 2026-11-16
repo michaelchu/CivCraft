@@ -4,40 +4,6 @@ use super::super::normal_paths::GotoTask;
 use super::*;
 
 impl Simulation {
-    pub(crate) fn fog_route_playtest(&mut self) -> bool {
-        self.units.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.seen = false;
-            tile.visible = false;
-            tile.road = false;
-            tile.railroad = false;
-        }
-        let start = (10, 24);
-        let wrap = self.map_wrap;
-        let east = |position: (i32, i32)| wrap.civ3_offset(position.0, position.1, 2, 0).unwrap();
-        let first = east(start);
-        let middle = east(first);
-        let third = east(middle);
-        let goal = east(third);
-        for (x, y) in [start, first, middle, third, goal] {
-            self.tile_mut(x, y).road = true;
-        }
-        self.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
-        let warrior = self.units.last().unwrap().clone();
-        let route = self.plan_route(&warrior, goal.0, goal.1, true);
-        self.tile_mut(middle.0, middle.1).terrain = Terrain::Sea;
-        let terrain_hidden =
-            !route.is_empty() && self.plan_route(&warrior, goal.0, goal.1, true) == route;
-        self.tile_mut(middle.0, middle.1).terrain = Terrain::Grassland;
-        self.tile_mut(middle.0, middle.1).seen = true;
-        self.spawn_unit(1, UnitKind::Warrior, middle.0, middle.1);
-        let unit_hidden = self.plan_route(&warrior, goal.0, goal.1, true) == route;
-        self.tile_mut(middle.0, middle.1).visible = true;
-        let detour = self.plan_route(&warrior, goal.0, goal.1, true);
-        terrain_hidden && unit_hidden && !detour.is_empty() && detour != route
-    }
-
     pub(crate) fn remembered_route_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
@@ -82,34 +48,6 @@ impl Simulation {
         remembered && updated.len() == 2 && updated != route
     }
 
-    pub(crate) fn road_route_playtest(&mut self) -> bool {
-        self.units.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.road = false;
-            tile.railroad = false;
-            tile.hut = false;
-            tile.seen = true;
-        }
-        let start = (10, 24);
-        let wrap = self.map_wrap;
-        let east = |position: (i32, i32)| wrap.civ3_offset(position.0, position.1, 2, 0).unwrap();
-        let first = east(start);
-        let second = east(first);
-        let goal = east(second);
-        for (x, y) in [start, first, second, goal] {
-            self.tile_mut(x, y).road = true;
-        }
-        self.remember_route_tiles(true);
-        let unit = self.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
-        self.path_to(unit, goal.0, goal.1).len() == 3
-            && self.apply(Command::GoTo(unit, goal.0, goal.1))
-            && self
-                .units
-                .iter()
-                .any(|unit| (unit.x, unit.y) == goal && unit.moves_left == 0)
-    }
-
     pub(crate) fn nested_cargo_rescue_playtest(&mut self) -> (bool, bool, bool) {
         let sea = (10, 24);
         self.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
@@ -150,72 +88,6 @@ impl Simulation {
             .iter()
             .any(|unit| unit.id == helicopter && unit.transport.is_none());
         (rescued, nested_passenger_lost, helicopter_survived)
-    }
-
-    pub(crate) fn cargo_rescue_playtest(&mut self) -> (bool, bool) {
-        let sea = (10, 24);
-        self.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
-        let ship = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
-        let backup = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
-        let passenger = self.spawn_unit(HUMAN, UnitKind::Warrior, sea.0, sea.1);
-        let boarded = self.board_specific_ship(passenger, ship);
-        self.units.last_mut().unwrap().state = UnitState::Sentry;
-        let rescued = boarded
-            && self.apply(Command::Disband(ship, None))
-            && self.units.iter().any(|unit| {
-                unit.id == passenger
-                    && unit.transport == Some(backup)
-                    && unit.state == UnitState::Idle
-            });
-
-        let hostile = self.spawn_unit(1, UnitKind::Transport, sea.0, sea.1);
-        let drowned = self.apply(Command::Disband(backup, None))
-            && self.units.iter().all(|unit| unit.id != passenger)
-            && self.cargo_count(hostile) == 0;
-
-        (rescued, drowned)
-    }
-
-    pub(crate) fn disband_playtest(&mut self) -> (bool, bool, bool) {
-        let center = (10, 24);
-        let adjacent = offset_native_by_map(center.0, center.1, 1, 0);
-        let remote = offset_native_by_map(center.0, center.1, 4, 0);
-        self.tile_mut(center.0, center.1).terrain = Terrain::Grassland;
-        self.create_city(HUMAN, center.0, center.1);
-        self.players[HUMAN].known.push(Tech::POTTERY);
-        let city = self.cities.last_mut().unwrap();
-        let id = city.id;
-        let original = city.production;
-        city.shields = 8;
-        let target = Production::Building(Building::GRANARY);
-        let switched = self.apply(Command::Produce(id, target));
-        let unit = self.spawn_unit(HUMAN, UnitKind::Warrior, adjacent.0, adjacent.1);
-        let contribution = UnitKind::Warrior.stats().cost / 2;
-        let recovered = switched
-            && self.apply(Command::Disband(unit, Some(id)))
-            && self.units.iter().all(|candidate| candidate.id != unit)
-            && self.cities.last().unwrap().shields == 4 + contribution
-            && self.apply(Command::Produce(id, original))
-            && self.cities.last().unwrap().shields == 8 + contribution
-            && self.apply(Command::Produce(id, target))
-            && self.cities.last().unwrap().shields == 4 + contribution;
-
-        let unit = self.spawn_unit(HUMAN, UnitKind::Warrior, remote.0, remote.1);
-        let outside = !self.apply(Command::Disband(unit, Some(id)))
-            && self.apply(Command::Disband(unit, None))
-            && self.units.iter().all(|candidate| candidate.id != unit)
-            && self.cities.last().unwrap().shields == 4 + contribution;
-
-        let ship = self.spawn_unit(HUMAN, UnitKind::Transport, center.0, center.1);
-        let passenger = self.spawn_unit(HUMAN, UnitKind::Warrior, center.0, center.1);
-        let boarded = self.board_specific_ship(passenger, ship);
-        let unloaded = boarded
-            && self.apply(Command::Disband(ship, None))
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == passenger && unit.transport.is_none());
-        (recovered, outside, unloaded)
     }
 
     pub(crate) fn overseas_assault_playtest(&mut self, defended: bool) -> (bool, bool, bool) {

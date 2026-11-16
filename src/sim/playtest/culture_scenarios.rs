@@ -42,7 +42,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn desktop_culture_scenario_checks_freeciv_history_and_transfer() {
+    fn culture_scenario_checks_freeciv_history_and_transfer() {
         let mut simulation = Simulation::new(crate::mapgen::generate(42));
         assert_eq!(
             simulation.culture_accumulation_playtest(),

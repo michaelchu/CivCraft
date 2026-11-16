@@ -112,26 +112,6 @@ impl Simulation {
         (bomber, defender)
     }
 
-    pub(crate) fn sam_battery_defense_playtest(&mut self, protected: bool) -> i32 {
-        let (bomber, defender) = self.sam_battery_playtest_setup(protected);
-        let attacker = self.unit_by_id(bomber).unwrap().clone();
-        let defender = self.unit_by_id(defender).unwrap().clone();
-        self.defense_power_against(&defender, defender.x, defender.y, attacker.kind)
-    }
-
-    pub(crate) fn helicopter_playtest_setup(&mut self) -> (u32, u32) {
-        let city = self.cities_owned_by(HUMAN).next().unwrap();
-        let (x, y) = (city.x, city.y);
-        let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-        self.tile_mut(nx, ny).terrain = Terrain::Grassland;
-        self.tile_mut(nx, ny).base = None;
-        self.tile_mut(nx, ny).hut = false;
-        self.players[HUMAN].known.push(Tech::COMBINED_ARMS);
-        let helicopter = self.spawn_unit(HUMAN, UnitKind::Helicopter, x, y);
-        let passenger = self.spawn_unit(HUMAN, UnitKind::Musketman, x, y);
-        (helicopter, passenger)
-    }
-
     pub(crate) fn stealth_aircraft_playtest_setup(&mut self) -> (u32, u32) {
         if self.cities_owned_by(HUMAN).next().is_none() {
             self.tile_mut(10, 20).terrain = Terrain::Grassland;
@@ -181,20 +161,6 @@ impl Simulation {
         let fighter = self.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
         self.units.last_mut().unwrap().fuel = 1;
         (carrier, fighter)
-    }
-
-    pub(crate) fn fighter_playtest_setup(&mut self) -> (u32, u32) {
-        let (x, y) = (10, 20);
-        let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-        self.tile_mut(x, y).terrain = Terrain::Grassland;
-        self.tile_mut(nx, ny).terrain = Terrain::Grassland;
-        let fighter = self.spawn_unit(HUMAN, UnitKind::Fighter, x, y);
-        let bomber = self.spawn_unit(1, UnitKind::Bomber, nx, ny);
-        self.sign_pact(HUMAN, 1, Pact::War);
-        self.units.last_mut().unwrap().hp = 1;
-        self.set_random_seed(4);
-        self.refresh_visibility();
-        (fighter, bomber)
     }
 
     pub(crate) fn bombard_playtest_setup(&mut self) -> (u32, [u32; 2]) {

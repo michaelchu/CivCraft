@@ -54,15 +54,6 @@ impl Simulation {
         city.size == 1 && nearby_contamination
     }
 
-    pub(crate) fn climate_playtest_setup(&mut self, warming: bool) {
-        for (index, tile) in self.tiles.iter_mut().enumerate() {
-            tile.terrain = Terrain::Plains;
-            tile.river = false;
-            tile.pollution = warming && index < 128;
-            tile.fallout = !warming && index < 128;
-        }
-    }
-
     pub(crate) fn uprising_playtest(&mut self, sea: bool, advanced: bool) -> bool {
         self.units.clear();
         self.cities.clear();

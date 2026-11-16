@@ -3,7 +3,7 @@
 use super::*;
 
 #[test]
-fn desktop_goto_fixture_exercises_risk_detour_and_final_attack() {
+fn goto_fixture_exercises_risk_detour_and_final_attack() {
     assert!(world().ai_source_goto_playtest());
 }
 

@@ -292,7 +292,7 @@ fn end_of_turn_danger_uses_native_combined_attack_and_terrain_defense() {
 }
 
 #[test]
-fn desktop_exploration_fixture_uses_real_automation_and_movement() {
+fn exploration_fixture_uses_real_automation_and_movement() {
     let mut game = world();
     assert!(game.ai_exploration_playtest());
 }
