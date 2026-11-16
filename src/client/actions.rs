@@ -12,6 +12,27 @@ impl Game {
         }
     }
 
+    /// Enters `mode` when the selected unit offers it, replacing any other
+    /// targeting mode; an unavailable action leaves plain tile selection.
+    fn begin_targeting(
+        &mut self,
+        mode: TargetingMode,
+        available: impl FnOnce(&crate::sim::UnitActionView) -> bool,
+    ) {
+        let available = self
+            .selected_unit
+            .and_then(|id| self.sim.unit_action_view(id))
+            .is_some_and(|view| available(&view));
+        self.targeting = mode.when(available);
+    }
+
+    /// Leaves `mode` once its target was chosen; another active mode stays.
+    fn end_targeting(&mut self, mode: TargetingMode) {
+        if self.targeting == mode {
+            self.targeting = TargetingMode::None;
+        }
+    }
+
     pub(crate) fn perform_action(&mut self, action: UiAction) {
         if self.pending_city_view.is_some() {
             return;
@@ -31,7 +52,7 @@ impl Game {
         }
         match action {
             UiAction::BlockMapClick => {}
-            UiAction::DismissIntro => self.intro_open = false,
+            UiAction::DismissIntro => self.overlay.close(Overlay::Intro),
             UiAction::ToggleMusicPanel => self.music_open = !self.music_open,
             UiAction::ToggleMusicMute => self.music_muted = !self.music_muted,
             UiAction::AdjustMusicVolume(delta) => {
@@ -73,89 +94,60 @@ impl Game {
                 }
             }
             UiAction::BeginParadrop => {
-                self.paradrop_mode = self
-                    .selected_unit
-                    .and_then(|id| self.sim.unit_action_view(id))
-                    .is_some_and(|view| view.paradrop);
-                self.goto_mode = false;
-                self.capture_units_mode = false;
-                self.bombard_mode = false;
-                self.nuclear_mode = false;
+                self.begin_targeting(TargetingMode::Paradrop, |view| view.paradrop);
             }
             UiAction::ParadropTo(x, y) => {
-                if self.paradrop_mode
+                if self.targeting == TargetingMode::Paradrop
                     && let Some(id) = self.selected_unit
                 {
                     self.move_selected(Command::Paradrop(id, x, y), id);
                 }
-                self.paradrop_mode = false;
+                self.end_targeting(TargetingMode::Paradrop);
             }
             UiAction::BeginCaptureUnits => {
-                self.capture_units_mode = self
-                    .selected_unit
-                    .and_then(|id| self.sim.unit_action_view(id))
-                    .is_some_and(|view| view.capture_units);
-                self.goto_mode = false;
-                self.paradrop_mode = false;
-                self.bombard_mode = false;
-                self.nuclear_mode = false;
+                self.begin_targeting(TargetingMode::CaptureUnits, |view| view.capture_units);
             }
             UiAction::CaptureUnitsTo(x, y) => {
-                if self.capture_units_mode
+                if self.targeting == TargetingMode::CaptureUnits
                     && let Some(id) = self.selected_unit
                 {
                     self.move_selected(Command::CaptureUnits(id, x, y), id);
                 }
-                self.capture_units_mode = false;
+                self.end_targeting(TargetingMode::CaptureUnits);
             }
             UiAction::BeginBombard
             | UiAction::BeginAutoBombard
             | UiAction::BeginPrecisionBombard
             | UiAction::BeginAutoPrecisionBombard => {
-                self.goto_mode = false;
-                self.paradrop_mode = false;
-                self.capture_units_mode = false;
-                self.nuclear_mode = false;
-                self.bombard_mode = self
-                    .selected_unit
-                    .and_then(|id| self.sim.unit_action_view(id))
-                    .is_some_and(|view| {
-                        if matches!(
-                            action,
-                            UiAction::BeginPrecisionBombard | UiAction::BeginAutoPrecisionBombard
-                        ) {
-                            view.precision_bombard
-                        } else {
-                            view.bombard
-                        }
-                    });
-                self.precision_bombard_mode = matches!(
+                let precision = matches!(
                     action,
                     UiAction::BeginPrecisionBombard | UiAction::BeginAutoPrecisionBombard
                 );
-                self.auto_bombard_mode = matches!(
+                let auto = matches!(
                     action,
                     UiAction::BeginAutoBombard | UiAction::BeginAutoPrecisionBombard
                 );
+                self.begin_targeting(TargetingMode::Bombard { precision, auto }, |view| {
+                    if precision {
+                        view.precision_bombard
+                    } else {
+                        view.bombard
+                    }
+                });
             }
             UiAction::BombardTo(x, y) => {
-                if self.bombard_mode
-                    && let Some(id) = self.selected_unit
-                {
-                    let command = if self.precision_bombard_mode && self.auto_bombard_mode {
-                        Command::AutoPrecisionBombard(id, x, y)
-                    } else if self.precision_bombard_mode {
-                        Command::PrecisionBombard(id, x, y)
-                    } else if self.auto_bombard_mode {
-                        Command::AutoBombard(id, x, y)
-                    } else {
-                        Command::Bombard(id, x, y)
-                    };
-                    self.move_selected(command, id);
+                if let TargetingMode::Bombard { precision, auto } = self.targeting {
+                    if let Some(id) = self.selected_unit {
+                        let command = match (precision, auto) {
+                            (true, true) => Command::AutoPrecisionBombard(id, x, y),
+                            (true, false) => Command::PrecisionBombard(id, x, y),
+                            (false, true) => Command::AutoBombard(id, x, y),
+                            (false, false) => Command::Bombard(id, x, y),
+                        };
+                        self.move_selected(command, id);
+                    }
+                    self.targeting = TargetingMode::None;
                 }
-                self.bombard_mode = false;
-                self.auto_bombard_mode = false;
-                self.precision_bombard_mode = false;
             }
             UiAction::CancelUnitOrder => {
                 if let Some(id) = self.selected_unit {
@@ -168,13 +160,13 @@ impl Game {
                 }
             }
             UiAction::NuclearStrikeTo(x, y) => {
-                if self.nuclear_mode
+                if self.targeting == TargetingMode::NuclearStrike
                     && let Some(id) = self.selected_unit
                     && self.sim.apply(Command::NuclearStrike(id, x, y))
                 {
                     self.select_next_unit();
                 }
-                self.nuclear_mode = false;
+                self.end_targeting(TargetingMode::NuclearStrike);
             }
             UiAction::Airlift(city) => {
                 if let Some(id) = self.selected_unit
@@ -192,48 +184,31 @@ impl Game {
                 }
             }
             UiAction::BeginNuclearStrike => {
-                self.goto_mode = false;
-                self.paradrop_mode = false;
-                self.capture_units_mode = false;
-                self.bombard_mode = false;
-                self.nuclear_mode = self
-                    .selected_unit
-                    .and_then(|id| self.sim.unit_action_view(id))
-                    .is_some_and(|view| view.nuclear_strike);
+                self.begin_targeting(TargetingMode::NuclearStrike, |view| view.nuclear_strike);
             }
             UiAction::BeginConnect => {
-                self.connect_mode = self
-                    .selected_unit
-                    .and_then(|id| self.sim.unit_action_view(id))
-                    .is_some_and(|view| view.can_connect);
-                self.goto_mode = false;
-                self.patrol_mode = false;
+                self.begin_targeting(TargetingMode::Connect, |view| view.can_connect);
             }
             UiAction::ConnectTo(x, y) => {
-                if self.connect_mode
+                if self.targeting == TargetingMode::Connect
                     && let Some(id) = self.selected_unit
                     && self.move_selected(Command::Connect(id, x, y), id)
                 {
                     self.select_next_unit();
                 }
-                self.connect_mode = false;
+                self.end_targeting(TargetingMode::Connect);
             }
             UiAction::BeginPatrol => {
-                self.patrol_mode = self
-                    .selected_unit
-                    .and_then(|id| self.sim.unit_action_view(id))
-                    .is_some_and(|view| view.can_patrol);
-                self.goto_mode = false;
-                self.connect_mode = false;
+                self.begin_targeting(TargetingMode::Patrol, |view| view.can_patrol);
             }
             UiAction::PatrolTo(x, y) => {
-                if self.patrol_mode
+                if self.targeting == TargetingMode::Patrol
                     && let Some(id) = self.selected_unit
                     && self.move_selected(Command::Patrol(id, x, y), id)
                 {
                     self.select_next_unit();
                 }
-                self.patrol_mode = false;
+                self.end_targeting(TargetingMode::Patrol);
             }
             UiAction::BoardOrDeboard => {
                 if let Some(id) = self.selected_unit {
@@ -254,10 +229,10 @@ impl Game {
             }
             UiAction::LaunchSpaceship => {
                 if self.sim.apply(Command::LaunchSpaceship) {
-                    self.spaceship_open = false;
+                    self.overlay.close(Overlay::Spaceship);
                 }
             }
-            UiAction::ToggleSpaceship => self.spaceship_open = !self.spaceship_open,
+            UiAction::ToggleSpaceship => self.overlay.toggle(Overlay::Spaceship),
             UiAction::ToggleManualAssembly => {
                 self.sim.apply(Command::ToggleManualAssembly);
             }
@@ -355,7 +330,7 @@ impl Game {
                 self.sim.apply(Command::EditWorklist(id, edit));
             }
             UiAction::ToggleDiplomacy => {
-                self.diplomacy_open = !self.diplomacy_open;
+                self.overlay.toggle(Overlay::Diplomacy);
                 self.diplomacy_target = None;
                 self.treaty_draft = None;
                 self.treaty_feedback = None;
@@ -363,14 +338,12 @@ impl Game {
                 self.reviewed_offer = None;
             }
             UiAction::ToggleEspionage => {
-                self.espionage_open = !self.espionage_open;
+                self.overlay.toggle(Overlay::Espionage);
                 self.espionage_target = None;
                 self.espionage_rival_page = 0;
                 self.espionage_city = None;
                 self.espionage_city_page = 0;
                 self.espionage_military_page = 0;
-                self.diplomacy_open = false;
-                self.government_open = false;
             }
             UiAction::EspionageOpponent(owner) => {
                 self.espionage_target = Some(owner);
@@ -395,7 +368,7 @@ impl Game {
                     .apply(Command::Espionage(owner, mission, city, risk));
             }
             UiAction::OpenDiplomacyWith(owner) => {
-                self.diplomacy_open = true;
+                self.overlay = Overlay::Diplomacy;
                 self.diplomacy_target = Some(owner);
                 self.treaty_draft = None;
                 self.treaty_feedback = None;
@@ -405,7 +378,7 @@ impl Game {
                 self.reviewed_offer = None;
             }
             UiAction::OpenDiplomacyOverview => {
-                self.diplomacy_open = true;
+                self.overlay = Overlay::Diplomacy;
                 self.diplomacy_target = None;
                 self.treaty_draft = None;
                 self.treaty_feedback = None;
@@ -487,7 +460,7 @@ impl Game {
                 self.sim.apply(Command::CancelSharedVision(other));
             }
             UiAction::ReviewOffer(other, offer) => {
-                self.diplomacy_open = true;
+                self.overlay = Overlay::Diplomacy;
                 self.diplomacy_target = Some(other);
                 self.treaty_draft = Some((other, offer));
                 self.treaty_feedback = None;
@@ -513,7 +486,7 @@ impl Game {
                 self.reviewed_offer = None;
                 self.sim.apply(Command::DeclineOffer(other));
             }
-            UiAction::ToggleGovernment => self.government_open = !self.government_open,
+            UiAction::ToggleGovernment => self.overlay.toggle(Overlay::Government),
             UiAction::ChangeGovernment(target) => {
                 self.sim.apply(Command::Government(target));
             }
@@ -521,12 +494,12 @@ impl Game {
                 self.sim.apply(Command::Mobilize);
             }
             UiAction::OpenResearch => {
-                self.research_open = true;
+                self.overlay = Overlay::Research;
                 self.research_drag = None;
                 self.dragging = false;
                 self.center_research();
             }
-            UiAction::CloseResearch => self.research_open = false,
+            UiAction::CloseResearch => self.overlay.close(Overlay::Research),
             UiAction::CenterResearch => self.center_research(),
             UiAction::FitResearch => self.fit_research(),
             UiAction::ResearchAge(age) => {
