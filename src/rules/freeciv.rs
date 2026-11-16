@@ -112,26 +112,6 @@ impl RuleParameter {
         }
     }
 
-    pub(crate) fn integer_list_value(&self) -> Result<Option<Vec<i64>>, String> {
-        match &self.value {
-            Value::List(values) => values
-                .iter()
-                .map(|value| match value {
-                    Value::Integer(value) => Ok(*value),
-                    other => Err(format!(
-                        "{}.{} must be an integer list, found item {other:?}",
-                        self.section, self.key
-                    )),
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map(Some),
-            other => Err(format!(
-                "{}.{} must be an integer list, found {other:?}",
-                self.section, self.key
-            )),
-        }
-    }
-
     pub(crate) fn string_value(&self) -> Result<Option<&str>, String> {
         match &self.value {
             Value::String(value) => Ok(Some(value)),
@@ -276,6 +256,7 @@ pub(crate) enum RevolutionType {
     RandomQuick,
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HappyBorders {
     Disabled,
@@ -325,6 +306,7 @@ impl MissingUnitUpkeepSettings {
     }
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct UnitHappinessRulesetSettings {
     pub(crate) borders_enabled: bool,
@@ -411,6 +393,9 @@ pub(crate) struct StartPositionScoringSettings {
     pub(crate) mining_percent: i32,
 }
 
+// Engine vocabulary: the campaign selects only some of these values, and
+// the ruleset parser that constructs the rest is compiled for tests only.
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum VictoryCondition {
     SpaceRace,
@@ -685,6 +670,7 @@ impl ContentRecord {
     }
 }
 
+#[cfg(test)]
 /// A selected-ruleset government, retaining stable ruleset identity and the
 /// requirements and effect attributes that define its behavior.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -701,6 +687,7 @@ pub(crate) struct GovernmentRulesetRecord {
     pub(crate) attributes: EffectSet,
 }
 
+#[cfg(test)]
 impl GovernmentRulesetRecord {
     /// Evaluate an effect such as `Max_Rates` using Freeciv's shared evaluator.
     /// The caller supplies the simulation-specific requirements and multiplier
@@ -715,6 +702,7 @@ impl GovernmentRulesetRecord {
     }
 }
 
+#[cfg(test)]
 /// Government records in selected ruleset order, plus the rule selected for
 /// Freeciv's temporary government during a revolution.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -723,6 +711,7 @@ pub(crate) struct GovernmentRulesetCatalog {
     pub(crate) governments: Vec<GovernmentRulesetRecord>,
 }
 
+#[cfg(test)]
 impl GovernmentRulesetCatalog {
     pub(crate) fn get(&self, id: &str) -> Option<&GovernmentRulesetRecord> {
         self.governments
@@ -1880,6 +1869,7 @@ impl RulesetData {
         })
     }
 
+    #[cfg(test)]
     /// Resolve the border settings used by Freeciv's `unit_being_aggressive`.
     /// The engine defaults are explicit in the CivCraft-owned derivative.
     pub(crate) fn unit_happiness_settings(
@@ -1923,6 +1913,7 @@ impl RulesetData {
         })
     }
 
+    #[cfg(test)]
     /// Decode the CivCraft-native governments and their government-scoped
     /// effects. The selected Freeciv government records are deliberately not
     /// consulted: campaign government identity and tunables live in native TOML.
@@ -2000,6 +1991,7 @@ impl RulesetData {
     }
 }
 
+#[cfg(test)]
 fn government_effect_applies_to(effect: &EffectRecord, government_id: &str) -> bool {
     let mut found_government_requirement = false;
     for requirement in effect

@@ -700,6 +700,7 @@ impl<'a> MovementRules<'a> {
         Ok(data)
     }
 
+    #[cfg(test)]
     /// Combine the selected ruleset's class behavior with an individual
     /// unit-level ZOC exemption from Civ III's source catalog. Freeciv's
     /// `IgZOC` is a unit-type flag, not a unit-class flag.
@@ -825,6 +826,9 @@ pub(super) struct TerrainActivityTimes {
     pub(super) transform: i32,
 }
 
+// Engine vocabulary: the campaign selects only some of these values, and
+// the ruleset parser that constructs the rest is compiled for tests only.
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum TerrainFlag {
     CanHaveRiver,
@@ -842,6 +846,7 @@ pub(super) enum TerrainFlag {
 }
 
 impl TerrainFlag {
+    #[cfg(test)]
     const ALL: [Self; 12] = [
         Self::CanHaveRiver,
         Self::FreshWater,
@@ -892,6 +897,7 @@ pub(super) struct UnitClassMovementData {
     pub(super) damage_slows: bool,
 }
 
+#[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct UnitMovementData {
     pub(super) class: UnitClassMovementData,
@@ -899,6 +905,9 @@ pub(super) struct UnitMovementData {
     pub(super) ignores_zoc: bool,
 }
 
+// Engine vocabulary: the campaign selects only some of these values, and
+// the ruleset parser that constructs the rest is compiled for tests only.
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RoadType {
     Road,

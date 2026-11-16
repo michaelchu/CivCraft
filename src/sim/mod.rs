@@ -35,7 +35,6 @@ mod cities;
 mod civil_war;
 mod client_api;
 mod client_views;
-#[allow(dead_code)]
 mod content_adapter;
 pub(crate) use client_api::ClientSimulation;
 pub(crate) use client_views::{
@@ -72,7 +71,6 @@ mod leaders;
 mod list_order;
 mod migration;
 mod movement;
-#[allow(dead_code)] // Shared ruleset adapter is introduced before call-site migration.
 mod movement_rules;
 mod presentation;
 #[cfg(test)]

@@ -27,6 +27,7 @@ pub(crate) const RULESET_FILES: &[&str] = &[
 ];
 
 impl RulesetData {
+    #[cfg(test)]
     /// Load one named ruleset. Missing files use Freeciv's whole-file
     /// `default/` fallback; no sections or keys are merged across files.
     pub(crate) fn load(data_root: &Path, name: &str) -> Result<Self, LoadError> {

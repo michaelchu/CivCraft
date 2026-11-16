@@ -20,6 +20,5 @@ pub(crate) mod native;
 
 // The shared model keeps Freeciv mechanics data separate from Civ III source
 // content; simulation adapters bind source identities to stable wrappers.
-#[allow(dead_code)]
 pub(crate) mod freeciv;
 mod freeciv_ini;
