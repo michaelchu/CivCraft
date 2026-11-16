@@ -82,22 +82,23 @@ impl Simulation {
     pub(in crate::sim) fn city_entertainer_count(&self, city: &City) -> i32 {
         let government = self.players[city.owner].government;
         let happy_cost = ruleset::CityEconomySettings::campaign().happy_cost;
-        [(0, "Scientist"), (1, "Taxman"), (2, "Elvis")]
-            .into_iter()
-            .filter_map(|(index, specialist)| {
-                let luxury = self.city_rule_effect(
-                    city,
-                    EffectKind::SpecialistOutput,
-                    None,
-                    Some("Luxury"),
-                    Some(specialist),
-                    false,
-                    government,
-                    None,
-                );
-                (luxury >= happy_cost).then_some(city.specialists[index])
-            })
-            .sum()
+        [
+            (0, CitySpecialist::Scientist),
+            (1, CitySpecialist::Taxman),
+            (2, CitySpecialist::Elvis),
+        ]
+        .into_iter()
+        .filter_map(|(index, specialist)| {
+            let luxury = self.city_rule_effect(
+                city,
+                EffectKind::SpecialistOutput,
+                CityRuleEffectParams::new(government, None)
+                    .with_output_type(CityOutputType::Luxury)
+                    .with_specialist(specialist),
+            );
+            (luxury >= happy_cost).then_some(city.specialists[index])
+        })
+        .sum()
     }
 
     fn city_feelings_stages(
@@ -108,7 +109,7 @@ impl Simulation {
     ) -> CitizenFeelingStages {
         let government = self.players[city.owner].government;
         let effect = |kind: EffectKind| {
-            self.city_rule_effect(city, kind, None, None, None, false, government, None)
+            self.city_rule_effect(city, kind, CityRuleEffectParams::new(government, None))
         };
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("city_mood.effect_stage");
@@ -235,7 +236,7 @@ impl Simulation {
     fn city_feelings_effect_stage(&self, city: &City, luxury: i32) -> CitizenFeelingCounts {
         let government = self.players[city.owner].government;
         let effect = |kind: EffectKind| {
-            self.city_rule_effect(city, kind, None, None, None, false, government, None)
+            self.city_rule_effect(city, kind, CityRuleEffectParams::new(government, None))
         };
         let base = self.city_base_content(city, government);
         let specialists = city.specialists.iter().sum::<i32>().clamp(0, city.size);
@@ -292,7 +293,7 @@ impl Simulation {
 
     pub(super) fn city_base_content(&self, city: &City, government: Government) -> i32 {
         let effect = |kind: EffectKind| {
-            self.city_rule_effect(city, kind, None, None, None, false, government, None)
+            self.city_rule_effect(city, kind, CityRuleEffectParams::new(government, None))
         };
         let city_count = self
             .cities

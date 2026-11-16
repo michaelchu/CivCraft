@@ -52,6 +52,7 @@ mod tech_trade;
 mod trade_routes;
 pub(crate) use diplomacy::{EspionageMission, EspionageRisk, Pact, TreatyMap, TreatyOffer};
 mod economy;
+pub(crate) use economy::CityRuleEffectParams;
 mod exploration;
 mod government;
 mod guards;

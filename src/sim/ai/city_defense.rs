@@ -49,24 +49,14 @@ impl Simulation {
                 .city_rule_effect(
                     &city,
                     EffectKind::MartialLawMax,
-                    None,
-                    None,
-                    None,
-                    false,
-                    government,
-                    None,
+                    CityRuleEffectParams::new(government, None),
                 )
                 .max(0);
             let martial_each = self
                 .city_rule_effect(
                     &city,
                     EffectKind::MartialLawByUnit,
-                    None,
-                    None,
-                    None,
-                    false,
-                    government,
-                    None,
+                    CityRuleEffectParams::new(government, None),
                 )
                 .max(0);
             let (_, unhappy, angry) = self.city_feelings(&city, self.city_forecast(&city).luxury);

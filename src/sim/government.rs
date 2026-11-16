@@ -374,12 +374,7 @@ impl Simulation {
         let turns = self.city_rule_effect(
             &city,
             EffectKind::RevolutionUnhappiness,
-            None,
-            None,
-            None,
-            false,
-            government,
-            None,
+            CityRuleEffectParams::new(government, None),
         );
         let anarchy = if disorder {
             self.cities[index].anarchy.saturating_add(1)

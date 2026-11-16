@@ -5,9 +5,9 @@ use crate::rules::freeciv::EffectKind;
 use crate::sim::pathfinding::{Frontier, moves_left_after};
 use crate::sim::unit_catalog::{UnitClass, UnitFlag};
 use crate::sim::{
-    Base, Building, CITY_DEFEND_BONUS, City, FORTIFY_DEFENSE_BONUS, LARGE_CITY_DEFEND_BONUS,
-    LARGE_CITY_SIZE, MOVE_FRAGMENTS, POWER_FACTOR, Simulation, Unit, UnitKind, apply_percent_bonus,
-    percent_of,
+    Base, Building, CITY_DEFEND_BONUS, City, CityRuleEffectParams, FORTIFY_DEFENSE_BONUS,
+    LARGE_CITY_DEFEND_BONUS, LARGE_CITY_SIZE, MOVE_FRAGMENTS, POWER_FACTOR, Simulation, Unit,
+    UnitKind, apply_percent_bonus, percent_of,
 };
 
 impl Simulation {
@@ -425,12 +425,8 @@ impl Simulation {
         self.city_rule_effect(
             city,
             EffectKind::DefendBonus,
-            Some((city.x, city.y)),
-            None,
-            None,
-            false,
-            self.players[city.owner].government,
-            None,
+            CityRuleEffectParams::new(self.players[city.owner].government, None)
+                .with_tile(Some((city.x, city.y))),
         ) > 0
     }
 

@@ -113,12 +113,7 @@ impl Simulation {
         self.city_rule_effect(
             city,
             EffectKind::RaptureGrow,
-            None,
-            None,
-            None,
-            celebrating,
-            government,
-            None,
+            CityRuleEffectParams::new(government, None).celebrating(celebrating),
         ) > 0
     }
 

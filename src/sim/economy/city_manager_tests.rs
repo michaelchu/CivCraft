@@ -128,12 +128,7 @@ fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
             game.city_rule_effect(
                 &city,
                 EffectKind::MartialLawMax,
-                None,
-                None,
-                None,
-                false,
-                government.0,
-                None,
+                CityRuleEffectParams::new(government.0, None),
             ),
             government.1,
             "{:?}",
@@ -226,12 +221,7 @@ fn unit_unrest_still_changes_city_feelings_without_martial_law() {
         let martial_law = game.city_rule_effect(
             &city,
             EffectKind::MartialLawMax,
-            None,
-            None,
-            None,
-            false,
-            government,
-            None,
+            CityRuleEffectParams::new(government, None),
         );
         assert_eq!(martial_law, 0, "{government:?} has no martial law");
         let baseline = game.city_feelings_after_effects(&city, 16);

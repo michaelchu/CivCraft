@@ -25,6 +25,101 @@ pub(in crate::sim) struct CityTradeRuleCache {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CityOutputType {
+    Food,
+    Shield,
+    Trade,
+    Science,
+    Gold,
+    Luxury,
+}
+
+impl CityOutputType {
+    fn from_str(value: &str) -> Self {
+        match value {
+            "Food" => Self::Food,
+            "Shield" => Self::Shield,
+            "Trade" => Self::Trade,
+            "Science" => Self::Science,
+            "Gold" => Self::Gold,
+            "Luxury" => Self::Luxury,
+            other => panic!("unknown city output type {other:?}"),
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Food => "Food",
+            Self::Shield => "Shield",
+            Self::Trade => "Trade",
+            Self::Science => "Science",
+            Self::Gold => "Gold",
+            Self::Luxury => "Luxury",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CitySpecialist {
+    Scientist,
+    Taxman,
+    Elvis,
+}
+
+impl CitySpecialist {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Scientist => "Scientist",
+            Self::Taxman => "Taxman",
+            Self::Elvis => "Elvis",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CityRuleEffectParams {
+    tile: Option<(i32, i32)>,
+    output_type: Option<CityOutputType>,
+    specialist: Option<CitySpecialist>,
+    celebrating: bool,
+    government: Government,
+    granted_tech: Option<Tech>,
+}
+
+impl CityRuleEffectParams {
+    pub(crate) fn new(government: Government, granted_tech: Option<Tech>) -> Self {
+        Self {
+            tile: None,
+            output_type: None,
+            specialist: None,
+            celebrating: false,
+            government,
+            granted_tech,
+        }
+    }
+
+    pub(crate) fn with_tile(mut self, tile: Option<(i32, i32)>) -> Self {
+        self.tile = tile;
+        self
+    }
+
+    pub(crate) fn with_output_type(mut self, output_type: CityOutputType) -> Self {
+        self.output_type = Some(output_type);
+        self
+    }
+
+    pub(crate) fn with_specialist(mut self, specialist: CitySpecialist) -> Self {
+        self.specialist = Some(specialist);
+        self
+    }
+
+    pub(crate) fn celebrating(mut self, celebrating: bool) -> Self {
+        self.celebrating = celebrating;
+        self
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::sim) enum GoldUpkeepStyle {
     City,
     Mixed,
@@ -168,78 +263,56 @@ impl Simulation {
         government: Government,
         granted_tech: Option<Tech>,
     ) -> CityOutputRuleCache {
-        let output_types = ["Food", "Shield", "Trade"];
+        let output_types = [
+            CityOutputType::Food,
+            CityOutputType::Shield,
+            CityOutputType::Trade,
+        ];
         let rules = output_types.map(|output| {
             (
-                self.city_output_bonus_percent(city, output, government, granted_tech),
+                self.city_output_bonus_percent(city, output.as_str(), government, granted_tech),
                 self.city_rule_effect(
                     city,
                     EffectKind::OutputWasteByDistance,
-                    None,
-                    Some(output),
-                    None,
-                    false,
-                    government,
-                    granted_tech,
+                    CityRuleEffectParams::new(government, granted_tech).with_output_type(output),
                 ),
                 self.city_rule_effect(
                     city,
                     EffectKind::OutputWaste,
-                    None,
-                    Some(output),
-                    None,
-                    false,
-                    government,
-                    granted_tech,
+                    CityRuleEffectParams::new(government, granted_tech).with_output_type(output),
                 ),
                 self.city_rule_effect(
                     city,
                     EffectKind::OutputWastePct,
-                    None,
-                    Some(output),
-                    None,
-                    false,
-                    government,
-                    granted_tech,
+                    CityRuleEffectParams::new(government, granted_tech).with_output_type(output),
                 ),
             )
         });
-        let trade_output_types = ["Science", "Gold", "Luxury"];
+        let trade_output_types = [
+            CityOutputType::Science,
+            CityOutputType::Gold,
+            CityOutputType::Luxury,
+        ];
         let trade = CityTradeRuleCache {
             output_additions: trade_output_types
-                .map(|output| self.c2c3_city_output_additions(city, output, government)),
+                .map(|output| self.c2c3_city_output_additions(city, output.as_str(), government)),
             output_bonuses: trade_output_types.map(|output| {
-                self.city_output_bonus_percent(city, output, government, granted_tech)
+                self.city_output_bonus_percent(city, output.as_str(), government, granted_tech)
             }),
             happiness_to_gold: if self.city_rule_effect(
                 city,
                 EffectKind::HappinessToGold,
-                None,
-                None,
-                None,
-                false,
-                government,
-                granted_tech,
+                CityRuleEffectParams::new(government, granted_tech),
             ) > 0
             {
                 self.city_rule_effect(
                     city,
                     EffectKind::MakeContent,
-                    None,
-                    None,
-                    None,
-                    false,
-                    government,
-                    granted_tech,
+                    CityRuleEffectParams::new(government, granted_tech),
                 ) + self.city_rule_effect(
                     city,
                     EffectKind::ForceContent,
-                    None,
-                    None,
-                    None,
-                    false,
-                    government,
-                    granted_tech,
+                    CityRuleEffectParams::new(government, granted_tech),
                 )
             } else {
                 0
@@ -302,30 +375,21 @@ impl Simulation {
         (result[0], result[1], result[2])
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "Effect evaluation needs the explicit city, tile, output, and hypothetical government context."
-    )]
     pub(in crate::sim) fn city_rule_effect(
         &self,
         city: &City,
         kind: EffectKind,
-        tile: Option<(i32, i32)>,
-        output_type: Option<&str>,
-        specialist: Option<&str>,
-        celebrating: bool,
-        government: Government,
-        granted_tech: Option<Tech>,
+        params: CityRuleEffectParams,
     ) -> i32 {
-        let mut context = SimulationRequirementContext::for_city_at(self, city, tile)
-            .with_government(government)
-            .with_granted_tech(granted_tech)
-            .with_celebrating(celebrating);
-        if let Some(output_type) = output_type {
-            context = context.with_output_type(output_type);
+        let mut context = SimulationRequirementContext::for_city_at(self, city, params.tile)
+            .with_government(params.government)
+            .with_granted_tech(params.granted_tech)
+            .with_celebrating(params.celebrating);
+        if let Some(output_type) = params.output_type {
+            context = context.with_output_type(output_type.as_str());
         }
-        if let Some(specialist) = specialist {
-            context = context.with_specialist(specialist);
+        if let Some(specialist) = params.specialist {
+            context = context.with_specialist(specialist.as_str());
         }
         context.effect_i32(kind)
     }
@@ -378,12 +442,9 @@ impl Simulation {
             let pct = self.city_rule_effect(
                 city,
                 EffectKind::IrrigationPct,
-                Some(tile_xy),
-                None,
-                None,
-                celebrating,
-                government,
-                granted,
+                CityRuleEffectParams::new(government, granted)
+                    .with_tile(Some(tile_xy))
+                    .celebrating(celebrating),
             );
             output.food += irrigation * pct / 100;
         }
@@ -392,12 +453,9 @@ impl Simulation {
             let pct = self.city_rule_effect(
                 city,
                 EffectKind::MiningPct,
-                Some(tile_xy),
-                None,
-                None,
-                celebrating,
-                government,
-                granted,
+                CityRuleEffectParams::new(government, granted)
+                    .with_tile(Some(tile_xy))
+                    .celebrating(celebrating),
             );
             output.shield += mining * pct / 100;
         }
@@ -448,20 +506,18 @@ impl Simulation {
             output.add(output_name, output.get(output_name) * bonus / 100);
 
             let output_type = match output_name {
-                "food" => "Food",
-                "shield" => "Shield",
-                _ => "Trade",
+                "food" => CityOutputType::Food,
+                "shield" => CityOutputType::Shield,
+                _ => CityOutputType::Trade,
             };
             let effect = |kind| {
                 self.city_rule_effect(
                     city,
                     kind,
-                    Some(tile_xy),
-                    Some(output_type),
-                    None,
-                    celebrating,
-                    government,
-                    granted,
+                    CityRuleEffectParams::new(government, granted)
+                        .with_tile(Some(tile_xy))
+                        .with_output_type(output_type)
+                        .celebrating(celebrating),
                 )
             };
             let mut value = output.get(output_name) + effect(EffectKind::OutputAddTile);
@@ -485,9 +541,12 @@ impl Simulation {
             value -= value * effect(EffectKind::OutputTilePunishPct) / 100;
             if is_center {
                 let minimum = match output_type {
-                    "Food" => CityEconomySettings::campaign().city_center_minimum[0],
-                    "Shield" => CityEconomySettings::campaign().city_center_minimum[1],
-                    _ => CityEconomySettings::campaign().city_center_minimum[2],
+                    CityOutputType::Food => CityEconomySettings::campaign().city_center_minimum[0],
+                    CityOutputType::Shield => {
+                        CityEconomySettings::campaign().city_center_minimum[1]
+                    }
+                    CityOutputType::Trade => CityEconomySettings::campaign().city_center_minimum[2],
+                    _ => unreachable!("tile output only produces food, shields, and trade"),
                 };
                 value = value.max(minimum);
             }
@@ -521,12 +580,9 @@ impl Simulation {
                 self.city_rule_effect(
                     city,
                     EffectKind::OutputAddTile,
-                    Some(tile),
-                    Some(output_type),
-                    None,
-                    false,
-                    government,
-                    None,
+                    CityRuleEffectParams::new(government, None)
+                        .with_tile(Some(tile))
+                        .with_output_type(CityOutputType::from_str(output_type)),
                 )
             })
             .sum()
@@ -540,27 +596,23 @@ impl Simulation {
         granted_tech: Option<Tech>,
     ) -> i32 {
         let first = 100_i64
-            + i64::from(self.city_rule_effect(
-                city,
-                EffectKind::OutputBonus,
-                None,
-                Some(output_type),
-                None,
-                false,
-                government,
-                granted_tech,
-            ));
+            + i64::from(
+                self.city_rule_effect(
+                    city,
+                    EffectKind::OutputBonus,
+                    CityRuleEffectParams::new(government, granted_tech)
+                        .with_output_type(CityOutputType::from_str(output_type)),
+                ),
+            );
         let second = 100_i64
-            + i64::from(self.city_rule_effect(
-                city,
-                EffectKind::OutputBonus2,
-                None,
-                Some(output_type),
-                None,
-                false,
-                government,
-                granted_tech,
-            ));
+            + i64::from(
+                self.city_rule_effect(
+                    city,
+                    EffectKind::OutputBonus2,
+                    CityRuleEffectParams::new(government, granted_tech)
+                        .with_output_type(CityOutputType::from_str(output_type)),
+                ),
+            );
         ((first * second / 100).max(0)).min(i64::from(i32::MAX)) as i32
     }
 
@@ -622,23 +674,15 @@ impl Simulation {
         let distance_factor = self.city_rule_effect(
             city,
             EffectKind::OutputWasteByDistance,
-            None,
-            Some(output_type),
-            None,
-            false,
-            government,
-            granted_tech,
+            CityRuleEffectParams::new(government, granted_tech)
+                .with_output_type(CityOutputType::from_str(output_type)),
         );
         let mut waste_all = false;
         let mut waste_level = self.city_rule_effect(
             city,
             EffectKind::OutputWaste,
-            None,
-            Some(output_type),
-            None,
-            false,
-            government,
-            granted_tech,
+            CityRuleEffectParams::new(government, granted_tech)
+                .with_output_type(CityOutputType::from_str(output_type)),
         );
         if remaining > 0 && distance_factor > 0 {
             if let Some(distance) = self.government_center_distance(city) {
@@ -661,12 +705,8 @@ impl Simulation {
             let reduction = self.city_rule_effect(
                 city,
                 EffectKind::OutputWastePct,
-                None,
-                Some(output_type),
-                None,
-                false,
-                government,
-                granted_tech,
+                CityRuleEffectParams::new(government, granted_tech)
+                    .with_output_type(CityOutputType::from_str(output_type)),
             );
             waste -= waste * reduction / 100;
         }
@@ -683,12 +723,7 @@ impl Simulation {
             } else {
                 EffectKind::GrowthFood
             },
-            None,
-            None,
-            None,
-            false,
-            government,
-            None,
+            CityRuleEffectParams::new(government, None),
         )
         .clamp(0, 100)
     }
@@ -698,12 +733,7 @@ impl Simulation {
         if self.city_rule_effect(
             city,
             EffectKind::SizeUnlimit,
-            None,
-            None,
-            None,
-            false,
-            government,
-            None,
+            CityRuleEffectParams::new(government, None),
         ) > 0
         {
             i32::MAX
@@ -711,12 +741,7 @@ impl Simulation {
             self.city_rule_effect(
                 city,
                 EffectKind::SizeAdj,
-                None,
-                None,
-                None,
-                false,
-                government,
-                None,
+                CityRuleEffectParams::new(government, None),
             )
             .max(1)
         }
@@ -726,12 +751,7 @@ impl Simulation {
         self.city_rule_effect(
             city,
             EffectKind::UpkeepFree,
-            None,
-            None,
-            None,
-            false,
-            self.players[city.owner].government,
-            None,
+            CityRuleEffectParams::new(self.players[city.owner].government, None),
         )
         .max(0)
     }

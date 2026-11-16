@@ -14,7 +14,7 @@ use crate::rules::freeciv::{
 };
 
 use super::action_rules::SimulationRequirementContext;
-use super::{City, Pact, Simulation};
+use super::{City, CityRuleEffectParams, Pact, Simulation};
 
 const FREECIV_MAX_TRADE_ROUTES: i32 = 20;
 
@@ -298,12 +298,7 @@ impl Simulation {
                 let route_effect = self.city_rule_effect(
                     city,
                     EffectKind::TraderoutePct,
-                    None,
-                    None,
-                    None,
-                    false,
-                    self.players[city.owner].government,
-                    granted,
+                    CityRuleEffectParams::new(self.players[city.owner].government, granted),
                 );
                 Some(value * (100 + route_effect) / 100)
             })
@@ -397,12 +392,7 @@ impl Simulation {
         self.city_rule_effect(
             city,
             EffectKind::MaxTradeRoutes,
-            None,
-            None,
-            None,
-            false,
-            self.players[city.owner].government,
-            None,
+            CityRuleEffectParams::new(self.players[city.owner].government, None),
         )
         .clamp(0, FREECIV_MAX_TRADE_ROUTES)
     }
