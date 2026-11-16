@@ -3,9 +3,9 @@
 ## Objective
 
 Evolve CivCraft into a Rust implementation of Freeciv gameplay using one
-Freeciv ruleset baseline and Civ III content and artwork. The ruleset and engine
-behavior are the gameplay authority; Civ III source data remains authoritative
-for the content explicitly retained below.
+Freeciv ruleset baseline and selected Civ III content and artwork. The ruleset
+and engine behavior are the sole gameplay authority; Civ III source data is
+retained only for explicitly mapped content and artwork.
 
 The initial and only Freeciv ruleset baseline for this effort is
 `data/civ2civ3/`. Do not mix in `classic` or another Freeciv ruleset to fill
@@ -19,7 +19,7 @@ checkout.
 |---|---|
 | Gameplay algorithms and rule interpretation | Freeciv source at the pinned revision below |
 | Initial settings, effects, requirements, actions, and defaults | A CivCraft-owned copy/derivative of the pinned `civ2civ3` ruleset |
-| Units and their campaign identities, values, availability, and special data | Civ III: Conquests source catalog in `data/rulesets/civcraft/content/units.toml` |
+| Units and their retained campaign identities and artwork mappings | Civ III: Conquests source catalog in `data/rulesets/civcraft/content/units.toml`; Freeciv rules govern behavior |
 | Buildings and their campaign identities and source values | Civ III source-derived catalog in `data/rulesets/civcraft/content/buildings.toml` |
 | Technology tree and advance identities | Civ III source-derived catalog in `data/rulesets/civcraft/content/technologies.toml`, loaded by `src/rules/research.rs`, with source gaps recorded explicitly |
 | Original unit, terrain, resource, and other selected game art | Civ III source assets and existing asset mappings |
@@ -471,13 +471,11 @@ that code has been added.
   espionage state, or outcomes. The user deferred espionage gameplay to
   separate work and chose not to add Diplomat or Spy unit identities. The
   shared action evaluator still handles the in-scope actions used by gameplay.
-- The Civ III manual states that Civilization III has no moving Diplomat or Spy
-  units and that missions are run through embassies; Espionage plus the
-  Intelligence Agency enables covert missions. It also places resource/supply
-  trade agreements in diplomatic negotiations. These facts are recorded in
-  `docs/CIV3_MANUAL_RULES.md`. The user chose to handle espionage gameplay
-  separately and leave out Diplomat/Spy units; this is a declared scope
-  deferral, not a pending P10 design choice. Adding a City clause now follows
+- Civ III content mapping retains no Diplomat or Spy unit identities; espionage
+  gameplay remains deferred and Freeciv is the authority for any future
+  implementation. The user chose to handle espionage gameplay separately and
+  leave out Diplomat/Spy units; this is a declared scope deferral, not a pending
+  P10 design choice. Adding a City clause now follows
   `server/diplhand.c` by sharing the requester's known map within the city's
   effective radius when the counterpart does not currently see the city
   center. It does not reveal the whole map. CivCraft has no Freeciv-style

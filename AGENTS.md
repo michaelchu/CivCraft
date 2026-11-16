@@ -2,54 +2,26 @@
 
 ## Gameplay authority
 
-CivCraft is a Rust implementation of Freeciv gameplay, using Civ III content and
-artwork. The authority split is:
+CivCraft is a Rust implementation of Freeciv gameplay, using selected Civ III
+content and artwork. The authority split is:
 
 - **Gameplay logic** (rules, formulas, state transitions, turn processing,
   AI behavior, and rule interpretation) follows the pinned Freeciv source
   (`reference/freeciv`) and its `civ2civ3` ruleset, as copied into the
   `data/rulesets/civcraft/engine/` layer. Civ III game logic is no longer an
   authority for mechanics.
-- **Units, buildings, and civilizations** (identities, values, availability,
-  and special data) come from the Civ III: Conquests sources. The supplied
-  manual at [`docs/civ3_manual.pdf`](docs/civ3_manual.pdf) and the installed
-  Conquests data are authoritative for that content only. Record those
-  content facts in [`docs/CIV3_MANUAL_RULES.md`](docs/CIV3_MANUAL_RULES.md).
+- **Civ III content and artwork** are retained only where the port explicitly
+  maps them into the Freeciv model. The installed Conquests data and checked-in
+  native catalogs provide identity and asset provenance; they are not gameplay
+  authority.
 - **Terrain, resources, and other art or asset mappings** stay with the Civ III
   sources where the port plan retains them.
 
 Use [`docs/FREECIV_GAMEPLAY_PORT_PLAN.md`](docs/FREECIV_GAMEPLAY_PORT_PLAN.md)
-and [`docs/CIV3_MANUAL_RULES.md`](docs/CIV3_MANUAL_RULES.md) for comparisons
-with the implementation. Mechanics are compared against Freeciv; content is
-compared against the Civ III catalog.
-
-When Freeciv does not settle a detail needed for a Civ III content record,
-research Civ III-specific online sources. Prefer original game materials and
-official publications where available, then well-sourced specialist references,
-including community resources such as CivFanatics and Civ Wiki. These community
-sources are useful leads for undocumented or reverse-engineered details; treat
-them as secondary evidence, not as authoritative game documentation. Follow their
-citations to original materials where possible and check which edition,
-expansion, or patch the claim covers.
-
-Do this research while implementing any content value whose expected behavior is
-not established by the Civ III sources; do not silently fill gaps from legacy
-code or assumptions. Record the source title, author or publisher when
-available, URL, edition/expansion/patch scope, relevant page or section, date
-checked, and the specific claim it supports in
-`docs/CIV3_MANUAL_RULES.md`. Label supplementary claims separately from
-primary claims, note when a formula is reverse-engineered or inferred, preserve
-conflicting evidence, and leave unresolved details explicit rather than
-guessing. Existing code, tests, and previous parity claims are not evidence for
-either side.
-
-Use the catalog's [source-record format](docs/CIV3_MANUAL_RULES.md#source-records),
-[technology-tree source leads](docs/CIV3_MANUAL_RULES.md#technology-tree-source-leads),
-and [general gameplay-mechanics index](docs/CIV3_MANUAL_RULES.md#general-gameplay-mechanics-index)
-as starting points, not blanket endorsements. The Vi.ki pages are secondary
-summaries that cite a mixture of manuals, Prima's guide, previews, and archived
-official material. Follow those citations and prefer the specific underlying
-source for each claim; record edition differences or disagreements.
+and the pinned checkout under `reference/freeciv` for implementation comparisons.
+When Freeciv is ambiguous, preserve the ambiguity or resolve it from the pinned
+Freeciv source and ruleset; do not infer gameplay behavior from Civ III manuals,
+legacy code, or community claims.
 
 ## Comparison source checkout
 

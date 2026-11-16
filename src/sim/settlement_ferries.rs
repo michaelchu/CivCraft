@@ -100,7 +100,7 @@ impl Simulation {
         // Freeciv's default AI only considers founder production when the
         // city's food surplus can cover the Settler's raw food upkeep. This
         // is an advisor heuristic (not a Settler upkeep rule documented by
-        // the Civ III manual); city production applies the population cost
+        // the selected ruleset); city production applies the population cost
         // from Civ III data when the unit completes.
         // Do not substitute a magic-number default if the selected
         // Civ2Civ3 unit-economics ruleset stops defining this value.

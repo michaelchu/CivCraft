@@ -15,10 +15,9 @@ scope, status, and subsystem-difference ledger.
   `data/rulesets/civcraft/engine/`. `classic` and other rulesets must not be
   used to fill gaps. The sibling `default/` and `nation/` files are dependencies
   in the selected ruleset's include closure, not alternate gameplay baselines.
-- Civ III: Conquests source records remain authoritative for campaign unit,
-  building, and technology identities and values. C2C3 records may supply a
-  Freeciv mechanic profile only through an explicit adapter; that does not make
-  the C2C3 record the Civ III source of truth.
+- Civ III: Conquests source records provide retained campaign identities,
+  values, and provenance only. Freeciv source and the selected C2C3 ruleset are
+  authoritative for gameplay mechanics and behavior.
 - Gameplay state and transitions stay in `src/sim/`; rules and catalogs stay in
   `src/rules/` and `data/rulesets/`; rendering and asset lookup stay behind the
   client/view boundary. Keep shared requirement/effect/action evaluation as

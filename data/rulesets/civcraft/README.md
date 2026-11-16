@@ -47,5 +47,5 @@ The unit-economics crosswalk has been removed. Capabilities are derived from
 native PRTO flags; experience and government support use their native catalogs.
 Barbarian and partisan choices are configured by native IDs in
 `content/settlements.toml`.
-The generic engine's remaining algorithm gaps are recorded in
-`docs/CIV3_MANUAL_RULES.md`; removal does not claim full gameplay parity.
+The generic engine's remaining algorithm gaps are recorded in the Freeciv port
+plan; removal of inherited content does not claim full gameplay parity.

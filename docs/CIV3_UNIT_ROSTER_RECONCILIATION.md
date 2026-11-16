@@ -13,12 +13,11 @@ The standard roster was recovered from the installed `../../source/Conquests/con
 
 The installed `../../source/Text/Civilopedia.txt` and
 `../../source/Conquests/Text/Civilopedia.txt` provide the in-game unit entries.
-The Civ III manual at `civ3_manual.pdf` (Appendix A, printed pp. 201–205)
-provides the vanilla unit chart and gameplay data. It predates the Conquests
-expansion, so use it for base-unit mechanics and use the installed Conquests
-BIQ/Civilopedia for the final target roster and Conquests changes. The active
-code now maps the campaign roster to the source unit `.ini` files; see the
-status sections below for the remaining rules and animation work.
+The installed Conquests BIQ and the native catalog provide the retained content
+identities and source mappings. Freeciv source and the selected ruleset remain
+the authority for gameplay behavior. The active code maps the campaign roster
+to the source unit `.ini` files; see the status sections below for the remaining
+asset work.
 
 As an online cross-check, the [CivFanatics vanilla unit index](https://civfanatics.com/civ3/civilopedia/units/), [Play the World unit index](https://civfanatics.com/civ3/civilopedia/play-the-world-units/), and [Conquests unit index](https://civfanatics.com/civ3/civilopedia/conquests-units/) separate common units, unique units, wonder units, ruler units, and scenario packs. These are secondary references; the installed BIQ and Civilopedia remain the roster evidence for this checkout.
 
@@ -247,16 +246,13 @@ its own identity with its own stats and art.
 
 ## Starting units by civilization
 
-The standard Conquests rules define one Settler and one Worker as the default
-starting units. The Expansionist trait adds one Scout; it does not replace the
-Settler or Worker. The installed Conquests RACE records mark Americans, Arabs,
-Hittites, Incans, Mongols, Portuguese, Russians, and Zulus as Expansionist. The
-standard Scout availability mask omits the Incans because their unique
-replacement is Chasqui Scout; the starting profile should therefore grant that
-unit to the Incans. The manual explains the base starting-unit rule and the
-Expansionist Scout bonus, while the installed Conquests BIQ supplies the target
-start-unit types. The manual predates Conquests, so its older trait assignments
-are not the target civ list.
+The installed Conquests RACE records identify the default and Expansionist
+starting-unit profiles. Freeciv setup rules govern how those profiles are
+applied; the Civ III records remain content provenance. The installed records
+mark Americans, Arabs, Hittites, Incans, Mongols, Portuguese, Russians, and
+Zulus as Expansionist. The standard Scout availability mask omits the Incans
+because their unique replacement is Chasqui Scout; the retained starting
+profile grants that unit to the Incans.
 
 Represent this as civilization start profiles, not fields on individual unit
 definitions:
@@ -268,9 +264,8 @@ definitions:
 
 Difficulty bonuses for AI and scenario-defined starts are separate setup
 overrides. They should not be mixed into the normal civilization profile.
-The [Conquests civilization table](https://civ3.vi.ki/civilizations) lists the
-Conquests traits, and the [manual's starting-unit example](https://manualzz.com/doc/25583228/sid-meier-s-civilization-iii-video-game-user-manual) illustrates the
-Settler/Worker start with the possible Expansionist Scout.
+The [Conquests civilization table](https://civ3.vi.ki/civilizations) is a
+secondary cross-check; the installed RACE records remain the content source.
 
 ## Source-derived ruleset data now checked in
 

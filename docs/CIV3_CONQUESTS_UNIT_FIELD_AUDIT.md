@@ -75,8 +75,9 @@ The FAQ confirms AA units can attack planes bombing their tile; the formula
 reference reports effective strength at one tenth of the editor value, at most
 four AA units per tile, and per-unit kill probability `A/(A+D)`. The BIQ field
 is scaled against the simulation's `POWER_FACTOR` so its probability matches
-that ratio. This is not a claim that the official manual publishes the exact
-probability formula.
+that ratio. This is a Civ III compatibility note, not the gameplay authority
+for the simulation; Freeciv source and ruleset behavior govern the runtime
+model.
 
 ## Source verification
 
@@ -96,6 +97,5 @@ OpenCiv3 reader, though several raw values still need semantic/runtime work.
 listed mechanics still need source-backed implementation. Unit Air Defense is
 implemented for tile bombardment with the community-tested formula above.
 Resolve unknown-field meanings, flags-2 semantics, and curated expansion
-metadata separately. The manual and Civilopedia remain useful for behavior
-and naming, but the installed Conquests BIQ is authoritative for this edition's
-PRTO values.
+metadata separately. The installed Conquests BIQ remains useful for content
+naming and PRTO values; Freeciv source and rulesets govern behavior.
