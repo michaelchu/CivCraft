@@ -26,9 +26,12 @@ impl Simulation {
     }
 
     /// Read native Civ III role bindings in catalog order. Units without an
-    /// explicit role are intentionally absent; the native TOML is the only
-    /// source for barbarian archetypes.
+    /// explicit role are intentionally absent; alias identities that share a
+    /// native archetype are collapsed to the first binding so a unique unit
+    /// does not duplicate the same barbarian choice. The native TOML is the
+    /// only source for barbarian archetypes.
     fn barbarian_role_units(&self, role: &str) -> Vec<BarbarianRoleUnit> {
+        let mut seen_profiles = std::collections::HashSet::new();
         crate::rules::native::unit_economics()
             .bindings
             .iter()
@@ -38,6 +41,7 @@ impl Simulation {
                     .iter()
                     .any(|candidate| candidate.eq_ignore_ascii_case(role))
             })
+            .filter(|binding| seen_profiles.insert(binding.profile.to_ascii_lowercase()))
             .filter_map(|binding| {
                 UnitKind::from_conquests_id(&binding.civ3_unit_id)
                     .map(|runtime_kind| BarbarianRoleUnit { runtime_kind })

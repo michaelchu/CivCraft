@@ -40,7 +40,12 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
     pending_value: list[str] = []
 
     def flush_pending() -> None:
-        if current is None or pending_key not in {"flags", "roles", "targets"}:
+        if current is None or pending_key not in {
+            "flags",
+            "roles",
+            "targets",
+            "cargo",
+        }:
             return
         current[pending_key] = re.findall(
             r'"([^"\\]*(?:\\.[^"\\]*)*)"', " ".join(pending_value)
@@ -82,10 +87,20 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
             "build_cost",
             "fuel",
             "paratroopers_range",
+            "transport_cap",
+            "attack",
         }:
             match = re.search(r"-?\d+", value)
             if match:
                 current[key] = int(match.group())
+        elif key == "tp_defense":
+            match = re.search(r'"([^"]+)"', value)
+            if match:
+                current["transport_defense"] = match.group(1)
+        elif key in {"embarks", "disembarks"}:
+            match = re.search(r'"([^"]+)"', value)
+            if match:
+                current[key] = match.group(1)
     flush_pending()
     class_blocks = re.finditer(
         r"\[unitclass_[^\]]+\](.*?)(?=\n\[|\Z)",
@@ -109,6 +124,11 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
         unit_class = profile.get("unit_class")
         profile["class_flags"] = class_flags.get(str(unit_class), [])
         profile.setdefault("targets", [])
+        profile.setdefault("cargo", [])
+        profile.setdefault("transport_cap", 0)
+        profile.setdefault("transport_defense", "Alight")
+        profile.setdefault("embarks", "")
+        profile.setdefault("disembarks", "")
         profile.setdefault("paratroopers_range", -1)
     return profiles
 
@@ -547,7 +567,15 @@ def write_unit_economics() -> None:
     for row in read_bridge_tsv("unit_economics.tsv"):
         profile = profiles.get(row["c2c3_record"], {})
         flags = profile.get("flags", [])
-        roles = profile.get("roles", [])
+        # These records expose ferry transport in the imported C2C3 ruleset,
+        # but they are not part of Civ III's native transport roster. Keep
+        # the native migration explicit rather than letting the bridge TSV
+        # silently grant them a gameplay role.
+        roles = (
+            []
+            if row["civ3_unit_id"].lower() in {"carrack", "dromon", "curragh"}
+            else profile.get("roles", [])
+        )
         lines.extend(
             [
                 "[[bindings]]",
@@ -558,7 +586,13 @@ def write_unit_economics() -> None:
                 f'unit_class = {string(profile.get("unit_class", ""))}',
                 f'class_flags = {json.dumps(profile.get("class_flags", []), ensure_ascii=False)}',
                 f'targets = {json.dumps(profile.get("targets", []), ensure_ascii=False)}',
+                f'transport_capacity = {profile.get("transport_cap", 0)}',
+                f'cargo = {json.dumps(profile.get("cargo", []), ensure_ascii=False)}',
+                f'transport_defense = {string(profile.get("transport_defense", "Alight"))}',
+                f'embarks = {string(profile.get("embarks", ""))}',
+                f'disembarks = {string(profile.get("disembarks", ""))}',
                 f'paratroopers_range = {profile.get("paratroopers_range", -1)}',
+                f'attack = {profile.get("attack", 0)}',
                 f'build_cost = {profile.get("build_cost", 0)}',
                 f'fuel = {profile.get("fuel", 0)}',
                 f'support_food = {profile.get("uk_food", 0)}',

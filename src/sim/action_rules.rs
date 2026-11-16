@@ -1758,26 +1758,25 @@ impl Simulation {
         }
     }
 
-    /// C2C3 carrier compatibility for the Civ III identities currently bound
-    /// to selected unit records. Unbound passenger identities use the explicit
-    /// no-record ledger default (false), never Civ III cargo metadata.
+    /// Native carrier compatibility. Unbound passenger identities use the
+    /// explicit native ledger default (false), never Civ III cargo metadata.
     pub(crate) fn ruleset_transport_accepts(
         &self,
         carrier: UnitKind,
         passenger: UnitKind,
     ) -> Result<bool, ActionEvaluationError> {
-        let Some(record) = self.transport_unit_record(carrier)? else {
+        let Some(binding) = native_transport_binding(carrier) else {
             return Ok(false);
         };
-        if self.ruleset_transport_capacity(carrier)? == 0 {
+        if native_transport_binding(passenger).is_none() {
             return Ok(false);
         }
-        let cargo_classes = record
-            .string_list_field("cargo")
-            .map_err(|_| Self::unsupported_transport_unit(carrier))?
-            .ok_or_else(|| Self::unsupported_transport_unit(carrier))?;
+        if binding.transport_capacity == 0 {
+            return Ok(false);
+        }
         let class = self.ruleset_unit_class_rule_name(passenger)?;
-        Ok(cargo_classes
+        Ok(binding
+            .cargo
             .iter()
             .any(|candidate| candidate.eq_ignore_ascii_case(&class)))
     }
@@ -1811,7 +1810,7 @@ impl Simulation {
         false
     }
 
-    /// Whether the C2C3 selected carrier record has a free slot. This is kept
+    /// Whether the native selected carrier profile has a free slot. This is kept
     /// separate from cargo-class compatibility to support path planning.
     pub(crate) fn ruleset_transport_has_space(
         &self,
@@ -1825,14 +1824,11 @@ impl Simulation {
         &self,
         carrier: UnitKind,
     ) -> Result<usize, ActionEvaluationError> {
-        let Some(record) = self.transport_unit_record(carrier)? else {
+        let Some(binding) = native_transport_binding(carrier) else {
             return Ok(0);
         };
-        let capacity = record
-            .integer_field("transport_cap")
-            .map_err(|_| Self::unsupported_transport_unit(carrier))?
-            .ok_or_else(|| Self::unsupported_transport_unit(carrier))?;
-        usize::try_from(capacity).map_err(|_| Self::unsupported_transport_unit(carrier))
+        usize::try_from(binding.transport_capacity)
+            .map_err(|_| Self::unsupported_transport_unit(carrier))
     }
 
     /// Ruleset field-load exception for a passenger type. The named class is
@@ -1888,17 +1884,16 @@ impl Simulation {
         carrier: UnitKind,
         field: &str,
     ) -> Result<bool, ActionEvaluationError> {
-        let Some(record) = self.direct_unit_record(passenger)? else {
+        let Some(binding) = native_unit_economics_binding(passenger) else {
             return Ok(false);
         };
         let carrier_class = self.ruleset_unit_class_rule_name(carrier)?;
-        let classes = record
-            .string_list_field(field)
-            .map_err(|_| Self::unsupported_transport_field(passenger, field))?
-            .unwrap_or_default();
-        Ok(classes
-            .iter()
-            .any(|candidate| candidate.eq_ignore_ascii_case(&carrier_class)))
+        let class = match field {
+            "embarks" => &binding.embarks,
+            "disembarks" => &binding.disembarks,
+            _ => return Err(Self::unsupported_transport_field(passenger, field)),
+        };
+        Ok(class.eq_ignore_ascii_case(&carrier_class))
     }
 
     /// Resolve the selected C2C3 unit class for transport data. A direct
@@ -1909,65 +1904,6 @@ impl Simulation {
         unit: UnitKind,
     ) -> Result<String, ActionEvaluationError> {
         freeciv_unit_class_rule_name(unit).ok_or_else(|| Self::unsupported_transport_class(unit))
-    }
-
-    fn transport_unit_record(
-        &self,
-        unit: UnitKind,
-    ) -> Result<Option<&'static crate::rules::freeciv::ContentRecord>, ActionEvaluationError> {
-        let Some(id) = unit.conquests_id() else {
-            return Err(Self::unsupported_transport_unit(unit));
-        };
-        if C2C3_TRANSPORT_RECORD_GAPS
-            .iter()
-            .any(|candidate| candidate.eq_ignore_ascii_case(id))
-        {
-            return Err(Self::unsupported_transport_unit(unit));
-        }
-        let record_name = C2C3_TRANSPORT_UNIT_RECORDS
-            .iter()
-            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(id))
-            .map(|(_, section)| *section);
-        let record = if let Some(section) = record_name {
-            RulesetData::campaign_default()
-                .content
-                .iter()
-                .find(|record| {
-                    record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case(section)
-                })
-        } else {
-            self.direct_unit_record(unit)?
-        };
-        if record.is_none()
-            && !C2C3_DEFAULT_NO_TYPE_FLAGS
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(id))
-            && !C2C3_TRANSPORT_RECORD_GAPS
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(id))
-        {
-            return Err(Self::unsupported_transport_unit(unit));
-        }
-        Ok(record)
-    }
-
-    fn direct_unit_record(
-        &self,
-        unit: UnitKind,
-    ) -> Result<Option<&'static crate::rules::freeciv::ContentRecord>, ActionEvaluationError> {
-        let Some(id) = unit.conquests_id() else {
-            return Err(Self::unsupported_transport_unit(unit));
-        };
-        if let Some(record) = direct_c2c3_unit_record(unit) {
-            return Ok(Some(record));
-        }
-        if C2C3_DEFAULT_NO_TYPE_FLAGS
-            .iter()
-            .any(|candidate| candidate.eq_ignore_ascii_case(id))
-        {
-            return Ok(None);
-        }
-        Err(Self::unsupported_transport_unit(unit))
     }
 
     fn unsupported_transport_unit(unit: UnitKind) -> ActionEvaluationError {
@@ -2488,6 +2424,19 @@ fn native_unit_economics_binding(
         .find(|binding| binding.civ3_unit_id.eq_ignore_ascii_case(id))
 }
 
+fn native_transport_binding(
+    unit: UnitKind,
+) -> Option<&'static crate::rules::native::NativeUnitEconomicsBinding> {
+    let id = unit.conquests_id()?;
+    if C2C3_TRANSPORT_RECORD_GAPS
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(id))
+    {
+        return None;
+    }
+    native_unit_economics_binding(unit)
+}
+
 /// Whether the explicit gameplay identity for a Civ III unit carries a
 /// Freeciv unit role. The unit-economics crosswalk also contains upkeep-only
 /// aliases; those must not grant gameplay roles. Tactical AI dispatch uses
@@ -2514,21 +2463,6 @@ pub(crate) fn freeciv_unit_build_cost(unit: UnitKind) -> i32 {
     i32::try_from((i64::from(native.build_cost) * i64::from(shieldbox) / 100).max(1))
         .unwrap_or_else(|_| panic!("selected C2C3 unit build cost exceeds i32"))
 }
-
-/// C2C3 records that define transport capacity and cargo compatibility.
-/// Galley maps to the early Trireme role; Nuclear Submarine maps to the
-/// selected Submarine role because C2C3 has no separate nuclear submarine.
-/// This adapter is separate from the direct unit-type-flag table, where these
-/// aliases are intentionally not treated as the same identity.
-const C2C3_TRANSPORT_UNIT_RECORDS: &[(&str, &str)] = &[
-    ("helicopter", "unit_helicopter"),
-    ("caravel", "unit_caravel"),
-    ("galleon", "unit_galleon"),
-    ("submarine", "unit_submarine"),
-    ("carrier", "unit_carrier"),
-    ("transport", "unit_transport"),
-    ("nuclear_submarine", "unit_submarine"),
-];
 
 /// Civ III identities that have transport capacity in the source catalog but
 /// no C2C3 transport role. They fail closed instead of inheriting Civ III
@@ -2621,6 +2555,22 @@ pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
         .map(|native| u8::try_from(native.fuel).expect("native unit fuel fits in u8"))
 }
 
+/// Resolve the native transport-defense policy for a Civ III identity.
+pub(crate) fn freeciv_unit_transport_defense(
+    unit: UnitKind,
+) -> Option<crate::rules::freeciv::TransportDefense> {
+    match native_transport_binding(unit)?
+        .transport_defense
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "blocked" => Some(crate::rules::freeciv::TransportDefense::Blocked),
+        "alight" => Some(crate::rules::freeciv::TransportDefense::Alight),
+        "always" => Some(crate::rules::freeciv::TransportDefense::Always),
+        _ => None,
+    }
+}
+
 /// Resolve the selected native paratrooper range.  This used to be read from
 /// the imported unit record; the native unit-economics binding now owns the
 /// action-specific value for every Civ III identity.
@@ -2638,12 +2588,7 @@ pub(crate) fn freeciv_missile_attack_strength(unit: UnitKind) -> Option<i32> {
     if unit != UnitKind::CruiseMissile {
         return None;
     }
-    let record = direct_c2c3_unit_record(unit)?;
-    let attack = record
-        .integer_field("attack")
-        .expect("selected C2C3 Cruise Missile attack is valid")
-        .expect("selected C2C3 Cruise Missile declares attack");
-    Some(i32::try_from(attack).expect("selected C2C3 Cruise Missile attack fits in i32"))
+    Some(native_unit_economics_binding(unit)?.attack)
 }
 
 fn direct_c2c3_unit_record(
@@ -3692,7 +3637,7 @@ mod tests {
     }
 
     #[test]
-    fn transport_capacities_and_cargo_classes_come_from_c2c3_records() {
+    fn transport_capacities_and_cargo_classes_come_from_native_profiles() {
         let game = flat_game();
         assert_eq!(
             game.ruleset_transport_capacity(UnitKind::Transport)
@@ -3730,8 +3675,7 @@ mod tests {
                 .unwrap()
         );
         assert!(
-            !game
-                .ruleset_unit_can_embark(UnitKind::Guerilla, UnitKind::Helicopter)
+            game.ruleset_unit_can_embark(UnitKind::Guerilla, UnitKind::Helicopter)
                 .unwrap()
         );
         assert_eq!(

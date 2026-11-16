@@ -370,7 +370,19 @@ pub(crate) struct NativeUnitEconomicsBinding {
     pub(crate) unit_class: String,
     pub(crate) class_flags: Vec<String>,
     pub(crate) targets: Vec<String>,
+    #[serde(default)]
+    pub(crate) transport_capacity: i32,
+    #[serde(default)]
+    pub(crate) cargo: Vec<String>,
+    #[serde(default)]
+    pub(crate) transport_defense: String,
+    #[serde(default)]
+    pub(crate) embarks: String,
+    #[serde(default)]
+    pub(crate) disembarks: String,
     pub(crate) paratroopers_range: i32,
+    #[serde(default)]
+    pub(crate) attack: i32,
     pub(crate) build_cost: i32,
     pub(crate) fuel: i32,
     pub(crate) support_food: i32,
