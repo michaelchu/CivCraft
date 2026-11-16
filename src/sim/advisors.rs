@@ -12,6 +12,7 @@ use advisor_buildings::DefenseEffectContext;
 use super::unit_catalog::{UnitClass, UnitFlag};
 use super::*;
 
+#[cfg(feature = "scenarios")]
 mod playtest;
 use crate::rules::{Genus, Requirement};
 

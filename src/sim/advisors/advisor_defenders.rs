@@ -121,6 +121,7 @@ impl Simulation {
         desire
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn production_city_defender(&self, city: &City, danger: i32) -> Option<UnitKind> {
         self.production_city_defender_with_assessment(
             city,
@@ -177,11 +178,13 @@ impl Simulation {
         best
     }
 
+    #[cfg(feature = "scenarios")]
     pub(in crate::sim) fn preferred_city_defender(&self, city: &City) -> UnitKind {
         self.production_city_defender(city, 1)
             .unwrap_or(UnitKind::Warrior)
     }
 
+    #[cfg(feature = "scenarios")]
     pub(in crate::sim) fn production_defender_tech_want(&self, city: &City, tech: Tech) -> f32 {
         self.production_defender_tech_wants(city)
             .into_iter()

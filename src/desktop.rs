@@ -116,6 +116,10 @@ pub async fn run_desktop() {
     });
     let screenshot_path = argument_value("--screenshot");
     let self_test_path = argument_value("--self-test");
+    if self_test_path.is_some() && !playtest::AVAILABLE {
+        eprintln!("--self-test requires a build with the `scenarios` feature");
+        std::process::exit(2);
+    }
     let ui_review = argument_value("--ui-review");
     let ui_baseline = argument_value("--ui-baseline");
     let similarity_argument = argument_value("--ui-min-similarity");

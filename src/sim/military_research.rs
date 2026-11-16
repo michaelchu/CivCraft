@@ -129,6 +129,7 @@ impl Simulation {
         feedback
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn counter_defender_tech_wants(&self, city: &City) -> Vec<f32> {
         let mut wants = vec![0.0_f32; Tech::all().count()];
         for (tech, delta) in self.counter_defender_tech_feedback(city) {

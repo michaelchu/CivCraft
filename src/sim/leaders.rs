@@ -4,6 +4,7 @@ use super::exploration::IndexedExplorerQueue;
 use super::pf_actions::PfAction;
 use super::*;
 
+#[cfg(feature = "scenarios")]
 mod playtest;
 
 struct LeaderPaths {

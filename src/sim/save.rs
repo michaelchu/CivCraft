@@ -9,6 +9,7 @@
 
 use super::*;
 use bincode::Options;
+#[cfg(feature = "scenarios")]
 mod playtest;
 use std::{
     fs::{self, OpenOptions},

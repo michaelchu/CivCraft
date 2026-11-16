@@ -207,6 +207,7 @@ impl Simulation {
         choice
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn next_ai_research_target(&mut self, owner: usize) -> Tech {
         self.select_ai_research(owner).0
     }

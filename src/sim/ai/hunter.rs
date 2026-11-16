@@ -63,6 +63,7 @@ impl Simulation {
         (cost >= hunter.kind.stats().cost && value >= hunter.kind.stats().cost).then_some(value)
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn hunt_value(&self, hunter: &Unit, target: &Unit) -> Option<(i32, i32)> {
         let limit = 6 * self.unit_move_rate(hunter);
         let distance = crate::sim::normal_paths::NormalPaths::enemy_map(self, hunter)
@@ -83,6 +84,7 @@ impl Simulation {
         None
     }
 
+    #[cfg(feature = "scenarios")]
     pub(crate) fn normal_hunter_production_playtest(&self) -> (bool, bool, bool) {
         let mut game = self.clone();
         let (port, target) = game.hunter_production_playtest_setup();
@@ -101,6 +103,7 @@ impl Simulation {
         )
     }
 
+    #[cfg(feature = "scenarios")]
     /// Source tactical hunter policies, isolated from the dedicated production
     /// gate (which Normal AI's handicap disables).
     pub(crate) fn native_hunter_tactics_playtest(&self) -> (bool, bool, bool, bool) {

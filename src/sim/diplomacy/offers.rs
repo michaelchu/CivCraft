@@ -117,6 +117,7 @@ impl Simulation {
         true
     }
 
+    #[cfg(feature = "scenarios")]
     pub(crate) fn map_trade_price(
         &self,
         seller: usize,

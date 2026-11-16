@@ -1023,6 +1023,7 @@ impl Simulation {
         MoveResult::Fought
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn restore_aircraft(&mut self) {
         for owner in 0..self.players.len() {
             let ids: Vec<_> = self

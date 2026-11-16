@@ -455,6 +455,7 @@ impl Simulation {
         dispatched
     }
 
+    #[cfg(feature = "scenarios")]
     pub(crate) fn ai_defender_forecast_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();

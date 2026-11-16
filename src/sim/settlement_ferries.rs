@@ -4,6 +4,7 @@ use super::movement::WorkerRouteZoneCache;
 use super::normal_paths::GotoTask;
 use super::*;
 
+#[cfg(feature = "scenarios")]
 mod playtest;
 use std::{
     cmp::Reverse,

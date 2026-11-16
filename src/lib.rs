@@ -32,5 +32,8 @@ pub(crate) fn ensure_parent(path: &str) {
     }
 }
 
+#[cfg(all(test, not(feature = "scenarios")))]
+compile_error!("the test suite exercises scenario fixtures; enable the `scenarios` feature");
+
 #[cfg(test)]
 mod test_support;

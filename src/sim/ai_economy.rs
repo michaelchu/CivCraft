@@ -2,6 +2,7 @@
 
 use super::*;
 
+#[cfg(feature = "scenarios")]
 mod playtest;
 
 // dai/default/daihand.c:dai_manage_taxes, Normal/Civ2Civ3 configuration.
@@ -199,6 +200,7 @@ impl Simulation {
 impl Simulation {}
 
 impl Simulation {
+    #[cfg(feature = "scenarios")]
     fn tax_phase_fixture(&mut self, size: i32, warriors: i32, rates: [i32; 3], gold: i32) {
         self.units.clear();
         self.cities.clear();

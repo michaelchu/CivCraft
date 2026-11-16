@@ -7,12 +7,19 @@
 
 use crate::sim::Simulation;
 
+#[cfg(feature = "scenarios")]
 mod diplomacy;
+#[cfg(feature = "scenarios")]
 mod early;
+#[cfg(feature = "scenarios")]
 mod headless;
+#[cfg(feature = "scenarios")]
 mod military;
+#[cfg(feature = "scenarios")]
 mod native_rules;
+#[cfg(feature = "scenarios")]
 mod research;
+#[cfg(feature = "scenarios")]
 mod strategy;
 
 /// One named assertion made by a scenario.
@@ -28,6 +35,7 @@ pub(crate) struct Check {
 pub(crate) struct Checks(Vec<Check>);
 
 impl Checks {
+    #[cfg(feature = "scenarios")]
     pub(crate) fn push(&mut self, (name, passed, detail): (&'static str, bool, String)) {
         self.0.push(Check {
             name,
@@ -36,6 +44,7 @@ impl Checks {
         });
     }
 
+    #[cfg(feature = "scenarios")]
     pub(crate) fn extend<I>(&mut self, checks: I)
     where
         I: IntoIterator<Item = (&'static str, bool, String)>,
@@ -50,6 +59,7 @@ impl Checks {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Fixture {
     /// A newly generated campaign with the human player in seat zero.
+    #[cfg_attr(not(feature = "scenarios"), allow(dead_code))]
     NewCampaign,
     /// A newly generated campaign in which every civilization is AI-driven.
     AllAiCampaign,
@@ -64,6 +74,7 @@ pub(crate) struct Scenario {
 }
 
 impl Scenario {
+    #[cfg(feature = "scenarios")]
     const fn new(id: &'static str, actions: fn(&mut Simulation, &mut Checks)) -> Self {
         Self {
             id,
@@ -72,6 +83,7 @@ impl Scenario {
         }
     }
 
+    #[cfg(feature = "scenarios")]
     const fn all_ai(id: &'static str, actions: fn(&mut Simulation, &mut Checks)) -> Self {
         Self {
             id,
@@ -93,12 +105,19 @@ impl Scenario {
 }
 
 const GROUPS: &[&[Scenario]] = &[
+    #[cfg(feature = "scenarios")]
     headless::SCENARIOS,
+    #[cfg(feature = "scenarios")]
     early::SCENARIOS,
+    #[cfg(feature = "scenarios")]
     military::SCENARIOS,
+    #[cfg(feature = "scenarios")]
     diplomacy::SCENARIOS,
+    #[cfg(feature = "scenarios")]
     strategy::SCENARIOS,
+    #[cfg(feature = "scenarios")]
     native_rules::SCENARIOS,
+    #[cfg(feature = "scenarios")]
     research::SCENARIOS,
 ];
 

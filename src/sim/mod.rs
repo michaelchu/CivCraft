@@ -104,7 +104,9 @@ pub(crate) use pillage::PillageTarget;
 pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
+#[cfg(feature = "scenarios")]
 mod playtest;
+#[cfg(feature = "scenarios")]
 pub(crate) use playtest::{PlaytestHarness, PlaytestState};
 mod research;
 #[cfg(test)]
@@ -474,6 +476,7 @@ impl Simulation {
     pub(crate) fn players(&self) -> &[Player] {
         &self.players
     }
+    #[cfg(feature = "scenarios")]
     /// Returns the accumulated player-facing event log.
     pub(crate) fn events(&self) -> &[String] {
         &self.events
@@ -765,18 +768,22 @@ impl Simulation {
         (self.rng % max as u64) as i32
     }
 
+    #[cfg(feature = "scenarios")]
     fn set_random_seed(&mut self, seed: u32) {
         self.native_random = Some(FreecivRng::new(seed));
     }
 
+    #[cfg(feature = "scenarios")]
     fn random_snapshot(&self) -> (u64, Option<FreecivRng>) {
         (self.rng, self.native_random.clone())
     }
 
+    #[cfg(feature = "scenarios")]
     fn restore_random(&mut self, snapshot: (u64, Option<FreecivRng>)) {
         (self.rng, self.native_random) = snapshot;
     }
 
+    #[cfg(feature = "scenarios")]
     /// Reports whether the native random stream remains usable in playtest state.
     pub(crate) fn native_random_stream_playtest(&mut self) -> bool {
         let same = Self::new(crate::mapgen::generate_with_wrap(

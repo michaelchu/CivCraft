@@ -10,6 +10,7 @@ type RouteSearchResult = (
 );
 
 impl Simulation {
+    #[cfg(feature = "scenarios")]
     pub(in crate::sim) fn path_to(&self, unit_id: u32, tx: i32, ty: i32) -> Vec<(i32, i32)> {
         let Some(unit) = self.unit_by_id(unit_id) else {
             return Vec::new();
@@ -44,6 +45,7 @@ impl Simulation {
         self.search_route_graph(unit, tx, ty, observed, limit)
     }
 
+    #[cfg(feature = "scenarios")]
     pub(in crate::sim) fn route_cost_within(
         &self,
         unit: &Unit,

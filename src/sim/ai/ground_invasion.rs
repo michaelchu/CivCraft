@@ -3,6 +3,7 @@
 use super::*;
 
 impl Simulation {
+    #[cfg(feature = "scenarios")]
     pub(crate) fn ai_ground_invasion_playtest_setup(&mut self) -> (u32, u32, u32) {
         self.units.clear();
         self.cities.clear();

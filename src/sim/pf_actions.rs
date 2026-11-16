@@ -4,6 +4,7 @@ use super::movement_rules::{MovementRules, MovementTile};
 use super::*;
 
 impl UnitKind {
+    #[cfg(feature = "scenarios")]
     // IgZOC and absence of UCF_ZOC are separate native exemptions.
     pub(super) fn ignores_zoc(self) -> bool {
         super::action_rules::freeciv_unit_type_flag(self, "IgZOC")

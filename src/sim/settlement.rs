@@ -252,6 +252,7 @@ impl Simulation {
         }
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn run_ai_founder(&mut self, founder: &Unit) {
         let improvement = if founder.kind.stats().can_work {
             self.worker_improvement_want(founder)
@@ -510,6 +511,7 @@ impl Simulation {
         )
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn city_site_value(&self, owner: usize, x: i32, y: i32) -> Option<f64> {
         let government = self.ai_goal_government(owner);
         let reservations = self.settlement_citymap(owner, None);

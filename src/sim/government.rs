@@ -173,6 +173,7 @@ impl Simulation {
         }
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn government_output_waste(
         &self,
         city: &City,
@@ -246,6 +247,7 @@ impl Simulation {
         (!available.is_empty()).then(|| available[self.rand_below(available.len() as i32) as usize])
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn government_city_value(&self, city: &City) -> i32 {
         let forecast = self.city_forecast(city);
         let food = forecast.food_surplus(city.size, forecast.support.food);
@@ -258,6 +260,7 @@ impl Simulation {
         30 * food + 17 * shields + 18 * gold + 21 * forecast.science
     }
 
+    #[cfg(feature = "scenarios")]
     pub(super) fn project_government_output(&self, owner: usize) -> i32 {
         let mut projected = self.clone();
         projected.arrange_government_workers(owner);

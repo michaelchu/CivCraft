@@ -442,6 +442,7 @@ pub(super) fn get_by_prototype_index(index: i32) -> Option<&'static UnitRule> {
     })
 }
 
+#[cfg(feature = "scenarios")]
 pub(super) fn all() -> &'static [UnitRule] {
     rules()
 }

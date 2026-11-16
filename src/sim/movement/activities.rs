@@ -177,6 +177,7 @@ impl Simulation {
         }
     }
 
+    #[cfg(feature = "scenarios")]
     // Compatibility fixture helper; runtime uses the two source phases.
     pub(in crate::sim) fn update_activities_and_restore(&mut self) {
         let ids: Vec<_> = (0..self.players.len())

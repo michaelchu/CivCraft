@@ -3,6 +3,7 @@
 use super::*;
 
 impl Game {
+    #[cfg(feature = "scenarios")]
     /// Completes presentation-only transitions so deterministic playtests can
     /// exercise the controls that become available after them.
     pub(crate) fn complete_playtest_presentation(&mut self) {

@@ -8,6 +8,7 @@ mod espionage;
 mod observer;
 mod offers;
 mod pacts;
+#[cfg(feature = "scenarios")]
 mod scenarios;
 mod vision;
 mod war_planning;
@@ -167,6 +168,7 @@ impl Concessions {
         self.set_embassy(true)
     }
 
+    #[cfg(feature = "scenarios")]
     fn with_city(&self, id: u32) -> Self {
         self.set_city(Some(id))
     }

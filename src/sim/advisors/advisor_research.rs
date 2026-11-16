@@ -136,6 +136,7 @@ impl Simulation {
         drop(_profile);
     }
 
+    #[cfg(feature = "scenarios")]
     /// Explicit preview for isolated advisor scenarios. Runtime research and
     /// diplomacy read the retained phase vector instead of recomputing advice.
     pub(in crate::sim) fn advisor_tech_wants(&self, owner: usize) -> Vec<f32> {
