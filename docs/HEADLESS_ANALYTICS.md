@@ -93,7 +93,7 @@ with `Event::decode::<PayloadType>()` when the payload also implements
 
 Currently instrumented: actual city food/growth processing, production
 completion, city founding, and settlement-site selection. Growth traces describe
-observed behavior, not an expected Civ III rules oracle.
+observed behavior, not an expected Freeciv rules oracle.
 
 ## Opt-in simulation profiling
 

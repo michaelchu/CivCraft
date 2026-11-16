@@ -6,11 +6,15 @@ with implementation and no gaps have been assessed in creating this document.
 
 ## Audit principles
 
-1. Start from an entry in `CIV3_MANUAL_RULES.md`; do not treat existing code,
-   tests, Freeciv behavior, or previous parity claims as the expected result.
-2. Prefer the manual. When it is silent on a detail needed for an expected
-   result, use a cited Civ III-specific supplementary source and label the
-   evidence basis. If no suitable source is available, leave it unresolved.
+1. Gameplay mechanics: the expected result is the pinned Freeciv behavior
+   (`civ2civ3` ruleset and source). Content (units, buildings, civilizations):
+   the expected result is the Civ III catalog in `CIV3_MANUAL_RULES.md`. Do not
+   treat existing code, tests, or previous parity claims as the expected result.
+2. For content, prefer the manual. When it is silent on a detail needed for an
+   expected result, use a cited Civ III-specific supplementary source and label
+   the evidence basis. If no suitable source is available, leave it unresolved.
+   For mechanics, when Freeciv is silent or ambiguous, record the gap rather
+   than filling it from Civ III.
 3. Separate a gameplay mismatch from missing test coverage. A passing existing
    test is evidence only if its expected result traces to the manual rule.
 4. Record an implementation path and a reproducible test or observation for
