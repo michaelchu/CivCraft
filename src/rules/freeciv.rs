@@ -1863,124 +1863,75 @@ impl RulesetData {
         })
     }
 
-    /// Decode the selected Freeciv government's records and government-scoped
-    /// effects without imposing a CivCraft enum or a built-in government list.
+    /// Decode the CivCraft-native governments and their government-scoped
+    /// effects. The selected Freeciv government records are deliberately not
+    /// consulted: campaign government identity and tunables live in native TOML.
     pub(crate) fn government_catalog(&self) -> Result<GovernmentRulesetCatalog, LoadError> {
-        let revolution_parameter = required_parameter(
-            self,
-            "governments.ruleset",
-            "governments",
-            "during_revolution",
-        )?;
-        let during_revolution_name = revolution_parameter
-            .string_value()
-            .map_err(|message| LoadError::new(format!("invalid revolution government: {message}")))?
-            .ok_or_else(|| {
-                LoadError::new("governments.ruleset [governments].during_revolution is empty")
-            })?;
-        if during_revolution_name.trim().is_empty() {
-            return Err(LoadError::new(
-                "governments.ruleset [governments].during_revolution is empty",
-            ));
+        let native = crate::rules::native::governments();
+        if native.governments.is_empty() {
+            return Err(LoadError::new("native government catalog is empty"));
         }
 
-        let source_file = self
-            .files
+        let governments = native
+            .governments
             .iter()
-            .find(|file| file.name.eq_ignore_ascii_case("governments.ruleset"));
-        let source_records: Vec<_> = self
-            .content
-            .iter()
-            .filter(|record| record.kind == ContentKind::Government)
-            .collect();
-        if source_records.is_empty() {
-            return Err(LoadError::new(
-                "selected governments.ruleset has no government records",
-            ));
-        }
+            .map(|source| {
+                let id = source.government.trim();
+                if id.is_empty() || source.name.trim().is_empty() {
+                    return Err(LoadError::new(
+                        "native governments must have non-empty identities and names",
+                    ));
+                }
+                if let Some(preferred) = source.preferred_government.as_deref()
+                    && native.get(preferred).is_none()
+                {
+                    return Err(LoadError::new(format!(
+                        "native government {id:?} references unknown preferred government {preferred:?}"
+                    )));
+                }
 
-        let mut governments = Vec::with_capacity(source_records.len());
-        for source in source_records {
-            let id = source.rule_name.trim();
-            if id.is_empty() {
-                return Err(government_content_error(
-                    source_file,
-                    source,
-                    "rule_name",
-                    "government rule name cannot be empty",
-                ));
-            }
-            if governments
-                .iter()
-                .any(|government: &GovernmentRulesetRecord| government.id.eq_ignore_ascii_case(id))
-            {
-                return Err(government_content_error(
-                    source_file,
-                    source,
-                    "rule_name",
-                    format!("duplicate government rule name {id:?}"),
-                ));
-            }
+                let requirements = (!source.required_technology.trim().is_empty())
+                    .then(|| Requirement {
+                        kind: "Tech".to_owned(),
+                        name: RequirementValue::String(source.required_technology.clone()),
+                        range: RequirementRange::Player,
+                        present: true,
+                        survives: false,
+                        quiet: false,
+                        source: RuleSourceLocation {
+                            file: PathBuf::from(
+                                "data/rulesets/civcraft_native/governments.toml",
+                            ),
+                            section: format!("government_{id}"),
+                            key: "required_technology".to_owned(),
+                            line: 0,
+                        },
+                    })
+                    .into_iter()
+                    .collect();
+                let attributes = self
+                    .effects
+                    .iter()
+                    .filter(|effect| government_effect_applies_to(effect, id))
+                    .cloned()
+                    .collect();
 
-            let name = source.display_name.clone().ok_or_else(|| {
-                government_content_error(
-                    source_file,
-                    source,
-                    "name",
-                    "government is missing its display name",
-                )
-            })?;
-            let flags = source
-                .string_list_field("flags")
-                .map_err(|message| government_content_error(source_file, source, "flags", message))?
-                .unwrap_or_default();
-            let ai_better = source
-                .string_field("ai_better")
-                .map_err(|message| {
-                    government_content_error(source_file, source, "ai_better", message)
-                })?
-                .map(str::to_owned);
-            if let Some(better) = ai_better.as_deref()
-                && !self.content.iter().any(|candidate| {
-                    candidate.kind == ContentKind::Government
-                        && candidate.rule_name.eq_ignore_ascii_case(better)
+                Ok(GovernmentRulesetRecord {
+                    id: id.to_owned(),
+                    name: source.name.clone(),
+                    section: format!("government_{id}"),
+                    requirements,
+                    flags: source.flags.clone(),
+                    ai_better: source.preferred_government.clone(),
+                    attributes,
                 })
-            {
-                return Err(government_content_error(
-                    source_file,
-                    source,
-                    "ai_better",
-                    format!("unknown preferred government {better:?}"),
-                ));
-            }
+            })
+            .collect::<Result<Vec<_>, LoadError>>()?;
 
-            let attributes = self
-                .effects
-                .iter()
-                .filter(|effect| government_effect_applies_to(effect, id))
-                .cloned()
-                .collect();
-            governments.push(GovernmentRulesetRecord {
-                id: id.to_owned(),
-                name,
-                section: source.section.clone(),
-                requirements: source.requirements.clone(),
-                flags,
-                ai_better,
-                attributes,
-            });
-        }
-
-        let during_revolution_id = governments
-            .iter()
-            .find(|government| government.id.eq_ignore_ascii_case(during_revolution_name))
-            .map(|government| government.id.clone())
-            .ok_or_else(|| {
-                LoadError::new(format!(
-                    "governments.ruleset [governments].during_revolution references unknown government {during_revolution_name:?}"
-                ))
-            })?;
-
+        let during_revolution_id = native
+            .get("anarchy")
+            .map(|government| government.government.clone())
+            .ok_or_else(|| LoadError::new("native government catalog has no Anarchy"))?;
         Ok(GovernmentRulesetCatalog {
             during_revolution_id,
             governments,
@@ -2005,25 +1956,6 @@ fn government_effect_applies_to(effect: &EffectRecord, government_id: &str) -> b
         }
     }
     found_government_requirement
-}
-
-fn government_content_error(
-    source_file: Option<&LoadedRuleFile>,
-    record: &ContentRecord,
-    key: &str,
-    message: impl Into<String>,
-) -> LoadError {
-    LoadError {
-        file: source_file.map(|file| file.path.clone()),
-        section: Some(record.section.clone()),
-        key: Some(key.to_owned()),
-        line: record
-            .fields
-            .iter()
-            .find(|entry| entry.key.eq_ignore_ascii_case(key))
-            .map(|entry| entry.line),
-        message: message.into(),
-    }
 }
 
 fn terrain_content_error(
@@ -3385,8 +3317,8 @@ mod government_catalog_tests {
     fn campaign_government_catalog_exposes_order_requirements_flags_and_rates() {
         let catalog = campaign_governments();
         assert_eq!(
-            catalog.during_revolution_id, "Anarchy",
-            "governments.ruleset selects Anarchy during revolution"
+            catalog.during_revolution_id, "anarchy",
+            "native catalog selects Anarchy during revolution"
         );
         assert_eq!(
             catalog
@@ -3395,17 +3327,16 @@ mod government_catalog_tests {
                 .map(|government| government.id.as_str())
                 .collect::<Vec<_>>(),
             [
-                "Anarchy",
-                "Tribal",
-                "Despotism",
-                "Monarchy",
-                "Communism",
-                "Fundamentalism",
-                "Federation",
-                "Republic",
-                "Democracy",
+                "anarchy",
+                "despotism",
+                "monarchy",
+                "communism",
+                "republic",
+                "democracy",
+                "fascism",
+                "feudalism",
             ],
-            "records preserve selected ruleset order"
+            "records preserve native TOML order"
         );
 
         let anarchy = catalog.get("anarchy").unwrap();
@@ -3421,8 +3352,8 @@ mod government_catalog_tests {
         );
         assert_eq!(monarchy.requirements[0].range, RequirementRange::Player);
         assert_eq!(
-            catalog.get("Tribal").unwrap().ai_better.as_deref(),
-            Some("Republic")
+            catalog.get("Despotism").unwrap().ai_better.as_deref(),
+            Some("monarchy")
         );
         assert!(
             catalog
@@ -3433,12 +3364,12 @@ mod government_catalog_tests {
                 .any(|flag| flag == "ShieldToGold")
         );
 
-        let tribal = catalog.get("Tribal").unwrap();
-        let rate = tribal
+        let despotism = catalog.get("Despotism").unwrap();
+        let rate = despotism
             .effect_value(
                 "Max_Rates",
                 &GovernmentContext {
-                    government: "Tribal".to_owned(),
+                    government: "Despotism".to_owned(),
                 },
             )
             .unwrap();
@@ -3446,7 +3377,7 @@ mod government_catalog_tests {
     }
 
     #[test]
-    fn government_catalog_rejects_bad_revolution_ids_duplicate_ids_and_attributes() {
+    fn government_catalog_ignores_selected_freeciv_government_records() {
         let mut rules = RulesetData::campaign_default().clone();
         rules
             .parameters
@@ -3458,29 +3389,26 @@ mod government_catalog_tests {
             })
             .unwrap()
             .value = super::Value::String("MissingGovernment".to_owned());
-        assert!(rules.government_catalog().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        let tribal = rules
+        let government = rules
             .content
             .iter_mut()
-            .find(|record| record.kind == ContentKind::Government && record.rule_name == "Tribal")
+            .find(|record| {
+                record.kind == ContentKind::Government && record.rule_name == "Despotism"
+            })
             .unwrap();
-        tribal.rule_name = "Despotism".to_owned();
-        assert!(rules.government_catalog().is_err());
-
-        let mut rules = RulesetData::campaign_default().clone();
-        let tribal = rules
-            .content
-            .iter_mut()
-            .find(|record| record.kind == ContentKind::Government && record.rule_name == "Tribal")
-            .unwrap();
-        tribal
+        government
             .fields
             .iter_mut()
             .find(|field| field.key == "ai_better")
             .unwrap()
             .value = super::Value::String("MissingGovernment".to_owned());
-        assert!(rules.government_catalog().is_err());
+
+        let catalog = rules.government_catalog().unwrap();
+        assert_eq!(catalog.during_revolution_id, "anarchy");
+        assert_eq!(catalog.governments.len(), 8);
+        assert_eq!(
+            catalog.get("Despotism").unwrap().ai_better.as_deref(),
+            Some("monarchy")
+        );
     }
 }
