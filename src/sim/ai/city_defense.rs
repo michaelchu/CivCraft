@@ -48,7 +48,7 @@ impl Simulation {
             let martial_max = self
                 .city_rule_effect(
                     &city,
-                    "Martial_Law_Max",
+                    EffectKind::MartialLawMax,
                     None,
                     None,
                     None,
@@ -60,7 +60,7 @@ impl Simulation {
             let martial_each = self
                 .city_rule_effect(
                     &city,
-                    "Martial_Law_By_Unit",
+                    EffectKind::MartialLawByUnit,
                     None,
                     None,
                     None,

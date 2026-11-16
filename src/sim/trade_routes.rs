@@ -4,6 +4,7 @@
 //! the city pair and selected Freeciv good; eligibility, route income, and
 //! lifecycle rules are resolved by this subsystem from the active ruleset.
 
+use crate::rules::freeciv::EffectKind;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
@@ -296,7 +297,7 @@ impl Simulation {
                 // The pinned Freeciv effect name is `Traderoute_Pct`.
                 let route_effect = self.city_rule_effect(
                     city,
-                    "Traderoute_Pct",
+                    EffectKind::TraderoutePct,
                     None,
                     None,
                     None,
@@ -395,7 +396,7 @@ impl Simulation {
     fn city_route_capacity(&self, city: &City) -> i32 {
         self.city_rule_effect(
             city,
-            "Max_Trade_Routes",
+            EffectKind::MaxTradeRoutes,
             None,
             None,
             None,
@@ -812,7 +813,7 @@ mod tests {
             .retain(|&tech| tech != Tech::ECONOMICS);
         let mut good = campaign_settings().goods.first().unwrap().clone();
         good.requirements.push(crate::rules::freeciv::Requirement {
-            kind: "Tech".to_owned(),
+            kind: crate::rules::freeciv::RequirementKind::Tech,
             name: crate::rules::freeciv::RequirementValue::String("Trade".to_owned()),
             range: crate::rules::freeciv::RequirementRange::Player,
             present: true,

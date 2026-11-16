@@ -3,9 +3,11 @@
 //! server/citytools.c::update_dumb_city retains public city graphics until seen again.
 use super::*;
 use crate::rules::TechEra;
+use crate::rules::freeciv::RequirementKind;
+use crate::rules::freeciv::campaign_effect;
 use crate::rules::freeciv::{
     EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
-    RequirementValue, RulesetData, effect_value,
+    RequirementValue,
 };
 use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,11 +43,11 @@ pub(super) struct ObservedMap {
 
 impl Simulation {
     pub(crate) fn reveals_cities(&self, owner: usize) -> bool {
-        self.effect_value_for_player(owner, "Reveal_Cities") > 0
+        self.effect_value_for_player(owner, EffectKind::RevealCities) > 0
     }
 
     pub(crate) fn reveals_map(&self, owner: usize) -> bool {
-        self.effect_value_for_player(owner, "Reveal_Map") > 0
+        self.effect_value_for_player(owner, EffectKind::RevealMap) > 0
     }
 
     pub(crate) fn unit_vision_radius_sq_for(
@@ -55,7 +57,6 @@ impl Simulation {
         x: i32,
         y: i32,
     ) -> i32 {
-        let ruleset = RulesetData::campaign_default();
         let base = native_unit_vision_radius_sq(kind);
         let context = VisionRequirementContext {
             simulation: self,
@@ -63,8 +64,7 @@ impl Simulation {
             unit: Some(kind),
             tile: Some((x, y)),
         };
-        let bonus = effect_value(&ruleset.effects, "Unit_Vision_Radius_Sq", &context)
-            .unwrap_or_else(|error| panic!("unit vision effect evaluation failed: {error:?}"));
+        let bonus = campaign_effect(EffectKind::UnitVisionRadiusSq, &context);
         i32::try_from(i64::from(base) + bonus)
             .unwrap_or_else(|_| panic!("unit vision radius is outside i32 range"))
     }
@@ -74,30 +74,24 @@ impl Simulation {
     }
 
     pub(crate) fn city_vision_radius_sq(&self, owner: usize) -> i32 {
-        let ruleset = RulesetData::campaign_default();
         let context = VisionRequirementContext {
             simulation: self,
             owner,
             unit: None,
             tile: None,
         };
-        i32::try_from(
-            effect_value(&ruleset.effects, "City_Vision_Radius_Sq", &context)
-                .unwrap_or_else(|error| panic!("city vision effect evaluation failed: {error:?}")),
-        )
-        .unwrap_or_else(|_| panic!("city vision radius is outside i32 range"))
+        i32::try_from(campaign_effect(EffectKind::CityVisionRadiusSq, &context))
+            .unwrap_or_else(|_| panic!("city vision radius is outside i32 range"))
     }
 
-    fn effect_value_for_player(&self, owner: usize, kind: &str) -> i64 {
-        let ruleset = RulesetData::campaign_default();
+    fn effect_value_for_player(&self, owner: usize, kind: EffectKind) -> i64 {
         let context = VisionRequirementContext {
             simulation: self,
             owner,
             unit: None,
             tile: None,
         };
-        effect_value(&ruleset.effects, kind, &context)
-            .unwrap_or_else(|error| panic!("{kind} effect evaluation failed: {error:?}"))
+        campaign_effect(kind, &context)
     }
 
     pub(crate) fn has_main_sight_at(&self, observer: usize, x: i32, y: i32) -> bool {
@@ -780,27 +774,27 @@ struct VisionRequirementContext<'a> {
 impl RequirementContext for VisionRequirementContext<'_> {
     fn is_present(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
         let unsupported = || RequirementEvaluationError::Unsupported {
-            kind: requirement.kind.clone(),
+            kind: requirement.kind.name().to_owned(),
             name: requirement.name.clone(),
         };
         let name = match &requirement.name {
             RequirementValue::String(name) => name.as_str(),
             _ => return Err(unsupported()),
         };
-        match requirement.kind.to_ascii_lowercase().as_str() {
-            "tech" if requirement.range == RequirementRange::Player => {
+        match requirement.kind {
+            RequirementKind::Tech if requirement.range == RequirementRange::Player => {
                 let tech = Tech::all()
                     .find(|tech| tech.name().eq_ignore_ascii_case(name))
                     .ok_or_else(unsupported)?;
                 Ok(self.simulation.has_tech(self.owner, tech))
             }
-            "building" if requirement.range == RequirementRange::Player => {
+            RequirementKind::Building if requirement.range == RequirementRange::Player => {
                 let building = Building::all()
                     .find(|building| building.data().name.eq_ignore_ascii_case(name))
                     .ok_or_else(unsupported)?;
                 Ok(self.simulation.has_active_wonder(self.owner, building))
             }
-            "extra" if requirement.range == RequirementRange::Tile => {
+            RequirementKind::Extra if requirement.range == RequirementRange::Tile => {
                 let (x, y) = self.tile.ok_or_else(unsupported)?;
                 Ok(match name.to_ascii_lowercase().as_str() {
                     "fortress" => self.simulation.tile(x, y).base == Some(Base::Fortress),
@@ -808,11 +802,11 @@ impl RequirementContext for VisionRequirementContext<'_> {
                     _ => return Err(unsupported()),
                 })
             }
-            "terrain" if requirement.range == RequirementRange::Tile => {
+            RequirementKind::Terrain if requirement.range == RequirementRange::Tile => {
                 let (x, y) = self.tile.ok_or_else(unsupported)?;
                 Ok(name.eq_ignore_ascii_case(self.simulation.tile(x, y).terrain.name()))
             }
-            "unitclassflag" if requirement.range == RequirementRange::Local => {
+            RequirementKind::UnitClassFlag if requirement.range == RequirementRange::Local => {
                 let unit = self.unit.ok_or_else(unsupported)?;
                 Ok(name.eq_ignore_ascii_case("Ground") && unit.unit_class().is_ground())
             }
@@ -846,7 +840,10 @@ fn native_unit_vision_layer(kind: UnitKind) -> UnitVisionLayer {
 }
 
 #[cfg(test)]
-fn ruleset_unit_vision_radius_sq(_ruleset: &RulesetData, kind: UnitKind) -> i32 {
+fn ruleset_unit_vision_radius_sq(
+    _ruleset: &crate::rules::freeciv::RulesetData,
+    kind: UnitKind,
+) -> i32 {
     native_unit_vision_radius_sq(kind)
 }
 

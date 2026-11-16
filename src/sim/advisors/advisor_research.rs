@@ -3,6 +3,7 @@
 use super::super::action_rules::SimulationRequirementContext;
 use super::super::content_adapter::{FreecivTechBinding, bind_freeciv_technology};
 use super::*;
+use crate::rules::freeciv::RequirementKind;
 use crate::rules::freeciv::{
     EffectRecord, Requirement as FreecivRequirement, RequirementContext, RequirementRange,
     RequirementValue, RulesetData,
@@ -265,13 +266,13 @@ impl Simulation {
         for effect in &ruleset.effects {
             if effect.multiplier.is_some()
                 || !matches!(
-                    effect.kind.to_ascii_lowercase().as_str(),
-                    "city_vision_radius_sq"
-                        | "unit_vision_radius_sq"
-                        | "move_bonus"
-                        | "upgrade_price_pct"
-                        | "make_content"
-                        | "health_pct"
+                    effect.kind,
+                    EffectKind::CityVisionRadiusSq
+                        | EffectKind::UnitVisionRadiusSq
+                        | EffectKind::MoveBonus
+                        | EffectKind::UpgradePricePct
+                        | EffectKind::MakeContent
+                        | EffectKind::HealthPct
                 )
             {
                 continue;
@@ -325,17 +326,17 @@ impl Simulation {
                 Ok(value) => value,
                 Err(_) => continue,
             };
-            let value = match effect.kind.to_ascii_lowercase().as_str() {
+            let value = match effect.kind {
                 // Freeciv's WAG: one unit of value per city per radius amount.
-                "city_vision_radius_sq" | "unit_vision_radius_sq" => amount,
+                EffectKind::CityVisionRadiusSq | EffectKind::UnitVisionRadiusSq => amount,
                 // C2C3 sets illness_on=TRUE. daieffects.c uses the city's
                 // current illness before the candidate tech's health bonus.
-                "health_pct" => {
+                EffectKind::HealthPct => {
                     // The selected C2C3 game.ruleset sets illness_on=TRUE.
                     let illness = self.city_illness(city, self.city_forecast(city).shields);
                     5 + (amount / 5) * illness
                 }
-                "make_content" => {
+                EffectKind::MakeContent => {
                     let luxury = self.city_forecast(city).luxury;
                     let max_converted = self.city_min_unhappy_after_effect_stage(city, luxury);
                     let entertainers = self.city_entertainer_count(city);
@@ -345,13 +346,15 @@ impl Simulation {
                 // so EFT_MOVE_BONUS contributes num_affected_units(). Its
                 // class matcher ignores UnitType requirements, as Freeciv's
                 // unit_class_found() marks those requirements not applicable.
-                "move_bonus" => match self.tech_effect_affected_units(city.owner, effect) {
-                    Some(count) => count,
-                    None => continue,
-                },
+                EffectKind::MoveBonus => {
+                    match self.tech_effect_affected_units(city.owner, effect) {
+                        Some(count) => count,
+                        None => continue,
+                    }
+                }
                 // Freeciv estimates 50 shields as the average base upgrade
                 // price and applies -upgradeable * amount / 2.
-                "upgrade_price_pct" => {
+                EffectKind::UpgradePricePct => {
                     let upgradeable = self
                         .units
                         .iter()
@@ -378,7 +381,7 @@ impl Simulation {
             .requirements
             .iter()
             .filter(|requirement| {
-                requirement.kind.eq_ignore_ascii_case("UnitClass")
+                requirement.kind == RequirementKind::UnitClass
                     && requirement.range == RequirementRange::Local
             })
             .collect();
@@ -556,13 +559,13 @@ fn city_effect_techs() -> &'static [Tech] {
                         && ruleset.effects.iter().any(|effect| {
                             effect.multiplier.is_none()
                                 && matches!(
-                                    effect.kind.to_ascii_lowercase().as_str(),
-                                    "city_vision_radius_sq"
-                                        | "unit_vision_radius_sq"
-                                        | "move_bonus"
-                                        | "upgrade_price_pct"
-                                        | "make_content"
-                                        | "health_pct"
+                                    effect.kind,
+                                    EffectKind::CityVisionRadiusSq
+                                        | EffectKind::UnitVisionRadiusSq
+                                        | EffectKind::MoveBonus
+                                        | EffectKind::UpgradePricePct
+                                        | EffectKind::MakeContent
+                                        | EffectKind::HealthPct
                                 )
                                 && effect
                                     .requirements
@@ -583,7 +586,7 @@ fn bound_player_tech(
     ruleset: &RulesetData,
     requirement: &FreecivRequirement,
 ) -> Option<(Tech, bool)> {
-    if !requirement.kind.eq_ignore_ascii_case("Tech")
+    if requirement.kind != RequirementKind::Tech
         || requirement.range != RequirementRange::Player
         || requirement.survives
     {

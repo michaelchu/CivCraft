@@ -3,18 +3,8 @@
 use super::*;
 
 impl Simulation {
-    pub(super) fn diplomacy_effect_value(&self, owner: usize, kind: &str) -> i64 {
-        let rules = crate::rules::freeciv::RulesetData::campaign_default();
-        let context = super::super::action_rules::SimulationRequirementContext::for_player_at(
-            self, owner, None,
-        )
-        .with_government(self.players[owner].government);
-        crate::rules::freeciv::effect_value(&rules.effects, kind, &context)
-            .unwrap_or_else(|error| panic!("could not evaluate campaign {kind} effect: {error:?}"))
-    }
-
     pub(super) fn player_has_no_diplomacy(&self, owner: usize) -> bool {
-        self.diplomacy_effect_value(owner, "No_Diplomacy") > 0
+        self.player_effect(owner, EffectKind::NoDiplomacy) > 0
     }
 
     pub(super) fn diplomacy_neighbors(

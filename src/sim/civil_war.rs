@@ -1,14 +1,14 @@
 //! Civil war and civilization split resolution.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, action_enabled, effect_value};
+use crate::rules::freeciv::{RulesetData, action_enabled};
 
 // Retained for the existing Civ III uprising path, which is scheduled for
 // the P12 world-events migration. The capital-capture path below uses C2C3
 // effects directly and does not call this compatibility helper.
 impl Government {
     pub(super) fn civil_war_chance(self) -> i32 {
-        if let Some(value) = self.ruleset_effect_value("Civil_War_Chance") {
+        if let Some(value) = self.ruleset_effect_value(EffectKind::CivilWarChance) {
             return i32::try_from(value).expect("government civil-war chance fits i32");
         }
         match self {
@@ -25,7 +25,6 @@ impl Simulation {
             return false;
         }
 
-        let rules = RulesetData::campaign_default();
         let normal_player_count = self.players.len().saturating_sub(1);
         if normal_player_count >= PLAYER_SLOTS - 12 || !self.civil_war_possible(owner, true, true) {
             return false;
@@ -37,8 +36,7 @@ impl Simulation {
         let player_context =
             super::action_rules::SimulationRequirementContext::for_player_at(self, owner, None)
                 .with_government(self.players[owner].government);
-        let base_chance = effect_value(&rules.effects, "Civil_War_Chance", &player_context)
-            .expect("campaign C2C3 Civil_War_Chance requirements are supported");
+        let base_chance = player_context.effect(EffectKind::CivilWarChance);
         let city_bonus: i64 = self
             .player_cities_ordered(owner)
             .map(|city| {
@@ -51,8 +49,7 @@ impl Simulation {
                 )
                 .with_disordered(disorder)
                 .with_celebrating(city.was_happy && happy);
-                effect_value(&rules.effects, "Civil_War_City_Bonus", &context)
-                    .expect("campaign C2C3 Civil_War_City_Bonus requirements are supported")
+                context.effect(EffectKind::CivilWarCityBonus)
             })
             .sum();
         i64::from(dice) < base_chance - city_bonus

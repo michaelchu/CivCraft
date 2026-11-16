@@ -1,6 +1,7 @@
 //! Advisor evaluation of spending, reserves, and gold priorities.
 
 use super::*;
+use crate::rules::freeciv::RequirementKind;
 use crate::rules::freeciv::{
     EffectRecord, Requirement, RequirementContext, RequirementValue, RulesetData,
 };
@@ -56,7 +57,7 @@ impl Simulation {
         };
         let Some(building) = Building::all().find(|&building| {
             Self::building_sale_price(&city, building).is_some()
-                && !Self::ai_building_has_effect(&city, building, "Defend_Bonus")
+                && !Self::ai_building_has_effect(&city, building, EffectKind::DefendBonus)
         }) else {
             return false;
         };
@@ -149,7 +150,7 @@ impl Simulation {
     }
 
     fn ai_building_is_crucial(&self, city: &City, building: Building) -> bool {
-        Self::ai_building_has_effect(city, building, "Defend_Bonus")
+        Self::ai_building_has_effect(city, building, EffectKind::DefendBonus)
             || self.ai_building_is_productive(city, building)
     }
 
@@ -211,10 +212,10 @@ impl Simulation {
         })
     }
 
-    fn ai_building_has_effect(city: &City, building: Building, kind: &str) -> bool {
+    fn ai_building_has_effect(city: &City, building: Building, kind: EffectKind) -> bool {
         Self::ai_building_source_effects(building, RulesetData::campaign_default())
             .iter()
-            .any(|effect| effect.kind.eq_ignore_ascii_case(kind))
+            .any(|effect| effect.kind == kind)
             && city.buildings.contains(&building)
     }
 
@@ -231,9 +232,9 @@ impl Simulation {
             .filter(|effect| {
                 effect.requirements.iter().any(|requirement| {
                     requirement.present
-                        && ((requirement.kind.eq_ignore_ascii_case("Building")
+                        && ((requirement.kind == RequirementKind::Building
                             && Self::ai_requirement_names_building(requirement, building))
-                            || (requirement.kind.eq_ignore_ascii_case("BuildingFlag")
+                            || (requirement.kind == RequirementKind::BuildingFlag
                                 && matches!(&requirement.name, RequirementValue::String(flag)
                                     if flags.iter().any(|candidate| candidate.eq_ignore_ascii_case(flag)))))
                 })
@@ -272,9 +273,9 @@ impl Simulation {
         let rules = RulesetData::campaign_default();
         let flags = &record.flags;
         let requirement_needs_building = |requirement: &Requirement| {
-            (requirement.kind.eq_ignore_ascii_case("Building")
+            (requirement.kind == RequirementKind::Building
                 && Self::ai_requirement_names_building(requirement, building))
-                || (requirement.kind.eq_ignore_ascii_case("BuildingFlag")
+                || (requirement.kind == RequirementKind::BuildingFlag
                     && matches!(&requirement.name, RequirementValue::String(flag)
                         if flags.iter().any(|candidate| candidate.eq_ignore_ascii_case(flag))))
         };
@@ -545,7 +546,7 @@ mod city_sale_tests {
         assert!(Simulation::ai_building_has_effect(
             &game.cities[0],
             Building::CITY_WALLS,
-            "Defend_Bonus"
+            EffectKind::DefendBonus
         ));
         assert!(game.ai_building_is_crucial(&game.cities[0], Building::CITY_WALLS));
         assert!(game.ai_building_is_crucial(&game.cities[0], Building::LIBRARY));

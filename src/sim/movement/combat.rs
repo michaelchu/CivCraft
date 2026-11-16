@@ -61,12 +61,7 @@ impl Simulation {
             (x, y),
         )
         .with_action(action);
-        let bonus = effect_value(
-            &RulesetData::campaign_default().effects,
-            "Attack_Bonus",
-            &context,
-        )
-        .expect("campaign C2C3 attack-bonus requirements are supported");
+        let bonus = context.effect(EffectKind::AttackBonus);
         let bonus = i32::try_from(bonus).expect("campaign C2C3 attack bonus fits in i32");
         apply_percent_bonus(base_power, bonus)
     }
@@ -199,11 +194,9 @@ impl Simulation {
         };
         power += power * river_bonus / 100;
 
-        let rules = RulesetData::campaign_default();
         let context =
             crate::sim::action_rules::SimulationRequirementContext::for_unit_at(self, unit, (x, y));
-        let fortify_bonus = effect_value(&rules.effects, "Fortify_Defense_Bonus", &context)
-            .expect("campaign C2C3 fortification effect requirements are supported");
+        let fortify_bonus = context.effect(EffectKind::FortifyDefenseBonus);
         let fortify_bonus =
             i32::try_from(fortify_bonus).expect("campaign C2C3 fortification bonus fits in i32");
         apply_percent_bonus(power, fortify_bonus)
@@ -224,9 +217,7 @@ impl Simulation {
             (x, y),
         )
         .with_building_override(building);
-        let rules = RulesetData::campaign_default();
-        let defend_bonus = effect_value(&rules.effects, "Defend_Bonus", &context)
-            .expect("campaign C2C3 defender-bonus requirements are supported");
+        let defend_bonus = context.effect(EffectKind::DefendBonus);
         i32::try_from(defend_bonus).expect("campaign C2C3 defender bonus fits in i32")
     }
 
@@ -401,10 +392,7 @@ impl Simulation {
             .expect("campaign C2C3 defender unit class is explicitly mapped");
         self.tile(x, y).base.is_some_and(|base| {
             movement_rules
-                .extra_is_native_to_class(
-                    crate::sim::movement_rules::c2c3_base_extra_rule_name(base),
-                    defender_class,
-                )
+                .extra_is_native_to_class(base.extra_rule_name(), defender_class)
                 .expect("campaign C2C3 combat base nativity is supported")
         })
     }
@@ -565,7 +553,7 @@ impl Simulation {
         }
 
         let base_refuels = self.tile(x, y).base.is_some_and(|base| {
-            let extra_name = crate::sim::movement_rules::c2c3_base_extra_rule_name(base);
+            let extra_name = base.extra_rule_name();
             RulesetData::campaign_default()
                 .rule_records
                 .iter()

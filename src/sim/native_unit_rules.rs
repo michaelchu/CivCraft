@@ -101,7 +101,7 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
     }
     UnitCapabilities {
         id: rule.id,
-        unit_class: super::movement_rules::c2c3_unit_class_rule_name(class).to_owned(),
+        unit_class: class.rule_name().to_owned(),
         flags,
         class_flags,
     }

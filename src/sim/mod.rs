@@ -128,6 +128,7 @@ mod workers;
 mod worklist;
 pub(crate) use worklist::{WORKLIST_LIMIT, WorklistEdit};
 
+use crate::rules::freeciv::EffectKind;
 use crate::rules::{Building, Tech};
 pub(crate) use model::*;
 use topology::*;

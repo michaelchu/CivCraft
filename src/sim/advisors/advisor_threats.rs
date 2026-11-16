@@ -439,7 +439,7 @@ impl Simulation {
     pub(in crate::sim) fn advisor_city_has_defense_effect(&self, city: &City) -> bool {
         self.city_rule_effect(
             city,
-            "Defend_Bonus",
+            EffectKind::DefendBonus,
             Some((city.x, city.y)),
             None,
             None,

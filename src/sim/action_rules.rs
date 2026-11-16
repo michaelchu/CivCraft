@@ -9,12 +9,13 @@ use super::{
     Base, City, Contamination, Pact, PillageTarget, Simulation, Tile, Unit, UnitKind, UnitState,
     WorkKind,
 };
+use crate::rules::freeciv::RequirementKind;
 #[cfg(test)]
 use crate::rules::freeciv::effect_value;
 use crate::rules::freeciv::{
-    ActionEvaluationError, EffectContext, Requirement, RequirementContext,
+    ActionEvaluationError, EffectContext, EffectKind, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, RuleRecord, RulesetData,
-    action_enabled, requirements_met,
+    action_enabled, campaign_effect, requirements_met,
 };
 use crate::rules::{Building, Genus, Requirement as BuildingRequirement, Tech};
 use crate::world::{Resource, Terrain};
@@ -270,7 +271,7 @@ impl<'a> SimulationRequirementContext<'a> {
 
     fn extra_requirement(name: &str) -> Requirement {
         Requirement {
-            kind: "Extra".to_owned(),
+            kind: RequirementKind::Extra,
             name: RequirementValue::String(name.to_owned()),
             range: RequirementRange::Tile,
             present: true,
@@ -287,7 +288,7 @@ impl<'a> SimulationRequirementContext<'a> {
 
     fn unsupported(requirement: &Requirement) -> RequirementEvaluationError {
         RequirementEvaluationError::Unsupported {
-            kind: requirement.kind.clone(),
+            kind: requirement.kind.name().to_owned(),
             name: requirement.name.clone(),
         }
     }
@@ -899,16 +900,15 @@ pub(crate) fn selected_building_is_obsolete(
 impl RequirementContext for SimulationRequirementContext<'_> {
     fn is_present(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
         let unsupported = || Self::unsupported(requirement);
-        let kind = requirement.kind.to_ascii_lowercase();
-        match kind.as_str() {
-            "action" if requirement.range == RequirementRange::Local => {
+        match requirement.kind {
+            RequirementKind::Action if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
                 Ok(self
                     .action
                     .as_deref()
                     .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
             }
-            "building"
+            RequirementKind::Building
                 if matches!(
                     requirement.range,
                     RequirementRange::City | RequirementRange::Player | RequirementRange::World
@@ -916,7 +916,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             {
                 self.building_present(requirement)
             }
-            "buildingflag"
+            RequirementKind::BuildingFlag
                 if matches!(
                     requirement.range,
                     RequirementRange::City | RequirementRange::Player | RequirementRange::World
@@ -924,10 +924,10 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             {
                 self.building_flag_present(requirement)
             }
-            "buildinggenus" if requirement.range == RequirementRange::Local => {
+            RequirementKind::BuildingGenus if requirement.range == RequirementRange::Local => {
                 self.building_genus_present(requirement)
             }
-            "tech"
+            RequirementKind::Tech
                 if matches!(
                     requirement.range,
                     RequirementRange::Player | RequirementRange::World
@@ -935,36 +935,37 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             {
                 self.tech_present(requirement)
             }
-            "gov" if requirement.range == RequirementRange::Player => {
+            RequirementKind::Gov if requirement.range == RequirementRange::Player => {
                 let name = Self::string_name(requirement)?;
                 let government = self
                     .government
                     .unwrap_or(self.simulation.players[self.owner].government);
-                Ok(c2c3_government_rule_name(government)
+                Ok(government
+                    .rule_name()
                     .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
             }
-            "govflag" if requirement.range == RequirementRange::Player => {
+            RequirementKind::GovFlag if requirement.range == RequirementRange::Player => {
                 let name = Self::string_name(requirement)?;
                 let government = self
                     .government
                     .unwrap_or(self.simulation.players[self.owner].government);
                 Ok(government.has_flag(name))
             }
-            "outputtype" if requirement.range == RequirementRange::Local => {
+            RequirementKind::OutputType if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
                 Ok(self
                     .output_type
                     .as_deref()
                     .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
             }
-            "specialist" if requirement.range == RequirementRange::Local => {
+            RequirementKind::Specialist if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
                 Ok(self
                     .specialist
                     .as_deref()
                     .is_some_and(|actual| actual.eq_ignore_ascii_case(name)))
             }
-            "minsize" if requirement.range == RequirementRange::City => {
+            RequirementKind::MinSize if requirement.range == RequirementRange::City => {
                 let city = self
                     .city
                     .or_else(|| self.tile.and_then(|(x, y)| self.simulation.city_at(x, y)));
@@ -979,7 +980,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 .ok_or_else(unsupported)?;
                 Ok(city.size >= minimum)
             }
-            "citystatus" if requirement.range == RequirementRange::City => {
+            RequirementKind::CityStatus if requirement.range == RequirementRange::City => {
                 let name = Self::string_name(requirement)?;
                 match name.to_ascii_lowercase().as_str() {
                     "celebration" => Ok(self.celebrating.unwrap_or(false)),
@@ -987,7 +988,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     _ => Err(unsupported()),
                 }
             }
-            "citytile" if requirement.range == RequirementRange::Tile => {
+            RequirementKind::CityTile if requirement.range == RequirementRange::Tile => {
                 let name = Self::string_name(requirement)?;
                 let tile = self.tile.ok_or_else(unsupported)?;
                 match name.to_ascii_lowercase().as_str() {
@@ -1011,7 +1012,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     _ => Err(unsupported()),
                 }
             }
-            "ai" if requirement.range == RequirementRange::Player => {
+            RequirementKind::Ai if requirement.range == RequirementRange::Player => {
                 let name = Self::string_name(requirement)?;
                 match name.to_ascii_lowercase().as_str() {
                     // CivCraft has no difficulty tier; the campaign uses the
@@ -1020,7 +1021,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     _ => Err(unsupported()),
                 }
             }
-            "unittype" if requirement.range == RequirementRange::Local => {
+            RequirementKind::UnitType if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
                 if let Some(native) = self.native_unit_capabilities {
                     return Ok(native.id.eq_ignore_ascii_case(name)
@@ -1045,21 +1046,21 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 // similarly named missiles or unit flags.
                 Ok(self.unit.is_some_and(|unit| unit.kind.is_nuclear_weapon()))
             }
-            "unitclass" if requirement.range == RequirementRange::Local => {
+            RequirementKind::UnitClass if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
                 let Some(unit) = self.unit else {
                     return Ok(false);
                 };
                 Ok(Self::unit_class_rule_name(unit.kind, requirement)?.eq_ignore_ascii_case(name))
             }
-            "unitclassflag" if requirement.range == RequirementRange::Local => {
+            RequirementKind::UnitClassFlag if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
                 let Some(unit) = self.unit else {
                     return Ok(false);
                 };
                 self.unit_class_flag(unit.kind, name, requirement)
             }
-            "unittypeflag" if requirement.range == RequirementRange::Local => {
+            RequirementKind::UnitTypeFlag if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
                 if let Some(native) = self.native_unit_capabilities {
                     return Ok(native
@@ -1080,7 +1081,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     freeciv_unit_type_flag(unit.kind, name).ok_or_else(unsupported)
                 }
             }
-            "terrain" if requirement.range == RequirementRange::Tile => {
+            RequirementKind::Terrain if requirement.range == RequirementRange::Tile => {
                 let name = Self::string_name(requirement)?;
                 let tile = self.tile.ok_or_else(unsupported)?;
                 let terrain_name = super::movement_rules::MovementRules::campaign()
@@ -1089,7 +1090,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     .rule_name;
                 Ok(terrain_name.eq_ignore_ascii_case(name))
             }
-            "terrainclass"
+            RequirementKind::TerrainClass
                 if matches!(
                     requirement.range,
                     RequirementRange::Tile
@@ -1107,20 +1108,20 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 }
                 Ok(false)
             }
-            "terrainflag" if requirement.range == RequirementRange::Tile => {
+            RequirementKind::TerrainFlag if requirement.range == RequirementRange::Tile => {
                 self.terrain_field_matches(requirement, "flags", Self::string_name(requirement)?)
             }
-            "terrainalter" if requirement.range == RequirementRange::Tile => {
+            RequirementKind::TerrainAlter if requirement.range == RequirementRange::Tile => {
                 self.terrain_alter(requirement)
             }
-            "nationgroup" if requirement.range == RequirementRange::Player => {
+            RequirementKind::NationGroup if requirement.range == RequirementRange::Player => {
                 let name = Self::string_name(requirement)?;
                 if !name.eq_ignore_ascii_case("Barbarian") {
                     return Err(unsupported());
                 }
                 Ok(self.owner == super::BARBARIANS)
             }
-            "nation" if requirement.range == RequirementRange::Player => {
+            RequirementKind::Nation if requirement.range == RequirementRange::Player => {
                 let name = Self::string_name(requirement)?;
                 if !name.eq_ignore_ascii_case("Animal Kingdom") {
                     return Err(unsupported());
@@ -1130,7 +1131,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 // from Freeciv's Animal Kingdom nation as well.
                 Ok(false)
             }
-            "extra" => {
+            RequirementKind::Extra => {
                 let name = Self::string_name(requirement)?;
                 let positions = match requirement.range {
                     RequirementRange::Adjacent | RequirementRange::CAdjacent => {
@@ -1145,7 +1146,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 }
                 Ok(false)
             }
-            "extraflag"
+            RequirementKind::ExtraFlag
                 if matches!(
                     requirement.range,
                     RequirementRange::Tile
@@ -1155,7 +1156,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             {
                 self.extra_flag_present(requirement)
             }
-            "activity" if requirement.range == RequirementRange::Local => {
+            RequirementKind::Activity if requirement.range == RequirementRange::Local => {
                 let name = Self::string_name(requirement)?;
                 let Some(unit) = self.unit else {
                     return Ok(false);
@@ -1165,10 +1166,10 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                     _ => Err(unsupported()),
                 }
             }
-            "unitstate" if requirement.range == RequirementRange::Local => {
+            RequirementKind::UnitState if requirement.range == RequirementRange::Local => {
                 self.unit_state(requirement)
             }
-            "minmovefrags" if requirement.range == RequirementRange::Local => {
+            RequirementKind::MinMoveFrags if requirement.range == RequirementRange::Local => {
                 let threshold = match &requirement.name {
                     RequirementValue::String(value) => value.parse::<i32>().ok(),
                     RequirementValue::Integer(value) => i32::try_from(*value).ok(),
@@ -1177,7 +1178,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 .ok_or_else(unsupported)?;
                 Ok(self.unit.is_some_and(|unit| unit.moves_left >= threshold))
             }
-            "maxunitsontile" if requirement.range == RequirementRange::Tile => {
+            RequirementKind::MaxUnitsOnTile if requirement.range == RequirementRange::Tile => {
                 let tile = self.tile.ok_or_else(unsupported)?;
                 let maximum = match &requirement.name {
                     RequirementValue::String(value) => value.parse::<usize>().ok(),
@@ -1195,14 +1196,42 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 // compares the total tile-unit count with this maximum.
                 Ok(count <= maximum)
             }
-            "diplrel" if requirement.range == RequirementRange::Local => {
+            RequirementKind::DiplRel if requirement.range == RequirementRange::Local => {
                 self.diplomatic_relation(requirement)
             }
-            "diplreltileother" if requirement.range == RequirementRange::Local => {
+            RequirementKind::DiplRelTileOther if requirement.range == RequirementRange::Local => {
                 self.diplomatic_relation_tile_other(requirement)
             }
             _ => Err(unsupported()),
         }
+    }
+}
+
+impl SimulationRequirementContext<'_> {
+    /// Sum the selected ruleset's active effects of one type for this context.
+    ///
+    /// This is the simulation entry point for effect values; see
+    /// [`campaign_effect`] for the failure contract.
+    pub(crate) fn effect(&self, kind: EffectKind) -> i64 {
+        campaign_effect(kind, self)
+    }
+
+    /// [`Self::effect`] narrowed to the `i32` range used by most game values.
+    pub(crate) fn effect_i32(&self, kind: EffectKind) -> i32 {
+        i32::try_from(self.effect(kind))
+            .unwrap_or_else(|_| panic!("{kind} effect value exceeds the i32 range"))
+    }
+}
+
+impl Simulation {
+    /// The value of a city-range effect evaluated at the city's own tile.
+    pub(crate) fn city_effect(&self, city: &super::City, kind: EffectKind) -> i64 {
+        SimulationRequirementContext::for_city_at(self, city, Some((city.x, city.y))).effect(kind)
+    }
+
+    /// The value of a player-range effect with no city, unit, or tile.
+    pub(crate) fn player_effect(&self, owner: usize, kind: EffectKind) -> i64 {
+        SimulationRequirementContext::for_player_at(self, owner, None).effect(kind)
     }
 }
 
@@ -1213,22 +1242,6 @@ impl EffectContext for SimulationRequirementContext<'_> {
         // future consumers must add their rule-specific player factor.
         None
     }
-}
-
-fn c2c3_government_rule_name(government: super::Government) -> Option<&'static str> {
-    Some(match government {
-        super::Government::Anarchy => "Anarchy",
-        super::Government::Despotism => "Despotism",
-        super::Government::Monarchy => "Monarchy",
-        super::Government::Communism => "Communism",
-        super::Government::Tribal => "Tribal",
-        super::Government::Fundamentalism => "Fundamentalism",
-        super::Government::Federation => "Federation",
-        super::Government::Republic => "Republic",
-        super::Government::Democracy => "Democracy",
-        super::Government::Fascism => "Fascism",
-        super::Government::Feudalism => "Feudalism",
-    })
 }
 
 fn c2c3_building_name_aliases(runtime_name: &str) -> &'static [&'static str] {
@@ -2312,7 +2325,7 @@ mod tests {
         let mut game = flat_game();
         let position = (10, 20);
         let requirement = |present| Requirement {
-            kind: "CityTile".to_owned(),
+            kind: RequirementKind::CityTile,
             name: RequirementValue::String("Claimed".to_owned()),
             range: RequirementRange::Tile,
             present,
@@ -2345,7 +2358,7 @@ mod tests {
         let adjacent = game.map_wrap.civ3_neighbor(center.0, center.1, 0).unwrap();
         game.tile_mut(adjacent.0, adjacent.1).river = true;
         let requirement = |range| Requirement {
-            kind: "Extra".to_owned(),
+            kind: RequirementKind::Extra,
             name: RequirementValue::String("River".to_owned()),
             range,
             present: true,
@@ -2645,7 +2658,7 @@ mod tests {
         let worker = game.spawn_unit(crate::sim::HUMAN, UnitKind::Worker, x, y);
 
         let requirement = |kind: &str, name: &str, range| Requirement {
-            kind: kind.to_owned(),
+            kind: RequirementKind::parse(kind).expect("known requirement type"),
             name: RequirementValue::String(name.to_owned()),
             range,
             present: true,
@@ -2701,7 +2714,7 @@ mod tests {
     fn c2c3_machine_tools_requirement_uses_the_civ3_robotics_advance() {
         let mut game = flat_game();
         let requirement = Requirement {
-            kind: "Tech".to_owned(),
+            kind: RequirementKind::Tech,
             name: RequirementValue::String("Machine Tools".to_owned()),
             range: RequirementRange::Player,
             present: true,
@@ -2742,7 +2755,7 @@ mod tests {
         game.completed_wonders.push(Building::MANHATTAN_PROJECT);
 
         let requirement = |name: &str, present, survives| Requirement {
-            kind: "Building".to_owned(),
+            kind: RequirementKind::Building,
             name: RequirementValue::String(name.to_owned()),
             range: RequirementRange::World,
             present,
@@ -2824,7 +2837,7 @@ mod tests {
             SimulationRequirementContext::for_player_at(&game, crate::sim::HUMAN, Some((10, 20)))
         };
         let requirement = |name: &str| Requirement {
-            kind: "DiplRel".to_owned(),
+            kind: RequirementKind::DiplRel,
             name: RequirementValue::String(name.to_owned()),
             range: RequirementRange::Local,
             present: true,
@@ -2874,7 +2887,7 @@ mod tests {
         )
         .with_relation_target(Some(crate::sim::HUMAN));
         assert_eq!(
-            effect_value(&rules.effects, "Nuke_Proof", &city_context).unwrap(),
+            effect_value(&rules.effects, EffectKind::NukeProof, &city_context).unwrap(),
             100
         );
 
@@ -2885,7 +2898,7 @@ mod tests {
         )
         .with_relation_target(Some(1));
         assert_eq!(
-            effect_value(&rules.effects, "Nuke_Proof", &same_player_context).unwrap(),
+            effect_value(&rules.effects, EffectKind::NukeProof, &same_player_context).unwrap(),
             0
         );
 
@@ -2897,7 +2910,7 @@ mod tests {
         )
         .with_relation_target(Some(crate::sim::HUMAN));
         assert_eq!(
-            effect_value(&rules.effects, "Nuke_Proof", &no_sdi_context).unwrap(),
+            effect_value(&rules.effects, EffectKind::NukeProof, &no_sdi_context).unwrap(),
             0
         );
     }
@@ -2980,7 +2993,7 @@ mod tests {
         game.discover(1, tech);
 
         let requirement = |range, survives| Requirement {
-            kind: "Tech".to_owned(),
+            kind: RequirementKind::Tech,
             name: RequirementValue::String("Superconductors".to_owned()),
             range,
             present: true,
@@ -3041,7 +3054,10 @@ mod tests {
         let worker = game.unit_by_id(worker_id).unwrap();
         let context = SimulationRequirementContext::for_unit(&game, worker);
         let requirement = Requirement {
-            kind: "MadeUpUniversal".to_owned(),
+            // A genuine engine universal that this resolver does not implement.
+            // Unknown spellings can no longer reach evaluation: they are
+            // rejected when the ruleset is loaded.
+            kind: RequirementKind::Counter,
             name: RequirementValue::String("Something".to_owned()),
             range: RequirementRange::Local,
             present: true,
@@ -3285,7 +3301,7 @@ mod tests {
         assert_eq!(
             crate::rules::freeciv::effect_value(
                 &RulesetData::campaign_default().effects,
-                "Unit_Shield_Value_Pct",
+                EffectKind::UnitShieldValuePct,
                 &context,
             )
             .unwrap(),

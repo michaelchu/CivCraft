@@ -417,14 +417,11 @@ impl Simulation {
         victim: Option<usize>,
         target: (i32, i32),
     ) {
-        let rules = crate::rules::freeciv::RulesetData::campaign_default();
         let context =
             super::action_rules::SimulationRequirementContext::for_unit_at(self, actor, target)
                 .with_action(action)
                 .with_relation_target(victim);
-        let value =
-            crate::rules::freeciv::effect_value(&rules.effects, "Casus_Belli_Success", &context)
-                .expect("selected C2C3 Casus_Belli_Success requirements are supported");
+        let value = context.effect(EffectKind::CasusBelliSuccess);
         if value > 0
             && let Some(victim) = victim
         {
@@ -439,14 +436,11 @@ impl Simulation {
         victim: Option<usize>,
         target: (i32, i32),
     ) {
-        let rules = crate::rules::freeciv::RulesetData::campaign_default();
         let context =
             super::action_rules::SimulationRequirementContext::for_unit_at(self, actor, target)
                 .with_action(action)
                 .with_relation_target(victim);
-        let value =
-            crate::rules::freeciv::effect_value(&rules.effects, "Casus_Belli_Caught", &context)
-                .expect("selected C2C3 Casus_Belli_Caught requirements are supported");
+        let value = context.effect(EffectKind::CasusBelliCaught);
         if value > 0
             && let Some(victim) = victim
         {

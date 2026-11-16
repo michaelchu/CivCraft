@@ -1,7 +1,7 @@
 //! Government selection and government-dependent rules.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, effect_value};
+use crate::rules::freeciv::RulesetData;
 use crate::sim::action_rules::SimulationRequirementContext;
 use std::sync::OnceLock;
 
@@ -108,21 +108,21 @@ impl Government {
     }
 
     pub(crate) fn max_rate(self) -> i32 {
-        self.ruleset_effect_value("Max_Rates")
+        self.ruleset_effect_value(EffectKind::MaxRates)
             .expect("selected government has a native Max_Rates value") as i32
     }
 
     pub(super) fn empire_size(self) -> i32 {
-        self.ruleset_effect_value("Empire_Size_Base")
+        self.ruleset_effect_value(EffectKind::EmpireSizeBase)
             .expect("selected government has a native Empire_Size_Base value") as i32
     }
 
-    pub(crate) fn ruleset_effect_value(self, kind: &str) -> Option<i64> {
+    pub(crate) fn ruleset_effect_value(self, kind: EffectKind) -> Option<i64> {
         let record = self.native_record()?;
         Some(match kind {
-            "Civil_War_Chance" => record.civil_war_chance.into(),
-            "Empire_Size_Base" => record.empire_size_base.into(),
-            "Max_Rates" => record.max_rates.into(),
+            EffectKind::CivilWarChance => record.civil_war_chance.into(),
+            EffectKind::EmpireSizeBase => record.empire_size_base.into(),
+            EffectKind::MaxRates => record.max_rates.into(),
             _ => return None,
         })
     }
@@ -277,12 +277,7 @@ impl Simulation {
         if target.native_record().is_none() {
             return false;
         }
-        let rules = RulesetData::campaign_default();
-        let context = SimulationRequirementContext::for_player_at(self, owner, None)
-            .with_government(self.players[owner].government);
-        let any_government = effect_value(&rules.effects, "Any_Government", &context)
-            .unwrap_or_else(|error| panic!("could not evaluate C2C3 Any_Government: {error:?}"));
-        if any_government > 0 {
+        if self.player_effect(owner, EffectKind::AnyGovernment) > 0 {
             return true;
         }
         target
@@ -296,7 +291,7 @@ impl Simulation {
         if !player.ai
             || player.government == temporary
             || player.revolution_turn == Some(self.turn)
-                && self.government_effect_value(owner, "No_Anarchy") <= 0
+                && self.player_effect(owner, EffectKind::NoAnarchy) <= 0
         {
             return false;
         }
@@ -329,7 +324,7 @@ impl Simulation {
         let settings = RulesetData::campaign_default()
             .research_settings()
             .expect("valid C2C3 revolution settings");
-        let no_anarchy = self.government_effect_value(owner, "No_Anarchy") > 0;
+        let no_anarchy = self.player_effect(owner, EffectKind::NoAnarchy) > 0;
         let already_revolting = self.players[owner].revolution_turn;
         let mut anarchy = !no_anarchy;
         let turns = if let Some(finish) = already_revolting {
@@ -375,7 +370,7 @@ impl Simulation {
         let disorder = self.city_forecast(&city).disorder;
         let turns = self.city_rule_effect(
             &city,
-            "Revolution_Unhappiness",
+            EffectKind::RevolutionUnhappiness,
             None,
             None,
             None,
@@ -408,14 +403,6 @@ impl Simulation {
         let change_speed = ((player_count / 2) / (length - 1)).max(1);
         let max_turns = (length - self.government_adoptions[target as usize] / change_speed).max(1);
         self.rand_below(max_turns) + 1
-    }
-
-    pub(crate) fn government_effect_value(&self, owner: usize, kind: &str) -> i64 {
-        let rules = RulesetData::campaign_default();
-        let context = SimulationRequirementContext::for_player_at(self, owner, None)
-            .with_government(self.players[owner].government);
-        effect_value(&rules.effects, kind, &context)
-            .unwrap_or_else(|error| panic!("could not evaluate campaign {kind} effect: {error:?}"))
     }
 
     pub(super) fn finish_revolutions(&mut self) {

@@ -243,7 +243,7 @@ impl Simulation {
         let illness = self.city_illness(city, forecast.shields);
         let migration_pct = self.city_rule_effect(
             city,
-            "Migration_Pct",
+            EffectKind::MigrationPct,
             None,
             None,
             None,
@@ -273,7 +273,7 @@ impl Simulation {
     fn is_migration_capital(&self, city: &City) -> bool {
         self.city_rule_effect(
             city,
-            "Capital_City",
+            EffectKind::CapitalCity,
             None,
             None,
             None,

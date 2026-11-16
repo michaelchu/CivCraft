@@ -6,7 +6,6 @@ use super::*;
 
 mod production;
 use crate::rules::Genus;
-use crate::rules::freeciv::{RulesetData, effect_value};
 
 impl Simulation {
     // Toroidal fixture convenience; gameplay uses the campaign-aware methods below.
@@ -243,14 +242,7 @@ impl Simulation {
         )
         .with_unit_preserving_owner(attacker)
         .with_action(action);
-        if effect_value(
-            &RulesetData::campaign_default().effects,
-            "Unit_No_Lose_Pop",
-            &context,
-        )
-        .expect("campaign C2C3 Unit_No_Lose_Pop requirements are supported")
-            > 0
-        {
+        if context.effect(EffectKind::UnitNoLosePop) > 0 {
             return;
         }
 
@@ -486,17 +478,13 @@ impl Simulation {
         // citytools.c tries the conquest technology effect after loot and
         // before transferring the city. The selected C2C3 effect is 100%.
         let city_for_effect = self.cities[city_index].clone();
-        let conquest_tech_pct = effect_value(
-            &RulesetData::campaign_default().effects,
-            "Conquest_Tech_Pct",
-            &super::action_rules::SimulationRequirementContext::for_city_at(
-                self,
-                &city_for_effect,
-                Some((x, y)),
-            )
-            .with_unit_preserving_owner(&unit),
+        let conquest_tech_pct = super::action_rules::SimulationRequirementContext::for_city_at(
+            self,
+            &city_for_effect,
+            Some((x, y)),
         )
-        .expect("campaign C2C3 Conquest_Tech_Pct requirements are supported");
+        .with_unit_preserving_owner(&unit)
+        .effect(EffectKind::ConquestTechPct);
         if i64::from(self.rand_below(100)) < conquest_tech_pct {
             self.steal_conquest_technology(unit.owner, old_owner);
         }

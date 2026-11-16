@@ -1,7 +1,7 @@
 //! Unit support and upkeep calculations.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, UnitUpkeepOutput, effect_value};
+use crate::rules::freeciv::{RulesetData, UnitUpkeepOutput};
 use crate::sim::action_rules::SimulationRequirementContext;
 use std::sync::OnceLock;
 
@@ -259,12 +259,7 @@ impl Simulation {
     pub(in crate::sim) fn unit_shield_value_for_action(&self, unit: &Unit, action: &str) -> i32 {
         let base = super::action_rules::unit_build_cost(unit.kind);
         let context = SimulationRequirementContext::for_unit(self, unit).with_action(action);
-        let percent = effect_value(
-            &RulesetData::campaign_default().effects,
-            "Unit_Shield_Value_Pct",
-            &context,
-        )
-        .unwrap_or_else(|error| panic!("could not evaluate C2C3 unit shield value: {error:?}"));
+        let percent = context.effect(EffectKind::UnitShieldValuePct);
         let value = i64::from(base) + i64::from(base) * percent / 100;
         i32::try_from(value).unwrap_or_else(|_| panic!("unit shield value exceeds i32"))
     }

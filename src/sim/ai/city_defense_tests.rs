@@ -72,7 +72,7 @@ fn city_defender_prepass_selects_a_unit_for_martial_law() {
     assert!(
         game.city_rule_effect(
             &game.cities[0],
-            "Martial_Law_Max",
+            EffectKind::MartialLawMax,
             None,
             None,
             None,

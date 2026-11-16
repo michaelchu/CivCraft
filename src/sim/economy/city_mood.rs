@@ -87,7 +87,7 @@ impl Simulation {
             .filter_map(|(index, specialist)| {
                 let luxury = self.city_rule_effect(
                     city,
-                    "Specialist_Output",
+                    EffectKind::SpecialistOutput,
                     None,
                     Some("Luxury"),
                     Some(specialist),
@@ -107,7 +107,7 @@ impl Simulation {
         martial_enabled: bool,
     ) -> CitizenFeelingStages {
         let government = self.players[city.owner].government;
-        let effect = |kind: &str| {
+        let effect = |kind: EffectKind| {
             self.city_rule_effect(city, kind, None, None, None, false, government, None)
         };
         let profiler = self.trace.profiler();
@@ -125,7 +125,7 @@ impl Simulation {
         // in the city. Each unit's effect is evaluated through its own type.
         let _profile = profiler.scope("city_mood.martial_law");
         if martial_enabled {
-            let max_law = effect("Martial_Law_Max").max(0);
+            let max_law = effect(EffectKind::MartialLawMax).max(0);
             let mut martial_values: Vec<_> = self
                 .units
                 .iter()
@@ -135,7 +135,12 @@ impl Simulation {
                         && (unit.x, unit.y) == (city.x, city.y)
                 })
                 .map(|unit| {
-                    self.city_rule_effect_for_unit(city, unit, "Martial_Law_By_Unit", government)
+                    self.city_rule_effect_for_unit(
+                        city,
+                        unit,
+                        EffectKind::MartialLawByUnit,
+                        government,
+                    )
                 })
                 .filter(|value| *value > 0)
                 .collect();
@@ -187,7 +192,7 @@ impl Simulation {
         // Make_Happy precedes No_Unhappy and Force_Content in the final mood
         // stage; these effects are data-driven and also cover wonders.
         let _profile = profiler.scope("city_mood.final_effects");
-        let mut happy_faces = effect("Make_Happy").max(0);
+        let mut happy_faces = effect(EffectKind::MakeHappy).max(0);
         while happy_faces > 0 && content > 0 {
             content -= 1;
             happy += 1;
@@ -198,11 +203,11 @@ impl Simulation {
             happy += 1;
             happy_faces -= 2;
         }
-        if effect("No_Unhappy") > 0 {
+        if effect(EffectKind::NoUnhappy) > 0 {
             unhappy = 0;
             angry = 0;
         } else {
-            let mut force_faces = happy_faces + effect("Force_Content").max(0);
+            let mut force_faces = happy_faces + effect(EffectKind::ForceContent).max(0);
             while force_faces > 0 && angry > 0 {
                 angry -= 1;
                 unhappy += 1;
@@ -229,7 +234,7 @@ impl Simulation {
 
     fn city_feelings_effect_stage(&self, city: &City, luxury: i32) -> CitizenFeelingCounts {
         let government = self.players[city.owner].government;
-        let effect = |kind: &str| {
+        let effect = |kind: EffectKind| {
             self.city_rule_effect(city, kind, None, None, None, false, government, None)
         };
         let base = self.city_base_content(city, government);
@@ -265,7 +270,7 @@ impl Simulation {
 
         // Make_Content effects first calm angry citizens, then contentify
         // unhappy citizens, matching city.c:citizen_content_buildings.
-        let mut content_faces = effect("Make_Content").max(0);
+        let mut content_faces = effect(EffectKind::MakeContent).max(0);
         while content_faces > 0 && angry > 0 {
             angry -= 1;
             unhappy += 1;
@@ -286,7 +291,7 @@ impl Simulation {
     }
 
     pub(super) fn city_base_content(&self, city: &City, government: Government) -> i32 {
-        let effect = |kind: &str| {
+        let effect = |kind: EffectKind| {
             self.city_rule_effect(city, kind, None, None, None, false, government, None)
         };
         let city_count = self
@@ -294,9 +299,9 @@ impl Simulation {
             .iter()
             .filter(|other| other.owner == city.owner)
             .count() as i32;
-        let base = effect("City_Unhappy_Size");
-        let empire_base = effect("Empire_Size_Base");
-        let empire_step = effect("Empire_Size_Step");
+        let base = effect(EffectKind::CityUnhappySize);
+        let empire_base = effect(EffectKind::EmpireSizeBase);
+        let empire_step = effect(EffectKind::EmpireSizeStep);
         if empire_base + empire_step <= 0 || city_count <= empire_base {
             return base;
         }

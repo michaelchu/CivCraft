@@ -38,6 +38,7 @@ pub(crate) use civil_war::CivilWarRulesetSettings;
 pub(crate) use combat::{
     CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
 };
+pub(crate) use identifiers::{EffectKind, RequirementKind};
 #[cfg(test)]
 pub(crate) use loader::RULESET_FILES;
 pub(crate) use settlement_ai::SettlementAiSettings;
@@ -71,7 +72,7 @@ pub(crate) struct RulesetData {
     pub(crate) files: Vec<LoadedRuleFile>,
     pub(crate) settings: Vec<SettingRecord>,
     pub(crate) parameters: Vec<RuleParameter>,
-    pub(crate) effects: Vec<EffectRecord>,
+    pub(crate) effects: EffectSet,
     pub(crate) actions: Vec<ActionRecord>,
     pub(crate) action_enablers: Vec<ActionEnabler>,
     pub(crate) content: Vec<ContentRecord>,
@@ -431,8 +432,9 @@ impl VictoryCondition {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Requirement {
-    /// Freeciv universal type, e.g. `Tech`, `Terrain`, or `UnitTypeFlag`.
-    pub(crate) kind: String,
+    /// Freeciv universal type, e.g. `Tech`, `Terrain`, or `UnitTypeFlag`,
+    /// resolved from the rule file's spelling once at load.
+    pub(crate) kind: RequirementKind,
     /// A string, integer, or boolean universal value. Native rulesets use
     /// strings for most names and may use integers for numeric universals.
     pub(crate) name: RequirementValue,
@@ -476,12 +478,59 @@ pub(crate) enum RequirementRange {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct EffectRecord {
     pub(crate) rule_name: String,
-    /// Effect identifiers are defined by the Freeciv engine, so keep the
-    /// selected ruleset's spelling intact for engine-side dispatch.
-    pub(crate) kind: String,
+    /// Effect identifiers are defined by the Freeciv engine. Rule files are
+    /// resolved to the typed identifier once at load.
+    pub(crate) kind: EffectKind,
     pub(crate) value: i64,
     pub(crate) multiplier: Option<String>,
     pub(crate) requirements: Vec<Requirement>,
+}
+
+/// A ruleset's effects in file order, indexed by engine effect type so that
+/// evaluating one type never visits the records of another.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct EffectSet {
+    records: Vec<EffectRecord>,
+    /// Record positions per [`EffectKind`], preserving file order.
+    by_kind: Vec<Vec<usize>>,
+}
+
+impl EffectSet {
+    /// Effects of one engine type, in ruleset file order.
+    pub(crate) fn of_kind(&self, kind: EffectKind) -> impl Iterator<Item = &EffectRecord> + '_ {
+        self.by_kind
+            .get(kind as usize)
+            .into_iter()
+            .flatten()
+            .map(|&index| &self.records[index])
+    }
+}
+
+impl From<Vec<EffectRecord>> for EffectSet {
+    fn from(records: Vec<EffectRecord>) -> Self {
+        let mut by_kind = vec![Vec::new(); EffectKind::ALL.len()];
+        for (index, record) in records.iter().enumerate() {
+            by_kind[record.kind as usize].push(index);
+        }
+        Self { records, by_kind }
+    }
+}
+
+impl std::ops::Deref for EffectSet {
+    type Target = [EffectRecord];
+
+    fn deref(&self) -> &Self::Target {
+        &self.records
+    }
+}
+
+impl<'a> IntoIterator for &'a EffectSet {
+    type Item = &'a EffectRecord;
+    type IntoIter = std::slice::Iter<'a, EffectRecord>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.records.iter()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -649,7 +698,7 @@ pub(crate) struct GovernmentRulesetRecord {
     pub(crate) ai_better: Option<String>,
     /// Effects whose government requirements match this government. Other
     /// requirements are preserved and evaluated by the shared effect engine.
-    pub(crate) attributes: Vec<EffectRecord>,
+    pub(crate) attributes: EffectSet,
 }
 
 impl GovernmentRulesetRecord {
@@ -659,7 +708,7 @@ impl GovernmentRulesetRecord {
     /// effect definitions.
     pub(crate) fn effect_value(
         &self,
-        kind: &str,
+        kind: EffectKind,
         context: &impl EffectContext,
     ) -> Result<i64, EffectEvaluationError> {
         effect_value(&self.attributes, kind, context)
@@ -833,7 +882,7 @@ impl RulesetData {
         ruleset_name: &str,
     ) -> Result<Self, LoadError> {
         let mut rules = Self::load(data_root, ruleset_name)?;
-        rules.effects = native_effect_records()?;
+        rules.effects = native_effect_records()?.into();
         rules.actions = native_action_records();
         rules.action_enablers = native_action_enablers()?;
         let source_catalog =
@@ -1219,8 +1268,8 @@ impl RulesetData {
                     requirement.kind
                 )));
             }
-            match requirement.kind.to_ascii_lowercase().as_str() {
-                "terrainclass" => match &requirement.name {
+            match requirement.kind {
+                RequirementKind::TerrainClass => match &requirement.name {
                     RequirementValue::String(name) if name.eq_ignore_ascii_case("Land") => {
                         hut_land_only = true;
                     }
@@ -1230,7 +1279,7 @@ impl RulesetData {
                         )));
                     }
                 },
-                "minlatitude" | "maxlatitude" => {
+                RequirementKind::MinLatitude | RequirementKind::MaxLatitude => {
                     let value = match &requirement.name {
                         RequirementValue::Integer(value) => {
                             i32::try_from(*value).map_err(|_| {
@@ -1253,7 +1302,7 @@ impl RulesetData {
                             )));
                         }
                     };
-                    let slot = if requirement.kind.eq_ignore_ascii_case("MinLatitude") {
+                    let slot = if requirement.kind == RequirementKind::MinLatitude {
                         &mut hut_minimum_latitude
                     } else {
                         &mut hut_maximum_latitude
@@ -1477,17 +1526,18 @@ impl RulesetData {
             .map(|record| rule_record_integer(self, record, "trade_incr"))
             .transpose()?
             .unwrap_or(0);
-        let has_requirement = |effect: &EffectRecord, kind: &str, name: &str, present: bool| {
-            effect.requirements.iter().any(|requirement| {
-                requirement.kind.eq_ignore_ascii_case(kind)
-                    && matches!(
-                        &requirement.name,
-                        RequirementValue::String(value) if value.eq_ignore_ascii_case(name)
-                    )
-                    && requirement.range == RequirementRange::Tile
-                    && requirement.present == present
-            })
-        };
+        let has_requirement =
+            |effect: &EffectRecord, kind: RequirementKind, name: &str, present: bool| {
+                effect.requirements.iter().any(|requirement| {
+                    requirement.kind == kind
+                        && matches!(
+                            &requirement.name,
+                            RequirementValue::String(value) if value.eq_ignore_ascii_case(name)
+                        )
+                        && requirement.range == RequirementRange::Tile
+                        && requirement.present == present
+                })
+            };
         let sum_effects = |effects: Vec<&EffectRecord>| {
             effects
                 .into_iter()
@@ -1497,27 +1547,28 @@ impl RulesetData {
         };
         let irrigation_percent = sum_effects(
             self.effects
-                .iter()
-                .filter(|effect| effect.kind.eq_ignore_ascii_case("Irrigation_Pct"))
-                .filter(|effect| has_requirement(effect, "Extra", "Irrigation", true))
-                .filter(|effect| !has_requirement(effect, "Extra", "River", true))
+                .of_kind(EffectKind::IrrigationPct)
+                .filter(|effect| {
+                    has_requirement(effect, RequirementKind::Extra, "Irrigation", true)
+                })
+                .filter(|effect| !has_requirement(effect, RequirementKind::Extra, "River", true))
                 .collect(),
         );
         let desert_river_irrigation_percent = sum_effects(
             self.effects
-                .iter()
-                .filter(|effect| effect.kind.eq_ignore_ascii_case("Irrigation_Pct"))
-                .filter(|effect| has_requirement(effect, "Terrain", "Desert", true))
-                .filter(|effect| has_requirement(effect, "Extra", "River", true))
-                .filter(|effect| has_requirement(effect, "Extra", "Oasis", false))
-                .filter(|effect| has_requirement(effect, "Extra", "Irrigation", true))
+                .of_kind(EffectKind::IrrigationPct)
+                .filter(|effect| has_requirement(effect, RequirementKind::Terrain, "Desert", true))
+                .filter(|effect| has_requirement(effect, RequirementKind::Extra, "River", true))
+                .filter(|effect| has_requirement(effect, RequirementKind::Extra, "Oasis", false))
+                .filter(|effect| {
+                    has_requirement(effect, RequirementKind::Extra, "Irrigation", true)
+                })
                 .collect(),
         );
         let mining_percent = sum_effects(
             self.effects
-                .iter()
-                .filter(|effect| effect.kind.eq_ignore_ascii_case("Mining_Pct"))
-                .filter(|effect| has_requirement(effect, "Extra", "Mine", true))
+                .of_kind(EffectKind::MiningPct)
+                .filter(|effect| has_requirement(effect, RequirementKind::Extra, "Mine", true))
                 .collect(),
         );
         Ok(StartPositionScoringSettings {
@@ -1608,9 +1659,15 @@ fn native_effect_records() -> Result<Vec<EffectRecord>, LoadError> {
                     native_requirement("effects.toml", &effect.id, "requirements", requirement)
                 })
                 .collect::<Result<Vec<_>, LoadError>>()?;
+            let kind = EffectKind::parse(&effect.kind).ok_or_else(|| {
+                LoadError::new(format!(
+                    "native effect {} has unknown effect type {:?}",
+                    effect.id, effect.kind
+                ))
+            })?;
             Ok(EffectRecord {
                 rule_name: effect.id.clone(),
-                kind: effect.kind.clone(),
+                kind,
                 value: effect.value,
                 multiplier: effect.multiplier.clone(),
                 requirements,
@@ -1643,8 +1700,14 @@ fn native_requirement(
             )));
         }
     };
+    let kind = RequirementKind::parse(&requirement.kind).ok_or_else(|| {
+        LoadError::new(format!(
+            "native record {id} has unknown requirement type {:?}",
+            requirement.kind
+        ))
+    })?;
     Ok(Requirement {
-        kind: requirement.kind.clone(),
+        kind,
         name: RequirementValue::String(requirement.name.clone()),
         range,
         present: requirement.present,
@@ -1892,7 +1955,7 @@ impl RulesetData {
 
                 let requirements = (!source.required_technology.trim().is_empty())
                     .then(|| Requirement {
-                        kind: "Tech".to_owned(),
+                        kind: RequirementKind::Tech,
                         name: RequirementValue::String(source.required_technology.clone()),
                         range: RequirementRange::Player,
                         present: true,
@@ -1914,7 +1977,8 @@ impl RulesetData {
                     .iter()
                     .filter(|effect| government_effect_applies_to(effect, id))
                     .cloned()
-                    .collect();
+                    .collect::<Vec<_>>()
+                    .into();
 
                 Ok(GovernmentRulesetRecord {
                     id: id.to_owned(),
@@ -1944,7 +2008,7 @@ fn government_effect_applies_to(effect: &EffectRecord, government_id: &str) -> b
     for requirement in effect
         .requirements
         .iter()
-        .filter(|requirement| requirement.kind.eq_ignore_ascii_case("Gov"))
+        .filter(|requirement| requirement.kind == RequirementKind::Gov)
     {
         found_government_requirement = true;
         let matches = matches!(
@@ -2124,7 +2188,6 @@ pub(crate) trait EffectContext: RequirementContext {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum EffectEvaluationError {
-    UnknownEffectType(String),
     MissingMultiplier(String),
     Overflow,
     Requirement(RequirementEvaluationError),
@@ -2140,21 +2203,13 @@ impl From<RequirementEvaluationError> for EffectEvaluationError {
 /// percentage adjustment. Callers share this aggregation path and only supply
 /// state-specific requirement and multiplier lookups.
 pub(crate) fn effect_value(
-    effects: &[EffectRecord],
-    kind: &str,
+    effects: &EffectSet,
+    kind: EffectKind,
     context: &impl EffectContext,
 ) -> Result<i64, EffectEvaluationError> {
-    if !identifiers::EFFECT_NAMES
-        .iter()
-        .any(|known| known.eq_ignore_ascii_case(kind))
-    {
-        return Err(EffectEvaluationError::UnknownEffectType(kind.to_owned()));
-    }
     let mut total = 0_i64;
-    for effect in effects {
-        if !effect.kind.eq_ignore_ascii_case(kind)
-            || !requirements_met(&effect.requirements, context)?
-        {
+    for effect in effects.of_kind(kind) {
+        if !requirements_met(&effect.requirements, context)? {
             continue;
         }
         let contribution = match &effect.multiplier {
@@ -2175,6 +2230,16 @@ pub(crate) fn effect_value(
             .ok_or(EffectEvaluationError::Overflow)?;
     }
     Ok(total)
+}
+
+/// Evaluate one effect type under the campaign ruleset.
+///
+/// The campaign ruleset is validated at load, so an evaluation error means a
+/// requirement resolver lacks a universal the ruleset uses. That is a
+/// programming error rather than a recoverable game state.
+pub(crate) fn campaign_effect(kind: EffectKind, context: &impl EffectContext) -> i64 {
+    effect_value(&RulesetData::campaign_default().effects, kind, context)
+        .unwrap_or_else(|error| panic!("could not evaluate {kind} effect: {error:?}"))
 }
 
 impl LoadError {
@@ -2244,11 +2309,12 @@ impl LoadError {
 mod tests {
     use super::freeciv_ini::{Entry, Value};
     use super::{
-        ActionEnabler, ActionRecord, ContentKind, EffectContext, EffectRecord, FreeTechnologyStyle,
-        HappyBorders, LoadedRuleFile, MissingUnitUpkeepOutputSettings, MissingUnitUpkeepSettings,
-        RULESET_FILES, Requirement, RequirementContext, RequirementEvaluationError,
-        RequirementRange, RequirementValue, ResearchCostStyle, ResearchRulesetSettings,
-        RevolutionType, RuleFileSource, RuleSourceLocation, RulesetData, TechnologyLeakageStyle,
+        ActionEnabler, ActionRecord, ContentKind, EffectContext, EffectKind, EffectRecord,
+        EffectSet, FreeTechnologyStyle, HappyBorders, LoadedRuleFile,
+        MissingUnitUpkeepOutputSettings, MissingUnitUpkeepSettings, RULESET_FILES, Requirement,
+        RequirementContext, RequirementEvaluationError, RequirementKind, RequirementRange,
+        RequirementValue, ResearchCostStyle, ResearchRulesetSettings, RevolutionType,
+        RuleFileSource, RuleSourceLocation, RulesetData, TechnologyLeakageStyle,
         TechnologyUpkeepStyle, UnitHappinessRulesetSettings, UnitUpkeepOutput, VictoryCondition,
         action_enabled, effect_value, requirements_met,
     };
@@ -2683,15 +2749,15 @@ mod tests {
         ) -> Result<bool, RequirementEvaluationError> {
             if !["Tech", "Gov", "Terrain", "Building"]
                 .iter()
-                .any(|kind| kind.eq_ignore_ascii_case(&requirement.kind))
+                .any(|kind| kind.eq_ignore_ascii_case(requirement.kind.name()))
             {
                 return Err(RequirementEvaluationError::Unsupported {
-                    kind: requirement.kind.clone(),
+                    kind: requirement.kind.name().to_owned(),
                     name: requirement.name.clone(),
                 });
             }
             Ok(self.present.iter().any(|(kind, name, range)| {
-                kind.eq_ignore_ascii_case(&requirement.kind)
+                kind.eq_ignore_ascii_case(requirement.kind.name())
                     && name == &requirement.name
                     && range == &requirement.range
             }))
@@ -2709,7 +2775,7 @@ mod tests {
 
     fn req(kind: &str, name: &str, present: bool) -> Requirement {
         Requirement {
-            kind: kind.to_owned(),
+            kind: RequirementKind::parse(kind).expect("known requirement type"),
             name: RequirementValue::String(name.to_owned()),
             range: RequirementRange::Player,
             present,
@@ -2805,29 +2871,29 @@ mod tests {
 
     #[test]
     fn shared_effect_evaluator_sums_active_values_and_applies_percent_multiplier() {
-        let effects = vec![
+        let effects = EffectSet::from(vec![
             EffectRecord {
                 rule_name: "plain".to_owned(),
-                kind: "Output_Bonus".to_owned(),
+                kind: EffectKind::OutputBonus,
                 value: 5,
                 multiplier: None,
                 requirements: vec![req("Tech", "Writing", true)],
             },
             EffectRecord {
                 rule_name: "scaled".to_owned(),
-                kind: "Output_Bonus".to_owned(),
+                kind: EffectKind::OutputBonus,
                 value: 10,
                 multiplier: Some("Science".to_owned()),
                 requirements: vec![],
             },
             EffectRecord {
                 rule_name: "inactive".to_owned(),
-                kind: "Output_Bonus".to_owned(),
+                kind: EffectKind::OutputBonus,
                 value: 100,
                 multiplier: None,
                 requirements: vec![req("Tech", "Mobile Warfare", true)],
             },
-        ];
+        ]);
         let context = Context {
             present: vec![(
                 "Tech".to_owned(),
@@ -2836,11 +2902,16 @@ mod tests {
             )],
             multiplier: Some(("Science".to_owned(), 150)),
         };
-        assert_eq!(effect_value(&effects, "output_bonus", &context), Ok(20));
-        assert!(matches!(
-            effect_value(&effects, "Unrelated", &context),
-            Err(super::EffectEvaluationError::UnknownEffectType(_))
-        ));
+        assert_eq!(
+            EffectKind::parse("output_bonus"),
+            Some(EffectKind::OutputBonus)
+        );
+        assert_eq!(EffectKind::parse("Unrelated"), None);
+        assert_eq!(
+            effect_value(&effects, EffectKind::OutputBonus, &context),
+            Ok(20)
+        );
+        assert_eq!(effect_value(&effects, EffectKind::Airlift, &context), Ok(0));
     }
 
     #[test]
@@ -2974,7 +3045,7 @@ mod tests {
             record.kind == ContentKind::Building
                 && record.rule_name == "civcraft_library"
                 && record.obsolete_by.len() == 1
-                && record.obsolete_by[0].kind == "Tech"
+                && record.obsolete_by[0].kind == RequirementKind::Tech
                 && record.obsolete_by[0].range == RequirementRange::Player
                 && !record.obsolete_by[0].survives
         }));
@@ -3278,8 +3349,9 @@ mod tests {
 #[cfg(test)]
 mod government_catalog_tests {
     use super::{
-        ContentKind, GovernmentRulesetCatalog, Requirement, RequirementContext,
-        RequirementEvaluationError, RequirementRange, RequirementValue, RulesetData,
+        ContentKind, EffectKind, GovernmentRulesetCatalog, Requirement, RequirementContext,
+        RequirementEvaluationError, RequirementKind, RequirementRange, RequirementValue,
+        RulesetData,
     };
 
     struct GovernmentContext {
@@ -3291,7 +3363,7 @@ mod government_catalog_tests {
             &self,
             requirement: &Requirement,
         ) -> Result<bool, RequirementEvaluationError> {
-            Ok(requirement.kind.eq_ignore_ascii_case("Gov")
+            Ok(requirement.kind == RequirementKind::Gov
                 && requirement.range == RequirementRange::Player
                 && matches!(
                     &requirement.name,
@@ -3345,7 +3417,7 @@ mod government_catalog_tests {
 
         let monarchy = catalog.get("Monarchy").unwrap();
         assert_eq!(monarchy.requirements.len(), 1);
-        assert_eq!(monarchy.requirements[0].kind.to_ascii_lowercase(), "tech");
+        assert_eq!(monarchy.requirements[0].kind, RequirementKind::Tech);
         assert_eq!(
             monarchy.requirements[0].name,
             RequirementValue::String("Monarchy".to_owned())
@@ -3367,7 +3439,7 @@ mod government_catalog_tests {
         let despotism = catalog.get("Despotism").unwrap();
         let rate = despotism
             .effect_value(
-                "Max_Rates",
+                EffectKind::MaxRates,
                 &GovernmentContext {
                     government: "Despotism".to_owned(),
                 },
