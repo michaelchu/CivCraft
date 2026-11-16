@@ -58,6 +58,9 @@ pub(crate) struct LoadedRuleFile {
     pub(crate) parsed: SectionFile,
 }
 
+// The embedded campaign ruleset always supplies its own files; the fallback
+// sources are produced only by the directory loader, which tests use.
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RuleFileSource {
     SelectedRuleset,
@@ -867,24 +870,31 @@ impl RulesetData {
     /// Load the single CivCraft campaign package: generic Freeciv engine
     /// inputs from `engine/`, overlaid with CivCraft-owned TOML catalogs from
     /// `content/`.
+    #[cfg(test)]
     pub(crate) fn load_civcraft(data_root: &Path) -> Result<Self, LoadError> {
         let engine_dir = data_root.join("civcraft/engine");
-        let mut rules = Self::load_from_directory(data_root, &engine_dir, "civcraft")?;
+        Self::load_from_directory(data_root, &engine_dir, "civcraft")?.with_native_content()
+    }
+
+    /// Replace the engine ruleset's effects, actions and source content with
+    /// the campaign's native catalogs.
+    fn with_native_content(mut self) -> Result<Self, LoadError> {
+        let rules = &mut self;
         rules.effects = native_effect_records()?.into();
         rules.actions = native_action_records();
         rules.action_enablers = native_action_enablers()?;
         let source_catalog =
             Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
         rules.source_content = source_catalog.records;
-        Ok(rules)
+        Ok(self)
     }
 
     /// Cache the single CivCraft campaign package once.
     pub(crate) fn campaign_default() -> &'static Self {
         static RULESET: OnceLock<RulesetData> = OnceLock::new();
         RULESET.get_or_init(|| {
-            let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-            Self::load_civcraft(&data_root)
+            Self::load_embedded("civcraft")
+                .and_then(Self::with_native_content)
                 .unwrap_or_else(|error| panic!("failed to load campaign ruleset: {error}"))
         })
     }
@@ -2242,6 +2252,7 @@ impl LoadError {
         }
     }
 
+    #[cfg(test)]
     fn at(file: &Path, message: impl Into<String>) -> Self {
         Self {
             file: Some(file.to_owned()),
@@ -3242,6 +3253,17 @@ mod tests {
                 .join("civcraft/engine/UPSTREAM_MANIFEST.tsv")
                 .is_file()
         );
+    }
+
+    #[test]
+    fn embedded_campaign_ruleset_matches_the_files_on_disk() {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .canonicalize()
+            .unwrap();
+        let on_disk = RulesetData::load_civcraft(&manifest_dir.join("data/rulesets")).unwrap();
+        // The two loads differ only in how they spell file locations.
+        let on_disk = format!("{on_disk:?}").replace(&format!("{}/", manifest_dir.display()), "");
+        assert_eq!(format!("{:?}", RulesetData::campaign_default()), on_disk);
     }
 
     #[test]

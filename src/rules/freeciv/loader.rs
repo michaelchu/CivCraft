@@ -2,8 +2,11 @@
 
 use crate::rules::freeciv::RequirementKind;
 use std::collections::BTreeMap;
+#[cfg(test)]
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
 
 use super::super::freeciv_ini::{self, Entry, Section, SectionFile, Value};
 use super::{
@@ -11,6 +14,32 @@ use super::{
     LoadedRuleFile, Requirement, RequirementRange, RequirementValue, RuleFileSource, RuleParameter,
     RuleRecord, RuleSourceLocation, RulesetData, SettingRecord,
 };
+
+/// Repository-relative directory of the campaign's engine ruleset.
+const EMBEDDED_ENGINE_DIR: &str = "data/rulesets/civcraft/engine";
+
+macro_rules! embedded_engine_files {
+    ($($file:literal),* $(,)?) => {
+        /// The campaign's engine ruleset files, compiled into the binary.
+        const EMBEDDED_ENGINE_FILES: &[(&str, &str)] = &[
+            $(($file, include_str!(concat!("../../../data/rulesets/civcraft/engine/", $file))),)*
+        ];
+    };
+}
+
+embedded_engine_files!(
+    "game.ruleset",
+    "actions.ruleset",
+    "techs.ruleset",
+    "buildings.ruleset",
+    "governments.ruleset",
+    "units.ruleset",
+    "terrain.ruleset",
+    "styles.ruleset",
+    "cities.ruleset",
+    "nations.ruleset",
+    "effects.ruleset",
+);
 
 pub(crate) const RULESET_FILES: &[&str] = &[
     "game.ruleset",
@@ -34,8 +63,47 @@ impl RulesetData {
         Self::load_from_directory(data_root, &data_root.join(name), name)
     }
 
+    /// Load the campaign's engine ruleset from the copies compiled into the
+    /// binary, so a built game does not depend on its source checkout. Paths
+    /// in load errors are reported relative to the repository root.
+    pub(crate) fn load_embedded(name: &str) -> Result<Self, LoadError> {
+        let mut files = Vec::new();
+        for file_name in RULESET_FILES {
+            let source = EMBEDDED_ENGINE_FILES
+                .iter()
+                .find(|(embedded, _)| embedded == file_name)
+                .map(|(_, source)| *source)
+                .ok_or_else(|| LoadError::new(format!("{file_name} is not embedded")))?;
+            let path = Path::new(EMBEDDED_ENGINE_DIR).join(file_name);
+            let parsed = parse_section_file(source, &path)?;
+            if let Some((section, entry)) = parsed.sections.iter().find_map(|section| {
+                section
+                    .entries
+                    .iter()
+                    .find(|entry| entry.key == "*include")
+                    .map(|entry| (section, entry))
+            }) {
+                return Err(LoadError::at_line(
+                    &path,
+                    &section.name,
+                    &entry.key,
+                    entry.line,
+                    "embedded ruleset files cannot include other files",
+                ));
+            }
+            files.push(LoadedRuleFile {
+                name: (*file_name).to_owned(),
+                parsed: merge_repeated_sections(parsed, &path)?,
+                path,
+                source: RuleFileSource::SelectedRuleset,
+            });
+        }
+        Self::from_files(name, files)
+    }
+
     /// Load a ruleset whose selected files live in a package subdirectory.
     /// Shared Freeciv fallback files remain rooted at `data_root`.
+    #[cfg(test)]
     pub(crate) fn load_from_directory(
         data_root: &Path,
         ruleset_dir: &Path,
@@ -131,6 +199,7 @@ impl RulesetData {
     }
 }
 
+#[cfg(test)]
 fn resolve_ruleset_file(
     data_root: &Path,
     ruleset_dir: &Path,
@@ -157,6 +226,18 @@ fn resolve_ruleset_file(
     )))
 }
 
+/// Parse one ruleset file's text, attributing syntax errors to `path`.
+fn parse_section_file(source: &str, path: &Path) -> Result<SectionFile, LoadError> {
+    freeciv_ini::parse(source).map_err(|error| LoadError {
+        file: Some(path.to_path_buf()),
+        section: (!error.context.is_empty()).then_some(error.context.clone()),
+        key: None,
+        line: Some(error.line),
+        message: error.message,
+    })
+}
+
+#[cfg(test)]
 fn load_section_file(
     data_root: &Path,
     path: &Path,
@@ -181,13 +262,7 @@ fn load_section_file(
             format!("cannot read ruleset file: {error}"),
         )
     })?;
-    let parsed = freeciv_ini::parse(&source).map_err(|error| LoadError {
-        file: Some(canonical_path.clone()),
-        section: (!error.context.is_empty()).then_some(error.context.clone()),
-        key: None,
-        line: Some(error.line),
-        message: error.message,
-    })?;
+    let parsed = parse_section_file(&source, &canonical_path)?;
     let mut expanded = SectionFile::default();
 
     for section in parsed.sections {
