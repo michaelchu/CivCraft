@@ -805,6 +805,7 @@ mod tests {
         good.requirements.push(crate::rules::freeciv::Requirement {
             kind: crate::rules::freeciv::RequirementKind::Tech,
             name: crate::rules::freeciv::RequirementValue::String("Trade".to_owned()),
+            resolved: None,
             range: crate::rules::freeciv::RequirementRange::Player,
             present: true,
             survives: false,

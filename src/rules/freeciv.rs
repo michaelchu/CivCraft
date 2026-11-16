@@ -426,11 +426,45 @@ pub(crate) struct Requirement {
     /// A string, integer, or boolean universal value. Native rulesets use
     /// strings for most names and may use integers for numeric universals.
     pub(crate) name: RequirementValue,
+    /// Runtime identity resolved during ruleset loading for the universals
+    /// whose names bind to stable campaign catalogs.
+    pub(crate) resolved: Option<ResolvedRequirementValue>,
     pub(crate) range: RequirementRange,
     pub(crate) present: bool,
     pub(crate) survives: bool,
     pub(crate) quiet: bool,
     pub(crate) source: RuleSourceLocation,
+}
+
+impl Requirement {
+    pub(crate) fn matches_name(&self, expected: &str) -> bool {
+        match (&self.resolved, &self.name) {
+            (Some(ResolvedRequirementValue::Tech(value)), _) => {
+                value.name().eq_ignore_ascii_case(expected)
+            }
+            (Some(ResolvedRequirementValue::Building(value)), _) => {
+                value.data().name.eq_ignore_ascii_case(expected)
+            }
+            (Some(ResolvedRequirementValue::Terrain(value)), _) => {
+                value.name().eq_ignore_ascii_case(expected)
+            }
+            (_, RequirementValue::String(value)) => value.eq_ignore_ascii_case(expected),
+            (_, RequirementValue::Integer(value)) => {
+                value.to_string().eq_ignore_ascii_case(expected)
+            }
+            (_, RequirementValue::Bool(value)) => {
+                (*value && expected.eq_ignore_ascii_case("TRUE"))
+                    || (!*value && expected.eq_ignore_ascii_case("FALSE"))
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ResolvedRequirementValue {
+    Tech(crate::rules::Tech),
+    Building(crate::rules::Building),
+    Terrain(crate::world::Terrain),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -491,6 +525,10 @@ impl EffectSet {
             .into_iter()
             .flatten()
             .map(|&index| &self.records[index])
+    }
+
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut EffectRecord> {
+        self.records.iter_mut()
     }
 }
 
@@ -886,6 +924,7 @@ impl RulesetData {
         let source_catalog =
             Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
         rules.source_content = source_catalog.records;
+        loader::resolve_requirement_values(rules);
         Ok(self)
     }
 
@@ -1526,10 +1565,7 @@ impl RulesetData {
             |effect: &EffectRecord, kind: RequirementKind, name: &str, present: bool| {
                 effect.requirements.iter().any(|requirement| {
                     requirement.kind == kind
-                        && matches!(
-                            &requirement.name,
-                            RequirementValue::String(value) if value.eq_ignore_ascii_case(name)
-                        )
+                        && requirement.matches_name(name)
                         && requirement.range == RequirementRange::Tile
                         && requirement.present == present
                 })
@@ -1705,6 +1741,7 @@ fn native_requirement(
     Ok(Requirement {
         kind,
         name: RequirementValue::String(requirement.name.clone()),
+        resolved: None,
         range,
         present: requirement.present,
         survives: requirement.survives,
@@ -1955,6 +1992,7 @@ impl RulesetData {
                     .then(|| Requirement {
                         kind: RequirementKind::Tech,
                         name: RequirementValue::String(source.required_technology.clone()),
+                        resolved: None,
                         range: RequirementRange::Player,
                         present: true,
                         survives: false,
@@ -2313,8 +2351,8 @@ mod tests {
         EffectSet, FreeTechnologyStyle, HappyBorders, LoadedRuleFile,
         MissingUnitUpkeepOutputSettings, MissingUnitUpkeepSettings, RULESET_FILES, Requirement,
         RequirementContext, RequirementEvaluationError, RequirementKind, RequirementRange,
-        RequirementValue, ResearchCostStyle, ResearchRulesetSettings, RevolutionType,
-        RuleFileSource, RuleSourceLocation, RulesetData, TechnologyLeakageStyle,
+        RequirementValue, ResearchCostStyle, ResearchRulesetSettings, ResolvedRequirementValue,
+        RevolutionType, RuleFileSource, RuleSourceLocation, RulesetData, TechnologyLeakageStyle,
         TechnologyUpkeepStyle, UnitHappinessRulesetSettings, UnitUpkeepOutput, VictoryCondition,
         action_enabled, effect_value, requirements_met,
     };
@@ -2777,6 +2815,7 @@ mod tests {
         Requirement {
             kind: RequirementKind::parse(kind).expect("known requirement type"),
             name: RequirementValue::String(name.to_owned()),
+            resolved: None,
             range: RequirementRange::Player,
             present,
             survives: false,
@@ -3076,6 +3115,45 @@ mod tests {
                 .iter()
                 .any(|record| { record.namespace == "unit_class" && record.rule_name == "Land" })
         );
+    }
+
+    #[test]
+    fn campaign_runtime_requirement_names_are_resolved_once_at_load() {
+        let rules = RulesetData::campaign_default();
+        let mut requirements = rules
+            .effects
+            .iter()
+            .flat_map(|effect| effect.requirements.iter())
+            .chain(
+                rules
+                    .action_enablers
+                    .iter()
+                    .flat_map(|enabler| enabler.actor_requirements.iter()),
+            )
+            .chain(
+                rules
+                    .action_enablers
+                    .iter()
+                    .flat_map(|enabler| enabler.target_requirements.iter()),
+            );
+        assert!(requirements.clone().any(|requirement| {
+            matches!(
+                requirement.resolved,
+                Some(ResolvedRequirementValue::Tech(_))
+            )
+        }));
+        assert!(requirements.clone().any(|requirement| {
+            matches!(
+                requirement.resolved,
+                Some(ResolvedRequirementValue::Building(_))
+            )
+        }));
+        assert!(requirements.any(|requirement| {
+            matches!(
+                requirement.resolved,
+                Some(ResolvedRequirementValue::Terrain(_))
+            )
+        }));
     }
 
     #[test]

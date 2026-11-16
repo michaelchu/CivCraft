@@ -15,8 +15,8 @@ use super::*;
 use crate::rules::freeciv::RequirementKind;
 use crate::rules::freeciv::{
     EffectContext, EffectEvaluationError, Requirement, RequirementContext,
-    RequirementEvaluationError, RequirementRange, RequirementValue, RulesetData, VictoryCondition,
-    effect_value,
+    RequirementEvaluationError, RequirementRange, RequirementValue, ResolvedRequirementValue,
+    RulesetData, VictoryCondition, effect_value,
 };
 
 impl Simulation {
@@ -244,18 +244,23 @@ impl RequirementContext for CalendarContext<'_> {
             return Ok(self.year >= threshold);
         }
         if requirement.kind == RequirementKind::Tech && requirement.survives {
-            let name = match &requirement.name {
-                RequirementValue::String(value) => value,
-                _ => return Err(unsupported()),
+            let tech = match requirement.resolved {
+                Some(ResolvedRequirementValue::Tech(tech)) => tech,
+                _ => match &requirement.name {
+                    RequirementValue::String(name) => {
+                        match super::content_adapter::bind_freeciv_technology(self.ruleset, name)
+                            .map_err(|_| unsupported())?
+                        {
+                            super::content_adapter::FreecivTechBinding::Bound(tech) => tech,
+                            super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                    _ => return Err(unsupported()),
+                },
             };
-            let binding = super::content_adapter::bind_freeciv_technology(self.ruleset, name)
-                .map_err(|_| unsupported())?;
-            return Ok(match binding {
-                super::content_adapter::FreecivTechBinding::Bound(tech) => {
-                    self.global_advances.contains(&tech)
-                }
-                super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => false,
-            });
+            return Ok(self.global_advances.contains(&tech));
         }
         Err(unsupported())
     }
