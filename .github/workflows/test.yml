@@ -49,10 +49,3 @@ jobs:
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Run tests and print coverage summary
         run: cargo llvm-cov --all-targets
-      - name: Export LCOV report
-        run: cargo llvm-cov report --lcov --output-path lcov.info
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: rust-coverage
-          path: lcov.info
