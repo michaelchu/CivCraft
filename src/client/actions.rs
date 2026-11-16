@@ -75,19 +75,29 @@ impl Game {
             }
             UiAction::Disband(city) => {
                 if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::Disband(id, city))
+                    && self.sim.apply(Command::Disband {
+                        unit_id: id,
+                        city_id: city,
+                    })
                 {
                     self.select_next_unit();
                 }
             }
             UiAction::UpgradeUnit(target, price) => {
                 if let Some(id) = self.selected_unit {
-                    self.sim.apply(Command::UpgradeUnit(id, target, price));
+                    self.sim.apply(Command::UpgradeUnit {
+                        unit_id: id,
+                        target,
+                        price,
+                    });
                 }
             }
             UiAction::HelpWonder(city) => {
                 if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::HelpWonder(id, city))
+                    && self.sim.apply(Command::HelpWonder {
+                        unit_id: id,
+                        city_id: city,
+                    })
                 {
                     self.select_next_unit();
                 }
@@ -177,7 +187,10 @@ impl Game {
             }
             UiAction::JoinCity(city) => {
                 if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::JoinCity(id, city))
+                    && self.sim.apply(Command::JoinCity {
+                        unit_id: id,
+                        city_id: city,
+                    })
                 {
                     self.select_next_unit();
                 }

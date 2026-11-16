@@ -126,11 +126,13 @@ impl Simulation {
         let transport = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
         let marine = self.spawn_unit(HUMAN, UnitKind::Marine, sea.0, sea.1);
         assert!(self.board_specific_ship(marine, transport));
-        let rescued = self.apply(Command::Disband(transport, None))
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == marine && unit.transport == Some(helicopter));
+        let rescued = self.apply(Command::Disband {
+            unit_id: transport,
+            city_id: None,
+        }) && self
+            .units
+            .iter()
+            .any(|unit| unit.id == marine && unit.transport == Some(helicopter));
         for _ in 1..UnitKind::Helicopter.transport_capacity() {
             let filler = self.spawn_unit(HUMAN, UnitKind::Marine, sea.0, sea.1);
             assert!(self.board_specific_ship(filler, helicopter));
@@ -161,7 +163,10 @@ impl Simulation {
         let boarded = self.board_specific_ship(passenger, ship);
         self.units.last_mut().unwrap().state = UnitState::Sentry;
         let rescued = boarded
-            && self.apply(Command::Disband(ship, None))
+            && self.apply(Command::Disband {
+                unit_id: ship,
+                city_id: None,
+            })
             && self.units.iter().any(|unit| {
                 unit.id == passenger
                     && unit.transport == Some(backup)
@@ -169,8 +174,10 @@ impl Simulation {
             });
 
         let hostile = self.spawn_unit(1, UnitKind::Transport, sea.0, sea.1);
-        let drowned = self.apply(Command::Disband(backup, None))
-            && self.units.iter().all(|unit| unit.id != passenger)
+        let drowned = self.apply(Command::Disband {
+            unit_id: backup,
+            city_id: None,
+        }) && self.units.iter().all(|unit| unit.id != passenger)
             && self.cargo_count(hostile) == 0;
 
         (rescued, drowned)
@@ -192,7 +199,10 @@ impl Simulation {
         let unit = self.spawn_unit(HUMAN, UnitKind::Warrior, adjacent.0, adjacent.1);
         let contribution = UnitKind::Warrior.stats().cost / 2;
         let recovered = switched
-            && self.apply(Command::Disband(unit, Some(id)))
+            && self.apply(Command::Disband {
+                unit_id: unit,
+                city_id: Some(id),
+            })
             && self.units.iter().all(|candidate| candidate.id != unit)
             && self.cities.last().unwrap().shields == 4 + contribution
             && self.apply(Command::Produce(id, original))
@@ -201,16 +211,23 @@ impl Simulation {
             && self.cities.last().unwrap().shields == 4 + contribution;
 
         let unit = self.spawn_unit(HUMAN, UnitKind::Warrior, remote.0, remote.1);
-        let outside = !self.apply(Command::Disband(unit, Some(id)))
-            && self.apply(Command::Disband(unit, None))
-            && self.units.iter().all(|candidate| candidate.id != unit)
+        let outside = !self.apply(Command::Disband {
+            unit_id: unit,
+            city_id: Some(id),
+        }) && self.apply(Command::Disband {
+            unit_id: unit,
+            city_id: None,
+        }) && self.units.iter().all(|candidate| candidate.id != unit)
             && self.cities.last().unwrap().shields == 4 + contribution;
 
         let ship = self.spawn_unit(HUMAN, UnitKind::Transport, center.0, center.1);
         let passenger = self.spawn_unit(HUMAN, UnitKind::Warrior, center.0, center.1);
         let boarded = self.board_specific_ship(passenger, ship);
         let unloaded = boarded
-            && self.apply(Command::Disband(ship, None))
+            && self.apply(Command::Disband {
+                unit_id: ship,
+                city_id: None,
+            })
             && self
                 .units
                 .iter()
