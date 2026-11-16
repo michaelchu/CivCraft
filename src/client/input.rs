@@ -4,7 +4,7 @@ use super::*;
 
 impl Game {
     pub(crate) fn handle_keyboard(&mut self) {
-        if self.intro_open {
+        if self.overlay == Overlay::Intro {
             if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Escape) {
                 self.perform_action(UiAction::DismissIntro);
             }
@@ -45,26 +45,18 @@ impl Game {
             }
             return;
         }
-        if self.government_open || self.diplomacy_open || self.espionage_open {
+        if self.overlay.is_council() {
             if is_key_pressed(KeyCode::Escape) {
                 if self.reviewed_offer.take().is_some() {
                     return;
                 }
-                self.government_open = false;
-                self.diplomacy_open = false;
-                self.espionage_open = false;
+                self.overlay = Overlay::None;
             }
             return;
         }
-        if self.spaceship_open {
+        if self.overlay.hides_map() {
             if is_key_pressed(KeyCode::Escape) {
-                self.spaceship_open = false;
-            }
-            return;
-        }
-        if self.research_open {
-            if is_key_pressed(KeyCode::Escape) {
-                self.research_open = false;
+                self.overlay = Overlay::None;
             }
             return;
         }
@@ -84,13 +76,7 @@ impl Game {
             if self.selected_city.is_some() {
                 self.selected_city = None;
             } else {
-                self.goto_mode = false;
-                self.paradrop_mode = false;
-                self.capture_units_mode = false;
-                self.bombard_mode = false;
-                self.nuclear_mode = false;
-                self.connect_mode = false;
-                self.patrol_mode = false;
+                self.targeting = TargetingMode::None;
             }
         }
         if is_key_pressed(KeyCode::Tab) {
@@ -141,14 +127,12 @@ impl Game {
             self.perform_action(UiAction::Automate);
         }
         if is_key_pressed(KeyCode::G) {
-            self.paradrop_mode = false;
-            self.capture_units_mode = false;
-            self.bombard_mode = false;
-            self.nuclear_mode = false;
-            self.connect_mode = false;
-            self.patrol_mode = false;
-            self.goto_mode = !self.goto_mode;
-            self.notify(if self.goto_mode {
+            self.targeting = if self.targeting == TargetingMode::Goto {
+                TargetingMode::None
+            } else {
+                TargetingMode::Goto
+            };
+            self.notify(if self.targeting == TargetingMode::Goto {
                 "Go-to active: choose a destination tile."
             } else {
                 "Go-to cancelled."
@@ -364,11 +348,7 @@ impl Game {
         if self.pending_city_view.is_some() {
             return;
         }
-        if self.intro_open
-            || self.spaceship_open
-            || self.government_open
-            || self.diplomacy_open
-            || self.espionage_open
+        if !matches!(self.overlay, Overlay::None | Overlay::Research)
             || self.selected_city.is_some()
         {
             let (x, y) = mouse_position();
@@ -379,7 +359,7 @@ impl Game {
             }
             return;
         }
-        if self.research_open {
+        if self.overlay == Overlay::Research {
             self.handle_research_mouse(buttons);
             return;
         }
@@ -434,40 +414,23 @@ impl Game {
         let Some((x, y)) = self.screen_to_world(mouse) else {
             return;
         };
-        if self.paradrop_mode {
-            self.perform_action(UiAction::ParadropTo(x, y));
-            return;
-        }
-        if self.nuclear_mode {
-            self.perform_action(UiAction::NuclearStrikeTo(x, y));
-            return;
-        }
-        if self.connect_mode {
-            self.perform_action(UiAction::ConnectTo(x, y));
-            return;
-        }
-        if self.patrol_mode {
-            self.perform_action(UiAction::PatrolTo(x, y));
-            return;
-        }
-        if self.capture_units_mode {
-            self.perform_action(UiAction::CaptureUnitsTo(x, y));
-            return;
-        }
-        if self.bombard_mode {
-            self.perform_action(UiAction::BombardTo(x, y));
-            return;
-        }
-        if self.goto_mode {
-            if let Some(id) = self.selected_unit
-                && self.move_selected(Command::GoTo(id, x, y), id)
-            {
-                self.select_next_unit();
+        match self.targeting {
+            TargetingMode::None => self.select_at(x, y),
+            TargetingMode::Paradrop => self.perform_action(UiAction::ParadropTo(x, y)),
+            TargetingMode::NuclearStrike => self.perform_action(UiAction::NuclearStrikeTo(x, y)),
+            TargetingMode::Connect => self.perform_action(UiAction::ConnectTo(x, y)),
+            TargetingMode::Patrol => self.perform_action(UiAction::PatrolTo(x, y)),
+            TargetingMode::CaptureUnits => self.perform_action(UiAction::CaptureUnitsTo(x, y)),
+            TargetingMode::Bombard { .. } => self.perform_action(UiAction::BombardTo(x, y)),
+            TargetingMode::Goto => {
+                if let Some(id) = self.selected_unit
+                    && self.move_selected(Command::GoTo(id, x, y), id)
+                {
+                    self.select_next_unit();
+                }
+                self.targeting = TargetingMode::None;
             }
-            self.goto_mode = false;
-            return;
         }
-        self.select_at(x, y);
     }
 
     pub(crate) fn select_at(&mut self, x: i32, y: i32) {

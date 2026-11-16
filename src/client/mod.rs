@@ -59,6 +59,7 @@ mod input;
 mod map_layers;
 mod map_overlays;
 mod map_view;
+mod modes;
 mod presentation;
 mod research_tree;
 mod research_view;
@@ -77,6 +78,7 @@ mod unit_sound;
 #[path = "unit_sound_stub.rs"]
 mod unit_sound;
 mod world;
+use modes::{Overlay, TargetingMode};
 pub(crate) use ui::set_review_pointer;
 use ui::*;
 pub(crate) use ui_review::{UI_REVIEW_SCENES, UiReviewSequence, UiReviewSources};
@@ -230,7 +232,6 @@ pub(crate) struct Game {
     client_messages: Vec<String>,
     last_sim_messages: Vec<String>,
     pub(crate) autosave_enabled: bool,
-    pub(crate) intro_open: bool,
     pub(crate) music_open: bool,
     pub(crate) music_muted: bool,
     pub(crate) music_volume: u8,
@@ -247,20 +248,8 @@ pub(crate) struct Game {
     city_tiles: bool,
     camera: Vec2,
     zoom: f32,
-    goto_mode: bool,
-    connect_mode: bool,
-    patrol_mode: bool,
-    paradrop_mode: bool,
-    capture_units_mode: bool,
-    bombard_mode: bool,
-    auto_bombard_mode: bool,
-    precision_bombard_mode: bool,
-    nuclear_mode: bool,
-    research_open: bool,
-    government_open: bool,
-    spaceship_open: bool,
-    diplomacy_open: bool,
-    espionage_open: bool,
+    targeting: TargetingMode,
+    overlay: Overlay,
     espionage_target: Option<usize>,
     espionage_rival_page: usize,
     espionage_city: Option<u32>,
@@ -311,7 +300,6 @@ impl Game {
             client_messages: Vec::new(),
             last_sim_messages,
             autosave_enabled: false,
-            intro_open: false,
             music_open: false,
             music_muted: false,
             music_volume: 50,
@@ -328,20 +316,8 @@ impl Game {
             city_tiles: false,
             camera: vec2(x as f32, y as f32),
             zoom: START_ZOOM,
-            goto_mode: false,
-            connect_mode: false,
-            patrol_mode: false,
-            paradrop_mode: false,
-            capture_units_mode: false,
-            bombard_mode: false,
-            auto_bombard_mode: false,
-            precision_bombard_mode: false,
-            nuclear_mode: false,
-            research_open: false,
-            government_open: false,
-            spaceship_open: false,
-            diplomacy_open: false,
-            espionage_open: false,
+            targeting: TargetingMode::None,
+            overlay: Overlay::None,
             espionage_target: None,
             espionage_rival_page: 0,
             espionage_city: None,
@@ -488,7 +464,7 @@ impl Game {
         self.playback.update(events, get_time(), sound_unit);
         self.unit_sound_requests
             .extend(self.playback.take_sound_requests());
-        if !self.research_open && !self.spaceship_open && !self.intro_open {
+        if !self.overlay.hides_map() && self.overlay != Overlay::Intro {
             self.queue_fidget_sound(assets);
         } else {
             self.fidget_sound_cycle = None;
@@ -500,20 +476,19 @@ impl Game {
         }
         clear_background(Color::from_rgba(7, 20, 31, 255));
         self.hud_elements_drawn = 0;
-        if self.research_open {
-            return self.draw_research();
-        }
-        if self.spaceship_open {
-            return self.draw_spaceship();
+        match self.overlay {
+            Overlay::Research => return self.draw_research(),
+            Overlay::Spaceship => return self.draw_spaceship(),
+            _ => {}
         }
         self.draw_civ3_world_map(assets);
         let mut actions = self.draw_hud(assets);
-        if self.intro_open {
+        if self.overlay == Overlay::Intro {
             actions.clear();
             actions.extend(self.draw_intro());
             return actions;
         }
-        if self.government_open || self.diplomacy_open || self.espionage_open {
+        if self.overlay.is_council() {
             draw_rectangle(
                 0.0,
                 0.0,
@@ -522,39 +497,18 @@ impl Game {
                 Color::from_rgba(4, 9, 12, 178),
             );
         }
-        if self.government_open {
-            return self.draw_government();
-        }
-        if self.diplomacy_open {
-            return self.draw_diplomacy();
-        }
-        if self.espionage_open {
-            return self.draw_espionage();
+        match self.overlay {
+            Overlay::Government => return self.draw_government(),
+            Overlay::Diplomacy => return self.draw_diplomacy(),
+            Overlay::Espionage => return self.draw_espionage(),
+            _ => {}
         }
         if self.selected_city_index().is_some() {
             actions.clear();
             self.draw_city_manager(assets, &mut actions);
         }
-        if self.goto_mode
-            || self.paradrop_mode
-            || self.capture_units_mode
-            || self.bombard_mode
-            || self.nuclear_mode
-        {
+        if let Some(text) = self.targeting.banner() {
             let viewport = Self::viewport_rect();
-            let text = if self.paradrop_mode {
-                "PARADROP: choose a landing tile"
-            } else if self.capture_units_mode {
-                "CAPTURE UNITS: choose an adjacent enemy stack"
-            } else if self.bombard_mode && self.precision_bombard_mode {
-                "PRECISION BOMBING: choose an enemy city"
-            } else if self.bombard_mode {
-                "BOMBARD: choose an enemy tile"
-            } else if self.nuclear_mode {
-                "NUCLEAR STRIKE: choose a target"
-            } else {
-                "GO-TO: choose a destination"
-            };
             let width = measure_text(text, None, 22, 1.0).width;
             draw_rectangle(
                 viewport.x + viewport.w * 0.5 - width * 0.5 - 14.0,

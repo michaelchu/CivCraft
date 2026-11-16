@@ -149,7 +149,7 @@ impl Game {
             return;
         }
         if scene == 40 {
-            self.intro_open = true;
+            self.overlay = Overlay::Intro;
             return;
         }
         if scene == 43 {
@@ -172,8 +172,8 @@ impl Game {
                 self.city_tiles = scene == 3;
                 self.worklist_page = (scene == 4).then_some(0);
             }
-            5 => self.government_open = true,
-            6 => self.diplomacy_open = true,
+            5 => self.overlay = Overlay::Government,
+            6 => self.overlay = Overlay::Diplomacy,
             38 => {
                 crate::sim::scenarios::ui_review::ui_review_first_contact(
                     self.sim.review_simulation_mut(),
@@ -189,7 +189,7 @@ impl Game {
                     self.sim.review_simulation_mut(),
                     1,
                 );
-                self.diplomacy_open = true;
+                self.overlay = Overlay::Diplomacy;
                 self.diplomacy_target = Some(1);
             }
             42 => {
@@ -199,12 +199,12 @@ impl Game {
                 self.zoom = 1.15;
             }
             7 => {
-                self.diplomacy_open = true;
+                self.overlay = Overlay::Diplomacy;
                 self.diplomacy_target = Some(1);
                 self.treaty_draft = Some((1, TreatyOffer::default()));
             }
             8 => {
-                self.diplomacy_open = true;
+                self.overlay = Overlay::Diplomacy;
                 self.reviewed_offer = Some((
                     1,
                     crate::sim::scenarios::diplomacy::ui_review_offer(
@@ -213,14 +213,14 @@ impl Game {
                 ));
             }
             9 => {
-                self.research_open = true;
+                self.overlay = Overlay::Research;
                 self.center_research();
             }
             10 => {
                 crate::sim::scenarios::ui_review::manual_spaceship_playtest_setup(
                     self.sim.review_simulation_mut(),
                 );
-                self.spaceship_open = true;
+                self.overlay = Overlay::Spaceship;
             }
             11 => {
                 self.selected_unit = self
@@ -312,7 +312,7 @@ impl Game {
                     self.sim.review_simulation_mut(),
                 );
                 self.selected_unit = Some(id);
-                self.goto_mode = true;
+                self.targeting = TargetingMode::Goto;
                 self.zoom = Self::ui_review_map_zoom();
                 self.focus_camera_on(20, 24);
                 let point = self.world_screen_position(target.0, target.1);
@@ -433,7 +433,7 @@ impl Game {
             sequence.click(self, buttons, "begin_campaign", |action| {
                 matches!(action, UiAction::DismissIntro)
             })?;
-            sequence.check("intro_dismissed", !self.intro_open)?;
+            sequence.check("intro_dismissed", self.overlay != Overlay::Intro)?;
             return Ok(true);
         }
         if scene == 39 && phase == 1 {
@@ -442,7 +442,7 @@ impl Game {
                 !buttons
                     .iter()
                     .any(|(_, action)| matches!(action, UiAction::OpenDiplomacyWith(_)))
-                    && !self.diplomacy_open,
+                    && self.overlay != Overlay::Diplomacy,
             )?;
             return Ok(true);
         }
@@ -655,7 +655,7 @@ impl Game {
                     "goto_preview_executes_real_command",
                     self.move_selected(Command::GoTo(id, target.0, target.1), id),
                 )?;
-                self.goto_mode = false;
+                self.targeting = TargetingMode::None;
                 self.playback.finish();
                 set_review_pointer(Some(vec2(-1.0, -1.0)));
                 return Ok(true);
