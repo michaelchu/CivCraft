@@ -7,7 +7,7 @@ use crate::rules::freeciv::RequirementKind;
 use crate::rules::freeciv::campaign_effect;
 use crate::rules::freeciv::{
     EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
-    RequirementValue,
+    RequirementValue, ResolvedRequirementValue,
 };
 use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -777,24 +777,50 @@ impl RequirementContext for VisionRequirementContext<'_> {
             kind: requirement.kind.name().to_owned(),
             name: requirement.name.clone(),
         };
-        let name = match &requirement.name {
-            RequirementValue::String(name) => name.as_str(),
-            _ => return Err(unsupported()),
-        };
         match requirement.kind {
             RequirementKind::Tech if requirement.range == RequirementRange::Player => {
-                let tech = Tech::all()
-                    .find(|tech| tech.name().eq_ignore_ascii_case(name))
-                    .ok_or_else(unsupported)?;
+                let tech = match &requirement.name {
+                    _ if matches!(
+                        requirement.resolved,
+                        Some(ResolvedRequirementValue::Tech(_))
+                    ) =>
+                    {
+                        match requirement.resolved {
+                            Some(ResolvedRequirementValue::Tech(tech)) => tech,
+                            _ => unreachable!(),
+                        }
+                    }
+                    RequirementValue::String(name) => Tech::all()
+                        .find(|tech| tech.name().eq_ignore_ascii_case(name))
+                        .ok_or_else(unsupported)?,
+                    _ => return Err(unsupported()),
+                };
                 Ok(self.simulation.has_tech(self.owner, tech))
             }
             RequirementKind::Building if requirement.range == RequirementRange::Player => {
-                let building = Building::all()
-                    .find(|building| building.data().name.eq_ignore_ascii_case(name))
-                    .ok_or_else(unsupported)?;
+                let building = match &requirement.name {
+                    _ if matches!(
+                        requirement.resolved,
+                        Some(ResolvedRequirementValue::Building(_))
+                    ) =>
+                    {
+                        match requirement.resolved {
+                            Some(ResolvedRequirementValue::Building(building)) => building,
+                            _ => unreachable!(),
+                        }
+                    }
+                    RequirementValue::String(name) => Building::all()
+                        .find(|building| building.data().name.eq_ignore_ascii_case(name))
+                        .ok_or_else(unsupported)?,
+                    _ => return Err(unsupported()),
+                };
                 Ok(self.simulation.has_active_wonder(self.owner, building))
             }
             RequirementKind::Extra if requirement.range == RequirementRange::Tile => {
+                let name = match &requirement.name {
+                    RequirementValue::String(name) => name.as_str(),
+                    _ => return Err(unsupported()),
+                };
                 let (x, y) = self.tile.ok_or_else(unsupported)?;
                 Ok(match name.to_ascii_lowercase().as_str() {
                     "fortress" => self.simulation.tile(x, y).base == Some(Base::Fortress),
@@ -804,9 +830,30 @@ impl RequirementContext for VisionRequirementContext<'_> {
             }
             RequirementKind::Terrain if requirement.range == RequirementRange::Tile => {
                 let (x, y) = self.tile.ok_or_else(unsupported)?;
-                Ok(name.eq_ignore_ascii_case(self.simulation.tile(x, y).terrain.name()))
+                match &requirement.name {
+                    _ if matches!(
+                        requirement.resolved,
+                        Some(ResolvedRequirementValue::Terrain(_))
+                    ) =>
+                    {
+                        match requirement.resolved {
+                            Some(ResolvedRequirementValue::Terrain(expected)) => {
+                                Ok(expected == self.simulation.tile(x, y).terrain)
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    RequirementValue::String(name) => {
+                        Ok(name.eq_ignore_ascii_case(self.simulation.tile(x, y).terrain.name()))
+                    }
+                    _ => Err(unsupported()),
+                }
             }
             RequirementKind::UnitClassFlag if requirement.range == RequirementRange::Local => {
+                let name = match &requirement.name {
+                    RequirementValue::String(name) => name.as_str(),
+                    _ => return Err(unsupported()),
+                };
                 let unit = self.unit.ok_or_else(unsupported)?;
                 Ok(name.eq_ignore_ascii_case("Ground") && unit.unit_class().is_ground())
             }
