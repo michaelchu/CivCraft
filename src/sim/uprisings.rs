@@ -4,123 +4,45 @@ use super::{villages::BARBARIAN_ONSET, *};
 
 #[derive(Clone, Copy)]
 struct BarbarianRoleUnit {
-    record: &'static crate::rules::freeciv::ContentRecord,
     runtime_kind: UnitKind,
 }
 
 impl Simulation {
-    /// Resolve one selected Freeciv role record to a concrete Civ III runtime
-    /// identity through the explicit unit-economics crosswalk. Multiple Civ III
-    /// identities may share a C2C3 record; use the first roster identity for
-    /// barbarian units, which have no civilization-specific replacement.
-    fn barbarian_role_runtime_kind(
-        record: &crate::rules::freeciv::ContentRecord,
-    ) -> Option<UnitKind> {
-        UnitKind::ALL_NATIVE.into_iter().find(|&kind| {
-            match crate::sim::action_rules::freeciv_unit_economics_record(kind) {
-                crate::sim::action_rules::UnitEconomicsRecordBinding::Mapped {
-                    record: mapped_record,
-                    ..
-                } => mapped_record.section.eq_ignore_ascii_case(&record.section),
-                crate::sim::action_rules::UnitEconomicsRecordBinding::Unsupported { .. } => false,
-            }
-        })
+    /// Civ III's native role bindings replace Freeciv's unit records here.
+    /// The role chooser still prefers a technology-gated role when more than
+    /// two living civilizations can build one, then falls back to the base
+    /// role, matching the original barbarian selection policy.
+    fn barbarian_role_buildable_by(&self, kind: UnitKind, owner: usize) -> bool {
+        owner < self.civilization_count
+            && self.player_alive(owner)
+            // Barbarian archetypes are not filtered through a civilization's
+            // unique-unit availability mask. Native role selection asks
+            // whether the world has the unit's technology, just as the old
+            // role chooser did for its shared C2C3 records.
+            && !kind.has_no_build()
+            && kind
+                .required_tech()
+                .is_none_or(|tech| self.has_tech(owner, tech))
     }
 
-    /// Freeciv `find_a_unit_type()` checks whether a tech-role unit can be
-    /// built by more than two non-barbarian players, then falls back to the
-    /// non-tech role if none qualify. Its direct-build check uses player/world
-    /// requirements, not city-local requirements.
-    fn barbarian_role_record_buildable_by(
-        &self,
-        record: &'static crate::rules::freeciv::ContentRecord,
-        owner: usize,
-    ) -> bool {
-        if owner >= self.civilization_count || !self.player_alive(owner) {
-            return false;
-        }
-        let flags = record.string_list_field("flags");
-        if flags.is_err()
-            || flags.ok().flatten().is_some_and(|flags| {
-                flags
-                    .iter()
-                    .any(|flag| flag.eq_ignore_ascii_case("NoBuild"))
-            })
-        {
-            return false;
-        }
-
-        let identity_mapped = UnitKind::ALL_NATIVE.into_iter().any(|kind| {
-            match crate::sim::action_rules::freeciv_unit_economics_record(kind) {
-                crate::sim::action_rules::UnitEconomicsRecordBinding::Mapped {
-                    record: mapped_record,
-                    ..
-                } => mapped_record.section.eq_ignore_ascii_case(&record.section),
-                crate::sim::action_rules::UnitEconomicsRecordBinding::Unsupported { .. } => false,
-            }
-        });
-        if !identity_mapped {
-            return false;
-        }
-
-        // Freeciv decides direct-build eligibility from its selected unit
-        // record's requirements and nation restrictions. Do not apply the
-        // Civ III PRTO availability mask here: names and unique-unit policy
-        // belong to the Civ III production catalog, while this role chooser
-        // is selecting a C2C3 barbarian archetype.
-        let player_requirements: Vec<_> = record
-            .requirements
-            .iter()
-            .filter(|requirement| {
-                matches!(
-                    requirement.range,
-                    crate::rules::freeciv::RequirementRange::Player
-                        | crate::rules::freeciv::RequirementRange::Team
-                        | crate::rules::freeciv::RequirementRange::Alliance
-                        | crate::rules::freeciv::RequirementRange::World
-                )
-            })
-            .cloned()
-            .collect();
-        let context = crate::sim::action_rules::SimulationRequirementContext::for_player_at(
-            self, owner, None,
-        );
-        crate::rules::freeciv::requirements_met(&player_requirements, &context).unwrap_or(false)
-    }
-
-    /// Read selected C2C3 roles in ruleset order and retain only records with
-    /// an explicit Civ III runtime mapping. Unmapped roles (including C2C3's
-    /// Barbarian Leader, which has no Civ III roster identity) fail closed.
+    /// Read native Civ III role bindings in catalog order. Units without an
+    /// explicit role are intentionally absent; the native TOML is the only
+    /// source for barbarian archetypes.
     fn barbarian_role_units(&self, role: &str) -> Vec<BarbarianRoleUnit> {
-        let mut candidates = Vec::new();
-        for record in &crate::rules::freeciv::RulesetData::campaign_default().content {
-            if record.kind != crate::rules::freeciv::ContentKind::Unit {
-                continue;
-            }
-            let roles = record
-                .string_list_field("roles")
-                .expect("selected C2C3 unit roles are valid")
-                .unwrap_or_default();
-            if !roles
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(role))
-                || candidates.iter().any(|candidate: &BarbarianRoleUnit| {
-                    candidate
-                        .record
-                        .section
-                        .eq_ignore_ascii_case(&record.section)
-                })
-            {
-                continue;
-            }
-            if let Some(runtime_kind) = Self::barbarian_role_runtime_kind(record) {
-                candidates.push(BarbarianRoleUnit {
-                    record,
-                    runtime_kind,
-                });
-            }
-        }
-        candidates
+        crate::rules::native::unit_economics()
+            .bindings
+            .iter()
+            .filter(|binding| {
+                binding
+                    .roles
+                    .iter()
+                    .any(|candidate| candidate.eq_ignore_ascii_case(role))
+            })
+            .filter_map(|binding| {
+                UnitKind::from_conquests_id(&binding.civ3_unit_id)
+                    .map(|runtime_kind| BarbarianRoleUnit { runtime_kind })
+            })
+            .collect()
     }
 
     fn find_barbarian_role_unit(&mut self, role: &str, tech_role: &str) -> Option<UnitKind> {
@@ -130,7 +52,7 @@ impl Simulation {
             .filter(|candidate| {
                 (0..self.civilization_count)
                     .filter(|&owner| {
-                        self.barbarian_role_record_buildable_by(candidate.record, owner)
+                        self.barbarian_role_buildable_by(candidate.runtime_kind, owner)
                     })
                     .count()
                     > 2
@@ -292,7 +214,6 @@ mod tests {
             .iter()
             .map(|candidate| {
                 (
-                    candidate.record.section.as_str(),
                     candidate.runtime_kind,
                     (0..game.civilization_count)
                         .map(|owner| {
@@ -303,7 +224,7 @@ mod tests {
                                     .runtime_kind
                                     .conquests_rule()
                                     .available_to(&game.players[owner].name),
-                                game.barbarian_role_record_buildable_by(candidate.record, owner),
+                                game.barbarian_role_buildable_by(candidate.runtime_kind, owner),
                             )
                         })
                         .collect::<Vec<_>>(),

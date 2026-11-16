@@ -155,8 +155,5 @@ fn research_make_content_effects_use_stage_specific_unhappiness() {
         game.city_tech_effect_want(&city, Tech::THEOLOGY),
         content_effect * 14 / 8
     );
-    assert_eq!(
-        game.city_tech_effect_want(&city, Tech::ELECTRICITY),
-        70
-    );
+    assert_eq!(game.city_tech_effect_want(&city, Tech::ELECTRICITY), 70);
 }
