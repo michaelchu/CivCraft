@@ -14,3 +14,175 @@ no_trade_size = 0
 full_trade_size = 1
 gold_upkeep_style = "Mixed"
 celebrate_size_limit = 3
+
+[[resources]]
+id = "Gold"
+food = 0
+shield = 0
+trade = 6
+
+[[resources]]
+id = "Iron"
+food = 0
+shield = 3
+trade = 0
+
+[[resources]]
+id = "Game"
+food = 2
+shield = 1
+trade = 0
+
+[[resources]]
+id = "Furs"
+food = 1
+shield = 0
+trade = 3
+
+[[resources]]
+id = "Coal"
+food = 0
+shield = 2
+trade = 0
+
+[[resources]]
+id = "Fish"
+food = 2
+shield = 0
+trade = 0
+
+[[resources]]
+id = "Fruit"
+food = 3
+shield = 0
+trade = 1
+
+[[resources]]
+id = "Gems"
+food = 0
+shield = 0
+trade = 4
+
+[[resources]]
+id = "Buffalo"
+food = 0
+shield = 2
+trade = 0
+
+[[resources]]
+id = "Wheat"
+food = 2
+shield = 0
+trade = 0
+
+[[resources]]
+id = "Oasis"
+food = 3
+shield = 0
+trade = 0
+
+[[resources]]
+id = "Peat"
+food = 0
+shield = 4
+trade = 0
+
+[[resources]]
+id = "Pheasant"
+food = 2
+shield = 0
+trade = 0
+
+[[resources]]
+id = "Resources"
+food = 0
+shield = 1
+trade = 0
+
+[[resources]]
+id = "icy_ivory"
+food = 1
+shield = 1
+trade = 4
+
+[[resources]]
+id = "Silk"
+food = 0
+shield = 0
+trade = 3
+
+[[resources]]
+id = "Spice"
+food = 1
+shield = 0
+trade = 4
+
+[[resources]]
+id = "Whales"
+food = 1
+shield = 1
+trade = 0
+
+[[resources]]
+id = "Wine"
+food = 0
+shield = 0
+trade = 4
+
+[[resources]]
+id = "Oil"
+food = 0
+shield = 3
+trade = 0
+
+[[roads]]
+id = "Road"
+move_cost = 2
+food_incr = 0
+shield_incr = 0
+trade_incr = 1
+food_incr_const = 0
+shield_incr_const = 0
+trade_incr_const = 0
+food_bonus = 0
+shield_bonus = 0
+trade_bonus = 0
+
+[[roads]]
+id = "Railroad"
+move_cost = 1
+food_incr = 0
+shield_incr = 0
+trade_incr = 0
+food_incr_const = 0
+shield_incr_const = 0
+trade_incr_const = 0
+food_bonus = 0
+shield_bonus = 50
+trade_bonus = 0
+
+[[roads]]
+id = "Maglev"
+move_cost = 0
+food_incr = 0
+shield_incr = 0
+trade_incr = 0
+food_incr_const = 0
+shield_incr_const = 0
+trade_incr_const = 0
+food_bonus = 0
+shield_bonus = 0
+trade_bonus = 0
+
+[[roads]]
+id = "River"
+move_cost = 2
+food_incr = 0
+shield_incr = 0
+trade_incr = 0
+food_incr_const = 1
+shield_incr_const = 0
+trade_incr_const = 1
+food_bonus = 0
+shield_bonus = 0
+trade_bonus = 0

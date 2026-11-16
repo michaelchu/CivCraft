@@ -234,6 +234,33 @@ pub(crate) struct EconomyCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
     pub(crate) city: NativeCityEconomy,
+    #[serde(default)]
+    pub(crate) resources: Vec<NativeResource>,
+    #[serde(default)]
+    pub(crate) roads: Vec<NativeRoad>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeResource {
+    pub(crate) id: String,
+    pub(crate) food: i32,
+    pub(crate) shield: i32,
+    pub(crate) trade: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeRoad {
+    pub(crate) id: String,
+    pub(crate) move_cost: i32,
+    pub(crate) food_incr: i32,
+    pub(crate) shield_incr: i32,
+    pub(crate) trade_incr: i32,
+    pub(crate) food_incr_const: i32,
+    pub(crate) shield_incr_const: i32,
+    pub(crate) trade_incr_const: i32,
+    pub(crate) food_bonus: i32,
+    pub(crate) shield_bonus: i32,
+    pub(crate) trade_bonus: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -718,6 +745,8 @@ mod tests {
         assert_eq!(governments().resistance.len(), 64);
         assert_eq!(governments().military_law.len(), 8);
         assert_eq!(economy().schema_version, 1);
+        assert_eq!(economy().resources.len(), 20);
+        assert_eq!(economy().roads.len(), 4);
         assert_eq!(terrain().schema_version, 1);
         assert_eq!(terrain().terrains.len(), 14);
         assert_eq!(settlements().schema_version, 1);

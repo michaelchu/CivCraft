@@ -113,26 +113,6 @@ fn native_terrain(name: &str) -> &'static crate::rules::native::NativeTerrain {
         .unwrap_or_else(|| panic!("native catalog has no terrain {name:?}"))
 }
 
-fn rule_integer(rules: &RulesetData, namespace: &str, name: &str, field: &str) -> i32 {
-    let record = rules
-        .rule_records
-        .iter()
-        .find(|record| {
-            record.namespace.eq_ignore_ascii_case(namespace)
-                && (record.rule_name.eq_ignore_ascii_case(name)
-                    || record
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|value| value.eq_ignore_ascii_case(name)))
-        })
-        .unwrap_or_else(|| panic!("C2C3 has no {namespace} record {name:?}"));
-    let value = record
-        .integer_field(field)
-        .unwrap_or_else(|error| panic!("invalid C2C3 {}.{field}: {error}", record.section))
-        .unwrap_or(0);
-    i32::try_from(value).unwrap_or_else(|_| panic!("C2C3 {}.{field} exceeds i32", record.section))
-}
-
 fn terrain_name(terrain: Terrain) -> &'static str {
     if terrain == Terrain::Volcano {
         // CivCraft keeps the visual identity; the existing C2C3 movement
@@ -174,6 +154,22 @@ fn resource_name(resource: Resource) -> Option<&'static str> {
         | Resource::Sugar
         | Resource::Tobacco => return None,
     })
+}
+
+fn native_resource(name: &str) -> &'static crate::rules::native::NativeResource {
+    crate::rules::native::economy()
+        .resources
+        .iter()
+        .find(|resource| resource.id.eq_ignore_ascii_case(name))
+        .unwrap_or_else(|| panic!("native catalog has no resource {name:?}"))
+}
+
+fn native_road(name: &str) -> &'static crate::rules::native::NativeRoad {
+    crate::rules::native::economy()
+        .roads
+        .iter()
+        .find(|road| road.id.eq_ignore_ascii_case(name))
+        .unwrap_or_else(|| panic!("native catalog has no road {name:?}"))
 }
 
 impl Simulation {
@@ -386,7 +382,6 @@ impl Simulation {
         granted: Option<Tech>,
         government: Government,
     ) -> (i32, i32, i32) {
-        let rules = RulesetData::campaign_default();
         let tile_xy = (x, y);
         let tile = self.tile(x, y);
         let terrain = terrain_name(tile.terrain);
@@ -397,9 +392,10 @@ impl Simulation {
             trade: native_terrain.trade,
         };
         if let Some(resource) = tile.active_resource().and_then(resource_name) {
-            output.food += rule_integer(rules, "resource", resource, "food");
-            output.shield += rule_integer(rules, "resource", resource, "shield");
-            output.trade += rule_integer(rules, "resource", resource, "trade");
+            let resource = native_resource(resource);
+            output.food += resource.food;
+            output.shield += resource.shield;
+            output.trade += resource.trade;
         }
 
         let irrigation = native_terrain.irrigation_food_incr;
@@ -447,9 +443,25 @@ impl Simulation {
                 if !present {
                     continue;
                 }
-                increment += rule_integer(rules, "road", road, &format!("{output_name}_incr"));
-                constant += rule_integer(rules, "road", road, &format!("{output_name}_incr_const"));
-                bonus += rule_integer(rules, "road", road, &format!("{output_name}_bonus"));
+                let road = native_road(road);
+                match output_name {
+                    "food" => {
+                        increment += road.food_incr;
+                        constant += road.food_incr_const;
+                        bonus += road.food_bonus;
+                    }
+                    "shield" => {
+                        increment += road.shield_incr;
+                        constant += road.shield_incr_const;
+                        bonus += road.shield_bonus;
+                    }
+                    "trade" => {
+                        increment += road.trade_incr;
+                        constant += road.trade_incr_const;
+                        bonus += road.trade_bonus;
+                    }
+                    _ => unreachable!(),
+                }
             }
             let terrain_percent = match output_name {
                 "food" => native_terrain.road_food_incr_pct,
