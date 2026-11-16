@@ -1478,6 +1478,7 @@ impl Simulation {
     /// unit record that supplies its ruleset flags. Automatic upkeep actions
     /// use this path because their identities come from the explicit
     /// C2C3 economics crosswalk rather than the movement/action identity map.
+    #[cfg(test)]
     pub(crate) fn action_available_for_unit_with_record(
         &self,
         actor: &Unit,
@@ -2307,7 +2308,6 @@ pub(crate) enum UnitEconomicsBindingKind {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum UnitEconomicsRecordBinding {
     Mapped {
-        record: &'static crate::rules::freeciv::ContentRecord,
         native: &'static crate::rules::native::NativeUnitEconomicsBinding,
         kind: UnitEconomicsBindingKind,
     },
@@ -2320,7 +2320,6 @@ pub(crate) enum UnitEconomicsRecordBinding {
 #[derive(Clone, Copy, Debug)]
 struct UnitEconomicsRule {
     civ3_unit_id: &'static str,
-    c2c3_record: &'static str,
     kind: Option<UnitEconomicsBindingKind>,
     basis: &'static str,
 }
@@ -2347,7 +2346,6 @@ fn unit_economics_rules() -> &'static [UnitEconomicsRule] {
             }
             rules.push(UnitEconomicsRule {
                 civ3_unit_id: Box::leak(native.civ3_unit_id.clone().into_boxed_str()),
-                c2c3_record: Box::leak(native.profile.clone().into_boxed_str()),
                 kind,
                 basis: Box::leak(native.basis.clone().into_boxed_str()),
             });
@@ -2396,24 +2394,12 @@ pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsReco
             basis: rule.basis,
         };
     };
-    let record = RulesetData::campaign_default()
-        .content
-        .iter()
-        .find(|record| {
-            record.kind == ContentKind::Unit
-                && record.section.eq_ignore_ascii_case(rule.c2c3_record)
-        })
-        .unwrap_or_else(|| panic!("missing selected C2C3 unit record {:?}", rule.c2c3_record));
     let native = crate::rules::native::unit_economics()
         .bindings
         .iter()
         .find(|binding| binding.civ3_unit_id.eq_ignore_ascii_case(source_id))
         .unwrap_or_else(|| panic!("missing native unit economics record {source_id:?}"));
-    UnitEconomicsRecordBinding::Mapped {
-        record,
-        native,
-        kind,
-    }
+    UnitEconomicsRecordBinding::Mapped { native, kind }
 }
 
 pub(crate) fn native_unit_economics_binding(

@@ -92,18 +92,11 @@ fn selected_partisan_unit() -> UnitKind {
             .filter(|&kind| {
                 matches!(super::action_rules::freeciv_unit_economics_record(kind),
                 super::action_rules::UnitEconomicsRecordBinding::Mapped {
-                    record,
+                    native,
                     kind: mapping,
                     ..
                 } if mapping == super::action_rules::UnitEconomicsBindingKind::RoleAlias
-                    && record
-                        .string_list_field("roles")
-                        .expect("selected partisan role list is valid")
-                        .is_some_and(|roles| {
-                            roles
-                                .iter()
-                                .any(|role| role.eq_ignore_ascii_case("Partisan"))
-                        }))
+                    && native.roles.iter().any(|role| role.eq_ignore_ascii_case("Partisan")))
             })
             .collect::<Vec<_>>();
         assert_eq!(
@@ -269,14 +262,14 @@ mod tests {
         let kind = selected_partisan_unit();
         assert_eq!(kind, UnitKind::Guerilla);
         let super::super::action_rules::UnitEconomicsRecordBinding::Mapped {
-            record,
+            native,
             kind: super::super::action_rules::UnitEconomicsBindingKind::RoleAlias,
             ..
         } = super::super::action_rules::freeciv_unit_economics_record(kind)
         else {
             panic!("C2C3 Partisan must use an explicit Civ III role alias");
         };
-        assert_eq!(record.section, "unit_partisan");
+        assert_eq!(native.profile, "unit_partisan");
     }
 
     #[test]
