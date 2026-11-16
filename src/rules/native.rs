@@ -383,6 +383,18 @@ pub(crate) struct NativeUnitEconomicsBinding {
     pub(crate) paratroopers_range: i32,
     #[serde(default)]
     pub(crate) attack: i32,
+    #[serde(default)]
+    pub(crate) veteran_names: Vec<String>,
+    #[serde(default)]
+    pub(crate) veteran_base_raise_chance: Vec<i32>,
+    #[serde(default)]
+    pub(crate) veteran_work_raise_chance: Vec<i32>,
+    #[serde(default)]
+    pub(crate) veteran_power_factor: Vec<i32>,
+    #[serde(default)]
+    pub(crate) veteran_move_bonus: Vec<i32>,
+    #[serde(default)]
+    pub(crate) combat_bonuses: Vec<NativeUnitCombatBonus>,
     pub(crate) build_cost: i32,
     pub(crate) fuel: i32,
     pub(crate) support_food: i32,
@@ -391,6 +403,13 @@ pub(crate) struct NativeUnitEconomicsBinding {
     pub(crate) happiness: i32,
     pub(crate) flags: Vec<String>,
     pub(crate) roles: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeUnitCombatBonus {
+    pub(crate) flag: String,
+    pub(crate) kind: String,
+    pub(crate) value: i32,
 }
 
 #[derive(Debug, Deserialize)]

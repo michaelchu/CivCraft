@@ -2256,6 +2256,7 @@ fn freeciv_pillage_extra(target: PillageTarget) -> &'static str {
 
 /// Direct same-identity Civ III-to-C2C3 unit records used for unit-type
 /// universals. Sight-only aliases are deliberately not reused here.
+#[cfg(test)]
 const DIRECT_C2C3_UNIT_RECORDS: &[(&str, &str)] = &[
     ("settler", "unit_settlers"),
     ("worker", "unit_worker"),
@@ -2294,6 +2295,7 @@ const DIRECT_C2C3_UNIT_RECORDS: &[(&str, &str)] = &[
 
 /// Explicit gameplay-role alias for a Civ III Galley, whose C2C3 analogue is
 /// the early Trireme carrier. Keep this separate from direct identity matches.
+#[cfg(test)]
 const C2C3_UNIT_RECORD_ALIASES: &[(&str, &str)] = &[("galley", "unit_trireme")];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2414,7 +2416,7 @@ pub(crate) fn freeciv_unit_economics_record(unit: UnitKind) -> UnitEconomicsReco
     }
 }
 
-fn native_unit_economics_binding(
+pub(crate) fn native_unit_economics_binding(
     unit: UnitKind,
 ) -> Option<&'static crate::rules::native::NativeUnitEconomicsBinding> {
     let id = unit.conquests_id()?;
@@ -2473,6 +2475,7 @@ const C2C3_TRANSPORT_RECORD_GAPS: &[&str] = &["army", "dromon", "carrack"];
 /// Freeciv's no-type-flag default. Similar names and sight aliases do not
 /// establish a gameplay crosswalk. Keep this list exhaustive with the native
 /// Conquests roster test below so new units cannot silently inherit flags.
+#[cfg(test)]
 const C2C3_DEFAULT_NO_TYPE_FLAGS: &[&str] = &[
     "horseman",
     "musketman",
@@ -2540,11 +2543,37 @@ pub(crate) fn freeciv_unit_class_rule_name(unit: UnitKind) -> Option<String> {
     native_unit_economics_binding(unit).map(|native| native.unit_class.clone())
 }
 
-/// Return the selected C2C3 unit section bound to a Civ III runtime identity.
-/// Units on the explicit no-type-record ledger have no selected unit-type
-/// combat-bonus table.
+pub(crate) fn freeciv_unit_combat_bonuses(
+    unit: UnitKind,
+) -> Option<Vec<crate::rules::freeciv::UnitCombatBonus>> {
+    let native = native_unit_economics_binding(unit)?;
+    let bonuses = native
+        .combat_bonuses
+        .iter()
+        .map(|bonus| {
+            let kind = match bonus.kind.to_ascii_lowercase().as_str() {
+                "defensemultiplier" => crate::rules::freeciv::CombatBonusKind::DefenseMultiplier,
+                "defensemultiplierpct" => {
+                    crate::rules::freeciv::CombatBonusKind::DefenseMultiplierPct
+                }
+                "defensedivider" => crate::rules::freeciv::CombatBonusKind::DefenseDivider,
+                "defensedividerpct" => crate::rules::freeciv::CombatBonusKind::DefenseDividerPct,
+                "lowfirepower" => crate::rules::freeciv::CombatBonusKind::LowFirepower,
+                other => panic!("unknown native combat bonus kind {other:?}"),
+            };
+            crate::rules::freeciv::UnitCombatBonus {
+                flag: bonus.flag.clone(),
+                kind,
+                value: bonus.value,
+            }
+        })
+        .collect();
+    Some(bonuses)
+}
+
+#[cfg(test)]
 pub(crate) fn freeciv_unit_type_section(unit: UnitKind) -> Option<String> {
-    direct_c2c3_unit_record(unit).map(|record| record.section.clone())
+    native_unit_economics_binding(unit).map(|binding| binding.profile.clone())
 }
 
 /// Resolve the selected C2C3 fuel duration for a mapped unit type. This is a
@@ -2589,27 +2618,6 @@ pub(crate) fn freeciv_missile_attack_strength(unit: UnitKind) -> Option<i32> {
         return None;
     }
     Some(native_unit_economics_binding(unit)?.attack)
-}
-
-fn direct_c2c3_unit_record(
-    unit: UnitKind,
-) -> Option<&'static crate::rules::freeciv::ContentRecord> {
-    let id = unit.conquests_id()?;
-    let section = DIRECT_C2C3_UNIT_RECORDS
-        .iter()
-        .find(|(candidate, _)| candidate.eq_ignore_ascii_case(id))
-        .or_else(|| {
-            C2C3_UNIT_RECORD_ALIASES
-                .iter()
-                .find(|(candidate, _)| candidate.eq_ignore_ascii_case(id))
-        })
-        .map(|(_, section)| *section)?;
-    RulesetData::campaign_default()
-        .content
-        .iter()
-        .find(|record| {
-            record.kind == ContentKind::Unit && record.section.eq_ignore_ascii_case(section)
-        })
 }
 
 /// Resolve a C2C3 per-unit flag through explicit identity bindings. Returns

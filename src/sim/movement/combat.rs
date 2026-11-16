@@ -236,12 +236,9 @@ impl Simulation {
         target: UnitKind,
         kind: crate::rules::freeciv::CombatBonusKind,
     ) -> i32 {
-        let Some(section) = crate::sim::action_rules::freeciv_unit_type_section(unit) else {
+        let Some(bonuses) = crate::sim::action_rules::freeciv_unit_combat_bonuses(unit) else {
             return 0;
         };
-        let bonuses: Vec<crate::rules::freeciv::UnitCombatBonus> = RulesetData::campaign_default()
-            .unit_combat_bonuses(&section)
-            .expect("campaign C2C3 unit combat-bonus table is valid");
         bonuses
             .iter()
             .filter(|bonus| bonus.kind == kind)

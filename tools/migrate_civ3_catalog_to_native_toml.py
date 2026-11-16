@@ -39,17 +39,34 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
     pending_key: str | None = None
     pending_value: list[str] = []
 
+    string_list_keys = {"flags", "roles", "targets", "cargo", "veteran_names"}
+    integer_list_keys = {
+        "veteran_base_raise_chance",
+        "veteran_work_raise_chance",
+        "veteran_power_fact",
+        "veteran_move_bonus",
+    }
+
     def flush_pending() -> None:
         if current is None or pending_key not in {
             "flags",
             "roles",
             "targets",
             "cargo",
+            "veteran_names",
+            "veteran_base_raise_chance",
+            "veteran_work_raise_chance",
+            "veteran_power_fact",
+            "veteran_move_bonus",
         }:
             return
-        current[pending_key] = re.findall(
-            r'"([^"\\]*(?:\\.[^"\\]*)*)"', " ".join(pending_value)
-        )
+        value = " ".join(pending_value)
+        if pending_key in string_list_keys:
+            current[pending_key] = re.findall(
+                r'"([^"\\]*(?:\\.[^"\\]*)*)"', value
+            )
+        elif pending_key in integer_list_keys:
+            current[pending_key] = [int(item) for item in re.findall(r"-?\d+", value)]
 
     for raw_line in (ROOT / "data/rulesets/civcraft_civ2civ3/units.ruleset").read_text(
         encoding="utf-8"
@@ -120,7 +137,29 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
             class_flags[name_match.group(1)] = re.findall(
                 r'"([^"\\]*(?:\\.[^"\\]*)*)"', flags_match.group(1)
             )
-    for profile in profiles.values():
+    source = (ROOT / "data/rulesets/civcraft_civ2civ3/units.ruleset").read_text(
+        encoding="utf-8"
+    )
+    global_block = re.search(
+        r"\[veteran_system\](.*?)(?=\n\[|\Z)", source, re.DOTALL
+    )
+    if global_block is None:
+        raise ValueError("C2C3 units.ruleset has no global veteran_system")
+    global_text = global_block.group(1)
+    global_veteran_names = re.findall(
+        r'^veteran_names\s*=\s*(.*)$', global_text, re.MULTILINE
+    )
+    default_veteran_names = re.findall(
+        r'"([^"\\]*(?:\\.[^"\\]*)*)"', global_veteran_names[0]
+    )
+    default_veteran_values: dict[str, list[int]] = {}
+    for key in integer_list_keys:
+        match = re.search(rf"^{key}\s*=\s*(.*)$", global_text, re.MULTILINE)
+        if match is None:
+            raise ValueError(f"global veteran_system has no {key}")
+        default_veteran_values[key] = [int(item) for item in re.findall(r"-?\d+", match.group(1))]
+
+    for profile_name, profile in profiles.items():
         unit_class = profile.get("unit_class")
         profile["class_flags"] = class_flags.get(str(unit_class), [])
         profile.setdefault("targets", [])
@@ -130,6 +169,36 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
         profile.setdefault("embarks", "")
         profile.setdefault("disembarks", "")
         profile.setdefault("paratroopers_range", -1)
+        profile.setdefault("veteran_names", default_veteran_names)
+        for key, values in default_veteran_values.items():
+            profile.setdefault(key, values)
+        profile.setdefault("combat_bonuses", [])
+
+    # Combat bonus tables are the only nested unit table used by CivCraft.
+    # Preserve them as native rows instead of making the runtime parse the
+    # Freeciv ruleset syntax.
+    for match in re.finditer(r"^\[(unit_[^\]]+)\]\s*$", source, re.MULTILINE):
+        section = match.group(1)
+        start = match.end()
+        next_section = re.search(r"^\[", source[start:], re.MULTILINE)
+        end = start + next_section.start() if next_section else len(source)
+        block = source[start:end]
+        table = re.search(
+            r"^bonuses\s*=\s*\n\s*\{.*?\n(.*?)^\s*\}",
+            block,
+            re.MULTILINE | re.DOTALL,
+        )
+        if table is None or section not in profiles:
+            continue
+        bonuses = []
+        for line in table.group(1).splitlines():
+            quoted = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', line)
+            value = re.search(r"-?\d+\s*$", line)
+            if len(quoted) == 2 and value:
+                bonuses.append(
+                    {"flag": quoted[0], "kind": quoted[1], "value": int(value.group())}
+                )
+        profiles[section]["combat_bonuses"] = bonuses
     return profiles
 
 
@@ -593,6 +662,12 @@ def write_unit_economics() -> None:
                 f'disembarks = {string(profile.get("disembarks", ""))}',
                 f'paratroopers_range = {profile.get("paratroopers_range", -1)}',
                 f'attack = {profile.get("attack", 0)}',
+                f'veteran_names = {json.dumps(profile.get("veteran_names", []), ensure_ascii=False)}',
+                f'veteran_base_raise_chance = {json.dumps(profile.get("veteran_base_raise_chance", []))}',
+                f'veteran_work_raise_chance = {json.dumps(profile.get("veteran_work_raise_chance", []))}',
+                f'veteran_power_factor = {json.dumps(profile.get("veteran_power_fact", []))}',
+                f'veteran_move_bonus = {json.dumps(profile.get("veteran_move_bonus", []))}',
+                f'combat_bonuses = {inline_tables(profile.get("combat_bonuses", []))}',
                 f'build_cost = {profile.get("build_cost", 0)}',
                 f'fuel = {profile.get("fuel", 0)}',
                 f'support_food = {profile.get("uk_food", 0)}',

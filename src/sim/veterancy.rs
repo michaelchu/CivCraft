@@ -7,19 +7,32 @@ use std::sync::OnceLock;
 fn selected_veteran_systems() -> &'static [(UnitKind, VeteranSystem)] {
     static SYSTEMS: OnceLock<Vec<(UnitKind, VeteranSystem)>> = OnceLock::new();
     SYSTEMS.get_or_init(|| {
-        let rules = RulesetData::campaign_default();
         UnitKind::ALL_NATIVE
             .into_iter()
             .map(|kind| {
-                let section = crate::sim::action_rules::freeciv_unit_type_section(kind);
-                (
-                    kind,
-                    rules
-                        .veteran_system(section.as_deref())
-                        .unwrap_or_else(|error| {
-                            panic!("invalid selected C2C3 veteran system for {kind:?}: {error}")
-                        }),
-                )
+                let binding = crate::sim::action_rules::native_unit_economics_binding(kind)
+                    .unwrap_or_else(|| panic!("missing native veteran system for {kind:?}"));
+                let lengths = [
+                    binding.veteran_names.len(),
+                    binding.veteran_base_raise_chance.len(),
+                    binding.veteran_work_raise_chance.len(),
+                    binding.veteran_power_factor.len(),
+                    binding.veteran_move_bonus.len(),
+                ];
+                assert!(lengths.iter().all(|length| *length == lengths[0]));
+                let levels = binding
+                    .veteran_names
+                    .iter()
+                    .enumerate()
+                    .map(|(index, name)| VeteranLevel {
+                        name: name.clone(),
+                        base_raise_chance: binding.veteran_base_raise_chance[index],
+                        work_raise_chance: binding.veteran_work_raise_chance[index],
+                        power_factor: binding.veteran_power_factor[index],
+                        move_bonus: binding.veteran_move_bonus[index],
+                    })
+                    .collect();
+                (kind, VeteranSystem { levels })
             })
             .collect()
     })
