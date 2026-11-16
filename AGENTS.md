@@ -7,8 +7,8 @@ artwork. The authority split is:
 
 - **Gameplay logic** (rules, formulas, state transitions, turn processing,
   AI behavior, and rule interpretation) follows the pinned Freeciv source
-  (`reference/freeciv`) and its `civ2civ3` ruleset, as copied into
-  `data/rulesets/civcraft_civ2civ3/`. Civ III game logic is no longer an
+  (`reference/freeciv`) and its `civ2civ3` ruleset, as copied into the
+  `data/rulesets/civcraft/engine/` layer. Civ III game logic is no longer an
   authority for mechanics.
 - **Units, buildings, and civilizations** (identities, values, availability,
   and special data) come from the Civ III: Conquests sources. The supplied

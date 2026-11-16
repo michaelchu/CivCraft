@@ -3,7 +3,7 @@
 ## Scope and evidence
 
 This audit compares every source-backed field currently exported in
-`data/rulesets/civ3_conquests/units.tsv` with the installed
+`data/rulesets/civcraft/content/units.toml` with the installed
 `../../source/Conquests/conquests.biq` and the adjacent OpenCiv3 BIQ reader at
 `../openciv3/QueryCiv3/BiqSections/Prto.cs`. The installed BIQ SHA-256 is
 `1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c`.

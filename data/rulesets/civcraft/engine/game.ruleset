@@ -10,7 +10,7 @@
 ; than minor changes.
 
 [datafile]
-description = "Civ2Civ3 game rules for Freeciv"
+description = "CivCraft campaign engine rules for Freeciv"
 options = "+Freeciv-ruleset-3.4-Devel-2025.Jan.17 web-compatible"
 format_version = 50
 
@@ -19,7 +19,7 @@ format_version = 50
 [ruledit]
 
 ; Which file to read description in from.
-description_file = "civcraft_civ2civ3/README.civ2civ3"
+description_file = "civcraft/engine/README.civ2civ3"
 
 ; Should ruleset upgrade do changes matching changes to the standard tilesets
 ; of the freeciv distribution. Custom tilesets might do not implement similar
@@ -29,7 +29,7 @@ std_tileset_compat = TRUE
 
 [about]
 ; Ruleset name
-name = _("Civ2Civ3 ruleset")
+name = _("CivCraft campaign ruleset")
 
 ; There`s no separate versioning in rulesets part of main freeciv distribution
 ;version = ""
@@ -57,7 +57,7 @@ The differences from the former default ruleset, 'classic', are listed in\
 
 ; Detailed description
 ; When updating this, update also description_file in [ruledit] section to match
-description = *civcraft_civ2civ3/README.civ2civ3*
+description = *civcraft/engine/README.civ2civ3*
 
 ; What capabilities ruleset provides for the scenarios.
 ; See doc/README.rulesets for definitions of official capabilities

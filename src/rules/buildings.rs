@@ -1,7 +1,7 @@
 //! Stable building identifiers backed by the native TOML ruleset.
 //!
 //! The runtime IDs remain stable for saves and UI code; editable names, costs,
-//! genera, and requirements are loaded from `civcraft_native`.
+//! genera, and requirements are loaded from the CivCraft campaign package.
 //!
 //! Keep catalog indices and native ordering stable because saves and several
 //! deterministic selection paths refer to these entries.

@@ -158,7 +158,7 @@ impl Civ3ContentCatalog {
 
 fn native_catalog_error(message: &str) -> CatalogLoadError {
     CatalogLoadError {
-        path: PathBuf::from("data/rulesets/civcraft_native"),
+        path: PathBuf::from("data/rulesets/civcraft/content"),
         message: message.to_owned(),
     }
 }

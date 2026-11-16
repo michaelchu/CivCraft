@@ -875,13 +875,12 @@ impl std::fmt::Display for LoadError {
 impl std::error::Error for LoadError {}
 
 impl RulesetData {
-    /// Load the Freeciv mechanics engine and attach CivCraft-owned native
-    /// source records from the TOML campaign catalogs.
-    pub(crate) fn load_with_native_catalog(
-        data_root: &Path,
-        ruleset_name: &str,
-    ) -> Result<Self, LoadError> {
-        let mut rules = Self::load(data_root, ruleset_name)?;
+    /// Load the single CivCraft campaign package: generic Freeciv engine
+    /// inputs from `engine/`, overlaid with CivCraft-owned TOML catalogs from
+    /// `content/`.
+    pub(crate) fn load_civcraft(data_root: &Path) -> Result<Self, LoadError> {
+        let engine_dir = data_root.join("civcraft/engine");
+        let mut rules = Self::load_from_directory(data_root, &engine_dir, "civcraft")?;
         rules.effects = native_effect_records()?.into();
         rules.actions = native_action_records();
         rules.action_enablers = native_action_enablers()?;
@@ -891,14 +890,12 @@ impl RulesetData {
         Ok(rules)
     }
 
-    /// The current single-player campaign uses the CivCraft-owned C2C3
-    /// baseline. Cache the parsed data once; later ruleset selection can move
-    /// this ownership into a campaign configuration without changing callers.
+    /// Cache the single CivCraft campaign package once.
     pub(crate) fn campaign_default() -> &'static Self {
         static RULESET: OnceLock<RulesetData> = OnceLock::new();
         RULESET.get_or_init(|| {
             let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-            Self::load_with_native_catalog(&data_root, "civcraft_civ2civ3")
+            Self::load_civcraft(&data_root)
                 .unwrap_or_else(|error| panic!("failed to load campaign ruleset: {error}"))
         })
     }
@@ -1714,7 +1711,7 @@ fn native_requirement(
         survives: requirement.survives,
         quiet: requirement.quiet,
         source: RuleSourceLocation {
-            file: PathBuf::from(format!("data/rulesets/civcraft_native/{file}")),
+            file: PathBuf::from(format!("data/rulesets/civcraft/content/{file}")),
             section: id.to_owned(),
             key: key.to_owned(),
             line: 0,
@@ -1963,7 +1960,7 @@ impl RulesetData {
                         quiet: false,
                         source: RuleSourceLocation {
                             file: PathBuf::from(
-                                "data/rulesets/civcraft_native/governments.toml",
+                                "data/rulesets/civcraft/content/governments.toml",
                             ),
                             section: format!("government_{id}"),
                             key: "required_technology".to_owned(),
@@ -3197,9 +3194,14 @@ mod tests {
     #[test]
     fn packaged_baseline_loads_only_selected_civcraft_ruleset_files() {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-        let rules = RulesetData::load(&data_root, "civcraft_civ2civ3").unwrap();
+        let rules = RulesetData::load_from_directory(
+            &data_root,
+            &data_root.join("civcraft/engine"),
+            "civcraft",
+        )
+        .unwrap();
 
-        assert_eq!(rules.name, "civcraft_civ2civ3");
+        assert_eq!(rules.name, "civcraft");
         assert_eq!(rules.files.len(), RULESET_FILES.len());
         assert!(
             rules
@@ -3245,7 +3247,7 @@ mod tests {
         );
         assert!(
             data_root
-                .join("civcraft_civ2civ3/UPSTREAM_MANIFEST.tsv")
+                .join("civcraft/engine/UPSTREAM_MANIFEST.tsv")
                 .is_file()
         );
     }
@@ -3253,7 +3255,7 @@ mod tests {
     #[test]
     fn campaign_ruleset_keeps_civ3_source_catalog_separate_and_identifiable() {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-        let rules = RulesetData::load_with_native_catalog(&data_root, "civcraft_civ2civ3").unwrap();
+        let rules = RulesetData::load_civcraft(&data_root).unwrap();
 
         assert_eq!(
             rules.effects.len(),

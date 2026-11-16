@@ -19,9 +19,9 @@ checkout.
 |---|---|
 | Gameplay algorithms and rule interpretation | Freeciv source at the pinned revision below |
 | Initial settings, effects, requirements, actions, and defaults | A CivCraft-owned copy/derivative of the pinned `civ2civ3` ruleset |
-| Units and their campaign identities, values, availability, and special data | Civ III: Conquests source catalog, including `data/rulesets/civ3_conquests/units.tsv` |
-| Buildings and their campaign identities and source values | Civ III source-derived catalog in `data/rulesets/civ3_conquests/buildings.tsv` |
-| Technology tree and advance identities | Civ III source-derived catalog in `data/rulesets/civ3_conquests/technologies.tsv`, loaded by `src/rules/research.rs`, with source gaps recorded explicitly |
+| Units and their campaign identities, values, availability, and special data | Civ III: Conquests source catalog in `data/rulesets/civcraft/content/units.toml` |
+| Buildings and their campaign identities and source values | Civ III source-derived catalog in `data/rulesets/civcraft/content/buildings.toml` |
+| Technology tree and advance identities | Civ III source-derived catalog in `data/rulesets/civcraft/content/technologies.toml`, loaded by `src/rules/research.rs`, with source gaps recorded explicitly |
 | Original unit, terrain, resource, and other selected game art | Civ III source assets and existing asset mappings |
 
 Freeciv ruleset fields still provide the schema through which retained content
@@ -157,7 +157,7 @@ that code has been added.
 
 ### P3 evidence
 
-- Created `data/rulesets/civcraft_civ2civ3/` from only the pinned C2C3 ruleset.
+- Created `data/rulesets/civcraft/engine/` from only the pinned C2C3 ruleset.
   The original recursive Freeciv nation include tree was later replaced by
   three embedded special-player records because CivCraft uses its source-backed
   Civ III civilization catalog. The eleven required gameplay ruleset files
@@ -171,7 +171,7 @@ that code has been added.
   original 589-file import. It remains a provenance record, including nation
   dependencies subsequently removed from the runtime tree. Its recorded
   changes point the ruledit description to
-  `civcraft_civ2civ3/README.civ2civ3` and make the inherited engine defaults
+  `civcraft/engine/README.civ2civ3` and make the inherited engine defaults
   `victories`, `landmass`, `startpos`, `steepness`, `wetness`, `specials`, and
   `huts` explicit in the editable ruleset.
   `README.md` records their provenance, the source revision, copied
@@ -292,7 +292,7 @@ that code has been added.
   `effects.ruleset`, `units.ruleset`, `cities.ruleset`, and `actions.ruleset`.
 - The Conquests BIQ technology table is now the sole researchable tech graph:
   83 advances and their direct prerequisite slots are loaded from
-  `data/rulesets/civ3_conquests/technologies.tsv`. Freeciv algorithms supply
+  `data/rulesets/civcraft/content/technologies.toml`. Freeciv algorithms supply
   goal selection, availability, cost scaling, research progress, leakage,
   first-discovery handling, loss, and transfer. The old Freeciv tech IDs remain
   stable for effects/save compatibility, but Freeciv-only entries such as Radio

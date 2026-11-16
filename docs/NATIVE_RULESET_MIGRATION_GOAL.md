@@ -1,7 +1,7 @@
 # Native TOML ruleset migration goal
 
 Make `civcraft` a self-owned, Civ III: Conquests-native campaign.  Gameplay
-content must come from editable TOML under `data/rulesets/civcraft_native/`;
+content must come from editable TOML under `data/rulesets/civcraft/content/`;
 Freeciv code may remain as an engine/schema implementation detail, but no
 Freeciv units, buildings, governments, technologies, nations, or settlement
 records may be selected as gameplay content.

@@ -30,10 +30,19 @@ impl RulesetData {
     /// Load one named ruleset. Missing files use Freeciv's whole-file
     /// `default/` fallback; no sections or keys are merged across files.
     pub(crate) fn load(data_root: &Path, name: &str) -> Result<Self, LoadError> {
-        let ruleset_dir = data_root.join(name);
+        Self::load_from_directory(data_root, &data_root.join(name), name)
+    }
+
+    /// Load a ruleset whose selected files live in a package subdirectory.
+    /// Shared Freeciv fallback files remain rooted at `data_root`.
+    pub(crate) fn load_from_directory(
+        data_root: &Path,
+        ruleset_dir: &Path,
+        name: &str,
+    ) -> Result<Self, LoadError> {
         let mut files = Vec::new();
         for file_name in RULESET_FILES {
-            let (path, source) = resolve_ruleset_file(data_root, &ruleset_dir, name, file_name)?;
+            let (path, source) = resolve_ruleset_file(data_root, ruleset_dir, name, file_name)?;
             let parsed = load_section_file(data_root, &path, &mut Vec::new())?;
             files.push(LoadedRuleFile {
                 name: (*file_name).to_owned(),

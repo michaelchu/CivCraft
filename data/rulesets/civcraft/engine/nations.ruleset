@@ -17,7 +17,7 @@ format_version = 50
 ; These have no in-game effect whatsoever.
 [ruledit]
 ; CivCraft embeds only the special non-player nations used by C2C3 mechanics.
-; Playable civilizations come from civ3_conquests/civilizations.tsv.
+; Playable civilizations come from civcraft/content/civilizations.toml.
 
 [compatibility]
 ; Initial government for all the nations that do not
