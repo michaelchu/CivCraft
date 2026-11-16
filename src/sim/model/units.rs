@@ -439,11 +439,6 @@ impl UnitKind {
         }
     }
 
-    #[cfg(test)]
-    pub(in crate::sim) fn uses_stealth_vision(self) -> bool {
-        self.metadata().stealth
-    }
-
     pub(in crate::sim) fn can_occupy_city(self) -> bool {
         let class = self.unit_class();
         !self.is_civilian()

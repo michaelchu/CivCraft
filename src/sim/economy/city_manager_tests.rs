@@ -246,7 +246,7 @@ fn unit_unrest_still_changes_city_feelings_without_martial_law() {
             unit.home_order = id;
         }
 
-        assert_eq!(game.city_unit_upkeep(&city).unit_happiness, 0);
+        assert_eq!(game.city_unit_happiness(&city), 0);
         let with_unit_unrest = game.city_feelings_after_effects(&city, 16);
         assert_eq!(with_unit_unrest, baseline);
     }

@@ -139,7 +139,8 @@ Install the repository's local hooks after cloning:
 ./scripts/install-git-hooks.sh
 ```
 
-The pre-commit hook checks Rust formatting. The pre-push hook runs formatting,
+The pre-commit hook checks Rust formatting and runs Clippy across all targets,
+treating warnings as errors, matching CI. The pre-push hook runs formatting,
 Clippy, the full nextest suite, and doc tests, matching the CI checks. A failed
 check blocks the commit or push. Run `./scripts/check-rust.sh` manually to run
 the full pre-push checks.

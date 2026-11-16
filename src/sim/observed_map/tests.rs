@@ -318,14 +318,9 @@ fn native_submarines_are_hidden_but_stealth_aircraft_use_main_sight() {
         game.unit_vision_layer_for(UnitKind::Fighter),
         UnitVisionLayer::Main
     );
-    let unresolved_fallback = if UnitKind::Guerilla.uses_stealth_vision() {
-        UnitVisionLayer::Main
-    } else {
-        UnitVisionLayer::Main
-    };
     assert_eq!(
         game.unit_vision_layer_for(UnitKind::Guerilla),
-        unresolved_fallback
+        UnitVisionLayer::Main
     );
 }
 

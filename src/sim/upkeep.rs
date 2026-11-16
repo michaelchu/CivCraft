@@ -9,7 +9,6 @@ pub(crate) struct UnitUpkeep {
     pub(crate) food: i32,
     pub(crate) shields: i32,
     pub(crate) gold: i32,
-    pub(crate) unit_happiness: i32,
     /// Source-order supported units, with both pre-allowance and post-allowance
     /// costs for the city-turn missing-upkeep resolver.
     pub(crate) per_unit: Vec<UnitUpkeepRow>,
@@ -121,7 +120,6 @@ impl Simulation {
             food: 0,
             shields: 0,
             gold,
-            unit_happiness: 0,
             per_unit,
         }
     }
@@ -355,7 +353,7 @@ mod tests {
                 upkeep.food,
                 upkeep.shields,
                 upkeep.gold,
-                upkeep.unit_happiness
+                game.city_unit_happiness(&game.cities[0])
             ),
             (0, 0, 2, 0)
         );
