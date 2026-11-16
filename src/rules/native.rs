@@ -16,7 +16,9 @@ pub(crate) struct UnitCatalog {
 }
 
 // Catalog columns the engine does not consume yet: `expansion`,
-// `ai_other_strategy`, `stealth_target_prototype_indices`.
+// `ai_other_strategy`, `enslave_result_prototype_index`,
+// `stealth_target_prototype_indices`, `create_craters`, `air_defense`,
+// `icon_index`, `civilopedia_entry`.
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]

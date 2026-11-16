@@ -4,118 +4,75 @@
 //! Keep simulation code independent of individual unit values so rebalance
 //! edits to the table do not require changes to rule logic.
 
+use crate::rules::native::{NativeExperienceLevel, NativeUnit};
 use std::sync::OnceLock;
 
+/// One campaign unit: its catalog record plus the bit fields and AI
+/// strategies decoded from that record's packed columns. Scalar values are
+/// read straight from the catalog record through `Deref`, so there is a
+/// single copy of every statistic.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct UnitRule {
-    pub(super) id: &'static str,
-    pub(super) name: &'static str,
-    pub(super) category: &'static str,
-    /// All original PRTO prototype indices represented by this campaign identity.
-    /// Multiple indices occur when the same unit identity appears in more than
-    /// one installed BIQ.
-    #[allow(dead_code)] // Retained from the source catalog for prototype-index lookups.
-    pub(super) source_prototypes: &'static str,
-    pub(super) required_technology: &'static str,
-    pub(super) required_resources: [&'static str; 3],
-    pub(super) upgrade_to: &'static str,
-    pub(super) cost: i32,
-    pub(super) population_cost: i32,
-    pub(super) attack: i32,
-    pub(super) defense: i32,
-    pub(super) moves: i32,
-    pub(super) unit_type: i32,
-    pub(super) capacity: usize,
-    pub(super) operational_range: i32,
-    pub(super) bombard_strength: i32,
-    pub(super) bombard_range: i32,
-    pub(super) rate_of_fire: i32,
-    pub(super) hit_point_bonus: i32,
+    native: &'static NativeUnit,
     flags_1: [u8; 8],
-    flags_2: [u8; 8],
     flags_3: [u8; 20],
     ai_strategies: u32,
-    #[allow(dead_code)] // Retained source terrain flags for movement rule integration.
-    ignore_movement_cost: [u8; 14],
-    #[allow(dead_code)]
-    pub(super) zone_of_control: i32,
-    pub(super) bombard_effects: i32,
-    #[allow(dead_code)]
-    pub(super) require_support: i32,
-    #[allow(dead_code)] // Retained source result for the unfinished enslave action path.
-    pub(super) enslave_result_prototype_index: i32,
-    #[allow(dead_code)] // Retained source capability for the unfinished crater action path.
-    pub(super) create_craters: i32,
-    pub(super) worker_strength: f32,
-    #[allow(dead_code)]
-    pub(super) air_defense: i32,
-    #[allow(dead_code)]
-    pub(super) icon_index: i32,
-    #[allow(dead_code)]
-    pub(super) civilopedia_entry: &'static str,
-    pub(super) available_to: &'static str,
-    #[allow(dead_code)]
-    pub(super) unique_civilization: &'static str,
-    #[allow(dead_code)]
-    pub(super) replaces: &'static str,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(super) struct ExperienceRule {
-    pub(super) name: &'static str,
-    pub(super) base_hit_points: i32,
-    #[allow(dead_code)]
-    pub(super) retreat_bonus_percent: i32,
-    #[allow(dead_code)] // Retained source experience value for veteran promotion behavior.
-    pub(super) promotion_chance_per_mille: i32,
-    pub(super) is_default: bool,
+impl std::ops::Deref for UnitRule {
+    type Target = NativeUnit;
+
+    fn deref(&self) -> &NativeUnit {
+        self.native
+    }
 }
 
-fn experience_levels() -> &'static [ExperienceRule] {
-    static LEVELS: OnceLock<Vec<ExperienceRule>> = OnceLock::new();
+/// The catalog's experience levels, validated once on first use.
+fn experience_levels() -> &'static [NativeExperienceLevel] {
+    static LEVELS: OnceLock<&'static [NativeExperienceLevel]> = OnceLock::new();
     LEVELS.get_or_init(|| {
-        let parsed = crate::rules::native::experience()
-            .levels
-            .iter()
-            .map(|level| ExperienceRule {
-                name: leak(&level.name),
-                base_hit_points: level.base_hit_points,
-                retreat_bonus_percent: level.retreat_bonus_percent,
-                promotion_chance_per_mille: level.promotion_chance_per_mille,
-                is_default: level.default_rank,
-            })
-            .collect::<Vec<_>>();
+        let levels = crate::rules::native::experience().levels.as_slice();
         assert_eq!(
-            parsed.len(),
+            levels.len(),
             4,
             "Conquests experience-level coverage changed"
         );
         assert_eq!(
-            parsed.iter().filter(|level| level.is_default).count(),
+            levels.iter().filter(|level| level.default_rank).count(),
             1,
             "Conquests must have one default experience level"
         );
-        let default_index = parsed
+        let default_index = levels
             .iter()
-            .position(|level| level.is_default)
+            .position(|level| level.default_rank)
             .expect("Conquests default experience level");
-        assert_eq!(parsed[default_index].name, "Regular");
-        parsed
+        assert_eq!(levels[default_index].name, "Regular");
+        levels
     })
 }
 
 pub(super) fn default_experience_rank() -> usize {
     experience_levels()
         .iter()
-        .position(|level| level.is_default)
+        .position(|level| level.default_rank)
         .expect("Conquests default experience level")
 }
 
-pub(super) fn experience_rank(rank: usize) -> &'static ExperienceRule {
+pub(super) fn experience_rank(rank: usize) -> &'static NativeExperienceLevel {
     &experience_levels()[rank.min(experience_levels().len() - 1)]
 }
 
 impl UnitRule {
+    /// The stable catalog identifier.
+    pub(super) fn id(&self) -> &'static str {
+        &self.native.id
+    }
+
+    /// The display name from the catalog.
+    pub(super) fn name(&self) -> &'static str {
+        &self.native.name
+    }
+
     pub(super) fn has_flag_1(&self, byte: usize, bit: u8) -> bool {
         self.flags_1
             .get(byte)
@@ -134,13 +91,6 @@ impl UnitRule {
 
     pub(super) fn has_lethal_sea_bombard(&self) -> bool {
         self.has_flag_1(3, 4)
-    }
-
-    #[allow(dead_code)]
-    pub(super) fn has_flag_2(&self, byte: usize, bit: u8) -> bool {
-        self.flags_2
-            .get(byte)
-            .is_some_and(|value| value & (1 << bit) != 0)
     }
 
     pub(super) fn unit_class(&self) -> crate::sim::unit_catalog::UnitClass {
@@ -226,7 +176,7 @@ impl UnitRule {
 
     fn civilization_mask_allows(&self, civilization: &str) -> bool {
         self.available_to
-            .split(';')
+            .iter()
             .any(|available| available == civilization)
     }
 
@@ -242,7 +192,7 @@ impl UnitRule {
         !rules().iter().any(|unique| {
             unique.category == "unique"
                 && unique.unique_civilization == civilization
-                && unique.replacement_id() == Some(self.id)
+                && unique.replacement_id() == Some(self.id.as_str())
                 && unique.civilization_mask_allows(civilization)
         })
     }
@@ -251,7 +201,7 @@ impl UnitRule {
         if self.required_technology.is_empty() {
             return None;
         }
-        let alias = match self.required_technology {
+        let alias = match self.required_technology.as_str() {
             "Amphibious War" => Some(crate::rules::Tech::AMPHIBIOUS_WARFARE),
             "Ironclads" => Some(crate::rules::Tech::STEAM_ENGINE),
             _ => None,
@@ -268,8 +218,9 @@ impl UnitRule {
     pub(super) fn resources(&self) -> Vec<crate::sim::Resource> {
         self.required_resources
             .iter()
+            .take(3)
             .filter(|name| !name.is_empty())
-            .map(|name| match *name {
+            .map(|name| match name.as_str() {
                 "Aluminum" => crate::sim::Resource::Aluminum,
                 "Coal" => crate::sim::Resource::Coal,
                 "Horses" => crate::sim::Resource::Horses,
@@ -290,7 +241,7 @@ impl UnitRule {
         rules()
             .iter()
             .find(|candidate| candidate.name == self.upgrade_to)
-            .map(|candidate| candidate.id)
+            .map(UnitRule::id)
     }
 
     pub(super) fn replacement_id(&self) -> Option<&'static str> {
@@ -300,7 +251,7 @@ impl UnitRule {
         rules()
             .iter()
             .find(|candidate| candidate.name == self.replaces)
-            .map(|candidate| candidate.id)
+            .map(UnitRule::id)
     }
 }
 
@@ -326,20 +277,6 @@ fn parse_ai_strategy_mask(profiles: &str, row: usize) -> u32 {
             .collect::<Vec<_>>();
         strategies | u32::from(bytes[4]) | (u32::from(bytes[5]) << 8) | (u32::from(bytes[6]) << 16)
     })
-}
-
-fn leak(value: &str) -> &'static str {
-    Box::leak(value.to_owned().into_boxed_str())
-}
-
-fn join_indices(values: &[i32]) -> &'static str {
-    leak(
-        &values
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(";"),
-    )
 }
 
 fn parse_hex<const N: usize>(value: &str, row: usize, field: &str) -> [u8; N] {
@@ -370,54 +307,19 @@ fn rules() -> &'static [UnitRule] {
         let mut parsed = Vec::new();
         for (index, native) in crate::rules::native::units().units.iter().enumerate() {
             let row = index + 1;
-            let mut required_resources = [""; 3];
-            for (slot, resource) in native.required_resources.iter().take(3).enumerate() {
-                required_resources[slot] = leak(resource);
-            }
-            let available_to = leak(&native.available_to.join(";"));
-            let unique_civilization = leak(&native.unique_civilization);
-            let replaces = leak(&native.replaces);
+            // Decoding every packed column validates the record at load, even
+            // where the engine does not consume the decoded value yet.
+            let _: [u8; 8] = parse_hex(&native.flags_2_hex, row, "flags_2_hex");
+            let _: [u8; 14] = parse_hex(
+                &native.ignore_movement_cost_hex,
+                row,
+                "ignore_movement_cost_hex",
+            );
             parsed.push(UnitRule {
-                id: leak(&native.id),
-                name: leak(&native.name),
-                category: leak(&native.category),
-                source_prototypes: join_indices(&native.source_prototypes),
-                required_technology: leak(&native.required_technology),
-                required_resources,
-                upgrade_to: leak(&native.upgrade_to),
-                cost: native.cost_shields,
-                population_cost: native.population_cost,
-                attack: native.attack,
-                defense: native.defense,
-                moves: native.moves,
-                unit_type: native.unit_type,
-                capacity: native.capacity,
-                operational_range: native.operational_range,
-                bombard_strength: native.bombard_strength,
-                bombard_range: native.bombard_range,
-                rate_of_fire: native.rate_of_fire,
-                hit_point_bonus: native.hit_point_bonus,
+                native,
                 flags_1: parse_hex(&native.flags_1_hex, row, "flags_1_hex"),
-                flags_2: parse_hex(&native.flags_2_hex, row, "flags_2_hex"),
                 flags_3: parse_hex(&native.flags_3_hex, row, "flags_3_hex"),
                 ai_strategies: parse_ai_strategy_mask(&native.source_ai_profiles, row),
-                ignore_movement_cost: parse_hex(
-                    &native.ignore_movement_cost_hex,
-                    row,
-                    "ignore_movement_cost_hex",
-                ),
-                zone_of_control: native.zone_of_control,
-                bombard_effects: native.bombard_effects,
-                require_support: native.require_support,
-                enslave_result_prototype_index: native.enslave_result_prototype_index,
-                create_craters: native.create_craters,
-                worker_strength: native.worker_strength,
-                air_defense: native.air_defense,
-                icon_index: native.icon_index,
-                civilopedia_entry: leak(&native.civilopedia_entry),
-                available_to,
-                unique_civilization,
-                replaces,
             });
         }
         assert_eq!(
@@ -435,11 +337,9 @@ pub(super) fn get(id: &str) -> Option<&'static UnitRule> {
 
 #[cfg(test)]
 pub(super) fn get_by_prototype_index(index: i32) -> Option<&'static UnitRule> {
-    rules().iter().find(|rule| {
-        rule.source_prototypes
-            .split(';')
-            .any(|source_index| source_index.parse::<i32>().ok() == Some(index))
-    })
+    rules()
+        .iter()
+        .find(|rule| rule.source_prototypes.contains(&index))
 }
 
 #[cfg(feature = "scenarios")]
@@ -471,7 +371,12 @@ mod tests {
         );
         let warrior = get("warrior").unwrap();
         assert_eq!(
-            (warrior.cost, warrior.attack, warrior.defense, warrior.moves),
+            (
+                warrior.cost_shields,
+                warrior.attack,
+                warrior.defense,
+                warrior.moves
+            ),
             (10, 1, 1, 1)
         );
         let legionary = get("legionary").unwrap();
@@ -502,7 +407,7 @@ mod tests {
         assert_eq!(
             experience_levels()
                 .iter()
-                .map(|level| (level.name, level.base_hit_points))
+                .map(|level| (level.name.as_str(), level.base_hit_points))
                 .collect::<Vec<_>>(),
             vec![
                 ("Conscript", 2),
@@ -533,7 +438,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(unique.len(), 31);
         for unit in unique {
-            let civilization = unit.unique_civilization;
+            let civilization = unit.unique_civilization.as_str();
             let base_id = unit
                 .replacement_id()
                 .unwrap_or_else(|| panic!("unique unit {} has no replacement", unit.id));
@@ -544,70 +449,10 @@ mod tests {
     }
 
     #[test]
-    fn native_toml_unit_catalog_matches_the_legacy_extraction() {
-        let native = crate::rules::native::units();
-        assert_eq!(native.units.len(), rules().len());
-        for source in rules() {
-            let migrated = native
-                .units
-                .iter()
-                .find(|unit| unit.id == source.id)
-                .unwrap_or_else(|| panic!("native TOML is missing {}", source.id));
-            assert_eq!(migrated.name, source.name);
-            assert_eq!(migrated.category, source.category);
-            assert_eq!(migrated.cost_shields, source.cost);
-            assert_eq!(migrated.population_cost, source.population_cost);
-            assert_eq!(migrated.attack, source.attack);
-            assert_eq!(migrated.defense, source.defense);
-            assert_eq!(migrated.moves, source.moves);
-            assert_eq!(migrated.bombard_strength, source.bombard_strength);
-            assert_eq!(migrated.bombard_range, source.bombard_range);
-            assert_eq!(migrated.rate_of_fire, source.rate_of_fire);
-            assert_eq!(migrated.operational_range, source.operational_range);
-            assert_eq!(migrated.capacity, source.capacity);
-            assert_eq!(migrated.required_technology, source.required_technology);
-            assert_eq!(
-                migrated.required_resources,
-                source
-                    .required_resources
-                    .iter()
-                    .filter(|resource| !resource.is_empty())
-                    .map(|resource| (*resource).to_owned())
-                    .collect::<Vec<_>>()
-            );
-            assert_eq!(migrated.upgrade_to, source.upgrade_to);
-            assert_eq!(
-                migrated.available_to,
-                source
-                    .available_to
-                    .split(';')
-                    .filter(|civilization| !civilization.is_empty())
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>()
-            );
-            assert_eq!(migrated.unique_civilization, source.unique_civilization);
-            assert_eq!(migrated.replaces, source.replaces);
-            assert_eq!(migrated.unit_type, source.unit_type);
-            assert_eq!(migrated.flags_1_hex, hex(source.flags_1));
-            assert_eq!(migrated.flags_2_hex, hex(source.flags_2));
-            assert_eq!(migrated.flags_3_hex, hex(source.flags_3));
-            assert_eq!(migrated.hit_point_bonus, source.hit_point_bonus);
-            assert_eq!(
-                migrated.ignore_movement_cost_hex,
-                hex(source.ignore_movement_cost)
-            );
-            assert_eq!(migrated.zone_of_control, source.zone_of_control);
-            assert_eq!(migrated.bombard_effects, source.bombard_effects);
-            assert_eq!(migrated.require_support, source.require_support);
-            assert_eq!(
-                migrated.enslave_result_prototype_index,
-                source.enslave_result_prototype_index
-            );
-            assert_eq!(migrated.create_craters, source.create_craters);
-            assert_eq!(migrated.worker_strength, source.worker_strength);
-            assert_eq!(migrated.air_defense, source.air_defense);
-            assert_eq!(migrated.icon_index, source.icon_index);
-            assert_eq!(migrated.civilopedia_entry, source.civilopedia_entry);
+    fn decoded_flag_bytes_round_trip_to_the_catalog_columns() {
+        for rule in rules() {
+            assert_eq!(rule.flags_1_hex, hex(rule.flags_1), "{}", rule.id);
+            assert_eq!(rule.flags_3_hex, hex(rule.flags_3), "{}", rule.id);
         }
     }
 

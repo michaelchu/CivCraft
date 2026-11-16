@@ -366,7 +366,7 @@ impl UnitKind {
     }
 
     pub(crate) fn name(self) -> &'static str {
-        self.conquests_rule().name
+        self.conquests_rule().name()
     }
 
     pub(crate) fn is_naval(self) -> bool {

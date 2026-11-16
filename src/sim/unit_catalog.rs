@@ -89,9 +89,9 @@ mod tests {
         assert_eq!(UnitKind::ALL_NATIVE.len(), 92);
         assert_eq!(rules.len(), UnitKind::ALL_NATIVE.len());
         for (kind, rule) in UnitKind::ALL_NATIVE.iter().zip(rules) {
-            assert_eq!(kind.conquests_id(), Some(rule.id));
+            assert_eq!(kind.conquests_id(), Some(rule.id()));
             assert_eq!(kind.name(), rule.name);
-            assert_eq!(kind.stats().cost, rule.cost);
+            assert_eq!(kind.stats().cost, rule.cost_shields);
             assert_eq!(kind.stats().attack, rule.attack);
             assert_eq!(kind.stats().defense, rule.defense);
         }

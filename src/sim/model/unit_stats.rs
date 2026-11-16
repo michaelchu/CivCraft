@@ -26,7 +26,7 @@ impl UnitKind {
         let rule = self.conquests_rule();
         let metadata = rule.metadata();
         UnitStats {
-            cost: rule.cost,
+            cost: rule.cost_shields,
             pop_cost: rule.population_cost,
             attack: rule.attack,
             defense: rule.defense,
