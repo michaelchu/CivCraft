@@ -18,7 +18,7 @@ state and never participate in gameplay decisions.
 | Analyzers | `src/analytics/analyzers/` | State, thresholds, findings, metrics |
 | Finding lifecycle | `src/analytics/finding.rs` | Episodes, recovery, recurrence, evidence references |
 | Output | `src/headless/report.rs` | Stream JSONL and atomically replace summary checkpoints |
-| Scenario inputs | `src/headless/scenario.rs` | Prepare named fixtures or load persisted campaigns, then run traced actions |
+| Scenario inputs | `src/headless/scenario.rs`, `src/sim/scenarios/regression/` | Prepare registered scenarios or load persisted campaigns, then run traced actions |
 
 There are two extension paths: events for transitions/decisions and providers
 for persistent state. A new analyzer can use either or both. No runner or
@@ -46,8 +46,34 @@ without scripted actions omit that extra boundary.
 
 Reusable state mutation belongs in simulation-level scenario helpers. Scenario
 definitions compose setup, actions, and checks; desktop-only input/rendering
-assertions stay in the desktop playtest layer. This allows engine scenarios to
-migrate out of `--self-test` without coupling the headless runner to UI code.
+assertions stay in the desktop playtest layer.
+
+### Registering a scenario
+
+Scenarios are defined once in `src/sim/scenarios/regression/` and listed in
+that group's `SCENARIOS` table. A definition is a function over a newly
+generated campaign that records named checks:
+
+```rust
+fn ai_paradrops(sim: &mut Simulation, checks: &mut Checks) {
+    let (defended, refused, captured) = sim.ai_paradrop_playtest();
+    checks.push(("ai_paradrops", defended && refused && captured, detail));
+}
+```
+
+Registration makes it available as `--scenario ai-paradrops` with no runner
+change. `Scenario::new` starts from a new campaign with the human seat intact
+and enables all-AI play only after the actions run; `Scenario::all_ai` enables
+it first. Regression scenarios always use the reference map generator for the
+requested seed rather than the campaign map options.
+
+The desktop `--self-test` replays the same table on the reference seed, on the
+frames listed in `src/playtest/regression_scenarios.rs`, so its report carries
+the same checks. A unit test requires every new-campaign scenario to be
+scheduled there. Another runs the whole table and compares the failing checks
+against an explicit `KNOWN_FAILING_CHECKS` list in
+`src/sim/scenarios/regression.rs`; a new failure, or a listed check that starts
+passing, fails that test.
 
 ## Add a game trace
 

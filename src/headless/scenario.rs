@@ -4,22 +4,24 @@
 //! named builder and a persisted campaign both produce the same `Simulation`
 //! input consumed by the runner.
 
-use crate::{mapgen, sim::Simulation};
+use crate::{
+    mapgen,
+    sim::{
+        Simulation,
+        scenarios::regression::{self, Check, Fixture, Scenario},
+    },
+};
 use serde::Serialize;
 use std::path::Path;
 
-pub(crate) const IDS: &[&str] = &[
-    "generated-ai",
-    "city-healing",
-    "settlement-ferry",
-    "combat-matrix",
-];
+/// The generated all-AI campaign used when no regression scenario is named.
+const GENERATED_AI: &str = "generated-ai";
 
-#[derive(Clone, Debug, Serialize)]
-pub(crate) struct Check {
-    pub name: &'static str,
-    pub passed: bool,
-    pub detail: String,
+/// Identifiers accepted by `--scenario`, in listing order.
+pub(crate) fn ids() -> Vec<&'static str> {
+    std::iter::once(GENERATED_AI)
+        .chain(regression::all().map(|scenario| scenario.id))
+        .collect()
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -30,64 +32,22 @@ pub(crate) struct Provenance {
     pub checks: Vec<Check>,
 }
 
-enum Action {
-    None,
-    CityHealing,
-    SettlementFerry,
-    CombatMatrix,
-}
-
 pub(crate) struct Run {
     pub game: Simulation,
     pub provenance: Provenance,
-    action: Action,
+    /// The registered scenario whose actions have not run yet.
+    pending: Option<&'static Scenario>,
 }
 
 impl Run {
     pub fn has_actions(&self) -> bool {
-        !matches!(self.action, Action::None)
+        self.pending.is_some()
     }
 
     pub fn execute_actions(&mut self) {
-        self.provenance.checks = match self.action {
-            Action::None => vec![],
-            Action::CityHealing => vec![Check {
-                name: "city_healing",
-                passed: self.game.city_healing_playtest(),
-                detail: "Barracks and ordinary city recovery used their expected rules".into(),
-            }],
-            Action::SettlementFerry => {
-                let (queued, sequenced, founded) = self.game.settlement_ferry_production_playtest();
-                vec![
-                    Check {
-                        name: "ferry_queued",
-                        passed: queued,
-                        detail: "AI selected a ferry for an overseas settlement plan".into(),
-                    },
-                    Check {
-                        name: "settler_sequenced",
-                        passed: sequenced,
-                        detail: "AI sequenced a Settler after completing the ferry".into(),
-                    },
-                    Check {
-                        name: "island_founded",
-                        passed: founded,
-                        detail: "AI transported its founder and established the island city".into(),
-                    },
-                ]
-            }
-            Action::CombatMatrix => self
-                .game
-                .freeciv_combat_matrix_playtest()
-                .into_iter()
-                .map(|(name, passed, detail)| Check {
-                    name,
-                    passed,
-                    detail,
-                })
-                .collect(),
-        };
-        self.action = Action::None;
+        if let Some(scenario) = self.pending.take() {
+            self.provenance.checks = scenario.run(&mut self.game);
+        }
         self.game.enable_all_civilizations_as_ai();
     }
 }
@@ -104,7 +64,7 @@ pub(crate) fn load(path: &Path) -> Result<Run, String> {
             version: 1,
             checks: vec![],
         },
-        action: Action::None,
+        pending: None,
     })
 }
 
@@ -114,36 +74,22 @@ pub(crate) fn build(
     size: mapgen::Civ3MapSize,
     world: mapgen::Civ3WorldSettings,
 ) -> Result<Run, String> {
-    let (mut game, action) = match name {
-        "generated-ai" => {
-            let game = Simulation::new(mapgen::generate_for_civ3_size(seed, size, world));
-            (game, Action::None)
-        }
-        "city-healing" => {
-            // Pin the historical fixture used by the original desktop
-            // regression rather than inheriting campaign map options.
-            (Simulation::new(mapgen::generate(seed)), Action::CityHealing)
-        }
-        "settlement-ferry" => {
-            // Pin the historical fixture used by the original desktop
-            // regression rather than inheriting campaign map options.
-            (
-                Simulation::new(mapgen::generate(seed)),
-                Action::SettlementFerry,
-            )
-        }
-        "combat-matrix" => (
-            Simulation::new(mapgen::generate(seed)),
-            Action::CombatMatrix,
-        ),
-        _ => {
-            return Err(format!(
-                "unknown scenario {name}; available: {}",
-                IDS.join(",")
-            ));
-        }
+    let (mut game, pending) = if name == GENERATED_AI {
+        let game = Simulation::new(mapgen::generate_for_civ3_size(seed, size, world));
+        (game, None)
+    } else {
+        let scenario = regression::find(name).ok_or_else(|| {
+            format!("unknown scenario {name}; run --list-scenarios for the available names")
+        })?;
+        // Regression scenarios pin the reference map generator rather than
+        // inheriting campaign map options.
+        (Simulation::new(mapgen::generate(seed)), Some(scenario))
     };
-    game.enable_all_civilizations_as_ai();
+    // A scenario that starts from a new campaign keeps its human seat until
+    // its actions have run; the runner then simulates every seat as AI.
+    if pending.is_none_or(|scenario| scenario.fixture == Fixture::AllAiCampaign) {
+        game.enable_all_civilizations_as_ai();
+    }
     Ok(Run {
         game,
         provenance: Provenance {
@@ -152,7 +98,7 @@ pub(crate) fn build(
             version: 1,
             checks: vec![],
         },
-        action,
+        pending,
     })
 }
 
@@ -171,7 +117,7 @@ pub(crate) fn generated(
             version: 1,
             checks: vec![],
         },
-        action: Action::None,
+        pending: None,
     }
 }
 
@@ -233,5 +179,21 @@ mod tests {
         for check in &run.provenance.checks {
             assert!(check.passed, "{}: {}", check.name, check.detail);
         }
+    }
+
+    #[test]
+    fn desktop_regressions_are_listed_and_keep_the_human_seat_until_they_run() {
+        assert!(ids().contains(&"ai-paradrops"));
+        let mut run = build(
+            "ai-paradrops",
+            42,
+            mapgen::Civ3MapSize::Tiny,
+            Default::default(),
+        )
+        .unwrap();
+        assert!(!crate::sim::PlaytestState::new(&run.game).players()[crate::sim::HUMAN].ai);
+        run.execute_actions();
+        assert!(crate::sim::PlaytestState::new(&run.game).players()[crate::sim::HUMAN].ai);
+        assert!(run.provenance.checks.iter().all(|check| check.passed));
     }
 }
