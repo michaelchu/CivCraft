@@ -33,12 +33,12 @@ Civ III value.
 
 ## Pinned reference
 
-- Freeciv checkout: `../freeciv`
+- Freeciv checkout: `../reference/freeciv`
 - Revision observed when this plan was written:
   `9ff184b6eb128ca636c7ad6269e27aa959600006`
-- Ruleset: `../freeciv/data/civ2civ3/`
-- Engine implementation: principally `../freeciv/common/` and
-  `../freeciv/server/`
+- Ruleset: `../reference/freeciv/data/civ2civ3/`
+- Engine implementation: principally `../reference/freeciv/common/` and
+  `../reference/freeciv/server/`
 - Ruleset files in the pinned checkout: `actions.ruleset`,
   `buildings.ruleset`, `cities.ruleset`, `effects.ruleset`, `game.ruleset`,
   `governments.ruleset`, `nations.ruleset`, `styles.ruleset`,
@@ -514,10 +514,8 @@ that code has been added.
   it surfaced failures in mapgen, ruleset-setting-count, advisor/AI, base, and
   city-upkeep areas. The culture-achievement expectation found in that run was
   updated for Freeciv culture scoring and its focused suite now passes. The
-  broader city suite remains unverified. Two seed-42 release self-test attempts
-  opened the game but did not exit or write a report; computer-use inspection
-  found the Mac locked, so those runs were interrupted and no UI-playtest result
-  is claimed. City trade-route partners are not displayed in the manager; this
+  broader city suite remains unverified. City trade-route partners are not
+  displayed in the manager; this
   is a presentation gap, while route creation and income are covered by focused
   simulation tests. Espionage and spy/diplomat missions are explicitly deferred
   outside this milestone. P10 mechanics are complete; end-to-end UI validation
@@ -651,10 +649,6 @@ that code has been added.
   progression, and the Freeciv begin-turn score snapshot boundary. Raw
   Freeciv map-generation vectors remain separate from CivCraft's
   content-adjusted vectors.
-- The rebuilt release desktop self-test ran with seed 42, the Civ III
-  renderer, and the installed source art. It exited successfully with 212/212
-  checks passed; report: `/tmp/civcraft-playtest-P13-verified/report.json`.
-  Earlier failed reports remain available for comparison.
 - P13 source-traced and corrected the prior scenario mismatches in AI
   movement, obsolescence, unit-role eligibility, reinforcements, paradrop,
   production choice, guard advice, and hunter scans. The obsolete custom

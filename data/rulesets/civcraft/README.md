@@ -9,7 +9,7 @@ The catalogs under `content/` are the runtime source for the migrated campaign s
 legacy extraction tables and one-time conversion tool have been removed after
 the generated TOML catalogs were verified against them.  Edit the TOML files
 and keep the focused catalog and parity tests authoritative; source BIQ
-provenance remains recorded in the catalog records and migration documents.
+provenance remains recorded in the catalog records and focused audits.
 
 Current catalogs:
 
