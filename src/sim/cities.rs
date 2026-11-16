@@ -8,14 +8,13 @@ mod production;
 use crate::rules::Genus;
 
 impl Simulation {
-    #[cfg(feature = "scenarios")]
     // Toroidal fixture convenience; gameplay uses the campaign-aware methods below.
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(crate) fn city_radius(city: &City) -> impl Iterator<Item = (i32, i32, i32, i32)> + use<> {
         Self::city_radius_at(city.x, city.y)
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(super) fn city_radius_at(x: i32, y: i32) -> impl Iterator<Item = (i32, i32, i32, i32)> {
         MapWrap::X.city_radius(x, y)
     }
@@ -104,7 +103,7 @@ impl Simulation {
         self.publish_visual_event(VisualEvent::FoundCity { unit: unit.clone() });
         self.units.remove(index);
         self.discard_unit_ai(unit_id);
-        self.ai.settlement_targets.remove(&unit_id);
+        self.ai_settlement_targets.remove(&unit_id);
         let name = self.create_city(unit.owner, unit.x, unit.y);
         self.cities
             .last_mut()

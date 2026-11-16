@@ -72,6 +72,21 @@ impl TradeRouteType {
             _ => None,
         }
     }
+
+    fn ruleset_name(self) -> &'static str {
+        match self {
+            Self::National => "National",
+            Self::NationalIntercontinental => "NationalIC",
+            Self::International => "IN",
+            Self::InternationalIntercontinental => "INIC",
+            Self::Ally => "Ally",
+            Self::AllyIntercontinental => "AllyIC",
+            Self::Enemy => "Enemy",
+            Self::EnemyIntercontinental => "EnemyIC",
+            Self::Team => "Team",
+            Self::TeamIntercontinental => "TeamIC",
+        }
+    }
 }
 
 /// Behavior when a previously established route becomes illegal.

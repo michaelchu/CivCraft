@@ -22,21 +22,21 @@ converting uncertain semantics into simulation behavior.
 
 The PRTO struct confirms the fixed field layout used by the exporter:
 
-| BIQ PRTO field(s) | TSV column(s) | Audit result |
+| BIQ PRTO field(s) | Native catalog field(s) | Audit result |
 |---|---|---|
 | Prototype name and source record index | `name`, `source_prototypes`, `source_biq` | Correctly identifies the selected prototype and retains all same-name prototype indices. |
 | Bombard strength/range, capacity, shield cost, defense, attack, operational range, population cost, rate of fire, movement | Corresponding numeric columns | Correctly maps PRTO's 16 consecutive integers beginning at offset +72, including `IconIndex`. |
 | Required technology and three resources | `required_technology`, `required_resource_1..3` | Correctly resolves TECH and GOOD indices to names. |
 | Upgrade prototype index | `upgrade_to` | Correctly resolves the index back to a PRTO name. |
 | Flags 1/2/3, type, hit-point bonus, strategy, civilization mask, terrain movement mask | Corresponding raw columns | Correct source offsets; flags 2 is retained as raw hex without a semantic decoder. Source AI profiles retain each same-name row's strategy and full flags 1. |
-| Zone of Control, Bombard Effects, Require Support, Enslave Results, stealth-target PRTO indices, Create Craters, Worker Strength, Air Defense, Icon Index, Civilopedia Entry | Corresponding columns appended after `ignore_movement_cost_hex` | Raw values are preserved in the generated TSV and parsed rule record. Enslave/stealth references remain numeric PRTO indices so duplicated and scenario-only prototypes are not conflated with campaign identities. |
+| Zone of Control, Bombard Effects, Require Support, Enslave Results, stealth-target PRTO indices, Create Craters, Worker Strength, Air Defense, Icon Index, Civilopedia Entry | Corresponding native catalog fields after `ignore_movement_cost_hex` | Raw values are preserved in the catalog and parsed rule record. Enslave/stealth references remain numeric PRTO indices so duplicated and scenario-only prototypes are not conflated with campaign identities. |
 | Source-derived unique/standard/wonder categorization, civilization replacement, art mapping, expansion label | `category`, `unique_civilization`, `replaces`, `art_folder`, `art_root`, `expansion` | These are curated/catalog mappings rather than PRTO fields. The 31 unique mappings and two wonder-created identities agree with the audited roster notes. Expansion for standard identities is inferred from prototype index thresholds, not read from PRTO. |
 
-An independent direct decode compared every source-derived TSV field across
+An independent direct decode compared every source-derived catalog field across
 all 92 campaign identities. This includes 2,300 comparisons for the original
 25 exported PRTO fields and 920 additional comparisons for the ten newly
-preserved fields, including dynamic stealth-target IDs. Regenerating the TSVs with the checked-in exporter
-and current unpacked BIQ exactly matches the checked-in unit,
+preserved fields, including dynamic stealth-target IDs. Regenerating the native
+catalogs from the checked-in exporter and current unpacked BIQ exactly matches the checked-in unit,
 civilization-start, and experience-level tables. No incorrect decoding was
 found among the columns currently exported.
 
@@ -75,15 +75,16 @@ The FAQ confirms AA units can attack planes bombing their tile; the formula
 reference reports effective strength at one tenth of the editor value, at most
 four AA units per tile, and per-unit kill probability `A/(A+D)`. The BIQ field
 is scaled against the simulation's `POWER_FACTOR` so its probability matches
-that ratio. This is not a claim that the official manual publishes the exact
-probability formula.
+that ratio. This is a Civ III compatibility note, not the gameplay authority
+for the simulation; Freeciv source and ruleset behavior govern the runtime
+model.
 
 ## Source verification
 
 The extraction utility is no longer distributed with CivCraft. During the
 original audit, all three generated catalogs matched their checked-in files and
 the SHA-256 matched the source
-provenance in the TSV. The 3,220 direct field comparisons were an inline Python audit
+provenance in the catalog. The 3,220 direct field comparisons were an inline Python audit
 against the same unpacked bytes and the PRTO struct offsets above. Focused Air
 Defense behavior checks ran with `cargo test --offline air_defense`; both
 interception and pass-through cases passed. No unrelated tests were run.
@@ -96,6 +97,5 @@ OpenCiv3 reader, though several raw values still need semantic/runtime work.
 listed mechanics still need source-backed implementation. Unit Air Defense is
 implemented for tile bombardment with the community-tested formula above.
 Resolve unknown-field meanings, flags-2 semantics, and curated expansion
-metadata separately. The manual and Civilopedia remain useful for behavior
-and naming, but the installed Conquests BIQ is authoritative for this edition's
-PRTO values.
+metadata separately. The installed Conquests BIQ remains useful for content
+naming and PRTO values; Freeciv source and rulesets govern behavior.

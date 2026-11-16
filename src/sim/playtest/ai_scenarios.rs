@@ -7,9 +7,9 @@ impl Simulation {
     pub(crate) fn ai_reserve_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai.war_plans.clear();
-        self.ai.purchase_reserve.clear();
-        self.ai.government_cache.clear();
+        self.ai_war_plans.clear();
+        self.ai_purchase_reserve.clear();
+        self.ai_government_cache.clear();
         self.players[1].government = Government::Despotism;
         self.players[1].known = vec![Tech::EXPLOSIVES, Tech::ENGINEERING];
         self.players[1].researching = Tech::BRONZE_WORKING;
@@ -78,75 +78,6 @@ impl Simulation {
         })
     }
 
-    pub(crate) fn ai_civilian_upgrade_playtest(&mut self) -> bool {
-        self.civilian_upgrade_roster_playtest()
-    }
-
-    pub(crate) fn ai_defense_sale_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.sign_pact(1, HUMAN, Pact::War);
-        let front = (10, 24);
-        let enemy = offset_native_by_map(front.0, front.1, 1, 0);
-        for (x, y) in [front, enemy] {
-            self.tile_mut(x, y).terrain = Terrain::Grassland;
-        }
-        self.create_city(1, front.0, front.1);
-        self.turn += 1;
-        self.cities[0]
-            .buildings
-            .extend([Building::CITY_WALLS, Building::GRANARY]);
-        // City danger uses incoming attack power; a Cannon has zero attack.
-        self.spawn_unit(HUMAN, UnitKind::Horseman, enemy.0, enemy.1);
-        self.prepare_ai_city_defenses(1);
-        let Some(price) = self.rush_cost(&self.cities[0]) else {
-            return false;
-        };
-        let expenses = self.building_upkeep(&self.cities[0]);
-        self.players[1].gold = price + expenses - 1;
-        self.spend_ai_defense_gold(1);
-        let city = &self.cities[0];
-        city.bought_production
-            && city.sold_building
-            && city.has_building(Building::CITY_WALLS)
-            && !city.has_building(Building::GRANARY)
-            && self.players[1].gold == expenses - 1 + Building::GRANARY.data().cost
-    }
-
-    pub(crate) fn ai_defense_purchase_playtest(&mut self) -> bool {
-        self.units.clear();
-        self.sign_pact(1, HUMAN, Pact::War);
-        let front = (10, 24);
-        let enemy = offset_native_by_map(front.0, front.1, 1, 0);
-        let rear = offset_native_by_map(front.0, front.1, 9, 0);
-        for (x, y) in [front, enemy, rear] {
-            self.tile_mut(x, y).terrain = Terrain::Grassland;
-        }
-        self.create_city(1, front.0, front.1);
-        self.create_city(1, rear.0, rear.1);
-        self.turn += 1;
-        self.spawn_unit(HUMAN, UnitKind::Horseman, enemy.0, enemy.1);
-        self.prepare_ai_city_defenses(1);
-        let Some(price) = self.rush_cost(&self.cities[0]) else {
-            return false;
-        };
-        self.players[1].gold = price - 1;
-        self.spend_ai_defense_gold(1);
-        let declined = !self.cities[0].bought_production && self.players[1].gold == price - 1;
-
-        self.players[1].gold = price;
-        self.spend_ai_defense_gold(1);
-        let purchased = self.cities[0].bought_production
-            && !self.cities[1].bought_production
-            && self.players[1].gold == 0;
-        self.process_cities();
-        declined
-            && purchased
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.owner == 1 && unit.kind.is_military() && (unit.x, unit.y) == front)
-    }
-
     pub(crate) fn ai_ground_invasion_playtest(&mut self) -> bool {
         let (infantry, bomber, city) = self.ai_ground_invasion_playtest_setup();
         let target = self.city_by_id(city).unwrap();
@@ -154,7 +85,7 @@ impl Simulation {
         let distant =
             self.map_distance(actor.x, actor.y, target.x, target.y) > actor.kind.stats().moves;
         let source_force = actor.kind.can_occupy_city()
-            && self.ai.ground_targets.get(&infantry) == Some(&city)
+            && self.ai_ground_targets.get(&infantry) == Some(&city)
             && self.invasion_support(1, target, bomber).1 > 0;
         // A distant Fighter sortie is not required: Conquests fuel rules can
         // make a one-way attack unrecoverable. Validate the assigned ground

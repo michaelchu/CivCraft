@@ -263,7 +263,6 @@ pub(crate) struct Game {
 }
 
 impl Game {
-    #[cfg(feature = "scenarios")]
     /// Creates client state around a simulation.
     #[cfg(test)]
     pub(crate) fn new(sim: crate::sim::Simulation) -> Self {
@@ -335,6 +334,14 @@ impl Game {
 
     pub(crate) fn world_seed(&self) -> u64 {
         self.sim.world_seed()
+    }
+
+    pub(crate) fn simulate_turn_for_smoke_test(&mut self) {
+        self.sim.simulate_turn_for_smoke_test();
+    }
+
+    pub(crate) fn turn_for_smoke_test(&self) -> i32 {
+        self.sim.turn_view()
     }
 
     pub(crate) fn map_wrap(&self) -> MapWrap {

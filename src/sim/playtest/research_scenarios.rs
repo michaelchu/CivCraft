@@ -12,17 +12,16 @@ impl Simulation {
         sim.players[1].researching = Tech::BRONZE_WORKING;
         sim.players[1].research_goal = Tech::POTTERY;
         sim.players[1].research = 17;
-        let cache = sim.ai.tech_wants.clone();
+        let cache = sim.ai_tech_wants.clone();
         sim.discover(1, Tech::POTTERY);
         let gift_clears = sim.players[1].research_goal == Tech::UNSET
             && sim.players[1].researching == Tech::BRONZE_WORKING
             && sim.players[1].research == 17
-            && sim.ai.tech_wants == cache;
+            && sim.ai_tech_wants == cache;
 
         sim.players[1].known.clear();
         sim.players[1].research_goal = Tech::GUNPOWDER;
-        sim.ai
-            .tech_wants
+        sim.ai_tech_wants
             .insert(1, vec![-1000.5; Tech::all().count()]);
         sim.select_ai_research(1);
         let negative_clears = sim.players[1].research_goal == Tech::UNSET;
@@ -73,7 +72,7 @@ impl Simulation {
         // Advisor selection can prefer a deep advance which choose_tech will
         // reject. Bring that candidate to the frontier for the switching checks.
         let best = loop {
-            self.ai.tech_wants.insert(1, self.advisor_tech_wants(1));
+            self.ai_tech_wants.insert(1, self.advisor_tech_wants(1));
             let (candidate, _, _) = self.select_ai_research(1);
             if self.tech_available(1, candidate) {
                 break candidate;
@@ -105,18 +104,9 @@ impl Simulation {
         let switched = self.players[1].researching == best && self.players[1].research == 0;
         self.players[1].researching = alternative;
         self.players[1].research = 3;
-        self.ai.free_bulbs.insert(1, 3);
+        self.ai_free_bulbs.insert(1, 3);
         self.manage_ai_research(1);
         held && switched && self.players[1].researching == best && self.players[1].research == 3
-    }
-
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn unset_goal_hud_playtest_setup(&mut self) {
-        self.players[HUMAN].research_goal = Tech::BRONZE_WORKING;
-        self.players[HUMAN].researching = Tech::ALPHABET;
-        self.discover(HUMAN, Tech::BRONZE_WORKING);
     }
 
     pub(crate) fn native_unset_goal_save_playtest(&self) -> bool {
@@ -149,7 +139,7 @@ impl Simulation {
 
     pub(crate) fn native_research_phase_playtest(&self) -> (bool, bool, bool, bool) {
         let mut game = self.clone();
-        game.ai.tech_wants.clear();
+        game.ai_tech_wants.clear();
         let initial_zero = Tech::all().all(|tech| game.advisor_tech_want(1, tech) == 0.0);
         game.add_ai_tech_want(1, Tech::ALPHABET, 1.75);
         game.players[1].known.push(Tech::ALPHABET);
@@ -187,7 +177,7 @@ impl Simulation {
             .save_campaign(&path)
             .and_then(|_| Self::load_campaign(&path))
             .is_ok_and(|loaded| {
-                loaded.ai.tech_wants.is_empty()
+                loaded.ai_tech_wants.is_empty()
                     && Tech::all().all(|tech| loaded.advisor_tech_want(1, tech) == 0.0)
             });
         let _ = std::fs::remove_file(path);

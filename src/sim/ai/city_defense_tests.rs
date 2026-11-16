@@ -4,12 +4,12 @@ fn city_fixture(size: i32) -> (Simulation, u32) {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
-    game.ai.ground_targets.clear();
-    game.ai.settlement_targets.clear();
-    game.ai.guard_targets.clear();
-    game.ai.unit_guards.clear();
+    game.ai_ground_targets.clear();
+    game.ai_settlement_targets.clear();
+    game.ai_guard_targets.clear();
+    game.ai_unit_guards.clear();
     game.hunter_targets.clear();
-    game.ai.ferries = Default::default();
+    game.ai_ferries = Default::default();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
         tile.resource = None;
@@ -73,7 +73,12 @@ fn city_defender_prepass_selects_a_unit_for_martial_law() {
         game.city_rule_effect(
             &game.cities[0],
             EffectKind::MartialLawMax,
-            CityRuleEffectParams::new(game.players[1].government, None),
+            None,
+            None,
+            None,
+            false,
+            game.players[1].government,
+            None,
         ) > 0
     );
     assert!(selected.contains(&defender));
@@ -87,15 +92,14 @@ fn city_defender_emergency_can_take_over_an_existing_guard_role() {
     game.create_city(1, 18, 24);
     let other_city = game.cities[1].id;
     let defender = game.spawn_unit(1, UnitKind::Warrior, x, y);
-    game.ai
-        .guard_targets
+    game.ai_guard_targets
         .insert(defender, crate::sim::guards::GuardTarget::City(other_city));
     add_danger(&mut game, x, y);
 
     let selected = game.assign_ai_city_defenders(1);
 
     assert!(selected.contains(&defender));
-    assert!(!game.ai.guard_targets.contains_key(&defender));
+    assert!(!game.ai_guard_targets.contains_key(&defender));
 }
 
 #[test]

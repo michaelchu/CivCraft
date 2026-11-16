@@ -28,7 +28,6 @@ impl Simulation {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_technologies(&mut self, exchange: bool) {
         self.players[HUMAN].known = vec![Tech::ALPHABET];
         self.players[1].known = vec![Tech::ALPHABET];
@@ -41,7 +40,6 @@ impl Simulation {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_allied_exchange(&mut self) {
         let currency = Tech::all().find(|tech| tech.name() == "Currency").unwrap();
         let human_path = self.research_path(HUMAN, currency);
@@ -60,24 +58,13 @@ impl Simulation {
         let premium_want = 4 - base_bulbs.rem_euclid(4);
         let mut retained = vec![0.0; Tech::all().count()];
         retained[currency.0] = (until.max(1) * premium_want) as f32 + 0.25;
-        self.ai.tech_wants.insert(1, retained);
+        self.ai_tech_wants.insert(1, retained);
         // Keep affordability independent of the desktop opening campaign's
         // incidental early spending; the assertion covers the quoted premium.
         self.players[1].gold = self.players[1].gold.max(1000);
         self.diplomacy_playtest_tick(13);
     }
 
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn diplomacy_playtest_hidden_city(&self, owner: usize) -> Option<(i32, i32)> {
-        self.cities
-            .iter()
-            .find(|city| city.owner == owner && !self.tile(city.x, city.y).visible)
-            .map(|city| (city.x, city.y))
-    }
-
-    #[cfg(test)]
     pub(crate) fn diplomacy_playtest_unit(
         &mut self,
         rival: usize,
@@ -105,8 +92,7 @@ impl Simulation {
         Some((id, x, y, direction))
     }
 
-    #[cfg(test)]
-    /// Set up the late-game conditions used by the desktop self-test.
+    /// Set up late-game civil-war conditions for the scenario test.
     pub(crate) fn civil_war_playtest(&mut self) -> Option<(u32, usize)> {
         let city = self.cities_owned_by(HUMAN).next()?;
         let (x, y) = (city.x, city.y);
@@ -154,23 +140,5 @@ impl Simulation {
         self.players[HUMAN].government = Government::Democracy;
         self.refresh_visibility();
         Some((self.spawn_unit(HUMAN, UnitKind::Warrior, x, y), direction))
-    }
-
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn civil_war_playtest_seed_capture(&mut self) {
-        // The desktop scenario validates the civil-war capture path, not the
-        // chance roll or generated opening's prior RNG history.
-        self.set_random_seed(1);
-    }
-
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn civil_war_playtest_resume_diplomacy(&mut self) {
-        // The following diplomacy checks need a fresh ceasefire after the
-        // capital attack that exercised the civil-war split.
-        self.sign_pact(HUMAN, 1, Pact::Ceasefire);
     }
 }

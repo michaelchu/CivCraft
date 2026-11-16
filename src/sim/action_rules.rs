@@ -14,8 +14,8 @@ use crate::rules::freeciv::RequirementKind;
 use crate::rules::freeciv::effect_value;
 use crate::rules::freeciv::{
     ActionEvaluationError, EffectContext, EffectKind, Requirement, RequirementContext,
-    RequirementEvaluationError, RequirementRange, RequirementValue, ResolvedRequirementValue,
-    RuleRecord, RulesetData, action_enabled, campaign_effect, requirements_met,
+    RequirementEvaluationError, RequirementRange, RequirementValue, RuleRecord, RulesetData,
+    action_enabled, campaign_effect, requirements_met,
 };
 use crate::rules::{Building, Genus, Requirement as BuildingRequirement, Tech};
 use crate::world::{Resource, Terrain};
@@ -273,7 +273,6 @@ impl<'a> SimulationRequirementContext<'a> {
         Requirement {
             kind: RequirementKind::Extra,
             name: RequirementValue::String(name.to_owned()),
-            resolved: None,
             range: RequirementRange::Tile,
             present: true,
             survives: false,
@@ -408,26 +407,19 @@ impl<'a> SimulationRequirementContext<'a> {
     }
 
     fn tech_present(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
-        let tech = match requirement.resolved {
-            Some(ResolvedRequirementValue::Tech(tech)) => tech,
-            _ => match &requirement.name {
-                RequirementValue::String(name) => {
-                    match super::content_adapter::bind_freeciv_technology(self.ruleset, name)
-                        .map_err(|_| Self::unsupported(requirement))?
-                    {
-                        super::content_adapter::FreecivTechBinding::Bound(tech) => tech,
-                        super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
-                            if self.unbound_content_is_absent {
-                                return Ok(false);
-                            }
-                            // A Freeciv-only technology has no Civ III player-state
-                            // identity and therefore cannot satisfy a native requirement.
-                            return Err(Self::unsupported(requirement));
-                        }
-                    }
+        let name = Self::string_name(requirement)?;
+        let tech = match super::content_adapter::bind_freeciv_technology(self.ruleset, name)
+            .map_err(|_| Self::unsupported(requirement))?
+        {
+            super::content_adapter::FreecivTechBinding::Bound(tech) => tech,
+            super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
+                if self.unbound_content_is_absent {
+                    return Ok(false);
                 }
-                _ => return Err(Self::unsupported(requirement)),
-            },
+                // A Freeciv-only technology has no Civ III player-state
+                // identity and therefore cannot satisfy a native requirement.
+                return Err(Self::unsupported(requirement));
+            }
         };
         match requirement.range {
             RequirementRange::Player => {
@@ -457,21 +449,13 @@ impl<'a> SimulationRequirementContext<'a> {
         &self,
         requirement: &Requirement,
     ) -> Result<bool, RequirementEvaluationError> {
-        let building = match requirement.resolved {
-            Some(ResolvedRequirementValue::Building(building)) => building,
-            _ => match &requirement.name {
-                RequirementValue::String(name) => {
-                    let Some(building) = runtime_building_for_name(name) else {
-                        return if self.unbound_content_is_absent {
-                            Ok(false)
-                        } else {
-                            Err(Self::unsupported(requirement))
-                        };
-                    };
-                    building
-                }
-                _ => return Err(Self::unsupported(requirement)),
-            },
+        let name = Self::string_name(requirement)?;
+        let Some(building) = runtime_building_for_name(name) else {
+            return if self.unbound_content_is_absent {
+                Ok(false)
+            } else {
+                Err(Self::unsupported(requirement))
+            };
         };
 
         let local_city = self
@@ -1098,26 +1082,13 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 }
             }
             RequirementKind::Terrain if requirement.range == RequirementRange::Tile => {
+                let name = Self::string_name(requirement)?;
                 let tile = self.tile.ok_or_else(unsupported)?;
-                let actual = self.tile_state(tile).terrain;
-                match requirement.resolved {
-                    Some(ResolvedRequirementValue::Terrain(expected)) => {
-                        let actual_name = super::movement_rules::MovementRules::campaign()
-                            .terrain_data(actual)
-                            .map_err(|_| unsupported())?
-                            .rule_name;
-                        let expected_name = expected.c2c3_rule_name().ok_or_else(unsupported)?;
-                        Ok(actual_name.eq_ignore_ascii_case(expected_name))
-                    }
-                    _ => {
-                        let name = Self::string_name(requirement)?;
-                        let terrain_name = super::movement_rules::MovementRules::campaign()
-                            .terrain_data(actual)
-                            .map_err(|_| unsupported())?
-                            .rule_name;
-                        Ok(terrain_name.eq_ignore_ascii_case(name))
-                    }
-                }
+                let terrain_name = super::movement_rules::MovementRules::campaign()
+                    .terrain_data(self.tile_state(tile).terrain)
+                    .map_err(|_| unsupported())?
+                    .rule_name;
+                Ok(terrain_name.eq_ignore_ascii_case(name))
             }
             RequirementKind::TerrainClass
                 if matches!(
@@ -2356,7 +2327,6 @@ mod tests {
         let requirement = |present| Requirement {
             kind: RequirementKind::CityTile,
             name: RequirementValue::String("Claimed".to_owned()),
-            resolved: None,
             range: RequirementRange::Tile,
             present,
             survives: false,
@@ -2390,7 +2360,6 @@ mod tests {
         let requirement = |range| Requirement {
             kind: RequirementKind::Extra,
             name: RequirementValue::String("River".to_owned()),
-            resolved: None,
             range,
             present: true,
             survives: false,
@@ -2691,7 +2660,6 @@ mod tests {
         let requirement = |kind: &str, name: &str, range| Requirement {
             kind: RequirementKind::parse(kind).expect("known requirement type"),
             name: RequirementValue::String(name.to_owned()),
-            resolved: None,
             range,
             present: true,
             survives: false,
@@ -2748,7 +2716,6 @@ mod tests {
         let requirement = Requirement {
             kind: RequirementKind::Tech,
             name: RequirementValue::String("Machine Tools".to_owned()),
-            resolved: None,
             range: RequirementRange::Player,
             present: true,
             survives: false,
@@ -2790,7 +2757,6 @@ mod tests {
         let requirement = |name: &str, present, survives| Requirement {
             kind: RequirementKind::Building,
             name: RequirementValue::String(name.to_owned()),
-            resolved: None,
             range: RequirementRange::World,
             present,
             survives,
@@ -2873,7 +2839,6 @@ mod tests {
         let requirement = |name: &str| Requirement {
             kind: RequirementKind::DiplRel,
             name: RequirementValue::String(name.to_owned()),
-            resolved: None,
             range: RequirementRange::Local,
             present: true,
             survives: false,
@@ -3030,7 +2995,6 @@ mod tests {
         let requirement = |range, survives| Requirement {
             kind: RequirementKind::Tech,
             name: RequirementValue::String("Superconductors".to_owned()),
-            resolved: None,
             range,
             present: true,
             survives,
@@ -3095,7 +3059,6 @@ mod tests {
             // rejected when the ruleset is loaded.
             kind: RequirementKind::Counter,
             name: RequirementValue::String("Something".to_owned()),
-            resolved: None,
             range: RequirementRange::Local,
             present: true,
             survives: false,

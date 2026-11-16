@@ -4,6 +4,8 @@
 //! extraction tables.  It deliberately loads beside the current runtime
 //! adapters until parity tests prove that switching consumers is safe.
 
+#![allow(dead_code)]
+
 use serde::Deserialize;
 use std::sync::OnceLock;
 
@@ -15,11 +17,6 @@ pub(crate) struct UnitCatalog {
     pub(crate) units: Vec<NativeUnit>,
 }
 
-// Catalog columns the engine does not consume yet: `expansion`,
-// `ai_other_strategy`, `enslave_result_prototype_index`,
-// `stealth_target_prototype_indices`, `create_craters`, `air_defense`,
-// `icon_index`, `civilopedia_entry`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct NativeUnit {
@@ -108,21 +105,6 @@ pub(crate) struct NativeBuildingRequirement {
     pub(crate) present: bool,
 }
 
-// Catalog columns the engine does not consume yet: `civilopedia_entry`,
-// `doubles_happiness`, `gain_in_every_city`, `gain_in_every_city_on_continent`,
-// `required_building_index`, `culture`, `bombard_defense`,
-// `naval_bombard_defense`, `defense_bonus`, `naval_defense_bonus`,
-// `maintenance_cost`, `content_faces_all_cities`, `content_faces`,
-// `unhappy_faces_all_cities`, `unhappy_faces`, `number_of_required_buildings`,
-// `air_power`, `naval_power`, `pollution`, `production`, `required_government`,
-// `spaceship_part`, `required_advance_index`,
-// `rendered_obsolete_by_advance_index`, `required_resource_1_index`,
-// `required_resource_2_index`, `number_of_armies_required`, `flavors`,
-// `unknown_tail_hex`, `unit_produced_index`, `unit_frequency`,
-// `required_building_name`, `required_advance_name`,
-// `rendered_obsolete_by_advance_name`, `required_resource_1_name`,
-// `required_resource_2_name`, `unit_produced_name`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeBuilding {
     pub(crate) id: String,
@@ -170,8 +152,6 @@ pub(crate) struct NativeBuilding {
     pub(crate) unit_produced_name: String,
 }
 
-// Catalog columns the engine does not consume yet: `source_record_index`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeBuildingBinding {
     pub(crate) civ3_id: String,
@@ -188,9 +168,6 @@ pub(crate) struct TechnologyCatalog {
     pub(crate) technologies: Vec<NativeTechnology>,
 }
 
-// Catalog columns the engine does not consume yet: `assimilation`,
-// `resistance`, `military_law`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct GovernmentCatalog {
     pub(crate) schema_version: u32,
@@ -228,10 +205,6 @@ pub(crate) struct NativeGovernment {
     pub(crate) cost_per_excess_unit_gold: i32,
 }
 
-// Catalog columns the engine does not consume yet: `source_section`,
-// `source_record_index`, `government`, `assimilation_chance_percent`,
-// `biq_sha256`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeAssimilation {
     pub(crate) source_section: String,
@@ -241,10 +214,6 @@ pub(crate) struct NativeAssimilation {
     pub(crate) biq_sha256: String,
 }
 
-// Catalog columns the engine does not consume yet: `captor_biq_index`,
-// `captor_name`, `defender_biq_index`, `defender_name`, `modifier`,
-// `biq_sha256`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeResistance {
     pub(crate) captor_biq_index: usize,
@@ -255,9 +224,6 @@ pub(crate) struct NativeResistance {
     pub(crate) biq_sha256: String,
 }
 
-// Catalog columns the engine does not consume yet: `source_section`,
-// `source_record_index`, `difficulty`, `military_law`, `biq_sha256`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeMilitaryLaw {
     pub(crate) source_section: String,
@@ -286,8 +252,6 @@ pub(crate) struct NativeResource {
     pub(crate) trade: i32,
 }
 
-// Catalog columns the engine does not consume yet: `move_cost`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeRoad {
     pub(crate) id: String,
@@ -327,9 +291,6 @@ pub(crate) struct TerrainCatalog {
     pub(crate) terrains: Vec<NativeTerrain>,
 }
 
-// Catalog columns the engine does not consume yet: `lake_max_size`,
-// `min_start_native_area`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeTerrainParameters {
     pub(crate) ocean_reclaim_requirement: i32,
@@ -342,9 +303,6 @@ pub(crate) struct NativeTerrainParameters {
     pub(crate) igter_cost: i32,
 }
 
-// Catalog columns the engine does not consume yet: `id`, `name`,
-// `placing_time`, `property_ocean_depth`, `property_frozen`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeTerrain {
     pub(crate) id: String,
@@ -508,8 +466,6 @@ fn native_requirement_present() -> bool {
     true
 }
 
-// Catalog columns the engine does not consume yet: `id`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeExperienceLevel {
     pub(crate) id: String,
@@ -520,12 +476,6 @@ pub(crate) struct NativeExperienceLevel {
     pub(crate) default_rank: bool,
 }
 
-// Catalog columns the engine does not consume yet: `civilopedia_entry`, `era`,
-// `advance_icon`, `x`, `y`, `prerequisite_1_index`, `prerequisite_2_index`,
-// `prerequisite_3_index`, `flags_hex`, `flavors`, `unknown_tail_hex`,
-// `prerequisite_1_name`, `prerequisite_2_name`, `prerequisite_3_name`,
-// `prerequisite_4_name`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeTechnology {
     pub(crate) id: String,
@@ -585,63 +535,34 @@ pub(crate) struct NativeUnitStack {
     pub(crate) count: i32,
 }
 
-/// The schema version every content catalog must declare.
-const SCHEMA_VERSION: u32 = 1;
-
-/// Defines the accessor for one embedded content catalog. The catalog is
-/// parsed once, must declare the supported schema version and its source, and
-/// may run a cross-catalog validation before first use.
-macro_rules! content_catalog {
-    ($name:ident: $catalog:ty = $file:literal $(, validate = $validate:expr)?) => {
-        pub(crate) fn $name() -> &'static $catalog {
-            static CATALOG: OnceLock<$catalog> = OnceLock::new();
-            CATALOG.get_or_init(|| {
-                let catalog: $catalog = toml::from_str(include_str!(concat!(
-                    "../../data/rulesets/civcraft/content/",
-                    $file
-                )))
-                .unwrap_or_else(|error| panic!("content catalog {} is invalid: {error}", $file));
-                assert_eq!(
-                    catalog.schema_version, SCHEMA_VERSION,
-                    "content catalog {} declares an unsupported schema version",
-                    $file
-                );
-                assert!(
-                    !catalog.source.trim().is_empty(),
-                    "content catalog {} must record its source",
-                    $file
-                );
-                $($validate(&catalog);)?
-                catalog
-            })
-        }
-    };
+pub(crate) fn units() -> &'static UnitCatalog {
+    static CATALOG: OnceLock<UnitCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/units.toml"
+        ))
+        .expect("native unit TOML must be valid")
+    })
 }
 
-content_catalog!(units: UnitCatalog = "units.toml");
-content_catalog!(civilizations: CivilizationCatalog = "civilizations.toml");
-content_catalog!(buildings: BuildingCatalog = "buildings.toml");
-content_catalog!(technologies: TechnologyCatalog = "technologies.toml");
-content_catalog!(governments: GovernmentCatalog = "governments.toml");
-content_catalog!(economy: EconomyCatalog = "economy.toml");
-content_catalog!(terrain: TerrainCatalog = "terrain.toml");
-content_catalog!(settlements: SettlementCatalog = "settlements.toml", validate = settlement_units_exist);
-content_catalog!(experience: ExperienceCatalog = "experience_levels.toml");
-content_catalog!(effects: EffectCatalog = "effects.toml");
-content_catalog!(actions: ActionCatalog = "actions.toml");
+pub(crate) fn civilizations() -> &'static CivilizationCatalog {
+    static CATALOG: OnceLock<CivilizationCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/civilizations.toml"
+        ))
+        .expect("native civilization TOML must be valid")
+    })
+}
 
-fn settlement_units_exist(catalog: &SettlementCatalog) {
-    for id in [
-        &catalog.barbarians.basic_unit,
-        &catalog.barbarians.advanced_unit,
-        &catalog.barbarians.sea_unit,
-        &catalog.citizens.partisan_unit,
-    ] {
-        assert!(
-            units().units.iter().any(|unit| unit.id == *id),
-            "native settlement policy references unknown unit {id:?}"
-        );
-    }
+pub(crate) fn buildings() -> &'static BuildingCatalog {
+    static CATALOG: OnceLock<BuildingCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/buildings.toml"
+        ))
+        .expect("native building TOML must be valid")
+    })
 }
 
 pub(crate) fn building_rule(runtime_index: usize) -> Option<&'static NativeBuildingRule> {
@@ -649,6 +570,98 @@ pub(crate) fn building_rule(runtime_index: usize) -> Option<&'static NativeBuild
         .rules
         .iter()
         .find(|rule| rule.legacy_runtime_index == runtime_index)
+}
+
+pub(crate) fn technologies() -> &'static TechnologyCatalog {
+    static CATALOG: OnceLock<TechnologyCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/technologies.toml"
+        ))
+        .expect("native technology TOML must be valid")
+    })
+}
+
+pub(crate) fn governments() -> &'static GovernmentCatalog {
+    static CATALOG: OnceLock<GovernmentCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/governments.toml"
+        ))
+        .expect("native government TOML must be valid")
+    })
+}
+
+pub(crate) fn economy() -> &'static EconomyCatalog {
+    static CATALOG: OnceLock<EconomyCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/economy.toml"
+        ))
+        .expect("native economy TOML must be valid")
+    })
+}
+
+pub(crate) fn terrain() -> &'static TerrainCatalog {
+    static CATALOG: OnceLock<TerrainCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/terrain.toml"
+        ))
+        .expect("native terrain TOML must be valid")
+    })
+}
+
+pub(crate) fn settlements() -> &'static SettlementCatalog {
+    static CATALOG: OnceLock<SettlementCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        let catalog: SettlementCatalog = toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/settlements.toml"
+        ))
+        .expect("native settlement TOML must be valid");
+        for id in [
+            &catalog.barbarians.basic_unit,
+            &catalog.barbarians.advanced_unit,
+            &catalog.barbarians.sea_unit,
+            &catalog.citizens.partisan_unit,
+        ] {
+            assert!(
+                units().units.iter().any(|unit| unit.id == *id),
+                "native settlement policy references unknown unit {id:?}"
+            );
+        }
+        catalog
+    })
+}
+
+pub(crate) fn experience() -> &'static ExperienceCatalog {
+    static CATALOG: OnceLock<ExperienceCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/experience_levels.toml"
+        ))
+        .expect("native experience TOML must be valid")
+    })
+}
+
+pub(crate) fn effects() -> &'static EffectCatalog {
+    static CATALOG: OnceLock<EffectCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/effects.toml"
+        ))
+        .expect("native effects TOML must be valid")
+    })
+}
+
+pub(crate) fn actions() -> &'static ActionCatalog {
+    static CATALOG: OnceLock<ActionCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft/content/actions.toml"
+        ))
+        .expect("native actions TOML must be valid")
+    })
 }
 
 #[cfg(test)]

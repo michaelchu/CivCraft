@@ -35,6 +35,7 @@ mod cities;
 mod civil_war;
 mod client_api;
 mod client_views;
+#[allow(dead_code)]
 mod content_adapter;
 pub(crate) use client_api::ClientSimulation;
 pub(crate) use client_views::{
@@ -52,7 +53,6 @@ mod tech_trade;
 mod trade_routes;
 pub(crate) use diplomacy::{EspionageMission, EspionageRisk, Pact, TreatyMap, TreatyOffer};
 mod economy;
-pub(crate) use economy::CityRuleEffectParams;
 mod exploration;
 mod government;
 mod guards;
@@ -72,6 +72,7 @@ mod leaders;
 mod list_order;
 mod migration;
 mod movement;
+#[allow(dead_code)] // Shared ruleset adapter is introduced before call-site migration.
 mod movement_rules;
 mod presentation;
 #[cfg(test)]
@@ -94,7 +95,6 @@ mod score;
 mod settlement;
 mod settlement_ferries;
 mod spaceship;
-mod state;
 use score::NationScore;
 mod turn;
 mod unit_lifecycle;
@@ -104,9 +104,8 @@ pub(crate) use pillage::PillageTarget;
 pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
-#[cfg(feature = "scenarios")]
 mod headless_scenarios;
-#[cfg(feature = "scenarios")]
+#[cfg(test)]
 mod playtest;
 mod research;
 #[cfg(test)]
@@ -228,6 +227,10 @@ pub(crate) struct Simulation {
     tiles: Vec<Tile>,
     units: Vec<Unit>,
     cities: Vec<City>,
+    #[serde(skip)]
+    unit_id_index: std::cell::RefCell<std::collections::HashMap<u32, usize>>,
+    #[serde(skip)]
+    city_id_index: std::cell::RefCell<std::collections::HashMap<u32, usize>>,
     trade_routes: Vec<trade_routes::TradeRoute>,
     completed_wonders: Vec<Building>,
     spaceships: Vec<Spaceship>,
@@ -267,7 +270,33 @@ pub(crate) struct Simulation {
     #[serde(skip)]
     observed_map: observed_map::ObservedMap,
     #[serde(skip)]
+    ai_map_memory: AiMapMemory,
+    #[serde(skip)]
+    ai_purchase_reserve: std::collections::BTreeMap<usize, i32>,
+    #[serde(skip)]
     city_founders: std::collections::BTreeMap<u32, usize>,
+    #[serde(skip)]
+    ai_war_plans: std::collections::BTreeMap<(usize, usize), diplomacy::WarPlan>,
+    #[serde(skip)]
+    ai_space_warnings: std::collections::BTreeMap<(usize, usize), i32>,
+    #[serde(skip)]
+    ai_free_bulbs: std::collections::BTreeMap<usize, i32>,
+    #[serde(skip)]
+    ai_tech_wants: std::collections::BTreeMap<usize, Vec<f32>>,
+    #[serde(skip)]
+    ai_ground_targets: std::collections::BTreeMap<u32, u32>,
+    #[serde(skip)]
+    ai_settlement_targets: std::collections::BTreeMap<u32, settlement::SettlementReservation>,
+    #[serde(skip)]
+    ai_diplomatic_memory: std::collections::BTreeMap<(usize, usize), diplomacy::DiplomaticMemory>,
+    #[serde(skip)]
+    ai_diplomatic_intel: std::collections::BTreeMap<(usize, usize), diplomacy::DiplomaticIntel>,
+    #[serde(skip)]
+    ai_pending_war_targets: std::collections::BTreeMap<usize, usize>,
+    #[serde(skip)]
+    ai_guard_targets: std::collections::BTreeMap<u32, guards::GuardTarget>,
+    #[serde(skip)]
+    ai_unit_guards: std::collections::BTreeMap<u32, guards::GuardState>,
     #[serde(skip)]
     city_rapture: std::collections::BTreeMap<u32, i32>,
     #[serde(skip)]
@@ -275,17 +304,37 @@ pub(crate) struct Simulation {
     #[serde(skip)]
     list_order: list_order::ListOrder,
     #[serde(skip)]
+    ai_worker_tasks: std::collections::BTreeSet<u32>,
+    #[serde(skip)]
+    ai_ferries: ferries::FerryRegistry,
+    #[serde(skip)]
+    ai_government_cache: std::collections::BTreeMap<usize, government::GovernmentAdvisorCache>,
+    #[serde(skip)]
     diplomatic_contact_until: std::collections::BTreeMap<(usize, usize), i32>,
-    /// AI plans and memories. Not part of the serialized struct; the save
-    /// module stores the persistent ones beside it.
     #[serde(skip)]
-    ai: state::AiState,
-    /// Derived lookups and memoized results, rebuilt on demand.
+    ai_advisor_cache_enabled: std::cell::Cell<bool>,
     #[serde(skip)]
-    caches: state::Caches,
-    /// Deferred fog-of-war refresh bookkeeping.
+    ai_threat_route_cache_enabled: std::cell::Cell<bool>,
     #[serde(skip)]
-    visibility: state::VisibilityRefresh,
+    ai_threat_arrival_cache:
+        std::cell::RefCell<std::collections::BTreeMap<(u32, u32), Option<i32>>>,
+    #[serde(skip)]
+    ai_danger_route_cache: std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
+    #[serde(skip)]
+    movement_step_cost_cache:
+        std::cell::RefCell<std::collections::HashMap<movement_rules::StepCostCacheKey, i32>>,
+    #[serde(skip)]
+    movement_native_cache: std::cell::RefCell<Vec<i8>>,
+    #[serde(skip)]
+    visibility_refresh_deferred: bool,
+    #[serde(skip)]
+    visibility_refresh_pending: bool,
+    #[serde(skip)]
+    visibility_pending_render_tiles: Vec<bool>,
+    #[serde(skip)]
+    visibility_render_scope: Option<Vec<usize>>,
+    #[serde(skip)]
+    ai_spatial_index: std::cell::RefCell<AdvisorSpatialIndex>,
 }
 
 type CachedOffensiveAdvice = (Option<advisors::AiBuildChoice>, Vec<(Tech, f32)>, bool);
@@ -370,7 +419,19 @@ impl Simulation {
     }
     /// Finds a live unit's position in the stable unit collection.
     pub(crate) fn unit_index_by_id(&self, id: u32) -> Option<usize> {
-        self.caches.unit_index_by_id(id, &self.units)
+        if let Some(index) = self.unit_id_index.borrow().get(&id).copied()
+            && self.units.get(index).is_some_and(|unit| unit.id == id)
+        {
+            return Some(index);
+        }
+        let index = self.units.iter().position(|unit| unit.id == id);
+        let mut cache = self.unit_id_index.borrow_mut();
+        if let Some(index) = index {
+            cache.insert(id, index);
+        } else {
+            cache.remove(&id);
+        }
+        index
     }
     /// Returns all cities in their stable simulation order.
     pub(crate) fn cities(&self) -> &[City] {
@@ -396,13 +457,24 @@ impl Simulation {
     }
     /// Finds a city's index by its persistent identifier.
     pub(crate) fn city_index_by_id(&self, id: u32) -> Option<usize> {
-        self.caches.city_index_by_id(id, &self.cities)
+        if let Some(index) = self.city_id_index.borrow().get(&id).copied()
+            && self.cities.get(index).is_some_and(|city| city.id == id)
+        {
+            return Some(index);
+        }
+        let index = self.cities.iter().position(|city| city.id == id);
+        let mut cache = self.city_id_index.borrow_mut();
+        if let Some(index) = index {
+            cache.insert(id, index);
+        } else {
+            cache.remove(&id);
+        }
+        index
     }
     /// Returns players in their stable slot order.
     pub(crate) fn players(&self) -> &[Player] {
         &self.players
     }
-    #[cfg(feature = "scenarios")]
     /// Returns the accumulated player-facing event log.
     #[cfg(test)]
     pub(crate) fn events(&self) -> &[String] {
@@ -532,6 +604,8 @@ impl Simulation {
             tiles,
             units: Vec::new(),
             cities: Vec::new(),
+            unit_id_index: Default::default(),
+            city_id_index: Default::default(),
             trade_routes: Vec::new(),
             completed_wonders: Vec::new(),
             spaceships: vec![Spaceship::default(); players.len()],
@@ -565,14 +639,38 @@ impl Simulation {
             climate_current: [0; 2],
             route_memory: vec![None; map.map_wrap.tile_count()],
             observed_map: Default::default(),
+            ai_map_memory: Default::default(),
+            ai_purchase_reserve: Default::default(),
             city_founders: Default::default(),
+            ai_war_plans: Default::default(),
+            ai_space_warnings: Default::default(),
+            ai_free_bulbs: Default::default(),
+            ai_tech_wants: Default::default(),
+            ai_ground_targets: Default::default(),
+            ai_settlement_targets: Default::default(),
+            ai_diplomatic_memory: Default::default(),
+            ai_diplomatic_intel: Default::default(),
+            ai_pending_war_targets: Default::default(),
+            ai_guard_targets: Default::default(),
+            ai_unit_guards: Default::default(),
             city_rapture: Default::default(),
             unit_goto_tiles: Default::default(),
             list_order: Default::default(),
+            ai_worker_tasks: Default::default(),
+            ai_ferries: Default::default(),
+            ai_government_cache: Default::default(),
             diplomatic_contact_until: Default::default(),
-            ai: Default::default(),
-            caches: Default::default(),
-            visibility: Default::default(),
+            ai_advisor_cache_enabled: Default::default(),
+            ai_threat_route_cache_enabled: Default::default(),
+            ai_threat_arrival_cache: Default::default(),
+            ai_danger_route_cache: Default::default(),
+            movement_step_cost_cache: Default::default(),
+            movement_native_cache: Default::default(),
+            visibility_refresh_deferred: false,
+            visibility_refresh_pending: false,
+            visibility_pending_render_tiles: Default::default(),
+            visibility_render_scope: None,
+            ai_spatial_index: Default::default(),
         };
         for owner in 0..civilization_count {
             game.players[owner].researching = game.choose_research_target(owner);
@@ -669,24 +767,24 @@ impl Simulation {
         (self.rng % max as u64) as i32
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     fn set_random_seed(&mut self, seed: u32) {
         self.native_random = Some(FreecivRng::new(seed));
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     fn random_snapshot(&self) -> (u64, Option<FreecivRng>) {
         (self.rng, self.native_random.clone())
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     fn restore_random(&mut self, snapshot: (u64, Option<FreecivRng>)) {
         (self.rng, self.native_random) = snapshot;
     }
 
-    #[cfg(feature = "scenarios")]
     /// Reports whether the native random stream remains usable in playtest state.
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn native_random_stream_playtest(&mut self) -> bool {
         let same = Self::new(crate::mapgen::generate_with_wrap(
             self.world_seed,

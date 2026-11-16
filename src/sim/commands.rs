@@ -31,10 +31,7 @@ pub(crate) enum Command {
     Automate(u32),
     Produce(u32, Production),
     RushProduction(u32),
-    EditWorklist {
-        city_id: u32,
-        edit: WorklistEdit,
-    },
+    EditWorklist(u32, WorklistEdit),
     SellBuilding(u32, Building),
     Research(Tech),
     RaiseRate(usize),
@@ -46,8 +43,7 @@ pub(crate) enum Command {
         Option<u32>,
         super::EspionageRisk,
     ),
-    // The client negotiates through treaty offers; only tests issue this.
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[allow(dead_code)]
     Negotiate(usize, super::Pact),
     ProposeTreaty(usize, super::TreatyOffer),
     ShareTreatyCityMap(usize, u32),
@@ -55,44 +51,21 @@ pub(crate) enum Command {
     CancelSharedVision(usize),
     DeclineOffer(usize),
     AcceptOffer(usize, super::TreatyOffer),
-    Specialist {
-        city_id: u32,
-        index: usize,
-        delta: i32,
-    },
-    WorkCityTile {
-        city_id: u32,
-        x: i32,
-        y: i32,
-    },
+    Specialist(u32, usize, i32),
+    WorkCityTile(u32, i32, i32),
     HomeCity(u32),
     BoardOrDeboard(u32),
     UnloadAll(u32),
-    Disband {
-        unit_id: u32,
-        city_id: Option<u32>,
-    },
+    Disband(u32, Option<u32>),
     NuclearStrike(u32, i32, i32),
-    HelpWonder {
-        unit_id: u32,
-        city_id: u32,
-    },
-    JoinCity {
-        unit_id: u32,
-        city_id: u32,
-    },
+    HelpWonder(u32, u32),
+    JoinCity(u32, u32),
     Airlift(u32, u32),
     Paradrop(u32, i32, i32),
-    UpgradeUnit {
-        unit_id: u32,
-        target: UnitKind,
-        price: i32,
-    },
+    UpgradeUnit(u32, UnitKind, i32),
     LaunchSpaceship,
     ToggleManualAssembly,
-    PlaceShipPart {
-        part: super::ShipPart,
-    },
+    PlaceShipPart(super::ShipPart),
     EndTurn,
 }
 
@@ -138,13 +111,13 @@ impl Simulation {
             | Sentry(id)
             | Automate(id)
             | HomeCity(id)
-            | UpgradeUnit { unit_id: id, .. }
-            | Disband { unit_id: id, .. }
+            | UpgradeUnit(id, _, _)
+            | Disband(id, _)
             | BoardOrDeboard(id)
             | UnloadAll(id)
             | NuclearStrike(id, ..)
-            | HelpWonder { unit_id: id, .. }
-            | JoinCity { unit_id: id, .. }
+            | HelpWonder(id, _)
+            | JoinCity(id, _)
             | Paradrop(id, ..)
             | Airlift(id, _) => Some(id),
             _ => None,
@@ -198,11 +171,11 @@ impl Simulation {
             FoundCity(id) => self.found_city(id),
             LaunchSpaceship => self.launch_spaceship(HUMAN),
             ToggleManualAssembly => self.toggle_manual_assembly(),
-            PlaceShipPart { part } => self.place_ship_part(part),
-            Disband { unit_id, city_id } => self.disband_unit(unit_id, city_id),
+            PlaceShipPart(part) => self.place_ship_part(part),
+            Disband(id, city) => self.disband_unit(id, city),
             NuclearStrike(id, x, y) => self.launch_nuclear_strike(id, x, y),
-            HelpWonder { unit_id, city_id } => self.help_wonder(unit_id, city_id),
-            JoinCity { unit_id, city_id } => self.join_city(unit_id, city_id),
+            HelpWonder(id, city) => self.help_wonder(id, city),
+            JoinCity(id, city) => self.join_city(id, city),
             Paradrop(id, x, y) => self.paradrop(id, x, y),
             Airlift(id, city) => self.airlift(id, city),
             Work(id, kind) => self.begin_work(id, kind),
@@ -231,7 +204,7 @@ impl Simulation {
                 self.add_event(format!("{name} automation {state}."));
                 true
             }
-            EditWorklist { city_id, edit } => self.edit_worklist(city_id, edit),
+            EditWorklist(id, edit) => self.edit_worklist(id, edit),
             RushProduction(id) => self.rush_production(HUMAN, id),
             SellBuilding(id, building) => self.sell_building(HUMAN, id, building),
             Produce(id, kind) => {
@@ -262,19 +235,11 @@ impl Simulation {
                 self.perform_espionage(owner, mission, city, risk)
             }
             RaiseRate(index) => self.raise_rate(HUMAN, index),
-            WorkCityTile { city_id, x, y } => self.toggle_city_tile(city_id, x, y),
-            Specialist {
-                city_id,
-                index,
-                delta,
-            } => self.assign_specialist(city_id, index, delta),
+            WorkCityTile(id, x, y) => self.toggle_city_tile(id, x, y),
+            Specialist(id, index, delta) => self.assign_specialist(id, index, delta),
             BoardOrDeboard(id) => self.board_or_deboard(id),
             UnloadAll(id) => self.unload_all(id),
-            UpgradeUnit {
-                unit_id,
-                target,
-                price,
-            } => self.upgrade_unit(unit_id, target, price),
+            UpgradeUnit(id, target, price) => self.upgrade_unit(id, target, price),
             HomeCity(_) => self.change_home_city(unit_index.unwrap()),
             Research(goal) => {
                 if ((goal.data().is_none() || !goal.is_civ3_advance()) && goal != Tech::FUTURE)

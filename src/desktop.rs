@@ -114,6 +114,23 @@ pub async fn run_desktop() {
         eprintln!("{error}");
         std::process::exit(2);
     });
+    let smoke_test = env::args().any(|arg| arg == "--smoke-test");
+    let smoke_turns = argument_value("--smoke-turns")
+        .map(|value| {
+            value
+                .parse::<u32>()
+                .ok()
+                .filter(|turns| *turns > 0)
+                .unwrap_or_else(|| {
+                    eprintln!("--smoke-turns must be a positive integer");
+                    std::process::exit(2);
+                })
+        })
+        .unwrap_or(3);
+    if argument_value("--smoke-turns").is_some() && !smoke_test {
+        eprintln!("--smoke-turns requires --smoke-test");
+        std::process::exit(2);
+    }
     let screenshot_path = argument_value("--screenshot");
     let ui_review = argument_value("--ui-review");
     let ui_baseline = argument_value("--ui-baseline");
@@ -137,6 +154,10 @@ pub async fn run_desktop() {
         eprintln!("--ui-scene requires --ui-review");
         std::process::exit(2);
     }
+    if smoke_test && (screenshot_path.is_some() || ui_review.is_some()) {
+        eprintln!("--smoke-test cannot be combined with --screenshot or --ui-review");
+        std::process::exit(2);
+    }
     if (ui_baseline.is_some() || similarity_argument.is_some()) && ui_review.is_none() {
         eprintln!("--ui-baseline and --ui-min-similarity require --ui-review");
         std::process::exit(2);
@@ -155,7 +176,7 @@ pub async fn run_desktop() {
     } else {
         (0..client::UI_REVIEW_SCENES.len()).collect()
     };
-    let automated = screenshot_path.is_some() || ui_review.is_some();
+    let automated = smoke_test || screenshot_path.is_some() || ui_review.is_some();
     let args: Vec<_> = env::args().collect();
     let seed = if let Some(index) = args.iter().position(|arg| arg == "--seed") {
         args.get(index + 1)
@@ -245,6 +266,8 @@ pub async fn run_desktop() {
     });
     let mut sequence = client::UiReviewSequence::default();
     let mut changed_page = false;
+    let mut completed_smoke_turns = 0;
+    let mut smoke_final_frame_pending = false;
     let review_duration = |scene: usize| if (13..=15).contains(&scene) { 120 } else { 10 };
     let review_total_frames = review_scenes
         .iter()
@@ -363,6 +386,30 @@ pub async fn run_desktop() {
             }
         }
         frame += 1;
+        if smoke_test {
+            if smoke_final_frame_pending {
+                let result = if game.sim.game_over_view().is_some() {
+                    "game over"
+                } else {
+                    "turn limit"
+                };
+                println!(
+                    "Smoke test passed: rendered startup and post-turn state after processing {completed_smoke_turns} turn(s) ({result})"
+                );
+                break;
+            }
+            if game.sim.game_over_view().is_none() && completed_smoke_turns < smoke_turns {
+                game.simulate_turn_for_smoke_test();
+                completed_smoke_turns += 1;
+                println!(
+                    "Smoke test: completed turn {completed_smoke_turns}/{smoke_turns} (game turn {})",
+                    game.turn_for_smoke_test()
+                );
+            }
+            if completed_smoke_turns >= smoke_turns || game.sim.game_over_view().is_some() {
+                smoke_final_frame_pending = true;
+            }
+        }
         if let Some(dir) = &ui_review {
             let (scene, _, phase) = review_position.expect("review scene is active");
             let next = phase == 8 && changed_page;
@@ -522,6 +569,18 @@ mod argument_tests {
         assert_eq!(
             parsed_argument(&args, "--ui-review").unwrap(),
             Some("/tmp/review".into())
+        );
+    }
+
+    #[test]
+    fn smoke_turns_can_be_read_when_smoke_test_mode_is_selected() {
+        let args: Vec<String> = ["game", "--smoke-test", "--smoke-turns", "3"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(
+            parsed_argument(&args, "--smoke-turns").unwrap(),
+            Some("3".into())
         );
     }
 }

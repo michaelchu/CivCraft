@@ -7,7 +7,7 @@ use crate::rules::freeciv::RequirementKind;
 use crate::rules::freeciv::campaign_effect;
 use crate::rules::freeciv::{
     EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
-    RequirementValue, ResolvedRequirementValue,
+    RequirementValue,
 };
 use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -248,7 +248,7 @@ impl Simulation {
                         if target != HUMAN && target != BARBARIANS {
                             let observation = *observations[idx]
                                 .get_or_insert_with(|| self.live_map_observation(idx));
-                            self.ai.map_memory.insert((target, idx), observation);
+                            self.ai_map_memory.insert((target, idx), observation);
                         }
                     }
                 }
@@ -286,7 +286,7 @@ impl Simulation {
         self.remember_visible_rivals();
         drop(_profile);
         let _profile = profiler.scope("visibility.refresh.remember_render_map");
-        let render_scope = self.visibility.render_scope.take();
+        let render_scope = self.visibility_render_scope.take();
         self.remember_render_positions_with_sight(&render_seen, render_scope.as_deref(), true);
         drop(_profile);
         let _profile = profiler.scope("visibility.refresh.share_render_memory");
@@ -300,8 +300,8 @@ impl Simulation {
         to: (i32, i32),
     ) {
         let tile_count = self.tiles.len();
-        if self.visibility.pending_render_tiles.len() != tile_count {
-            self.visibility.pending_render_tiles = vec![false; tile_count];
+        if self.visibility_pending_render_tiles.len() != tile_count {
+            self.visibility_pending_render_tiles = vec![false; tile_count];
         }
         for (x, y) in [from, to] {
             let radius_sq = self.unit_vision_radius_sq_for(unit.owner, unit.kind, x, y);
@@ -309,20 +309,19 @@ impl Simulation {
             for (tx, ty, distance) in self.map_wrap.civ3_radius(x, y, radius) {
                 if self.within_vision_distance_sq(distance, radius_sq) {
                     let index = self.map_wrap.index(tx, ty);
-                    self.visibility.pending_render_tiles[index] = true;
+                    self.visibility_pending_render_tiles[index] = true;
                 }
             }
         }
     }
 
     pub(super) fn flush_deferred_visibility(&mut self) {
-        if self.visibility.refresh_deferred || !self.visibility.refresh_pending {
+        if self.visibility_refresh_deferred || !self.visibility_refresh_pending {
             return;
         }
-        self.visibility.refresh_pending = false;
+        self.visibility_refresh_pending = false;
         let scope = self
-            .visibility
-            .pending_render_tiles
+            .visibility_pending_render_tiles
             .iter_mut()
             .enumerate()
             .filter_map(|(index, visible)| {
@@ -334,9 +333,9 @@ impl Simulation {
                 }
             })
             .collect();
-        self.visibility.render_scope = Some(scope);
+        self.visibility_render_scope = Some(scope);
         self.refresh_visibility();
-        self.visibility.render_scope = None;
+        self.visibility_render_scope = None;
     }
 
     /// Knowledge flags remain current; unexplored callers must still honor `seen`.
@@ -622,8 +621,7 @@ impl Simulation {
                     self.tiles[index].last_seen_owner = owner;
                     self.route_memory[index] = Some(route);
                 } else {
-                    self.ai
-                        .map_memory
+                    self.ai_map_memory
                         .insert((recipient, index), self.live_map_observation(index));
                 }
             }
@@ -706,7 +704,7 @@ impl Simulation {
                     self.tiles[index].last_seen_owner = observation.owner;
                     self.route_memory[index] = Some(route);
                 } else if receiver != BARBARIANS {
-                    self.ai.map_memory.insert((receiver, index), observation);
+                    self.ai_map_memory.insert((receiver, index), observation);
                 }
                 self.observed_map.tiles.insert((receiver, index), entry);
                 transferred.insert(index);
@@ -779,50 +777,24 @@ impl RequirementContext for VisionRequirementContext<'_> {
             kind: requirement.kind.name().to_owned(),
             name: requirement.name.clone(),
         };
+        let name = match &requirement.name {
+            RequirementValue::String(name) => name.as_str(),
+            _ => return Err(unsupported()),
+        };
         match requirement.kind {
             RequirementKind::Tech if requirement.range == RequirementRange::Player => {
-                let tech = match &requirement.name {
-                    _ if matches!(
-                        requirement.resolved,
-                        Some(ResolvedRequirementValue::Tech(_))
-                    ) =>
-                    {
-                        match requirement.resolved {
-                            Some(ResolvedRequirementValue::Tech(tech)) => tech,
-                            _ => unreachable!(),
-                        }
-                    }
-                    RequirementValue::String(name) => Tech::all()
-                        .find(|tech| tech.name().eq_ignore_ascii_case(name))
-                        .ok_or_else(unsupported)?,
-                    _ => return Err(unsupported()),
-                };
+                let tech = Tech::all()
+                    .find(|tech| tech.name().eq_ignore_ascii_case(name))
+                    .ok_or_else(unsupported)?;
                 Ok(self.simulation.has_tech(self.owner, tech))
             }
             RequirementKind::Building if requirement.range == RequirementRange::Player => {
-                let building = match &requirement.name {
-                    _ if matches!(
-                        requirement.resolved,
-                        Some(ResolvedRequirementValue::Building(_))
-                    ) =>
-                    {
-                        match requirement.resolved {
-                            Some(ResolvedRequirementValue::Building(building)) => building,
-                            _ => unreachable!(),
-                        }
-                    }
-                    RequirementValue::String(name) => Building::all()
-                        .find(|building| building.data().name.eq_ignore_ascii_case(name))
-                        .ok_or_else(unsupported)?,
-                    _ => return Err(unsupported()),
-                };
+                let building = Building::all()
+                    .find(|building| building.data().name.eq_ignore_ascii_case(name))
+                    .ok_or_else(unsupported)?;
                 Ok(self.simulation.has_active_wonder(self.owner, building))
             }
             RequirementKind::Extra if requirement.range == RequirementRange::Tile => {
-                let name = match &requirement.name {
-                    RequirementValue::String(name) => name.as_str(),
-                    _ => return Err(unsupported()),
-                };
                 let (x, y) = self.tile.ok_or_else(unsupported)?;
                 Ok(match name.to_ascii_lowercase().as_str() {
                     "fortress" => self.simulation.tile(x, y).base == Some(Base::Fortress),
@@ -832,30 +804,9 @@ impl RequirementContext for VisionRequirementContext<'_> {
             }
             RequirementKind::Terrain if requirement.range == RequirementRange::Tile => {
                 let (x, y) = self.tile.ok_or_else(unsupported)?;
-                match &requirement.name {
-                    _ if matches!(
-                        requirement.resolved,
-                        Some(ResolvedRequirementValue::Terrain(_))
-                    ) =>
-                    {
-                        match requirement.resolved {
-                            Some(ResolvedRequirementValue::Terrain(expected)) => {
-                                Ok(expected == self.simulation.tile(x, y).terrain)
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    RequirementValue::String(name) => {
-                        Ok(name.eq_ignore_ascii_case(self.simulation.tile(x, y).terrain.name()))
-                    }
-                    _ => Err(unsupported()),
-                }
+                Ok(name.eq_ignore_ascii_case(self.simulation.tile(x, y).terrain.name()))
             }
             RequirementKind::UnitClassFlag if requirement.range == RequirementRange::Local => {
-                let name = match &requirement.name {
-                    RequirementValue::String(name) => name.as_str(),
-                    _ => return Err(unsupported()),
-                };
                 let unit = self.unit.ok_or_else(unsupported)?;
                 Ok(name.eq_ignore_ascii_case("Ground") && unit.unit_class().is_ground())
             }

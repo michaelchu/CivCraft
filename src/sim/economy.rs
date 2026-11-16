@@ -17,7 +17,6 @@ mod city_mood;
 pub(in crate::sim) mod ruleset;
 #[cfg(test)]
 use city_manager::*;
-pub(crate) use ruleset::{CityOutputType, CityRuleEffectParams, CitySpecialist};
 
 pub(crate) struct CityForecast {
     pub(crate) food: i32,
@@ -221,15 +220,18 @@ impl Simulation {
                 * self.city_rule_effect(
                     city,
                     EffectKind::SpecialistOutput,
-                    CityRuleEffectParams::new(government, None)
-                        .with_output_type(output_type)
-                        .with_specialist(specialist),
+                    None,
+                    Some(output_type),
+                    Some(specialist),
+                    false,
+                    government,
+                    None,
                 )
         };
         let citizens = [
-            specialist_output(0, CitySpecialist::Scientist, CityOutputType::Science),
-            specialist_output(1, CitySpecialist::Taxman, CityOutputType::Gold),
-            specialist_output(2, CitySpecialist::Elvis, CityOutputType::Luxury),
+            specialist_output(0, "Scientist", "Science"),
+            specialist_output(1, "Taxman", "Gold"),
+            specialist_output(2, "Elvis", "Luxury"),
         ];
         self.split_city_trade_from_citizens(city, trade, rates, citizens)
     }
@@ -255,17 +257,32 @@ impl Simulation {
         if self.city_rule_effect(
             city,
             EffectKind::HappinessToGold,
-            CityRuleEffectParams::new(government, None),
+            None,
+            None,
+            None,
+            false,
+            government,
+            None,
         ) > 0
         {
             output[1] += self.city_rule_effect(
                 city,
                 EffectKind::MakeContent,
-                CityRuleEffectParams::new(government, None),
+                None,
+                None,
+                None,
+                false,
+                government,
+                None,
             ) + self.city_rule_effect(
                 city,
                 EffectKind::ForceContent,
-                CityRuleEffectParams::new(government, None),
+                None,
+                None,
+                None,
+                false,
+                government,
+                None,
             );
         }
 

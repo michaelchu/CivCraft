@@ -6,9 +6,9 @@ impl super::Simulation {
     pub(crate) fn ai_tax_manager_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai.war_plans.clear();
-        self.ai.purchase_reserve.clear();
-        self.ai.government_cache.clear();
+        self.ai_war_plans.clear();
+        self.ai_purchase_reserve.clear();
+        self.ai_government_cache.clear();
         self.city_rapture.clear();
         self.players[1].known.clear();
         self.players[1].government = Government::Despotism;
@@ -44,7 +44,7 @@ impl super::Simulation {
         self.players[1].gold = 3;
         self.choose_ai_rates(1);
         let ordinary = self.players[1].rates == [60, 40, 0];
-        self.ai.purchase_reserve.insert(1, 100);
+        self.ai_purchase_reserve.insert(1, 100);
         self.players[1].rates = [60, 40, 0];
         self.choose_ai_rates(1);
         let refill = self.players[1].rates == [50, 50, 0];
@@ -53,7 +53,7 @@ impl super::Simulation {
         self.choose_ai_rates(1);
         let rich = self.players[1].rates == [60, 40, 0];
         self.spawn_unit(HUMAN, UnitKind::Warrior, 35, 35);
-        self.ai.war_plans.insert(
+        self.ai_war_plans.insert(
             (1, HUMAN),
             diplomacy::WarPlan {
                 countdown: 1,
@@ -63,7 +63,7 @@ impl super::Simulation {
         self.players[1].rates = [60, 40, 0];
         self.choose_ai_rates(1);
         let war = self.players[1].rates == [40, 60, 0];
-        self.ai.war_plans.clear();
+        self.ai_war_plans.clear();
         self.players[1].researching = Tech::FUTURE;
         self.players[1].rates = [60, 40, 0];
         self.choose_ai_rates(1);
@@ -85,8 +85,8 @@ impl super::Simulation {
         self.cities[0].worked_tiles.pop();
         self.cities[0].specialists = [1, 0, 0];
         self.units.retain(|unit| unit.kind == UnitKind::Warrior);
-        self.ai.guard_targets.clear();
-        self.ai.unit_guards.clear();
+        self.ai_guard_targets.clear();
+        self.ai_unit_guards.clear();
         self.players[1].known.extend(
             Tech::all()
                 .filter(|tech| matches!(tech.name(), "Alphabet" | "Literature" | "Currency")),

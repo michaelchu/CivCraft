@@ -168,7 +168,7 @@ pub fn run_cli(args: &[String]) -> Result<(), String> {
         return Ok(());
     }
     if args.iter().any(|a| a == "--list-scenarios") {
-        println!("{}", scenario::ids().join("\n"));
+        println!("{}", scenario::IDS.join("\n"));
         return Ok(());
     }
     run(config::Config::parse(args)?)

@@ -1,6 +1,5 @@
 //! AI advisor scoring used to choose city improvements, research, defense, and spending.
 
-use super::super::advisors::{AiBuildChoice, MILITARY_EMERGENCY_WANT};
 use super::super::*;
 
 impl Simulation {
@@ -9,11 +8,11 @@ impl Simulation {
         game.units.clear();
         game.cities.clear();
         game.diplomacy.clear();
-        game.ai.ground_targets.clear();
-        game.ai.guard_targets.clear();
-        game.ai.unit_guards.clear();
+        game.ai_ground_targets.clear();
+        game.ai_guard_targets.clear();
+        game.ai_unit_guards.clear();
         game.unit_goto_tiles.clear();
-        game.ai.ferries = Default::default();
+        game.ai_ferries = Default::default();
         game.players[1].known = vec![Tech::BRONZE_WORKING, Tech::THE_WHEEL];
         game.players[1].government = Government::Despotism;
         game.players[1].rates = [40, 60, 0];
@@ -225,171 +224,5 @@ impl Simulation {
         self.prepare_ai_city_defenses(1);
         let selected = self.cities[0].production == advisor_choice;
         aqueduct_extends_city_limit && aqueduct_available && expansion_available && selected
-    }
-
-    pub(crate) fn ai_bodyguard_production_playtest(&mut self) -> (bool, bool, bool, bool) {
-        self.units.clear();
-        self.cities.clear();
-        self.diplomacy.clear();
-        self.ai.guard_targets.clear();
-        self.ai.unit_guards.clear();
-        self.unit_goto_tiles.clear();
-        self.players[1].known = vec![Tech::BRONZE_WORKING];
-        self.players[1].government = Government::Despotism;
-        self.players[1].rates = [40, 60, 0];
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.owner = None;
-            tile.hut = false;
-            tile.river = false;
-            tile.road = false;
-            tile.railroad = false;
-            tile.base = None;
-        }
-        self.create_city(1, 10, 24);
-        self.cities[0].buildings.push(Building::BARRACKS);
-        let city = self.cities[0].clone();
-        let charge = self.spawn_unit(1, UnitKind::Catapult, 10, 24);
-        self.request_ai_guard(charge);
-        let mut routine = None;
-        let selected = self.consider_bodyguard_production(&city, false, &mut routine)
-            && routine.is_some_and(|choice| {
-                matches!(choice.production, Production::Unit(kind)
-                    if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood"))
-                    && choice.want > 0.0
-            });
-        if let Some(choice) = routine {
-            self.cities[0].production = choice.production;
-        }
-        for _ in 0..3 {
-            self.spawn_unit(1, UnitKind::Warrior, 10, 24);
-            self.units.last_mut().unwrap().home_city = Some(city.id);
-        }
-        let high_tax = !self.city_gold_upkeep(&city).paid.is_empty()
-            && self.bodyguard_production_choice(&city, false).is_some();
-        self.players[1].rates = [50, 50, 0];
-        let null_type_upkeep = high_tax && self.bodyguard_production_choice(&city, false).is_some();
-        let near = offset_native_by_map(10, 24, 1, 0);
-        for _ in 0..8 {
-            self.spawn_unit(HUMAN, UnitKind::Marine, near.0, near.1);
-        }
-        let guard_want = self
-            .bodyguard_production_choice(&city, false)
-            .map_or(0.0, |(_, want)| want);
-        let mut emergency = Some(AiBuildChoice {
-            production: Production::Unit(UnitKind::Warrior),
-            want: MILITARY_EMERGENCY_WANT,
-        });
-        let protected = guard_want > MILITARY_EMERGENCY_WANT
-            && !self.consider_bodyguard_production(&city, false, &mut emergency)
-            && emergency.is_some_and(|c| c.production == Production::Unit(UnitKind::Warrior));
-        self.units.clear();
-        self.ai.guard_targets.clear();
-        self.ai.unit_guards.clear();
-        // Limit the fixture to a few producible role candidates. Marine is
-        // the source-score winner over the lower-stat Spearman. The separate
-        // type selector must return that choice before it looks for a charge.
-        self.players[1].known = vec![Tech::BRONZE_WORKING, Tech::AMPHIBIOUS_WARFARE];
-        let rubber = offset_native_by_map(10, 24, 1, 0);
-        let resource = self.tile_mut(rubber.0, rubber.1);
-        resource.terrain = Terrain::Forest;
-        resource.resource = Some(Resource::Rubber);
-        resource.owner = Some(1);
-        resource.road = true;
-        self.tile_mut(10, 24).road = true;
-        let defender = self.preferred_bodyguard_type(&city, false);
-        let native_best_type = defender == Some(UnitKind::Marine)
-            && defender.is_some_and(|kind| self.unit_buildable(&city, kind))
-            && defender.is_some_and(|kind| {
-                super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
-            })
-            && self.bodyguard_production_choice(&city, false).is_none();
-        (selected, null_type_upkeep, protected, native_best_type)
-    }
-
-    pub(crate) fn military_training_advisor_playtest(&mut self) -> (bool, bool, bool, bool) {
-        self.units.clear();
-        self.cities.clear();
-        self.diplomacy.clear();
-        self.ai.guard_targets.clear();
-        self.ai.unit_guards.clear();
-        self.unit_goto_tiles.clear();
-        self.players[1].known = vec![Tech::BRONZE_WORKING];
-        self.players[1].government = Government::Despotism;
-        self.players[1].rates = [40, 60, 0];
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.owner = None;
-            tile.resource = None;
-            tile.hut = false;
-            tile.river = false;
-            tile.road = false;
-            tile.railroad = false;
-            tile.base = None;
-        }
-        // Make the capital's higher priority shield city the wonder project;
-        // the second city under test should receive routine military advice.
-        let wonder_site = offset_native_by_map(10, 24, 10, 0);
-        let center = self.tile_mut(wonder_site.0, wonder_site.1);
-        center.terrain = Terrain::Hills;
-        center.resource = Some(Resource::Coal);
-        center.owner = Some(1);
-        self.create_city(1, wonder_site.0, wonder_site.1);
-        self.tile_mut(10, 24).terrain = Terrain::Hills;
-        self.tile_mut(10, 24).mine = true;
-        self.create_city(1, 10, 24);
-        self.reconcile_city_workers();
-        self.sign_pact(1, HUMAN, Pact::War);
-        // Catapult has no attack action, so Freeciv's `look_for_charge`
-        // cannot assign a bodyguard to it. A Longbowman is a legal military
-        // charge (attack4, defense1, one move) for the Spearman guard.
-        let charge = self.spawn_unit(1, UnitKind::Longbowman, 10, 24);
-        self.request_ai_guard(charge);
-        let city = self.cities[1].clone();
-        let (before, after) = self.military_build_advice(&city);
-        let replaced = before.is_some_and(|choice| {
-            matches!(choice.production, Production::Unit(kind)
-                if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
-                    || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk"))
-                && choice.want > 0.0
-        }) && after.is_some_and(|choice| {
-            choice.production == Production::Building(Building::BARRACKS)
-                && before.is_some_and(|old| choice.want < old.want)
-        });
-        let mut investment = true;
-        for stock in [0, 19, 20, 200] {
-            for gold in [0, 10000] {
-                let mut projected = city.clone();
-                projected.shields = stock;
-                self.players[1].gold = gold;
-                let mut choice = AiBuildChoice {
-                    production: Production::Unit(UnitKind::Spearman),
-                    want: 75.0,
-                };
-                self.adjust_military_training_choice(&projected, &mut choice);
-                investment &= choice.production == Production::Building(Building::BARRACKS)
-                    && choice.want < 75.0;
-            }
-        }
-        let near = offset_native_by_map(10, 24, 1, 0);
-        self.tile_mut(near.0, near.1).known_by[1] = true;
-        self.spawn_unit(HUMAN, UnitKind::Marine, near.0, near.1);
-        let (before, after) = self.military_build_advice(&city);
-        let urgent = matches!((before,after),(Some(a),Some(b)) if a.production==b.production
-            && a.want==b.want && a.want>=MILITARY_EMERGENCY_WANT && matches!(b.production,Production::Unit(_)));
-        self.cities[1]
-            .buildings
-            .push(Building::SUN_TZUS_WAR_ACADEMY);
-        self.completed_wonders.push(Building::SUN_TZUS_WAR_ACADEMY);
-        let veteran_city = self.cities[1].clone();
-        let mut trained = AiBuildChoice {
-            production: Production::Unit(UnitKind::Spearman),
-            want: 75.0,
-        };
-        self.adjust_military_training_choice(&veteran_city, &mut trained);
-        let global = self.trained_rank(&veteran_city, UnitKind::Spearman) > 0
-            && trained.production == Production::Unit(UnitKind::Spearman)
-            && trained.want == 75.0;
-        (replaced, investment, urgent, global)
     }
 }

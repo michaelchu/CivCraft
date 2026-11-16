@@ -70,7 +70,7 @@ impl Simulation {
             return None;
         }
 
-        let observation = self.ai.map_memory.get(&(owner, index))?;
+        let observation = self.ai_map_memory.get(&(owner, index))?;
         let mut tile = live.clone();
         tile.terrain = observation.route.terrain;
         tile.road = observation.route.road;
@@ -87,8 +87,7 @@ impl Simulation {
                 .iter()
                 .any(|city| (city.city.x, city.city.y) == (x, y))
         } else {
-            self.ai
-                .map_memory
+            self.ai_map_memory
                 .get(&(owner, self.map_wrap.index(x, y)))
                 .is_some_and(|observation| observation.route.city_owner.is_some())
         }

@@ -3,7 +3,6 @@
 use super::*;
 
 impl Simulation {
-    #[cfg(test)]
     pub(crate) fn government_ui_playtest_setup(&mut self) {
         // Start from an unlocked government so the UI scenario can exercise
         // a real change to Despotism while Monarchy remains tech-locked.
@@ -17,7 +16,6 @@ impl Simulation {
         player.revolution_turn = None;
     }
 
-    #[cfg(test)]
     pub(crate) fn despotism_upkeep_playtest(&mut self) -> bool {
         // Conquests charges excess unit support in gold. Run this in an
         // isolated playtest copy so fixture units and turn advancement do not

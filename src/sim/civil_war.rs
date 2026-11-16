@@ -163,12 +163,11 @@ impl Simulation {
         // daiplayer.c:dai_player_copy copies retained advisor wants during
         // player splits; they are nevertheless transient across save/load.
         let wants = self
-            .ai
-            .tech_wants
+            .ai_tech_wants
             .get(&owner)
             .cloned()
             .unwrap_or_else(|| vec![0.0; Tech::all().count()]);
-        self.ai.tech_wants.insert(rebel, wants);
+        self.ai_tech_wants.insert(rebel, wants);
         self.spaceships.push(Spaceship::default());
         self.nation_scores.push(NationScore::default());
         for tile in &mut self.tiles {

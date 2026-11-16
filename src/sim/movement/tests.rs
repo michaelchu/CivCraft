@@ -694,7 +694,7 @@ fn civilian_capture_flags_come_from_native_combat_capability() {
 fn enslave_result_indices_resolve_separately_from_capture_eligibility() {
     for (prototype, expected_id) in [(1, "worker"), (63, "man_o_war"), (65, "privateer")] {
         assert_eq!(
-            crate::sim::civ3_unit_rules::get_by_prototype_index(prototype).map(|rule| rule.id()),
+            crate::sim::civ3_unit_rules::get_by_prototype_index(prototype).map(|rule| rule.id),
             Some(expected_id)
         );
     }

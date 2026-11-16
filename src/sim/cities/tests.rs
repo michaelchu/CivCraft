@@ -663,12 +663,12 @@ fn founding_consumes_the_unit_and_releases_its_guard_and_task_state() {
     let guard = game.spawn_unit(HUMAN, UnitKind::Spearman, 10, 24);
     assert!(game.assign_ai_guard(guard, guards::GuardTarget::Unit(founder)));
     game.unit_goto_tiles.insert(founder, (10, 24));
-    game.ai.worker_tasks.insert(founder);
+    game.ai_worker_tasks.insert(founder);
     assert!(game.apply(Command::FoundCity(founder)));
     assert!(!game.unit_goto_tiles.contains_key(&founder));
-    assert!(!game.ai.worker_tasks.contains(&founder));
-    assert!(!game.ai.unit_guards.contains_key(&founder));
-    assert!(!game.ai.guard_targets.contains_key(&guard));
+    assert!(!game.ai_worker_tasks.contains(&founder));
+    assert!(!game.ai_unit_guards.contains_key(&founder));
+    assert!(!game.ai_guard_targets.contains_key(&guard));
     assert!(game.validate_ai_guards());
 }
 
@@ -861,32 +861,12 @@ fn overlapping_cities_reserve_worked_tiles_and_release_them_on_reassignment() {
     let first = game.cities[0].id;
     let second = game.cities[1].id;
     for id in [first, second] {
-        assert!(game.apply(Command::Specialist {
-            city_id: id,
-            index: 2,
-            delta: 1,
-        }));
+        assert!(game.apply(Command::Specialist(id, 2, 1)));
     }
-    assert!(game.apply(Command::WorkCityTile {
-        city_id: first,
-        x: shared.0,
-        y: shared.1,
-    }));
-    assert!(!game.apply(Command::WorkCityTile {
-        city_id: second,
-        x: shared.0,
-        y: shared.1,
-    }));
-    assert!(game.apply(Command::WorkCityTile {
-        city_id: first,
-        x: shared.0,
-        y: shared.1,
-    }));
-    assert!(game.apply(Command::WorkCityTile {
-        city_id: second,
-        x: shared.0,
-        y: shared.1,
-    }));
+    assert!(game.apply(Command::WorkCityTile(first, shared.0, shared.1)));
+    assert!(!game.apply(Command::WorkCityTile(second, shared.0, shared.1)));
+    assert!(game.apply(Command::WorkCityTile(first, shared.0, shared.1)));
+    assert!(game.apply(Command::WorkCityTile(second, shared.0, shared.1)));
 
     game.spawn_unit(1, UnitKind::Warrior, shared.0, shared.1);
     game.reconcile_city_workers();

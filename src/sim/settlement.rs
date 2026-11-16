@@ -1,7 +1,7 @@
 //! City founding and settlement-site selection.
 
 use super::movement::{WorkerRouteMovementProfile, WorkerRouteZoneCache};
-use super::pathfinding::{Frontier, moves_left_after, reconstruct_path_to_root};
+use super::pathfinding::reconstruct_path_to_root;
 pub(super) mod observations;
 
 use super::*;
@@ -46,7 +46,7 @@ impl Simulation {
         y: i32,
         context: &CitySiteSearchContext<'_>,
     ) -> Option<CitySite> {
-        let cacheable = self.caches.advisor_enabled.get()
+        let cacheable = self.ai_advisor_cache_enabled.get()
             && matches!(founder.id, 0 | u32::MAX)
             && !self.units.iter().any(|unit| unit.id == founder.id);
         if !cacheable {
@@ -54,8 +54,7 @@ impl Simulation {
         }
         let index = self.map_wrap.index(x, y);
         if let Some(cached) = self
-            .caches
-            .spatial
+            .ai_spatial_index
             .borrow()
             .virtual_city_sites
             .get(&founder.owner)
@@ -67,7 +66,7 @@ impl Simulation {
         self.trace
             .count_operation("settlement.site_cache_misses", 1);
         let result = self.city_site_result_impl(founder.owner, x, y, context);
-        let mut spatial = self.caches.spatial.borrow_mut();
+        let mut spatial = self.ai_spatial_index.borrow_mut();
         let sites = spatial
             .virtual_city_sites
             .entry(founder.owner)
@@ -83,14 +82,13 @@ impl Simulation {
         y: i32,
         government: Government,
     ) -> (i32, i32, i32) {
-        if !self.caches.advisor_enabled.get() {
+        if !self.ai_advisor_cache_enabled.get() {
             return self.city_tile_yields_under_government(city, x, y, false, None, government);
         }
         let owner = city.owner;
         let index = self.map_wrap.index(x, y);
         if let Some((cached_government, yields)) = self
-            .caches
-            .spatial
+            .ai_spatial_index
             .borrow()
             .virtual_city_tile_yields
             .get(&owner)
@@ -104,7 +102,7 @@ impl Simulation {
         self.trace
             .count_operation("settlement.tile_yield_cache_misses", 1);
         let output = self.city_tile_yields_under_government(city, x, y, false, None, government);
-        let mut spatial = self.caches.spatial.borrow_mut();
+        let mut spatial = self.ai_spatial_index.borrow_mut();
         let entry = spatial
             .virtual_city_tile_yields
             .entry(owner)
@@ -130,7 +128,7 @@ impl Simulation {
             }
             map[self.map_wrap.index(city.x, city.y)] = -1;
         }
-        for (&id, reservation) in &self.ai.settlement_targets {
+        for (&id, reservation) in &self.ai_settlement_targets {
             if reservation.owner != owner
                 || Some(id) == except
                 || !self
@@ -160,8 +158,7 @@ impl Simulation {
 
     pub(super) fn prune_settlement_reservations(&mut self, owner: usize) {
         let invalid: Vec<_> = self
-            .ai
-            .settlement_targets
+            .ai_settlement_targets
             .iter()
             .filter_map(|(&id, reservation)| {
                 let valid_unit = self.units.iter().any(|unit| {
@@ -171,15 +168,14 @@ impl Simulation {
             })
             .collect();
         for id in invalid {
-            self.ai.settlement_targets.remove(&id);
+            self.ai_settlement_targets.remove(&id);
             self.unit_goto_tiles.remove(&id);
-            self.ai.worker_tasks.remove(&id);
+            self.ai_worker_tasks.remove(&id);
         }
         // citymap_turn_init rebuilds future centers and crowding, but the
         // extra first-worker reservation exists only in the assignment turn.
         for reservation in self
-            .ai
-            .settlement_targets
+            .ai_settlement_targets
             .values_mut()
             .filter(|entry| entry.owner == owner)
         {
@@ -243,9 +239,9 @@ impl Simulation {
                     first_worker_tile: site.worker,
                 },
             );
-            self.ai.worker_tasks.remove(&founder.id);
+            self.ai_worker_tasks.remove(&founder.id);
             self.unit_goto_tiles.insert(founder.id, destination);
-            self.ai.settlement_targets.insert(
+            self.ai_settlement_targets.insert(
                 founder.id,
                 SettlementReservation {
                     owner: founder.owner,
@@ -256,7 +252,7 @@ impl Simulation {
         }
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(super) fn run_ai_founder(&mut self, founder: &Unit) {
         let improvement = if founder.kind.stats().can_work {
             self.worker_improvement_want(founder)
@@ -273,13 +269,13 @@ impl Simulation {
         founder: &Unit,
         improvement: f32,
     ) -> bool {
-        if let Some(reservation) = self.ai.settlement_targets.get(&founder.id).copied() {
+        if let Some(reservation) = self.ai_settlement_targets.get(&founder.id).copied() {
             if reservation.owner != founder.owner
                 || !self.can_found_at(reservation.destination.0, reservation.destination.1)
             {
-                self.ai.settlement_targets.remove(&founder.id);
+                self.ai_settlement_targets.remove(&founder.id);
                 self.unit_goto_tiles.remove(&founder.id);
-                self.ai.worker_tasks.remove(&founder.id);
+                self.ai_worker_tasks.remove(&founder.id);
                 self.release_ai_ferry(founder.id);
                 return true; // daisettler.c BUILD_CITY cancels without same-turn recursion.
             }
@@ -307,7 +303,7 @@ impl Simulation {
                     && (unit.x, unit.y) == reservation.destination
             }) {
                 self.found_city(founder.id);
-                self.ai.settlement_targets.remove(&founder.id);
+                self.ai_settlement_targets.remove(&founder.id);
             }
             return true;
         }
@@ -343,7 +339,7 @@ impl Simulation {
                 unit.id == founder.id && unit.moves_left > 0 && (unit.x, unit.y) == destination
             }) {
                 self.found_city(founder.id);
-                self.ai.settlement_targets.remove(&founder.id);
+                self.ai_settlement_targets.remove(&founder.id);
             }
             true
         } else {
@@ -359,6 +355,7 @@ impl Simulation {
     }
 
     fn best_city_site_with_stats(&self, founder: &Unit) -> (Option<ScoredCitySite>, u64, u64) {
+        use std::{cmp::Reverse, collections::BinaryHeap};
         let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("settlement.best_city_site");
@@ -377,8 +374,10 @@ impl Simulation {
         };
         let mut route_zone_cache = WorkerRouteZoneCache::new(self);
         let movement_profile = self.worker_route_movement_profile(founder.kind);
-        let mut frontier = Frontier::from_start(self.tiles.len(), i32::MAX, start, 0);
+        let mut costs = vec![i32::MAX; self.tiles.len()];
         let mut previous = vec![None; self.tiles.len()];
+        costs[start] = 0;
+        let mut queue = BinaryHeap::from([Reverse((0, start))]);
         let mut best = None;
         let mut best_score = 0.0;
         let mut best_turn = 0;
@@ -386,7 +385,10 @@ impl Simulation {
         let allowance = self.unit_move_rate(founder).max(1);
         let mut expanded = 0_u64;
         let mut viable_candidates = 0_u64;
-        while let Some((cost, index, ())) = frontier.pop() {
+        while let Some(Reverse((cost, index))) = queue.pop() {
+            if cost != costs[index] {
+                continue;
+            }
             expanded += 1;
             let (x, y) = self.map_wrap.position(index);
             let turns = cost / allowance;
@@ -411,7 +413,11 @@ impl Simulation {
                 }
             }
             (traveler.x, traveler.y) = (x, y);
-            let remaining = moves_left_after(cost, founder.moves_left, allowance);
+            let remaining = if cost < founder.moves_left {
+                founder.moves_left - cost
+            } else {
+                allowance - (cost - founder.moves_left.max(0)) % allowance
+            };
             traveler.moves_left = remaining;
             for (nx, ny, step, direction) in self.settler_land_steps(
                 &traveler,
@@ -420,8 +426,11 @@ impl Simulation {
                 &movement_profile,
             ) {
                 let next = self.map_wrap.index(nx, ny);
-                if frontier.relax(next, cost + step.min(remaining)) {
+                let next_cost = cost + step.min(remaining);
+                if next_cost < costs[next] {
+                    costs[next] = next_cost;
                     previous[next] = Some((index, direction));
+                    queue.push(Reverse((next_cost, next)));
                 }
             }
         }
@@ -502,7 +511,7 @@ impl Simulation {
         )
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(super) fn city_site_value(&self, owner: usize, x: i32, y: i32) -> Option<f64> {
         let government = self.ai_goal_government(owner);
         let reservations = self.settlement_citymap(owner, None);

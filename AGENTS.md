@@ -2,53 +2,26 @@
 
 ## Gameplay authority
 
-CivCraft is a Rust implementation of Freeciv gameplay, using Civ III content and
-artwork. The authority split is:
+CivCraft is a Rust implementation of Freeciv gameplay, using selected Civ III
+content and artwork. The authority split is:
 
 - **Gameplay logic** (rules, formulas, state transitions, turn processing,
   AI behavior, and rule interpretation) follows the pinned Freeciv source
   (`reference/freeciv`) and its `civ2civ3` ruleset, as copied into the
   `data/rulesets/civcraft/engine/` layer. Civ III game logic is no longer an
   authority for mechanics.
-- **Units, buildings, and civilizations** (identities, values, availability,
-  and special data) come from the Civ III: Conquests sources. The supplied
-  manual at [`docs/civ3_manual.pdf`](docs/civ3_manual.pdf) and the installed
-  Conquests data are authoritative for that content only. Record those
-  content facts in [`docs/CIV3_MANUAL_RULES.md`](docs/CIV3_MANUAL_RULES.md).
+- **Civ III content and artwork** are retained only where the port explicitly
+  maps them into the Freeciv model. The installed Conquests data and checked-in
+  native catalogs provide identity and asset provenance; they are not gameplay
+  authority.
 - **Terrain, resources, and other art or asset mappings** stay with the Civ III
   sources where the port plan retains them.
 
-Use [`docs/GAMEPLAY_GAP_AUDIT.md`](docs/GAMEPLAY_GAP_AUDIT.md) for future
-comparisons with the implementation. Mechanics are compared against Freeciv;
-content is compared against the Civ III catalog.
-
-When Freeciv does not settle a detail needed for a Civ III content record,
-research Civ III-specific online sources. Prefer original game materials and
-official publications where available, then well-sourced specialist references,
-including community resources such as CivFanatics and Civ Wiki. These community
-sources are useful leads for undocumented or reverse-engineered details; treat
-them as secondary evidence, not as authoritative game documentation. Follow their
-citations to original materials where possible and check which edition,
-expansion, or patch the claim covers.
-
-Do this research while implementing any content value whose expected behavior is
-not established by the Civ III sources; do not silently fill gaps from legacy
-code or assumptions. Record the source title, author or publisher when
-available, URL, edition/expansion/patch scope, relevant page or section, date
-checked, and the specific claim it supports in
-`docs/CIV3_MANUAL_RULES.md`. Label supplementary claims separately from
-primary claims, note when a formula is reverse-engineered or inferred, preserve
-conflicting evidence, and leave unresolved details explicit rather than
-guessing. Existing code, tests, and previous parity claims are not evidence for
-either side.
-
-Use the catalog's [source-record format](docs/CIV3_MANUAL_RULES.md#source-records),
-[technology-tree source leads](docs/CIV3_MANUAL_RULES.md#technology-tree-source-leads),
-and [general gameplay-mechanics index](docs/CIV3_MANUAL_RULES.md#general-gameplay-mechanics-index)
-as starting points, not blanket endorsements. The Vi.ki pages are secondary
-summaries that cite a mixture of manuals, Prima's guide, previews, and archived
-official material. Follow those citations and prefer the specific underlying
-source for each claim; record edition differences or disagreements.
+Use [`docs/FREECIV_GAMEPLAY_PORT_PLAN.md`](docs/FREECIV_GAMEPLAY_PORT_PLAN.md)
+and the pinned checkout under `reference/freeciv` for implementation comparisons.
+When Freeciv is ambiguous, preserve the ambiguity or resolve it from the pinned
+Freeciv source and ruleset; do not infer gameplay behavior from Civ III manuals,
+legacy code, or community claims.
 
 ## Comparison source checkout
 
@@ -72,8 +45,6 @@ Use the narrowest test path that exercises the behavior being changed:
 - Headless executable arguments, exit status, and report contracts: add an
   `assert_cmd` integration test under `tests/`. Do not duplicate engine-rule
   assertions at the CLI layer.
-- Real mouse/keyboard routing, widget actions, or behavior that requires the
-  desktop client: use the built-in `--self-test` gameplay scenarios below.
 - Rendering, layout, screenshots, or visual regressions: use `--ui-review`.
   Compare against an explicit baseline for regression work; never update a
   baseline implicitly. Run it only when `CIVCRAFT_SOURCE_DIR` is set and points
@@ -91,7 +62,7 @@ cargo test --doc
 Use focused test filters while iterating. Run the broader commands before
 hand-off when the change warrants it. Nextest does not run documentation tests,
 so keep the separate `cargo test --doc` step. CI uses the same commands and the
-configuration in `.config/nextest.toml`; see `docs/TEST_PERFORMANCE.md`.
+configuration in `.config/nextest.toml`.
 
 ### Headless scenarios and saved campaigns
 
@@ -114,92 +85,9 @@ capture the action boundary, simulate turns, then finish checks. Put reusable
 state mutation in simulation-level scenario helpers; compose those helpers in
 scenario definitions instead of reaching into desktop playtest code.
 
-## Running a requested desktop playtest
-
-When asked specifically for a desktop or UI interaction playtest, run the
-built-in desktop gameplay scenarios. They launch the real game window,
-exercise gameplay and UI behavior, write a JSON report, and exit
-automatically. Rust unit tests or a headless scenario alone do not constitute
-this desktop playtest.
-
-Run from this directory (`app/`):
-
-```sh
-cargo build --offline --release
-playtest_dir=$(mktemp -d /tmp/civcraft-playtest-XXXXXX)
-./target/release/civcraft --self-test "$playtest_dir/report.json" --seed 42
-```
-
-Use a fresh report path for each run so an old report cannot be mistaken for
-the current result. Seed 42 is the default reproducible scenario seed; honor
-another seed if the user requests one.
-
-### macOS desktop access
-
-The game needs access to the macOS desktop to create its graphics context.
-In a sandboxed agent environment, launch the executable with the tool's
-`sandbox_permissions: "require_escalated"` option and explain that desktop
-access is needed for the playtest window. The release build can run inside
-the sandbox.
-
-A sandboxed launch was observed to fail before gameplay with:
-
-```text
-vendor/miniquad/src/native/macos.rs
-assertion failed: !glpixelformat_obj.is_null()
-```
-
-If this occurs, retry the executable with desktop access. Do not treat this
-graphics initialization failure as a failed gameplay scenario. If desktop
-access is unavailable, report that the desktop playtest could not run.
-
-### Verify and report the result
-
-Wait for the executable to exit, then inspect the report. Require both a zero
-exit status and every entry in `steps` having `passed: true`. Report the total
-passed checks, failed checks with their `step` and `detail`, the seed, and a
-link to the report. Do not assume a fixed number of checks; the suite grows.
-
-For example, substituting the actual report path:
-
-```sh
-python3 - <<'PY'
-import json
-from pathlib import Path
-
-path = Path('/tmp/civcraft-playtest-XXXXXX/report.json')
-steps = json.loads(path.read_text())['steps']
-failures = [step for step in steps if not step['passed']]
-print(f'{len(steps) - len(failures)}/{len(steps)} checks passed')
-for step in failures:
-    print(f"FAIL {step['step']}: {step['detail']}")
-if not steps or failures:
-    raise SystemExit(1)
-PY
-```
-
-### Clean up completed runs
-
-After verifying each run, keep the latest successful report and all failed
-reports. Remove older successful reports generated by this workflow. Keep the
-retained report at its original path so links in the chat remain usable.
-
-Only delete a report when its run is known to have exited successfully and its
-nonempty `steps` list contains exclusively `passed: true`. Preserve incomplete,
-unreadable, or uncertain results for investigation. A failed new run must not
-remove the previous successful report.
-
-Limit cleanup to this workflow's `/tmp/civcraft-playtest-*/report.json` files
-and the legacy `/tmp/civcraft-playtest*.json` reports. Inspect candidates before
-deleting; do not recursively delete directories or use a wildcard removal
-command. Remove a run directory only if it is empty after removing its report.
-Honor any user request to retain particular runs. Mention the retained report
-in the final response.
-
 For focused screenshot galleries and visual review, see `docs/UI_REVIEW.md` and
-the `--ui-review` instructions in `README.md`. Run that mode separately from
-`--self-test`. For a visual regression comparison, supply both the current
-output and an explicit baseline:
+the `--ui-review` instructions in `README.md`. For a visual regression
+comparison, supply both the current output and an explicit baseline:
 
 ```sh
 ./target/release/civcraft --seed 42 \

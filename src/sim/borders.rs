@@ -370,13 +370,12 @@ impl Simulation {
         self.refresh_ai_guards();
         self.city_rapture
             .retain(|id, _| self.cities.iter().any(|city| city.id == *id));
-        self.ai.settlement_targets.retain(|id, reservation| {
+        self.ai_settlement_targets.retain(|id, reservation| {
             self.units
                 .iter()
                 .any(|unit| unit.id == *id && unit.owner == reservation.owner)
         });
-        self.ai
-            .ground_targets
+        self.ai_ground_targets
             .retain(|_, id| self.cities.iter().any(|city| city.id == *id));
 
         let rules = BorderRules::selected();

@@ -4,9 +4,8 @@ use super::movement_rules::{MovementRules, MovementTile};
 use super::*;
 
 impl UnitKind {
-    #[cfg(feature = "scenarios")]
     // IgZOC and absence of UCF_ZOC are separate native exemptions.
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(super) fn ignores_zoc(self) -> bool {
         super::action_rules::freeciv_unit_type_flag(self, "IgZOC")
             .expect("campaign C2C3 unit-type IgZOC binding")
@@ -45,8 +44,14 @@ impl Simulation {
             * EXTRA_COMBINATIONS)
             + extras;
         let cache_len = CLASS_COUNT * TERRAIN_COUNT * BASE_VARIANTS * EXTRA_COMBINATIONS;
-        if let Some(native) = self.caches.native_tile(index, cache_len) {
-            return native;
+        {
+            let mut cache = self.movement_native_cache.borrow_mut();
+            if cache.is_empty() {
+                cache.resize(cache_len, -1);
+            }
+            if cache[index] >= 0 {
+                return cache[index] != 0;
+            }
         }
         let native = MovementRules::campaign()
             .movement_tile_native_to_class(
@@ -58,7 +63,7 @@ impl Simulation {
                 class,
             )
             .expect("campaign C2C3 movement native_to data");
-        self.caches.store_native_tile(index, native);
+        self.movement_native_cache.borrow_mut()[index] = i8::from(native);
         native
     }
 
@@ -119,7 +124,7 @@ impl Simulation {
             restricted,
             ignores,
         );
-        if let Some(cost) = self.caches.step_cost(&key) {
+        if let Some(cost) = self.movement_step_cost_cache.borrow().get(&key).copied() {
             return cost;
         }
         let cost = rules
@@ -132,7 +137,7 @@ impl Simulation {
                 ignores,
             )
             .expect("campaign C2C3 step movement data");
-        self.caches.store_step_cost(key, cost);
+        self.movement_step_cost_cache.borrow_mut().insert(key, cost);
         cost
     }
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
@@ -247,8 +252,8 @@ impl Simulation {
             seen,
             city_attack,
         );
-        if self.caches.advisor_enabled.get()
-            && let Some(action) = self.caches.spatial.borrow().pf_actions.get(&key).copied()
+        if self.ai_advisor_cache_enabled.get()
+            && let Some(action) = self.ai_spatial_index.borrow().pf_actions.get(&key).copied()
         {
             self.trace.count_operation("pf_actions.cache_hits", 1);
             return action;
@@ -276,9 +281,8 @@ impl Simulation {
                 PfAction::None
             }
         };
-        if self.caches.advisor_enabled.get() {
-            self.caches
-                .spatial
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
                 .borrow_mut()
                 .pf_actions
                 .insert(key, action);

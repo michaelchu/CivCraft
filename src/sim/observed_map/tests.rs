@@ -258,7 +258,7 @@ fn newer_trade_maps_update_existing_visual_and_movement_knowledge_together() {
     let route = game.observed_route_tile(x, y).unwrap();
     assert_eq!(route.terrain, Terrain::Hills);
     assert!(route.road && route.railroad && !route.is_water());
-    let ai = game.ai.map_memory.get(&(2, index)).unwrap();
+    let ai = game.ai_map_memory.get(&(2, index)).unwrap();
     assert_eq!(ai.route.terrain, Terrain::Hills);
     assert!(ai.route.road && ai.route.railroad && !ai.ocean);
     assert_eq!(ai.owner, Some(1));

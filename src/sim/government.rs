@@ -173,7 +173,7 @@ impl Simulation {
         }
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(super) fn government_output_waste(
         &self,
         city: &City,
@@ -245,31 +245,6 @@ impl Simulation {
             .filter(|&candidate| self.can_change_government(owner, candidate))
             .collect();
         (!available.is_empty()).then(|| available[self.rand_below(available.len() as i32) as usize])
-    }
-
-    #[cfg(feature = "scenarios")]
-    pub(super) fn government_city_value(&self, city: &City) -> i32 {
-        let forecast = self.city_forecast(city);
-        let food = forecast.food_surplus(city.size, forecast.support.food);
-        let shields = if forecast.disorder {
-            0
-        } else {
-            forecast.shields - forecast.support.shields
-        };
-        let gold = forecast.gold - forecast.building_upkeep - forecast.support.gold;
-        30 * food + 17 * shields + 18 * gold + 21 * forecast.science
-    }
-
-    #[cfg(feature = "scenarios")]
-    pub(super) fn project_government_output(&self, owner: usize) -> i32 {
-        let mut projected = self.clone();
-        projected.arrange_government_workers(owner);
-        projected
-            .cities
-            .iter()
-            .filter(|city| city.owner == owner)
-            .map(|city| projected.government_city_value(city))
-            .sum()
     }
 
     pub(crate) fn can_change_government(&self, owner: usize, target: Government) -> bool {
@@ -374,7 +349,12 @@ impl Simulation {
         let turns = self.city_rule_effect(
             &city,
             EffectKind::RevolutionUnhappiness,
-            CityRuleEffectParams::new(government, None),
+            None,
+            None,
+            None,
+            false,
+            government,
+            None,
         );
         let anarchy = if disorder {
             self.cities[index].anarchy.saturating_add(1)

@@ -2,7 +2,7 @@
 
 use super::*;
 
-#[cfg(feature = "scenarios")]
+#[cfg(test)]
 mod playtest;
 
 // dai/default/daihand.c:dai_manage_taxes, Normal/Civ2Civ3 configuration.
@@ -200,16 +200,16 @@ impl Simulation {
 impl Simulation {}
 
 impl Simulation {
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     fn tax_phase_fixture(&mut self, size: i32, warriors: i32, rates: [i32; 3], gold: i32) {
         self.units.clear();
         self.cities.clear();
         self.diplomacy.clear();
-        self.ai.government_cache.clear();
-        self.ai.war_plans.clear();
-        self.ai.purchase_reserve.clear();
-        self.ai.guard_targets.clear();
-        self.ai.unit_guards.clear();
+        self.ai_government_cache.clear();
+        self.ai_war_plans.clear();
+        self.ai_purchase_reserve.clear();
+        self.ai_guard_targets.clear();
+        self.ai_unit_guards.clear();
         self.unit_goto_tiles.clear();
         self.city_rapture.clear();
         self.players[1].government = Government::Despotism;

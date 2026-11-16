@@ -3,75 +3,6 @@
 use super::*;
 
 impl Simulation {
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn science_wonder_playtest(&mut self) -> (bool, i32, i32) {
-        let home = self
-            .cities
-            .iter()
-            .position(|city| city.owner == HUMAN)
-            .unwrap();
-        let (x, y) = (self.cities[home].x, self.cities[home].y);
-        let (nx, ny) = (0..self.tiles.len())
-            .map(|index| self.map_wrap.position(index))
-            .find(|&(nx, ny)| self.map_distance(x, y, nx, ny) >= 5 && self.can_found_at(nx, ny))
-            .expect("science wonder playtest needs a legal rival city site");
-        self.create_city(1, nx, ny);
-        let rival = self.cities.len() - 1;
-        self.cities[home].buildings.push(Building::LIBRARY);
-        self.cities[rival].buildings.push(Building::LIBRARY);
-        let before = self.players[HUMAN].known.len();
-        self.finish_building(self.cities[home].id, HUMAN, Building::GREAT_LIBRARY, 300);
-        (
-            self.players[HUMAN].known.len() == before + 1,
-            self.split_city_trade(&self.cities[home], 10, [100, 0, 0])[0],
-            self.split_city_trade(&self.cities[rival], 10, [100, 0, 0])[0],
-        )
-    }
-
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn amphitheater_playtest(&mut self) -> (bool, bool, i32) {
-        let index = self
-            .cities
-            .iter()
-            .position(|city| city.owner == HUMAN)
-            .unwrap();
-        self.players[HUMAN].government = Government::Republic;
-        self.cities[index].size = 8;
-        self.cities[index].specialists = [0; 3];
-        self.cities[index].buildings.push(Building::AMPHITHEATER);
-        let before = self.city_mood(&self.cities[index], 0).0;
-        self.players[HUMAN].known.push(Tech::ELECTRICITY);
-        let after = self.city_mood(&self.cities[index], 0).0;
-        let prior_history = self.cities[index].history;
-        self.record_city_history(index);
-        let history = self.cities[index].history - prior_history;
-        (before, after, history)
-    }
-
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn partisan_playtest_setup(&mut self) -> (u32, u32) {
-        let (unit, city) = self.multicultural_playtest_setup();
-        self.players[1].government = Government::Communism;
-        self.players[1]
-            .known
-            .extend([Tech::COMMUNISM, Tech::GUNPOWDER]);
-        // Partisans are gated by Nationalism being known anywhere in the
-        // world, rather than by the Guerilla unit's production technology.
-        self.players[HUMAN].known.push(Tech::NATIONALISM);
-        let city_info = self.city_by_id(city).unwrap();
-        for (_, _, x, y) in Self::city_radius(city_info) {
-            self.tile_mut(x, y).terrain = Terrain::Hills;
-        }
-        (unit, city)
-    }
-
-    #[cfg(test)]
     pub(crate) fn multicultural_playtest_setup(&mut self) -> (u32, u32) {
         let home = self.cities_owned_by(HUMAN).next().unwrap();
         let (home_x, home_y) = (home.x, home.y);
@@ -98,65 +29,6 @@ impl Simulation {
         (unit, city_id)
     }
 
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn achievement_playtest_setup(&mut self) -> i32 {
-        let city = self
-            .cities
-            .iter()
-            .find(|city| city.owner == HUMAN)
-            .unwrap()
-            .id;
-        self.finish_building(city, HUMAN, Building::APOLLO_PROGRAM, 600);
-        let before_score = self.civilization_score(HUMAN);
-        let before_history = self.players[HUMAN].history;
-        // Match the source phase's do_reveal_effects() call before achievements.
-        self.refresh_visibility();
-        self.check_achievements();
-        let after_award_history = self.players[HUMAN].history;
-        let before_refresh_score = self.civilization_score(HUMAN);
-        self.check_achievements();
-        let duplicate_check_kept_score = self.civilization_score(HUMAN) == before_refresh_score;
-        let duplicate_check_kept_history = self.players[HUMAN].history == after_award_history;
-
-        // Freeciv awards the achievement now, but score.culture is refreshed
-        // at the next begin-turn boundary. Model that boundary explicitly in
-        // the fixture instead of changing gameplay timing for the test.
-        self.refresh_score_snapshot();
-        let after_refresh_score = self.civilization_score(HUMAN);
-        if after_award_history > before_history
-            && before_refresh_score == before_score
-            && duplicate_check_kept_score
-            && duplicate_check_kept_history
-        {
-            after_refresh_score - before_score
-        } else {
-            0
-        }
-    }
-
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn turn_limit_playtest_setup(&mut self) {
-        self.turn = super::score::TURN_LIMIT;
-        self.nation_scores[HUMAN].units_built = 1000;
-    }
-
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn manual_spaceship_playtest_build_structural(&mut self) {
-        let city = self
-            .cities
-            .iter()
-            .find(|city| city.owner == HUMAN)
-            .unwrap()
-            .id;
-        self.finish_building(city, HUMAN, Building::SPACE_STRUCTURAL, 150);
-    }
-
     pub(crate) fn spaceship_playtest_setup(&mut self) {
         let city = self
             .cities
@@ -175,16 +47,5 @@ impl Simulation {
             }
         }
         self.year = 1880;
-    }
-
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn spaceship_playtest_finish_flight(&mut self) {
-        for _ in 0..30 {
-            if !self.apply(Command::EndTurn) {
-                break;
-            }
-        }
     }
 }

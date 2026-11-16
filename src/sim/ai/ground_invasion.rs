@@ -3,11 +3,11 @@
 use super::*;
 
 impl Simulation {
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(crate) fn ai_ground_invasion_playtest_setup(&mut self) -> (u32, u32, u32) {
         self.units.clear();
         self.cities.clear();
-        self.ai.ground_targets.clear();
+        self.ai_ground_targets.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
             tile.river = false;
@@ -118,7 +118,7 @@ impl Simulation {
         for actor in self.units.iter().filter(|u| {
             u.owner == owner && u.id != except && u.kind.is_military() && u.transport.is_none()
         }) {
-            if let Some(&city_id) = self.ai.ground_targets.get(&actor.id)
+            if let Some(&city_id) = self.ai_ground_targets.get(&actor.id)
                 && let Some(&index) = target_index.get(&city_id)
             {
                 add_actor_marker(&mut result, index, 1, actor);
@@ -139,7 +139,7 @@ impl Simulation {
             let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&boat.id) else {
                 continue;
             };
-            if let Some(&city_id) = self.ai.ground_targets.get(&boat.id)
+            if let Some(&city_id) = self.ai_ground_targets.get(&boat.id)
                 && let Some(&index) = target_index.get(&city_id)
             {
                 result[index].0 += cargo_attacks;
@@ -167,8 +167,7 @@ impl Simulation {
         reserved: &std::collections::HashSet<u32>,
     ) {
         let valid: std::collections::HashSet<_> = self
-            .ai
-            .ground_targets
+            .ai_ground_targets
             .iter()
             .filter_map(|(&id, &target)| {
                 let actor = self.unit_by_id(id)?;
@@ -183,7 +182,7 @@ impl Simulation {
                 (self.at_war(actor.owner, city.owner) && (invader || ferry)).then_some(id)
             })
             .collect();
-        self.ai.ground_targets.retain(|id, _| valid.contains(id));
+        self.ai_ground_targets.retain(|id, _| valid.contains(id));
         let boats: Vec<_> =
             self.units
                 .iter()
@@ -217,9 +216,9 @@ impl Simulation {
                         .map(|c| c.id)
                 });
             if let Some(target) = target {
-                self.ai.ground_targets.insert(boat.id, target);
+                self.ai_ground_targets.insert(boat.id, target);
             } else {
-                self.ai.ground_targets.remove(&boat.id);
+                self.ai_ground_targets.remove(&boat.id);
             }
         }
         let actors: Vec<_> = self
@@ -249,13 +248,13 @@ impl Simulation {
                         || self.city_threats(c).next().is_some())
             });
             if reserved.contains(&unit.id) || guarding {
-                self.ai.ground_targets.remove(&unit.id);
+                self.ai_ground_targets.remove(&unit.id);
                 continue;
             }
             if let Some(target) = self.ground_city_attack_choice(&unit) {
-                self.ai.ground_targets.insert(unit.id, target);
+                self.ai_ground_targets.insert(unit.id, target);
             } else {
-                self.ai.ground_targets.remove(&unit.id);
+                self.ai_ground_targets.remove(&unit.id);
             }
         }
     }

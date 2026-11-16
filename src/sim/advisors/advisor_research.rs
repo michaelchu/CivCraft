@@ -14,15 +14,26 @@ impl Simulation {
         if !self.players[owner].ai {
             return 0.0;
         }
-        self.ai.tech_want(owner, tech)
+        self.ai_tech_wants
+            .get(&owner)
+            .and_then(|wants| wants.get(tech.0))
+            .copied()
+            .unwrap_or(0.0)
     }
 
     pub(in crate::sim) fn clear_ai_tech_wants(&mut self, owner: usize) {
-        self.ai.clear_tech_wants(owner);
+        self.ai_tech_wants
+            .insert(owner, vec![0.0; Tech::all().count()]);
     }
 
     pub(in crate::sim) fn add_ai_tech_want(&mut self, owner: usize, tech: Tech, want: f32) {
-        self.ai.add_tech_want(owner, tech, want);
+        let wants = self
+            .ai_tech_wants
+            .entry(owner)
+            .or_insert_with(|| vec![0.0; Tech::all().count()]);
+        if let Some(value) = wants.get_mut(tech.0) {
+            *value += want;
+        }
     }
 
     pub(in crate::sim) fn record_ai_domestic_tech_wants(&mut self, owner: usize) {
@@ -125,10 +136,9 @@ impl Simulation {
         drop(_profile);
     }
 
-    #[cfg(feature = "scenarios")]
     /// Explicit preview for isolated advisor scenarios. Runtime research and
     /// diplomacy read the retained phase vector instead of recomputing advice.
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(in crate::sim) fn advisor_tech_wants(&self, owner: usize) -> Vec<f32> {
         let mut preview = self.clone();
         preview.clear_ai_tech_wants(owner);
@@ -141,7 +151,7 @@ impl Simulation {
             preview.record_ai_military_tech_wants(&city);
         }
         preview.record_ai_tech_effect_wants(owner);
-        preview.ai.tech_wants.remove(&owner).unwrap()
+        preview.ai_tech_wants.remove(&owner).unwrap()
     }
 
     pub(in crate::sim) fn advisor_city_output(&self, city: &City, granted: Option<Tech>) -> i32 {
@@ -583,18 +593,15 @@ fn bound_player_tech(
     {
         return None;
     }
-    let tech = match requirement.resolved {
-        Some(crate::rules::freeciv::ResolvedRequirementValue::Tech(tech)) => tech,
-        _ => match &requirement.name {
-            RequirementValue::String(name) => match bind_freeciv_technology(ruleset, name).ok()? {
-                FreecivTechBinding::Bound(tech) => tech,
-                FreecivTechBinding::MissingFromCiv3Catalog => return None,
-            },
-            _ => return None,
-        },
+    let RequirementValue::String(name) = &requirement.name else {
+        return None;
     };
-    tech.is_civ3_advance()
-        .then_some((tech, requirement.present))
+    match bind_freeciv_technology(ruleset, name).ok()? {
+        FreecivTechBinding::Bound(tech) if tech.is_civ3_advance() => {
+            Some((tech, requirement.present))
+        }
+        FreecivTechBinding::Bound(_) | FreecivTechBinding::MissingFromCiv3Catalog => None,
+    }
 }
 
 #[cfg(test)]

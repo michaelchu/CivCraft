@@ -9,10 +9,10 @@ mod advisor_threats;
 #[cfg(test)]
 use advisor_buildings::DefenseEffectContext;
 
-use super::unit_catalog::UnitFlag;
+use super::unit_catalog::{UnitClass, UnitFlag};
 use super::*;
 
-#[cfg(feature = "scenarios")]
+#[cfg(test)]
 mod playtest;
 use crate::rules::{Genus, Requirement};
 

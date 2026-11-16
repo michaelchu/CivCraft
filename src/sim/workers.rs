@@ -1,16 +1,17 @@
 //! Worker automation, tile assignment, and terrain improvement planning.
 
 use super::movement::WorkerRouteZoneCache;
-use super::pathfinding::{Frontier, moves_left_after, reconstruct_path};
+use super::pathfinding::reconstruct_path;
 use super::*;
 
 mod planning;
-#[cfg(feature = "scenarios")]
+#[cfg(test)]
 mod playtest;
 use planning::{WORKER_FACTOR, WorkMap, amortize};
 #[cfg(test)]
 use planning::{WorkerPlan, consider_action};
-use std::collections::{BTreeMap, HashSet};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BinaryHeap, HashSet};
 
 /// Native city requests are real input orders. The default AI produces none;
 /// callers with a request producer can pass them to the same planner.
@@ -96,16 +97,15 @@ impl Simulation {
         let _profile = profiler.scope("worker.route_map");
         self.trace.count_operation("worker.route_maps_built", 1);
         let start = self.map_wrap.index(unit.x, unit.y);
-        // Equal-cost tiles settle in the order they were queued.
-        let mut frontier: Frontier<i32, u32> = Frontier::new(self.tiles.len(), i32::MAX);
-        frontier.push(start, 0, 0, ());
         let mut result = WorkerRoutes {
             map_wrap: self.map_wrap,
-            costs: Vec::new(),
+            costs: vec![i32::MAX; self.tiles.len()],
             previous: vec![None; self.tiles.len()],
             start,
             expanded_nodes: 0,
         };
+        result.costs[start] = 0;
+        let mut queue = BinaryHeap::from([Reverse((0, 0, start))]);
         let mut expanded = 0_u64;
         let movement_profile = self.worker_route_movement_profile(unit.kind);
         // Worker routing runs before the advisor spatial index is built.
@@ -128,7 +128,6 @@ impl Simulation {
             if targets.is_empty() {
                 self.trace
                     .count_operation("worker.route_expansions", expanded);
-                result.costs = frontier.into_costs();
                 result.expanded_nodes = expanded;
                 return result;
             }
@@ -137,7 +136,10 @@ impl Simulation {
         let allowance = self.unit_move_rate(unit).max(1);
         let mut sequence = 0;
         let mut actor = unit.clone();
-        while let Some((spent, index, ())) = frontier.pop() {
+        while let Some(Reverse((spent, _, index))) = queue.pop() {
+            if result.costs[index] != spent {
+                continue;
+            }
             expanded += 1;
             if let Some(targets) = &mut remaining_targets
                 && targets.remove(&index)
@@ -146,7 +148,11 @@ impl Simulation {
                 break;
             }
             (actor.x, actor.y) = self.map_wrap.position(index);
-            let remaining = moves_left_after(spent, unit.moves_left, allowance);
+            let remaining = if spent < unit.moves_left {
+                unit.moves_left - spent
+            } else {
+                allowance - (spent - unit.moves_left.max(0)) % allowance
+            };
             for (direction, (dx, dy)) in CIV3_DIRS.into_iter().enumerate() {
                 let Some((x, y)) = self.map_wrap.civ3_neighbor(actor.x, actor.y, direction) else {
                     continue;
@@ -185,10 +191,11 @@ impl Simulation {
                 };
                 let next = self.map_wrap.index(x, y);
                 let candidate = spent + cost.min(remaining);
-                if frontier.improves(next, candidate) {
+                if candidate < result.costs[next] {
+                    result.costs[next] = candidate;
                     result.previous[next] = Some((index, (dx, dy)));
                     sequence += 1;
-                    frontier.push(next, candidate, sequence, ());
+                    queue.push(Reverse((candidate, sequence, next)));
                 }
             }
         }
@@ -199,7 +206,6 @@ impl Simulation {
             .count_operation("worker.route_zoc_cache_hits", zoc_hits);
         self.trace
             .count_operation("worker.route_allied_unit_cache_hits", allied_hits);
-        result.costs = frontier.into_costs();
         result.expanded_nodes = expanded;
         result
     }
@@ -223,7 +229,7 @@ impl Simulation {
             })
             .min_by_key(|(cost, _)| *cost);
         if let Some((_, path)) = target {
-            if !path.is_empty() && self.ai.worker_tasks.insert(actor.id) {
+            if !path.is_empty() && self.ai_worker_tasks.insert(actor.id) {
                 let destination = path.iter().fold((actor.x, actor.y), |(x, y), &(dx, dy)| {
                     self.map_wrap
                         .civ3_offset(x, y, dx, dy)
@@ -245,7 +251,7 @@ impl Simulation {
         if depth > 5 && (depth as f64) > self.units.len() as f64 * 1.5 {
             state.orders.remove(&id);
             state.reservations.retain(|_, (worker, _)| *worker != id);
-            self.ai.worker_tasks.remove(&id);
+            self.ai_worker_tasks.remove(&id);
             self.unit_goto_tiles.remove(&id);
             return;
         }
@@ -280,12 +286,12 @@ impl Simulation {
                 // Default AI's settler_run differs from the generic Human /
                 // displaced FindWork callback: no seek-shelter here.
                 if actor.kind.stats().can_found {
-                    self.ai.worker_tasks.remove(&id);
+                    self.ai_worker_tasks.remove(&id);
                     self.unit_goto_tiles.remove(&id);
                     if matches!(self.ai_guard_state(id), guards::GuardState::Assigned(_)) {
                         self.clear_ai_guard(id);
                     }
-                } else if self.ai.worker_tasks.insert(id) {
+                } else if self.ai_worker_tasks.insert(id) {
                     self.unit_goto_tiles.remove(&id); // first AUTO task, NULL target
                 }
             } else {
@@ -293,7 +299,7 @@ impl Simulation {
             }
             return;
         };
-        if self.ai.worker_tasks.insert(id) {
+        if self.ai_worker_tasks.insert(id) {
             if actor.owner == HUMAN && plan.request.is_some() {
                 self.unit_goto_tiles.remove(&id); // native generic request's best_tile is NULL
             } else {
@@ -360,7 +366,7 @@ impl Simulation {
                     .find(|u| u.id == id && u.kind == UnitKind::Settler)
                     .cloned()
             {
-                if self.ai.settlement_targets.contains_key(&id) {
+                if self.ai_settlement_targets.contains_key(&id) {
                     self.run_ai_founder_with_improvement(&actor, 0.0);
                     continue;
                 }

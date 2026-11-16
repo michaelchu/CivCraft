@@ -3,45 +3,6 @@
 use super::*;
 
 impl Simulation {
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn marines_playtest_setup(&mut self) -> (u32, u32, u32, bool) {
-        let (x, y) = (12, 24);
-        let (nx, ny) = offset_native_by_map(x, y, 1, 0);
-        let (hx, hy) = offset_native_by_map(x, y, -5, 0);
-        self.tile_mut(x, y).terrain = Terrain::Sea;
-        self.tile_mut(nx, ny).terrain = Terrain::Grassland;
-        self.tile_mut(hx, hy).terrain = Terrain::Grassland;
-        self.create_city(HUMAN, hx, hy);
-        self.create_city(1, nx, ny);
-        self.cities.last_mut().unwrap().size = 2;
-        let rubber = self
-            .map_wrap
-            .civ3_neighbors(hx, hy)
-            .find(|&(rx, ry)| self.city_at(rx, ry).is_none())
-            .expect("marine playtest needs a nearby rubber tile");
-        let rubber_tile = self.tile_mut(rubber.0, rubber.1);
-        rubber_tile.terrain = Terrain::Forest;
-        rubber_tile.resource = Some(Resource::Rubber);
-        rubber_tile.owner = Some(HUMAN);
-        rubber_tile.road = true;
-        let target = Production::Unit(UnitKind::Marine);
-        let locked = !self.can_produce(&self.cities[0], target);
-        self.players[HUMAN].known.push(Tech::AMPHIBIOUS_WARFARE);
-        let available = self.can_produce(&self.cities[0], target);
-        let boat = self.spawn_unit(HUMAN, UnitKind::Galleon, x, y);
-        let infantry = self.spawn_unit(HUMAN, UnitKind::Warrior, x, y);
-        self.units.last_mut().unwrap().transport = Some(boat);
-        let marines = self.spawn_unit(HUMAN, UnitKind::Marine, x, y);
-        self.units.last_mut().unwrap().transport = Some(boat);
-        let guard = self.spawn_unit(1, UnitKind::Worker, nx, ny);
-        self.sign_pact(HUMAN, 1, Pact::War);
-        self.refresh_visibility();
-        (marines, infantry, guard, locked && available)
-    }
-
-    #[cfg(test)]
     pub(crate) fn combat_population_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();

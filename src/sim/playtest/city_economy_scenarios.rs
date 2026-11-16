@@ -3,176 +3,10 @@
 use super::*;
 
 impl Simulation {
-    pub(crate) fn offensive_production_playtest(&mut self) -> (bool, bool, bool) {
-        self.units.clear();
-        self.cities.clear();
-        // Keep this historical advisor fixture independent of Civ III's
-        // civilization-specific starting technologies.
-        let starting_techs = [
-            Tech::BRONZE_WORKING,
-            Tech::ALPHABET,
-            Tech::HORSEBACK_RIDING,
-            Tech::POTTERY,
-            Tech::WARRIOR_CODE,
-            Tech::BRONZE_WORKING,
-        ];
-        let research_goals = [
-            Tech::WARRIOR_CODE,
-            Tech::IRON_WORKING,
-            Tech::THE_WHEEL,
-            Tech::MATHEMATICS,
-            Tech::IRON_WORKING,
-            Tech::THE_WHEEL,
-        ];
-        for owner in 0..PLAYER_COUNT {
-            self.players[owner].known = vec![starting_techs[owner]];
-            self.players[owner].research_goal = research_goals[owner];
-            self.players[owner].researching = self.research_target(owner);
-        }
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Sea;
-            tile.resource = None;
-        }
-        let home = (10, 24);
-        let point = |step| offset_native_by_map(home.0, home.1, step, 0);
-        for step in 0..=5 {
-            let (x, y) = point(step);
-            let tile = self.tile_mut(x, y);
-            tile.terrain = Terrain::Grassland;
-            tile.known_by[1] = true;
-        }
-        self.create_city(1, home.0, home.1);
-        // Keep this scenario about offensive unit choice after the source
-        // military advisor's veteran-building substitution.
-        self.cities[0].buildings.push(Building::BARRACKS);
-        let (x, y) = point(5);
-        self.create_city(HUMAN, x, y);
-        // Horsemen require connected Horses in the campaign catalog. Keep
-        // that early attacker available without fixing Freeciv's rank order
-        // to one unit type; the Civ III catalog also includes its unique
-        // units, whose stats change the winning production bid.
-        let horse_site = point(1);
-        let horse_tile = self.tile_mut(horse_site.0, horse_site.1);
-        horse_tile.resource = Some(Resource::Horses);
-        horse_tile.owner = Some(1);
-        horse_tile.road = true;
-        self.sign_pact(1, HUMAN, Pact::War);
-        self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
-        self.players[1]
-            .known
-            .extend([Tech::THE_WHEEL, Tech::MATHEMATICS]);
-        self.cities[0].shields = 100;
-        let offensive = self.offensive_production(&self.cities[0]);
-        let selected =
-            offensive.is_some_and(|kind| self.can_produce(&self.cities[0], Production::Unit(kind)));
-        let (ix, iy) = point(-2);
-        self.tile_mut(ix, iy).terrain = Terrain::Grassland;
-        self.tile_mut(ix, iy).known_by[1] = true;
-        self.create_city(HUMAN, ix, iy);
-        let start = point(1);
-        let attacker = self.spawn_unit(1, UnitKind::Chariot, start.0, start.1);
-        self.run_ai_player(1);
-        let advanced = self
-            .units
-            .iter()
-            .any(|unit| unit.id == attacker && [point(2), point(3)].contains(&(unit.x, unit.y)));
-        let (x, y) = point(2);
-        self.tile_mut(x, y).terrain = Terrain::Sea;
-        // A cut land corridor can still be served by a Freeciv virtual ferry
-        // when the source city is coastal. Keep that route in the assertion.
-        let secondary = point(-2);
-        self.tile_mut(secondary.0, secondary.1).known_by[1] = false;
-        let destination = point(5);
-        for (x, y) in super::terrain_work::neighbors(destination.0, destination.1) {
-            let tile = self.tile_mut(x, y);
-            tile.terrain = Terrain::Mountains;
-            tile.road = false;
-            tile.railroad = false;
-            tile.river = false;
-            tile.base = None;
-        }
-        (
-            selected,
-            advanced,
-            self.offensive_production(&self.cities[0]).is_some(),
-        )
-    }
-
-    pub(crate) fn domestic_building_playtest(&mut self) -> (bool, bool) {
-        self.units.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Glacier;
-            tile.resource = None;
-            tile.river = false;
-        }
-        let (x, y) = (10, 24);
-        for (_, _, tx, ty) in Self::city_radius_at(x, y) {
-            let tile = self.tile_mut(tx, ty);
-            tile.terrain = Terrain::Grassland;
-            tile.road = true;
-            tile.river = true;
-            tile.irrigation = true;
-        }
-        self.create_city(1, x, y);
-        self.spawn_unit(1, UnitKind::Warrior, x, y);
-        let city = self.cities[0].id;
-        self.players[1].government = Government::Republic;
-        self.players[1].rates = [80, 20, 0];
-        // The scenario retains Civ III's mapped tech tree, where Library
-        // requires Literature; C2C3's corresponding build requirement is
-        // Writing and is not the campaign content source for this item.
-        self.players[1]
-            .known
-            .extend([Tech::LITERATURE, Tech::POTTERY, Tech::CONSTRUCTION]);
-        self.cities[0].size = 3;
-        self.reconcile_city_workers();
-        let city_state = self.city_by_id(city).unwrap().clone();
-        // daicity scores a Library as one candidate among all production bids;
-        // the source does not require it to beat every competing option.
-        let science = self.can_produce(&city_state, Production::Building(Building::LIBRARY))
-            && self.domestic_improvement_want(&city_state, Building::LIBRARY) > 0.0;
-        self.cities[0].size = self.city_size_limit(&self.cities[0]);
-        self.cities[0].food = Self::growth_box(self.cities[0].size);
-        self.players[1].rates = [30, 10, 60];
-        self.reconcile_city_workers();
-        let growth =
-            self.choose_ai_production(1, city) == Production::Building(Building::AQUEDUCT_RIVER);
-        (science, growth)
-    }
-
-    pub(crate) fn government_worker_preview_playtest(&mut self) -> (bool, bool) {
-        self.units.clear();
-        let home = (10, 24);
-        for (_, _, x, y) in Self::city_radius_at(home.0, home.1) {
-            let tile = self.tile_mut(x, y);
-            tile.terrain = Terrain::Desert;
-            tile.resource = None;
-            tile.river = false;
-        }
-        let poor = offset_native_by_map(home.0, home.1, -1, 0);
-        let fertile = offset_native_by_map(home.0, home.1, 1, 0);
-        self.tile_mut(home.0, home.1).terrain = Terrain::Grassland;
-        self.tile_mut(fertile.0, fertile.1).terrain = Terrain::Grassland;
-        self.tile_mut(fertile.0, fertile.1).river = true;
-        self.create_city(1, home.0, home.1);
-        self.cities[0].worked_tiles = vec![poor];
-        self.cities[0].specialists = [0; 3];
-        self.players[1].government = Government::Republic;
-        let current = self.government_city_value(&self.cities[0]);
-        let mut expected = self.cities[0].clone();
-        expected.worked_tiles = vec![fertile];
-        let best = self.government_city_value(&expected);
-        let projected = self.project_government_output(1);
-        (
-            projected == best && best > current,
-            self.cities[0].worked_tiles == [poor] && self.cities[0].specialists == [0; 3],
-        )
-    }
-
     pub(crate) fn ai_government_playtest(&mut self) -> (bool, bool, bool, bool) {
         self.units.clear();
         self.cities.clear();
-        self.ai.government_cache.clear();
+        self.ai_government_cache.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Plains;
             tile.resource = Some(Resource::Wheat);
@@ -263,7 +97,7 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         self.city_rapture.clear();
-        self.ai.government_cache.clear();
+        self.ai_government_cache.clear();
         self.players[1].government = Government::Communism;
         self.players[1].known.clear();
         self.players[1].gold = 100_000;

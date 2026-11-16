@@ -211,14 +211,13 @@ impl super::Simulation {
     }
 
     pub(super) fn refresh_government_advisor(&mut self, owner: usize) {
-        if self.ai.government_cache.get(&owner).is_some_and(|cache| {
+        if self.ai_government_cache.get(&owner).is_some_and(|cache| {
             self.turn >= cache.evaluated_turn && self.turn < cache.next_evaluation
         }) {
             return;
         }
         let old = self
-            .ai
-            .government_cache
+            .ai_government_cache
             .get(&owner)
             .map_or([0.0; 11], |cache| cache.scores);
         let scores = self.calculate_government_scores(owner, old);
@@ -227,7 +226,7 @@ impl super::Simulation {
             .iter()
             .filter(|city| city.owner == owner)
             .count() as i32;
-        self.ai.government_cache.insert(
+        self.ai_government_cache.insert(
             owner,
             GovernmentAdvisorCache {
                 evaluated_turn: self.turn,
@@ -269,7 +268,7 @@ impl super::Simulation {
             return;
         }
         let (_, government, _) =
-            self.government_goals(owner, &self.ai.government_cache[&owner].scores);
+            self.government_goals(owner, &self.ai_government_cache[&owner].scores);
         if government != self.players[owner].government {
             self.change_government(owner, government);
         }
@@ -284,7 +283,7 @@ impl super::Simulation {
         }
         self.refresh_government_advisor(owner);
         let (goal, _, value) =
-            self.government_goals(owner, &self.ai.government_cache[&owner].scores);
+            self.government_goals(owner, &self.ai_government_cache[&owner].scores);
         let required = goal.requirement()?;
         if value <= 0.0 || self.has_tech(owner, required) {
             return None;
@@ -301,25 +300,25 @@ impl super::Simulation {
     }
 
     pub(in crate::sim) fn ai_goal_government(&self, owner: usize) -> Government {
-        if let Some(cache) =
-            self.ai.government_cache.get(&owner).filter(|cache| {
-                self.turn >= cache.evaluated_turn && self.turn < cache.next_evaluation
-            })
+        if let Some(cache) = self
+            .ai_government_cache
+            .get(&owner)
+            .filter(|cache| self.turn >= cache.evaluated_turn && self.turn < cache.next_evaluation)
         {
             return self.government_goals(owner, &cache.scores).0;
         }
         let mut scratch = self.clone();
         scratch.refresh_government_advisor(owner);
         scratch
-            .government_goals(owner, &scratch.ai.government_cache[&owner].scores)
+            .government_goals(owner, &scratch.ai_government_cache[&owner].scores)
             .0
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(crate) fn ai_government_cache_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai.government_cache.clear();
+        self.ai_government_cache.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Plains;
             tile.resource = Some(Resource::Wheat);
@@ -336,26 +335,26 @@ impl super::Simulation {
         self.players[1].rates = [60, 40, 0];
         self.turn = 0;
         self.refresh_government_advisor(1);
-        let before = self.ai.government_cache[&1].clone();
+        let before = self.ai_government_cache[&1].clone();
         let wanted = self
             .government_research_want(1)
             .is_some_and(|(goal, _)| goal == Tech::MONARCHY);
         self.players[1].known.push(Tech::MONARCHY);
         let available = self
-            .government_goals(1, &self.ai.government_cache[&1].scores)
+            .government_goals(1, &self.ai_government_cache[&1].scores)
             .1
             == Government::Monarchy
             && self.government_research_want(1).is_none()
-            && self.ai.government_cache[&1].evaluated_turn == 0;
+            && self.ai_government_cache[&1].evaluated_turn == 0;
         self.cities[0].size = 8;
         self.reconcile_city_workers();
         self.turn = before.next_evaluation - 1;
         self.refresh_government_advisor(1);
-        let held = self.ai.government_cache[&1].scores == before.scores;
+        let held = self.ai_government_cache[&1].scores == before.scores;
         self.turn += 1;
         self.refresh_government_advisor(1);
-        let recomputed = self.ai.government_cache[&1].evaluated_turn == self.turn
-            && self.ai.government_cache[&1].scores != before.scores;
+        let recomputed = self.ai_government_cache[&1].evaluated_turn == self.turn
+            && self.ai_government_cache[&1].scores != before.scores;
         wanted
             && available
             && held

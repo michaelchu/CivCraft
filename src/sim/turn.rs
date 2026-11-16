@@ -15,8 +15,8 @@ use super::*;
 use crate::rules::freeciv::RequirementKind;
 use crate::rules::freeciv::{
     EffectContext, EffectEvaluationError, Requirement, RequirementContext,
-    RequirementEvaluationError, RequirementRange, RequirementValue, ResolvedRequirementValue,
-    RulesetData, VictoryCondition, effect_value,
+    RequirementEvaluationError, RequirementRange, RequirementValue, RulesetData, VictoryCondition,
+    effect_value,
 };
 
 impl Simulation {
@@ -78,7 +78,7 @@ impl Simulation {
         self.run_ai_worker_phase(BARBARIANS);
         drop(_profile);
         let _profile = profiler.scope("turn.prune_and_trade_routes");
-        self.ai.clear_free_bulbs();
+        self.ai_free_bulbs.clear();
         self.prune_ai_player_units();
         // Route connectivity is an actor-free CivCraft adapter for C2C3's
         // Caravan/Freight delivery step. Resolve it globally after all worker
@@ -244,23 +244,18 @@ impl RequirementContext for CalendarContext<'_> {
             return Ok(self.year >= threshold);
         }
         if requirement.kind == RequirementKind::Tech && requirement.survives {
-            let tech = match requirement.resolved {
-                Some(ResolvedRequirementValue::Tech(tech)) => tech,
-                _ => match &requirement.name {
-                    RequirementValue::String(name) => {
-                        match super::content_adapter::bind_freeciv_technology(self.ruleset, name)
-                            .map_err(|_| unsupported())?
-                        {
-                            super::content_adapter::FreecivTechBinding::Bound(tech) => tech,
-                            super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
-                                return Ok(false);
-                            }
-                        }
-                    }
-                    _ => return Err(unsupported()),
-                },
+            let name = match &requirement.name {
+                RequirementValue::String(value) => value,
+                _ => return Err(unsupported()),
             };
-            return Ok(self.global_advances.contains(&tech));
+            let binding = super::content_adapter::bind_freeciv_technology(self.ruleset, name)
+                .map_err(|_| unsupported())?;
+            return Ok(match binding {
+                super::content_adapter::FreecivTechBinding::Bound(tech) => {
+                    self.global_advances.contains(&tech)
+                }
+                super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => false,
+            });
         }
         Err(unsupported())
     }

@@ -2,13 +2,14 @@
 
 ## Scope and verdict
 
-Compared CivCraft's `FreecivFractalMapGenerator` and `freeciv_fractal_height_field` in `app/src/mapgen.rs` with Freeciv's `make_pseudofractal1_hmap` / `gen5rec` in `freeciv/server/generator/height_map.c` and its orchestration in `freeciv/server/generator/mapgen.c`.
+Compared CivCraft's `FreecivFractalMapGenerator` and `freeciv_fractal_height_field` in `../src/mapgen.rs` with Freeciv's `make_pseudofractal1_hmap` / `gen5rec` in `../reference/freeciv/server/generator/height_map.c` and its orchestration in `../reference/freeciv/server/generator/mapgen.c`.
 
 **Verdict:** the recursive midpoint-displacement idea and much of the subdivision order are ported. This is an adaptation of Freeciv's FRACTAL height-field algorithm, not a full or seed-compatible port of Freeciv map generation. It is now CivCraft's default landmass-field source, but should not be described as complete Freeciv terrain generation or as reproducing Freeciv maps.
 
 The CLI selects this generator by default and accepts `--map-generator fractal`. `--map-generator opensimplex` selects the alternate OpenSimplex implementation.
 
-This is a source comparison. No runtime comparison against Freeciv and no tests were run for this audit.
+This is a source comparison; exact output parity has not been established by a
+runtime comparison against Freeciv.
 
 ## What matches
 
@@ -32,11 +33,13 @@ This is a source comparison. No runtime comparison against Freeciv and no tests 
 - Choose and state a specific Freeciv ruleset, map topology, map size, start-position mode, and seed/RNG contract as the comparison target.
 - Port the Freeciv division calculation, native-coordinate/singularity handling, flat-pole semantics, and height-map normalization under that target.
 - Add a deterministic field-level comparison harness that captures Freeciv and CivCraft height maps at the same stage. Until that exists, formula similarity is not evidence of output parity.
-- Decide whether the intended goal is just a Freeciv-inspired landmass option for Civ III maps or actual Freeciv FRACTAL-generator parity. If it is the former, keep the adaptations explicit and avoid calling the full pipeline a port.
+- Keep the adaptations explicit: this is a Freeciv-derived generator adapted to
+  CivCraft's topology and retained content, not a claim of seed-for-seed server
+  parity.
 
 ## Source pointers
 
-- CivCraft: `app/src/mapgen.rs`, especially `Landform::fractal_divisions`, `Generator::generate_with_landmass`, `freeciv_fractal_height_field`, `freeciv_fractal_subdivide`, and `lower_freeciv_poles`.
-- Freeciv fractal algorithm: `freeciv/server/generator/height_map.c`, `make_pseudofractal1_hmap` and `gen5rec`.
-- Freeciv generator orchestration: `freeciv/server/generator/mapgen.c`, including `height_map_to_map` and the FRACTAL branch.
-- Checked ruleset value: `freeciv/data/civ2civ3/game.ruleset` (`generator = FRACTAL`, `flatpoles = 0`).
+- CivCraft: `../src/mapgen.rs`, especially `Landform::fractal_divisions`, `Generator::generate_with_landmass`, `freeciv_fractal_height_field`, `freeciv_fractal_subdivide`, and `lower_freeciv_poles`.
+- Freeciv fractal algorithm: `../reference/freeciv/server/generator/height_map.c`, `make_pseudofractal1_hmap` and `gen5rec`.
+- Freeciv generator orchestration: `../reference/freeciv/server/generator/mapgen.c`, including `height_map_to_map` and the FRACTAL branch.
+- Checked ruleset value: `../reference/freeciv/data/civ2civ3/game.ruleset` (`generator = FRACTAL`, `flatpoles = 0`).

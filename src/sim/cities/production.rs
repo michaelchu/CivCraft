@@ -113,7 +113,12 @@ impl Simulation {
         self.city_rule_effect(
             city,
             EffectKind::RaptureGrow,
-            CityRuleEffectParams::new(government, None).celebrating(celebrating),
+            None,
+            None,
+            None,
+            celebrating,
+            government,
+            None,
         ) > 0
     }
 
@@ -182,7 +187,6 @@ impl Simulation {
         Production::Unit(UnitKind::Warrior)
     }
 
-    #[cfg(feature = "scenarios")]
     pub(in crate::sim) fn process_cities(&mut self) {
         self.reconcile_trade_routes();
         self.establish_connected_trade_routes();

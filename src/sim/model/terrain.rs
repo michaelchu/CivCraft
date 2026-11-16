@@ -119,7 +119,7 @@ mod civ3_terrain_tests {
     use super::*;
 
     #[test]
-    fn water_yields_and_resource_habitats_match_the_civ3_manual() {
+    fn water_yields_and_resource_habitats_match_the_ruleset() {
         assert_eq!(Terrain::Coast.base_yields(), (1, 0, 2));
         assert_eq!(Terrain::Sea.base_yields(), (1, 0, 1));
         assert_eq!(Terrain::Ocean.base_yields(), (1, 0, 0));
@@ -133,7 +133,7 @@ mod civ3_terrain_tests {
     }
 
     #[test]
-    fn civ3_special_land_terrains_keep_their_manual_yields() {
+    fn special_land_terrains_keep_their_ruleset_yields() {
         assert_eq!(Terrain::FloodPlains.base_yields(), (3, 0, 0));
         assert_eq!(Terrain::GrasslandShield.base_yields(), (2, 1, 0));
         assert_eq!(Terrain::GrasslandShield.irrigation_bonus(), 1);

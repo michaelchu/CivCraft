@@ -8,9 +8,12 @@ Roster counts in the native catalog: **92 identities** (59 standard, 31 unique, 
 
 ## Per-identity folder and manifest mapping
 
-“Found in” lists actual matching folders among the three roots. `TSV art root` is the current data row’s declared lookup root; the folder listing is independent filesystem verification. The two era-family rows show all folder variants in the source order.
+“Found in” lists actual matching folders among the three roots. `art_root` is the
+current TOML catalog’s declared lookup root; the folder listing is independent
+filesystem verification. The two era-family rows show all folder variants in
+the source order.
 
-| ID | Type | TSV art folder(s) | TSV art root(s) | Found in (folder / `.ini`) |
+| ID | Type | TOML art folder(s) | TOML art root(s) | Found in (folder / `.ini`) |
 |---|---|---|---|
 | `settler` | standard | Settler | base | `base/Settler/` (`settler.ini`) |
 | `worker` | standard | Worker | base | `base/Worker/` (`Worker.INI`) |
@@ -137,5 +140,5 @@ The following folders exist in these top-level campaign art roots but are not di
 ## Source files to inspect next
 
 - Per-unit animation definitions: each path in the table, especially duplicate expansion manifests and the four Leader/Army era variants.
-- Main campaign unit definitions: `../../source/Conquests/Conquests/conquests.biq` and any expansion BIQ records referenced by the TSV’s `source_biq` column. Use the BIQ `Art`/unit data to resolve shared-folder aliases and distinguish campaign units from scenario-only support.
+- Main campaign unit definitions: `../../source/Conquests/conquests.biq` and any expansion BIQ records represented by the catalog’s `source_biq` field. Use the BIQ `Art`/unit data to resolve shared-folder aliases and distinguish campaign units from scenario-only support.
 - Runtime loader: verify INI section/key parsing, source timing interpretation, shared-file fallback order, and palette handling against actual assets.

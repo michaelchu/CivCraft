@@ -8,7 +8,7 @@ mod espionage;
 mod observer;
 mod offers;
 mod pacts;
-#[cfg(feature = "scenarios")]
+#[cfg(test)]
 mod scenarios;
 mod vision;
 mod war_planning;
@@ -168,7 +168,7 @@ impl Concessions {
         self.set_embassy(true)
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     fn with_city(&self, id: u32) -> Self {
         self.set_city(Some(id))
     }
@@ -370,8 +370,7 @@ impl Simulation {
         let strongest = [(violator, victim), (victim, violator)]
             .iter()
             .filter_map(|key| {
-                self.ai
-                    .diplomatic_memory
+                self.ai_diplomatic_memory
                     .get(key)
                     .map(|memory| memory.strongest_pact)
             })

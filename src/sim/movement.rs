@@ -19,7 +19,7 @@ mod combat;
 mod routes;
 mod sentry;
 mod transports;
-use std::sync::OnceLock;
+use std::{cmp::Reverse, collections::BinaryHeap, sync::OnceLock};
 
 pub(super) struct WorkerRouteZoneCache {
     city_owners: Vec<Option<usize>>,
@@ -462,8 +462,7 @@ impl Simulation {
                     None => Some(self.live_route_tile(nx, ny)),
                     Some(HUMAN) => self.observed_route_tile(nx, ny),
                     Some(owner) => self
-                        .ai
-                        .map_memory
+                        .ai_map_memory
                         .get(&(owner, index))
                         .map(|observation| observation.route),
                 };
@@ -500,12 +499,11 @@ impl Simulation {
     }
 
     fn enemy_zoc_controls_tile(&self, owner: usize, x: i32, y: i32, observed: bool) -> bool {
-        if self.caches.advisor_enabled.get() {
+        if self.ai_advisor_cache_enabled.get() {
             let index = self.map_wrap.index(x, y);
             let visibility = usize::from(observed);
             if let Some(controlled) = self
-                .caches
-                .spatial
+                .ai_spatial_index
                 .borrow()
                 .route_zone_control
                 .get(&owner)
@@ -520,7 +518,7 @@ impl Simulation {
             self.trace
                 .count_operation("movement.route_zoc_cache_misses", 1);
             let controlled = self.enemy_zoc_controls_tile_uncached(owner, x, y, observed);
-            let mut spatial = self.caches.spatial.borrow_mut();
+            let mut spatial = self.ai_spatial_index.borrow_mut();
             let cache = spatial
                 .route_zone_control
                 .entry(owner)
@@ -968,12 +966,12 @@ impl Simulation {
     ) -> Option<usize> {
         let unit = self.unit_by_id(unit_id)?;
         let destination = self.map_wrap.offset(unit.x, unit.y, dx, dy)?;
-        self.map_wrap
-            .civ3_neighbors(unit.x, unit.y)
-            .position(|neighbor| neighbor == destination)
+        (0..super::topology::CIV3_DIRS.len()).find(|&direction| {
+            self.map_wrap.civ3_neighbor(unit.x, unit.y, direction) == Some(destination)
+        })
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(crate) fn try_move_unit_civ3_by_offset(
         &mut self,
         unit_id: u32,
@@ -1231,10 +1229,10 @@ impl Simulation {
         drop(_profile);
         // Native movement updates the moving player's vision immediately,
         // including AI discovery, before contact callbacks and hut outcomes.
-        if self.visibility.refresh_deferred {
-            self.visibility.refresh_pending = true;
+        if self.visibility_refresh_deferred {
+            self.visibility_refresh_pending = true;
         } else if moving_unit.owner != HUMAN {
-            self.visibility.refresh_pending = true;
+            self.visibility_refresh_pending = true;
             self.flush_deferred_visibility();
         } else {
             let _profile = self
@@ -1538,11 +1536,11 @@ impl Simulation {
         unit_id: u32,
         path: impl IntoIterator<Item = (i32, i32)>,
     ) -> bool {
-        let defer_visibility_before = self.visibility.refresh_deferred;
+        let defer_visibility_before = self.visibility_refresh_deferred;
         let defer_visibility = self
             .unit_by_id(unit_id)
             .is_some_and(|unit| unit.owner != HUMAN);
-        self.visibility.refresh_deferred = defer_visibility_before || defer_visibility;
+        self.visibility_refresh_deferred = defer_visibility_before || defer_visibility;
         let mut moved = false;
         for (dx, dy) in path {
             let Some(direction) = CIV3_DIRS.iter().position(|&step| step == (dx, dy)) else {
@@ -1560,8 +1558,8 @@ impl Simulation {
                 break;
             }
         }
-        self.visibility.refresh_deferred = defer_visibility_before;
-        if !defer_visibility_before && self.visibility.refresh_pending {
+        self.visibility_refresh_deferred = defer_visibility_before;
+        if !defer_visibility_before && self.visibility_refresh_pending {
             let _profile = self
                 .trace
                 .profiler()

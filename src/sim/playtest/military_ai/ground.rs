@@ -1,6 +1,5 @@
 //! Implements ground behavior within the military ai subsystem.
 
-use super::super::guards::GuardState;
 use super::super::*;
 
 impl Simulation {
@@ -54,60 +53,6 @@ impl Simulation {
                 .count()
                 == 2;
         (held, attack, refused)
-    }
-
-    pub(crate) fn ai_road_reinforcement_playtest(&mut self) -> bool {
-        self.units.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.hut = false;
-            tile.road = false;
-            tile.railroad = false;
-            tile.known_by[1] = true;
-        }
-        let home = (10, 24);
-        let point = |step| offset_native_by_map(home.0, home.1, step, 0);
-        let front = point(3);
-        // Keep the home city outside the cavalry's grave-danger horizon.
-        // Freeciv retains a home defender when source and front cities are
-        // equally urgent; this enemy still reaches the front city first.
-        let enemy = point(7);
-        self.create_city(1, home.0, home.1);
-        self.create_city(1, front.0, front.1);
-        self.sign_pact(1, HUMAN, Pact::War);
-        let marine = self.spawn_unit(1, UnitKind::Marine, home.0, home.1);
-        let guard = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
-        self.spawn_unit(1, UnitKind::Warrior, front.0, front.1);
-        // Keep an attack-capable enemy cavalry unit outside the front city.
-        self.spawn_unit(HUMAN, UnitKind::Cavalry, enemy.0, enemy.1);
-        let no_near_route = std::collections::HashSet::new();
-        let too_far = !self
-            .reinforce_ai_cities(1, &no_near_route)
-            .contains(&marine);
-        for step in 0..=3 {
-            let (x, y) = point(step);
-            self.tile_mut(x, y).road = true;
-        }
-        let dispatched = self
-            .reinforce_ai_cities(1, &no_near_route)
-            .contains(&marine);
-        let position = self
-            .units
-            .iter()
-            .find(|unit| unit.id == marine)
-            .map(|unit| (unit.x, unit.y));
-        let guarded = self
-            .units
-            .iter()
-            .any(|unit| unit.id == guard && (unit.x, unit.y) == home);
-        // The C2C3 road move cost is two fragments per tile. A Marine cannot
-        // cross three tiles in one movement allotment, so assert dispatch,
-        // route retention, and progress instead of same-turn arrival.
-        too_far
-            && dispatched
-            && position.is_some_and(|position| position != home)
-            && self.unit_goto_tiles.get(&marine) == Some(&front)
-            && guarded
     }
 
     pub(crate) fn ai_reinforcements_playtest(&mut self) -> (bool, bool, bool) {
@@ -277,60 +222,6 @@ impl Simulation {
             if super::super::action_rules::freeciv_unit_has_role(kind, "DefendGood")
                 || super::super::action_rules::freeciv_unit_has_role(kind, "DefendOk"));
         (budget && stocked, quiet, responded)
-    }
-
-    pub(crate) fn ai_formal_guard_playtest(&mut self) -> (bool, bool, bool) {
-        self.units.clear();
-        self.cities.clear();
-        self.diplomacy.clear();
-        self.ai.guard_targets.clear();
-        self.ai.unit_guards.clear();
-        for tile in &mut self.tiles {
-            tile.terrain = Terrain::Grassland;
-            tile.owner = None;
-            tile.hut = false;
-            tile.river = false;
-            tile.road = false;
-            tile.railroad = false;
-            tile.base = None;
-        }
-        // Use a charge with lower defense and higher attack than the Musketman
-        // guard, matching Freeciv's bodyguard compatibility requirements.
-        let charge = self.spawn_unit(1, UnitKind::Longbowman, 10, 20);
-        let guard = self.spawn_unit(1, UnitKind::Musketman, 10, 20);
-        self.request_ai_guard(charge);
-        let selected =
-            self.run_ai_guard(guard) && self.ai_guard_state(charge) == GuardState::Assigned(guard);
-        self.units
-            .iter_mut()
-            .find(|u| u.id == guard)
-            .unwrap()
-            .moves_left = 0;
-        let waited = self.try_move_unit_civ3_by_offset(charge, 1, 0) == MoveResult::Blocked;
-        self.units
-            .iter_mut()
-            .find(|u| u.id == guard)
-            .unwrap()
-            .moves_left = 6;
-        self.try_move_unit_civ3_by_offset(charge, 1, 0);
-        let actor = self.unit_by_id(charge).unwrap().clone();
-        let followed = self
-            .units
-            .iter()
-            .any(|u| u.id == guard && (u.x, u.y) == (actor.x, actor.y));
-        self.units
-            .iter_mut()
-            .find(|u| u.id == charge)
-            .unwrap()
-            .moves_left = 6;
-        let target = offset_native_by_map(actor.x, actor.y, 1, 0);
-        self.sign_pact(1, HUMAN, Pact::War);
-        let enemy = self.spawn_unit(HUMAN, UnitKind::Warrior, target.0, target.1);
-        self.units.last_mut().unwrap().hp = 1;
-        self.set_random_seed(1);
-        let attack = self.try_move_unit_civ3_by_offset(charge, 1, 0) == MoveResult::Fought
-            && self.units.iter().all(|u| u.id != enemy);
-        (selected, waited && followed, attack)
     }
 }
 

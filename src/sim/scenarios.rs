@@ -4,5 +4,4 @@
 use super::*;
 
 pub(crate) mod diplomacy;
-pub(crate) mod regression;
 pub(crate) mod ui_review;

@@ -1,8 +1,6 @@
 //! Typed veterancy data from the selected Freeciv `units.ruleset`.
 
-#[cfg(test)]
-use super::ContentKind;
-use super::{LoadError, RulesetData};
+use super::{ContentKind, LoadError, RulesetData};
 use crate::rules::freeciv_ini::Value;
 
 const MAX_VETERAN_LEVELS: usize = 20;
@@ -34,7 +32,6 @@ impl VeteranSystem {
 }
 
 impl RulesetData {
-    #[cfg(test)]
     /// Resolve one selected unit type's veteran system, or the selected engine
     /// default when the type has no override. `unit_section` must be an
     /// explicit C2C3 unit section already bound by the campaign adapter.
@@ -138,7 +135,6 @@ impl RulesetData {
         })
     }
 
-    #[cfg(test)]
     fn parse_global_veteran_system(&self) -> Result<VeteranSystem, LoadError> {
         let names = parameter_values(self, "veteran_names")?
             .into_iter()
@@ -165,7 +161,6 @@ impl RulesetData {
 }
 
 impl VeteranSystem {
-    #[cfg(test)]
     fn from_parts(
         source: &str,
         names: Vec<String>,
@@ -235,7 +230,6 @@ impl VeteranSystem {
     }
 }
 
-#[cfg(test)]
 fn parameter_values(rules: &RulesetData, key: &str) -> Result<Vec<Value>, LoadError> {
     let parameter = super::required_parameter(rules, "units.ruleset", "veteran_system", key)?;
     values_from_value(
@@ -244,7 +238,6 @@ fn parameter_values(rules: &RulesetData, key: &str) -> Result<Vec<Value>, LoadEr
     )
 }
 
-#[cfg(test)]
 fn parameter_ints(rules: &RulesetData, key: &str) -> Result<Vec<i32>, LoadError> {
     integer_values(
         parameter_values(rules, key)?,
@@ -252,7 +245,6 @@ fn parameter_ints(rules: &RulesetData, key: &str) -> Result<Vec<i32>, LoadError>
     )
 }
 
-#[cfg(test)]
 fn record_values(
     entries: &[crate::rules::freeciv_ini::Entry],
     key: &str,
@@ -269,7 +261,6 @@ fn record_values(
     values_from_value(&entry.value, key)
 }
 
-#[cfg(test)]
 fn record_ints(
     entries: &[crate::rules::freeciv_ini::Entry],
     key: &str,
@@ -278,7 +269,6 @@ fn record_ints(
     integer_values(record_values(entries, key)?, &format!("[{section}].{key}"))
 }
 
-#[cfg(test)]
 fn values_from_value(value: &Value, source: &str) -> Result<Vec<Value>, LoadError> {
     match value {
         Value::List(values) => Ok(values.clone()),
@@ -289,7 +279,6 @@ fn values_from_value(value: &Value, source: &str) -> Result<Vec<Value>, LoadErro
     }
 }
 
-#[cfg(test)]
 fn integer_values(values: Vec<Value>, source: &str) -> Result<Vec<i32>, LoadError> {
     values
         .into_iter()

@@ -13,34 +13,29 @@ The standard roster was recovered from the installed `../../source/Conquests/con
 
 The installed `../../source/Text/Civilopedia.txt` and
 `../../source/Conquests/Text/Civilopedia.txt` provide the in-game unit entries.
-The Civ III manual at `civ3_manual.pdf` (Appendix A, printed pp. 201–205)
-provides the vanilla unit chart and gameplay data. It predates the Conquests
-expansion, so use it for base-unit mechanics and use the installed Conquests
-BIQ/Civilopedia for the final target roster and Conquests changes. The active
-code now maps the campaign roster to the source unit `.ini` files; see the
-status sections below for the remaining rules and animation work.
+The installed Conquests BIQ and the native catalog provide the retained content
+identities and source mappings. Freeciv source and the selected ruleset remain
+the authority for gameplay behavior. The active code maps the campaign roster
+to the source unit `.ini` files; see the status sections below for the remaining
+asset work.
 
 As an online cross-check, the [CivFanatics vanilla unit index](https://civfanatics.com/civ3/civilopedia/units/), [Play the World unit index](https://civfanatics.com/civ3/civilopedia/play-the-world-units/), and [Conquests unit index](https://civfanatics.com/civ3/civilopedia/conquests-units/) separate common units, unique units, wonder units, ruler units, and scenario packs. These are secondary references; the installed BIQ and Civilopedia remain the roster evidence for this checkout.
 
-## Current simulation catalog and migration status
+## Current simulation catalog and content status
 
 `UnitKind::ALL_NATIVE` in `src/sim/model/units.rs` now lists all 92 standard
-Conquests identities in source order. The source-backed `units.tsv` supplies
+Conquests identities in source order. The native TOML catalog supplies
 their stats, technology and resource requirements, civilization availability,
 unique replacements, flags, and art folder/root mappings. The editable rules
 input and export provenance are documented in
 `data/rulesets/civcraft/README.md`. `content/civilizations.toml` contains all
 31 playable-civilization identities and start profiles.
 
-This is the active campaign catalog, not yet a complete purge of inherited
-fallback stat/metadata arms. The runtime `UnitKind` now contains the 92
-Conquests campaign identities; Diplomat and Spy are no longer unit identities.
-Caravan and Freight identities, merchant AI, unit missions, save fields,
-transport fixtures, city-pair trade routes, and Caravan wonder-shield state
-have also been removed. Civ III's road, harbor, airport, diplomacy trade
-network, and city-level espionage missions still need their Civ III-specific
-implementations. Serialized enum indices intentionally no longer preserve the
-old save layout.
+This is the active campaign content catalog, not a gameplay authority. The
+runtime `UnitKind` contains the 92 retained Conquests campaign identities;
+Diplomat, Spy, Caravan, and Freight are not unit identities. Freeciv rules and
+engine code govern unit behavior, while this catalog supplies retained content
+identities, source values, and art mappings.
 
 `unit_available` and campaign production use Conquests availability rules.
 This does not establish that every simulation behavior is Civ III accurate;
@@ -143,7 +138,7 @@ identity even when they replace a standard unit for one civilization.
 
 ## Catalog decisions
 
-This table records the internal-name migration. `ALL_NATIVE` reflects the
+This table records the internal-name cleanup. `ALL_NATIVE` reflects the
 source roster, and several legacy-shaped native variant names have now been
 renamed to their Conquests identities. The non-campaign variants listed below
 remain to be removed or separated from campaign runtime. `Storm`, `Howitzer`,
@@ -247,16 +242,13 @@ its own identity with its own stats and art.
 
 ## Starting units by civilization
 
-The standard Conquests rules define one Settler and one Worker as the default
-starting units. The Expansionist trait adds one Scout; it does not replace the
-Settler or Worker. The installed Conquests RACE records mark Americans, Arabs,
-Hittites, Incans, Mongols, Portuguese, Russians, and Zulus as Expansionist. The
-standard Scout availability mask omits the Incans because their unique
-replacement is Chasqui Scout; the starting profile should therefore grant that
-unit to the Incans. The manual explains the base starting-unit rule and the
-Expansionist Scout bonus, while the installed Conquests BIQ supplies the target
-start-unit types. The manual predates Conquests, so its older trait assignments
-are not the target civ list.
+The installed Conquests RACE records identify the default and Expansionist
+starting-unit profiles. Freeciv setup rules govern how those profiles are
+applied; the Civ III records remain content provenance. The installed records
+mark Americans, Arabs, Hittites, Incans, Mongols, Portuguese, Russians, and
+Zulus as Expansionist. The standard Scout availability mask omits the Incans
+because their unique replacement is Chasqui Scout; the retained starting
+profile grants that unit to the Incans.
 
 Represent this as civilization start profiles, not fields on individual unit
 definitions:
@@ -268,9 +260,8 @@ definitions:
 
 Difficulty bonuses for AI and scenario-defined starts are separate setup
 overrides. They should not be mixed into the normal civilization profile.
-The [Conquests civilization table](https://civ3.vi.ki/civilizations) lists the
-Conquests traits, and the [manual's starting-unit example](https://manualzz.com/doc/25583228/sid-meier-s-civilization-iii-video-game-user-manual) illustrates the
-Settler/Worker start with the possible Expansionist Scout.
+The [Conquests civilization table](https://civ3.vi.ki/civilizations) is a
+secondary cross-check; the installed RACE records remain the content source.
 
 ## Source-derived ruleset data now checked in
 
@@ -313,18 +304,12 @@ standard wonder-created units and are included above.
 2. **Rules data and active roster — implemented; source audit remains.** The
    editable table feeds the 92-entry campaign catalog, including stats,
    technology, resources, upgrades, flags, class, cargo, and availability.
-3. **Legacy removal — unit-specific cleanup implemented; shared behavior audit
-   remains.** Removed the inherited Diplomat, Spy, Caravan, and Freight
-   identities and their unit-only runtime paths, along with the previous
-   per-unit stat/metadata fallbacks. Review shared simulation mechanics for
-   remaining Freeciv assumptions and migrate or remove those that conflict
-   with Civ III.
+3. **Legacy unit identities — removed.** Diplomat, Spy, Caravan, and Freight
+   are not represented as units; shared behavior remains governed by Freeciv
+   systems and explicit CivCraft adapters.
 4. **Art loader — mapped; runtime coverage and verification remain.** Load each
    unit's original `.ini`, resolve shared paths across source art roots, and
    connect every in-scope animation action and timing to game states.
-5. **Completion audit — outstanding.** The active game must have exactly the
-   intended Civ III campaign inventory, source-backed rules and civilization
-   restrictions, original art/animations, and no Freeciv-only unit or
-   compatibility shim in runtime code. Scenario-only content stays outside
-   the campaign catalog. Record unresolved source conflicts rather than
-   guessing.
+5. **Completion audit — ongoing.** Keep the 92-identity catalog, source
+   provenance, art mappings, and scenario exclusions synchronized as content
+   changes. Record unresolved source conflicts rather than guessing.

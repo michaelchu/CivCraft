@@ -356,13 +356,13 @@ fn completed_goal_uses_reservoir_sampling_in_reference_draw_order() {
 #[test]
 fn unrelated_discovery_does_not_exempt_existing_research() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.ai.free_bulbs.clear();
+    game.ai_free_bulbs.clear();
     game.players[1].researching = Tech::BRONZE_WORKING;
     game.players[1].research = 12;
     game.discover(1, Tech::POTTERY);
-    assert!(!game.ai.free_bulbs.contains_key(&1));
+    assert!(!game.ai_free_bulbs.contains_key(&1));
     game.discover(1, Tech::BRONZE_WORKING);
-    assert_eq!(game.ai.free_bulbs.get(&1), Some(&12));
+    assert_eq!(game.ai_free_bulbs.get(&1), Some(&12));
 }
 
 #[test]
@@ -381,7 +381,7 @@ fn discovery_overflow_can_complete_the_next_goal_in_the_same_update() {
     assert!(game.has_tech(1, Tech::ALPHABET));
     assert_eq!(game.players[1].researching, Tech::FUTURE);
     assert_eq!(game.players[1].research, 7);
-    assert_eq!(game.ai.free_bulbs[&1], 7);
+    assert_eq!(game.ai_free_bulbs[&1], 7);
 }
 
 #[test]

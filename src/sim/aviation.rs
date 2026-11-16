@@ -763,7 +763,7 @@ impl Simulation {
             if boss.kind.fuel_capacity() == 0 {
                 return (false, done);
             }
-            if boss.moves_left > 0 && !self.ai.guard_targets.contains_key(&boss.id) {
+            if boss.moves_left > 0 && !self.ai_guard_targets.contains_key(&boss.id) {
                 self.run_ai_strike_aircraft(&boss);
             }
             let Some(ship) = self
@@ -1023,7 +1023,7 @@ impl Simulation {
         MoveResult::Fought
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(super) fn restore_aircraft(&mut self) {
         for owner in 0..self.players.len() {
             let ids: Vec<_> = self

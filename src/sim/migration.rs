@@ -244,7 +244,12 @@ impl Simulation {
         let migration_pct = self.city_rule_effect(
             city,
             EffectKind::MigrationPct,
-            CityRuleEffectParams::new(self.players[city.owner].government, None),
+            None,
+            None,
+            None,
+            false,
+            self.players[city.owner].government,
+            None,
         );
         migration_score(MigrationScoreInputs {
             size: city.size,
@@ -269,7 +274,12 @@ impl Simulation {
         self.city_rule_effect(
             city,
             EffectKind::CapitalCity,
-            CityRuleEffectParams::new(self.players[city.owner].government, None),
+            None,
+            None,
+            None,
+            false,
+            self.players[city.owner].government,
+            None,
         ) > 0
     }
 

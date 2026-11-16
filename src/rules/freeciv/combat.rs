@@ -1,8 +1,8 @@
 //! Typed selected-ruleset combat settings.
 
-#[cfg(test)]
-use super::{ContentKind, ContentRecord};
-use super::{LoadError, RulesetData, Value, required_parameter, required_setting};
+use super::{
+    ContentKind, ContentRecord, LoadError, RulesetData, Value, required_parameter, required_setting,
+};
 
 /// C2C3 combat-bonus operations supported by Freeciv's combat calculations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -15,9 +15,6 @@ pub(crate) enum CombatBonusKind {
 }
 
 /// Selected-ruleset policy for defending while carried by a transporter.
-// Engine vocabulary: the campaign selects only some of these values, and
-// the ruleset parser that constructs the rest is compiled for tests only.
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TransportDefense {
     Blocked,
@@ -60,7 +57,6 @@ pub(crate) struct CombatRulesetSettings {
 }
 
 impl RulesetData {
-    #[cfg(test)]
     /// Resolve a selected unit type's `tp_defense` policy. Freeciv's ruleset
     /// loader defaults an omitted field to `TDT_ALIGHT` (`server/ruleset/
     /// ruleload.c`); unmapped Civ III units use that engine default only after
@@ -98,7 +94,6 @@ impl RulesetData {
         }
     }
 
-    #[cfg(test)]
     /// Read the combat-bonus table from one selected-ruleset unit section.
     /// A unit without a `bonuses` field has no combat bonuses.
     pub(crate) fn unit_combat_bonuses(
@@ -225,7 +220,6 @@ impl RulesetData {
     }
 }
 
-#[cfg(test)]
 fn parse_unit_combat_bonuses(record: &ContentRecord) -> Result<Vec<UnitCombatBonus>, LoadError> {
     let mut fields = record
         .fields
@@ -341,7 +335,6 @@ fn parse_unit_combat_bonuses(record: &ContentRecord) -> Result<Vec<UnitCombatBon
         .collect()
 }
 
-#[cfg(test)]
 fn parse_combat_bonus_kind(name: &str) -> Option<CombatBonusKind> {
     match name.to_ascii_lowercase().as_str() {
         "defensemultiplier" => Some(CombatBonusKind::DefenseMultiplier),

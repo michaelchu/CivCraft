@@ -109,7 +109,7 @@ fn a_planted_spy_can_steal_technology_and_discovery_removes_it_and_starts_ai_war
             assert!(relation.trust[1] < -1_000);
             assert!(relation.cause_until[1] > game.turn);
             game.advance_ai_war_plans();
-            assert!(game.ai.war_plans.contains_key(&(1, HUMAN)));
+            assert!(game.ai_war_plans.contains_key(&(1, HUMAN)));
             caught = true;
             break;
         }

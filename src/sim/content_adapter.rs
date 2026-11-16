@@ -2,18 +2,10 @@
 //! catalogs. These bindings keep existing serialized wrappers stable while
 //! the Freeciv ruleset model is connected to gameplay one subsystem at a time.
 
-use crate::rules::Tech;
-use crate::rules::freeciv::RulesetData;
-#[cfg(test)]
-use crate::{
-    rules::{
-        Building,
-        freeciv::{ContentKind, SourceContentRecord},
-    },
-    sim::UnitKind,
-};
+use crate::rules::freeciv::{ContentKind, RulesetData, SourceContentRecord};
+use crate::rules::{Building, Tech};
+use crate::sim::UnitKind;
 
-#[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum StableContentId {
     Unit(UnitKind),
@@ -22,7 +14,6 @@ pub(crate) enum StableContentId {
     Civilization(String),
 }
 
-#[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ContentBinding {
     pub(crate) kind: ContentKind,
@@ -33,7 +24,6 @@ pub(crate) struct ContentBinding {
     pub(crate) mapping_note: String,
 }
 
-#[cfg(test)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Civ3ContentBindings {
     pub(crate) records: Vec<ContentBinding>,
@@ -56,7 +46,6 @@ impl std::fmt::Display for ContentBindingError {
 
 impl std::error::Error for ContentBindingError {}
 
-#[cfg(test)]
 impl Civ3ContentBindings {
     pub(crate) fn build(ruleset: &RulesetData) -> Result<Self, ContentBindingError> {
         let mut records = Vec::with_capacity(ruleset.source_content.len());
@@ -80,7 +69,6 @@ impl Civ3ContentBindings {
         Ok(Self { records })
     }
 
-    #[cfg(test)]
     pub(crate) fn count(&self, kind: ContentKind, mapped: bool) -> usize {
         self.records
             .iter()
@@ -88,7 +76,6 @@ impl Civ3ContentBindings {
             .count()
     }
 
-    #[cfg(test)]
     pub(crate) fn by_source_id(&self, kind: ContentKind, id: &str) -> Option<&ContentBinding> {
         self.records
             .iter()
@@ -177,7 +164,6 @@ pub(crate) fn bind_freeciv_technology(
     Ok(FreecivTechBinding::Bound(tech))
 }
 
-#[cfg(test)]
 fn bind_record(source: &SourceContentRecord) -> Result<ContentBinding, ContentBindingError> {
     let (runtime_id, mapping_note) = match source.kind {
         ContentKind::Unit => {
@@ -218,7 +204,6 @@ fn bind_record(source: &SourceContentRecord) -> Result<ContentBinding, ContentBi
     })
 }
 
-#[cfg(test)]
 fn bind_building(
     source: &SourceContentRecord,
 ) -> Result<(Option<StableContentId>, String), ContentBindingError> {
@@ -270,7 +255,6 @@ fn bind_building(
     }
 }
 
-#[cfg(test)]
 fn bind_technology(
     source: &SourceContentRecord,
 ) -> Result<(Option<StableContentId>, String), ContentBindingError> {
@@ -290,7 +274,6 @@ fn bind_technology(
     )))
 }
 
-#[cfg(test)]
 fn ensure_unique_runtime_ids(records: &[ContentBinding]) -> Result<(), ContentBindingError> {
     let mut ids = std::collections::HashSet::new();
     for record in records.iter().filter(|record| record.runtime_id.is_some()) {

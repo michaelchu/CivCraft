@@ -1,47 +1,16 @@
 //! Filesystem loading and typed decoding for native Freeciv rulesets.
 
 use crate::rules::freeciv::RequirementKind;
-use crate::rules::{Building, Tech};
-use crate::world::Terrain;
 use std::collections::BTreeMap;
-#[cfg(test)]
 use std::fs;
-use std::path::Path;
-#[cfg(test)]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::super::freeciv_ini::{self, Entry, Section, SectionFile, Value};
 use super::{
     ActionEnabler, ActionRecord, ContentKind, ContentRecord, EffectRecord, LoadError,
-    LoadedRuleFile, Requirement, RequirementRange, RequirementValue, ResolvedRequirementValue,
-    RuleFileSource, RuleParameter, RuleRecord, RuleSourceLocation, RulesetData, SettingRecord,
+    LoadedRuleFile, Requirement, RequirementRange, RequirementValue, RuleFileSource, RuleParameter,
+    RuleRecord, RuleSourceLocation, RulesetData, SettingRecord,
 };
-
-/// Repository-relative directory of the campaign's engine ruleset.
-const EMBEDDED_ENGINE_DIR: &str = "data/rulesets/civcraft/engine";
-
-macro_rules! embedded_engine_files {
-    ($($file:literal),* $(,)?) => {
-        /// The campaign's engine ruleset files, compiled into the binary.
-        const EMBEDDED_ENGINE_FILES: &[(&str, &str)] = &[
-            $(($file, include_str!(concat!("../../../data/rulesets/civcraft/engine/", $file))),)*
-        ];
-    };
-}
-
-embedded_engine_files!(
-    "game.ruleset",
-    "actions.ruleset",
-    "techs.ruleset",
-    "buildings.ruleset",
-    "governments.ruleset",
-    "units.ruleset",
-    "terrain.ruleset",
-    "styles.ruleset",
-    "cities.ruleset",
-    "nations.ruleset",
-    "effects.ruleset",
-);
 
 pub(crate) const RULESET_FILES: &[&str] = &[
     "game.ruleset",
@@ -58,54 +27,14 @@ pub(crate) const RULESET_FILES: &[&str] = &[
 ];
 
 impl RulesetData {
-    #[cfg(test)]
     /// Load one named ruleset. Missing files use Freeciv's whole-file
     /// `default/` fallback; no sections or keys are merged across files.
     pub(crate) fn load(data_root: &Path, name: &str) -> Result<Self, LoadError> {
         Self::load_from_directory(data_root, &data_root.join(name), name)
     }
 
-    /// Load the campaign's engine ruleset from the copies compiled into the
-    /// binary, so a built game does not depend on its source checkout. Paths
-    /// in load errors are reported relative to the repository root.
-    pub(crate) fn load_embedded(name: &str) -> Result<Self, LoadError> {
-        let mut files = Vec::new();
-        for file_name in RULESET_FILES {
-            let source = EMBEDDED_ENGINE_FILES
-                .iter()
-                .find(|(embedded, _)| embedded == file_name)
-                .map(|(_, source)| *source)
-                .ok_or_else(|| LoadError::new(format!("{file_name} is not embedded")))?;
-            let path = Path::new(EMBEDDED_ENGINE_DIR).join(file_name);
-            let parsed = parse_section_file(source, &path)?;
-            if let Some((section, entry)) = parsed.sections.iter().find_map(|section| {
-                section
-                    .entries
-                    .iter()
-                    .find(|entry| entry.key == "*include")
-                    .map(|entry| (section, entry))
-            }) {
-                return Err(LoadError::at_line(
-                    &path,
-                    &section.name,
-                    &entry.key,
-                    entry.line,
-                    "embedded ruleset files cannot include other files",
-                ));
-            }
-            files.push(LoadedRuleFile {
-                name: (*file_name).to_owned(),
-                parsed: merge_repeated_sections(parsed, &path)?,
-                path,
-                source: RuleFileSource::SelectedRuleset,
-            });
-        }
-        Self::from_files(name, files)
-    }
-
     /// Load a ruleset whose selected files live in a package subdirectory.
     /// Shared Freeciv fallback files remain rooted at `data_root`.
-    #[cfg(test)]
     pub(crate) fn load_from_directory(
         data_root: &Path,
         ruleset_dir: &Path,
@@ -184,7 +113,7 @@ impl RulesetData {
             }
         }
 
-        let mut rules = Self {
+        let rules = Self {
             name: name.to_owned(),
             files,
             settings,
@@ -197,140 +126,10 @@ impl RulesetData {
             rule_records,
         };
         validate_requirement_values(&rules)?;
-        resolve_requirement_values(&mut rules);
         Ok(rules)
     }
 }
 
-/// Resolve runtime-backed requirement names once, at ruleset load time. Names
-/// without a stable CivCraft identity intentionally remain strings: they are
-/// still valid Freeciv content, but cannot be evaluated against campaign
-/// state by the runtime adapters.
-pub(super) fn resolve_requirement_values(rules: &mut RulesetData) {
-    for effect in rules.effects.iter_mut() {
-        resolve_requirements(&mut effect.requirements);
-    }
-    for enabler in &mut rules.action_enablers {
-        resolve_requirements(&mut enabler.actor_requirements);
-        resolve_requirements(&mut enabler.target_requirements);
-    }
-    for record in &mut rules.content {
-        resolve_requirements(&mut record.requirements);
-        resolve_requirements(&mut record.obsolete_by);
-    }
-    for record in &mut rules.rule_records {
-        resolve_requirements(&mut record.requirements);
-    }
-}
-
-fn resolve_requirements(requirements: &mut [Requirement]) {
-    for requirement in requirements {
-        let RequirementValue::String(name) = &requirement.name else {
-            continue;
-        };
-        let resolved = match requirement.kind {
-            RequirementKind::Tech => resolve_tech(name).map(ResolvedRequirementValue::Tech),
-            RequirementKind::Building => {
-                resolve_building(name).map(ResolvedRequirementValue::Building)
-            }
-            RequirementKind::Terrain => {
-                resolve_terrain(name).map(ResolvedRequirementValue::Terrain)
-            }
-            _ => None,
-        };
-        if let Some(resolved) = resolved {
-            requirement.resolved = Some(resolved);
-        }
-    }
-}
-
-fn resolve_tech(name: &str) -> Option<Tech> {
-    if name.eq_ignore_ascii_case("Plastics") {
-        return None;
-    }
-    if name.eq_ignore_ascii_case("Radio") {
-        return Some(Tech::FLIGHT);
-    }
-    if let Some(tech) = Tech::all()
-        .find(|tech| tech.name().eq_ignore_ascii_case(name))
-        .and_then(|tech| {
-            tech.is_civ3_advance()
-                .then_some(tech)
-                .or_else(|| tech.civ3_equivalent())
-        })
-    {
-        return Some(tech);
-    }
-    let source = crate::rules::native::technologies()
-        .technologies
-        .iter()
-        .find(|source| {
-            source.name.eq_ignore_ascii_case(name)
-                || (name.eq_ignore_ascii_case("Superconductors")
-                    && source.name.eq_ignore_ascii_case("Superconductor"))
-                || (name.eq_ignore_ascii_case("Amphibious Warfare")
-                    && source.name.eq_ignore_ascii_case("Amphibious War"))
-                || (name.eq_ignore_ascii_case("Conscription")
-                    && source.name.eq_ignore_ascii_case("Nationalism"))
-                || (name.eq_ignore_ascii_case("Environmentalism")
-                    && source.name.eq_ignore_ascii_case("Ecology"))
-                || (name.eq_ignore_ascii_case("Laser")
-                    && source.name.eq_ignore_ascii_case("The Laser"))
-                || (name.eq_ignore_ascii_case("Mobile Warfare")
-                    && source.name.eq_ignore_ascii_case("Motorized Transportation"))
-                || (name.eq_ignore_ascii_case("Nuclear Fission")
-                    && source.name.eq_ignore_ascii_case("Fission"))
-        })?;
-    Tech::all().find(|tech| {
-        tech.name().eq_ignore_ascii_case(&source.name)
-            || (source.name.eq_ignore_ascii_case("Amphibious War")
-                && *tech == Tech::AMPHIBIOUS_WARFARE)
-    })
-}
-
-fn resolve_building(name: &str) -> Option<Building> {
-    Building::all().find(|building| {
-        building.data().name.eq_ignore_ascii_case(name)
-            || (building.data().name.eq_ignore_ascii_case("Harbor")
-                && name.eq_ignore_ascii_case("Harbour"))
-            || (building
-                .data()
-                .name
-                .eq_ignore_ascii_case("Shakespeare's Theater")
-                && name.eq_ignore_ascii_case("Shakespeare's Theatre"))
-    })
-}
-
-fn resolve_terrain(name: &str) -> Option<Terrain> {
-    match name.to_ascii_lowercase().as_str() {
-        "ocean" => Some(Terrain::Sea),
-        "deep ocean" => Some(Terrain::Ocean),
-        "swamp" => Some(Terrain::Marsh),
-        _ => [
-            Terrain::Sea,
-            Terrain::Ocean,
-            Terrain::Lake,
-            Terrain::Glacier,
-            Terrain::Jungle,
-            Terrain::Desert,
-            Terrain::Forest,
-            Terrain::Grassland,
-            Terrain::Hills,
-            Terrain::Mountains,
-            Terrain::Plains,
-            Terrain::Marsh,
-            Terrain::Tundra,
-            Terrain::Coast,
-            Terrain::FloodPlains,
-            Terrain::Volcano,
-            Terrain::GrasslandShield,
-        ]
-        .into_iter()
-        .find(|terrain| terrain.name().eq_ignore_ascii_case(name)),
-    }
-}
-
-#[cfg(test)]
 fn resolve_ruleset_file(
     data_root: &Path,
     ruleset_dir: &Path,
@@ -357,18 +156,6 @@ fn resolve_ruleset_file(
     )))
 }
 
-/// Parse one ruleset file's text, attributing syntax errors to `path`.
-fn parse_section_file(source: &str, path: &Path) -> Result<SectionFile, LoadError> {
-    freeciv_ini::parse(source).map_err(|error| LoadError {
-        file: Some(path.to_path_buf()),
-        section: (!error.context.is_empty()).then_some(error.context.clone()),
-        key: None,
-        line: Some(error.line),
-        message: error.message,
-    })
-}
-
-#[cfg(test)]
 fn load_section_file(
     data_root: &Path,
     path: &Path,
@@ -393,7 +180,13 @@ fn load_section_file(
             format!("cannot read ruleset file: {error}"),
         )
     })?;
-    let parsed = parse_section_file(&source, &canonical_path)?;
+    let parsed = freeciv_ini::parse(&source).map_err(|error| LoadError {
+        file: Some(canonical_path.clone()),
+        section: (!error.context.is_empty()).then_some(error.context.clone()),
+        key: None,
+        line: Some(error.line),
+        message: error.message,
+    })?;
     let mut expanded = SectionFile::default();
 
     for section in parsed.sections {
@@ -788,7 +581,6 @@ fn parse_requirement(
     Ok(Requirement {
         kind,
         name,
-        resolved: None,
         range,
         present: row_bool(file, section, entry, row, "present", true)?,
         survives: row_bool(file, section, entry, row, "survives", false)?,

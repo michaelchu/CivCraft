@@ -60,44 +60,26 @@ impl Game {
             }
             UiAction::CityTiles => self.city_tiles = !self.city_tiles,
             UiAction::WorkCityTile(city, x, y) => {
-                self.sim.apply(Command::WorkCityTile {
-                    city_id: city,
-                    x,
-                    y,
-                });
+                self.sim.apply(Command::WorkCityTile(city, x, y));
             }
             UiAction::Specialist(city, index, delta) => {
-                self.sim.apply(Command::Specialist {
-                    city_id: city,
-                    index,
-                    delta,
-                });
+                self.sim.apply(Command::Specialist(city, index, delta));
             }
             UiAction::Disband(city) => {
                 if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::Disband {
-                        unit_id: id,
-                        city_id: city,
-                    })
+                    && self.sim.apply(Command::Disband(id, city))
                 {
                     self.select_next_unit();
                 }
             }
             UiAction::UpgradeUnit(target, price) => {
                 if let Some(id) = self.selected_unit {
-                    self.sim.apply(Command::UpgradeUnit {
-                        unit_id: id,
-                        target,
-                        price,
-                    });
+                    self.sim.apply(Command::UpgradeUnit(id, target, price));
                 }
             }
             UiAction::HelpWonder(city) => {
                 if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::HelpWonder {
-                        unit_id: id,
-                        city_id: city,
-                    })
+                    && self.sim.apply(Command::HelpWonder(id, city))
                 {
                     self.select_next_unit();
                 }
@@ -187,10 +169,7 @@ impl Game {
             }
             UiAction::JoinCity(city) => {
                 if let Some(id) = self.selected_unit
-                    && self.sim.apply(Command::JoinCity {
-                        unit_id: id,
-                        city_id: city,
-                    })
+                    && self.sim.apply(Command::JoinCity(id, city))
                 {
                     self.select_next_unit();
                 }
@@ -249,7 +228,7 @@ impl Game {
                 self.sim.apply(Command::ToggleManualAssembly);
             }
             UiAction::PlaceShipPart(part) => {
-                self.sim.apply(Command::PlaceShipPart { part });
+                self.sim.apply(Command::PlaceShipPart(part));
             }
             UiAction::EndTurn => {
                 if self.sim.apply(Command::EndTurn) {
@@ -339,7 +318,7 @@ impl Game {
             UiAction::UnitProductionPage(page) => self.unit_production_page = page,
             UiAction::WorklistPage(page) => self.worklist_page = page,
             UiAction::EditWorklist(id, edit) => {
-                self.sim.apply(Command::EditWorklist { city_id: id, edit });
+                self.sim.apply(Command::EditWorklist(id, edit));
             }
             UiAction::ToggleDiplomacy => {
                 self.overlay.toggle(Overlay::Diplomacy);

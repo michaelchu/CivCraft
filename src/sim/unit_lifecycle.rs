@@ -5,16 +5,15 @@ use super::*;
 impl Simulation {
     pub(in crate::sim) fn prune_unit_ai_state(&mut self) {
         let ids: std::collections::BTreeSet<_> = self
-            .ai
-            .ground_targets
+            .ai_ground_targets
             .keys()
-            .chain(self.ai.settlement_targets.keys())
-            .chain(self.ai.ferries.boats.keys())
-            .chain(self.ai.ferries.passengers.keys())
-            .chain(self.ai.guard_targets.keys())
-            .chain(self.ai.unit_guards.keys())
+            .chain(self.ai_settlement_targets.keys())
+            .chain(self.ai_ferries.boats.keys())
+            .chain(self.ai_ferries.passengers.keys())
+            .chain(self.ai_guard_targets.keys())
+            .chain(self.ai_unit_guards.keys())
             .chain(self.unit_goto_tiles.keys())
-            .chain(self.ai.worker_tasks.iter())
+            .chain(self.ai_worker_tasks.iter())
             .copied()
             .filter(|id| !self.units.iter().any(|unit| unit.id == *id))
             .collect();
@@ -29,11 +28,11 @@ impl Simulation {
     pub(in crate::sim) fn discard_unit_ai(&mut self, id: u32) {
         self.list_order.forget_unit(id);
         self.unit_goto_tiles.remove(&id);
-        self.ai.worker_tasks.remove(&id);
+        self.ai_worker_tasks.remove(&id);
         self.forget_ai_guard_unit(id);
-        self.ai.ferries.forget(id);
-        self.ai.ground_targets.remove(&id);
-        self.ai.settlement_targets.remove(&id);
+        self.ai_ferries.forget(id);
+        self.ai_ground_targets.remove(&id);
+        self.ai_settlement_targets.remove(&id);
     }
 
     pub(in crate::sim) fn spawn_unit(
@@ -47,12 +46,12 @@ impl Simulation {
         self.next_unit_id += 1;
         self.units.push(self.make_unit(id, owner, kind, x, y));
         self.list_order.unit(self.units.last().unwrap());
-        if self.visibility.refresh_deferred {
+        if self.visibility_refresh_deferred {
             let unit = self.units.last().unwrap().clone();
             self.record_visibility_render_scope(&unit, (x, y), (x, y));
         }
         if Self::is_ai_ferry(kind) {
-            self.ai.ferries.boats.insert(
+            self.ai_ferries.boats.insert(
                 id,
                 ferries::BoatRecord {
                     owner,

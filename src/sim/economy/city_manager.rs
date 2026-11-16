@@ -196,17 +196,20 @@ impl Simulation {
             .map(|group| [group.1.0, group.1.1, group.1.2, 0, 0, 0])
             .collect();
         for (specialist, output_type, output_index) in [
-            (CitySpecialist::Scientist, CityOutputType::Science, 5),
-            (CitySpecialist::Taxman, CityOutputType::Gold, 3),
-            (CitySpecialist::Elvis, CityOutputType::Luxury, 4),
+            ("Scientist", "Science", 5),
+            ("Taxman", "Gold", 3),
+            ("Elvis", "Luxury", 4),
         ] {
             let mut output = [0; 6];
             output[output_index] = self.city_rule_effect(
                 city,
                 EffectKind::SpecialistOutput,
-                CityRuleEffectParams::new(self.players[city.owner].government, None)
-                    .with_output_type(output_type)
-                    .with_specialist(specialist),
+                None,
+                Some(output_type),
+                Some(specialist),
+                false,
+                self.players[city.owner].government,
+                None,
             );
             production.push(output);
         }

@@ -1,6 +1,6 @@
 //! Route construction and traversal helpers for the parent subsystem.
 
-use super::super::pathfinding::{Frontier, moves_left_after, reconstruct_path};
+use super::super::pathfinding::reconstruct_path;
 use super::*;
 
 type RouteSearchResult = (
@@ -10,7 +10,7 @@ type RouteSearchResult = (
 );
 
 impl Simulation {
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(in crate::sim) fn path_to(&self, unit_id: u32, tx: i32, ty: i32) -> Vec<(i32, i32)> {
         let Some(unit) = self.unit_by_id(unit_id) else {
             return Vec::new();
@@ -45,7 +45,7 @@ impl Simulation {
         self.search_route_graph(unit, tx, ty, observed, limit)
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(in crate::sim) fn route_cost_within(
         &self,
         unit: &Unit,
@@ -170,17 +170,18 @@ impl Simulation {
         let mut goal_tiles_settled = vec![false; self.tiles.len()];
         let mut terminal_only = vec![false; self.tiles.len()];
         let mut settled_goal_count = 0;
-        // Routes are ranked by movement spent, then by step count; equal
-        // routes settle in the order they were queued.
-        let mut frontier: Frontier<(i32, usize), u32> =
-            Frontier::new(self.tiles.len(), (i32::MAX, usize::MAX));
-        frontier.push(start, (0, 0), 0, ());
+        let mut queue = BinaryHeap::from([Reverse((0, 0, 0, start))]);
+        let mut best = vec![(i32::MAX, usize::MAX); self.tiles.len()];
         let mut previous = capture_path.then(|| vec![None; self.tiles.len()]);
         let mut sequence = 0;
         let mut step_unit = unit.clone();
         let allowance = self.unit_move_rate(unit).max(1);
+        best[start] = (0, 0);
         let mut expanded = 0_u64;
-        while let Some(((spent, steps), current, ())) = frontier.pop() {
+        while let Some(Reverse((spent, steps, _, current))) = queue.pop() {
+            if best[current] != (spent, steps) {
+                continue;
+            }
             expanded += 1;
             if goal_tiles[current] && !goal_tiles_settled[current] {
                 goal_tiles_settled[current] = true;
@@ -194,7 +195,11 @@ impl Simulation {
             }
             let (cx, cy) = self.map_wrap.position(current);
             (step_unit.x, step_unit.y) = (cx, cy);
-            let remaining = moves_left_after(spent, unit.moves_left, allowance);
+            let remaining = if spent < unit.moves_left {
+                unit.moves_left - spent
+            } else {
+                allowance - (spent - unit.moves_left.max(0)) % allowance
+            };
             for (dx, dy) in CIV3_DIRS {
                 let Some((nx, ny)) = self.map_wrap.civ3_offset(cx, cy, dx, dy) else {
                     continue;
@@ -219,7 +224,7 @@ impl Simulation {
                     continue;
                 };
                 let candidate = (spent + cost.min(remaining), steps + 1);
-                if candidate.0 > limit || !frontier.improves(ni, candidate) {
+                if candidate.0 > limit || candidate >= best[ni] {
                     continue;
                 }
                 let enemy_block;
@@ -263,14 +268,15 @@ impl Simulation {
                 {
                     continue;
                 }
+                best[ni] = candidate;
                 terminal_only[ni] = terminal_fallback || enemy_block;
                 if let Some(previous) = &mut previous {
                     previous[ni] = Some((current, (dx, dy)));
                 }
                 sequence += 1;
-                frontier.push(ni, candidate, sequence, ());
+                queue.push(Reverse((candidate.0, candidate.1, sequence, ni)));
             }
         }
-        (frontier.into_costs(), previous, expanded)
+        (best, previous, expanded)
     }
 }

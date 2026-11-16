@@ -1,18 +1,11 @@
 //! Advisor assessment of military threats and urgency.
 
-use super::{ADVISOR_POWER_DIVIDER, GuardCityAssessment};
-use crate::rules::freeciv::EffectKind;
-use crate::sim::pathfinding::{Frontier, moves_left_after};
-use crate::sim::unit_catalog::{UnitClass, UnitFlag};
-use crate::sim::{
-    Base, Building, CITY_DEFEND_BONUS, City, CityRuleEffectParams, FORTIFY_DEFENSE_BONUS,
-    LARGE_CITY_DEFEND_BONUS, LARGE_CITY_SIZE, MOVE_FRAGMENTS, POWER_FACTOR, Simulation, Unit,
-    UnitKind, apply_percent_bonus, percent_of,
-};
+use super::*;
 
 impl Simulation {
     pub(in crate::sim) fn begin_ai_advisor_cache(&self) {
-        self.caches.clear_advisor_threats();
+        self.ai_threat_arrival_cache.borrow_mut().clear();
+        self.ai_danger_route_cache.borrow_mut().clear();
         let tile_count = self.tiles.len();
         let mut tile_unit_indices = vec![Vec::new(); tile_count];
         for (unit_index, unit) in self.units.iter().enumerate() {
@@ -28,7 +21,7 @@ impl Simulation {
             });
         }
         let tile_unit_revision = self.list_order.tile_revision();
-        let mut spatial = self.caches.spatial.borrow_mut();
+        let mut spatial = self.ai_spatial_index.borrow_mut();
         spatial.tile_unit_indices = Some(tile_unit_indices);
         spatial.tile_unit_revision = tile_unit_revision;
         spatial.unit_head.clear();
@@ -46,20 +39,28 @@ impl Simulation {
             spatial.city_at[self.map_wrap.index(city.x, city.y)] = Some(city_index);
         }
         spatial.continent_labels = self.continent_labels();
-        self.caches.advisor_enabled.set(true);
-        self.caches.threat_routes_enabled.set(true);
+        self.ai_advisor_cache_enabled.set(true);
+        self.ai_threat_route_cache_enabled.set(true);
     }
 
     pub(in crate::sim) fn end_ai_advisor_cache(&self) {
-        self.caches.end_advisor_cache();
+        self.ai_advisor_cache_enabled.set(false);
+        self.ai_threat_route_cache_enabled.set(false);
+        self.ai_threat_arrival_cache.borrow_mut().clear();
+        self.ai_danger_route_cache.borrow_mut().clear();
+        *self.ai_spatial_index.borrow_mut() = Default::default();
     }
 
     pub(in crate::sim) fn end_ai_advisor_cache_preserving_threat_routes(&self) {
-        self.caches.end_advisor_cache_preserving_threat_routes();
+        self.ai_advisor_cache_enabled.set(false);
+        *self.ai_spatial_index.borrow_mut() = Default::default();
+        self.ai_threat_route_cache_enabled.set(true);
     }
 
     pub(in crate::sim) fn clear_ai_threat_route_cache(&self) {
-        self.caches.clear_ai_threat_route_cache();
+        self.ai_threat_route_cache_enabled.set(false);
+        self.ai_threat_arrival_cache.borrow_mut().clear();
+        self.ai_danger_route_cache.borrow_mut().clear();
     }
 
     pub(in crate::sim) fn any_unit_at(
@@ -68,13 +69,13 @@ impl Simulation {
         y: i32,
         predicate: impl Fn(&Unit) -> bool,
     ) -> bool {
-        if !self.caches.advisor_cache_enabled() {
+        if !self.ai_advisor_cache_enabled.get() {
             return self
                 .units
                 .iter()
                 .any(|unit| (unit.x, unit.y) == (x, y) && predicate(unit));
         }
-        let spatial = self.caches.spatial.borrow();
+        let spatial = self.ai_spatial_index.borrow();
         let mut unit_index = spatial.unit_head[self.map_wrap.index(x, y)];
         while let Some(index) = unit_index {
             if predicate(&self.units[index]) {
@@ -90,8 +91,8 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn city_at_cached(&self, x: i32, y: i32) -> Option<&City> {
-        if self.caches.advisor_cache_enabled() {
-            let index = self.caches.spatial.borrow().city_at[self.map_wrap.index(x, y)]?;
+        if self.ai_advisor_cache_enabled.get() {
+            let index = self.ai_spatial_index.borrow().city_at[self.map_wrap.index(x, y)]?;
             self.cities.get(index)
         } else {
             self.cities.iter().find(|city| (city.x, city.y) == (x, y))
@@ -104,19 +105,19 @@ impl Simulation {
         y: i32,
         predicate: impl Fn(&City) -> bool,
     ) -> bool {
-        if !self.caches.advisor_cache_enabled() {
+        if !self.ai_advisor_cache_enabled.get() {
             return self
                 .cities
                 .iter()
                 .any(|city| (city.x, city.y) == (x, y) && predicate(city));
         }
-        self.caches.spatial.borrow().city_at[self.map_wrap.index(x, y)]
+        self.ai_spatial_index.borrow().city_at[self.map_wrap.index(x, y)]
             .is_some_and(|index| predicate(&self.cities[index]))
     }
 
     pub(in crate::sim) fn advisor_continent_labels(&self) -> Vec<usize> {
-        if self.caches.advisor_cache_enabled() {
-            self.caches.spatial.borrow().continent_labels.clone()
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index.borrow().continent_labels.clone()
         } else {
             self.continent_labels()
         }
@@ -131,33 +132,41 @@ impl Simulation {
     }
 
     pub(super) fn danger_route_turns(&self, unit: &Unit, city: &City) -> Option<i32> {
-        if self.caches.threat_route_cache_enabled() && !unit.kind.is_naval() {
+        if self.ai_threat_route_cache_enabled.get() && !unit.kind.is_naval() {
             let goal = self.map_wrap.index(city.x, city.y);
-            if let Some(costs) = self.caches.danger_route(unit.id) {
+            if let Some(costs) = self.ai_danger_route_cache.borrow().get(&unit.id) {
                 let spent = costs[goal];
                 return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
             }
             let costs = self.danger_route_costs(unit)?;
             let spent = costs[goal];
-            self.caches.store_danger_route(unit.id, costs);
+            self.ai_danger_route_cache
+                .borrow_mut()
+                .insert(unit.id, costs);
             return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
         }
         self.danger_route_turns_uncached(unit, city)
     }
 
     fn danger_route_costs(&self, unit: &Unit) -> Option<Vec<i32>> {
+        use std::{cmp::Reverse, collections::BinaryHeap};
         let allowance = self.unit_move_rate(unit);
         if allowance <= 0 {
             return None;
         }
         let limit = 4 * allowance - 1; // normal assess_danger horizon: turns0..3
         let start = self.map_wrap.index(unit.x, unit.y);
-        let mut frontier = Frontier::from_start(self.tiles.len(), i32::MAX, start, 0);
+        let mut distance = vec![i32::MAX; self.tiles.len()];
+        let mut queue = BinaryHeap::from([Reverse((0, start))]);
+        distance[start] = 0;
         let mut actor = unit.clone();
         actor.moves_left = allowance;
-        while let Some((spent, index, ())) = frontier.pop() {
+        while let Some(Reverse((spent, index))) = queue.pop() {
+            if distance[index] != spent {
+                continue;
+            }
             (actor.x, actor.y) = self.map_wrap.position(index);
-            let remaining = moves_left_after(spent, allowance, allowance);
+            let remaining = allowance - spent % allowance;
             for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
                 let index = self.map_wrap.index(x, y);
                 let cost = self.movement_cost_for(&actor, x, y);
@@ -165,15 +174,17 @@ impl Simulation {
                     continue;
                 };
                 let candidate = spent + cost.min(remaining);
-                if candidate <= limit {
-                    frontier.relax(index, candidate);
+                if candidate <= limit && candidate < distance[index] {
+                    distance[index] = candidate;
+                    queue.push(Reverse((candidate, index)));
                 }
             }
         }
-        Some(frontier.into_costs())
+        Some(distance)
     }
 
     fn danger_route_turns_uncached(&self, unit: &Unit, city: &City) -> Option<i32> {
+        use std::{cmp::Reverse, collections::BinaryHeap};
         // pft_fill_reverse_parameter uses a terrain-only reverse map: no
         // current movement, diplomacy, ZOC, fog or intervening-unit blockers.
         let allowance = self.unit_move_rate(unit);
@@ -183,15 +194,20 @@ impl Simulation {
         let limit = 4 * allowance - 1;
         let start = self.map_wrap.index(unit.x, unit.y);
         let goal = self.map_wrap.index(city.x, city.y);
-        let mut frontier = Frontier::from_start(self.tiles.len(), i32::MAX, start, 0);
+        let mut distance = vec![i32::MAX; self.tiles.len()];
+        let mut queue = BinaryHeap::from([Reverse((0, start))]);
+        distance[start] = 0;
         let mut actor = unit.clone();
         actor.moves_left = allowance;
-        while let Some((spent, index, ())) = frontier.pop() {
+        while let Some(Reverse((spent, index))) = queue.pop() {
+            if distance[index] != spent {
+                continue;
+            }
             if index == goal {
                 return Some(spent / allowance);
             }
             (actor.x, actor.y) = self.map_wrap.position(index);
-            let remaining = moves_left_after(spent, allowance, allowance);
+            let remaining = allowance - spent % allowance;
             for (x, y) in self.map_wrap.civ3_neighbors(actor.x, actor.y) {
                 let index = self.map_wrap.index(x, y);
                 let cost = self.movement_cost_for(&actor, x, y).or_else(|| {
@@ -203,8 +219,9 @@ impl Simulation {
                     continue;
                 };
                 let candidate = spent + cost.min(remaining);
-                if candidate <= limit {
-                    frontier.relax(index, candidate);
+                if candidate <= limit && candidate < distance[index] {
+                    distance[index] = candidate;
+                    queue.push(Reverse((candidate, index)));
                 }
             }
         }
@@ -212,13 +229,13 @@ impl Simulation {
     }
 
     pub(super) fn city_danger_arrival(&self, unit: &Unit, city: &City) -> Option<i32> {
-        if self.caches.threat_route_cache_enabled() {
+        if self.ai_threat_route_cache_enabled.get() {
             let key = (unit.id, city.id);
-            if let Some(turns) = self.caches.threat_arrival(key) {
-                return turns;
+            if let Some(turns) = self.ai_threat_arrival_cache.borrow().get(&key) {
+                return *turns;
             }
             let turns = self.city_danger_arrival_uncached(unit, city);
-            self.caches.store_threat_arrival(key, turns);
+            self.ai_threat_arrival_cache.borrow_mut().insert(key, turns);
             return turns;
         }
         self.city_danger_arrival_uncached(unit, city)
@@ -285,11 +302,10 @@ impl Simulation {
     /// three-turn horizon. Ratings remain integer at native assignment points.
     pub(in crate::sim) fn advisor_guard_city_assessment(&self, city: &City) -> GuardCityAssessment {
         self.trace.count_operation("guard_assessment.calls", 1);
-        let cache_enabled = self.caches.advisor_cache_enabled();
+        let cache_enabled = self.ai_advisor_cache_enabled.get();
         if cache_enabled
             && let Some(assessment) = self
-                .caches
-                .spatial
+                .ai_spatial_index
                 .borrow()
                 .guard_assessments
                 .get(&city.id)
@@ -341,9 +357,8 @@ impl Simulation {
             defense += rating;
         }
         result.defense = defense.min(1 << 15).pow(2);
-        if self.caches.advisor_cache_enabled() {
-            self.caches
-                .spatial
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
                 .borrow_mut()
                 .guard_assessments
                 .insert(city.id, result);
@@ -425,8 +440,12 @@ impl Simulation {
         self.city_rule_effect(
             city,
             EffectKind::DefendBonus,
-            CityRuleEffectParams::new(self.players[city.owner].government, None)
-                .with_tile(Some((city.x, city.y))),
+            Some((city.x, city.y)),
+            None,
+            None,
+            false,
+            self.players[city.owner].government,
+            None,
         ) > 0
     }
 

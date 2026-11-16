@@ -7,7 +7,7 @@ impl Simulation {
         let rules = crate::sim::civ3_unit_rules::all();
         let roster = UnitKind::ALL_NATIVE;
         let source_matches = roster.iter().zip(rules).all(|(kind, rule)| {
-            kind.conquests_id() == Some(rule.id()) && kind.name() == rule.name && {
+            kind.conquests_id() == Some(rule.id) && kind.name() == rule.name && {
                 let stats = kind.stats();
                 (
                     stats.cost,
@@ -16,7 +16,7 @@ impl Simulation {
                     stats.defense,
                     stats.moves,
                 ) == (
-                    rule.cost_shields,
+                    rule.cost,
                     rule.population_cost,
                     rule.attack,
                     rule.defense,
@@ -30,7 +30,7 @@ impl Simulation {
                 .is_some_and(|rule| {
                     rule.category == "wonder_created"
                         || !rule.available_to.is_empty()
-                        || matches!(rule.id(), "army" | "leader")
+                        || matches!(rule.id, "army" | "leader")
                 })
         });
         let order = roster.len() == 92
@@ -38,7 +38,7 @@ impl Simulation {
             && roster
                 .iter()
                 .map(|kind| kind.conquests_id())
-                .eq(rules.iter().map(|rule| Some(rule.id())));
+                .eq(rules.iter().map(|rule| Some(rule.id)));
         (source_matches, civ_rules_complete, order)
     }
 }

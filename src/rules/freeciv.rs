@@ -58,9 +58,6 @@ pub(crate) struct LoadedRuleFile {
     pub(crate) parsed: SectionFile,
 }
 
-// The embedded campaign ruleset always supplies its own files; the fallback
-// sources are produced only by the directory loader, which tests use.
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RuleFileSource {
     SelectedRuleset,
@@ -110,6 +107,26 @@ impl RuleParameter {
             Value::Integer(value) => Ok(Some(*value)),
             other => Err(format!(
                 "{}.{} must be an integer, found {other:?}",
+                self.section, self.key
+            )),
+        }
+    }
+
+    pub(crate) fn integer_list_value(&self) -> Result<Option<Vec<i64>>, String> {
+        match &self.value {
+            Value::List(values) => values
+                .iter()
+                .map(|value| match value {
+                    Value::Integer(value) => Ok(*value),
+                    other => Err(format!(
+                        "{}.{} must be an integer list, found item {other:?}",
+                        self.section, self.key
+                    )),
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(Some),
+            other => Err(format!(
+                "{}.{} must be an integer list, found {other:?}",
                 self.section, self.key
             )),
         }
@@ -259,7 +276,6 @@ pub(crate) enum RevolutionType {
     RandomQuick,
 }
 
-#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HappyBorders {
     Disabled,
@@ -309,7 +325,6 @@ impl MissingUnitUpkeepSettings {
     }
 }
 
-#[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct UnitHappinessRulesetSettings {
     pub(crate) borders_enabled: bool,
@@ -396,9 +411,6 @@ pub(crate) struct StartPositionScoringSettings {
     pub(crate) mining_percent: i32,
 }
 
-// Engine vocabulary: the campaign selects only some of these values, and
-// the ruleset parser that constructs the rest is compiled for tests only.
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum VictoryCondition {
     SpaceRace,
@@ -426,45 +438,11 @@ pub(crate) struct Requirement {
     /// A string, integer, or boolean universal value. Native rulesets use
     /// strings for most names and may use integers for numeric universals.
     pub(crate) name: RequirementValue,
-    /// Runtime identity resolved during ruleset loading for the universals
-    /// whose names bind to stable campaign catalogs.
-    pub(crate) resolved: Option<ResolvedRequirementValue>,
     pub(crate) range: RequirementRange,
     pub(crate) present: bool,
     pub(crate) survives: bool,
     pub(crate) quiet: bool,
     pub(crate) source: RuleSourceLocation,
-}
-
-impl Requirement {
-    pub(crate) fn matches_name(&self, expected: &str) -> bool {
-        match (&self.resolved, &self.name) {
-            (Some(ResolvedRequirementValue::Tech(value)), _) => {
-                value.name().eq_ignore_ascii_case(expected)
-            }
-            (Some(ResolvedRequirementValue::Building(value)), _) => {
-                value.data().name.eq_ignore_ascii_case(expected)
-            }
-            (Some(ResolvedRequirementValue::Terrain(value)), _) => {
-                value.name().eq_ignore_ascii_case(expected)
-            }
-            (_, RequirementValue::String(value)) => value.eq_ignore_ascii_case(expected),
-            (_, RequirementValue::Integer(value)) => {
-                value.to_string().eq_ignore_ascii_case(expected)
-            }
-            (_, RequirementValue::Bool(value)) => {
-                (*value && expected.eq_ignore_ascii_case("TRUE"))
-                    || (!*value && expected.eq_ignore_ascii_case("FALSE"))
-            }
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ResolvedRequirementValue {
-    Tech(crate::rules::Tech),
-    Building(crate::rules::Building),
-    Terrain(crate::world::Terrain),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -525,10 +503,6 @@ impl EffectSet {
             .into_iter()
             .flatten()
             .map(|&index| &self.records[index])
-    }
-
-    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut EffectRecord> {
-        self.records.iter_mut()
     }
 }
 
@@ -711,7 +685,6 @@ impl ContentRecord {
     }
 }
 
-#[cfg(test)]
 /// A selected-ruleset government, retaining stable ruleset identity and the
 /// requirements and effect attributes that define its behavior.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -728,7 +701,6 @@ pub(crate) struct GovernmentRulesetRecord {
     pub(crate) attributes: EffectSet,
 }
 
-#[cfg(test)]
 impl GovernmentRulesetRecord {
     /// Evaluate an effect such as `Max_Rates` using Freeciv's shared evaluator.
     /// The caller supplies the simulation-specific requirements and multiplier
@@ -743,7 +715,6 @@ impl GovernmentRulesetRecord {
     }
 }
 
-#[cfg(test)]
 /// Government records in selected ruleset order, plus the rule selected for
 /// Freeciv's temporary government during a revolution.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -752,7 +723,6 @@ pub(crate) struct GovernmentRulesetCatalog {
     pub(crate) governments: Vec<GovernmentRulesetRecord>,
 }
 
-#[cfg(test)]
 impl GovernmentRulesetCatalog {
     pub(crate) fn get(&self, id: &str) -> Option<&GovernmentRulesetRecord> {
         self.governments
@@ -908,32 +878,24 @@ impl RulesetData {
     /// Load the single CivCraft campaign package: generic Freeciv engine
     /// inputs from `engine/`, overlaid with CivCraft-owned TOML catalogs from
     /// `content/`.
-    #[cfg(test)]
     pub(crate) fn load_civcraft(data_root: &Path) -> Result<Self, LoadError> {
         let engine_dir = data_root.join("civcraft/engine");
-        Self::load_from_directory(data_root, &engine_dir, "civcraft")?.with_native_content()
-    }
-
-    /// Replace the engine ruleset's effects, actions and source content with
-    /// the campaign's native catalogs.
-    fn with_native_content(mut self) -> Result<Self, LoadError> {
-        let rules = &mut self;
+        let mut rules = Self::load_from_directory(data_root, &engine_dir, "civcraft")?;
         rules.effects = native_effect_records()?.into();
         rules.actions = native_action_records();
         rules.action_enablers = native_action_enablers()?;
         let source_catalog =
             Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
         rules.source_content = source_catalog.records;
-        loader::resolve_requirement_values(rules);
-        Ok(self)
+        Ok(rules)
     }
 
     /// Cache the single CivCraft campaign package once.
     pub(crate) fn campaign_default() -> &'static Self {
         static RULESET: OnceLock<RulesetData> = OnceLock::new();
         RULESET.get_or_init(|| {
-            Self::load_embedded("civcraft")
-                .and_then(Self::with_native_content)
+            let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
+            Self::load_civcraft(&data_root)
                 .unwrap_or_else(|error| panic!("failed to load campaign ruleset: {error}"))
         })
     }
@@ -1565,7 +1527,10 @@ impl RulesetData {
             |effect: &EffectRecord, kind: RequirementKind, name: &str, present: bool| {
                 effect.requirements.iter().any(|requirement| {
                     requirement.kind == kind
-                        && requirement.matches_name(name)
+                        && matches!(
+                            &requirement.name,
+                            RequirementValue::String(value) if value.eq_ignore_ascii_case(name)
+                        )
                         && requirement.range == RequirementRange::Tile
                         && requirement.present == present
                 })
@@ -1741,7 +1706,6 @@ fn native_requirement(
     Ok(Requirement {
         kind,
         name: RequirementValue::String(requirement.name.clone()),
-        resolved: None,
         range,
         present: requirement.present,
         survives: requirement.survives,
@@ -1916,7 +1880,6 @@ impl RulesetData {
         })
     }
 
-    #[cfg(test)]
     /// Resolve the border settings used by Freeciv's `unit_being_aggressive`.
     /// The engine defaults are explicit in the CivCraft-owned derivative.
     pub(crate) fn unit_happiness_settings(
@@ -1960,7 +1923,6 @@ impl RulesetData {
         })
     }
 
-    #[cfg(test)]
     /// Decode the CivCraft-native governments and their government-scoped
     /// effects. The selected Freeciv government records are deliberately not
     /// consulted: campaign government identity and tunables live in native TOML.
@@ -1992,7 +1954,6 @@ impl RulesetData {
                     .then(|| Requirement {
                         kind: RequirementKind::Tech,
                         name: RequirementValue::String(source.required_technology.clone()),
-                        resolved: None,
                         range: RequirementRange::Player,
                         present: true,
                         survives: false,
@@ -2039,7 +2000,6 @@ impl RulesetData {
     }
 }
 
-#[cfg(test)]
 fn government_effect_applies_to(effect: &EffectRecord, government_id: &str) -> bool {
     let mut found_government_requirement = false;
     for requirement in effect
@@ -2290,7 +2250,6 @@ impl LoadError {
         }
     }
 
-    #[cfg(test)]
     fn at(file: &Path, message: impl Into<String>) -> Self {
         Self {
             file: Some(file.to_owned()),
@@ -2351,8 +2310,8 @@ mod tests {
         EffectSet, FreeTechnologyStyle, HappyBorders, LoadedRuleFile,
         MissingUnitUpkeepOutputSettings, MissingUnitUpkeepSettings, RULESET_FILES, Requirement,
         RequirementContext, RequirementEvaluationError, RequirementKind, RequirementRange,
-        RequirementValue, ResearchCostStyle, ResearchRulesetSettings, ResolvedRequirementValue,
-        RevolutionType, RuleFileSource, RuleSourceLocation, RulesetData, TechnologyLeakageStyle,
+        RequirementValue, ResearchCostStyle, ResearchRulesetSettings, RevolutionType,
+        RuleFileSource, RuleSourceLocation, RulesetData, TechnologyLeakageStyle,
         TechnologyUpkeepStyle, UnitHappinessRulesetSettings, UnitUpkeepOutput, VictoryCondition,
         action_enabled, effect_value, requirements_met,
     };
@@ -2815,7 +2774,6 @@ mod tests {
         Requirement {
             kind: RequirementKind::parse(kind).expect("known requirement type"),
             name: RequirementValue::String(name.to_owned()),
-            resolved: None,
             range: RequirementRange::Player,
             present,
             survives: false,
@@ -3118,45 +3076,6 @@ mod tests {
     }
 
     #[test]
-    fn campaign_runtime_requirement_names_are_resolved_once_at_load() {
-        let rules = RulesetData::campaign_default();
-        let mut requirements = rules
-            .effects
-            .iter()
-            .flat_map(|effect| effect.requirements.iter())
-            .chain(
-                rules
-                    .action_enablers
-                    .iter()
-                    .flat_map(|enabler| enabler.actor_requirements.iter()),
-            )
-            .chain(
-                rules
-                    .action_enablers
-                    .iter()
-                    .flat_map(|enabler| enabler.target_requirements.iter()),
-            );
-        assert!(requirements.clone().any(|requirement| {
-            matches!(
-                requirement.resolved,
-                Some(ResolvedRequirementValue::Tech(_))
-            )
-        }));
-        assert!(requirements.clone().any(|requirement| {
-            matches!(
-                requirement.resolved,
-                Some(ResolvedRequirementValue::Building(_))
-            )
-        }));
-        assert!(requirements.any(|requirement| {
-            matches!(
-                requirement.resolved,
-                Some(ResolvedRequirementValue::Terrain(_))
-            )
-        }));
-    }
-
-    #[test]
     fn loader_rejects_unknown_freeciv_engine_identifiers() {
         let invalid_cases = [
             (
@@ -3331,17 +3250,6 @@ mod tests {
                 .join("civcraft/engine/UPSTREAM_MANIFEST.tsv")
                 .is_file()
         );
-    }
-
-    #[test]
-    fn embedded_campaign_ruleset_matches_the_files_on_disk() {
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .canonicalize()
-            .unwrap();
-        let on_disk = RulesetData::load_civcraft(&manifest_dir.join("data/rulesets")).unwrap();
-        // The two loads differ only in how they spell file locations.
-        let on_disk = format!("{on_disk:?}").replace(&format!("{}/", manifest_dir.display()), "");
-        assert_eq!(format!("{:?}", RulesetData::campaign_default()), on_disk);
     }
 
     #[test]

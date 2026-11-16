@@ -5,7 +5,6 @@ use super::super::villages::BARBARIAN_ONSET;
 use super::*;
 
 impl Simulation {
-    #[cfg(test)]
     pub(crate) fn run_plague_playtest(&mut self, protected: bool) -> i32 {
         let index = self
             .cities
@@ -22,7 +21,6 @@ impl Simulation {
         self.cities[index].size
     }
 
-    #[cfg(test)]
     pub(crate) fn run_disaster_playtest(&mut self, nuclear: bool) -> bool {
         let index = self
             .cities
@@ -54,18 +52,6 @@ impl Simulation {
                         .is_some_and(|(x, y)| self.tile(x, y).has_contamination(contamination))
                 });
         city.size == 1 && nearby_contamination
-    }
-
-    // Fixture for a removed desktop self-test step; nothing calls it now.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn climate_playtest_setup(&mut self, warming: bool) {
-        for (index, tile) in self.tiles.iter_mut().enumerate() {
-            tile.terrain = Terrain::Plains;
-            tile.river = false;
-            tile.pollution = warming && index < 128;
-            tile.fallout = !warming && index < 128;
-        }
     }
 
     pub(crate) fn uprising_playtest(&mut self, sea: bool, advanced: bool) -> bool {

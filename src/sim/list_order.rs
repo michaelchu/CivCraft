@@ -267,9 +267,9 @@ impl Simulation {
 
     pub(super) fn tile_units_ordered(&self, x: i32, y: i32) -> impl Iterator<Item = &Unit> {
         self.trace.count_operation("tile_units_ordered.calls", 1);
-        let indexed_units = if self.caches.advisor_enabled.get() {
+        let indexed_units = if self.ai_advisor_cache_enabled.get() {
             let tile_index = self.map_wrap.index(x, y);
-            let spatial = self.caches.spatial.borrow();
+            let spatial = self.ai_spatial_index.borrow();
             (spatial.tile_unit_revision == self.list_order.tile_revision())
                 .then(|| spatial.tile_unit_indices.as_ref())
                 .flatten()

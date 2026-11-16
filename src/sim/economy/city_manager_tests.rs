@@ -128,7 +128,12 @@ fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
             game.city_rule_effect(
                 &city,
                 EffectKind::MartialLawMax,
-                CityRuleEffectParams::new(government.0, None),
+                None,
+                None,
+                None,
+                false,
+                government.0,
+                None,
             ),
             government.1,
             "{:?}",
@@ -221,7 +226,12 @@ fn unit_unrest_still_changes_city_feelings_without_martial_law() {
         let martial_law = game.city_rule_effect(
             &city,
             EffectKind::MartialLawMax,
-            CityRuleEffectParams::new(government, None),
+            None,
+            None,
+            None,
+            false,
+            government,
+            None,
         );
         assert_eq!(martial_law, 0, "{government:?} has no martial law");
         let baseline = game.city_feelings_after_effects(&city, 16);
@@ -302,7 +312,7 @@ fn conquests_governments_do_not_apply_fundamentalism_tithes() {
 }
 
 #[test]
-fn city_manager_desktop_fixture() {
+fn city_manager_fixture() {
     let game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.ai_city_manager_playtest());
 }

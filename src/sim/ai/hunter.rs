@@ -63,7 +63,7 @@ impl Simulation {
         (cost >= hunter.kind.stats().cost && value >= hunter.kind.stats().cost).then_some(value)
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
     pub(super) fn hunt_value(&self, hunter: &Unit, target: &Unit) -> Option<(i32, i32)> {
         let limit = 6 * self.unit_move_rate(hunter);
         let distance = crate::sim::normal_paths::NormalPaths::enemy_map(self, hunter)
@@ -103,10 +103,10 @@ impl Simulation {
         )
     }
 
-    #[cfg(feature = "scenarios")]
     /// Source tactical hunter policies, isolated from the dedicated production
     /// gate (which Normal AI's handicap disables).
-    #[cfg(feature = "scenarios")]
+    #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn native_hunter_tactics_playtest(&self) -> (bool, bool, bool, bool) {
         use crate::sim::unit_catalog::UnitFlag;
         let mut sim = self.clone();
@@ -114,7 +114,7 @@ impl Simulation {
         sim.cities.clear();
         sim.hunter_targets.clear();
         sim.previous_naval_positions.clear();
-        sim.ai.ground_targets.clear();
+        sim.ai_ground_targets.clear();
         sim.sign_pact(1, HUMAN, Pact::War);
         for tile in &mut sim.tiles {
             tile.terrain = Terrain::Grassland;
@@ -273,7 +273,7 @@ impl Simulation {
                 missile.owner == hunter.owner
                     && missile.kind.is_missile()
                     && missile.transport.is_none()
-                    && !self.ai.guard_targets.contains_key(&missile.id)
+                    && !self.ai_guard_targets.contains_key(&missile.id)
             })
             .map(|missile| missile.id)
             .collect();

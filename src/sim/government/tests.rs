@@ -96,18 +96,18 @@ fn government_cache_interval_uses_city_count_with_five_and_twenty_turn_bounds() 
         game.create_city(1, 2 + (index % 6) * 5, 4 + (index / 6) * 12);
     }
     game.refresh_government_advisor(1);
-    assert_eq!(game.ai.government_cache[&1].next_evaluation, 20);
+    assert_eq!(game.ai_government_cache[&1].next_evaluation, 20);
     game.cities.truncate(6);
     game.turn = 19;
     game.refresh_government_advisor(1);
-    assert_eq!(game.ai.government_cache[&1].next_evaluation, 20);
+    assert_eq!(game.ai_government_cache[&1].next_evaluation, 20);
     game.turn = 20;
     game.refresh_government_advisor(1);
-    assert_eq!(game.ai.government_cache[&1].next_evaluation, 26);
+    assert_eq!(game.ai_government_cache[&1].next_evaluation, 26);
     game.cities.truncate(5);
     game.turn = 26;
     game.refresh_government_advisor(1);
-    assert_eq!(game.ai.government_cache[&1].next_evaluation, 31);
+    assert_eq!(game.ai_government_cache[&1].next_evaluation, 31);
 }
 
 #[test]

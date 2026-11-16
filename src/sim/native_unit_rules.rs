@@ -100,7 +100,7 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
         }
     }
     UnitCapabilities {
-        id: rule.id(),
+        id: rule.id,
         unit_class: class.rule_name().to_owned(),
         flags,
         class_flags,

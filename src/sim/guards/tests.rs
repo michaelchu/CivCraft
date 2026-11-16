@@ -6,8 +6,8 @@ fn game() -> Simulation {
     game.units.clear();
     game.cities.clear();
     game.diplomacy.clear();
-    game.ai.guard_targets.clear();
-    game.ai.unit_guards.clear();
+    game.ai_guard_targets.clear();
+    game.ai_unit_guards.clear();
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Grassland;
         tile.base_terrain = TerrainBase::Grassland;
@@ -47,7 +47,7 @@ fn sane_rendezvous_retains_escort_when_omniscient_policy_cannot_pass_enemy() {
     assert!(game.ai_goto_path(actor, finish, GotoTask::Escort).is_none());
     assert!(game.run_ai_guard(guard));
     assert_eq!(
-        game.ai.guard_targets.get(&guard),
+        game.ai_guard_targets.get(&guard),
         Some(&GuardTarget::Unit(charge))
     );
     assert_eq!(game.unit_goto_tiles.get(&guard), Some(&finish));
@@ -73,7 +73,7 @@ fn guard_links_are_typed_reciprocal_and_dismissed_after_death_or_transfer() {
     assert!(game.validate_ai_guards());
     game.cities.last_mut().unwrap().owner = HUMAN;
     game.refresh_ai_guards();
-    assert!(!game.ai.guard_targets.contains_key(&guard));
+    assert!(!game.ai_guard_targets.contains_key(&guard));
     game.assign_ai_guard(guard, GuardTarget::Unit(charge));
     game.forget_ai_guard_unit(guard);
     assert_eq!(
@@ -137,8 +137,7 @@ fn stored_generic_goal_wins_and_guard_intercepts_ahead_of_naval_charge() {
     let old_mission = point(9);
     game.tile_mut(old_mission.0, old_mission.1).terrain = Terrain::Grassland;
     game.create_city(HUMAN, old_mission.0, old_mission.1);
-    game.ai
-        .ground_targets
+    game.ai_ground_targets
         .insert(charge, game.cities.last().unwrap().id);
     game.unit_goto_tiles.insert(charge, goal);
     let actor = game.unit_by_id(guard).unwrap().clone();
@@ -174,13 +173,13 @@ fn city_rescue_competes_by_danger_deficit_and_dismisses_when_defended() {
     );
     assert!(game.run_ai_guard(guard));
     assert_eq!(
-        game.ai.guard_targets.get(&guard),
+        game.ai_guard_targets.get(&guard),
         Some(&GuardTarget::City(city))
     );
     game.spawn_unit(1, UnitKind::Musketman, 10, 20);
     assert!(game.run_ai_guard(guard));
     assert_eq!(
-        game.ai.guard_targets.get(&guard),
+        game.ai_guard_targets.get(&guard),
         Some(&GuardTarget::Unit(charge)),
         "enough quadratic city defense releases rescue guard to wanted charge"
     );

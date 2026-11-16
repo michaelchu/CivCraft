@@ -42,9 +42,8 @@ impl Simulation {
         if value <= 0.0 {
             return 0.0;
         }
-        let output = if self.caches.advisor_enabled.get() {
-            self.caches
-                .spatial
+        let output = if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
                 .borrow()
                 .offensive_outputs
                 .get(&city.id)
@@ -54,9 +53,8 @@ impl Simulation {
         }
         .unwrap_or_else(|| {
             let output = self.offensive_production_output(city);
-            if self.caches.advisor_enabled.get() {
-                self.caches
-                    .spatial
+            if self.ai_advisor_cache_enabled.get() {
+                self.ai_spatial_index
                     .borrow_mut()
                     .offensive_outputs
                     .insert(city.id, output);
@@ -160,7 +158,7 @@ impl Simulation {
                 }
                 let going = i32::from(
                     helper.owner == unit.owner
-                        && self.ai.ground_targets.get(&helper.id) == Some(&city.id),
+                        && self.ai_ground_targets.get(&helper.id) == Some(&city.id),
                 );
                 attack += rating * (1 + going);
                 cost += helper.kind.stats().cost * (1 + going);
@@ -169,7 +167,7 @@ impl Simulation {
         // A unit assigned to this target can contribute from beyond the
         // adjacent tiles. Count only assigned ids here; nearby assigned units
         // were already counted with both contributions above.
-        for (&id, &target) in &self.ai.ground_targets {
+        for (&id, &target) in &self.ai_ground_targets {
             if target != city.id || nearby_ids.contains(&id) || id == unit.id && unit.id != 0 {
                 continue;
             }
@@ -290,11 +288,10 @@ impl Simulation {
         prior: Option<AiBuildChoice>,
     ) -> (Option<AiBuildChoice>, Vec<(Tech, f32)>, bool) {
         self.trace.count_operation("offensive_advice.calls", 1);
-        let cache_enabled = self.caches.advisor_enabled.get();
+        let cache_enabled = self.ai_advisor_cache_enabled.get();
         if cache_enabled
             && let Some(result) = self
-                .caches
-                .spatial
+                .ai_spatial_index
                 .borrow()
                 .offensive_advice
                 .get(&city.id)
@@ -307,9 +304,8 @@ impl Simulation {
             self.trace.count_operation("offensive_advice.cache_miss", 1);
         }
         let result = self.offensive_advice_with_prior(city, prior);
-        if self.caches.advisor_enabled.get() {
-            self.caches
-                .spatial
+        if self.ai_advisor_cache_enabled.get() {
+            self.ai_spatial_index
                 .borrow_mut()
                 .offensive_advice
                 .insert(city.id, result.clone());
