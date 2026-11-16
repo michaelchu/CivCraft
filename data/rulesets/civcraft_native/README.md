@@ -33,10 +33,13 @@ Current catalogs:
   resistance/military-law tables.
 - `economy.toml`: city growth, output, upkeep, and founding parameters.
 - `settlements.toml`: settlement AI and village outcome parameters.
+- `terrain.toml`: 14 native terrain identities, movement/activity values,
+  worker results, native classes, flags, climate transitions, and terrain
+  parameters.
 
 The campaign loader replaces the selected ruleset's effect records with this
 native graph and resolves technology requirements through the native
 technology catalog. The remaining `.ruleset` files are retained as parser and
-engine-schema inputs while action, terrain, building, and world-setting
-catalogs are migrated; they are not the source for migrated unit, technology,
-government, civilization, or effect data.
+engine-schema inputs for still-unmigrated generic engine tables; they are not
+the source for migrated unit, technology, government, civilization, effect, or
+native terrain data.

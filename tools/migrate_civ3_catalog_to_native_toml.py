@@ -722,6 +722,92 @@ def write_effects() -> None:
     (DEST / "effects.toml").write_text("\n".join(lines), encoding="utf-8")
 
 
+def terrain_scalar(block: str, key: str, default: int = 0) -> int:
+    match = re.search(rf"^{re.escape(key)}\s*=\s*(-?\d+)", block, re.MULTILINE)
+    return int(match.group(1)) if match else default
+
+
+def terrain_string(block: str, key: str, default: str = "") -> str:
+    match = re.search(rf"^{re.escape(key)}\s*=\s*(.*)$", block, re.MULTILINE)
+    if not match:
+        return default
+    quoted = re.search(r'"([^"\\]*(?:\\.[^"\\]*)*)"', match.group(1))
+    return quoted.group(1) if quoted else default
+
+
+def terrain_strings(block: str, key: str) -> list[str]:
+    match = re.search(rf"^{re.escape(key)}\s*=\s*(.*)$", block, re.MULTILINE)
+    if not match:
+        return []
+    return re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', match.group(1))
+
+
+def write_terrain() -> None:
+    source = (ROOT / "data/rulesets/civcraft_civ2civ3/terrain.ruleset").read_text(
+        encoding="utf-8"
+    )
+    parameter_block = re.search(r"^\[parameters\](.*?)(?=^\[|\Z)", source, re.MULTILINE | re.DOTALL)
+    if parameter_block is None:
+        raise ValueError("C2C3 terrain.ruleset has no parameters section")
+    parameter_keys = [
+        "ocean_reclaim_requirement",
+        "land_channel_requirement",
+        "thaw_requirement",
+        "freeze_requirement",
+        "lake_max_size",
+        "min_start_native_area",
+        "move_fragments",
+        "igter_cost",
+    ]
+    lines = [
+        "schema_version = 1",
+        'source = "CivCraft native terrain rules"',
+        "",
+        "[parameters]",
+    ]
+    for key in parameter_keys:
+        lines.append(f"{key} = {terrain_scalar(parameter_block.group(1), key)}")
+    lines.append("")
+    fields = [
+        "movement_cost", "defense_bonus", "food", "shield", "trade",
+        "road_food_incr_pct", "road_shield_incr_pct", "road_trade_incr_pct",
+        "base_time", "road_time", "cultivate_time", "plant_time",
+        "irrigation_food_incr", "irrigation_time", "mining_shield_incr",
+        "mining_time", "transform_time", "placing_time", "pillage_time",
+        "property_ocean_depth", "property_frozen",
+    ]
+    for match in re.finditer(
+        r"^\[terrain_([^\]]+)\]\s*$\n(.*?)(?=^\[|\Z)",
+        source,
+        re.MULTILINE | re.DOTALL,
+    ):
+        section, block = match.groups()
+        name = terrain_string(block, "name", section)
+        lines.extend(["[[terrains]]", f'id = {string(section)}', f'rule_name = {string(name)}', f'name = {string(name)}'])
+        lines.append(f'class = {string(terrain_string(block, "class"))}')
+        for key in fields:
+            lines.append(f"{key} = {terrain_scalar(block, key)}")
+        for key in [
+            "cultivate_result", "plant_result", "transform_result",
+            "warmer_wetter_result", "warmer_drier_result",
+            "cooler_wetter_result", "cooler_drier_result",
+        ]:
+            lines.append(f'{key} = {string(terrain_string(block, key, "no"))}')
+        lines.append(f'flags = {json.dumps(terrain_strings(block, "flags"), ensure_ascii=False)}')
+        lines.append(f'native_to = {json.dumps(terrain_strings(block, "native_to"), ensure_ascii=False)}')
+        extra_settings = []
+        table = re.search(r"^extra_settings\s*=\s*\n\s*\{.*?\n(.*?)^\s*\}", block, re.MULTILINE | re.DOTALL)
+        if table:
+            for row in table.group(1).splitlines():
+                quoted = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', row)
+                value = re.search(r"-?\d+\s*$", row)
+                if len(quoted) == 1 and value:
+                    extra_settings.append({"extra": quoted[0], "removal_time": int(value.group())})
+        lines.append(f'extra_settings = {inline_tables(extra_settings)}')
+        lines.append("")
+    (DEST / "terrain.toml").write_text("\n".join(lines), encoding="utf-8")
+
+
 def write_actions() -> None:
     source = (ROOT / "data/rulesets/civcraft_civ2civ3/actions.ruleset").read_text(
         encoding="utf-8"
@@ -782,5 +868,6 @@ if __name__ == "__main__":
     write_technologies()
     write_governments()
     write_unit_economics()
+    write_terrain()
     write_effects()
     write_actions()

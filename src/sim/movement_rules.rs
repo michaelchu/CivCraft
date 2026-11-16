@@ -24,6 +24,24 @@ impl<'a> MovementRules<'a> {
         Self::new(RulesetData::campaign_default())
     }
 
+    fn uses_native_terrain(&self) -> bool {
+        std::ptr::eq(self.rules, RulesetData::campaign_default())
+    }
+
+    fn native_terrain(
+        &self,
+        rule_name: &str,
+    ) -> Result<&'static crate::rules::native::NativeTerrain, MovementRulesError> {
+        crate::rules::native::terrain()
+            .terrains
+            .iter()
+            .find(|terrain| terrain.rule_name.eq_ignore_ascii_case(rule_name))
+            .ok_or_else(|| MovementRulesError::MissingRecord {
+                namespace: "native terrain".to_owned(),
+                rule_name: rule_name.to_owned(),
+            })
+    }
+
     /// Resolve all movement and worker activity times for the C2C3 terrain
     /// corresponding to a Civ III terrain identity.
     pub(super) fn terrain_data(
@@ -32,6 +50,25 @@ impl<'a> MovementRules<'a> {
     ) -> Result<TerrainMovementData, MovementRulesError> {
         let rule_name = c2c3_terrain_rule_name(terrain)
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
+        if self.uses_native_terrain() {
+            let record = self.native_terrain(rule_name)?;
+            return Ok(TerrainMovementData {
+                rule_name: record.rule_name.clone(),
+                movement_cost: record.movement_cost,
+                activity_times: TerrainActivityTimes {
+                    base: record.base_time,
+                    road: record.road_time,
+                    irrigation: record.irrigation_time,
+                    mining: record.mining_time,
+                    cultivate: record.cultivate_time,
+                    plant: record.plant_time,
+                    transform: record.transform_time,
+                },
+                cultivate_result: native_result(&record.cultivate_result),
+                plant_result: native_result(&record.plant_result),
+                transform_result: native_result(&record.transform_result),
+            });
+        }
         let record = unique_content_record(self.rules, ContentKind::Terrain, rule_name, "terrain")?;
         let movement_cost = required_nonnegative_integer(record, "movement_cost")?;
         let activity_times = TerrainActivityTimes {
@@ -77,11 +114,17 @@ impl<'a> MovementRules<'a> {
     /// Selected ruleset movement-point fragments; road move_cost values are
     /// already expressed in these fragments.
     pub(super) fn move_fragments(&self) -> Result<i32, MovementRulesError> {
+        if self.uses_native_terrain() {
+            return Ok(crate::rules::native::terrain().parameters.move_fragments);
+        }
         self.integer_parameter("terrain.ruleset", "parameters", "move_fragments", true)
     }
 
     /// Cost applied to unit types that ignore terrain movement costs.
     pub(super) fn igter_cost(&self) -> Result<i32, MovementRulesError> {
+        if self.uses_native_terrain() {
+            return Ok(crate::rules::native::terrain().parameters.igter_cost);
+        }
         self.integer_parameter("terrain.ruleset", "parameters", "igter_cost", false)
     }
 
@@ -155,6 +198,22 @@ impl<'a> MovementRules<'a> {
         }
         let terrain_rule_name = c2c3_terrain_rule_name(terrain)
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
+        if self.uses_native_terrain() {
+            let terrain_record = self.native_terrain(terrain_rule_name)?;
+            let time = terrain_record
+                .extra_settings
+                .iter()
+                .find(|setting| setting.extra.eq_ignore_ascii_case(extra_rule_name))
+                .map_or(0, |setting| setting.removal_time);
+            return time
+                .checked_mul(factor)
+                .ok_or_else(|| MovementRulesError::InvalidField {
+                    record: terrain_record.rule_name.clone(),
+                    key: "extra_settings".to_owned(),
+                    reason: "clean removal time exceeds i32 range after extra factor scaling"
+                        .to_owned(),
+                });
+        }
         let record = unique_content_record(
             self.rules,
             ContentKind::Terrain,
@@ -183,6 +242,17 @@ impl<'a> MovementRules<'a> {
         }
         let terrain_rule_name = c2c3_terrain_rule_name(terrain)
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
+        if self.uses_native_terrain() {
+            let terrain_record = self.native_terrain(terrain_rule_name)?;
+            return terrain_record
+                .pillage_time
+                .checked_mul(factor)
+                .ok_or_else(|| MovementRulesError::InvalidField {
+                    record: terrain_record.rule_name.clone(),
+                    key: "pillage_time".to_owned(),
+                    reason: "pillage time exceeds i32 range after extra factor scaling".to_owned(),
+                });
+        }
         let record = unique_content_record(
             self.rules,
             ContentKind::Terrain,
@@ -264,6 +334,9 @@ impl<'a> MovementRules<'a> {
     ) -> Result<Vec<String>, MovementRulesError> {
         let rule_name = c2c3_terrain_rule_name(terrain)
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
+        if self.uses_native_terrain() {
+            return Ok(self.native_terrain(rule_name)?.native_to.clone());
+        }
         let record = unique_content_record(self.rules, ContentKind::Terrain, rule_name, "terrain")?;
         required_content_string_list(record, "native_to")
     }
@@ -275,6 +348,13 @@ impl<'a> MovementRules<'a> {
     ) -> Result<bool, MovementRulesError> {
         let rule_name = c2c3_terrain_rule_name(terrain)
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
+        if self.uses_native_terrain() {
+            return Ok(self
+                .native_terrain(rule_name)?
+                .flags
+                .iter()
+                .any(|candidate| candidate.eq_ignore_ascii_case(flag.rule_name())));
+        }
         let record = unique_content_record(self.rules, ContentKind::Terrain, rule_name, "terrain")?;
         let flags = required_content_string_values(record, "flags")?;
         Ok(has_flag(&flags, flag.rule_name()))
@@ -293,6 +373,9 @@ impl<'a> MovementRules<'a> {
             terrain => c2c3_terrain_rule_name(terrain)
                 .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?,
         };
+        if self.uses_native_terrain() {
+            return Ok(self.native_terrain(rule_name)?.defense_bonus);
+        }
         let record = unique_content_record(self.rules, ContentKind::Terrain, rule_name, "terrain")?;
         required_nonnegative_integer(record, "defense_bonus")
     }
@@ -440,12 +523,77 @@ impl<'a> MovementRules<'a> {
                 )
             })?;
 
-        let mut movement_cost = if !class_data.terrain_speed {
-            fragments
-        } else if ignores_terrain {
-            self.igter_cost()?
+        let mut movement_cost =
+            if !class_data.terrain_speed {
+                fragments
+            } else if ignores_terrain {
+                self.igter_cost()?
+            } else {
+                let mut worst_terrain_cost = 1;
+                if self.uses_native_terrain() {
+                    for terrain in &crate::rules::native::terrain().terrains {
+                        if terrain.flags.iter().any(|flag| {
+                            flag.eq_ignore_ascii_case(TerrainFlag::NotGenerated.rule_name())
+                        }) {
+                            continue;
+                        }
+                        if terrain.native_to.iter().any(|native| {
+                            native.eq_ignore_ascii_case(c2c3_unit_class_rule_name(class))
+                        }) {
+                            worst_terrain_cost = worst_terrain_cost.max(terrain.movement_cost);
+                        }
+                    }
+                } else {
+                    for terrain in self
+                        .rules
+                        .content
+                        .iter()
+                        .filter(|record| record.kind == ContentKind::Terrain)
+                    {
+                        let flags = required_content_string_values(terrain, "flags")?;
+                        if has_flag(&flags, TerrainFlag::NotGenerated.rule_name()) {
+                            continue;
+                        }
+                        let native_classes = required_content_string_list(terrain, "native_to")?;
+                        if has_flag(&native_classes, c2c3_unit_class_rule_name(class)) {
+                            let cost = required_nonnegative_integer(terrain, "movement_cost")?;
+                            worst_terrain_cost = worst_terrain_cost.max(cost);
+                        }
+                    }
+                }
+                worst_terrain_cost.checked_mul(fragments).ok_or_else(|| {
+                    invalid_field(
+                        "unknown tile movement cost",
+                        "movement_cost",
+                        "native terrain cost exceeds i32 range after movement-fragment scaling",
+                    )
+                })?
+            };
+
+        // Freeciv doubles this estimate if any terrain with a nonempty
+        // native_to list excludes the unit class. It intentionally does not
+        // model terrain records that no unit can enter.
+        let mut may_be_non_native = false;
+        if self.uses_native_terrain() {
+            for terrain in &crate::rules::native::terrain().terrains {
+                if terrain
+                    .flags
+                    .iter()
+                    .any(|flag| flag.eq_ignore_ascii_case(TerrainFlag::NotGenerated.rule_name()))
+                {
+                    continue;
+                }
+                if !terrain.native_to.is_empty()
+                    && !terrain
+                        .native_to
+                        .iter()
+                        .any(|native| native.eq_ignore_ascii_case(c2c3_unit_class_rule_name(class)))
+                {
+                    may_be_non_native = true;
+                    break;
+                }
+            }
         } else {
-            let mut worst_terrain_cost = 1;
             for terrain in self
                 .rules
                 .content
@@ -454,45 +602,15 @@ impl<'a> MovementRules<'a> {
             {
                 let flags = required_content_string_values(terrain, "flags")?;
                 if has_flag(&flags, TerrainFlag::NotGenerated.rule_name()) {
-                    // C2C3's inaccessible sentinel intentionally has no
-                    // native_to list and cannot be entered by any unit.
                     continue;
                 }
                 let native_classes = required_content_string_list(terrain, "native_to")?;
-                if has_flag(&native_classes, c2c3_unit_class_rule_name(class)) {
-                    let cost = required_nonnegative_integer(terrain, "movement_cost")?;
-                    worst_terrain_cost = worst_terrain_cost.max(cost);
+                if !native_classes.is_empty()
+                    && !has_flag(&native_classes, c2c3_unit_class_rule_name(class))
+                {
+                    may_be_non_native = true;
+                    break;
                 }
-            }
-            worst_terrain_cost.checked_mul(fragments).ok_or_else(|| {
-                invalid_field(
-                    "unknown tile movement cost",
-                    "movement_cost",
-                    "native terrain cost exceeds i32 range after movement-fragment scaling",
-                )
-            })?
-        };
-
-        // Freeciv doubles this estimate if any terrain with a nonempty
-        // native_to list excludes the unit class. It intentionally does not
-        // model terrain records that no unit can enter.
-        let mut may_be_non_native = false;
-        for terrain in self
-            .rules
-            .content
-            .iter()
-            .filter(|record| record.kind == ContentKind::Terrain)
-        {
-            let flags = required_content_string_values(terrain, "flags")?;
-            if has_flag(&flags, TerrainFlag::NotGenerated.rule_name()) {
-                continue;
-            }
-            let native_classes = required_content_string_list(terrain, "native_to")?;
-            if !native_classes.is_empty()
-                && !has_flag(&native_classes, c2c3_unit_class_rule_name(class))
-            {
-                may_be_non_native = true;
-                break;
             }
         }
         if may_be_non_native {
@@ -925,6 +1043,11 @@ fn optional_terrain_result_name(
     } else {
         Ok(Some(value.to_owned()))
     }
+}
+
+fn native_result(value: &str) -> Option<String> {
+    (!value.eq_ignore_ascii_case("no") && !value.eq_ignore_ascii_case("none"))
+        .then(|| value.to_owned())
 }
 
 fn c2c3_terrain_result_to_civ3(name: &str) -> Result<Terrain, MovementRulesError> {

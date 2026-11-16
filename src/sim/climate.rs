@@ -1,7 +1,6 @@
 //! Climate pressure and its effects on the game world.
 
 use super::*;
-use crate::rules::freeciv::{ContentKind, ContentRecord, RulesetData};
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(super) struct ClimatePressure {
@@ -85,10 +84,13 @@ impl Simulation {
         let preferred_field = if wet { wet_field } else { dry_field };
         let fallback_field = if wet { dry_field } else { wet_field };
         let climate_result = |field| {
-            let result = record
-                .string_field(field)
-                .unwrap_or_else(|error| panic!("invalid {}.{field}: {error}", record.section))
-                .unwrap_or_else(|| panic!("campaign terrain `{terrain_name}` lacks `{field}`"));
+            let result = match field {
+                "warmer_wetter_result" => &record.warmer_wetter_result,
+                "warmer_drier_result" => &record.warmer_drier_result,
+                "cooler_wetter_result" => &record.cooler_wetter_result,
+                "cooler_drier_result" => &record.cooler_drier_result,
+                _ => panic!("unknown native climate terrain field {field:?}"),
+            };
             Self::c2c3_climate_terrain(result)
         };
         // As in climate_change(), a missing preferred terrain result means
@@ -116,14 +118,9 @@ impl Simulation {
         };
         let source = Self::climate_terrain_record(source_name);
         let target = Self::climate_terrain_record(target_name);
-        let flags = |record: &ContentRecord| {
+        let has_flag = |record: &crate::rules::native::NativeTerrain, flag: &str| {
             record
-                .string_list_field("flags")
-                .unwrap_or_else(|error| panic!("invalid {}.flags: {error}", record.section))
-                .unwrap_or_default()
-        };
-        let has_flag = |record: &ContentRecord, flag: &str| {
-            flags(record)
+                .flags
                 .iter()
                 .any(|candidate| candidate.eq_ignore_ascii_case(flag))
         };
@@ -131,11 +128,8 @@ impl Simulation {
             return false;
         }
 
-        let is_oceanic = |record: &ContentRecord| {
-            record
-                .string_field("class")
-                .unwrap_or_else(|error| panic!("invalid {}.class: {error}", record.section))
-                .is_some_and(|class| class.eq_ignore_ascii_case("Oceanic"))
+        let is_oceanic = |record: &crate::rules::native::NativeTerrain| {
+            record.class.eq_ignore_ascii_case("Oceanic")
         };
         let adjacent: Vec<_> = self.map_wrap.civ3_neighbors(x, y).collect();
         // Freeciv C2C3 uses ISO|HEX, but CivCraft uses Civ III's eight
@@ -188,11 +182,11 @@ impl Simulation {
         true
     }
 
-    fn climate_terrain_record(rule_name: &str) -> &'static ContentRecord {
-        let rules = RulesetData::campaign_default();
-        let mut matching = rules.content.iter().filter(|record| {
-            record.kind == ContentKind::Terrain && record.rule_name.eq_ignore_ascii_case(rule_name)
-        });
+    fn climate_terrain_record(rule_name: &str) -> &'static crate::rules::native::NativeTerrain {
+        let mut matching = crate::rules::native::terrain()
+            .terrains
+            .iter()
+            .filter(|record| record.rule_name.eq_ignore_ascii_case(rule_name));
         let record = matching
             .next()
             .unwrap_or_else(|| panic!("campaign ruleset is missing climate terrain `{rule_name}`"));
@@ -204,26 +198,14 @@ impl Simulation {
     }
 
     fn climate_parameter(key: &str) -> i32 {
-        let rules = RulesetData::campaign_default();
-        let mut matching = rules.parameters.iter().filter(|parameter| {
-            parameter.file.eq_ignore_ascii_case("terrain.ruleset")
-                && parameter.section.eq_ignore_ascii_case("parameters")
-                && parameter.key.eq_ignore_ascii_case(key)
-        });
-        let parameter = matching
-            .next()
-            .unwrap_or_else(|| panic!("campaign terrain rules are missing parameter `{key}`"));
-        assert!(
-            matching.next().is_none(),
-            "campaign terrain rules repeat parameter `{key}`"
-        );
-        i32::try_from(
-            parameter
-                .integer_value()
-                .unwrap_or_else(|error| panic!("invalid terrain parameter `{key}`: {error}"))
-                .unwrap_or_else(|| panic!("campaign terrain parameter `{key}` has no value")),
-        )
-        .unwrap_or_else(|_| panic!("campaign terrain parameter `{key}` exceeds i32"))
+        let parameters = &crate::rules::native::terrain().parameters;
+        match key {
+            "ocean_reclaim_requirement" => parameters.ocean_reclaim_requirement,
+            "land_channel_requirement" => parameters.land_channel_requirement,
+            "thaw_requirement" => parameters.thaw_requirement,
+            "freeze_requirement" => parameters.freeze_requirement,
+            _ => panic!("unknown native terrain parameter {key:?}"),
+        }
     }
 
     fn c2c3_climate_terrain(name: &str) -> Option<Terrain> {

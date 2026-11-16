@@ -7,7 +7,7 @@
 use std::sync::OnceLock;
 
 use super::*;
-use crate::rules::freeciv::{ContentKind, RulesetData, effect_value};
+use crate::rules::freeciv::{RulesetData, effect_value};
 use crate::sim::action_rules::SimulationRequirementContext;
 use crate::world::{Resource, Terrain};
 
@@ -105,17 +105,12 @@ impl Outputs {
     }
 }
 
-fn content_integer(rules: &RulesetData, kind: ContentKind, name: &str, field: &str) -> i32 {
-    let record = rules
-        .content
+fn native_terrain(name: &str) -> &'static crate::rules::native::NativeTerrain {
+    crate::rules::native::terrain()
+        .terrains
         .iter()
-        .find(|record| record.kind == kind && record.rule_name.eq_ignore_ascii_case(name))
-        .unwrap_or_else(|| panic!("C2C3 has no {kind:?} record {name:?}"));
-    let value = record
-        .integer_field(field)
-        .unwrap_or_else(|error| panic!("invalid C2C3 {}.{field}: {error}", record.section))
-        .unwrap_or(0);
-    i32::try_from(value).unwrap_or_else(|_| panic!("C2C3 {}.{field} exceeds i32", record.section))
+        .find(|terrain| terrain.rule_name.eq_ignore_ascii_case(name))
+        .unwrap_or_else(|| panic!("native catalog has no terrain {name:?}"))
 }
 
 fn rule_integer(rules: &RulesetData, namespace: &str, name: &str, field: &str) -> i32 {
@@ -395,10 +390,11 @@ impl Simulation {
         let tile_xy = (x, y);
         let tile = self.tile(x, y);
         let terrain = terrain_name(tile.terrain);
+        let native_terrain = native_terrain(terrain);
         let mut output = Outputs {
-            food: content_integer(rules, ContentKind::Terrain, terrain, "food"),
-            shield: content_integer(rules, ContentKind::Terrain, terrain, "shield"),
-            trade: content_integer(rules, ContentKind::Terrain, terrain, "trade"),
+            food: native_terrain.food,
+            shield: native_terrain.shield,
+            trade: native_terrain.trade,
         };
         if let Some(resource) = tile.active_resource().and_then(resource_name) {
             output.food += rule_integer(rules, "resource", resource, "food");
@@ -406,8 +402,7 @@ impl Simulation {
             output.trade += rule_integer(rules, "resource", resource, "trade");
         }
 
-        let irrigation =
-            content_integer(rules, ContentKind::Terrain, terrain, "irrigation_food_incr");
+        let irrigation = native_terrain.irrigation_food_incr;
         if irrigation != 0 {
             let pct = self.city_rule_effect(
                 city,
@@ -421,7 +416,7 @@ impl Simulation {
             );
             output.food += irrigation * pct / 100;
         }
-        let mining = content_integer(rules, ContentKind::Terrain, terrain, "mining_shield_incr");
+        let mining = native_terrain.mining_shield_incr;
         if mining != 0 {
             let pct = self.city_rule_effect(
                 city,
@@ -456,12 +451,12 @@ impl Simulation {
                 constant += rule_integer(rules, "road", road, &format!("{output_name}_incr_const"));
                 bonus += rule_integer(rules, "road", road, &format!("{output_name}_bonus"));
             }
-            let terrain_percent = content_integer(
-                rules,
-                ContentKind::Terrain,
-                terrain,
-                &format!("road_{output_name}_incr_pct"),
-            );
+            let terrain_percent = match output_name {
+                "food" => native_terrain.road_food_incr_pct,
+                "shield" => native_terrain.road_shield_incr_pct,
+                "trade" => native_terrain.road_trade_incr_pct,
+                _ => unreachable!(),
+            };
             output.add(output_name, constant + increment * terrain_percent / 100);
             output.add(output_name, output.get(output_name) * bonus / 100);
 

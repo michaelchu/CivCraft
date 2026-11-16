@@ -67,13 +67,20 @@ The selected action graph is now native as well: `actions.toml` owns all 19
 actions and 89 actor/target enabler branches, while the engine continues to
 evaluate their typed requirements.
 
+Native terrain is now live as well. `terrain.toml` owns the selected terrain
+movement/activity values, output values, native classes, flags, climate
+transitions, terrain parameters, and extra-removal settings. City output,
+climate changes, and the normal movement adapter read that catalog directly;
+the legacy ruleset terrain path remains only for isolated parser/mutation parity
+tests.
+
 ## Order of work
 
 1. Migrate building identities, values, requirements, effects, and bindings.
 2. Migrate the technology graph and research/economic parameters.
 3. Migrate governments, settlement founding/city rules, and settlement AI
    tuning into native TOML.
-4. Migrate the remaining unit, building, government, terrain, action, combat,
+4. Migrate the remaining unit, building, government, action, combat,
    culture, diplomacy, AI, victory, and world effects into native TOML.
 5. Switch all simulation adapters to native catalogs and remove Freeciv
    gameplay content records from the selected runtime closure.

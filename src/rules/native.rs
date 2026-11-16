@@ -253,6 +253,71 @@ pub(crate) struct NativeCityEconomy {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct TerrainCatalog {
+    pub(crate) schema_version: u32,
+    pub(crate) source: String,
+    pub(crate) parameters: NativeTerrainParameters,
+    pub(crate) terrains: Vec<NativeTerrain>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeTerrainParameters {
+    pub(crate) ocean_reclaim_requirement: i32,
+    pub(crate) land_channel_requirement: i32,
+    pub(crate) thaw_requirement: i32,
+    pub(crate) freeze_requirement: i32,
+    pub(crate) lake_max_size: i32,
+    pub(crate) min_start_native_area: i32,
+    pub(crate) move_fragments: i32,
+    pub(crate) igter_cost: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeTerrain {
+    pub(crate) id: String,
+    pub(crate) rule_name: String,
+    pub(crate) name: String,
+    pub(crate) class: String,
+    pub(crate) movement_cost: i32,
+    pub(crate) defense_bonus: i32,
+    pub(crate) food: i32,
+    pub(crate) shield: i32,
+    pub(crate) trade: i32,
+    pub(crate) road_food_incr_pct: i32,
+    pub(crate) road_shield_incr_pct: i32,
+    pub(crate) road_trade_incr_pct: i32,
+    pub(crate) base_time: i32,
+    pub(crate) road_time: i32,
+    pub(crate) cultivate_time: i32,
+    pub(crate) plant_time: i32,
+    pub(crate) irrigation_food_incr: i32,
+    pub(crate) irrigation_time: i32,
+    pub(crate) mining_shield_incr: i32,
+    pub(crate) mining_time: i32,
+    pub(crate) transform_time: i32,
+    pub(crate) placing_time: i32,
+    pub(crate) pillage_time: i32,
+    pub(crate) property_ocean_depth: i32,
+    pub(crate) property_frozen: i32,
+    pub(crate) cultivate_result: String,
+    pub(crate) plant_result: String,
+    pub(crate) transform_result: String,
+    pub(crate) warmer_wetter_result: String,
+    pub(crate) warmer_drier_result: String,
+    pub(crate) cooler_wetter_result: String,
+    pub(crate) cooler_drier_result: String,
+    pub(crate) flags: Vec<String>,
+    pub(crate) native_to: Vec<String>,
+    pub(crate) extra_settings: Vec<NativeTerrainExtraSetting>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeTerrainExtraSetting {
+    pub(crate) extra: String,
+    pub(crate) removal_time: i32,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct SettlementCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
@@ -539,6 +604,16 @@ pub(crate) fn economy() -> &'static EconomyCatalog {
     })
 }
 
+pub(crate) fn terrain() -> &'static TerrainCatalog {
+    static CATALOG: OnceLock<TerrainCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft_native/terrain.toml"
+        ))
+        .expect("native terrain TOML must be valid")
+    })
+}
+
 pub(crate) fn settlements() -> &'static SettlementCatalog {
     static CATALOG: OnceLock<SettlementCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
@@ -643,6 +718,8 @@ mod tests {
         assert_eq!(governments().resistance.len(), 64);
         assert_eq!(governments().military_law.len(), 8);
         assert_eq!(economy().schema_version, 1);
+        assert_eq!(terrain().schema_version, 1);
+        assert_eq!(terrain().terrains.len(), 14);
         assert_eq!(settlements().schema_version, 1);
         assert_eq!(experience().schema_version, 1);
         assert_eq!(experience().levels.len(), 4);
