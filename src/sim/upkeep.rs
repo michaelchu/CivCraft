@@ -775,7 +775,7 @@ mod tests {
         game.create_city(HUMAN, x, y);
         let city_id = game.cities[0].id;
         game.units.clear();
-        game.players[HUMAN].government = Government::Fundamentalism;
+        game.players[HUMAN].government = Government::Democracy;
         let mut worker_ids = Vec::new();
         for n in 0..3 {
             worker_ids.push(add_home_unit(
@@ -788,9 +788,9 @@ mod tests {
         }
         let first_worker = worker_ids[0];
         let gold = game.city_gold_upkeep(&game.cities[0]);
-        assert_eq!(gold.paid, vec![(first_worker, 2)]);
+        assert_eq!(gold.paid, vec![(worker_ids[1], 2), (first_worker, 2)]);
         let upkeep = game.city_unit_upkeep(&game.cities[0]);
-        assert_eq!((upkeep.food, upkeep.shields, upkeep.gold), (0, 0, 2));
+        assert_eq!((upkeep.food, upkeep.shields, upkeep.gold), (0, 0, 4));
         assert_eq!(upkeep.unit_happiness, 0);
         assert!(
             upkeep
@@ -815,7 +815,7 @@ mod tests {
                     UnitUpkeepMapping::Unsupported(_) => panic!("worker mapping is supported"),
                 })
                 .collect::<Vec<_>>(),
-            vec![(2, 0), (2, 0), (2, 2)]
+            vec![(2, 0), (2, 2), (2, 2)]
         );
 
         let army = game.spawn_unit(HUMAN, UnitKind::Army, x + 4, y);
@@ -823,8 +823,8 @@ mod tests {
         unit.home_city = Some(city_id);
         unit.home_order = army;
         let gold = game.city_gold_upkeep(&game.cities[0]);
-        assert_eq!(gold.paid.len(), 2);
-        assert_eq!(gold.paid.iter().map(|(_, cost)| cost).sum::<i32>(), 4);
+        assert_eq!(gold.paid.len(), 3);
+        assert_eq!(gold.paid.iter().map(|(_, cost)| cost).sum::<i32>(), 6);
         let upkeep = game.city_unit_upkeep(&game.cities[0]);
         assert!(
             upkeep

@@ -1421,7 +1421,7 @@ support_shields = 1
 support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "Only_Native_Attack", "HasNoZOC", "Provoking", "NonMil"]
-roles = ["Ferryboat", "FerryStartUnit", "BarbarianBoat"]
+roles = []
 
 [[bindings]]
 civ3_unit_id = "swiss_mercenary"
@@ -1511,7 +1511,7 @@ support_shields = 1
 support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
-roles = ["Ferryboat", "FerryStartUnit"]
+roles = []
 
 [[bindings]]
 civ3_unit_id = "cruiser"
@@ -1583,7 +1583,7 @@ support_shields = 1
 support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
-roles = ["Ferryboat", "FerryStartUnit"]
+roles = []
 
 [[bindings]]
 civ3_unit_id = "paratrooper"

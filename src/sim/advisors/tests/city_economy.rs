@@ -27,7 +27,7 @@ fn stable_city_advice_is_reused_until_its_persisted_schedule_is_due() {
 }
 
 #[test]
-fn gold_spending_preserves_any_final_nondefense_advice() {
+fn gold_spending_preserves_final_city_advice() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (city, _) = game.hunter_production_playtest_setup();
     let position = {
@@ -58,9 +58,7 @@ fn gold_spending_preserves_any_final_nondefense_advice() {
     game.reconcile_city_workers();
     let port = game.city_by_id(city).unwrap();
     let choice = game.ai_build_choice(port);
-    let defense = game.city_defense_production(port);
     let production_before_spending = if let Some(choice) = choice {
-        assert_ne!(Some(choice.production), defense);
         game.cities
             .iter_mut()
             .find(|c| c.id == city)

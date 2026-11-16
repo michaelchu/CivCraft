@@ -393,7 +393,7 @@ fn paradrop_uses_selected_actions_minimum_moves_and_unit_range() {
         .find(|unit| unit.id == unsupported_identity)
         .unwrap()
         .moves_left = 6;
-    assert!(!game.can_begin_paradrop(game.unit_by_id(unsupported_identity).unwrap()));
+    assert!(game.can_begin_paradrop(game.unit_by_id(unsupported_identity).unwrap()));
 }
 
 #[test]

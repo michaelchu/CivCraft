@@ -380,9 +380,9 @@ mod tests {
             assert!(!kind.ignores_zoc(), "{kind:?}");
         }
         assert!(UnitKind::Explorer.ignores_zoc());
-        // Civ III's similarly named Guerilla ID does not bind to the C2C3
-        // Partisan record, so it uses the selected default (no IgZOC).
-        assert!(!UnitKind::Guerilla.ignores_zoc());
+        // The native Guerilla profile deliberately inherits the selected
+        // Partisan archetype's IgZOC capability.
+        assert!(UnitKind::Guerilla.ignores_zoc());
         assert!(UnitKind::Leader.ignores_zoc());
         assert!(!UnitKind::Carrier.ignores_zoc());
         let mut sim = Simulation::new(crate::mapgen::generate(42));

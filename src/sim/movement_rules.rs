@@ -1661,7 +1661,7 @@ mod tests {
         );
         assert_eq!(
             rules.unit_class_for_kind(UnitKind::Panzer).unwrap(),
-            UnitKind::Panzer.unit_class()
+            UnitClass::BigLand
         );
     }
 

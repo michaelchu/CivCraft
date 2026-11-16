@@ -44,13 +44,14 @@ impl Simulation {
             && science(self) == base_science + science_tiles
             && self.has_active_wonder(HUMAN, Building::GREAT_WALL);
         self.players[HUMAN].known.extend([
-            Tech::ENGINEERING,
-            Tech::ROBOTICS,
-            Tech::NUCLEAR_POWER,
+            Tech::METALLURGY,
+            Tech::REPLACEABLE_PARTS,
+            Tech::MAGNETISM,
             Tech::COMPUTERS,
         ]);
-        // Nuclear Power replaces Magellan's movement bonus when it makes that
-        // wonder obsolete; Lighthouse is also obsolete at Engineering.
+        // The native Conquests catalog makes Great Wall obsolete at
+        // Metallurgy, Lighthouse at Magnetism, Magellan's Expedition at
+        // Replaceable Parts, and Copernicus' Observatory at Computers.
         let owner_techs_obsoleted_wonders = naval_speed(self) == base_speed + MOVE_FRAGMENTS
             && science(self) == base_science
             && !self.has_active_wonder(HUMAN, Building::GREAT_WALL);

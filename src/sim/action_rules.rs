@@ -16,7 +16,7 @@ use crate::rules::freeciv::{
     RequirementEvaluationError, RequirementRange, RequirementValue, RuleRecord, RulesetData,
     action_enabled, requirements_met,
 };
-use crate::rules::{Building, Genus, Tech};
+use crate::rules::{Building, Genus, Requirement as BuildingRequirement, Tech};
 use crate::world::{Resource, Terrain};
 use std::sync::OnceLock;
 
@@ -163,6 +163,11 @@ impl<'a> SimulationRequirementContext<'a> {
         record: &'static crate::rules::freeciv::ContentRecord,
     ) -> Self {
         self.unit_type_flag_record = Some(record);
+        // Upkeep and production callers intentionally supply the selected
+        // archetype record for a mapped identity.  That explicit adapter
+        // must take precedence over the actor's Civ III native binding while
+        // the shared action requirements are evaluated.
+        self.native_unit_economics = None;
         self
     }
 
@@ -905,21 +910,23 @@ pub(crate) fn selected_building_is_obsolete(
     building: Building,
     granted: Option<Tech>,
 ) -> Option<bool> {
-    let native = native_building_for_runtime(building)?;
-    let obsolete_by = native.rendered_obsolete_by_advance_name.trim();
-    if obsolete_by.is_empty() {
-        return Some(false);
-    }
-    let Some(technology) =
-        Tech::all().find(|technology| technology.name().eq_ignore_ascii_case(obsolete_by))
-    else {
-        eprintln!(
-            "native obsolescence for {} names unknown technology {obsolete_by:?}; treating it as obsolete",
-            native.name
-        );
-        return Some(true);
-    };
-    Some(granted == Some(technology) || simulation.has_tech(city.owner, technology))
+    native_building_for_runtime(building)?;
+    let obsolete_technology = building
+        .data()
+        .obsolete
+        .iter()
+        .find_map(|(requirement, present)| {
+            if !present {
+                return None;
+            }
+            let BuildingRequirement::Tech(index) = requirement else {
+                return None;
+            };
+            Tech::all().find(|technology| technology.0 == *index)
+        });
+    Some(obsolete_technology.is_some_and(|technology| {
+        granted == Some(technology) || simulation.has_tech(city.owner, technology)
+    }))
 }
 
 impl RequirementContext for SimulationRequirementContext<'_> {
@@ -3608,7 +3615,7 @@ mod tests {
         assert!(freeciv_unit_has_role(UnitKind::Musketman, "DefendGood"));
         assert!(freeciv_unit_has_role(UnitKind::MechInfantry, "DefendGood"));
         assert!(freeciv_unit_has_role(UnitKind::Horseman, "Hunter"));
-        assert!(freeciv_unit_has_role(UnitKind::Curragh, "Ferryboat"));
+        assert!(!freeciv_unit_has_role(UnitKind::Curragh, "Ferryboat"));
         assert!(!freeciv_unit_has_role(UnitKind::Dromon, "BarbarianBoat"));
         assert!(!freeciv_unit_has_role(UnitKind::Army, "DefendGood"));
     }

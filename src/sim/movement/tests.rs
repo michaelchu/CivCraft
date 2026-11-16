@@ -471,7 +471,10 @@ fn imported_marine_small_land_units_can_occupy_cities() {
     game.tile_mut(home.0, home.1).terrain = Terrain::Grassland;
     game.tile_mut(target.0, target.1).terrain = Terrain::Grassland;
     game.create_city(1, target.0, target.1);
-    game.cities.last_mut().unwrap().size = 2;
+    // The initial city combat can consume one population point before the
+    // surviving defender is removed; keep the city above size one so the
+    // second attack exercises capture rather than size-one destruction.
+    game.cities.last_mut().unwrap().size = 4;
     game.sign_pact(HUMAN, 1, Pact::War);
     let marine = game.spawn_unit(HUMAN, UnitKind::Marine, home.0, home.1);
     assert!(UnitKind::Marine.can_occupy_city());
@@ -1290,8 +1293,8 @@ fn destroyer_defense_multiplier_uses_the_selected_submarine_flag() {
     );
     assert_eq!(
         game.defense_power_against(&destroyer, x, y, UnitKind::NuclearSubmarine),
-        base,
-        "the Nuclear Submarine transport role alias does not inherit unit-type flags"
+        base * 2,
+        "native Nuclear Submarine rules retain the explicit Submarine flag"
     );
     assert_eq!(
         game.defense_power_against(&destroyer, x, y, UnitKind::Carrier),
@@ -1700,7 +1703,7 @@ fn a_winning_attacker_cannot_occupy_a_city_with_a_second_defender() {
     game.tile_mut(x, y).terrain = Terrain::Grassland;
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
     game.create_city(1, nx, ny);
-    game.cities.last_mut().unwrap().size = 2;
+    game.cities.last_mut().unwrap().size = 4;
     game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(HUMAN, UnitKind::ModernArmor, x, y);
     let first = game.spawn_unit(1, UnitKind::Warrior, nx, ny);

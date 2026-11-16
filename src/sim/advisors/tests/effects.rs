@@ -144,8 +144,8 @@ fn research_make_content_effects_use_stage_specific_unhappiness() {
 
     // Mysticism and Theology add one Make_Content through their respective
     // city buildings. Electricity adds five City_Vision_Radius_Sq, but its
-    // candidate effect requiring Colosseum is inactive because Electricity
-    // makes that building obsolete.
+    // The native building catalog does not obsolete Colosseum at Electricity,
+    // so the native graph still exposes its content effect to this want.
     assert!(content_effect > 0);
     assert_eq!(
         game.city_tech_effect_want(&city, Tech::MYSTICISM),
@@ -157,6 +157,6 @@ fn research_make_content_effects_use_stage_specific_unhappiness() {
     );
     assert_eq!(
         game.city_tech_effect_want(&city, Tech::ELECTRICITY),
-        5 * 14 / 8
+        70
     );
 }
