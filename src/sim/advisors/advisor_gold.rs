@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::rules::freeciv::{
-    ContentKind, EffectRecord, Requirement, RequirementContext, RequirementValue, RulesetData,
+    EffectRecord, Requirement, RequirementContext, RequirementValue, RulesetData,
 };
 
 impl Simulation {
@@ -111,14 +111,12 @@ impl Simulation {
             let forecast = self.city_forecast(city);
             income += forecast.gold - forecast.building_upkeep;
             if let Production::Building(building) = city.production {
-                let converts_to_gold = Self::ai_ruleset_building_record(building)
-                    .and_then(|record| {
-                        record.string_list_field("flags").unwrap_or_else(|error| {
-                            panic!("invalid C2C3 production building flags: {error}")
-                        })
-                    })
-                    .is_some_and(|flags| {
-                        flags.iter().any(|flag| flag.eq_ignore_ascii_case("Gold"))
+                let converts_to_gold =
+                    Self::ai_ruleset_building_record(building).is_some_and(|record| {
+                        record
+                            .flags
+                            .iter()
+                            .any(|flag| flag.eq_ignore_ascii_case("Gold"))
                     });
                 if converts_to_gold {
                     income += city.shields + forecast.shield_surplus();
@@ -196,17 +194,20 @@ impl Simulation {
     }
 
     fn ai_building_is_obsolete(simulation: &Simulation, city: &City, building: Building) -> bool {
-        let Some(record) = Self::ai_ruleset_building_record(building) else {
+        let Some(rule) = Self::ai_ruleset_building_record(building) else {
             return false;
         };
-        let context = super::super::action_rules::SimulationRequirementContext::for_city_at(
-            simulation,
-            city,
-            Some((city.x, city.y)),
-        );
-        record.obsolete_by.iter().any(|requirement| {
-            RequirementContext::is_present(&context, requirement)
-                .is_ok_and(|present| present == requirement.present)
+        rule.obsolete.iter().any(|requirement| {
+            requirement.present
+                && match requirement.kind.as_str() {
+                    "Tech" => Tech::all()
+                        .find(|tech| tech.0 == requirement.value as usize)
+                        .is_some_and(|tech| simulation.has_tech(city.owner, tech)),
+                    "Improvement" => usize::try_from(requirement.value)
+                        .ok()
+                        .is_some_and(|index| city.buildings.contains(&Building(index))),
+                    _ => false,
+                }
         })
     }
 
@@ -222,11 +223,7 @@ impl Simulation {
         rules: &'static RulesetData,
     ) -> Vec<&'static EffectRecord> {
         let flags = Self::ai_ruleset_building_record(building)
-            .and_then(|record| {
-                record
-                    .string_list_field("flags")
-                    .unwrap_or_else(|error| panic!("invalid C2C3 building flags: {error}"))
-            })
+            .map(|record| record.flags.as_slice())
             .unwrap_or_default();
         rules
             .effects
@@ -246,63 +243,34 @@ impl Simulation {
 
     fn ai_ruleset_building_record(
         building: Building,
-    ) -> Option<&'static crate::rules::freeciv::ContentRecord> {
-        let rules = RulesetData::campaign_default();
-        rules.content.iter().find(|record| {
-            record.kind == ContentKind::Building
-                && (Self::ai_building_name_matches(building, &record.rule_name)
-                    || record
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|name| Self::ai_building_name_matches(building, name)))
-        })
-    }
-
-    fn ai_building_name_matches(building: Building, name: &str) -> bool {
-        let canonical = building.data().name;
-        canonical.eq_ignore_ascii_case(name)
-            || match canonical {
-                "Harbor" => name.eq_ignore_ascii_case("Harbour"),
-                "Shakespeare's Theater" => name.eq_ignore_ascii_case("Shakespeare's Theatre"),
-                _ => false,
-            }
+    ) -> Option<&'static crate::rules::native::NativeBuildingRule> {
+        crate::rules::native::building_rule(building.0)
     }
 
     fn ai_requirement_names_building(requirement: &Requirement, building: Building) -> bool {
         let RequirementValue::String(name) = &requirement.name else {
             return false;
         };
-        Self::ai_building_name_matches(building, name)
-            || Self::ai_ruleset_building_record(building).is_some_and(|record| {
-                record.rule_name.eq_ignore_ascii_case(name)
-                    || record
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|display| display.eq_ignore_ascii_case(name))
-            })
+        Self::ai_ruleset_building_record(building)
+            .is_some_and(|record| record.name.eq_ignore_ascii_case(name))
     }
 
-    fn ai_building_has_gold_or_infra_flag(record: &crate::rules::freeciv::ContentRecord) -> bool {
+    fn ai_building_has_gold_or_infra_flag(
+        record: &crate::rules::native::NativeBuildingRule,
+    ) -> bool {
         record
-            .string_list_field("flags")
-            .unwrap_or_else(|error| panic!("invalid C2C3 building flags: {error}"))
-            .is_some_and(|flags| {
-                flags.iter().any(|flag| {
-                    flag.eq_ignore_ascii_case("Gold") || flag.eq_ignore_ascii_case("Infra")
-                })
-            })
+            .flags
+            .iter()
+            .any(|flag| flag.eq_ignore_ascii_case("Gold") || flag.eq_ignore_ascii_case("Infra"))
     }
 
     fn ai_building_has_side_effect(
         _city: &City,
         building: Building,
-        record: &crate::rules::freeciv::ContentRecord,
+        record: &crate::rules::native::NativeBuildingRule,
     ) -> bool {
         let rules = RulesetData::campaign_default();
-        let flags = record
-            .string_list_field("flags")
-            .unwrap_or_else(|error| panic!("invalid C2C3 building flags: {error}"))
-            .unwrap_or_default();
+        let flags = &record.flags;
         let requirement_needs_building = |requirement: &Requirement| {
             (requirement.kind.eq_ignore_ascii_case("Building")
                 && Self::ai_requirement_names_building(requirement, building))
@@ -316,11 +284,7 @@ impl Simulation {
                 .iter()
                 .chain(&enabler.target_requirements)
                 .any(requirement_needs_building)
-        }) || rules
-            .content
-            .iter()
-            .filter(|content| content.kind == ContentKind::Unit)
-            .any(|unit| unit.requirements.iter().any(requirement_needs_building))
+        })
     }
 
     fn ai_effect_is_replaced(simulation: &Simulation, city: &City, effect: &EffectRecord) -> bool {

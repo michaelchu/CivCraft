@@ -1,6 +1,10 @@
 schema_version = 1
 source = "CivCraft native settlement rules"
 
+[citizens]
+nationality = true
+partisans_pct = 75
+
 [ai]
 food_priority = 30
 shield_priority = 17

@@ -4,7 +4,7 @@
 use super::terrain_work::neighbors;
 use super::*;
 use crate::rules::Genus;
-use crate::rules::freeciv::{ContentKind, RuleRecord, RulesetData, requirements_met};
+use crate::rules::freeciv::{RuleRecord, RulesetData, requirements_met};
 
 impl Simulation {
     pub(super) fn check_disasters(&mut self) {
@@ -183,37 +183,15 @@ impl Simulation {
     }
 
     fn disaster_building_candidates(&self, city: &City) -> Vec<Building> {
-        let rules = RulesetData::campaign_default();
-        rules
-            .content
-            .iter()
-            .filter(|record| record.kind == ContentKind::Building)
-            .filter_map(|record| {
-                let building = Building::all().find(|building| {
-                    let name = building.data().name;
-                    name.eq_ignore_ascii_case(&record.rule_name)
-                        || record
-                            .display_name
-                            .as_deref()
-                            .is_some_and(|display| name.eq_ignore_ascii_case(display))
-                        || (name.eq_ignore_ascii_case("Harbor")
-                            && (record.rule_name.eq_ignore_ascii_case("Harbour")
-                                || record.display_name.as_deref().is_some_and(|display| {
-                                    display.eq_ignore_ascii_case("Harbour")
-                                })))
-                })?;
-                if building.data().genus != Genus::Improvement
-                    || !city.buildings.contains(&building)
-                {
-                    return None;
-                }
-                let disaster_proof = record
-                    .string_list_field("flags")
-                    .unwrap_or_else(|error| panic!("invalid {}.flags: {error}", record.section))
-                    .unwrap_or_default()
-                    .iter()
-                    .any(|flag| flag.eq_ignore_ascii_case("DisasterProof"));
-                (!disaster_proof).then_some(building)
+        Building::all()
+            .filter(|building| {
+                building.data().genus == Genus::Improvement
+                    && city.buildings.contains(building)
+                    && !crate::rules::native::building_rule(building.0).is_some_and(|rule| {
+                        rule.flags
+                            .iter()
+                            .any(|flag| flag.eq_ignore_ascii_case("DisasterProof"))
+                    })
             })
             .collect()
     }

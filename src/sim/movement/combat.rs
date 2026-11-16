@@ -309,28 +309,9 @@ impl Simulation {
         mut attack: i32,
         mut defense: i32,
     ) -> (i32, i32) {
-        let defender_class = MovementRules::campaign()
-            .unit_class_for_kind(defender.kind)
-            .expect("campaign C2C3 defender unit class is explicitly mapped");
-        let defender_class_name = MovementRules::campaign()
-            .unit_class_movement_data(defender_class)
-            .expect("campaign C2C3 defender class rules are valid")
-            .rule_name;
-        let defender_class_record = RulesetData::campaign_default()
-            .rule_records
-            .iter()
-            .find(|record| {
-                record.namespace.eq_ignore_ascii_case("unit_class")
-                    && record.rule_name.eq_ignore_ascii_case(&defender_class_name)
-            })
-            .expect("selected C2C3 defender unit class is present");
-        let defender_class_flags = defender_class_record
-            .string_list_field("flags")
-            .expect("selected C2C3 defender class flags are valid")
-            .expect("selected C2C3 defender class has flags");
-        let non_native_bombard_target = defender_class_flags
-            .iter()
-            .any(|flag| flag.eq_ignore_ascii_case("NonNatBombardTgt"));
+        let non_native_bombard_target =
+            super::super::action_rules::freeciv_unit_class_flag(defender.kind, "NonNatBombardTgt")
+                .expect("campaign C2C3 defender unit class is explicitly mapped");
         if non_native_bombard_target
             && !self.combat_unit_is_native_at(attacker.kind, defender.x, defender.y)
             && (!self.combat_unit_can_exist_at_tile(defender, attacker.x, attacker.y)
@@ -583,13 +564,6 @@ impl Simulation {
             return true;
         }
 
-        let class = MovementRules::campaign()
-            .unit_class_for_kind(unit.kind)
-            .expect("campaign C2C3 survivability class is explicitly mapped");
-        let class_name = MovementRules::campaign()
-            .unit_class_movement_data(class)
-            .expect("campaign C2C3 survivability class data is valid")
-            .rule_name;
         let base_refuels = self.tile(x, y).base.is_some_and(|base| {
             let extra_name = crate::sim::movement_rules::c2c3_base_extra_rule_name(base);
             RulesetData::campaign_default()
@@ -611,9 +585,12 @@ impl Simulation {
                         .flatten()
                         .unwrap_or_default();
                     flags.iter().any(|flag| flag.eq_ignore_ascii_case("Refuel"))
-                        && native_to
-                            .iter()
-                            .any(|name| name.eq_ignore_ascii_case(&class_name))
+                        && super::super::action_rules::freeciv_unit_class_rule_name(unit.kind)
+                            .is_some_and(|class| {
+                                native_to
+                                    .iter()
+                                    .any(|name| name.eq_ignore_ascii_case(&class))
+                            })
                 })
         });
         if base_refuels {
@@ -630,39 +607,24 @@ impl Simulation {
             return false;
         }
 
-        let class_record = RulesetData::campaign_default()
-            .rule_records
-            .iter()
-            .find(|record| {
-                record.namespace.eq_ignore_ascii_case("unit_class")
-                    && record.rule_name.eq_ignore_ascii_case(&class_name)
-            })
-            .expect("campaign C2C3 survivability class record exists");
-        class_record
-            .integer_field("hp_loss_pct")
-            .expect("campaign C2C3 class hp_loss_pct is valid")
-            .unwrap_or(0)
-            == 0
+        super::super::action_rules::native_unit_economics_binding(unit.kind)
+            .is_some_and(|binding| binding.hp_loss_pct == 0)
     }
 
     fn safe_ocean_tile(&self, x: i32, y: i32) -> bool {
-        let rules = RulesetData::campaign_default();
         let movement = MovementRules::campaign();
         self.map_wrap.civ3_neighbors(x, y).any(|(tx, ty)| {
             let terrain = self.tile(tx, ty).terrain;
             let Ok(data) = movement.terrain_data(terrain) else {
                 return false;
             };
-            rules
-                .content
+            crate::rules::native::terrain()
+                .terrains
                 .iter()
-                .find(|record| {
-                    record.kind == crate::rules::freeciv::ContentKind::Terrain
-                        && record.rule_name.eq_ignore_ascii_case(&data.rule_name)
-                })
-                .and_then(|record| record.string_list_field("flags").ok().flatten())
-                .is_some_and(|flags| {
-                    !flags
+                .find(|record| record.rule_name.eq_ignore_ascii_case(&data.rule_name))
+                .is_some_and(|record| {
+                    !record
+                        .flags
                         .iter()
                         .any(|flag| flag.eq_ignore_ascii_case("UnsafeCoast"))
                 })

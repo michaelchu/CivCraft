@@ -19,11 +19,12 @@ Current catalogs:
   and starting-unit profiles.
 - `buildings.toml`: 83 source building records, 91 stable runtime rules, and
   explicit legacy binding status.
-- `technologies.toml`: 83 advances, source coordinates, costs, and prerequisite
-  graph inputs.
+- `technologies.toml`: 83 native Conquests advances, source coordinates, costs,
+  prerequisite graph inputs, and native capability flags (including the Civ
+  III Engineering bridge capability).
 - `unit_economics.toml`: native unit classes, class flags, target classes,
   gameplay roles, fuel, build cost, support, and happiness bindings for all
-  92 Conquests units.
+  92 Conquests units, plus vision and hit-point attrition values.
 - `effects.toml`: the complete 508-effect campaign graph, including typed
   requirements and multipliers.
 - `actions.toml`: the 19 campaign actions and 89 typed action-enabler
@@ -32,7 +33,8 @@ Current catalogs:
   AI preferences, flags, core scalar values, and support/assimilation/
   resistance/military-law tables.
 - `economy.toml`: city growth, output, upkeep, and founding parameters.
-- `settlements.toml`: settlement AI and village outcome parameters.
+- `settlements.toml`: settlement AI, citizen nationality/partisan rules, and
+  village outcome parameters.
 - `terrain.toml`: 14 native terrain identities, movement/activity values,
   worker results, native classes, flags, climate transitions, and terrain
   parameters.

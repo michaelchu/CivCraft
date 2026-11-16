@@ -325,33 +325,13 @@ fn c2c3_unit_sight_values_resolve_through_civ3_sight_bindings() {
         );
     }
 
-    // These Freeciv-only unit identities have no exact Civ III unit record.
-    // Do not silently use Guerilla or F-15 as semantic substitutes; Civ III
-    // Conquests has no Spy unit identity at all.
+    // These identities use explicit native profiles. They are not inferred
+    // from a same-named Freeciv unit or an implicit Civ III fallback.
     assert_eq!(
         ruleset_unit_vision_radius_sq(ruleset, UnitKind::Guerilla),
-        2
+        6
     );
     assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::F15), 8);
-
-    for kind in UnitKind::ALL_NATIVE {
-        let id = kind
-            .conquests_id()
-            .expect("every campaign unit has a Conquests identity");
-        if unit_sight_binding_for(id) == Some(SightBinding::Unresolved) {
-            assert_eq!(ruleset_unit_vision_radius_sq(ruleset, kind), 2, "{id}");
-            let expected_layer = if kind.uses_stealth_vision() {
-                UnitVisionLayer::Stealth
-            } else {
-                UnitVisionLayer::Main
-            };
-            assert_eq!(
-                ruleset_unit_vision_layer(ruleset, kind),
-                expected_layer,
-                "{id}"
-            );
-        }
-    }
 
     assert_eq!(UNMAPPED_FREECIV_UNIT_VISION.len(), 3);
     for gap in UNMAPPED_FREECIV_UNIT_VISION {

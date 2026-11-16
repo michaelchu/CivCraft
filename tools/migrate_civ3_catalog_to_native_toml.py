@@ -106,6 +106,7 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
             "paratroopers_range",
             "transport_cap",
             "attack",
+            "vision_radius_sq",
         }:
             match = re.search(r"-?\d+", value)
             if match:
@@ -114,6 +115,10 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
             match = re.search(r'"([^"]+)"', value)
             if match:
                 current["transport_defense"] = match.group(1)
+        elif key == "vision_layer":
+            match = re.search(r'"([^"]+)"', value)
+            if match:
+                current["vision_layer"] = match.group(1)
         elif key in {"embarks", "disembarks"}:
             match = re.search(r'"([^"]+)"', value)
             if match:
@@ -127,6 +132,7 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
         re.DOTALL,
     )
     class_flags: dict[str, list[str]] = {}
+    class_hp_loss: dict[str, int] = {}
     for block_match in class_blocks:
         block = block_match.group(1)
         name_match = re.search(
@@ -137,6 +143,8 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
             class_flags[name_match.group(1)] = re.findall(
                 r'"([^"\\]*(?:\\.[^"\\]*)*)"', flags_match.group(1)
             )
+            hp_match = re.search(r"^hp_loss_pct\s*=\s*(-?\d+)", block, re.MULTILINE)
+            class_hp_loss[name_match.group(1)] = int(hp_match.group(1)) if hp_match else 0
     source = (ROOT / "data/rulesets/civcraft_civ2civ3/units.ruleset").read_text(
         encoding="utf-8"
     )
@@ -162,6 +170,7 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
     for profile_name, profile in profiles.items():
         unit_class = profile.get("unit_class")
         profile["class_flags"] = class_flags.get(str(unit_class), [])
+        profile["hp_loss_pct"] = class_hp_loss.get(str(unit_class), 0)
         profile.setdefault("targets", [])
         profile.setdefault("cargo", [])
         profile.setdefault("transport_cap", 0)
@@ -173,6 +182,8 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
         for key, values in default_veteran_values.items():
             profile.setdefault(key, values)
         profile.setdefault("combat_bonuses", [])
+        profile.setdefault("vision_radius_sq", 2)
+        profile.setdefault("vision_layer", "Main")
 
     # Combat bonus tables are the only nested unit table used by CivCraft.
     # Preserve them as native rows instead of making the runtime parse the
@@ -408,6 +419,36 @@ def read_native_building_rules() -> list[dict[str, object]]:
     return rules
 
 
+def _ruleset_named_flags(path: Path, section_prefix: str) -> dict[str, list[str]]:
+    source = path.read_text(encoding="utf-8")
+    flags: dict[str, list[str]] = {}
+    for match in re.finditer(
+        rf"^\[{section_prefix}[^\]]+\]\s*\n(.*?)(?=^\[|\Z)",
+        source,
+        re.MULTILINE | re.DOTALL,
+    ):
+        block = match.group(1)
+        name_match = re.search(r'^name\s*=\s*_\("([^"]+)"\)', block, re.MULTILINE)
+        if name_match:
+            flag_match = re.search(r'^flags\s*=\s*"([^"]*)"', block, re.MULTILINE)
+            flags[name_match.group(1)] = (
+                [flag_match.group(1)] if flag_match and flag_match.group(1) else []
+            )
+    return flags
+
+
+def read_c2c3_building_flags() -> dict[str, list[str]]:
+    return _ruleset_named_flags(
+        ROOT / "data/rulesets/civcraft_civ2civ3/buildings.ruleset", "building_"
+    )
+
+
+def read_c2c3_technology_flags() -> dict[str, list[str]]:
+    return _ruleset_named_flags(
+        ROOT / "data/rulesets/civcraft_civ2civ3/techs.ruleset", "advance_"
+    )
+
+
 def write_buildings() -> None:
     rows = read_tsv("buildings.tsv")
     bindings = read_tsv("building_catalog_bindings.tsv")
@@ -463,6 +504,7 @@ def write_buildings() -> None:
         'source = "Civilization III: Conquests"',
         "",
     ]
+    building_flags = read_c2c3_building_flags()
     for row in rows:
         lines.append("[[buildings]]")
         for field in string_fields:
@@ -490,6 +532,7 @@ def write_buildings() -> None:
                 f'upkeep = {rule["upkeep"]}',
                 f'requirements = {inline_tables(rule["requirements"])}',
                 f'obsolete = {inline_tables(rule["obsolete"])}',
+                f'flags = {json.dumps(building_flags.get(str(rule["name"]), []), ensure_ascii=False)}',
                 "",
             ]
         )
@@ -528,6 +571,7 @@ def write_technologies() -> None:
         'source = "Civilization III: Conquests"',
         "",
     ]
+    technology_flags = read_c2c3_technology_flags()
     for row in rows:
         lines.append("[[technologies]]")
         for field in string_fields:
@@ -544,6 +588,12 @@ def write_technologies() -> None:
             )
             + "]"
         )
+        flags = list(technology_flags.get(row["name"], []))
+        # Civ III has no separate Freeciv Bridge Building node.  Its native
+        # Engineering advance owns the road-over-river capability instead.
+        if row["name"] == "Engineering":
+            flags.append("Bridge")
+        lines.append(f"flags = {json.dumps(flags, ensure_ascii=False)}")
         lines.append("")
     (DEST / "technologies.toml").write_text("\n".join(lines), encoding="utf-8")
 
@@ -676,6 +726,9 @@ def write_unit_economics() -> None:
                 f'happiness = {profile.get("uk_happy", 0)}',
                 f'flags = {json.dumps(flags, ensure_ascii=False)}',
                 f'roles = {json.dumps(roles, ensure_ascii=False)}',
+                f'hp_loss_pct = {profile.get("hp_loss_pct", 0)}',
+                f'vision_radius_sq = {profile.get("vision_radius_sq", 2)}',
+                f'vision_layer = {string(profile.get("vision_layer", "Main"))}',
                 "",
             ]
         )

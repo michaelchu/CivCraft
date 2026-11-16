@@ -439,6 +439,7 @@ impl UnitKind {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::sim) fn uses_stealth_vision(self) -> bool {
         self.metadata().stealth
     }

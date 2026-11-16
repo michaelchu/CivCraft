@@ -30,6 +30,9 @@ support_gold = 0
 happiness = 0
 flags = ["Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "AddToCity", "Cities", "Fortress"]
 roles = ["CitiesStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "worker"
@@ -60,6 +63,9 @@ support_gold = 0
 happiness = 0
 flags = ["Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "Fortress", "ShieldToGold"]
 roles = ["Settlers", "WorkerStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "scout"
@@ -90,6 +96,9 @@ support_gold = 0
 happiness = 0
 flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify", "ShieldToGold"]
 roles = ["Explorer", "ExplorerStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 6
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "explorer"
@@ -120,6 +129,9 @@ support_gold = 0
 happiness = 0
 flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify", "ShieldToGold"]
 roles = ["Explorer", "ExplorerStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 6
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "marine"
@@ -150,6 +162,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress"]
 roles = ["DefendGood", "DefendOkStartUnit", "FirstBuild", "BarbarianSeaTech"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "modern_paratrooper"
@@ -180,6 +195,9 @@ support_gold = 0
 happiness = 1
 flags = ["Paratroopers", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "warrior"
@@ -210,6 +228,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "archer"
@@ -240,6 +261,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "Hut"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "spearman"
@@ -270,6 +294,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "swordsman"
@@ -300,6 +327,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "chariot"
@@ -330,6 +360,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["AttackFastStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "horseman"
@@ -360,6 +393,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["AttackFastStartUnit", "Hut", "Barbarian", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "pikeman"
@@ -390,6 +426,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "longbowman"
@@ -420,6 +459,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "Hut"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "musketman"
@@ -450,6 +492,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild", "HutTech", "BarbarianTech", "BarbarianBuildTech", "BarbarianSeaTech"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "knight"
@@ -480,6 +525,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "rifleman"
@@ -510,6 +558,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "cavalry"
@@ -540,6 +591,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["AttackFastStartUnit", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "infantry"
@@ -570,6 +624,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "tank"
@@ -600,6 +657,9 @@ support_gold = 0
 happiness = 1
 flags = ["ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "mech_infantry"
@@ -630,6 +690,9 @@ support_gold = 0
 happiness = 1
 flags = [""]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "modern_armor"
@@ -660,6 +723,9 @@ support_gold = 0
 happiness = 1
 flags = ["ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "catapult"
@@ -690,6 +756,9 @@ support_gold = 0
 happiness = 1
 flags = ["ShieldToGold"]
 roles = ["AttackStrongStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "cannon"
@@ -720,6 +789,9 @@ support_gold = 0
 happiness = 1
 flags = ["ShieldToGold"]
 roles = ["AttackStrongStartUnit", "BarbarianTech", "BarbarianBuildTech"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "artillery"
@@ -750,6 +822,9 @@ support_gold = 0
 happiness = 1
 flags = ["CityBuster"]
 roles = ["AttackStrongStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "radar_artillery"
@@ -780,6 +855,9 @@ support_gold = 0
 happiness = 1
 flags = ["CityBuster", "ShieldToGold"]
 roles = ["AttackStrongStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "cruise_missile"
@@ -810,6 +888,9 @@ support_gold = 0
 happiness = 1
 flags = ["OneAttack", "AirAttacker", "CityBuster", "HasNoZOC", "ShieldToGold"]
 roles = [""]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "tactical_nuke"
@@ -840,6 +921,9 @@ support_gold = 0
 happiness = 1
 flags = ["FieldUnit", "OneAttack", "Nuclear", "HasNoZOC", "ShieldToGold"]
 roles = [""]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "icbm"
@@ -870,6 +954,9 @@ support_gold = 0
 happiness = 1
 flags = ["FieldUnit", "OneAttack", "Nuclear", "HasNoZOC", "ShieldToGold"]
 roles = [""]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "galley"
@@ -900,6 +987,9 @@ support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = ["Ferryboat", "FerryStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "caravel"
@@ -930,6 +1020,9 @@ support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "Only_Native_Attack", "HasNoZOC", "Provoking", "NonMil"]
 roles = ["Ferryboat", "FerryStartUnit", "BarbarianBoat"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "frigate"
@@ -960,6 +1053,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "ShieldToGold"]
 roles = ["Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "galleon"
@@ -990,6 +1086,9 @@ support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = ["Ferryboat", "FerryStartUnit", "BarbarianBoat"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "ironclad"
@@ -1020,6 +1119,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "ShieldToGold"]
 roles = ["Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "transport"
@@ -1050,6 +1152,9 @@ support_gold = 0
 happiness = 0
 flags = ["Workers", "BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = ["Ferryboat", "FerryStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "carrier"
@@ -1080,6 +1185,9 @@ support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "HasNoZOC", "Provoking", "ShieldToGold"]
 roles = ["DefendGood"]
+hp_loss_pct = 0
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "submarine"
@@ -1110,6 +1218,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "Only_Native_Attack", "Submarine", "Provoking", "ShieldToGold"]
 roles = ["Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 8
+vision_layer = "Subsurface"
 
 [[bindings]]
 civ3_unit_id = "destroyer"
@@ -1140,6 +1251,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "ShieldToGold"]
 roles = ["Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "battleship"
@@ -1170,6 +1284,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "aegis_cruiser"
@@ -1200,6 +1317,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "nuclear_submarine"
@@ -1230,6 +1350,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "Only_Native_Attack", "Submarine", "Provoking", "ShieldToGold"]
 roles = ["Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 8
+vision_layer = "Subsurface"
 
 [[bindings]]
 civ3_unit_id = "fighter"
@@ -1260,6 +1383,9 @@ support_gold = 0
 happiness = 1
 flags = ["AirAttacker", "HasNoZOC", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit"]
+hp_loss_pct = 10
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "bomber"
@@ -1290,6 +1416,9 @@ support_gold = 0
 happiness = 1
 flags = ["FieldUnit", "OneAttack", "AirAttacker", "Bombarder", "HasNoZOC", "ShieldToGold"]
 roles = [""]
+hp_loss_pct = 10
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "helicopter"
@@ -1320,6 +1449,9 @@ support_gold = 0
 happiness = 1
 flags = ["OneAttack", "AirAttacker", "Bombarder", "HasNoZOC", "Provoking", "ShieldToGold"]
 roles = [""]
+hp_loss_pct = 10
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "jet_fighter"
@@ -1350,6 +1482,9 @@ support_gold = 0
 happiness = 1
 flags = ["AirAttacker", "HasNoZOC", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit"]
+hp_loss_pct = 10
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "stealth_fighter"
@@ -1380,6 +1515,9 @@ support_gold = 0
 happiness = 1
 flags = ["AirAttacker", "HasNoZOC", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit"]
+hp_loss_pct = 10
+vision_radius_sq = 8
+vision_layer = "Stealth"
 
 [[bindings]]
 civ3_unit_id = "stealth_bomber"
@@ -1410,6 +1548,9 @@ support_gold = 0
 happiness = 1
 flags = ["FieldUnit", "OneAttack", "AirAttacker", "Bombarder", "HasNoZOC", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit"]
+hp_loss_pct = 10
+vision_radius_sq = 8
+vision_layer = "Stealth"
 
 [[bindings]]
 civ3_unit_id = "leader"
@@ -1440,6 +1581,9 @@ support_gold = 0
 happiness = 0
 flags = ["IgZOC", "NonMil", "NoBuild", "NoHome", "SuperSpy", "EvacuateFirst", "Unbribable", "GameLoss", "Unique", "Provoking"]
 roles = ["KingStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "army"
@@ -1470,6 +1614,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "jaguar_warrior"
@@ -1500,6 +1647,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "bowman"
@@ -1530,6 +1680,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "Hut"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "hoplite"
@@ -1560,6 +1713,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "impi"
@@ -1590,6 +1746,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "legionary"
@@ -1620,6 +1779,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "immortals"
@@ -1650,6 +1812,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "war_chariot"
@@ -1680,6 +1845,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["AttackFastStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "rider"
@@ -1710,6 +1878,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "mounted_warrior"
@@ -1740,6 +1911,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["AttackFastStartUnit", "Hut", "Barbarian", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "musketeer"
@@ -1770,6 +1944,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild", "HutTech", "BarbarianTech", "BarbarianBuildTech", "BarbarianSeaTech"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "samurai"
@@ -1800,6 +1977,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "war_elephant"
@@ -1830,6 +2010,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "cossack"
@@ -1860,6 +2043,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["AttackFastStartUnit", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "panzer"
@@ -1890,6 +2076,9 @@ support_gold = 0
 happiness = 1
 flags = ["ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "man_o_war"
@@ -1920,6 +2109,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "ShieldToGold"]
 roles = ["Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "f_15"
@@ -1950,6 +2142,9 @@ support_gold = 0
 happiness = 1
 flags = ["AirAttacker", "HasNoZOC", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit"]
+hp_loss_pct = 10
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "privateer"
@@ -1980,6 +2175,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "ShieldToGold"]
 roles = ["Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "keshik"
@@ -2010,6 +2208,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "conquistador"
@@ -2040,6 +2241,9 @@ support_gold = 0
 happiness = 0
 flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify", "ShieldToGold"]
 roles = ["Explorer", "ExplorerStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 6
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "berserk"
@@ -2070,6 +2274,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "Hut"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "sipahi"
@@ -2100,6 +2307,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["AttackFastStartUnit", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "gallic_swordsman"
@@ -2130,6 +2340,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "ansar_warrior"
@@ -2160,6 +2373,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "numidian_mercenary"
@@ -2190,6 +2406,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "hwach_a"
@@ -2220,6 +2439,9 @@ support_gold = 0
 happiness = 1
 flags = ["ShieldToGold"]
 roles = ["AttackStrongStartUnit", "BarbarianTech", "BarbarianBuildTech"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "medieval_infantry"
@@ -2250,6 +2472,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "BarbarianBuild", "BarbarianSea"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "guerilla"
@@ -2280,6 +2505,9 @@ support_gold = 0
 happiness = 1
 flags = ["IgTer", "IgZOC", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "Partisan", "BarbarianTech"]
+hp_loss_pct = 0
+vision_radius_sq = 6
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "enkidu_warrior"
@@ -2310,6 +2538,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "three_man_chariot"
@@ -2340,6 +2571,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["AttackFastStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "carrack"
@@ -2370,6 +2604,9 @@ support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "Only_Native_Attack", "HasNoZOC", "Provoking", "NonMil"]
 roles = []
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "swiss_mercenary"
@@ -2400,6 +2637,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "trebuchet"
@@ -2430,6 +2670,9 @@ support_gold = 0
 happiness = 1
 flags = ["ShieldToGold"]
 roles = ["AttackStrongStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "chasqui_scout"
@@ -2460,6 +2703,9 @@ support_gold = 0
 happiness = 0
 flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify", "ShieldToGold"]
 roles = ["Explorer", "ExplorerStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 6
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "javelin_thrower"
@@ -2490,6 +2736,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk", "Hut"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "dromon"
@@ -2520,6 +2769,9 @@ support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = []
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "cruiser"
@@ -2550,6 +2802,9 @@ support_gold = 0
 happiness = 1
 flags = ["BadCityDefender", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit"]
+hp_loss_pct = 0
+vision_radius_sq = 8
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "crusader"
@@ -2580,6 +2835,9 @@ support_gold = 0
 happiness = 0
 flags = ["Capturer", "ShieldToGold"]
 roles = ["AttackFastStartUnit", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "ancient_cavalry"
@@ -2610,6 +2868,9 @@ support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
 roles = ["DefendOk", "AttackFastStartUnit", "Hunter"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "curragh"
@@ -2640,6 +2901,9 @@ support_gold = 0
 happiness = 0
 flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = []
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "paratrooper"
@@ -2670,6 +2934,9 @@ support_gold = 0
 happiness = 1
 flags = ["Paratroopers", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendOk"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "tow_infantry"
@@ -2700,6 +2967,9 @@ support_gold = 0
 happiness = 1
 flags = [""]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "flak"
@@ -2730,6 +3000,9 @@ support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"
 
 [[bindings]]
 civ3_unit_id = "mobile_sam"
@@ -2760,3 +3033,6 @@ support_gold = 0
 happiness = 1
 flags = [""]
 roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild"]
+hp_loss_pct = 0
+vision_radius_sq = 2
+vision_layer = "Main"

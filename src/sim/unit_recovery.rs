@@ -80,28 +80,9 @@ impl Simulation {
     }
 
     fn unit_class_hp_loss_pct(&self, kind: UnitKind) -> i32 {
-        let class = MovementRules::campaign()
-            .unit_class_for_kind(kind)
-            .expect("campaign C2C3 unit class is explicitly mapped");
-        let class_name = MovementRules::campaign()
-            .unit_class_movement_data(class)
-            .expect("campaign C2C3 unit class data is valid")
-            .rule_name;
-        let record = RulesetData::campaign_default()
-            .rule_records
-            .iter()
-            .find(|record| {
-                record.namespace.eq_ignore_ascii_case("unit_class")
-                    && record.rule_name.eq_ignore_ascii_case(&class_name)
-            })
-            .expect("selected C2C3 unit class record exists");
-        i32::try_from(
-            record
-                .integer_field("hp_loss_pct")
-                .expect("selected C2C3 class hp_loss_pct is valid")
-                .unwrap_or(0),
-        )
-        .expect("selected C2C3 class hp_loss_pct fits in i32")
+        super::action_rules::native_unit_economics_binding(kind)
+            .map(|binding| binding.hp_loss_pct)
+            .unwrap_or(0)
     }
 
     fn unit_is_on_native_base(&self, kind: UnitKind, x: i32, y: i32) -> bool {

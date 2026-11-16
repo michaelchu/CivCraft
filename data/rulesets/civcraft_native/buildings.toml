@@ -4325,6 +4325,7 @@ cost = 120
 upkeep = 3
 requirements = [{ kind = "Tech", present = true, value = 29 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 1
@@ -4334,6 +4335,7 @@ cost = 60
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 18 }, { kind = "River", present = false }, { kind = "Lake", present = false }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 2
@@ -4343,6 +4345,7 @@ cost = 20
 upkeep = 0
 requirements = [{ kind = "Lake", present = true }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 3
@@ -4352,6 +4355,7 @@ cost = 20
 upkeep = 0
 requirements = [{ kind = "River", present = true }, { kind = "Lake", present = false }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 4
@@ -4361,6 +4365,7 @@ cost = 80
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 6 }, { kind = "Improvement", present = true, value = 18 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 5
@@ -4370,6 +4375,7 @@ cost = 30
 upkeep = 1
 requirements = []
 obsolete = [{ kind = "Tech", present = true, value = 33 }, { kind = "Improvement", present = true, value = 6 }, { kind = "Improvement", present = true, value = 7 }]
+flags = ["Barracks"]
 
 [[rules]]
 legacy_runtime_index = 6
@@ -4379,6 +4385,7 @@ cost = 30
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 33 }]
 obsolete = [{ kind = "Tech", present = true, value = 51 }, { kind = "Improvement", present = true, value = 7 }]
+flags = ["Barracks"]
 
 [[rules]]
 legacy_runtime_index = 7
@@ -4388,6 +4395,7 @@ cost = 30
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 51 }]
 obsolete = []
+flags = ["Barracks"]
 
 [[rules]]
 legacy_runtime_index = 8
@@ -4397,6 +4405,7 @@ cost = 80
 upkeep = 3
 requirements = [{ kind = "Tech", present = true, value = 53 }, { kind = "Improvement", present = true, value = 40 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 9
@@ -4406,6 +4415,7 @@ cost = 30
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 45 }]
 obsolete = []
+flags = ["VisibleByOthers"]
 
 [[rules]]
 legacy_runtime_index = 10
@@ -4415,6 +4425,7 @@ cost = 60
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 49 }, { kind = "Water", present = true }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 11
@@ -4424,6 +4435,7 @@ cost = 70
 upkeep = 3
 requirements = [{ kind = "Tech", present = true, value = 18 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 12
@@ -4433,6 +4445,7 @@ cost = 60
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 12 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 13
@@ -4442,6 +4455,7 @@ cost = 140
 upkeep = 3
 requirements = [{ kind = "Tech", present = true, value = 35 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 14
@@ -4451,6 +4465,7 @@ cost = 40
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 62 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 15
@@ -4460,6 +4475,7 @@ cost = 40
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 44 }, { kind = "Sea", present = true }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 16
@@ -4469,6 +4485,7 @@ cost = 180
 upkeep = 4
 requirements = [{ kind = "Tech", present = true, value = 23 }, { kind = "Improvement", present = true, value = 13 }, { kind = "River", present = true }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 17
@@ -4478,6 +4495,7 @@ cost = 60
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 90 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 18
@@ -4487,6 +4505,7 @@ cost = 60
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 19 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 19
@@ -4496,6 +4515,7 @@ cost = 120
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 25 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 20
@@ -4505,6 +4525,7 @@ cost = 220
 upkeep = 4
 requirements = [{ kind = "Tech", present = true, value = 68 }, { kind = "Improvement", present = true, value = 13 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 21
@@ -4514,6 +4535,7 @@ cost = 240
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 57 }, { kind = "Improvement", present = true, value = 13 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 22
@@ -4523,6 +4545,7 @@ cost = 120
 upkeep = 3
 requirements = [{ kind = "Tech", present = true, value = 50 }, { kind = "Water", present = true }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 23
@@ -4532,6 +4555,7 @@ cost = 70
 upkeep = 0
 requirements = []
 obsolete = []
+flags = ["SaveSmallWonder"]
 
 [[rules]]
 legacy_runtime_index = 24
@@ -4541,6 +4565,7 @@ cost = 140
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 81 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 25
@@ -4550,6 +4575,7 @@ cost = 50
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 15 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 26
@@ -4559,6 +4585,7 @@ cost = 60
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 2 }, { kind = "Water", present = true }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 27
@@ -4568,6 +4595,7 @@ cost = 130
 upkeep = 4
 requirements = [{ kind = "Tech", present = true, value = 35 }, { kind = "Improvement", present = true, value = 13 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 28
@@ -4577,6 +4605,7 @@ cost = 140
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 65 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 29
@@ -4586,6 +4615,7 @@ cost = 120
 upkeep = 3
 requirements = [{ kind = "Tech", present = true, value = 16 }, { kind = "Improvement", present = true, value = 41 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 30
@@ -4595,6 +4625,7 @@ cost = 70
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 69 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 31
@@ -4604,6 +4635,7 @@ cost = 140
 upkeep = 3
 requirements = [{ kind = "Tech", present = true, value = 89 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 32
@@ -4613,6 +4645,7 @@ cost = 80
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 70 }, { kind = "MinSize", present = true, value = 9 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 33
@@ -4622,6 +4655,7 @@ cost = 320
 upkeep = 4
 requirements = [{ kind = "Tech", present = true, value = 25 }, { kind = "Improvement", present = true, value = 13 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 34
@@ -4631,6 +4665,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 76 }, { kind = "Improvement", present = true, value = 13 }, { kind = "Improvement", present = true, value = 17 }, { kind = "Improvement", present = true, value = 41 }, { kind = "Improvement", present = true, value = 29 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 35
@@ -4640,6 +4675,7 @@ cost = 600
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 25 }, { kind = "Improvement", present = true, value = 13 }, { kind = "Improvement", present = true, value = 17 }, { kind = "Improvement", present = true, value = 41 }, { kind = "Improvement", present = true, value = 29 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 36
@@ -4649,6 +4685,7 @@ cost = 150
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 72 }, { kind = "Improvement", present = true, value = 13 }, { kind = "Improvement", present = true, value = 17 }, { kind = "Improvement", present = true, value = 41 }, { kind = "Improvement", present = true, value = 29 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 37
@@ -4658,6 +4695,7 @@ cost = 120
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 21 }, { kind = "Improvement", present = true, value = 4 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 38
@@ -4667,6 +4705,7 @@ cost = 120
 upkeep = 3
 requirements = [{ kind = "Tech", present = true, value = 5 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 39
@@ -4676,6 +4715,7 @@ cost = 80
 upkeep = 3
 requirements = [{ kind = "Tech", present = true, value = 70 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 40
@@ -4685,6 +4725,7 @@ cost = 30
 upkeep = 1
 requirements = [{ kind = "Tech", present = true, value = 9 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 41
@@ -4694,6 +4735,7 @@ cost = 120
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 84 }, { kind = "Improvement", present = true, value = 17 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 42
@@ -4703,6 +4745,7 @@ cost = 600
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 72 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 43
@@ -4712,6 +4755,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 21 }, { kind = "Improvement", present = true, value = 37 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 44
@@ -4721,6 +4765,7 @@ cost = 200
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 8 }]
 obsolete = [{ kind = "Tech", present = true, value = 29 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 45
@@ -4730,6 +4775,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 3 }]
 obsolete = [{ kind = "Tech", present = true, value = 16 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 46
@@ -4739,6 +4785,7 @@ cost = 600
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 88 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 47
@@ -4748,6 +4795,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 74 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 48
@@ -4757,6 +4805,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 64 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 49
@@ -4766,6 +4815,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 90 }, { kind = "Improvement", present = true, value = 17 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 50
@@ -4775,6 +4825,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 18 }]
 obsolete = [{ kind = "Tech", present = true, value = 49 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 51
@@ -4784,6 +4835,7 @@ cost = 200
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 52 }]
 obsolete = [{ kind = "Tech", present = true, value = 97 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 52
@@ -4793,6 +4845,7 @@ cost = 600
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 23 }, { kind = "River", present = true }, { kind = "Improvement", present = true, value = 13 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 53
@@ -4802,6 +4855,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 82 }, { kind = "Improvement", present = true, value = 41 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 54
@@ -4811,6 +4865,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 92 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 55
@@ -4820,6 +4875,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 11 }]
 obsolete = [{ kind = "Tech", present = true, value = 15 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 56
@@ -4829,6 +4885,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 36 }]
 obsolete = [{ kind = "Tech", present = true, value = 14 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 57
@@ -4838,6 +4895,7 @@ cost = 200
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 44 }, { kind = "Sea", present = true }]
 obsolete = [{ kind = "Tech", present = true, value = 43 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 58
@@ -4847,6 +4905,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 55 }, { kind = "Sea", present = true }]
 obsolete = [{ kind = "Tech", present = true, value = 57 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 59
@@ -4856,6 +4915,7 @@ cost = 600
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 56 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 60
@@ -4865,6 +4925,7 @@ cost = 200
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 83 }]
 obsolete = [{ kind = "Tech", present = true, value = 20 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 61
@@ -4874,6 +4935,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 81 }, { kind = "Improvement", present = true, value = 8 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 62
@@ -4883,6 +4945,7 @@ cost = 200
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 58 }]
 obsolete = [{ kind = "Tech", present = true, value = 70 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 63
@@ -4892,6 +4955,7 @@ cost = 200
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 47 }]
 obsolete = [{ kind = "Tech", present = true, value = 49 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 64
@@ -4901,6 +4965,7 @@ cost = 200
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 61 }, { kind = "Improvement", present = true, value = 40 }]
 obsolete = [{ kind = "Tech", present = true, value = 84 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 65
@@ -4910,6 +4975,7 @@ cost = 200
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 45 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 66
@@ -4919,6 +4985,7 @@ cost = 600
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 16 }, { kind = "Improvement", present = true, value = 29 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 67
@@ -4928,6 +4995,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 87 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 68
@@ -4937,6 +5005,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 20 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 69
@@ -4946,6 +5015,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 28 }]
 obsolete = [{ kind = "Tech", present = true, value = 51 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 70
@@ -4955,6 +5025,7 @@ cost = 600
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 56 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 71
@@ -4964,6 +5035,7 @@ cost = 600
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 17 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 72
@@ -4973,6 +5045,7 @@ cost = 999
 upkeep = 0
 requirements = []
 obsolete = []
+flags = ["Gold"]
 
 [[rules]]
 legacy_runtime_index = 73
@@ -4982,6 +5055,7 @@ cost = 100
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 18 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 74
@@ -4991,6 +5065,7 @@ cost = 160
 upkeep = 2
 requirements = [{ kind = "Tech", present = true, value = 70 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 75
@@ -5000,6 +5075,7 @@ cost = 700
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 88 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 76
@@ -5009,6 +5085,7 @@ cost = 260
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 54 }]
 obsolete = [{ kind = "Tech", present = true, value = 81 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 77
@@ -5018,6 +5095,7 @@ cost = 550
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 96 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 78
@@ -5027,6 +5105,7 @@ cost = 580
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 35 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 79
@@ -5036,6 +5115,7 @@ cost = 700
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 16 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 80
@@ -5045,6 +5125,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "OwnerCityCount", present = true, value = 8 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 81
@@ -5054,6 +5135,7 @@ cost = 200
 upkeep = 0
 requirements = []
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 82
@@ -5063,6 +5145,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Resource", present = true, value = 1 }, { kind = "Resource", present = true, value = 3 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 83
@@ -5072,6 +5155,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 91 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 84
@@ -5081,6 +5165,7 @@ cost = 400
 upkeep = 0
 requirements = []
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 85
@@ -5090,6 +5175,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "OwnerBuildingCount", present = true, value = 4, second_value = 5 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 86
@@ -5099,6 +5185,7 @@ cost = 400
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 26 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 87
@@ -5108,6 +5195,7 @@ cost = 500
 upkeep = 0
 requirements = [{ kind = "OwnerBuildingCount", present = true, value = 74, second_value = 5 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 88
@@ -5117,6 +5205,7 @@ cost = 600
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 81 }]
 obsolete = []
+flags = []
 
 [[rules]]
 legacy_runtime_index = 89
@@ -5126,6 +5215,7 @@ cost = 300
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 11 }]
 obsolete = [{ kind = "Tech", present = true, value = 97 }]
+flags = []
 
 [[rules]]
 legacy_runtime_index = 90
@@ -5135,3 +5225,4 @@ cost = 20
 upkeep = 0
 requirements = [{ kind = "Tech", present = true, value = 26 }]
 obsolete = []
+flags = []

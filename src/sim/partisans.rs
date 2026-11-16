@@ -7,7 +7,7 @@
 //! `"conquest"` transfer reason and only if the city survived conquest.
 
 use super::*;
-use crate::rules::freeciv::{RuleParameter, RulesetData, effect_value};
+use crate::rules::freeciv::{RulesetData, effect_value};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PartisanCitizenSettings {
@@ -15,42 +15,10 @@ struct PartisanCitizenSettings {
     partisans_pct: i32,
 }
 
-fn city_citizen_parameter<'a>(rules: &'a RulesetData, key: &str) -> Option<&'a RuleParameter> {
-    let mut matching = rules.parameters.iter().filter(|parameter| {
-        parameter.file.eq_ignore_ascii_case("cities.ruleset")
-            && parameter.section.eq_ignore_ascii_case("citizen")
-            && parameter.key.eq_ignore_ascii_case(key)
-    });
-    let parameter = matching.next();
-    assert!(
-        matching.next().is_none(),
-        "selected cities.ruleset repeats [citizen].{key}"
-    );
-    parameter
-}
-
 fn selected_partisan_citizen_settings() -> PartisanCitizenSettings {
-    let rules = RulesetData::campaign_default();
-    // These are the pinned engine defaults from server/ruleset/ruleload.h and
-    // ruleload.c. C2C3 overrides both values in cities.ruleset.
-    let nationality = city_citizen_parameter(rules, "nationality")
-        .map(|parameter| {
-            parameter
-                .boolean_value()
-                .expect("selected [citizen].nationality is a boolean")
-                .expect("selected [citizen].nationality is present")
-        })
-        .unwrap_or(false);
-    let partisans_pct = city_citizen_parameter(rules, "partisans_pct")
-        .map(|parameter| {
-            parameter
-                .integer_value()
-                .expect("selected [citizen].partisans_pct is an integer")
-                .expect("selected [citizen].partisans_pct is present")
-        })
-        .unwrap_or(0);
-    let partisans_pct =
-        i32::try_from(partisans_pct).expect("selected [citizen].partisans_pct fits an i32");
+    let native = &crate::rules::native::settlements().citizens;
+    let nationality = native.nationality;
+    let partisans_pct = native.partisans_pct;
     assert!(
         (0..=100).contains(&partisans_pct),
         "selected [citizen].partisans_pct must be between 0 and 100"

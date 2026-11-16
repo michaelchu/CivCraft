@@ -74,15 +74,20 @@ climate changes, and the normal movement adapter read that catalog directly;
 the legacy ruleset terrain path remains only for isolated parser/mutation parity
 tests.
 
+The final unit-runtime cutover is now in place. Native unit economics owns
+vision radius/layer, non-native hit-point attrition, unit-class flags, and the
+remaining combat/transport capability lookups. Building flags, technology
+capabilities, and settlement citizen rules are native TOML fields as well.
+Worker extras still use the retained Freeciv requirement evaluator as an
+engine algorithm, but their selected action graph, terrain prerequisites,
+native technology capability, and runtime tile state are CivCraft-owned.
+
 ## Order of work
 
-1. Migrate building identities, values, requirements, effects, and bindings.
-2. Migrate the technology graph and research/economic parameters.
-3. Migrate governments, settlement founding/city rules, and settlement AI
-   tuning into native TOML.
-4. Migrate the remaining unit, building, government, action, combat,
-   culture, diplomacy, AI, victory, and world effects into native TOML.
-5. Switch all simulation adapters to native catalogs and remove Freeciv
-   gameplay content records from the selected runtime closure.
-6. Delete TSV inputs and the conversion tool after a final clean migration and
-   full test run.
+1. Finish the remaining generic engine-table adapters whose values are still
+   intentionally supplied by selected `.ruleset` files.
+2. Switch those adapters to native catalogs or explicitly engine-owned
+   algorithms, keeping Freeciv records out of the selected gameplay closure.
+3. Delete TSV inputs and the conversion tool after the final clean migration
+   and full test run; retain only source manifests that are still required for
+   reproducible catalog generation.

@@ -24,6 +24,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Masonry"
@@ -48,6 +49,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Alphabet"
@@ -72,6 +74,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Pottery"
@@ -96,6 +99,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_The_Wheel"
@@ -120,6 +124,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Warrior_Code"
@@ -144,6 +149,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Ceremonial_Burial"
@@ -168,6 +174,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Iron_Working"
@@ -192,6 +199,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Bronze Working"]
+flags = []
 
 [[technologies]]
 id = "TECH_Writing"
@@ -216,6 +224,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Alphabet"]
+flags = []
 
 [[technologies]]
 id = "TECH_Mysticism"
@@ -240,6 +249,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Ceremonial Burial"]
+flags = []
 
 [[technologies]]
 id = "TECH_Mathematics"
@@ -264,6 +274,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Masonry", "Alphabet"]
+flags = []
 
 [[technologies]]
 id = "TECH_Philosophy"
@@ -288,6 +299,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Writing"]
+flags = ["Bonus_Tech"]
 
 [[technologies]]
 id = "TECH_Code_of_Laws"
@@ -312,6 +324,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Writing"]
+flags = []
 
 [[technologies]]
 id = "TECH_Literature"
@@ -336,6 +349,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Writing"]
+flags = []
 
 [[technologies]]
 id = "TECH_Map_Making"
@@ -360,6 +374,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Writing", "Pottery"]
+flags = []
 
 [[technologies]]
 id = "TECH_Horseback_Riding"
@@ -384,6 +399,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["The Wheel", "Warrior Code"]
+flags = []
 
 [[technologies]]
 id = "TECH_Polytheism"
@@ -408,6 +424,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Mysticism"]
+flags = []
 
 [[technologies]]
 id = "TECH_Currency"
@@ -432,6 +449,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Mathematics"]
+flags = []
 
 [[technologies]]
 id = "TECH_The_Republic"
@@ -456,6 +474,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Philosophy", "Code of Laws"]
+flags = []
 
 [[technologies]]
 id = "TECH_Monarchy"
@@ -480,6 +499,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Warrior Code", "Polytheism"]
+flags = []
 
 [[technologies]]
 id = "TECH_Construction"
@@ -504,6 +524,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Iron Working", "Mathematics"]
+flags = []
 
 [[technologies]]
 id = "TECH_Monotheism"
@@ -528,6 +549,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Feudalism"
@@ -552,6 +574,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Engineering"
@@ -576,6 +599,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = ["Bridge"]
 
 [[technologies]]
 id = "TECH_Theology"
@@ -600,6 +624,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Monotheism"]
+flags = []
 
 [[technologies]]
 id = "TECH_Chivalry"
@@ -624,6 +649,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Monotheism", "Feudalism"]
+flags = []
 
 [[technologies]]
 id = "TECH_Invention"
@@ -648,6 +674,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Feudalism", "Engineering"]
+flags = []
 
 [[technologies]]
 id = "TECH_Printing_Press"
@@ -672,6 +699,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Theology"]
+flags = []
 
 [[technologies]]
 id = "TECH_Music_Theory"
@@ -696,6 +724,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Education"]
+flags = []
 
 [[technologies]]
 id = "TECH_Education"
@@ -720,6 +749,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Theology"]
+flags = []
 
 [[technologies]]
 id = "TECH_Gunpowder"
@@ -744,6 +774,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Invention"]
+flags = []
 
 [[technologies]]
 id = "TECH_Banking"
@@ -768,6 +799,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Education"]
+flags = []
 
 [[technologies]]
 id = "TECH_Astronomy"
@@ -792,6 +824,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Education"]
+flags = []
 
 [[technologies]]
 id = "TECH_Chemistry"
@@ -816,6 +849,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Gunpowder"]
+flags = []
 
 [[technologies]]
 id = "TECH_Democracy"
@@ -840,6 +874,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Printing Press", "Banking"]
+flags = []
 
 [[technologies]]
 id = "TECH_Economics"
@@ -864,6 +899,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Banking"]
+flags = []
 
 [[technologies]]
 id = "TECH_Navigation"
@@ -888,6 +924,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Astronomy"]
+flags = []
 
 [[technologies]]
 id = "TECH_Physics"
@@ -912,6 +949,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Astronomy", "Chemistry"]
+flags = []
 
 [[technologies]]
 id = "TECH_Metallurgy"
@@ -936,6 +974,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Chemistry"]
+flags = []
 
 [[technologies]]
 id = "TECH_Free_Artistry"
@@ -960,6 +999,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Democracy"]
+flags = []
 
 [[technologies]]
 id = "TECH_Theory_of_Gravity"
@@ -984,6 +1024,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Physics"]
+flags = []
 
 [[technologies]]
 id = "TECH_Magnetism"
@@ -1008,6 +1049,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Physics"]
+flags = []
 
 [[technologies]]
 id = "TECH_Military_Tradition"
@@ -1032,6 +1074,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Metallurgy"]
+flags = []
 
 [[technologies]]
 id = "TECH_Nationalism"
@@ -1056,6 +1099,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Steam_Power"
@@ -1080,6 +1124,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Medicine"
@@ -1104,6 +1149,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Communism"
@@ -1128,6 +1174,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Nationalism"]
+flags = []
 
 [[technologies]]
 id = "TECH_Industrialization"
@@ -1152,6 +1199,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Steam Power"]
+flags = []
 
 [[technologies]]
 id = "TECH_Electricity"
@@ -1176,6 +1224,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Steam Power"]
+flags = []
 
 [[technologies]]
 id = "TECH_Scientific_Method"
@@ -1200,6 +1249,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Medicine", "Electricity"]
+flags = []
 
 [[technologies]]
 id = "TECH_Sanitation"
@@ -1224,6 +1274,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Medicine"]
+flags = []
 
 [[technologies]]
 id = "TECH_Espionage"
@@ -1248,6 +1299,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Nationalism", "Industrialization"]
+flags = []
 
 [[technologies]]
 id = "TECH_The_Corporation"
@@ -1272,6 +1324,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Industrialization"]
+flags = []
 
 [[technologies]]
 id = "TECH_Refining"
@@ -1296,6 +1349,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["The Corporation"]
+flags = []
 
 [[technologies]]
 id = "TECH_Steel"
@@ -1320,6 +1374,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["The Corporation"]
+flags = []
 
 [[technologies]]
 id = "TECH_Atomic_Theory"
@@ -1344,6 +1399,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Scientific Method"]
+flags = []
 
 [[technologies]]
 id = "TECH_Combustion"
@@ -1368,6 +1424,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Refining", "Steel"]
+flags = []
 
 [[technologies]]
 id = "TECH_Replaceable_Parts"
@@ -1392,6 +1449,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Electricity"]
+flags = []
 
 [[technologies]]
 id = "TECH_Flight"
@@ -1416,6 +1474,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Combustion"]
+flags = ["Build_Airborne"]
 
 [[technologies]]
 id = "TECH_Amphibious_Warfare"
@@ -1440,6 +1499,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Mass Production"]
+flags = []
 
 [[technologies]]
 id = "TECH_Mass_Production"
@@ -1464,6 +1524,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Combustion", "Replaceable Parts"]
+flags = []
 
 [[technologies]]
 id = "TECH_Electronics"
@@ -1488,6 +1549,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Atomic Theory"]
+flags = []
 
 [[technologies]]
 id = "TECH_Motorized_Transportation"
@@ -1512,6 +1574,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Mass Production"]
+flags = []
 
 [[technologies]]
 id = "TECH_Advanced_Flight"
@@ -1536,6 +1599,7 @@ prerequisite_3_index = 62
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Flight", "Electronics", "Motorized Transportation"]
+flags = []
 
 [[technologies]]
 id = "TECH_Rocketry"
@@ -1560,6 +1624,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Fission"
@@ -1584,6 +1649,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Computers"
@@ -1608,6 +1674,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Recycling"
@@ -1632,6 +1699,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Ecology"]
+flags = []
 
 [[technologies]]
 id = "TECH_Space_Flight"
@@ -1656,6 +1724,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Rocketry"]
+flags = []
 
 [[technologies]]
 id = "TECH_Nuclear_Power"
@@ -1680,6 +1749,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Fission"]
+flags = []
 
 [[technologies]]
 id = "TECH_Superconductor"
@@ -1704,6 +1774,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Fission", "Space Flight"]
+flags = []
 
 [[technologies]]
 id = "TECH_Miniaturization"
@@ -1728,6 +1799,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Computers"]
+flags = []
 
 [[technologies]]
 id = "TECH_Ecology"
@@ -1752,6 +1824,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = []
+flags = []
 
 [[technologies]]
 id = "TECH_Synthetic_Fibers"
@@ -1776,6 +1849,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Ecology"]
+flags = []
 
 [[technologies]]
 id = "TECH_Satellites"
@@ -1800,6 +1874,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Space Flight"]
+flags = []
 
 [[technologies]]
 id = "TECH_The_Laser"
@@ -1824,6 +1899,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Nuclear Power", "Computers"]
+flags = []
 
 [[technologies]]
 id = "TECH_Genetics"
@@ -1848,6 +1924,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Miniaturization"]
+flags = []
 
 [[technologies]]
 id = "TECH_Stealth"
@@ -1872,6 +1949,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Synthetic Fibers"]
+flags = []
 
 [[technologies]]
 id = "TECH_Smart_Weapons"
@@ -1896,6 +1974,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Satellites", "The Laser"]
+flags = []
 
 [[technologies]]
 id = "TECH_Robotics"
@@ -1920,6 +1999,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["The Laser", "Miniaturization"]
+flags = []
 
 [[technologies]]
 id = "TECH_Integrated_Defense"
@@ -1944,6 +2024,7 @@ prerequisite_3_index = 78
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Superconductor", "Satellites", "Smart Weapons"]
+flags = []
 
 [[technologies]]
 id = "TECH_Ironclads"
@@ -1968,6 +2049,7 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Steam Power"]
+flags = []
 
 [[technologies]]
 id = "TECH_Fascism"
@@ -1992,3 +2074,4 @@ prerequisite_3_index = -1
 prerequisite_4_index = -1
 flavors = 0
 prerequisites = ["Nationalism"]
+flags = []

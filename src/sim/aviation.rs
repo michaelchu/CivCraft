@@ -13,31 +13,7 @@ enum CityBombardTarget {
 
 #[cfg(test)]
 fn selected_unit_class_flag(kind: UnitKind, flag: &str) -> Option<bool> {
-    let section = crate::sim::action_rules::freeciv_unit_type_section(kind)?;
-    let rules = crate::rules::freeciv::RulesetData::campaign_default();
-    let mut units = rules.content.iter().filter(|record| {
-        record.kind == crate::rules::freeciv::ContentKind::Unit
-            && record.section.eq_ignore_ascii_case(&section)
-    });
-    let unit = units.next()?;
-    if units.next().is_some() {
-        return None;
-    }
-    let class_name = unit.string_field("class").ok()??;
-    let mut classes = rules.rule_records.iter().filter(|record| {
-        record.namespace.eq_ignore_ascii_case("unit_class")
-            && record.rule_name.eq_ignore_ascii_case(class_name)
-    });
-    let class = classes.next()?;
-    if classes.next().is_some() {
-        return None;
-    }
-    let flags = class.string_list_field("flags").ok()??;
-    Some(
-        flags
-            .iter()
-            .any(|candidate| candidate.eq_ignore_ascii_case(flag)),
-    )
+    crate::sim::action_rules::freeciv_unit_class_flag(kind, flag)
 }
 
 fn civ3_bombard_unit(kind: UnitKind) -> Option<()> {

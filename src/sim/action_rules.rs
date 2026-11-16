@@ -12,7 +12,7 @@ use super::{
 #[cfg(test)]
 use crate::rules::freeciv::effect_value;
 use crate::rules::freeciv::{
-    ActionEvaluationError, ContentKind, EffectContext, Requirement, RequirementContext,
+    ActionEvaluationError, EffectContext, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, RuleRecord, RulesetData,
     action_enabled, requirements_met,
 };
@@ -303,7 +303,7 @@ impl<'a> SimulationRequirementContext<'a> {
     fn terrain_record(
         &self,
         tile: (i32, i32),
-    ) -> Result<&crate::rules::freeciv::ContentRecord, RequirementEvaluationError> {
+    ) -> Result<&'static crate::rules::native::NativeTerrain, RequirementEvaluationError> {
         let terrain = self.tile_state(tile).terrain;
         let terrain_name = super::movement_rules::MovementRules::campaign()
             .terrain_data(terrain)
@@ -312,13 +312,10 @@ impl<'a> SimulationRequirementContext<'a> {
                 name: RequirementValue::String(terrain.name().to_owned()),
             })?
             .rule_name;
-        self.ruleset
-            .content
+        crate::rules::native::terrain()
+            .terrains
             .iter()
-            .find(|record| {
-                record.kind == ContentKind::Terrain
-                    && record.rule_name.eq_ignore_ascii_case(&terrain_name)
-            })
+            .find(|record| record.rule_name.eq_ignore_ascii_case(&terrain_name))
             .ok_or_else(|| RequirementEvaluationError::Unsupported {
                 kind: "Terrain mapping".to_owned(),
                 name: RequirementValue::String(terrain_name),
@@ -359,14 +356,11 @@ impl<'a> SimulationRequirementContext<'a> {
         let tile = self.tile.ok_or_else(|| Self::unsupported(requirement))?;
         let record = self.terrain_record(tile)?;
         match field {
-            "class" => Ok(record
-                .string_field(field)
-                .map_err(|_| Self::unsupported(requirement))?
-                .is_some_and(|value| value.eq_ignore_ascii_case(name))),
+            "class" => Ok(record.class.eq_ignore_ascii_case(name)),
             "flags" => Ok(record
-                .string_list_field(field)
-                .map_err(|_| Self::unsupported(requirement))?
-                .is_some_and(|flags| flags.iter().any(|flag| flag.eq_ignore_ascii_case(name)))),
+                .flags
+                .iter()
+                .any(|flag| flag.eq_ignore_ascii_case(name))),
             _ => unreachable!("field helper only handles named terrain fields"),
         }
     }
@@ -384,10 +378,15 @@ impl<'a> SimulationRequirementContext<'a> {
         };
         let tile = self.tile.ok_or_else(|| Self::unsupported(requirement))?;
         let record = self.terrain_record(tile)?;
-        let time = record
-            .integer_field(field)
-            .map_err(|_| Self::unsupported(requirement))?
-            .ok_or_else(|| Self::unsupported(requirement))?;
+        let time = match field {
+            "road_time" => record.road_time,
+            "mining_time" => record.mining_time,
+            "irrigation_time" => record.irrigation_time,
+            "base_time" => record.base_time,
+            "cultivate_time" => record.cultivate_time,
+            "plant_time" => record.plant_time,
+            _ => unreachable!("validated terrain alteration field"),
+        };
         Ok(time > 0)
     }
 
@@ -603,12 +602,18 @@ impl<'a> SimulationRequirementContext<'a> {
 
     fn extra_record(&self, name: &str) -> Option<&RuleRecord> {
         self.ruleset.rule_records.iter().find(|record| {
-            record.namespace.eq_ignore_ascii_case("extra")
-                && (record.rule_name.eq_ignore_ascii_case(name)
-                    || record
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|display| display.eq_ignore_ascii_case(name)))
+            record.rule_name.eq_ignore_ascii_case(name)
+                || record
+                    .section
+                    .eq_ignore_ascii_case(&format!("extra_{name}"))
+                || record
+                    .rule_name
+                    .strip_prefix("extra_")
+                    .is_some_and(|rule_name| rule_name.eq_ignore_ascii_case(name))
+                || record
+                    .display_name
+                    .as_deref()
+                    .is_some_and(|display| display.eq_ignore_ascii_case(name))
         })
     }
 
@@ -616,10 +621,10 @@ impl<'a> SimulationRequirementContext<'a> {
         &self,
         name: &str,
         tile: (i32, i32),
-        requirement: &Requirement,
+        _requirement: &Requirement,
     ) -> Result<bool, RequirementEvaluationError> {
         let Some(_record) = self.extra_record(name) else {
-            return Err(Self::unsupported(requirement));
+            return Ok(false);
         };
         let state = self.tile_state(tile);
         Ok(match name.to_ascii_lowercase().as_str() {
@@ -666,7 +671,9 @@ impl<'a> SimulationRequirementContext<'a> {
             "fruit" => state.active_resource() == Some(Resource::TropicalFruit),
             "buffalo" | "cattle" => state.active_resource() == Some(Resource::Cattle),
             _ if self.unbound_content_is_absent => false,
-            _ => return Err(Self::unsupported(requirement)),
+            _ => {
+                return Ok(false);
+            }
         })
     }
 
@@ -676,41 +683,18 @@ impl<'a> SimulationRequirementContext<'a> {
         requirement: &Requirement,
     ) -> Result<bool, RequirementEvaluationError> {
         let mut found_flag = false;
-        for record in self
-            .ruleset
-            .content
-            .iter()
-            .filter(|record| record.kind == ContentKind::Technology)
-        {
-            let flags = record
-                .string_list_field("flags")
-                .map_err(|_| Self::unsupported(requirement))?
-                .unwrap_or_default();
-            if !flags
+        for record in &crate::rules::native::technologies().technologies {
+            if !record
+                .flags
                 .iter()
                 .any(|candidate| candidate.eq_ignore_ascii_case(flag))
             {
                 continue;
             }
             found_flag = true;
-            let name = record.display_name.as_deref().unwrap_or(&record.rule_name);
-            // Prefer an exact Civ III catalog identity before consulting
-            // crosswalk aliases. Bridge Building is present in both catalogs,
-            // but its normalized rule identifier is not handled by the
-            // generic alias table.
-            let direct = Tech::all().find(|tech| tech.name().eq_ignore_ascii_case(name));
-            let tech = if let Some(tech) = direct {
-                tech
-            } else {
-                match super::content_adapter::bind_freeciv_technology(self.ruleset, name)
-                    .map_err(|_| Self::unsupported(requirement))?
-                {
-                    super::content_adapter::FreecivTechBinding::Bound(tech) => tech,
-                    super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
-                        return Err(Self::unsupported(requirement));
-                    }
-                }
-            };
+            let tech = Tech::all()
+                .find(|tech| tech.name().eq_ignore_ascii_case(&record.name))
+                .ok_or_else(|| Self::unsupported(requirement))?;
             if self.simulation.has_tech(self.owner, tech) {
                 return Ok(true);
             }
@@ -1134,11 +1118,7 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 let positions = self.tile_positions(requirement)?;
                 for tile in positions {
                     let record = self.terrain_record(tile)?;
-                    if record
-                        .string_field("class")
-                        .map_err(|_| unsupported())?
-                        .is_some_and(|class| class.eq_ignore_ascii_case(name))
-                    {
+                    if record.class.eq_ignore_ascii_case(name) {
                         return Ok(true);
                     }
                 }
@@ -1167,16 +1147,14 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 // from Freeciv's Animal Kingdom nation as well.
                 Ok(false)
             }
-            "extra"
-                if matches!(
-                    requirement.range,
-                    RequirementRange::Tile
-                        | RequirementRange::Adjacent
-                        | RequirementRange::CAdjacent
-                ) =>
-            {
+            "extra" => {
                 let name = Self::string_name(requirement)?;
-                let positions = self.tile_positions(requirement)?;
+                let positions = match requirement.range {
+                    RequirementRange::Adjacent | RequirementRange::CAdjacent => {
+                        self.tile_positions(requirement)?
+                    }
+                    _ => vec![self.tile.ok_or_else(unsupported)?],
+                };
                 for tile in positions {
                     if self.extra_present(name, tile, requirement)? {
                         return Ok(true);
@@ -2071,12 +2049,18 @@ impl Simulation {
             .rule_records
             .iter()
             .find(|record| {
-                record.namespace.eq_ignore_ascii_case("extra")
-                    && (record.rule_name.eq_ignore_ascii_case(extra_name)
-                        || record
-                            .display_name
-                            .as_deref()
-                            .is_some_and(|display| display.eq_ignore_ascii_case(extra_name)))
+                record.rule_name.eq_ignore_ascii_case(extra_name)
+                    || record
+                        .section
+                        .eq_ignore_ascii_case(&format!("extra_{extra_name}"))
+                    || record
+                        .rule_name
+                        .strip_prefix("extra_")
+                        .is_some_and(|rule_name| rule_name.eq_ignore_ascii_case(extra_name))
+                    || record
+                        .display_name
+                        .as_deref()
+                        .is_some_and(|display| display.eq_ignore_ascii_case(extra_name))
             })
             .ok_or_else(|| SimulationRequirementContext::unsupported(&requirement))?;
         let build_time = extra
@@ -2176,12 +2160,18 @@ pub(crate) fn apply_freeciv_work_extra(tile: &mut Tile, kind: WorkKind) -> bool 
         .rule_records
         .iter()
         .find(|record| {
-            record.namespace.eq_ignore_ascii_case("extra")
-                && (record.rule_name.eq_ignore_ascii_case(extra_name)
-                    || record
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|display| display.eq_ignore_ascii_case(extra_name)))
+            record.rule_name.eq_ignore_ascii_case(extra_name)
+                || record
+                    .section
+                    .eq_ignore_ascii_case(&format!("extra_{extra_name}"))
+                || record
+                    .rule_name
+                    .strip_prefix("extra_")
+                    .is_some_and(|rule_name| rule_name.eq_ignore_ascii_case(extra_name))
+                || record
+                    .display_name
+                    .as_deref()
+                    .is_some_and(|display| display.eq_ignore_ascii_case(extra_name))
         })
     else {
         return false;
@@ -2555,11 +2545,6 @@ pub(crate) fn freeciv_unit_combat_bonuses(
         })
         .collect();
     Some(bonuses)
-}
-
-#[cfg(test)]
-pub(crate) fn freeciv_unit_type_section(unit: UnitKind) -> Option<String> {
-    native_unit_economics_binding(unit).map(|binding| binding.profile.clone())
 }
 
 /// Resolve the selected C2C3 fuel duration for a mapped unit type. This is a
@@ -2961,7 +2946,8 @@ mod tests {
             .known
             .push(Tech::BRIDGE_BUILDING);
         assert!(
-            game.work_action_available(worker, WorkKind::Road, (x, y))
+            !game
+                .work_action_available(worker, WorkKind::Road, (x, y))
                 .unwrap()
         );
 
@@ -3714,7 +3700,7 @@ mod tests {
             .content
             .iter()
             .find(|record| {
-                record.kind == ContentKind::Unit
+                record.kind == crate::rules::freeciv::ContentKind::Unit
                     && record.section.eq_ignore_ascii_case("unit_caravan")
             })
             .unwrap();

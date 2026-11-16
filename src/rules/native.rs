@@ -89,6 +89,8 @@ pub(crate) struct NativeBuildingRule {
     pub(crate) upkeep: i32,
     pub(crate) requirements: Vec<NativeBuildingRequirement>,
     pub(crate) obsolete: Vec<NativeBuildingRequirement>,
+    #[serde(default)]
+    pub(crate) flags: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -350,6 +352,13 @@ pub(crate) struct SettlementCatalog {
     pub(crate) source: String,
     pub(crate) ai: NativeSettlementAi,
     pub(crate) villages: NativeVillageRules,
+    pub(crate) citizens: NativeCitizenRules,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeCitizenRules {
+    pub(crate) nationality: bool,
+    pub(crate) partisans_pct: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -495,6 +504,20 @@ pub(crate) struct NativeUnitEconomicsBinding {
     pub(crate) happiness: i32,
     pub(crate) flags: Vec<String>,
     pub(crate) roles: Vec<String>,
+    #[serde(default)]
+    pub(crate) hp_loss_pct: i32,
+    #[serde(default = "native_default_vision_radius")]
+    pub(crate) vision_radius_sq: i32,
+    #[serde(default = "native_default_vision_layer")]
+    pub(crate) vision_layer: String,
+}
+
+fn native_default_vision_radius() -> i32 {
+    2
+}
+
+fn native_default_vision_layer() -> String {
+    "Main".to_owned()
 }
 
 #[derive(Debug, Deserialize)]
@@ -538,6 +561,8 @@ pub(crate) struct NativeTechnology {
     pub(crate) prerequisite_3_name: String,
     pub(crate) prerequisite_4_name: String,
     pub(crate) prerequisites: Vec<String>,
+    #[serde(default)]
+    pub(crate) flags: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -599,6 +624,13 @@ pub(crate) fn buildings() -> &'static BuildingCatalog {
         ))
         .expect("native building TOML must be valid")
     })
+}
+
+pub(crate) fn building_rule(runtime_index: usize) -> Option<&'static NativeBuildingRule> {
+    buildings()
+        .rules
+        .iter()
+        .find(|rule| rule.legacy_runtime_index == runtime_index)
 }
 
 pub(crate) fn technologies() -> &'static TechnologyCatalog {

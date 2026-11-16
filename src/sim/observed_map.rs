@@ -4,12 +4,14 @@
 use super::*;
 use crate::rules::TechEra;
 use crate::rules::freeciv::{
-    ContentKind, EffectContext, Requirement, RequirementContext, RequirementEvaluationError,
-    RequirementRange, RequirementValue, RulesetData, effect_value,
+    EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
+    RequirementValue, RulesetData, effect_value,
 };
+use std::collections::BTreeMap;
+#[cfg(test)]
 #[path = "observed_map/unit_sight_bindings.rs"]
 mod unit_sight_bindings;
-use std::collections::BTreeMap;
+#[cfg(test)]
 use unit_sight_bindings::{SightBinding, binding_for as unit_sight_binding_for};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,7 +61,7 @@ impl Simulation {
         y: i32,
     ) -> i32 {
         let ruleset = RulesetData::campaign_default();
-        let base = ruleset_unit_vision_radius_sq(ruleset, kind);
+        let base = native_unit_vision_radius_sq(kind);
         let context = VisionRequirementContext {
             simulation: self,
             owner,
@@ -73,7 +75,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn unit_vision_layer_for(&self, kind: UnitKind) -> UnitVisionLayer {
-        ruleset_unit_vision_layer(RulesetData::campaign_default(), kind)
+        native_unit_vision_layer(kind)
     }
 
     pub(crate) fn city_vision_radius_sq(&self, owner: usize) -> i32 {
@@ -589,7 +591,7 @@ impl Simulation {
         // Freeciv map_show_circle receives the unit type's base
         // vision_radius_sq, not the effect-adjusted sight used for normal
         // vision updates.
-        let radius_sq = ruleset_unit_vision_radius_sq(RulesetData::campaign_default(), unit_kind);
+        let radius_sq = native_unit_vision_radius_sq(unit_kind);
         let radius = (radius_sq.max(0) as f64).sqrt().ceil() as i32;
         let mut indices = self
             .map_wrap
@@ -830,72 +832,31 @@ impl EffectContext for VisionRequirementContext<'_> {
     }
 }
 
-fn ruleset_unit_vision_radius_sq(ruleset: &RulesetData, kind: UnitKind) -> i32 {
-    let conquests_id = kind
-        .conquests_id()
-        .expect("campaign unit must have a Conquests identity");
-    let binding = unit_sight_binding_for(conquests_id)
-        .unwrap_or_else(|| panic!("missing sight-only binding for Civ III unit {conquests_id}"));
-    let section = match binding {
-        SightBinding::Exact(section) | SightBinding::SightAlias(section) => section,
-        SightBinding::Unresolved => return 2,
-    };
-    let record = ruleset
-        .content
-        .iter()
-        .find(|record| record.kind == ContentKind::Unit && record.section == section)
-        .unwrap_or_else(|| {
-            panic!(
-                "sight binding for Civ III unit {conquests_id} references missing C2C3 unit {section}"
-            )
-        });
-    let Some(value) = record
-        .integer_field("vision_radius_sq")
-        .unwrap_or_else(|error| panic!("invalid vision radius for {}: {error}", kind.name()))
-    else {
-        panic!("C2C3 unit {section} has no vision_radius_sq")
-    };
-    i32::try_from(value).unwrap_or_else(|_| panic!("invalid vision_radius_sq for {}", kind.name()))
+fn native_unit_vision_radius_sq(kind: UnitKind) -> i32 {
+    super::action_rules::native_unit_economics_binding(kind)
+        .map(|binding| binding.vision_radius_sq)
+        .unwrap_or(2)
 }
 
-fn ruleset_unit_vision_layer(ruleset: &RulesetData, kind: UnitKind) -> UnitVisionLayer {
-    let conquests_id = kind
-        .conquests_id()
-        .expect("campaign unit must have a Conquests identity");
-    let binding = unit_sight_binding_for(conquests_id)
-        .unwrap_or_else(|| panic!("missing sight-only binding for Civ III unit {conquests_id}"));
-    let section = match binding {
-        SightBinding::Exact(section) | SightBinding::SightAlias(section) => section,
-        // Preserve the Civ III visibility behavior for identities whose C2C3
-        // counterpart is intentionally unresolved.
-        SightBinding::Unresolved => {
-            return if kind.uses_stealth_vision() {
-                UnitVisionLayer::Stealth
-            } else {
-                UnitVisionLayer::Main
-            };
-        }
-    };
-    let record = ruleset
-        .content
-        .iter()
-        .find(|record| record.kind == ContentKind::Unit && record.section == section)
-        .unwrap_or_else(|| {
-            panic!(
-                "sight binding for Civ III unit {conquests_id} references missing C2C3 unit {section}"
-            )
-        });
-    // Freeciv's native ruleset loader defaults omitted vision_layer to Main.
-    let layer = record
-        .string_field("vision_layer")
-        .unwrap_or_else(|error| panic!("invalid vision layer for {}: {error}", kind.name()))
-        .unwrap_or("Main");
+fn native_unit_vision_layer(kind: UnitKind) -> UnitVisionLayer {
+    let layer = super::action_rules::native_unit_economics_binding(kind)
+        .map_or("Main", |binding| binding.vision_layer.as_str());
     match layer.to_ascii_lowercase().as_str() {
         "main" => UnitVisionLayer::Main,
         "stealth" => UnitVisionLayer::Stealth,
         "subsurface" => UnitVisionLayer::Subsurface,
-        _ => panic!("invalid vision_layer {layer:?} for C2C3 unit {section}"),
+        _ => panic!("invalid native vision_layer {layer:?} for {}", kind.name()),
     }
+}
+
+#[cfg(test)]
+fn ruleset_unit_vision_radius_sq(_ruleset: &RulesetData, kind: UnitKind) -> i32 {
+    native_unit_vision_radius_sq(kind)
+}
+
+#[cfg(test)]
+fn ruleset_unit_vision_layer(_ruleset: &RulesetData, kind: UnitKind) -> UnitVisionLayer {
+    native_unit_vision_layer(kind)
 }
 
 #[allow(dead_code)] // Explicit unmapped records are checked against the selected ruleset in tests.

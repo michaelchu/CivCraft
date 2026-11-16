@@ -85,6 +85,7 @@ pub(super) struct UnitMetadata {
     pub(super) fuel: u8,
     pub(super) veteran_levels: usize,
     pub(super) attacks_air: bool,
+    #[allow(dead_code)]
     pub(super) stealth: bool,
 }
 impl UnitClass {
