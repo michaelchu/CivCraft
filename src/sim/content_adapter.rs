@@ -88,29 +88,14 @@ impl Civ3ContentBindings {
 /// accepted for the documented Freeciv-only `Plastics` advance and for the
 /// derived C2C3 Radio-to-Flight airfield mapping.
 pub(crate) fn bind_freeciv_technology(
-    ruleset: &RulesetData,
+    _ruleset: &RulesetData,
     freeciv_name: &str,
 ) -> Result<FreecivTechBinding, ContentBindingError> {
-    let freeciv_record = ruleset
-        .content
-        .iter()
-        .find(|record| {
-            record.kind == ContentKind::Technology
-                && (record.rule_name.eq_ignore_ascii_case(freeciv_name)
-                    || record
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|name| name.eq_ignore_ascii_case(freeciv_name)))
-        })
-        .ok_or_else(|| {
-            ContentBindingError(format!(
-                "Freeciv ruleset has no technology named {freeciv_name:?}"
-            ))
-        })?;
-    let display_name = freeciv_record
-        .display_name
-        .as_deref()
-        .unwrap_or(&freeciv_record.rule_name);
+    // Requirements are resolved against the Civ III catalog directly.  The
+    // selected Freeciv tech record used to be the lookup table here, which
+    // made a ruleset content record authoritative even after the native
+    // catalog had become the campaign source of truth.
+    let display_name = freeciv_name;
     if display_name.eq_ignore_ascii_case("Plastics") {
         return Ok(FreecivTechBinding::MissingFromCiv3Catalog);
     }
@@ -123,42 +108,60 @@ pub(crate) fn bind_freeciv_technology(
         return Ok(FreecivTechBinding::Bound(Tech::FLIGHT));
     }
 
-    let source = ruleset
-        .source_content
+    // Some C2C3 requirements intentionally name a Freeciv compatibility
+    // advance that is not a researchable Conquests node.  Resolve its stable
+    // CivCraft equivalent before consulting the 83-node native catalog.
+    if let Some(compatibility_tech) = Tech::all()
+        .find(|tech| tech.name().eq_ignore_ascii_case(display_name))
+        .and_then(|tech| {
+            tech.is_civ3_advance()
+                .then_some(tech)
+                .or_else(|| tech.civ3_equivalent())
+        })
+    {
+        return Ok(FreecivTechBinding::Bound(compatibility_tech));
+    }
+
+    let source = crate::rules::native::technologies()
+        .technologies
         .iter()
         .find(|source| {
-            source.kind == ContentKind::Technology
-                && (source.display_name.eq_ignore_ascii_case(display_name)
+            source.name.eq_ignore_ascii_case(display_name)
                     || (display_name.eq_ignore_ascii_case("Superconductors")
-                        && source.display_name.eq_ignore_ascii_case("Superconductor"))
+                        && source.name.eq_ignore_ascii_case("Superconductor"))
                     || (display_name.eq_ignore_ascii_case("Amphibious Warfare")
-                        && source.display_name.eq_ignore_ascii_case("Amphibious War"))
+                        && source.name.eq_ignore_ascii_case("Amphibious War"))
                     // Freeciv calls the draft-related advance Conscription;
                     // the Civ III catalog names that advance Nationalism.
                     || (display_name.eq_ignore_ascii_case("Conscription")
-                        && source.display_name.eq_ignore_ascii_case("Nationalism"))
+                        && source.name.eq_ignore_ascii_case("Nationalism"))
                     || (display_name.eq_ignore_ascii_case("Environmentalism")
-                        && source.display_name.eq_ignore_ascii_case("Ecology"))
+                        && source.name.eq_ignore_ascii_case("Ecology"))
                     || (display_name.eq_ignore_ascii_case("Laser")
-                        && source.display_name.eq_ignore_ascii_case("The Laser"))
+                        && source.name.eq_ignore_ascii_case("The Laser"))
                     || (display_name.eq_ignore_ascii_case("Mobile Warfare")
-                        && source.display_name.eq_ignore_ascii_case("Motorized Transportation"))
+                        && source.name.eq_ignore_ascii_case("Motorized Transportation"))
                     || (display_name.eq_ignore_ascii_case("Nuclear Fission")
-                        && source.display_name.eq_ignore_ascii_case("Fission")))
+                        && source.name.eq_ignore_ascii_case("Fission"))
         })
         .ok_or_else(|| {
             ContentBindingError(format!(
                 "Freeciv technology {display_name:?} has no Civ III source mapping"
             ))
         })?;
-    let (runtime_id, _) = bind_technology(source)?;
-    match runtime_id {
-        Some(StableContentId::Technology(tech)) => Ok(FreecivTechBinding::Bound(tech)),
-        None => Ok(FreecivTechBinding::MissingFromCiv3Catalog),
-        Some(other) => Err(ContentBindingError(format!(
-            "Freeciv technology {display_name:?} resolved to non-technology identity {other:?}"
-        ))),
-    }
+    let tech = Tech::all()
+        .find(|tech| {
+            tech.name().eq_ignore_ascii_case(&source.name)
+                || (source.name.eq_ignore_ascii_case("Amphibious War")
+                    && *tech == Tech::AMPHIBIOUS_WARFARE)
+        })
+        .ok_or_else(|| {
+            ContentBindingError(format!(
+                "native technology {:?} has no stable Tech mapping",
+                source.name
+            ))
+        })?;
+    Ok(FreecivTechBinding::Bound(tech))
 }
 
 fn bind_record(source: &SourceContentRecord) -> Result<ContentBinding, ContentBindingError> {

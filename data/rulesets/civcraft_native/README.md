@@ -24,8 +24,17 @@ Current catalogs:
 - `unit_economics.toml`: native unit classes, class flags, target classes,
   gameplay roles, fuel, build cost, support, and happiness bindings for all
   92 Conquests units.
+- `effects.toml`: the complete 508-effect campaign graph, including typed
+  requirements and multipliers.
 - `governments.toml`: the eight Conquests governments, names, prerequisites,
   AI preferences, flags, core scalar values, and support/assimilation/
   resistance/military-law tables.
 - `economy.toml`: city growth, output, upkeep, and founding parameters.
 - `settlements.toml`: settlement AI and village outcome parameters.
+
+The campaign loader replaces the selected ruleset's effect records with this
+native graph and resolves technology requirements through the native
+technology catalog. The remaining `.ruleset` files are retained as parser and
+engine-schema inputs while action, terrain, building, and world-setting
+catalogs are migrated; they are not the source for migrated unit, technology,
+government, civilization, or effect data.

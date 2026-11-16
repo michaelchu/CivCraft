@@ -304,6 +304,40 @@ pub(crate) struct UnitEconomicsCatalog {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct EffectCatalog {
+    pub(crate) schema_version: u32,
+    pub(crate) source: String,
+    pub(crate) effects: Vec<NativeEffect>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeEffect {
+    pub(crate) id: String,
+    pub(crate) kind: String,
+    pub(crate) value: i64,
+    pub(crate) multiplier: Option<String>,
+    #[serde(default)]
+    pub(crate) requirements: Vec<NativeEffectRequirement>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct NativeEffectRequirement {
+    pub(crate) kind: String,
+    pub(crate) name: String,
+    pub(crate) range: String,
+    #[serde(default = "native_requirement_present")]
+    pub(crate) present: bool,
+    #[serde(default)]
+    pub(crate) survives: bool,
+    #[serde(default)]
+    pub(crate) quiet: bool,
+}
+
+fn native_requirement_present() -> bool {
+    true
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct NativeUnitEconomicsBinding {
     pub(crate) civ3_unit_id: String,
     pub(crate) profile: String,
@@ -480,6 +514,16 @@ pub(crate) fn unit_economics() -> &'static UnitEconomicsCatalog {
     })
 }
 
+pub(crate) fn effects() -> &'static EffectCatalog {
+    static CATALOG: OnceLock<EffectCatalog> = OnceLock::new();
+    CATALOG.get_or_init(|| {
+        toml::from_str(include_str!(
+            "../../data/rulesets/civcraft_native/effects.toml"
+        ))
+        .expect("native effects TOML must be valid")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -539,6 +583,9 @@ mod tests {
         assert_eq!(experience().levels.len(), 4);
         assert_eq!(unit_economics().schema_version, 1);
         assert_eq!(unit_economics().bindings.len(), 92);
+        assert_eq!(effects().schema_version, 1);
+        assert_eq!(effects().source, "CivCraft native effect graph");
+        assert_eq!(effects().effects.len(), 508);
         assert!(
             unit_economics()
                 .bindings

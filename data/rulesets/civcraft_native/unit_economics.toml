@@ -16,7 +16,7 @@ support_food = 1
 support_shields = 0
 support_gold = 0
 happiness = 0
-flags = ["Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "AddToCity"]
+flags = ["Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "AddToCity", "Cities", "Fortress"]
 roles = ["CitiesStartUnit"]
 
 [[bindings]]
@@ -34,7 +34,7 @@ support_food = 0
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "Fortress"]
+flags = ["Workers", "Cant_Fortify", "NonMil", "HasNoZOC", "Fortress", "ShieldToGold"]
 roles = ["Settlers", "WorkerStartUnit"]
 
 [[bindings]]
@@ -52,7 +52,7 @@ support_food = 0
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify"]
+flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify", "ShieldToGold"]
 roles = ["Explorer", "ExplorerStartUnit"]
 
 [[bindings]]
@@ -70,7 +70,7 @@ support_food = 0
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify"]
+flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify", "ShieldToGold"]
 roles = ["Explorer", "ExplorerStartUnit"]
 
 [[bindings]]
@@ -269,7 +269,7 @@ support_shields = 1
 support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
-roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild", "HutTech"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild", "HutTech", "BarbarianTech", "BarbarianBuildTech", "BarbarianSeaTech"]
 
 [[bindings]]
 civ3_unit_id = "knight"
@@ -287,7 +287,7 @@ support_shields = 1
 support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
-roles = ["DefendOk", "AttackFastStartUnit"]
+roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "rifleman"
@@ -484,7 +484,7 @@ support_food = 0
 support_shields = 1
 support_gold = 0
 happiness = 1
-flags = ["OneAttack", "AirAttacker", "CityBuster", "HasNoZOC"]
+flags = ["OneAttack", "AirAttacker", "CityBuster", "HasNoZOC", "ShieldToGold"]
 roles = [""]
 
 [[bindings]]
@@ -538,7 +538,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil"]
+flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = ["Ferryboat", "FerryStartUnit"]
 
 [[bindings]]
@@ -556,7 +556,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["BadCityDefender", "Only_Native_Attack", "HasNoZOC"]
+flags = ["BadCityDefender", "Only_Native_Attack", "HasNoZOC", "Provoking", "NonMil"]
 roles = ["Ferryboat", "FerryStartUnit", "BarbarianBoat"]
 
 [[bindings]]
@@ -592,7 +592,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil"]
+flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = ["Ferryboat", "FerryStartUnit", "BarbarianBoat"]
 
 [[bindings]]
@@ -628,7 +628,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["Workers", "BadCityDefender", "HasNoZOC"]
+flags = ["Workers", "BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = ["Ferryboat", "FerryStartUnit"]
 
 [[bindings]]
@@ -664,7 +664,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 1
-flags = ["BadCityDefender", "Only_Native_Attack"]
+flags = ["BadCityDefender", "Only_Native_Attack", "Submarine", "Provoking", "ShieldToGold"]
 roles = ["Hunter"]
 
 [[bindings]]
@@ -736,7 +736,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 1
-flags = ["BadCityDefender", "Only_Native_Attack"]
+flags = ["BadCityDefender", "Only_Native_Attack", "Submarine", "Provoking", "ShieldToGold"]
 roles = ["Hunter"]
 
 [[bindings]]
@@ -772,7 +772,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 1
-flags = ["FieldUnit", "OneAttack", "AirAttacker", "Bombarder"]
+flags = ["FieldUnit", "OneAttack", "AirAttacker", "Bombarder", "HasNoZOC", "ShieldToGold"]
 roles = [""]
 
 [[bindings]]
@@ -790,7 +790,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 1
-flags = ["OneAttack", "AirAttacker", "Bombarder", "HasNoZOC"]
+flags = ["OneAttack", "AirAttacker", "Bombarder", "HasNoZOC", "Provoking", "ShieldToGold"]
 roles = [""]
 
 [[bindings]]
@@ -844,7 +844,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 1
-flags = ["FieldUnit", "OneAttack", "AirAttacker", "Bombarder"]
+flags = ["FieldUnit", "OneAttack", "AirAttacker", "Bombarder", "HasNoZOC", "ShieldToGold"]
 roles = ["DefendOk", "DefendOkStartUnit"]
 
 [[bindings]]
@@ -862,7 +862,7 @@ support_food = 0
 support_shields = 0
 support_gold = 0
 happiness = 0
-flags = ["IgZOC", "NonMil", "NoBuild", "NoHome", "SuperSpy"]
+flags = ["IgZOC", "NonMil", "NoBuild", "NoHome", "SuperSpy", "EvacuateFirst", "Unbribable", "GameLoss", "Unique", "Provoking"]
 roles = ["KingStartUnit"]
 
 [[bindings]]
@@ -1025,7 +1025,7 @@ support_shields = 1
 support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
-roles = ["DefendOk", "AttackFastStartUnit"]
+roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "mounted_warrior"
@@ -1061,7 +1061,7 @@ support_shields = 1
 support_gold = 0
 happiness = 1
 flags = ["Marines", "Capturer", "Fortress", "ShieldToGold"]
-roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild", "HutTech"]
+roles = ["DefendGood", "DefendGoodStartUnit", "FirstBuild", "HutTech", "BarbarianTech", "BarbarianBuildTech", "BarbarianSeaTech"]
 
 [[bindings]]
 civ3_unit_id = "samurai"
@@ -1079,7 +1079,7 @@ support_shields = 1
 support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
-roles = ["DefendOk", "AttackFastStartUnit"]
+roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "war_elephant"
@@ -1097,7 +1097,7 @@ support_shields = 1
 support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
-roles = ["DefendOk", "AttackFastStartUnit"]
+roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "cossack"
@@ -1205,7 +1205,7 @@ support_shields = 1
 support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
-roles = ["DefendOk", "AttackFastStartUnit"]
+roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "conquistador"
@@ -1222,7 +1222,7 @@ support_food = 0
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify"]
+flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify", "ShieldToGold"]
 roles = ["Explorer", "ExplorerStartUnit"]
 
 [[bindings]]
@@ -1295,7 +1295,7 @@ support_shields = 1
 support_gold = 0
 happiness = 1
 flags = ["Capturer", "ShieldToGold"]
-roles = ["DefendOk", "AttackFastStartUnit"]
+roles = ["DefendOk", "AttackFastStartUnit", "HutTech", "BarbarianTech", "BarbarianBuildTech", "Hunter"]
 
 [[bindings]]
 civ3_unit_id = "numidian_mercenary"
@@ -1420,7 +1420,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["BadCityDefender", "Only_Native_Attack", "HasNoZOC"]
+flags = ["BadCityDefender", "Only_Native_Attack", "HasNoZOC", "Provoking", "NonMil"]
 roles = ["Ferryboat", "FerryStartUnit", "BarbarianBoat"]
 
 [[bindings]]
@@ -1474,7 +1474,7 @@ support_food = 0
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify"]
+flags = ["IgTer", "IgZOC", "NonMil", "HasNoZOC", "Cant_Fortify", "ShieldToGold"]
 roles = ["Explorer", "ExplorerStartUnit"]
 
 [[bindings]]
@@ -1510,7 +1510,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil"]
+flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = ["Ferryboat", "FerryStartUnit"]
 
 [[bindings]]
@@ -1582,7 +1582,7 @@ support_food = 1
 support_shields = 1
 support_gold = 0
 happiness = 0
-flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil"]
+flags = ["BadCityDefender", "HasNoZOC", "Provoking", "NonMil", "ShieldToGold"]
 roles = ["Ferryboat", "FerryStartUnit"]
 
 [[bindings]]

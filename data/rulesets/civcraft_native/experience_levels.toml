@@ -22,13 +22,13 @@ id = "veteran"
 name = "Veteran"
 base_hit_points = 4
 retreat_bonus_percent = 58
-promotion_chance_per_mille = 0
+promotion_chance_per_mille = 125
 default_rank = false
 
 [[levels]]
 id = "elite"
 name = "Elite"
 base_hit_points = 5
-retreat_bonus_percent = 17
-promotion_chance_per_mille = 125
+retreat_bonus_percent = 66
+promotion_chance_per_mille = 0
 default_rank = false

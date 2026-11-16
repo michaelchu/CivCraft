@@ -36,17 +36,40 @@ def read_bridge_tsv(name: str) -> list[dict[str, str]]:
 def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
     profiles: dict[str, dict[str, object]] = {}
     current: dict[str, object] | None = None
+    pending_key: str | None = None
+    pending_value: list[str] = []
+
+    def flush_pending() -> None:
+        if current is None or pending_key not in {"flags", "roles", "targets"}:
+            return
+        current[pending_key] = re.findall(
+            r'"([^"\\]*(?:\\.[^"\\]*)*)"', " ".join(pending_value)
+        )
+
     for raw_line in (ROOT / "data/rulesets/civcraft_civ2civ3/units.ruleset").read_text(
         encoding="utf-8"
     ).splitlines():
         line = raw_line.strip()
         if line.startswith("[unit_") and line.endswith("]"):
+            flush_pending()
             current = {}
             profiles[line[1:-1]] = current
+            pending_key = None
+            pending_value = []
             continue
-        if current is None or "=" not in line or line.startswith(";"):
+        if current is None or line.startswith(";"):
             continue
-        key, value = (part.strip() for part in line.split("=", 1))
+        if "=" in line:
+            flush_pending()
+            pending_key, value = (part.strip() for part in line.split("=", 1))
+            pending_value = [value]
+        elif pending_key is not None:
+            pending_value.append(line)
+            continue
+        else:
+            continue
+        key = pending_key
+        value = " ".join(pending_value)
         if key in {"class"}:
             match = re.search(r'"([^"]+)"', value)
             if match:
@@ -63,8 +86,7 @@ def read_c2c3_unit_profiles() -> dict[str, dict[str, object]]:
             match = re.search(r"-?\d+", value)
             if match:
                 current[key] = int(match.group())
-        elif key in {"flags", "roles", "targets"}:
-            current[key] = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', value)
+    flush_pending()
     class_blocks = re.finditer(
         r"\[unitclass_[^\]]+\](.*?)(?=\n\[|\Z)",
         (ROOT / "data/rulesets/civcraft_civ2civ3/units.ruleset").read_text(
@@ -402,16 +424,36 @@ def write_technologies() -> None:
 
 
 def write_governments() -> None:
+    government_rules = {
+        "anarchy": ("Anarchy", "", None, [], 99, 0, 100),
+        "despotism": ("Despotism", "", "monarchy", ["ShieldToGold"], 80, 10, 60),
+        "monarchy": ("Monarchy", "Monarchy", None, ["ShieldToGold"], 70, 14, 70),
+        "communism": ("Communism", "Communism", None, [], 50, 28, 80),
+        "republic": ("Republic", "The Republic", None, [], 40, 16, 80),
+        "democracy": ("Democracy", "Democracy", None, ["ShieldToGold"], 30, 32, 90),
+        "fascism": ("Fascism", "Fascism", None, [], 60, 20, 70),
+        "feudalism": ("Feudalism", "Feudalism", None, [], 20, 14, 60),
+    }
     lines = [
         "schema_version = 1",
         'source = "Civilization III: Conquests"',
         "",
     ]
     for row in read_tsv("government_unit_support.tsv"):
+        name, required, preferred, flags, civil_war, empire_size, max_rates = government_rules[
+            row["government"].lower()
+        ]
         lines.extend(
             [
                 "[[governments]]",
                 f'government = {string(row["government"])}',
+                f"name = {string(name)}",
+                f"required_technology = {string(required)}",
+                *([f"preferred_government = {string(preferred)}"] if preferred else []),
+                f"flags = {json.dumps(flags)}",
+                f"civil_war_chance = {civil_war}",
+                f"empire_size_base = {empire_size}",
+                f"max_rates = {max_rates}",
                 f'town_free_units = {row["town_free_units"]}',
                 f'city_free_units = {row["city_free_units"]}',
                 f'metropolis_free_units = {row["metropolis_free_units"]}',
@@ -495,6 +537,76 @@ def write_unit_economics() -> None:
     (DEST / "unit_economics.toml").write_text("\n".join(lines), encoding="utf-8")
 
 
+def write_effects() -> None:
+    """Transcribe the selected effect graph into an editable native catalog."""
+    source = (ROOT / "data/rulesets/civcraft_civ2civ3/effects.ruleset").read_text(
+        encoding="utf-8"
+    )
+    lines = [
+        "schema_version = 1",
+        'source = "CivCraft native effect graph"',
+        "",
+    ]
+    sections = re.finditer(
+        r"^\[(effect_[^\]]+)\]\s*\n(.*?)(?=^\[|\Z)",
+        source,
+        re.MULTILINE | re.DOTALL,
+    )
+    for match in sections:
+        section, block = match.groups()
+        type_match = re.search(r"^type\s*=\s*\"([^\"]+)\"", block, re.MULTILINE)
+        value_match = re.search(r"^value\s*=\s*(-?\d+)", block, re.MULTILINE)
+        if not type_match or not value_match:
+            raise ValueError(f"effect {section} is missing type or value")
+        requirement_match = re.search(
+            r"^reqs\s*=\s*\n\s*\{(.*?)^\s*\}", block, re.MULTILINE | re.DOTALL
+        )
+        requirements: list[dict[str, object]] = []
+        if requirement_match:
+            table = requirement_match.group(1)
+            header_line, *rows = table.splitlines()
+            columns = re.findall(r'"([^"\\]*(?:\\.[^"\\]*)*)"', header_line)
+            for row_line in rows:
+                if not row_line.strip() or row_line.lstrip().startswith(";"):
+                    continue
+                tokens = [
+                    quoted or bare
+                    for quoted, bare in re.findall(
+                        r'"([^"\\]*(?:\\.[^"\\]*)*)"|\b(TRUE|FALSE)\b',
+                        row_line,
+                    )
+                ]
+                if len(tokens) < 3 or len(tokens) > len(columns):
+                    raise ValueError(f"effect {section} has malformed requirements")
+                row = dict(zip(columns, tokens))
+                requirements.append(
+                    {
+                        "kind": row["type"],
+                        "name": row["name"],
+                        "range": row["range"],
+                        "present": row.get("present", "true").lower() == "true",
+                        "survives": row.get("survives", "false").lower() == "true",
+                        "quiet": row.get("quiet", "false").lower() == "true",
+                    }
+                )
+        multiplier_match = re.search(
+            r"^multiplier\s*=\s*\"([^\"]+)\"", block, re.MULTILINE
+        )
+        effect_lines = [
+            "[[effects]]",
+            f'id = {string(section.removeprefix("effect_"))}',
+            f'kind = {string(type_match.group(1))}',
+            f"value = {value_match.group(1)}",
+        ]
+        if multiplier_match:
+            effect_lines.append(f"multiplier = {string(multiplier_match.group(1))}")
+        effect_lines.extend(
+            [f"requirements = {inline_tables(requirements)}", ""]
+        )
+        lines.extend(effect_lines)
+    (DEST / "effects.toml").write_text("\n".join(lines), encoding="utf-8")
+
+
 if __name__ == "__main__":
     DEST.mkdir(parents=True, exist_ok=True)
     write_units()
@@ -503,3 +615,4 @@ if __name__ == "__main__":
     write_technologies()
     write_governments()
     write_unit_economics()
+    write_effects()

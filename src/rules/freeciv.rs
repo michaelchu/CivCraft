@@ -833,6 +833,7 @@ impl RulesetData {
         ruleset_name: &str,
     ) -> Result<Self, LoadError> {
         let mut rules = Self::load(data_root, ruleset_name)?;
+        rules.effects = native_effect_records()?;
         let source_catalog =
             Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
         rules.source_content = source_catalog.records;
@@ -1591,6 +1592,61 @@ impl RulesetData {
         }
         Ok(enabled)
     }
+}
+
+fn native_effect_records() -> Result<Vec<EffectRecord>, LoadError> {
+    crate::rules::native::effects()
+        .effects
+        .iter()
+        .map(|effect| {
+            let requirements = effect
+                .requirements
+                .iter()
+                .map(|requirement| {
+                    let range = match requirement.range.to_ascii_lowercase().as_str() {
+                        "local" => RequirementRange::Local,
+                        "tile" => RequirementRange::Tile,
+                        "cadjacent" => RequirementRange::CAdjacent,
+                        "adjacent" => RequirementRange::Adjacent,
+                        "city" => RequirementRange::City,
+                        "traderoute" => RequirementRange::Traderoute,
+                        "continent" => RequirementRange::Continent,
+                        "player" => RequirementRange::Player,
+                        "team" => RequirementRange::Team,
+                        "alliance" => RequirementRange::Alliance,
+                        "world" => RequirementRange::World,
+                        other => {
+                            return Err(LoadError::new(format!(
+                                "native effect {} has unknown requirement range {other:?}",
+                                effect.id
+                            )));
+                        }
+                    };
+                    Ok(Requirement {
+                        kind: requirement.kind.clone(),
+                        name: RequirementValue::String(requirement.name.clone()),
+                        range,
+                        present: requirement.present,
+                        survives: requirement.survives,
+                        quiet: requirement.quiet,
+                        source: RuleSourceLocation {
+                            file: PathBuf::from("data/rulesets/civcraft_native/effects.toml"),
+                            section: format!("effect_{}", effect.id),
+                            key: "requirements".to_owned(),
+                            line: 0,
+                        },
+                    })
+                })
+                .collect::<Result<Vec<_>, LoadError>>()?;
+            Ok(EffectRecord {
+                rule_name: effect.id.clone(),
+                kind: effect.kind.clone(),
+                value: effect.value,
+                multiplier: effect.multiplier.clone(),
+                requirements,
+            })
+        })
+        .collect()
 }
 
 fn required_parameter<'a>(
@@ -3136,6 +3192,11 @@ mod tests {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
         let rules = RulesetData::load_with_native_catalog(&data_root, "civcraft_civ2civ3").unwrap();
 
+        assert_eq!(
+            rules.effects.len(),
+            crate::rules::native::effects().effects.len()
+        );
+        assert_eq!(rules.effects.len(), 508);
         assert_eq!(
             rules
                 .content

@@ -8,25 +8,8 @@ enum SelectedActionRange {
     Limited(i32),
 }
 
-fn selected_unit_record(kind: UnitKind) -> Option<&'static crate::rules::freeciv::ContentRecord> {
-    let section = crate::sim::action_rules::freeciv_unit_type_section(kind)?;
-    let rules = crate::rules::freeciv::RulesetData::campaign_default();
-    let mut records = rules.content.iter().filter(|record| {
-        record.kind == crate::rules::freeciv::ContentKind::Unit
-            && record.section.eq_ignore_ascii_case(&section)
-    });
-    let record = records.next()?;
-    records.next().is_none().then_some(record)
-}
-
 fn selected_paratroopers_range(kind: UnitKind) -> Option<i32> {
-    let range = i32::try_from(
-        selected_unit_record(kind)?
-            .integer_field("paratroopers_range")
-            .ok()??,
-    )
-    .ok()?;
-    (range >= 0).then_some(range)
+    crate::sim::action_rules::freeciv_unit_paratroopers_range(kind)
 }
 
 fn selected_airlift_max_range() -> Option<SelectedActionRange> {

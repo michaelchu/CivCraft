@@ -57,6 +57,12 @@ government identity/selection/prerequisites, government flags, and core
 government scalar values now load from TOML; broader building and government
 effect graphs still need a deliberate runtime cutover.
 
+The native catalog also now owns the complete selected C2C3 effect graph. The
+campaign loader converts `effects.toml` into the reusable engine effect model,
+and technology requirements bind directly to the native 83-advance catalog or
+an explicit CivCraft compatibility mapping. Multiline class flags and role
+lists are preserved by the migration tooling.
+
 ## Order of work
 
 1. Migrate building identities, values, requirements, effects, and bindings.

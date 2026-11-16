@@ -420,40 +420,18 @@ impl<'a> SimulationRequirementContext<'a> {
 
     fn tech_present(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
         let name = Self::string_name(requirement)?;
-        let record = self
-            .ruleset
-            .content
-            .iter()
-            .find(|record| {
-                record.kind == ContentKind::Technology
-                    && (record.rule_name.eq_ignore_ascii_case(name)
-                        || record
-                            .display_name
-                            .as_deref()
-                            .is_some_and(|display| display.eq_ignore_ascii_case(name)))
-            })
-            .ok_or_else(|| Self::unsupported(requirement))?;
-        let freeciv_name = record.display_name.as_deref().unwrap_or(&record.rule_name);
-        let direct = Tech::all().find(|tech| tech.name().eq_ignore_ascii_case(freeciv_name));
-        let tech = if let Some(tech) = direct.filter(|tech| tech.is_civ3_advance()) {
-            tech
-        } else if let Some(tech) = direct.and_then(Tech::civ3_equivalent) {
-            // A Freeciv label can still match a legacy stable ID even when
-            // that advance is absent from the Conquests tree. Resolve those
-            // aliases to the actual Civ III research state (for example,
-            // C2C3 Machine Tools -> Civ III Robotics).
-            tech
-        } else if let super::content_adapter::FreecivTechBinding::Bound(tech) =
-            super::content_adapter::bind_freeciv_technology(self.ruleset, freeciv_name)
-                .map_err(|_| Self::unsupported(requirement))?
+        let tech = match super::content_adapter::bind_freeciv_technology(self.ruleset, name)
+            .map_err(|_| Self::unsupported(requirement))?
         {
-            tech
-        } else {
-            if self.unbound_content_is_absent {
-                return Ok(false);
+            super::content_adapter::FreecivTechBinding::Bound(tech) => tech,
+            super::content_adapter::FreecivTechBinding::MissingFromCiv3Catalog => {
+                if self.unbound_content_is_absent {
+                    return Ok(false);
+                }
+                // A Freeciv-only technology has no Civ III player-state
+                // identity and therefore cannot satisfy a native requirement.
+                return Err(Self::unsupported(requirement));
             }
-            // A Freeciv-only technology has no Civ III player-state identity.
-            return Err(Self::unsupported(requirement));
         };
         match requirement.range {
             RequirementRange::Player => {
@@ -2673,6 +2651,15 @@ pub(crate) fn freeciv_unit_type_section(unit: UnitKind) -> Option<String> {
 pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
     native_unit_economics_binding(unit)
         .map(|native| u8::try_from(native.fuel).expect("native unit fuel fits in u8"))
+}
+
+/// Resolve the selected native paratrooper range.  This used to be read from
+/// the imported unit record; the native unit-economics binding now owns the
+/// action-specific value for every Civ III identity.
+pub(crate) fn freeciv_unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
+    native_unit_economics_binding(unit)
+        .map(|native| native.paratroopers_range)
+        .filter(|range| *range >= 0)
 }
 
 /// Civ III records expose the Cruise Missile's offensive strength as
