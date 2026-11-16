@@ -861,12 +861,32 @@ fn overlapping_cities_reserve_worked_tiles_and_release_them_on_reassignment() {
     let first = game.cities[0].id;
     let second = game.cities[1].id;
     for id in [first, second] {
-        assert!(game.apply(Command::Specialist(id, 2, 1)));
+        assert!(game.apply(Command::Specialist {
+            city_id: id,
+            index: 2,
+            delta: 1,
+        }));
     }
-    assert!(game.apply(Command::WorkCityTile(first, shared.0, shared.1)));
-    assert!(!game.apply(Command::WorkCityTile(second, shared.0, shared.1)));
-    assert!(game.apply(Command::WorkCityTile(first, shared.0, shared.1)));
-    assert!(game.apply(Command::WorkCityTile(second, shared.0, shared.1)));
+    assert!(game.apply(Command::WorkCityTile {
+        city_id: first,
+        x: shared.0,
+        y: shared.1,
+    }));
+    assert!(!game.apply(Command::WorkCityTile {
+        city_id: second,
+        x: shared.0,
+        y: shared.1,
+    }));
+    assert!(game.apply(Command::WorkCityTile {
+        city_id: first,
+        x: shared.0,
+        y: shared.1,
+    }));
+    assert!(game.apply(Command::WorkCityTile {
+        city_id: second,
+        x: shared.0,
+        y: shared.1,
+    }));
 
     game.spawn_unit(1, UnitKind::Warrior, shared.0, shared.1);
     game.reconcile_city_workers();
