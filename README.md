@@ -27,6 +27,18 @@ CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release --features deskt
   --world-age 4 --landform continents --temperature temperate --tileset civ3
 ```
 
+Run a short desktop smoke test to verify that the game starts, loads the Civ III
+artwork, renders a frame, and advances a few normal turns:
+
+```sh
+./scripts/smoke-test.sh
+```
+
+The script uses `CIVCRAFT_SOURCE_DIR` when set and otherwise checks for the
+checkout-local `../source` installation. It exits successfully with `SKIP` when
+neither path contains `Conquests/Art/Terrain`. Set `CIVCRAFT_SMOKE_TURNS` to
+change the default three turns.
+
 `--map-size` defaults to `small` (80×80). It accepts `tiny`, `small`,
 `standard`, `large`, `huge`, or custom `WIDTHxHEIGHT` dimensions. Ocean
 coverage accepts `60`, `70`, or `80`; climate

@@ -44,6 +44,18 @@ impl ClientSimulation {
         self.simulation.map_wrap
     }
 
+    /// Advances the campaign through the normal turn pipeline for the
+    /// desktop smoke-test mode. This is intentionally not part of the UI
+    /// command surface; it exists to exercise startup, asset loading, frame
+    /// rendering, and turn processing together.
+    pub(crate) fn simulate_turn_for_smoke_test(&mut self) {
+        self.simulation.simulate_turn();
+    }
+
+    pub(crate) fn turn_view(&self) -> i32 {
+        self.simulation.turn()
+    }
+
     pub(crate) fn world_seed(&self) -> u64 {
         self.simulation.world_seed
     }

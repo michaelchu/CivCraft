@@ -336,6 +336,14 @@ impl Game {
         self.sim.world_seed()
     }
 
+    pub(crate) fn simulate_turn_for_smoke_test(&mut self) {
+        self.sim.simulate_turn_for_smoke_test();
+    }
+
+    pub(crate) fn turn_for_smoke_test(&self) -> i32 {
+        self.sim.turn_view()
+    }
+
     pub(crate) fn map_wrap(&self) -> MapWrap {
         self.sim.map_wrap()
     }
