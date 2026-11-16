@@ -14,7 +14,8 @@ impl Simulation {
         if !self.players[owner].ai {
             return 0.0;
         }
-        self.ai_tech_wants
+        self.ai
+            .tech_wants
             .get(&owner)
             .and_then(|wants| wants.get(tech.0))
             .copied()
@@ -22,13 +23,15 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn clear_ai_tech_wants(&mut self, owner: usize) {
-        self.ai_tech_wants
+        self.ai
+            .tech_wants
             .insert(owner, vec![0.0; Tech::all().count()]);
     }
 
     pub(in crate::sim) fn add_ai_tech_want(&mut self, owner: usize, tech: Tech, want: f32) {
         let wants = self
-            .ai_tech_wants
+            .ai
+            .tech_wants
             .entry(owner)
             .or_insert_with(|| vec![0.0; Tech::all().count()]);
         if let Some(value) = wants.get_mut(tech.0) {
@@ -152,7 +155,7 @@ impl Simulation {
             preview.record_ai_military_tech_wants(&city);
         }
         preview.record_ai_tech_effect_wants(owner);
-        preview.ai_tech_wants.remove(&owner).unwrap()
+        preview.ai.tech_wants.remove(&owner).unwrap()
     }
 
     pub(in crate::sim) fn advisor_city_output(&self, city: &City, granted: Option<Tech>) -> i32 {

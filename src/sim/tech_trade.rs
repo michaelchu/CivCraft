@@ -332,7 +332,7 @@ mod arithmetic_tests {
         sim.turn = 3;
         let mut wants = vec![0.0; Tech::all().count()];
         wants[Tech::POTTERY.0] = 67_108_864.0;
-        sim.ai_tech_wants.insert(1, wants);
+        sim.ai.tech_wants.insert(1, wants);
         let base = 3 * sim.target_cost(1, Tech::POTTERY);
         // Independent C: int tech_want = 67108864.f / 3;
         // gives 22369622 (float rounding), while early conversion followed
@@ -345,7 +345,7 @@ mod arithmetic_tests {
             sim.technology_gold_equivalent(1, Tech::POTTERY, true),
             (base + 22_369_621) / 2
         );
-        sim.ai_tech_wants.get_mut(&1).unwrap()[Tech::POTTERY.0] = -2.75;
+        sim.ai.tech_wants.get_mut(&1).unwrap()[Tech::POTTERY.0] = -2.75;
         assert_eq!(
             sim.technology_gold_equivalent(1, Tech::POTTERY, true),
             base / 2
@@ -357,7 +357,7 @@ mod arithmetic_tests {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.players[1].known.clear();
         sim.players[HUMAN].known.clear();
-        sim.ai_tech_wants.clear();
+        sim.ai.tech_wants.clear();
         for owner in [HUMAN, 1] {
             assert_eq!(sim.advisor_tech_want(owner, Tech::POTTERY), 0.0);
             assert_eq!(
@@ -367,7 +367,7 @@ mod arithmetic_tests {
         }
         let mut wants = vec![0.0; Tech::all().count()];
         wants[Tech::POTTERY.0] = 17.75;
-        sim.ai_tech_wants.insert(1, wants);
+        sim.ai.tech_wants.insert(1, wants);
         let cached = sim.technology_gold_equivalent(1, Tech::POTTERY, true);
         sim.players[1].gold += 1000;
         sim.players[1].research_goal = Tech::MONARCHY;

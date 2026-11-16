@@ -8,7 +8,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn ai_on_war_footing(&self, owner: usize) -> bool {
-        self.ai_war_plans.iter().any(|(&(planner, target), plan)| {
+        self.ai.war_plans.iter().any(|(&(planner, target), plan)| {
             planner == owner && plan.countdown >= 0 && self.player_alive(target)
         })
     }
@@ -50,7 +50,8 @@ impl Simulation {
     }
 
     pub(super) fn ai_war_countdown(&self, owner: usize, target: usize) -> i32 {
-        self.ai_war_plans
+        self.ai
+            .war_plans
             .get(&(owner, target))
             .map_or(-1, |plan| plan.countdown)
     }
@@ -65,7 +66,7 @@ impl Simulation {
         if self.ai_war_countdown(owner, target) != -1 {
             return;
         }
-        self.ai_war_plans.insert(
+        self.ai.war_plans.insert(
             (owner, target),
             WarPlan {
                 countdown: delay,
@@ -135,7 +136,8 @@ impl Simulation {
                     }
                     if !self.spaceships[target].launched() {
                         if self
-                            .ai_space_warnings
+                            .ai
+                            .space_warnings
                             .get(&(owner, target))
                             .copied()
                             .unwrap_or(0)
@@ -148,7 +150,7 @@ impl Simulation {
                                 .unwrap();
                             relation.trust[side] = (relation.trust[side] - 1000).max(-10_000);
                             let delay = 10 + self.rand_below(6);
-                            self.ai_space_warnings.insert((owner, target), delay);
+                            self.ai.space_warnings.insert((owner, target), delay);
                             if target == HUMAN {
                                 self.add_event(format!("{} warns that continued spaceship construction may lead to war.", self.players[owner].name));
                             }
@@ -227,20 +229,23 @@ impl Simulation {
         }
 
         let plans: Vec<_> = self
-            .ai_war_plans
+            .ai
+            .war_plans
             .iter()
             .map(|(&pair, &plan)| (pair, plan))
             .collect();
         for ((owner, target), plan) in plans {
             if !self.player_alive(owner) || !self.player_alive(target) || !self.players[owner].ai {
-                self.ai_war_plans.remove(&(owner, target));
+                self.ai.war_plans.remove(&(owner, target));
             } else if plan.countdown > 0 {
-                self.ai_war_plans
+                self.ai
+                    .war_plans
                     .get_mut(&(owner, target))
                     .unwrap()
                     .countdown -= 1;
             } else if plan.countdown < -1 {
-                self.ai_war_plans
+                self.ai
+                    .war_plans
                     .get_mut(&(owner, target))
                     .unwrap()
                     .countdown += 1;
@@ -262,7 +267,7 @@ impl Simulation {
                 .at_war_with_ally
                 .is_none()
         {
-            self.ai_war_plans.remove(&(owner, target));
+            self.ai.war_plans.remove(&(owner, target));
             return;
         }
         let stubbornness = match reason {
@@ -272,7 +277,7 @@ impl Simulation {
         };
         // dai_go_to_war commits the diplomatic cooldown before consulting
         // the Senate, and revokes only this AI's outgoing shared vision.
-        self.ai_war_plans.insert(
+        self.ai.war_plans.insert(
             (owner, target),
             WarPlan {
                 countdown: stubbornness,
@@ -291,9 +296,9 @@ impl Simulation {
             if revolution_helps && self.begin_ai_war_revolution(owner) {
                 // revolution_start runs inside the request above, before
                 // native dai_go_to_war assigns its transient war_target.
-                self.ai_pending_war_targets.insert(owner, target);
+                self.ai.pending_war_targets.insert(owner, target);
             } else {
-                self.ai_war_plans.remove(&(owner, target));
+                self.ai.war_plans.remove(&(owner, target));
             }
             return;
         }
@@ -301,7 +306,7 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn resume_ai_war_after_revolution(&mut self, owner: usize) {
-        if let Some(target) = self.ai_pending_war_targets.remove(&owner)
+        if let Some(target) = self.ai.pending_war_targets.remove(&owner)
             && self.player_alive(target)
         {
             if let Some(relation) = self.diplomacy.get_mut(&Self::relation_key(owner, target)) {
@@ -314,7 +319,7 @@ impl Simulation {
     pub(super) fn declare_ai_war_now(&mut self, owner: usize, target: usize) {
         while !self.at_war(owner, target) {
             if !self.cancel_pact(owner, target) {
-                self.ai_war_plans.remove(&(owner, target));
+                self.ai.war_plans.remove(&(owner, target));
                 return;
             }
         }

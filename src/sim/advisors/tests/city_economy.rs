@@ -131,7 +131,7 @@ fn production_compares_domestic_and_military_wants_on_one_scale() {
     tile.owner = Some(1);
     tile.road = true;
     game.sign_pact(1, HUMAN, Pact::War);
-    game.ai_war_plans.insert(
+    game.ai.war_plans.insert(
         (1, HUMAN),
         super::super::diplomacy::WarPlan {
             countdown: 2,
@@ -151,7 +151,7 @@ fn production_compares_domestic_and_military_wants_on_one_scale() {
         chosen.production
     );
 
-    game.ai_war_plans.insert(
+    game.ai.war_plans.insert(
         (1, HUMAN),
         super::super::diplomacy::WarPlan {
             countdown: 2,
@@ -208,7 +208,7 @@ fn routine_settler_rush_requires_no_war_preparation_and_enough_population() {
     game.cities[0].size += 1;
     game.create_city(HUMAN, 5, 5);
     game.sign_pact(1, HUMAN, Pact::War);
-    game.ai_war_plans.insert(
+    game.ai.war_plans.insert(
         (1, HUMAN),
         super::super::diplomacy::WarPlan {
             countdown: 0,
@@ -219,7 +219,7 @@ fn routine_settler_rush_requires_no_war_preparation_and_enough_population() {
     assert!(!game.cities[0].bought_production);
 
     game.sign_pact(1, HUMAN, Pact::Peace);
-    game.ai_war_plans.remove(&(1, HUMAN));
+    game.ai.war_plans.remove(&(1, HUMAN));
     let price = game.rush_cost(&game.cities[0]).unwrap();
     let reserve = game.ai_gold_reserve(1);
     game.players[1].gold = price + reserve;
@@ -254,7 +254,7 @@ fn city_output_priorities_raise_the_bid_for_a_library_technology() {
         game.tech_sell_price(HUMAN, 1, literature).unwrap(),
         no_cities
     );
-    game.ai_tech_wants.insert(1, game.advisor_tech_wants(1));
+    game.ai.tech_wants.insert(1, game.advisor_tech_wants(1));
     assert!(game.tech_sell_price(HUMAN, 1, literature).unwrap() > no_cities);
     assert!(!game.has_tech(1, literature));
 }

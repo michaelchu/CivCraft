@@ -116,7 +116,7 @@ impl Simulation {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("ai.tech_and_registries");
         let _profile = profiler.scope("ai.first_activity.tech_wants");
-        let owns_advisor_cache = !self.ai_advisor_cache_enabled.get();
+        let owns_advisor_cache = !self.caches.advisor_enabled.get();
         if owns_advisor_cache {
             self.begin_ai_advisor_cache();
         }
@@ -169,12 +169,12 @@ impl Simulation {
                     || unit.kind.is_naval()
                     || unit.kind.is_aircraft()
                     || unit.transport.is_some()
-                    || self.ai_guard_targets.contains_key(&unit.id)
-                    || self.ai_ground_targets.contains_key(&unit.id)
-                    || self.ai_settlement_targets.contains_key(&unit.id)
+                    || self.ai.guard_targets.contains_key(&unit.id)
+                    || self.ai.ground_targets.contains_key(&unit.id)
+                    || self.ai.settlement_targets.contains_key(&unit.id)
                     || self.hunter_targets.contains_key(&unit.id)
-                    || self.ai_ferries.passengers.contains_key(&unit.id)
-                    || self.ai_ferries.boats.contains_key(&unit.id)
+                    || self.ai.ferries.passengers.contains_key(&unit.id)
+                    || self.ai.ferries.boats.contains_key(&unit.id)
                 {
                     return None;
                 }
@@ -292,7 +292,7 @@ impl Simulation {
                 continue;
             }
             let _profile = profiler.scope("ai.units.assigned_guard");
-            let guarded = self.ai_guard_targets.contains_key(&id) && self.run_ai_guard(id);
+            let guarded = self.ai.guard_targets.contains_key(&id) && self.run_ai_guard(id);
             drop(_profile);
             if guarded {
                 continue;
@@ -402,7 +402,8 @@ impl Simulation {
                     {
                         let _profile = profiler.scope("ai.fallback.ground_mission");
                         let mission = self
-                            .ai_ground_targets
+                            .ai
+                            .ground_targets
                             .get(&id)
                             .and_then(|target| self.city_by_id(*target))
                             .filter(|city| self.at_war(owner, city.owner))
@@ -444,7 +445,7 @@ impl Simulation {
 
     pub(super) fn prune_ai_player_units(&mut self) {
         let alive: std::collections::HashSet<_> = self.units.iter().map(|u| u.id).collect();
-        self.ai_ground_targets.retain(|id, _| alive.contains(id));
+        self.ai.ground_targets.retain(|id, _| alive.contains(id));
     }
 }
 

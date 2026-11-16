@@ -114,7 +114,7 @@ impl Simulation {
         sim.cities.clear();
         sim.hunter_targets.clear();
         sim.previous_naval_positions.clear();
-        sim.ai_ground_targets.clear();
+        sim.ai.ground_targets.clear();
         sim.sign_pact(1, HUMAN, Pact::War);
         for tile in &mut sim.tiles {
             tile.terrain = Terrain::Grassland;
@@ -273,7 +273,7 @@ impl Simulation {
                 missile.owner == hunter.owner
                     && missile.kind.is_missile()
                     && missile.transport.is_none()
-                    && !self.ai_guard_targets.contains_key(&missile.id)
+                    && !self.ai.guard_targets.contains_key(&missile.id)
             })
             .map(|missile| missile.id)
             .collect();

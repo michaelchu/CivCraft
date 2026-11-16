@@ -242,7 +242,8 @@ impl Simulation {
                 work_left: unit.work_left,
                 goto: self.unit_goto_tiles.get(&unit.id).copied(),
                 settlement_target: self
-                    .ai_settlement_targets
+                    .ai
+                    .settlement_targets
                     .get(&unit.id)
                     .map(|r| r.destination),
             })

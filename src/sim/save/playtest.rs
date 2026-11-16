@@ -17,27 +17,30 @@ impl Simulation {
             self.create_city(1, 18, 32);
             self.advance_diplomacy();
             self.apply(Command::EndTurn);
-            self.ai_purchase_reserve.insert(1, 120);
+            self.ai.purchase_reserve.insert(1, 120);
             let infantry = self.spawn_unit(1, UnitKind::Warrior, 18, 32);
             let guard = self.spawn_unit(1, UnitKind::Spearman, 18, 32);
             self.unit_goto_tiles.insert(guard, (12, 24));
-            self.ai_guard_targets
+            self.ai
+                .guard_targets
                 .insert(guard, guards::GuardTarget::Unit(infantry));
-            self.ai_unit_guards
+            self.ai
+                .unit_guards
                 .insert(infantry, guards::GuardState::Assigned(guard));
             let city_guard = self.spawn_unit(1, UnitKind::Musketman, 18, 32);
             let home = self.cities_owned_by(1).next().unwrap().id;
-            self.ai_guard_targets
+            self.ai
+                .guard_targets
                 .insert(city_guard, guards::GuardTarget::City(home));
-            self.ai_war_plans.insert(
+            self.ai.war_plans.insert(
                 (1, HUMAN),
                 diplomacy::WarPlan {
                     countdown: -3,
                     reason: diplomacy::WarReason::Excuse,
                 },
             );
-            self.ai_space_warnings.insert((1, HUMAN), 7);
-            self.ai_free_bulbs.insert(1, 3);
+            self.ai.space_warnings.insert((1, HUMAN), 7);
+            self.ai.free_bulbs.insert(1, 3);
             self.players[HUMAN].researching_saved = Some(Tech::POTTERY);
             self.players[HUMAN].research_saved = 17;
             let target = self
@@ -46,9 +49,9 @@ impl Simulation {
                 .find(|city| city.owner == HUMAN)
                 .unwrap()
                 .id;
-            self.ai_ground_targets.insert(infantry, target);
+            self.ai.ground_targets.insert(infantry, target);
             let founder = self.spawn_unit(1, UnitKind::Settler, 18, 32);
-            self.ai_settlement_targets.insert(
+            self.ai.settlement_targets.insert(
                 founder,
                 settlement::SettlementReservation {
                     owner: 1,
@@ -56,7 +59,7 @@ impl Simulation {
                     worker: Some((22, 42)),
                 },
             );
-            self.ai_diplomatic_memory.insert(
+            self.ai.diplomatic_memory.insert(
                 (1, HUMAN),
                 diplomacy::DiplomaticMemory {
                     spam: 3,
@@ -68,7 +71,7 @@ impl Simulation {
             );
             self.tile_mut(19, 33).terrain = Terrain::Sea;
             self.spawn_unit(1, UnitKind::Transport, 19, 33);
-            self.ai_government_cache.insert(
+            self.ai.government_cache.insert(
                 1,
                 government::GovernmentAdvisorCache {
                     evaluated_turn: self.turn,
@@ -98,29 +101,29 @@ impl Simulation {
                         (
                             sim,
                             &sim.route_memory,
-                            &sim.ai_purchase_reserve,
+                            &sim.ai.purchase_reserve,
                             &sim.city_founders,
-                            &sim.ai_map_memory,
+                            &sim.ai.map_memory,
                             (
                                 (
-                                    &sim.ai_war_plans,
-                                    &sim.ai_space_warnings,
-                                    &sim.ai_free_bulbs,
-                                    &sim.ai_ground_targets,
-                                    &sim.ai_settlement_targets,
-                                    &sim.ai_diplomatic_memory,
+                                    &sim.ai.war_plans,
+                                    &sim.ai.space_warnings,
+                                    &sim.ai.free_bulbs,
+                                    &sim.ai.ground_targets,
+                                    &sim.ai.settlement_targets,
+                                    &sim.ai.diplomatic_memory,
                                 ),
                                 (
-                                    &sim.ai_ferries,
-                                    &sim.ai_government_cache,
+                                    &sim.ai.ferries,
+                                    &sim.ai.government_cache,
                                     &sim.diplomatic_contact_until,
                                 ),
                             ),
                         ),
                         (
                             &sim.climate_current,
-                            &sim.ai_guard_targets,
-                            &sim.ai_unit_guards,
+                            &sim.ai.guard_targets,
+                            &sim.ai.unit_guards,
                             &sim.city_rapture,
                             &sim.unit_goto_tiles,
                         ),
@@ -133,7 +136,7 @@ impl Simulation {
             expected.unit_goto_tiles.clear();
             let restored = bytes(&expected)? == bytes(&resumed)?
                 && resumed.unit_goto_tiles.is_empty()
-                && resumed.ai_worker_tasks.is_empty();
+                && resumed.ai.worker_tasks.is_empty();
             let mut replay = Self::load_campaign(&path)?;
             replay.apply(Command::EndTurn);
             resumed.apply(Command::EndTurn);

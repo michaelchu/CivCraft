@@ -6,10 +6,10 @@ impl super::Simulation {
     pub(crate) fn ai_guard_ferry_capacity_playtest(&mut self) -> (bool, bool, bool) {
         self.units.clear();
         self.cities.clear();
-        self.ai_settlement_targets.clear();
-        self.ai_guard_targets.clear();
-        self.ai_unit_guards.clear();
-        self.ai_ferries = Default::default();
+        self.ai.settlement_targets.clear();
+        self.ai.guard_targets.clear();
+        self.ai.unit_guards.clear();
+        self.ai.ferries = Default::default();
         self.diplomacy.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Sea;
@@ -50,7 +50,8 @@ impl super::Simulation {
             .is_some_and(|plan| plan.destination == island)
             && !actual.contains_key(&small)
             && self
-                .ai_settlement_targets
+                .ai
+                .settlement_targets
                 .get(&founder)
                 .is_some_and(|target| target.destination == island);
         self.remove_units_with_cargo(vec![roomy]);
@@ -58,7 +59,8 @@ impl super::Simulation {
             .dispatch_settlement_ferries(1, &no_reserved_defenders)
             .is_empty()
             && self
-                .ai_settlement_targets
+                .ai
+                .settlement_targets
                 .get(&founder)
                 .is_some_and(|target| target.destination == island)
             && self.ferry_boss(small).is_none();

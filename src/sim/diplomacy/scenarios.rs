@@ -36,8 +36,8 @@ impl Simulation {
         relation.trust[1] = 6500;
         relation.offer = None;
         relation.cause_until[1] = 0;
-        self.ai_war_plans.retain(|&(owner, _), _| owner != 1);
-        if let Some(memory) = self.ai_diplomatic_memory.get_mut(&(1, HUMAN)) {
+        self.ai.war_plans.retain(|&(owner, _), _| owner != 1);
+        if let Some(memory) = self.ai.diplomatic_memory.get_mut(&(1, HUMAN)) {
             memory.asked_peace = 0;
             memory.asked_alliance = 0;
             memory.asked_ceasefire = 0;
@@ -61,8 +61,9 @@ impl Simulation {
         // this as a fresh alliance contact so the AI's old war-target ranking
         // does not suppress the offer being tested.
         relation.first_contact = Some(self.turn);
-        self.ai_war_plans.remove(&(1, HUMAN));
-        self.ai_diplomatic_memory
+        self.ai.war_plans.remove(&(1, HUMAN));
+        self.ai
+            .diplomatic_memory
             .entry((1, HUMAN))
             .or_default()
             .asked_alliance = 0;
@@ -133,8 +134,8 @@ impl Simulation {
         relation.first_contact = Some(self.turn - 20);
         relation.trust = [-2000, 6500];
         relation.cause_until = [0; 2];
-        self.ai_war_plans.remove(&(1, 2));
-        self.ai_war_plans.remove(&(2, 1));
+        self.ai.war_plans.remove(&(1, 2));
+        self.ai.war_plans.remove(&(2, 1));
     }
 
     #[cfg(test)]
@@ -157,8 +158,8 @@ impl Simulation {
         let relation = self.diplomacy.get_mut(&(HUMAN, 1)).unwrap();
         relation.trust[1] = 6500;
         relation.cause_until = [0; 2];
-        self.ai_war_plans.remove(&(1, HUMAN));
-        self.ai_war_plans.remove(&(HUMAN, 1));
+        self.ai.war_plans.remove(&(1, HUMAN));
+        self.ai.war_plans.remove(&(HUMAN, 1));
         self.diplomacy_playtest_alternate_contact();
         self.diplomacy_playtest_tick(1);
     }
@@ -170,7 +171,7 @@ impl Simulation {
             self.create_city(owner, x, y);
         }
         self.turn = 30;
-        self.ai_war_plans.clear();
+        self.ai.war_plans.clear();
         self.make_diplomatic_contact(HUMAN, 1);
         self.sign_pact(HUMAN, 1, Pact::Peace);
         self.diplomacy.get_mut(&(HUMAN, 1)).unwrap().pact = Pact::Peace;
@@ -200,7 +201,7 @@ impl Simulation {
         relation.pact = Pact::Ceasefire;
         relation.until = self.turn + 16;
         relation.trust[1] = 1000;
-        self.ai_diplomatic_intel.clear();
+        self.ai.diplomatic_intel.clear();
         self.players[HUMAN].gold = 2312;
         let mut alliance = TreatyOffer {
             pact: Some(Pact::Alliance),
@@ -216,13 +217,13 @@ impl Simulation {
         let pending = !self.at_war(1, HUMAN)
             && !self.ai_on_war_footing(1)
             && self.ai_war_countdown(1, HUMAN) == -20
-            && self.ai_pending_war_targets.get(&1) == Some(&HUMAN)
+            && self.ai.pending_war_targets.get(&1) == Some(&HUMAN)
             && self.players[1]
                 .revolution_turn
                 .is_some_and(|finish| finish >= self.turn);
         let resumed = self.change_government(1, Government::Despotism)
             && self.at_war(1, HUMAN)
-            && !self.ai_pending_war_targets.contains_key(&1);
+            && !self.ai.pending_war_targets.contains_key(&1);
         received && shared && preserved && compensated && pending && resumed
     }
 
@@ -281,7 +282,7 @@ impl Simulation {
         self.decline_offer(1);
         self.advance_diplomatic_offers();
         let paced = self.pact_offer(1).is_none()
-            && self.ai_diplomatic_memory[&(1, HUMAN)].asked_peace == 11;
+            && self.ai.diplomatic_memory[&(1, HUMAN)].asked_peace == 11;
         fogged && stealth && detected && offended && offered && paced
     }
 
@@ -326,7 +327,7 @@ impl Simulation {
         self.spaceship_playtest_setup();
         self.advance_ai_war_plans();
         let warned = self.diplomacy[&(HUMAN, 1)].trust[1] == 4000
-            && self.ai_space_warnings[&(1, HUMAN)] >= 9
+            && self.ai.space_warnings[&(1, HUMAN)] >= 9
             && !self.ai_on_war_footing(1)
             && self.allied(HUMAN, 1);
         self.advance_ai_war_plans();

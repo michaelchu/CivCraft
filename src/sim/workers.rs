@@ -223,7 +223,7 @@ impl Simulation {
             })
             .min_by_key(|(cost, _)| *cost);
         if let Some((_, path)) = target {
-            if !path.is_empty() && self.ai_worker_tasks.insert(actor.id) {
+            if !path.is_empty() && self.ai.worker_tasks.insert(actor.id) {
                 let destination = path.iter().fold((actor.x, actor.y), |(x, y), &(dx, dy)| {
                     self.map_wrap
                         .civ3_offset(x, y, dx, dy)
@@ -245,7 +245,7 @@ impl Simulation {
         if depth > 5 && (depth as f64) > self.units.len() as f64 * 1.5 {
             state.orders.remove(&id);
             state.reservations.retain(|_, (worker, _)| *worker != id);
-            self.ai_worker_tasks.remove(&id);
+            self.ai.worker_tasks.remove(&id);
             self.unit_goto_tiles.remove(&id);
             return;
         }
@@ -280,12 +280,12 @@ impl Simulation {
                 // Default AI's settler_run differs from the generic Human /
                 // displaced FindWork callback: no seek-shelter here.
                 if actor.kind.stats().can_found {
-                    self.ai_worker_tasks.remove(&id);
+                    self.ai.worker_tasks.remove(&id);
                     self.unit_goto_tiles.remove(&id);
                     if matches!(self.ai_guard_state(id), guards::GuardState::Assigned(_)) {
                         self.clear_ai_guard(id);
                     }
-                } else if self.ai_worker_tasks.insert(id) {
+                } else if self.ai.worker_tasks.insert(id) {
                     self.unit_goto_tiles.remove(&id); // first AUTO task, NULL target
                 }
             } else {
@@ -293,7 +293,7 @@ impl Simulation {
             }
             return;
         };
-        if self.ai_worker_tasks.insert(id) {
+        if self.ai.worker_tasks.insert(id) {
             if actor.owner == HUMAN && plan.request.is_some() {
                 self.unit_goto_tiles.remove(&id); // native generic request's best_tile is NULL
             } else {
@@ -360,7 +360,7 @@ impl Simulation {
                     .find(|u| u.id == id && u.kind == UnitKind::Settler)
                     .cloned()
             {
-                if self.ai_settlement_targets.contains_key(&id) {
+                if self.ai.settlement_targets.contains_key(&id) {
                     self.run_ai_founder_with_improvement(&actor, 0.0);
                     continue;
                 }

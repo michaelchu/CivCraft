@@ -96,7 +96,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
     game.government_adoptions[Government::Federation as usize] = 3;
     let mut government_scores = [0.0; 11];
     government_scores[Government::Federation as usize] = 17.5;
-    game.ai_government_cache.insert(
+    game.ai.government_cache.insert(
         1,
         government::GovernmentAdvisorCache {
             evaluated_turn: game.turn,
@@ -158,7 +158,7 @@ fn current_campaign_round_trip_preserves_gameplay_and_topology_state() {
         3
     );
     assert_eq!(
-        loaded.ai_government_cache[&1].scores[Government::Federation as usize],
+        loaded.ai.government_cache[&1].scores[Government::Federation as usize],
         17.5
     );
     assert_eq!(loaded.cities[0].history, 375);

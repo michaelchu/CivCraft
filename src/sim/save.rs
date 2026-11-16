@@ -93,29 +93,29 @@ impl Simulation {
                 (
                     self,
                     &self.route_memory,
-                    &self.ai_purchase_reserve,
+                    &self.ai.purchase_reserve,
                     &self.city_founders,
-                    &self.ai_map_memory,
+                    &self.ai.map_memory,
                     (
                         (
-                            &self.ai_war_plans,
-                            &self.ai_space_warnings,
-                            &self.ai_free_bulbs,
-                            &self.ai_ground_targets,
-                            &self.ai_settlement_targets,
-                            &self.ai_diplomatic_memory,
+                            &self.ai.war_plans,
+                            &self.ai.space_warnings,
+                            &self.ai.free_bulbs,
+                            &self.ai.ground_targets,
+                            &self.ai.settlement_targets,
+                            &self.ai.diplomatic_memory,
                         ),
                         (
-                            &self.ai_ferries,
-                            &self.ai_government_cache,
+                            &self.ai.ferries,
+                            &self.ai.government_cache,
                             &self.diplomatic_contact_until,
                         ),
                     ),
                 ),
                 (
                     &self.climate_current,
-                    &self.ai_guard_targets,
-                    &self.ai_unit_guards,
+                    &self.ai.guard_targets,
+                    &self.ai.unit_guards,
                     &self.city_rapture,
                     &self.unit_goto_tiles,
                 ),
@@ -198,7 +198,7 @@ impl Simulation {
             return Err(invalid("Invalid AI purchase reserve"));
         }
         game.route_memory = memory;
-        game.ai_purchase_reserve = reserves;
+        game.ai.purchase_reserve = reserves;
         if founders.iter().any(|(&city, &owner)| {
             city == 0 || city >= game.next_city_id || owner >= game.players.len()
         }) {
@@ -218,7 +218,7 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI map observation"));
         }
-        game.ai_map_memory = observations;
+        game.ai.map_memory = observations;
         if war_plans.keys().any(|&(owner, rival)| {
             owner >= game.players.len()
                 || rival >= game.players.len()
@@ -228,7 +228,7 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI war plan"));
         }
-        game.ai_war_plans = war_plans;
+        game.ai.war_plans = war_plans;
         if space_warnings.iter().any(|(&(owner, rival), &timer)| {
             owner >= game.players.len()
                 || rival >= game.players.len()
@@ -239,21 +239,21 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI space warning"));
         }
-        game.ai_space_warnings = space_warnings;
+        game.ai.space_warnings = space_warnings;
         if free_bulbs
             .keys()
             .any(|&owner| owner >= game.players.len() || owner == BARBARIANS)
         {
             return Err(invalid("Invalid AI free research bulbs"));
         }
-        game.ai_free_bulbs = free_bulbs;
+        game.ai.free_bulbs = free_bulbs;
         if ground_targets.iter().any(|(&unit, &city)| {
             !game.units.iter().any(|actor| actor.id == unit)
                 || !game.cities.iter().any(|target| target.id == city)
         }) {
             return Err(invalid("Invalid AI ground mission"));
         }
-        game.ai_ground_targets = ground_targets;
+        game.ai.ground_targets = ground_targets;
         if settlement_targets.iter().any(|(&unit, reservation)| {
             let (x, y) = reservation.destination;
             !game.units.iter().any(|actor| {
@@ -269,7 +269,7 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI settlement reservation"));
         }
-        game.ai_settlement_targets = settlement_targets;
+        game.ai.settlement_targets = settlement_targets;
         if diplomatic_memory.keys().any(|&(owner, rival)| {
             owner >= game.players.len()
                 || rival >= game.players.len()
@@ -287,7 +287,7 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI diplomatic timers"));
         }
-        game.ai_diplomatic_memory = diplomatic_memory;
+        game.ai.diplomatic_memory = diplomatic_memory;
         if !ferries.valid(&game.units) {
             return Err(invalid("Invalid AI ferry registry"));
         }
@@ -305,8 +305,8 @@ impl Simulation {
         {
             return Err(invalid("Invalid diplomatic contact"));
         }
-        game.ai_ferries = ferries;
-        game.ai_government_cache = government_cache;
+        game.ai.ferries = ferries;
+        game.ai.government_cache = government_cache;
         game.diplomatic_contact_until = contact_until;
         if !game.list_order.valid(&game.units, &game.cities) {
             return Err(invalid("Invalid native entity list order"));
@@ -458,8 +458,8 @@ fn decode_current(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode:
         MapWrap,
     ) = codec().deserialize(payload)?;
     campaign.0.climate_current = current;
-    campaign.0.ai_guard_targets = guard_targets;
-    campaign.0.ai_unit_guards = unit_guards;
+    campaign.0.ai.guard_targets = guard_targets;
+    campaign.0.ai.unit_guards = unit_guards;
     campaign.0.city_rapture = city_rapture;
     campaign.0.unit_goto_tiles = goto_tiles;
     campaign.0.list_order = order;

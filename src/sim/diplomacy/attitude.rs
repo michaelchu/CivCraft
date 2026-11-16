@@ -31,11 +31,12 @@ impl Simulation {
                 cache.insert((owner, other), intel);
             }
         }
-        self.ai_diplomatic_intel = cache;
+        self.ai.diplomatic_intel = cache;
     }
 
     pub(super) fn diplomatic_intel(&self, owner: usize, other: usize) -> DiplomaticIntel {
-        self.ai_diplomatic_intel
+        self.ai
+            .diplomatic_intel
             .get(&(owner, other))
             .copied()
             .unwrap_or_default()

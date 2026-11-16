@@ -239,7 +239,7 @@ impl Simulation {
     pub(crate) fn ai_ferry_registry_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai_ferries = Default::default();
+        self.ai.ferries = Default::default();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Sea;
             tile.hut = false;
@@ -270,6 +270,6 @@ impl Simulation {
             && released
             && appointed
             && death_released
-            && self.ai_ferries.valid(&self.units)
+            && self.ai.ferries.valid(&self.units)
     }
 }

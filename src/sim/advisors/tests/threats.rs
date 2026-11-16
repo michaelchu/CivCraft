@@ -10,7 +10,7 @@ fn a_reachable_enemy_raises_demand_for_a_defender_upgrade() {
     let (x, y) = (20, 20);
     game.tile_mut(x, y).terrain = Terrain::Grassland;
     game.create_city(1, x, y);
-    game.ai_tech_wants.insert(1, game.advisor_tech_wants(1));
+    game.ai.tech_wants.insert(1, game.advisor_tech_wants(1));
     let peaceful_price = game
         .tech_sell_price(HUMAN, 1, Tech::BRONZE_WORKING)
         .unwrap();
@@ -23,7 +23,7 @@ fn a_reachable_enemy_raises_demand_for_a_defender_upgrade() {
             .unwrap(),
         peaceful_price
     );
-    game.ai_tech_wants.insert(1, game.advisor_tech_wants(1));
+    game.ai.tech_wants.insert(1, game.advisor_tech_wants(1));
     assert!(
         game.tech_sell_price(HUMAN, 1, Tech::BRONZE_WORKING)
             .unwrap()

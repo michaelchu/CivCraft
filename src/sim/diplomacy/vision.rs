@@ -99,7 +99,7 @@ impl Simulation {
                     self.tiles[index].last_seen_owner = observation.owner;
                     self.route_memory[index] = Some(observation.route);
                 } else {
-                    self.ai_map_memory.insert((recipient, index), observation);
+                    self.ai.map_memory.insert((recipient, index), observation);
                 }
                 remembered[recipient][index] = true;
             }
@@ -144,7 +144,7 @@ impl Simulation {
                     ocean: route.is_water(),
                 })
             } else {
-                self.ai_map_memory.get(&(giver, index)).copied()
+                self.ai.map_memory.get(&(giver, index)).copied()
             }
             .unwrap_or_else(|| self.live_map_observation(index));
             if map == TreatyMap::Sea && !observation.ocean {
@@ -153,7 +153,7 @@ impl Simulation {
             let tile = &mut self.tiles[index];
             for &recipient in &recipients {
                 if !tile.known_by[recipient] && recipient != HUMAN && recipient != BARBARIANS {
-                    self.ai_map_memory.insert((recipient, index), observation);
+                    self.ai.map_memory.insert((recipient, index), observation);
                 }
                 tile.known_by[recipient] = true;
             }

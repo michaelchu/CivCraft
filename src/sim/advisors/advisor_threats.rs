@@ -5,8 +5,8 @@ use crate::sim::pathfinding::{Frontier, moves_left_after};
 
 impl Simulation {
     pub(in crate::sim) fn begin_ai_advisor_cache(&self) {
-        self.ai_threat_arrival_cache.borrow_mut().clear();
-        self.ai_danger_route_cache.borrow_mut().clear();
+        self.caches.threat_arrivals.borrow_mut().clear();
+        self.caches.danger_routes.borrow_mut().clear();
         let tile_count = self.tiles.len();
         let mut tile_unit_indices = vec![Vec::new(); tile_count];
         for (unit_index, unit) in self.units.iter().enumerate() {
@@ -22,7 +22,7 @@ impl Simulation {
             });
         }
         let tile_unit_revision = self.list_order.tile_revision();
-        let mut spatial = self.ai_spatial_index.borrow_mut();
+        let mut spatial = self.caches.spatial.borrow_mut();
         spatial.tile_unit_indices = Some(tile_unit_indices);
         spatial.tile_unit_revision = tile_unit_revision;
         spatial.unit_head.clear();
@@ -40,28 +40,28 @@ impl Simulation {
             spatial.city_at[self.map_wrap.index(city.x, city.y)] = Some(city_index);
         }
         spatial.continent_labels = self.continent_labels();
-        self.ai_advisor_cache_enabled.set(true);
-        self.ai_threat_route_cache_enabled.set(true);
+        self.caches.advisor_enabled.set(true);
+        self.caches.threat_routes_enabled.set(true);
     }
 
     pub(in crate::sim) fn end_ai_advisor_cache(&self) {
-        self.ai_advisor_cache_enabled.set(false);
-        self.ai_threat_route_cache_enabled.set(false);
-        self.ai_threat_arrival_cache.borrow_mut().clear();
-        self.ai_danger_route_cache.borrow_mut().clear();
-        *self.ai_spatial_index.borrow_mut() = Default::default();
+        self.caches.advisor_enabled.set(false);
+        self.caches.threat_routes_enabled.set(false);
+        self.caches.threat_arrivals.borrow_mut().clear();
+        self.caches.danger_routes.borrow_mut().clear();
+        *self.caches.spatial.borrow_mut() = Default::default();
     }
 
     pub(in crate::sim) fn end_ai_advisor_cache_preserving_threat_routes(&self) {
-        self.ai_advisor_cache_enabled.set(false);
-        *self.ai_spatial_index.borrow_mut() = Default::default();
-        self.ai_threat_route_cache_enabled.set(true);
+        self.caches.advisor_enabled.set(false);
+        *self.caches.spatial.borrow_mut() = Default::default();
+        self.caches.threat_routes_enabled.set(true);
     }
 
     pub(in crate::sim) fn clear_ai_threat_route_cache(&self) {
-        self.ai_threat_route_cache_enabled.set(false);
-        self.ai_threat_arrival_cache.borrow_mut().clear();
-        self.ai_danger_route_cache.borrow_mut().clear();
+        self.caches.threat_routes_enabled.set(false);
+        self.caches.threat_arrivals.borrow_mut().clear();
+        self.caches.danger_routes.borrow_mut().clear();
     }
 
     pub(in crate::sim) fn any_unit_at(
@@ -70,13 +70,13 @@ impl Simulation {
         y: i32,
         predicate: impl Fn(&Unit) -> bool,
     ) -> bool {
-        if !self.ai_advisor_cache_enabled.get() {
+        if !self.caches.advisor_enabled.get() {
             return self
                 .units
                 .iter()
                 .any(|unit| (unit.x, unit.y) == (x, y) && predicate(unit));
         }
-        let spatial = self.ai_spatial_index.borrow();
+        let spatial = self.caches.spatial.borrow();
         let mut unit_index = spatial.unit_head[self.map_wrap.index(x, y)];
         while let Some(index) = unit_index {
             if predicate(&self.units[index]) {
@@ -92,8 +92,8 @@ impl Simulation {
     }
 
     pub(in crate::sim) fn city_at_cached(&self, x: i32, y: i32) -> Option<&City> {
-        if self.ai_advisor_cache_enabled.get() {
-            let index = self.ai_spatial_index.borrow().city_at[self.map_wrap.index(x, y)]?;
+        if self.caches.advisor_enabled.get() {
+            let index = self.caches.spatial.borrow().city_at[self.map_wrap.index(x, y)]?;
             self.cities.get(index)
         } else {
             self.cities.iter().find(|city| (city.x, city.y) == (x, y))
@@ -106,19 +106,19 @@ impl Simulation {
         y: i32,
         predicate: impl Fn(&City) -> bool,
     ) -> bool {
-        if !self.ai_advisor_cache_enabled.get() {
+        if !self.caches.advisor_enabled.get() {
             return self
                 .cities
                 .iter()
                 .any(|city| (city.x, city.y) == (x, y) && predicate(city));
         }
-        self.ai_spatial_index.borrow().city_at[self.map_wrap.index(x, y)]
+        self.caches.spatial.borrow().city_at[self.map_wrap.index(x, y)]
             .is_some_and(|index| predicate(&self.cities[index]))
     }
 
     pub(in crate::sim) fn advisor_continent_labels(&self) -> Vec<usize> {
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index.borrow().continent_labels.clone()
+        if self.caches.advisor_enabled.get() {
+            self.caches.spatial.borrow().continent_labels.clone()
         } else {
             self.continent_labels()
         }
@@ -133,15 +133,16 @@ impl Simulation {
     }
 
     pub(super) fn danger_route_turns(&self, unit: &Unit, city: &City) -> Option<i32> {
-        if self.ai_threat_route_cache_enabled.get() && !unit.kind.is_naval() {
+        if self.caches.threat_routes_enabled.get() && !unit.kind.is_naval() {
             let goal = self.map_wrap.index(city.x, city.y);
-            if let Some(costs) = self.ai_danger_route_cache.borrow().get(&unit.id) {
+            if let Some(costs) = self.caches.danger_routes.borrow().get(&unit.id) {
                 let spent = costs[goal];
                 return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
             }
             let costs = self.danger_route_costs(unit)?;
             let spent = costs[goal];
-            self.ai_danger_route_cache
+            self.caches
+                .danger_routes
                 .borrow_mut()
                 .insert(unit.id, costs);
             return (spent != i32::MAX).then_some(spent / self.unit_move_rate(unit));
@@ -216,13 +217,13 @@ impl Simulation {
     }
 
     pub(super) fn city_danger_arrival(&self, unit: &Unit, city: &City) -> Option<i32> {
-        if self.ai_threat_route_cache_enabled.get() {
+        if self.caches.threat_routes_enabled.get() {
             let key = (unit.id, city.id);
-            if let Some(turns) = self.ai_threat_arrival_cache.borrow().get(&key) {
+            if let Some(turns) = self.caches.threat_arrivals.borrow().get(&key) {
                 return *turns;
             }
             let turns = self.city_danger_arrival_uncached(unit, city);
-            self.ai_threat_arrival_cache.borrow_mut().insert(key, turns);
+            self.caches.threat_arrivals.borrow_mut().insert(key, turns);
             return turns;
         }
         self.city_danger_arrival_uncached(unit, city)
@@ -289,10 +290,11 @@ impl Simulation {
     /// three-turn horizon. Ratings remain integer at native assignment points.
     pub(in crate::sim) fn advisor_guard_city_assessment(&self, city: &City) -> GuardCityAssessment {
         self.trace.count_operation("guard_assessment.calls", 1);
-        let cache_enabled = self.ai_advisor_cache_enabled.get();
+        let cache_enabled = self.caches.advisor_enabled.get();
         if cache_enabled
             && let Some(assessment) = self
-                .ai_spatial_index
+                .caches
+                .spatial
                 .borrow()
                 .guard_assessments
                 .get(&city.id)
@@ -344,8 +346,9 @@ impl Simulation {
             defense += rating;
         }
         result.defense = defense.min(1 << 15).pow(2);
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
+        if self.caches.advisor_enabled.get() {
+            self.caches
+                .spatial
                 .borrow_mut()
                 .guard_assessments
                 .insert(city.id, result);

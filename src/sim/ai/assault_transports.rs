@@ -95,7 +95,8 @@ impl Simulation {
         {
             return false;
         }
-        self.ai_ferries
+        self.ai
+            .ferries
             .boats
             .get(&boat)
             .is_none_or(|record| match record.state {

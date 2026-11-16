@@ -283,8 +283,8 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         self.diplomacy.clear();
-        self.ai_guard_targets.clear();
-        self.ai_unit_guards.clear();
+        self.ai.guard_targets.clear();
+        self.ai.unit_guards.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
             tile.owner = None;

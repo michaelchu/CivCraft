@@ -92,7 +92,8 @@ impl Simulation {
 
     pub(super) fn refresh_ai_ferries(&mut self) {
         let invalid: Vec<_> = self
-            .ai_ferries
+            .ai
+            .ferries
             .boats
             .iter()
             .filter_map(|(&id, boat)| {
@@ -102,7 +103,8 @@ impl Simulation {
                 .then_some(id)
             })
             .chain(
-                self.ai_ferries
+                self.ai
+                    .ferries
                     .passengers
                     .iter()
                     .filter_map(|(&id, passenger)| {
@@ -115,11 +117,11 @@ impl Simulation {
             )
             .collect();
         for id in invalid {
-            self.ai_ferries.forget(id);
+            self.ai.ferries.forget(id);
         }
         for unit in &self.units {
             if Self::is_ai_ferry(unit.kind) {
-                self.ai_ferries.boats.entry(unit.id).or_insert(BoatRecord {
+                self.ai.ferries.boats.entry(unit.id).or_insert(BoatRecord {
                     owner: unit.owner,
                     state: FerryState::Available,
                 });
@@ -135,7 +137,8 @@ impl Simulation {
                 unit.owner == owner
                     && Self::is_ai_ferry(unit.kind)
                     && self
-                        .ai_ferries
+                        .ai
+                        .ferries
                         .boats
                         .get(&unit.id)
                         .is_none_or(|boat| boat.state == FerryState::Available)
@@ -150,7 +153,7 @@ impl Simulation {
         {
             return false;
         }
-        self.ai_ferries.boats.get(&ship.id).is_none_or(|record| {
+        self.ai.ferries.boats.get(&ship.id).is_none_or(|record| {
             record.state == FerryState::Available || record.state == FerryState::Assigned(unit.id)
         })
     }
@@ -166,7 +169,8 @@ impl Simulation {
     }
 
     pub(super) fn ferry_boss(&self, boat: u32) -> Option<u32> {
-        self.ai_ferries
+        self.ai
+            .ferries
             .boats
             .get(&boat)
             .and_then(|record| match record.state {
@@ -177,7 +181,8 @@ impl Simulation {
 
     pub(super) fn request_ai_ferry(&mut self, id: u32) {
         if let Some(owner) = self.unit_by_id(id).map(|unit| unit.owner) {
-            self.ai_ferries
+            self.ai
+                .ferries
                 .passengers
                 .entry(id)
                 .or_insert(PassengerRecord {
@@ -197,15 +202,15 @@ impl Simulation {
             .find(|unit| unit.id == boat)
             .unwrap()
             .owner;
-        self.ai_ferries.release(passenger);
-        self.ai_ferries.boats.insert(
+        self.ai.ferries.release(passenger);
+        self.ai.ferries.boats.insert(
             boat,
             BoatRecord {
                 owner,
                 state: FerryState::Assigned(passenger),
             },
         );
-        self.ai_ferries.passengers.insert(
+        self.ai.ferries.passengers.insert(
             passenger,
             PassengerRecord {
                 owner,
@@ -216,7 +221,7 @@ impl Simulation {
     }
 
     pub(super) fn release_ai_ferry(&mut self, passenger: u32) {
-        self.ai_ferries.release(passenger);
+        self.ai.ferries.release(passenger);
     }
 
     pub(super) fn refresh_ferry_boss(&mut self, boat: u32) {
@@ -228,7 +233,8 @@ impl Simulation {
             return;
         };
         let previous = self
-            .ai_ferries
+            .ai
+            .ferries
             .boats
             .get(&boat)
             .and_then(|record| match record.state {
@@ -249,7 +255,7 @@ impl Simulation {
             .cargo_units_ordered(boat)
             .filter(|unit| unit.owner == ship.owner)
             .find_map(|unit| {
-                if self.ai_guard_targets.contains_key(&unit.id) {
+                if self.ai.guard_targets.contains_key(&unit.id) {
                     last_escort = Some(unit.id);
                     None
                 } else {
@@ -261,7 +267,7 @@ impl Simulation {
             // daiferry.c temporarily abandons a distant boss, appoints cargo,
             // and otherwise restores the old boss until it is released.
             let owner = ship.owner;
-            self.ai_ferries.boats.insert(
+            self.ai.ferries.boats.insert(
                 boat,
                 BoatRecord {
                     owner,
@@ -296,7 +302,7 @@ mod tests {
     fn a_displaced_boss_can_rebook_another_available_ferry() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
-        game.ai_ferries = Default::default();
+        game.ai.ferries = Default::default();
         let first_boat = game.spawn_unit(1, UnitKind::Transport, 10, 24);
         let second_boat = game.spawn_unit(1, UnitKind::Transport, 18, 24);
         let waiting = game.spawn_unit(1, UnitKind::Settler, 18, 24);
@@ -314,23 +320,23 @@ mod tests {
         assert!(game.assign_ai_ferry(second_boat, waiting));
         assert_eq!(game.ferry_boss(first_boat), Some(cargo));
         assert_eq!(game.ferry_boss(second_boat), Some(waiting));
-        assert!(game.ai_ferries.valid(&game.units));
+        assert!(game.ai.ferries.valid(&game.units));
     }
 
     #[test]
     fn loss_of_a_reserved_boat_returns_its_waiting_passenger_to_requests() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         game.units.clear();
-        game.ai_ferries = Default::default();
+        game.ai.ferries = Default::default();
         let boat = game.spawn_unit(1, UnitKind::Transport, 10, 24);
         let passenger = game.spawn_unit(1, UnitKind::Settler, 12, 24);
         assert!(game.assign_ai_ferry(boat, passenger));
         game.remove_units_with_cargo(vec![boat]);
         assert_eq!(
-            game.ai_ferries.passengers[&passenger].request,
+            game.ai.ferries.passengers[&passenger].request,
             FerryRequest::Wanted
         );
-        assert!(game.ai_ferries.valid(&game.units));
+        assert!(game.ai.ferries.valid(&game.units));
     }
 
     #[test]
@@ -347,17 +353,19 @@ mod tests {
         assert!(game.board_or_deboard(first));
         assert!(game.board_or_deboard(first));
         let ids: Vec<_> = game.cargo_units_ordered(boat).map(|unit| unit.id).collect();
-        game.ai_ferries.boats.get_mut(&boat).unwrap().state = FerryState::Available;
+        game.ai.ferries.boats.get_mut(&boat).unwrap().state = FerryState::Available;
         game.refresh_ferry_boss(boat);
         assert_eq!(game.ferry_boss(boat), Some(ids[0]));
-        game.ai_guard_targets
+        game.ai
+            .guard_targets
             .insert(ids[0], guards::GuardTarget::Unit(boat));
-        game.ai_ferries.boats.get_mut(&boat).unwrap().state = FerryState::Available;
+        game.ai.ferries.boats.get_mut(&boat).unwrap().state = FerryState::Available;
         game.refresh_ferry_boss(boat);
         assert_eq!(game.ferry_boss(boat), Some(ids[1]));
-        game.ai_guard_targets
+        game.ai
+            .guard_targets
             .insert(ids[1], guards::GuardTarget::Unit(boat));
-        game.ai_ferries.boats.get_mut(&boat).unwrap().state = FerryState::Available;
+        game.ai.ferries.boats.get_mut(&boat).unwrap().state = FerryState::Available;
         game.refresh_ferry_boss(boat);
         assert_eq!(game.ferry_boss(boat), Some(*ids.last().unwrap()));
     }

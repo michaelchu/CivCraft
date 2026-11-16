@@ -149,7 +149,8 @@ impl Simulation {
             relation.until = 0;
             for pair in [(a, b), (b, a)] {
                 let memory = self
-                    .ai_diplomatic_memory
+                    .ai
+                    .diplomatic_memory
                     .entry(pair)
                     .or_insert_with(|| DiplomaticMemory::for_pair(pair.0, pair.1));
                 if Self::pact_rank(memory.strongest_pact) < Self::pact_rank(Pact::Peace) {

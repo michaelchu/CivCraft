@@ -58,7 +58,8 @@ fn founder_can_choose_useful_work_over_a_positive_city_site_and_keeps_committed_
     assert!(committed.run_ai_founder_with_improvement(&founder, improvement));
     assert!(
         committed
-            .ai_settlement_targets
+            .ai
+            .settlement_targets
             .get(&id)
             .is_some_and(|entry| entry.destination == destination)
             || committed
@@ -68,7 +69,7 @@ fn founder_can_choose_useful_work_over_a_positive_city_site_and_keeps_committed_
     );
 
     game.run_ai_founder(&founder);
-    assert!(!game.ai_settlement_targets.contains_key(&id));
+    assert!(!game.ai.settlement_targets.contains_key(&id));
     assert_eq!(game.cities.len(), 1);
     assert_eq!(
         game.unit_by_id(id).unwrap().work_kind,
@@ -91,13 +92,13 @@ fn founder_city_want_must_be_strictly_greater_than_actual_worker_want() {
     assert!(want > 0.0);
     // The worker evaluator and city result both store adv_want floats.
     assert!(!game.run_ai_founder_with_improvement(&founder, want as f32));
-    assert!(!game.ai_settlement_targets.contains_key(&id));
+    assert!(!game.ai.settlement_targets.contains_key(&id));
     assert_eq!(
         game.units.last().map(|unit| (unit.x, unit.y)),
         Some((founder.x, founder.y))
     );
     assert!(game.run_ai_founder_with_improvement(&founder, want as f32 - 1.0));
-    assert!(game.ai_settlement_targets.contains_key(&id) || !game.cities.is_empty());
+    assert!(game.ai.settlement_targets.contains_key(&id) || !game.cities.is_empty());
 }
 
 #[test]
@@ -130,7 +131,7 @@ fn exhausted_arriving_founder_keeps_its_mission_until_movement_refreshes() {
     let arrived = game.unit_by_id(id).unwrap();
     assert_eq!((arrived.x, arrived.y), destination);
     assert_eq!(arrived.moves_left, 0);
-    assert!(game.ai_settlement_targets.contains_key(&id));
+    assert!(game.ai.settlement_targets.contains_key(&id));
     let allowance = game.unit_move_rate(&founder);
     game.units
         .iter_mut()
@@ -145,7 +146,7 @@ fn exhausted_arriving_founder_keeps_its_mission_until_movement_refreshes() {
         .clone();
     game.run_ai_founder(&refreshed);
     assert_eq!(game.cities.len(), 1);
-    assert!(!game.ai_settlement_targets.contains_key(&id));
+    assert!(!game.ai.settlement_targets.contains_key(&id));
 }
 
 #[test]
@@ -165,9 +166,9 @@ fn reservation_lifecycle_keeps_blocked_mission_but_releases_illegal_target() {
         .unwrap()
         .clone();
     game.reserve_settlement_site(&founder, (10, 24));
-    assert!(game.ai_settlement_targets[&id].worker.is_some());
+    assert!(game.ai.settlement_targets[&id].worker.is_some());
     game.prune_settlement_reservations(1);
-    assert_eq!(game.ai_settlement_targets[&id].worker, None);
+    assert_eq!(game.ai.settlement_targets[&id].worker, None);
     for tile in &mut game.tiles {
         tile.terrain = Terrain::Sea;
     }
@@ -175,10 +176,10 @@ fn reservation_lifecycle_keeps_blocked_mission_but_releases_illegal_target() {
     game.tile_mut(10, 24).terrain = Terrain::Plains;
     assert!(game.path_for_unit(&founder, 10, 24).is_empty());
     game.run_ai_founder(&founder);
-    assert_eq!(game.ai_settlement_targets[&id].destination, (10, 24));
+    assert_eq!(game.ai.settlement_targets[&id].destination, (10, 24));
     game.tile_mut(10, 24).terrain = Terrain::Sea;
     game.run_ai_founder(&founder);
-    assert!(!game.ai_settlement_targets.contains_key(&id));
+    assert!(!game.ai.settlement_targets.contains_key(&id));
     assert!(game.cities.is_empty());
 }
 
@@ -193,7 +194,7 @@ fn settlement_reservations_protect_sites_persist_while_waiting_and_release_after
             .is_some()
     );
     game.reserve_settlement_site(&founder, destination);
-    let reservation = game.ai_settlement_targets[&id];
+    let reservation = game.ai.settlement_targets[&id];
     assert_eq!(reservation.destination, destination);
     assert!(
         game.city_site_value(1, destination.0, destination.1)
@@ -211,7 +212,7 @@ fn settlement_reservations_protect_sites_persist_while_waiting_and_release_after
         .moves_left = 0;
     let waiting = game.unit_by_id(id).unwrap().clone();
     game.run_ai_founder(&waiting);
-    assert_eq!(game.ai_settlement_targets[&id].destination, destination);
+    assert_eq!(game.ai.settlement_targets[&id].destination, destination);
     assert!(game.cities.is_empty());
 
     game.units
@@ -220,7 +221,7 @@ fn settlement_reservations_protect_sites_persist_while_waiting_and_release_after
         .unwrap()
         .owner = HUMAN;
     game.prune_settlement_reservations(1);
-    assert!(!game.ai_settlement_targets.contains_key(&id));
+    assert!(!game.ai.settlement_targets.contains_key(&id));
     assert!(
         game.city_site_value(1, destination.0, destination.1)
             .is_some()

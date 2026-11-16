@@ -62,10 +62,11 @@ impl Simulation {
     /// preceding era. The result also gates access to later-era technologies.
     pub(crate) fn research_era(&self, owner: usize) -> TechEra {
         self.trace.count_operation("research_era.calls", 1);
-        let cache_enabled = self.ai_advisor_cache_enabled.get();
+        let cache_enabled = self.caches.advisor_enabled.get();
         if cache_enabled
             && let Some(era) = self
-                .ai_spatial_index
+                .caches
+                .spatial
                 .borrow()
                 .research_eras
                 .get(&owner)
@@ -93,8 +94,9 @@ impl Simulation {
                 break;
             }
         }
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
+        if self.caches.advisor_enabled.get() {
+            self.caches
+                .spatial
                 .borrow_mut()
                 .research_eras
                 .insert(owner, current);
@@ -104,10 +106,11 @@ impl Simulation {
 
     pub(super) fn research_path(&self, owner: usize, goal: Tech) -> Vec<Tech> {
         self.trace.count_operation("research_path.calls", 1);
-        let cache_enabled = self.ai_advisor_cache_enabled.get();
+        let cache_enabled = self.caches.advisor_enabled.get();
         if cache_enabled
             && let Some(path) = self
-                .ai_spatial_index
+                .caches
+                .spatial
                 .borrow()
                 .research_paths
                 .get(&(owner, goal.0))
@@ -150,8 +153,9 @@ impl Simulation {
             }
         }
         visit(self, owner, goal, &mut path);
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
+        if self.caches.advisor_enabled.get() {
+            self.caches
+                .spatial
                 .borrow_mut()
                 .research_paths
                 .insert((owner, goal.0), path.clone());
@@ -320,7 +324,7 @@ impl Simulation {
             return;
         }
         let researched = self.players[owner].research;
-        let free = self.ai_free_bulbs.get(&owner).copied().unwrap_or(0);
+        let free = self.ai.free_bulbs.get(&owner).copied().unwrap_or(0);
         let penalty = (researched - free).max(0);
         // daitech.c:dai_manage_tech compares the per-city gain with invested
         // bulbs, and refuses to abandon a project already near completion.
@@ -593,7 +597,8 @@ impl Simulation {
         self.invalidate_stable_city_advice_for_owner(owner);
         let was_researching = self.players[owner].researching == tech;
         if self.players[owner].ai && was_researching {
-            self.ai_free_bulbs
+            self.ai
+                .free_bulbs
                 .insert(owner, self.players[owner].research);
         }
         // `server/techtools.c::tech_researched` forgets the one suspended
@@ -629,7 +634,7 @@ impl Simulation {
             self.players[owner].research_goal = Tech::UNSET;
         }
         if self.players[owner].ai && was_researching {
-            let free = self.ai_free_bulbs.get(&owner).copied().unwrap_or(0);
+            let free = self.ai.free_bulbs.get(&owner).copied().unwrap_or(0);
             let next = self.post_discovery_ai_target(owner);
             self.choose_research_tech(owner, next, free);
         }

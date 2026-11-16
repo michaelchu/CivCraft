@@ -172,7 +172,7 @@ impl Simulation {
     pub(crate) fn ai_government_playtest(&mut self) -> (bool, bool, bool, bool) {
         self.units.clear();
         self.cities.clear();
-        self.ai_government_cache.clear();
+        self.ai.government_cache.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Plains;
             tile.resource = Some(Resource::Wheat);
@@ -263,7 +263,7 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         self.city_rapture.clear();
-        self.ai_government_cache.clear();
+        self.ai.government_cache.clear();
         self.players[1].government = Government::Communism;
         self.players[1].known.clear();
         self.players[1].gold = 100_000;

@@ -388,7 +388,8 @@ impl Simulation {
         let reservations = self.settlement_citymap(founder.owner, Some(founder.id));
         let city_distance_blocked = self.city_distance_blocked_map();
         let assigned = self
-            .ai_settlement_targets
+            .ai
+            .settlement_targets
             .get(&founder.id)
             .filter(|reservation| reservation.owner == founder.owner)
             .map(|reservation| reservation.destination);
@@ -539,7 +540,7 @@ impl Simulation {
             founders.len() as u64,
         );
         for founder in &founders {
-            let assigned = self.ai_settlement_targets.contains_key(&founder.id);
+            let assigned = self.ai.settlement_targets.contains_key(&founder.id);
             if !assigned && founder.work_left > 0 {
                 continue;
             }
@@ -581,7 +582,7 @@ impl Simulation {
                 self.best_city_site(founder).map(|(_, _, land)| land)
             };
             if founder.transport.is_some() || local_score.is_none_or(|land| plan.value > land) {
-                if !self.ai_settlement_targets.contains_key(&founder.id) {
+                if !self.ai.settlement_targets.contains_key(&founder.id) {
                     self.reserve_settlement_site(founder, plan.destination);
                 }
                 let needs_guard = self.ai_guard_for_destination(
@@ -653,7 +654,7 @@ impl Simulation {
                         && (unit.x, unit.y) == plan.destination
                 }) {
                     self.found_city(founder.id);
-                    self.ai_settlement_targets.remove(&founder.id);
+                    self.ai.settlement_targets.remove(&founder.id);
                 }
             }
         }

@@ -60,7 +60,7 @@ impl Simulation {
         let premium_want = 4 - base_bulbs.rem_euclid(4);
         let mut retained = vec![0.0; Tech::all().count()];
         retained[currency.0] = (until.max(1) * premium_want) as f32 + 0.25;
-        self.ai_tech_wants.insert(1, retained);
+        self.ai.tech_wants.insert(1, retained);
         // Keep affordability independent of the desktop opening campaign's
         // incidental early spending; the assertion covers the quoted premium.
         self.players[1].gold = self.players[1].gold.max(1000);

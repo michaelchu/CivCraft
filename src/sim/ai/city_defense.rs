@@ -21,7 +21,7 @@ impl Simulation {
         if owner == BARBARIANS {
             return reserved;
         }
-        let owns_advisor_cache = !self.ai_advisor_cache_enabled.get();
+        let owns_advisor_cache = !self.caches.advisor_enabled.get();
         if owns_advisor_cache {
             self.begin_ai_advisor_cache();
         }
@@ -100,16 +100,16 @@ impl Simulation {
                         continue;
                     };
                     let assigned_to_this_city = matches!(
-                        self.ai_guard_targets.get(&id),
+                        self.ai.guard_targets.get(&id),
                         Some(super::super::guards::GuardTarget::City(target)) if *target == city.id
                     );
-                    let has_other_job = self.ai_guard_targets.contains_key(&id)
+                    let has_other_job = self.ai.guard_targets.contains_key(&id)
                         && !assigned_to_this_city
-                        || self.ai_ground_targets.contains_key(&id)
-                        || self.ai_settlement_targets.contains_key(&id)
+                        || self.ai.ground_targets.contains_key(&id)
+                        || self.ai.settlement_targets.contains_key(&id)
                         || self.hunter_targets.contains_key(&id)
-                        || self.ai_ferries.passengers.contains_key(&id)
-                        || self.ai_ferries.boats.contains_key(&id)
+                        || self.ai.ferries.passengers.contains_key(&id)
+                        || self.ai.ferries.boats.contains_key(&id)
                         || self
                             .unit_goto_tiles
                             .get(&id)
@@ -153,14 +153,15 @@ impl Simulation {
                     // assignment, as Freeciv does when danger is uncovered.
                     self.clear_ai_charge(id);
                     self.clear_ai_guard(id);
-                    self.ai_ground_targets.remove(&id);
-                    self.ai_settlement_targets.remove(&id);
+                    self.ai.ground_targets.remove(&id);
+                    self.ai.settlement_targets.remove(&id);
                     self.hunter_targets.remove(&id);
-                    self.ai_worker_tasks.remove(&id);
+                    self.ai.worker_tasks.remove(&id);
                     self.unit_goto_tiles.remove(&id);
                     self.release_ai_ferry(id);
                     let passenger =
-                        self.ai_ferries
+                        self.ai
+                            .ferries
                             .boats
                             .get(&id)
                             .and_then(|boat| match boat.state {
@@ -169,11 +170,11 @@ impl Simulation {
                                     Some(passenger)
                                 }
                             });
-                    if let Some(boat) = self.ai_ferries.boats.get_mut(&id) {
+                    if let Some(boat) = self.ai.ferries.boats.get_mut(&id) {
                         boat.state = super::super::ferries::FerryState::Available;
                     }
                     if let Some(passenger) = passenger
-                        && let Some(request) = self.ai_ferries.passengers.get_mut(&passenger)
+                        && let Some(request) = self.ai.ferries.passengers.get_mut(&passenger)
                     {
                         request.request = super::super::ferries::FerryRequest::Wanted;
                     }
@@ -249,7 +250,7 @@ impl Simulation {
                         || attacker.work_left > 0
                         || attacker.state == UnitState::Sentry
                         || committed.contains(&attacker.id)
-                        || self.ai_guard_targets.contains_key(&attacker.id)
+                        || self.ai.guard_targets.contains_key(&attacker.id)
                     {
                         continue;
                     }
@@ -308,7 +309,7 @@ impl Simulation {
         if owner == BARBARIANS {
             return dispatched;
         }
-        let owns_advisor_cache = !self.ai_advisor_cache_enabled.get();
+        let owns_advisor_cache = !self.caches.advisor_enabled.get();
         if owns_advisor_cache {
             self.begin_ai_advisor_cache();
         }
@@ -402,7 +403,7 @@ impl Simulation {
                             unit.kind,
                             "DefendGood",
                         ))
-                    && !self.ai_guard_targets.contains_key(&unit.id)
+                    && !self.ai.guard_targets.contains_key(&unit.id)
             }) {
                 if let Some(home) = self
                     .cities
@@ -459,7 +460,7 @@ impl Simulation {
     pub(crate) fn ai_defender_forecast_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai_ground_targets.clear();
+        self.ai.ground_targets.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
             tile.hut = false;

@@ -210,15 +210,16 @@ impl Simulation {
                 continue;
             }
             let memory = self
-                .ai_diplomatic_memory
+                .ai
+                .diplomatic_memory
                 .entry(key)
                 .or_insert_with(|| DiplomaticMemory::for_pair(key.0, key.1));
             if Self::pact_rank(proposed) > Self::pact_rank(memory.strongest_pact) {
                 memory.strongest_pact = proposed;
             }
         }
-        self.ai_war_plans.remove(&(a, b));
-        self.ai_war_plans.remove(&(b, a));
+        self.ai.war_plans.remove(&(a, b));
+        self.ai.war_plans.remove(&(b, a));
         if proposed == Pact::Peace {
             let mut returned_to_normalcy = Vec::new();
             for owner in [a, b] {

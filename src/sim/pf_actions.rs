@@ -46,7 +46,7 @@ impl Simulation {
             + extras;
         let cache_len = CLASS_COUNT * TERRAIN_COUNT * BASE_VARIANTS * EXTRA_COMBINATIONS;
         {
-            let mut cache = self.movement_native_cache.borrow_mut();
+            let mut cache = self.caches.native_tiles.borrow_mut();
             if cache.is_empty() {
                 cache.resize(cache_len, -1);
             }
@@ -64,7 +64,7 @@ impl Simulation {
                 class,
             )
             .expect("campaign C2C3 movement native_to data");
-        self.movement_native_cache.borrow_mut()[index] = i8::from(native);
+        self.caches.native_tiles.borrow_mut()[index] = i8::from(native);
         native
     }
 
@@ -125,7 +125,7 @@ impl Simulation {
             restricted,
             ignores,
         );
-        if let Some(cost) = self.movement_step_cost_cache.borrow().get(&key).copied() {
+        if let Some(cost) = self.caches.step_costs.borrow().get(&key).copied() {
             return cost;
         }
         let cost = rules
@@ -138,7 +138,7 @@ impl Simulation {
                 ignores,
             )
             .expect("campaign C2C3 step movement data");
-        self.movement_step_cost_cache.borrow_mut().insert(key, cost);
+        self.caches.step_costs.borrow_mut().insert(key, cost);
         cost
     }
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {
@@ -253,8 +253,8 @@ impl Simulation {
             seen,
             city_attack,
         );
-        if self.ai_advisor_cache_enabled.get()
-            && let Some(action) = self.ai_spatial_index.borrow().pf_actions.get(&key).copied()
+        if self.caches.advisor_enabled.get()
+            && let Some(action) = self.caches.spatial.borrow().pf_actions.get(&key).copied()
         {
             self.trace.count_operation("pf_actions.cache_hits", 1);
             return action;
@@ -282,8 +282,9 @@ impl Simulation {
                 PfAction::None
             }
         };
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
+        if self.caches.advisor_enabled.get() {
+            self.caches
+                .spatial
                 .borrow_mut()
                 .pf_actions
                 .insert(key, action);

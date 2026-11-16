@@ -663,12 +663,12 @@ fn founding_consumes_the_unit_and_releases_its_guard_and_task_state() {
     let guard = game.spawn_unit(HUMAN, UnitKind::Spearman, 10, 24);
     assert!(game.assign_ai_guard(guard, guards::GuardTarget::Unit(founder)));
     game.unit_goto_tiles.insert(founder, (10, 24));
-    game.ai_worker_tasks.insert(founder);
+    game.ai.worker_tasks.insert(founder);
     assert!(game.apply(Command::FoundCity(founder)));
     assert!(!game.unit_goto_tiles.contains_key(&founder));
-    assert!(!game.ai_worker_tasks.contains(&founder));
-    assert!(!game.ai_unit_guards.contains_key(&founder));
-    assert!(!game.ai_guard_targets.contains_key(&guard));
+    assert!(!game.ai.worker_tasks.contains(&founder));
+    assert!(!game.ai.unit_guards.contains_key(&founder));
+    assert!(!game.ai.guard_targets.contains_key(&guard));
     assert!(game.validate_ai_guards());
 }
 

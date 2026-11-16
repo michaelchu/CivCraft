@@ -60,7 +60,7 @@ fn advisor_danger_distinguishes_love_pacts_excuses_and_allocated_enemy_allies() 
     assert!(game.advisor_player_dangerous(1, HUMAN));
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().cause_until[1] = game.turn;
     assert!(!game.advisor_player_dangerous(1, HUMAN));
-    game.ai_war_plans.insert(
+    game.ai.war_plans.insert(
         (1, HUMAN),
         WarPlan {
             countdown: 0,
@@ -69,7 +69,7 @@ fn advisor_danger_distinguishes_love_pacts_excuses_and_allocated_enemy_allies() 
     );
     assert!(game.advisor_player_dangerous(1, HUMAN));
     assert!(assessed(&game));
-    game.ai_war_plans.clear();
+    game.ai.war_plans.clear();
     game.spawn_unit(2, UnitKind::Warrior, 24, 40);
     game.make_diplomatic_contact(1, 2);
     game.diplomacy.get_mut(&(1, 2)).unwrap().pact = Pact::War;
@@ -276,10 +276,10 @@ fn native_pair_spam_delays_first_ai_offer_without_delaying_human_offers() {
     let relation = game.diplomacy.get_mut(&(1, 2)).unwrap();
     relation.until = game.turn + 4;
     relation.trust = [2000; 2];
-    assert_eq!(game.ai_diplomatic_memory[&(1, 2)].spam, 3);
+    assert_eq!(game.ai.diplomatic_memory[&(1, 2)].spam, 3);
     for left in [2, 1] {
         game.advance_diplomatic_offers();
-        assert_eq!(game.ai_diplomatic_memory[&(1, 2)].spam, left);
+        assert_eq!(game.ai.diplomatic_memory[&(1, 2)].spam, left);
         assert_eq!(game.pact(1, 2), Pact::Ceasefire);
     }
     game.advance_diplomatic_offers();
@@ -392,10 +392,10 @@ fn allied_exchange_ui_fixture_consumes_a_retained_snapshot_and_accepts_the_real_
     assert_eq!(offer.terms[0].technology, Some(currency));
     assert_eq!(offer.terms[1].technology, Some(Tech::WARRIOR_CODE));
     assert_eq!(offer.terms[1].gold, baseline + 1);
-    let retained = game.ai_tech_wants.clone();
+    let retained = game.ai.tech_wants.clone();
     let quoted = game.tech_sell_price(HUMAN, 1, currency).unwrap();
     let mut cold = game.clone();
-    cold.ai_tech_wants.clear();
+    cold.ai.tech_wants.clear();
     assert_eq!(
         cold.tech_sell_price(HUMAN, 1, currency).unwrap() + 1,
         quoted
@@ -408,13 +408,13 @@ fn allied_exchange_ui_fixture_consumes_a_retained_snapshot_and_accepts_the_real_
         city.specialists = [6, 0, 0];
     }
     assert_eq!(game.tech_sell_price(HUMAN, 1, currency), Some(quoted));
-    assert_eq!(game.ai_tech_wants, retained);
+    assert_eq!(game.ai.tech_wants, retained);
     let human_gold = game.players[HUMAN].gold;
     assert!(game.accept_offer(1, offer));
     assert_eq!(game.players[HUMAN].gold, human_gold + baseline + 1);
     assert!(game.has_tech(HUMAN, Tech::WARRIOR_CODE));
     assert!(game.has_tech(1, currency));
-    assert_eq!(game.ai_tech_wants, retained);
+    assert_eq!(game.ai.tech_wants, retained);
 }
 
 #[test]
@@ -510,10 +510,10 @@ fn unsafe_vision_is_revoked_even_when_target_spam_processing_is_skipped() {
 fn positive_most_hated_target_still_suppresses_source_offer_cadence() {
     let mut game = war_planning_game();
     game.diplomacy.get_mut(&(HUMAN, 1)).unwrap().trust[1] = 5000;
-    let spam = game.ai_diplomatic_memory[&(1, HUMAN)].spam;
+    let spam = game.ai.diplomatic_memory[&(1, HUMAN)].spam;
     game.advance_diplomatic_offers();
     assert_eq!(game.pact_offer(1), None);
-    assert_eq!(game.ai_diplomatic_memory[&(1, HUMAN)].spam, spam);
+    assert_eq!(game.ai.diplomatic_memory[&(1, HUMAN)].spam, spam);
 }
 
 #[test]

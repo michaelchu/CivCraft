@@ -7,9 +7,9 @@ impl Simulation {
     pub(crate) fn ai_reserve_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai_war_plans.clear();
-        self.ai_purchase_reserve.clear();
-        self.ai_government_cache.clear();
+        self.ai.war_plans.clear();
+        self.ai.purchase_reserve.clear();
+        self.ai.government_cache.clear();
         self.players[1].government = Government::Despotism;
         self.players[1].known = vec![Tech::EXPLOSIVES, Tech::ENGINEERING];
         self.players[1].researching = Tech::BRONZE_WORKING;
@@ -154,7 +154,7 @@ impl Simulation {
         let distant =
             self.map_distance(actor.x, actor.y, target.x, target.y) > actor.kind.stats().moves;
         let source_force = actor.kind.can_occupy_city()
-            && self.ai_ground_targets.get(&infantry) == Some(&city)
+            && self.ai.ground_targets.get(&infantry) == Some(&city)
             && self.invasion_support(1, target, bomber).1 > 0;
         // A distant Fighter sortie is not required: Conquests fuel rules can
         // make a one-way attack unrecoverable. Validate the assigned ground

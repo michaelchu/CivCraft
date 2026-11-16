@@ -20,7 +20,8 @@ pub(super) enum GuardState {
 
 impl Simulation {
     pub(super) fn ai_guard_state(&self, charge: u32) -> GuardState {
-        self.ai_unit_guards
+        self.ai
+            .unit_guards
             .get(&charge)
             .copied()
             .unwrap_or_default()
@@ -28,25 +29,25 @@ impl Simulation {
 
     pub(super) fn clear_ai_guard(&mut self, charge: u32) {
         if let GuardState::Assigned(guard) = self.ai_guard_state(charge)
-            && self.ai_guard_targets.get(&guard) == Some(&GuardTarget::Unit(charge))
+            && self.ai.guard_targets.get(&guard) == Some(&GuardTarget::Unit(charge))
         {
-            self.ai_guard_targets.remove(&guard);
+            self.ai.guard_targets.remove(&guard);
         }
-        self.ai_unit_guards.remove(&charge);
+        self.ai.unit_guards.remove(&charge);
     }
 
     pub(super) fn clear_ai_charge(&mut self, guard: u32) {
-        if let Some(GuardTarget::Unit(charge)) = self.ai_guard_targets.remove(&guard)
+        if let Some(GuardTarget::Unit(charge)) = self.ai.guard_targets.remove(&guard)
             && self.ai_guard_state(charge) == GuardState::Assigned(guard)
         {
-            self.ai_unit_guards.remove(&charge);
+            self.ai.unit_guards.remove(&charge);
         }
     }
 
     pub(super) fn request_ai_guard(&mut self, charge: u32) {
         self.clear_ai_guard(charge);
         if self.units.iter().any(|u| u.id == charge) {
-            self.ai_unit_guards.insert(charge, GuardState::Wanted);
+            self.ai.unit_guards.insert(charge, GuardState::Wanted);
         }
     }
 
@@ -73,10 +74,11 @@ impl Simulation {
         self.clear_ai_charge(guard);
         if let GuardTarget::Unit(charge) = target {
             self.clear_ai_guard(charge);
-            self.ai_unit_guards
+            self.ai
+                .unit_guards
                 .insert(charge, GuardState::Assigned(guard));
         }
-        self.ai_guard_targets.insert(guard, target);
+        self.ai.guard_targets.insert(guard, target);
         true
     }
 
@@ -86,7 +88,7 @@ impl Simulation {
     }
 
     pub(super) fn validate_ai_guards(&self) -> bool {
-        self.ai_guard_targets.iter().all(|(&guard, &target)| {
+        self.ai.guard_targets.iter().all(|(&guard, &target)| {
             let Some(actor) = self.unit_by_id(guard) else {
                 return false;
             };
@@ -104,11 +106,11 @@ impl Simulation {
                     .iter()
                     .any(|c| c.id == id && c.owner == actor.owner),
             }
-        }) && self.ai_unit_guards.iter().all(|(&charge, &state)| {
+        }) && self.ai.unit_guards.iter().all(|(&charge, &state)| {
             self.units.iter().any(|u| u.id == charge)
                 && match state {
                     GuardState::Assigned(id) => {
-                        self.ai_guard_targets.get(&id) == Some(&GuardTarget::Unit(charge))
+                        self.ai.guard_targets.get(&id) == Some(&GuardTarget::Unit(charge))
                     }
                     _ => true,
                 }
@@ -117,7 +119,8 @@ impl Simulation {
 
     pub(super) fn refresh_ai_guards(&mut self) {
         let invalid: Vec<_> = self
-            .ai_guard_targets
+            .ai
+            .guard_targets
             .iter()
             .filter_map(|(&guard, &target)| {
                 let owner = self.unit_by_id(guard).map(|u| u.owner);
@@ -137,13 +140,13 @@ impl Simulation {
         for guard in invalid {
             self.clear_ai_charge(guard);
         }
-        self.ai_unit_guards.retain(|&charge, state| {
+        self.ai.unit_guards.retain(|&charge, state| {
             self.units.iter().any(|u| u.id == charge)
                 && match *state {
                     GuardState::None => false,
                     GuardState::Wanted => true,
                     GuardState::Assigned(guard) => {
-                        self.ai_guard_targets.get(&guard) == Some(&GuardTarget::Unit(charge))
+                        self.ai.guard_targets.get(&guard) == Some(&GuardTarget::Unit(charge))
                     }
                 }
         });
@@ -302,12 +305,14 @@ impl Simulation {
 
     fn ai_charge_goal(&self, charge: &Unit) -> Option<(i32, i32)> {
         self.unit_goto_tiles.get(&charge.id).copied().or_else(|| {
-            self.ai_ground_targets
+            self.ai
+                .ground_targets
                 .get(&charge.id)
                 .and_then(|id| self.city_by_id(*id))
                 .map(|c| (c.x, c.y))
                 .or_else(|| {
-                    self.ai_settlement_targets
+                    self.ai
+                        .settlement_targets
                         .get(&charge.id)
                         .map(|t| t.destination)
                 })
@@ -571,9 +576,9 @@ impl Simulation {
             return false;
         }
         if actor.transport.is_some() {
-            return self.ai_guard_targets.contains_key(&id);
+            return self.ai.guard_targets.contains_key(&id);
         }
-        if let Some(target) = self.ai_guard_targets.get(&id).copied() {
+        if let Some(target) = self.ai.guard_targets.get(&id).copied() {
             let keep = match target {
                 GuardTarget::Unit(charge) => self.unit_by_id(charge).is_some_and(|u| {
                     u.owner == actor.owner
@@ -593,13 +598,13 @@ impl Simulation {
                 self.unit_goto_tiles.remove(&id);
             }
         }
-        if !self.ai_guard_targets.contains_key(&id)
+        if !self.ai.guard_targets.contains_key(&id)
             && actor.hp * 4 >= actor.max_hit_points()
             && Self::guard_defender_role(actor.kind)
             && let Some((target, _)) = self.look_for_ai_charge(&actor)
         {
             self.assign_ai_guard(id, target);
-            self.ai_ground_targets.remove(&id);
+            self.ai.ground_targets.remove(&id);
             let goal = match target {
                 GuardTarget::Unit(charge) => self
                     .units
@@ -616,7 +621,7 @@ impl Simulation {
                 self.unit_goto_tiles.insert(id, goal);
             }
         }
-        let Some(target) = self.ai_guard_targets.get(&id).copied() else {
+        let Some(target) = self.ai.guard_targets.get(&id).copied() else {
             return false;
         };
         if actor.kind.fuel_capacity() > 0 {

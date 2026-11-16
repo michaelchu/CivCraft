@@ -460,8 +460,8 @@ impl Simulation {
             actor.state = UnitState::Idle;
         }
         let _profile = profiler.scope("exploration.follow_goal.steps");
-        let defer_visibility_before = self.visibility_refresh_deferred;
-        self.visibility_refresh_deferred = defer_visibility_before || unit.owner != HUMAN;
+        let defer_visibility_before = self.visibility.refresh_deferred;
+        self.visibility.refresh_deferred = defer_visibility_before || unit.owner != HUMAN;
         for (dx, dy) in path {
             let Some(actor) = self.unit_by_id(id).cloned() else {
                 break;
@@ -501,8 +501,8 @@ impl Simulation {
                 break;
             }
         }
-        self.visibility_refresh_deferred = defer_visibility_before;
-        if !defer_visibility_before && self.visibility_refresh_pending {
+        self.visibility.refresh_deferred = defer_visibility_before;
+        if !defer_visibility_before && self.visibility.refresh_pending {
             let _profile = profiler.scope("exploration.follow_goal.flush_visibility");
             self.flush_deferred_visibility();
         }

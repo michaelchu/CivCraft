@@ -14,11 +14,11 @@ impl Simulation {
             .filter(|city| city.owner == owner)
             .map(|city| city.size)
             .sum::<i32>();
-        (2 * citizens).max(self.ai_purchase_reserve.get(&owner).copied().unwrap_or(0))
+        (2 * citizens).max(self.ai.purchase_reserve.get(&owner).copied().unwrap_or(0))
     }
 
     fn record_ai_purchase_cost(&mut self, owner: usize, price: i32) {
-        let highest = self.ai_purchase_reserve.entry(owner).or_default();
+        let highest = self.ai.purchase_reserve.entry(owner).or_default();
         *highest = (*highest).max(price);
     }
 
@@ -342,7 +342,7 @@ impl Simulation {
             .collect();
         // Stable ties retain the native player-city list order.
         priorities.sort_by(|a, b| b.0.total_cmp(&a.0));
-        self.ai_purchase_reserve.remove(&owner);
+        self.ai.purchase_reserve.remove(&owner);
         let emergency_cities: Vec<_> = priorities
             .iter()
             .filter_map(|&(_, city_id, _)| {

@@ -210,7 +210,7 @@ impl Simulation {
     pub(crate) fn ai_settlement_goal_government_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai_settlement_targets.clear();
+        self.ai.settlement_targets.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Plains;
             tile.resource = Some(Resource::Wheat);
@@ -242,7 +242,7 @@ impl Simulation {
     pub(crate) fn ai_settlement_reservations_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai_settlement_targets.clear();
+        self.ai.settlement_targets.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Plains;
             tile.resource = Some(Resource::Wheat);
@@ -277,7 +277,7 @@ impl Simulation {
             .map(|(x, y)| self.city_site_value(1, x, y))
             .collect();
         self.reserve_settlement_site(&first, destination);
-        let Some(reservation) = self.ai_settlement_targets.get(&first_id).copied() else {
+        let Some(reservation) = self.ai.settlement_targets.get(&first_id).copied() else {
             return false;
         };
         let protected = self.city_site_value(1, 10, 24).is_none()
@@ -306,7 +306,8 @@ impl Simulation {
             .clone();
         self.run_ai_founder(&waiting);
         let retained = self
-            .ai_settlement_targets
+            .ai
+            .settlement_targets
             .get(&first_id)
             .is_some_and(|entry| entry.destination == destination);
         self.units
@@ -315,7 +316,7 @@ impl Simulation {
             .unwrap()
             .owner = HUMAN;
         self.prune_settlement_reservations(1);
-        let released = !self.ai_settlement_targets.contains_key(&first_id)
+        let released = !self.ai.settlement_targets.contains_key(&first_id)
             && self.city_site_value(1, 10, 24).is_some();
         protected && crowding && distinct && retained && released
     }
@@ -364,8 +365,8 @@ impl Simulation {
     pub(crate) fn founder_work_arbitration_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai_settlement_targets.clear();
-        self.ai_government_cache.clear();
+        self.ai.settlement_targets.clear();
+        self.ai.government_cache.clear();
         for tile in &mut self.tiles {
             tile.terrain = Terrain::Grassland;
             tile.resource = Some(Resource::Wheat);
@@ -402,7 +403,8 @@ impl Simulation {
         committed.reserve_settlement_site(&founder, destination);
         let retained = committed.run_ai_founder_with_improvement(&founder, improvement)
             && (committed
-                .ai_settlement_targets
+                .ai
+                .settlement_targets
                 .get(&id)
                 .is_some_and(|reservation| reservation.destination == destination)
                 || committed
@@ -411,7 +413,7 @@ impl Simulation {
                     .any(|city| (city.x, city.y) == destination));
         self.run_ai_founder(&founder);
         retained
-            && !self.ai_settlement_targets.contains_key(&id)
+            && !self.ai.settlement_targets.contains_key(&id)
             && self.cities.len() == 1
             && self.units.iter().any(|unit| {
                 unit.id == id && unit.work_kind == Some(WorkKind::Clean(Contamination::Pollution))
@@ -423,8 +425,8 @@ impl Simulation {
     pub(crate) fn settlement_reservation_order_playtest(&mut self) -> bool {
         self.units.clear();
         self.cities.clear();
-        self.ai_settlement_targets.clear();
-        self.ai_government_cache.clear();
+        self.ai.settlement_targets.clear();
+        self.ai.government_cache.clear();
         self.city_rapture.clear();
         self.players[1].government = Government::Communism;
         for tile in &mut self.tiles {
@@ -477,7 +479,8 @@ impl Simulation {
             .is_none();
         self.reserve_settlement_site(&founder, home);
         let stored = self
-            .ai_settlement_targets
+            .ai
+            .settlement_targets
             .get(&id)
             .is_some_and(|reservation| {
                 reservation.worker == Some(first) && reservation.destination == home

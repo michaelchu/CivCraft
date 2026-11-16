@@ -248,7 +248,7 @@ impl Simulation {
                         if target != HUMAN && target != BARBARIANS {
                             let observation = *observations[idx]
                                 .get_or_insert_with(|| self.live_map_observation(idx));
-                            self.ai_map_memory.insert((target, idx), observation);
+                            self.ai.map_memory.insert((target, idx), observation);
                         }
                     }
                 }
@@ -286,7 +286,7 @@ impl Simulation {
         self.remember_visible_rivals();
         drop(_profile);
         let _profile = profiler.scope("visibility.refresh.remember_render_map");
-        let render_scope = self.visibility_render_scope.take();
+        let render_scope = self.visibility.render_scope.take();
         self.remember_render_positions_with_sight(&render_seen, render_scope.as_deref(), true);
         drop(_profile);
         let _profile = profiler.scope("visibility.refresh.share_render_memory");
@@ -300,8 +300,8 @@ impl Simulation {
         to: (i32, i32),
     ) {
         let tile_count = self.tiles.len();
-        if self.visibility_pending_render_tiles.len() != tile_count {
-            self.visibility_pending_render_tiles = vec![false; tile_count];
+        if self.visibility.pending_render_tiles.len() != tile_count {
+            self.visibility.pending_render_tiles = vec![false; tile_count];
         }
         for (x, y) in [from, to] {
             let radius_sq = self.unit_vision_radius_sq_for(unit.owner, unit.kind, x, y);
@@ -309,19 +309,20 @@ impl Simulation {
             for (tx, ty, distance) in self.map_wrap.civ3_radius(x, y, radius) {
                 if self.within_vision_distance_sq(distance, radius_sq) {
                     let index = self.map_wrap.index(tx, ty);
-                    self.visibility_pending_render_tiles[index] = true;
+                    self.visibility.pending_render_tiles[index] = true;
                 }
             }
         }
     }
 
     pub(super) fn flush_deferred_visibility(&mut self) {
-        if self.visibility_refresh_deferred || !self.visibility_refresh_pending {
+        if self.visibility.refresh_deferred || !self.visibility.refresh_pending {
             return;
         }
-        self.visibility_refresh_pending = false;
+        self.visibility.refresh_pending = false;
         let scope = self
-            .visibility_pending_render_tiles
+            .visibility
+            .pending_render_tiles
             .iter_mut()
             .enumerate()
             .filter_map(|(index, visible)| {
@@ -333,9 +334,9 @@ impl Simulation {
                 }
             })
             .collect();
-        self.visibility_render_scope = Some(scope);
+        self.visibility.render_scope = Some(scope);
         self.refresh_visibility();
-        self.visibility_render_scope = None;
+        self.visibility.render_scope = None;
     }
 
     /// Knowledge flags remain current; unexplored callers must still honor `seen`.
@@ -621,7 +622,8 @@ impl Simulation {
                     self.tiles[index].last_seen_owner = owner;
                     self.route_memory[index] = Some(route);
                 } else {
-                    self.ai_map_memory
+                    self.ai
+                        .map_memory
                         .insert((recipient, index), self.live_map_observation(index));
                 }
             }
@@ -704,7 +706,7 @@ impl Simulation {
                     self.tiles[index].last_seen_owner = observation.owner;
                     self.route_memory[index] = Some(route);
                 } else if receiver != BARBARIANS {
-                    self.ai_map_memory.insert((receiver, index), observation);
+                    self.ai.map_memory.insert((receiver, index), observation);
                 }
                 self.observed_map.tiles.insert((receiver, index), entry);
                 transferred.insert(index);

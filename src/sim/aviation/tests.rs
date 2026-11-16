@@ -1935,7 +1935,7 @@ mod stealth_tests {
             .find(|c| (c.x, c.y) == target)
             .unwrap()
             .id;
-        game.ai_ground_targets.insert(occupier, city);
+        game.ai.ground_targets.insert(occupier, city);
         assert!(game.aircraft_target_value(&plane, target.0, target.1) > 0.0);
     }
     #[test]

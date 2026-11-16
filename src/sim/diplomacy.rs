@@ -370,7 +370,8 @@ impl Simulation {
         let strongest = [(violator, victim), (victim, violator)]
             .iter()
             .filter_map(|key| {
-                self.ai_diplomatic_memory
+                self.ai
+                    .diplomatic_memory
                     .get(key)
                     .map(|memory| memory.strongest_pact)
             })

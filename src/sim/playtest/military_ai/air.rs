@@ -10,7 +10,7 @@ fn cache_known_ai_tiles(sim: &mut Simulation, owner: usize) {
         .filter(|(_, tile)| tile.known_by[owner])
         .map(|(index, _)| ((owner, index), sim.live_map_observation(index)))
         .collect();
-    sim.ai_map_memory.extend(observations);
+    sim.ai.map_memory.extend(observations);
 }
 
 fn give_unit_full_movement(sim: &mut Simulation, id: u32, kind: UnitKind) {
@@ -293,7 +293,7 @@ impl Simulation {
             arrival(self, para) == Some(0) && self.city_defense_production(&city).is_some();
         let before = self.unit_by_id(para).map(|u| (u.x, u.y));
         self.sign_pact(1, HUMAN, Pact::Peace);
-        self.ai_war_plans.insert(
+        self.ai.war_plans.insert(
             (1, HUMAN),
             diplomacy::WarPlan {
                 countdown: 3,

@@ -257,7 +257,7 @@ fn same_worker_task_preserves_goal_and_displaced_null_goal_is_not_recreated() {
         want: 1,
     }];
     game.run_worker_phase_with_requests(1, &mut requests);
-    assert!(game.ai_worker_tasks.contains(&id));
+    assert!(game.ai.worker_tasks.contains(&id));
     assert_eq!(game.unit_goto_tiles.get(&id), Some(&(10, 20)));
     game.units
         .iter_mut()

@@ -221,7 +221,7 @@ fn normal_targets_handicap_suppresses_hunter_and_ammunition_production() {
 fn distant_ground_missions_do_not_assume_a_one_way_air_sortie_is_recoverable() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (infantry, fighter, city) = game.ai_ground_invasion_playtest_setup();
-    assert_eq!(game.ai_ground_targets.get(&infantry), Some(&city));
+    assert_eq!(game.ai.ground_targets.get(&infantry), Some(&city));
     let target = game.city_by_id(city).unwrap();
     let unit = game.unit_by_id(infantry).unwrap();
     assert!(
@@ -251,7 +251,7 @@ fn distant_ground_missions_do_not_assume_a_one_way_air_sortie_is_recoverable() {
 fn local_occupation_marks_only_undefended_cities_and_obeys_actual_movement_radius() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (infantry, _, city) = game.ai_ground_invasion_playtest_setup();
-    game.ai_ground_targets.clear();
+    game.ai.ground_targets.clear();
     let target = game.city_by_id(city).unwrap().clone();
     let adjacent = offset_native_by_map(target.x, target.y, -1, 0);
     let unit = game.units.iter_mut().find(|u| u.id == infantry).unwrap();
@@ -270,11 +270,11 @@ fn peace_and_defensive_reservations_cancel_ground_missions() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     let (infantry, _, city) = game.ai_ground_invasion_playtest_setup();
     game.refresh_ground_invasions(1, &[infantry].into_iter().collect());
-    assert!(!game.ai_ground_targets.contains_key(&infantry));
-    game.ai_ground_targets.insert(infantry, city);
+    assert!(!game.ai.ground_targets.contains_key(&infantry));
+    game.ai.ground_targets.insert(infantry, city);
     game.sign_pact(1, HUMAN, Pact::Peace);
     game.refresh_ground_invasions(1, &Default::default());
-    assert!(!game.ai_ground_targets.contains_key(&infantry));
+    assert!(!game.ai.ground_targets.contains_key(&infantry));
     let target = game.city_by_id(city).unwrap();
     assert_eq!(game.invasion_support(1, target, 0), (0, 0));
 }
@@ -286,7 +286,7 @@ fn defended_overseas_force_keeps_its_invasion_until_capture() {
         result,
         (true, true, true),
         "plans{:?} units{:?} cities{:?}",
-        game.ai_ground_targets,
+        game.ai.ground_targets,
         game.units
             .iter()
             .map(|u| (u.id, u.owner, u.kind, u.x, u.y, u.hp, u.transport))
@@ -370,7 +370,7 @@ fn military_pickup_preserves_a_civilian_boss_until_released() {
             .is_none()
     );
     assert_eq!(
-        game.ai_ferries.boats[&boat].state,
+        game.ai.ferries.boats[&boat].state,
         ferries::FerryState::Assigned(reserved_passenger)
     );
     game.release_ai_ferry(reserved_passenger);
@@ -379,7 +379,7 @@ fn military_pickup_preserves_a_civilian_boss_until_released() {
             .contains(&boat)
     );
     assert_eq!(
-        game.ai_ferries.boats[&boat].state,
+        game.ai.ferries.boats[&boat].state,
         ferries::FerryState::Assigned(soldier)
     );
 }
@@ -414,7 +414,7 @@ fn worker_transport_dispatch_keeps_its_passenger_and_booking_without_ferry_manag
             .any(|u| u.id == passenger && u.transport == Some(boat))
     );
     assert_eq!(
-        game.ai_ferries.boats[&boat].state,
+        game.ai.ferries.boats[&boat].state,
         ferries::FerryState::Assigned(passenger)
     );
 }
@@ -423,9 +423,10 @@ fn worker_transport_dispatch_keeps_its_passenger_and_booking_without_ferry_manag
 fn military_delivery_releases_the_persisted_ferry_boss() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(game.overseas_assault_playtest(false), (true, true, true));
-    assert!(!game.ai_ferries.boats.is_empty());
+    assert!(!game.ai.ferries.boats.is_empty());
     assert!(
-        game.ai_ferries
+        game.ai
+            .ferries
             .boats
             .values()
             .all(|boat| boat.state == ferries::FerryState::Available)

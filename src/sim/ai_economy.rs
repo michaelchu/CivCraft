@@ -205,11 +205,11 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         self.diplomacy.clear();
-        self.ai_government_cache.clear();
-        self.ai_war_plans.clear();
-        self.ai_purchase_reserve.clear();
-        self.ai_guard_targets.clear();
-        self.ai_unit_guards.clear();
+        self.ai.government_cache.clear();
+        self.ai.war_plans.clear();
+        self.ai.purchase_reserve.clear();
+        self.ai.guard_targets.clear();
+        self.ai.unit_guards.clear();
         self.unit_goto_tiles.clear();
         self.city_rapture.clear();
         self.players[1].government = Government::Despotism;

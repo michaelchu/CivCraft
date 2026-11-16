@@ -24,11 +24,11 @@ fn live_last_activities_replace_previous_phase_wants() {
     game.create_city(1, 10, 24);
     game.add_ai_tech_want(1, Tech::ALPHABET, 1_000_000.0);
     game.run_ai_last_activities(1);
-    assert!(game.ai_tech_wants.contains_key(&1));
+    assert!(game.ai.tech_wants.contains_key(&1));
     assert!(game.advisor_tech_want(1, Tech::ALPHABET) < 1_000_000.0);
-    let before = game.ai_tech_wants[&1].clone();
+    let before = game.ai.tech_wants[&1].clone();
     for tech in Tech::all() {
         let _ = game.advisor_tech_want(1, tech);
     }
-    assert_eq!(game.ai_tech_wants[&1], before);
+    assert_eq!(game.ai.tech_wants[&1], before);
 }

@@ -9,11 +9,11 @@ impl Simulation {
         game.units.clear();
         game.cities.clear();
         game.diplomacy.clear();
-        game.ai_ground_targets.clear();
-        game.ai_guard_targets.clear();
-        game.ai_unit_guards.clear();
+        game.ai.ground_targets.clear();
+        game.ai.guard_targets.clear();
+        game.ai.unit_guards.clear();
         game.unit_goto_tiles.clear();
-        game.ai_ferries = Default::default();
+        game.ai.ferries = Default::default();
         game.players[1].known = vec![Tech::BRONZE_WORKING, Tech::THE_WHEEL];
         game.players[1].government = Government::Despotism;
         game.players[1].rates = [40, 60, 0];
@@ -231,8 +231,8 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         self.diplomacy.clear();
-        self.ai_guard_targets.clear();
-        self.ai_unit_guards.clear();
+        self.ai.guard_targets.clear();
+        self.ai.unit_guards.clear();
         self.unit_goto_tiles.clear();
         self.players[1].known = vec![Tech::BRONZE_WORKING];
         self.players[1].government = Government::Despotism;
@@ -284,8 +284,8 @@ impl Simulation {
             && !self.consider_bodyguard_production(&city, false, &mut emergency)
             && emergency.is_some_and(|c| c.production == Production::Unit(UnitKind::Warrior));
         self.units.clear();
-        self.ai_guard_targets.clear();
-        self.ai_unit_guards.clear();
+        self.ai.guard_targets.clear();
+        self.ai.unit_guards.clear();
         // Limit the fixture to a few producible role candidates. Marine is
         // the source-score winner over the lower-stat Spearman. The separate
         // type selector must return that choice before it looks for a charge.
@@ -311,8 +311,8 @@ impl Simulation {
         self.units.clear();
         self.cities.clear();
         self.diplomacy.clear();
-        self.ai_guard_targets.clear();
-        self.ai_unit_guards.clear();
+        self.ai.guard_targets.clear();
+        self.ai.unit_guards.clear();
         self.unit_goto_tiles.clear();
         self.players[1].known = vec![Tech::BRONZE_WORKING];
         self.players[1].government = Government::Despotism;

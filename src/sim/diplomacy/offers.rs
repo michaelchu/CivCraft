@@ -515,14 +515,15 @@ impl Simulation {
                     .entry(Self::relation_key(owner, other))
                     .or_default();
                 let memory = self
-                    .ai_diplomatic_memory
+                    .ai
+                    .diplomatic_memory
                     .entry((owner, other))
                     .or_insert_with(|| DiplomaticMemory::for_pair(owner, other));
                 memory.asked_peace = memory.asked_peace.saturating_sub(1).max(0);
                 memory.asked_alliance = memory.asked_alliance.saturating_sub(1).max(0);
                 memory.asked_ceasefire = memory.asked_ceasefire.saturating_sub(1).max(0);
                 memory.spam = memory.spam.saturating_sub(1).max(0);
-                if let Some(warning) = self.ai_space_warnings.get_mut(&(owner, other)) {
+                if let Some(warning) = self.ai.space_warnings.get_mut(&(owner, other)) {
                     *warning = warning.saturating_sub(1).max(0);
                 }
                 if memory.spam > 0 && self.players[other].ai {
@@ -534,7 +535,8 @@ impl Simulation {
                     } else {
                         3 + self.rand_below(4)
                     };
-                    self.ai_diplomatic_memory
+                    self.ai
+                        .diplomatic_memory
                         .get_mut(&(owner, other))
                         .unwrap()
                         .spam = spam;
@@ -576,7 +578,7 @@ impl Simulation {
                     }) else {
                         continue;
                     };
-                    let memory = &self.ai_diplomatic_memory[&(owner, other)];
+                    let memory = &self.ai.diplomatic_memory[&(owner, other)];
                     let asked = match pact {
                         Pact::Peace => memory.asked_peace,
                         Pact::Alliance => memory.asked_alliance,
@@ -597,7 +599,7 @@ impl Simulation {
                     continue;
                 }
                 if let Some(pact) = proposed {
-                    let memory = self.ai_diplomatic_memory.get_mut(&(owner, other)).unwrap();
+                    let memory = self.ai.diplomatic_memory.get_mut(&(owner, other)).unwrap();
                     if other == HUMAN {
                         match pact {
                             Pact::Peace => memory.asked_peace = 12,
