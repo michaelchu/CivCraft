@@ -11,7 +11,7 @@ pub(crate) fn window_conf() -> Conf {
         .and_then(|(w, h)| Some((w.parse::<i32>().ok()?, h.parse::<i32>().ok()?)))
         .filter(|&(w, h)| w >= 800 && h >= 600)
         .unwrap_or((1280, 720));
-    Conf {
+    let mut conf = Conf {
         window_title: "CivCraft".to_owned(),
         window_width: size.0,
         window_height: size.1,
@@ -19,7 +19,16 @@ pub(crate) fn window_conf() -> Conf {
         high_dpi: true,
         sample_count: 4,
         ..Default::default()
+    };
+    // Miniquad defaults to the deprecated OpenGL backend on macOS. Its
+    // NSOpenGLPixelFormat request can fail before the window is created on
+    // current macOS display setups, while the supported Metal backend avoids
+    // that context-creation path.
+    #[cfg(target_os = "macos")]
+    {
+        conf.platform.apple_gfx_api = macroquad::miniquad::conf::AppleGfxApi::Metal;
     }
+    conf
 }
 
 pub(crate) struct Assets {
