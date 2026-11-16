@@ -1,7 +1,7 @@
 //! Unit veteran levels and combat experience.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, VeteranLevel, VeteranSystem, effect_value};
+use crate::rules::freeciv::{VeteranLevel, VeteranSystem};
 use std::sync::OnceLock;
 
 fn selected_veteran_systems() -> &'static [(UnitKind, VeteranSystem)] {
@@ -95,7 +95,7 @@ impl Simulation {
         let effect = self.city_rule_effect_for_unit(
             city,
             &unit,
-            "Veteran_Build",
+            EffectKind::VeteranBuild,
             self.players[city.owner].government,
         );
         effect.clamp(0, system.levels.len().saturating_sub(1) as i32) as usize
@@ -147,10 +147,8 @@ impl Simulation {
         {
             return;
         }
-        let rules = RulesetData::campaign_default();
         let context = crate::sim::action_rules::SimulationRequirementContext::for_unit(self, &unit);
-        let bonus = effect_value(&rules.effects, "Veteran_Combat", &context)
-            .expect("campaign C2C3 Veteran_Combat requirements are supported");
+        let bonus = context.effect(EffectKind::VeteranCombat);
         let modifier =
             base_chance + i32::try_from(bonus).expect("campaign C2C3 Veteran_Combat fits in i32");
         let chance = level.base_raise_chance * modifier / 100;
@@ -323,12 +321,9 @@ mod tests {
         let attacker_level = selected_veteran_system(attacker.kind)
             .level(attacker.c2c3_veteran)
             .expect("Warrior starts below the selected veteran cap");
-        let veteran_bonus = effect_value(
-            &RulesetData::campaign_default().effects,
-            "Veteran_Combat",
-            &crate::sim::action_rules::SimulationRequirementContext::for_unit(&game, &attacker),
-        )
-        .expect("campaign C2C3 Veteran_Combat requirements are supported");
+        let veteran_bonus =
+            crate::sim::action_rules::SimulationRequirementContext::for_unit(&game, &attacker)
+                .effect(EffectKind::VeteranCombat);
         let attacker_promotion_chance = attacker_level.base_raise_chance
             * (attacker_vet_base_chance
                 + i32::try_from(veteran_bonus).expect("Veteran_Combat fits in i32"))

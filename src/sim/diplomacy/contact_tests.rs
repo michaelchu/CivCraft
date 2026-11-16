@@ -13,8 +13,8 @@ fn selected_no_diplomacy_effect_blocks_barbarian_meetings_and_contact_timers() {
         .buildings
         .push(Building::MARCO_POLOS_EMBASSY);
 
-    assert_eq!(game.diplomacy_effect_value(BARBARIANS, "No_Diplomacy"), 1);
-    assert_eq!(game.diplomacy_effect_value(HUMAN, "No_Diplomacy"), 0);
+    assert_eq!(game.player_effect(BARBARIANS, EffectKind::NoDiplomacy), 1);
+    assert_eq!(game.player_effect(HUMAN, EffectKind::NoDiplomacy), 0);
     game.make_diplomatic_contact(HUMAN, BARBARIANS);
 
     assert_eq!(

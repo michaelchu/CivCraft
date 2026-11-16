@@ -1,7 +1,7 @@
 //! Default-AI GOTO profiles and native PF_NORMAL iteration. Fuelled actors
 //! use PF_FUEL; human
 //! click routes deliberately remain a separate client policy.
-use super::movement_rules::{MovementRules, c2c3_base_extra_rule_name};
+use super::movement_rules::MovementRules;
 use super::pf_actions::PfAction;
 use super::*;
 
@@ -298,7 +298,7 @@ impl NormalPaths {
             .unit_class_for_kind(kind)
             .expect("selected C2C3 unit class");
         rules
-            .extra_is_native_to_class(c2c3_base_extra_rule_name(base), class)
+            .extra_is_native_to_class(base.extra_rule_name(), class)
             .expect("selected C2C3 base extra nativity")
     }
 

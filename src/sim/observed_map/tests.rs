@@ -1,6 +1,7 @@
 //! Regression tests for the behavior of the parent module.
 
 use super::*;
+use crate::rules::freeciv::RulesetData;
 
 #[test]
 fn filtered_city_rendering_and_markers_preserve_live_and_remembered_state() {

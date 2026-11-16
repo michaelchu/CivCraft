@@ -47,15 +47,11 @@ impl super::Simulation {
         // player-wide Fanatics and Inspire_Partisans effects. Resolve them
         // through the shared evaluator so their technology and government
         // requirements remain editable in the campaign ruleset.
-        let rules = RulesetData::campaign_default();
         let context = SimulationRequirementContext::for_player_at(self, owner, None)
             .with_government(government);
-        ["Fanatics", "Inspire_Partisans"]
+        [EffectKind::Fanatics, EffectKind::InspirePartisans]
             .into_iter()
-            .map(|kind| {
-                effect_value(&rules.effects, kind, &context)
-                    .unwrap_or_else(|error| panic!("could not evaluate C2C3 {kind}: {error:?}"))
-            })
+            .map(|kind| context.effect(kind))
             .filter(|&value| value > 0)
             .count() as i32
             * 3
@@ -70,15 +66,9 @@ impl super::Simulation {
         // for the hypothetical government. Keep this value ruleset-driven:
         // C2C3's Republic, Democracy, and United Nations requirements are
         // data, not government-specific AI branches.
-        let rules = RulesetData::campaign_default();
         let context = SimulationRequirementContext::for_player_at(self, owner, None)
             .with_government(government);
-        i32::try_from(
-            effect_value(&rules.effects, "Revolution_Unhappiness", &context).unwrap_or_else(
-                |error| panic!("could not evaluate C2C3 Revolution_Unhappiness: {error:?}"),
-            ),
-        )
-        .expect("C2C3 Revolution_Unhappiness value exceeds advisor range")
+        context.effect_i32(EffectKind::RevolutionUnhappiness)
     }
 
     #[cfg(test)]

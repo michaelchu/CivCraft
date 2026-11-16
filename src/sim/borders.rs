@@ -2,12 +2,13 @@
 
 use super::action_rules::SimulationRequirementContext;
 use super::*;
+use crate::rules::freeciv::RequirementKind;
+use crate::rules::freeciv::campaign_effect;
 use crate::rules::freeciv::{
-    EffectContext, EffectRecord, Requirement, RequirementContext, RequirementEvaluationError,
-    RequirementRange, RequirementValue, RulesetData, effect_value,
+    EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
+    RequirementValue, RulesetData,
 };
 use std::collections::HashMap;
-use std::sync::OnceLock;
 
 #[cfg(test)]
 mod tests;
@@ -50,24 +51,14 @@ impl BorderRules {
     fn city_work_radius_sq(self, simulation: &Simulation, city: &City) -> i64 {
         let context =
             SimulationRequirementContext::for_city_at(simulation, city, Some((city.x, city.y)));
-        let bonus = effect_value(
-            &RulesetData::campaign_default().effects,
-            "City_Radius_Sq",
-            &context,
-        )
-        .unwrap_or_else(|error| panic!("city radius effect evaluation failed: {error:?}"));
+        let bonus = context.effect(EffectKind::CityRadiusSq);
         (self.initial_city_radius_sq + bonus).clamp(CITY_MAP_MIN_RADIUS_SQ, CITY_MAP_MAX_RADIUS_SQ)
     }
 
     fn city_border_strength(self, simulation: &Simulation, city: &City) -> i64 {
         let context =
             SimulationRequirementContext::for_city_at(simulation, city, Some((city.x, city.y)));
-        let percent = effect_value(
-            &RulesetData::campaign_default().effects,
-            "Border_Strength_Pct",
-            &context,
-        )
-        .unwrap_or_else(|error| panic!("border strength effect evaluation failed: {error:?}"));
+        let percent = context.effect(EffectKind::BorderStrengthPct);
         (i64::from(city.size) + 2) * (100 + percent) / 100
     }
 }
@@ -293,10 +284,10 @@ impl BorderTileClaimContext<'_> {
 
 impl RequirementContext for BorderTileClaimContext<'_> {
     fn is_present(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
-        match requirement.kind.to_ascii_lowercase().as_str() {
-            "tilerel" => self.tile_relation(requirement),
-            "maxdistancesq" => self.max_distance_sq(requirement),
-            "maxregiontiles" => self.max_region_tiles(requirement),
+        match requirement.kind {
+            RequirementKind::TileRel => self.tile_relation(requirement),
+            RequirementKind::MaxDistanceSq => self.max_distance_sq(requirement),
+            RequirementKind::MaxRegionTiles => self.max_region_tiles(requirement),
             _ => self.ordinary.is_present(requirement),
         }
     }
@@ -318,7 +309,7 @@ fn integer_requirement_value(requirement: &Requirement) -> Option<i64> {
 
 fn unsupported_border_requirement(requirement: &Requirement) -> RequirementEvaluationError {
     RequirementEvaluationError::Unsupported {
-        kind: requirement.kind.clone(),
+        kind: requirement.kind.name().to_owned(),
         name: requirement.name.clone(),
     }
 }
@@ -341,21 +332,7 @@ fn tile_claimable(
         target,
         source,
     };
-    effect_value(selected_tile_claim_effects(), "Tile_Claimable", &context)
-        .unwrap_or_else(|error| panic!("tile claim effect evaluation failed: {error:?}"))
-        > 0
-}
-
-fn selected_tile_claim_effects() -> &'static [EffectRecord] {
-    static EFFECTS: OnceLock<Vec<EffectRecord>> = OnceLock::new();
-    EFFECTS.get_or_init(|| {
-        RulesetData::campaign_default()
-            .effects
-            .iter()
-            .filter(|effect| effect.kind.eq_ignore_ascii_case("Tile_Claimable"))
-            .cloned()
-            .collect()
-    })
+    campaign_effect(EffectKind::TileClaimable, &context) > 0
 }
 
 impl Simulation {

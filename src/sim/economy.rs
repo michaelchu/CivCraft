@@ -219,7 +219,7 @@ impl Simulation {
             city.specialists[index]
                 * self.city_rule_effect(
                     city,
-                    "Specialist_Output",
+                    EffectKind::SpecialistOutput,
                     None,
                     Some(output_type),
                     Some(specialist),
@@ -256,7 +256,7 @@ impl Simulation {
 
         if self.city_rule_effect(
             city,
-            "Happiness_To_Gold",
+            EffectKind::HappinessToGold,
             None,
             None,
             None,
@@ -267,7 +267,7 @@ impl Simulation {
         {
             output[1] += self.city_rule_effect(
                 city,
-                "Make_Content",
+                EffectKind::MakeContent,
                 None,
                 None,
                 None,
@@ -276,7 +276,7 @@ impl Simulation {
                 None,
             ) + self.city_rule_effect(
                 city,
-                "Force_Content",
+                EffectKind::ForceContent,
                 None,
                 None,
                 None,

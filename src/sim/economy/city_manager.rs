@@ -203,7 +203,7 @@ impl Simulation {
             let mut output = [0; 6];
             output[output_index] = self.city_rule_effect(
                 city,
-                "Specialist_Output",
+                EffectKind::SpecialistOutput,
                 None,
                 Some(output_type),
                 Some(specialist),

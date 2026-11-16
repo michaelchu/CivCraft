@@ -7,9 +7,8 @@
 use std::sync::OnceLock;
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, effect_value};
 use crate::sim::action_rules::SimulationRequirementContext;
-use crate::world::{Resource, Terrain};
+use crate::world::Resource;
 
 #[derive(Clone, Copy)]
 pub(in crate::sim) struct CityOutputRuleCache {
@@ -113,16 +112,6 @@ fn native_terrain(name: &str) -> &'static crate::rules::native::NativeTerrain {
         .unwrap_or_else(|| panic!("native catalog has no terrain {name:?}"))
 }
 
-fn terrain_name(terrain: Terrain) -> &'static str {
-    if terrain == Terrain::Volcano {
-        // CivCraft keeps the visual identity; the existing C2C3 movement
-        // crosswalk maps this rugged tile to Mountains.
-        return "Mountains";
-    }
-    super::super::movement_rules::c2c3_terrain_rule_name(terrain)
-        .expect("campaign terrain has an explicit C2C3 output crosswalk")
-}
-
 fn resource_name(resource: Resource) -> Option<&'static str> {
     Some(match resource {
         Resource::Gold => "Gold",
@@ -185,7 +174,7 @@ impl Simulation {
                 self.city_output_bonus_percent(city, output, government, granted_tech),
                 self.city_rule_effect(
                     city,
-                    "Output_Waste_By_Distance",
+                    EffectKind::OutputWasteByDistance,
                     None,
                     Some(output),
                     None,
@@ -195,7 +184,7 @@ impl Simulation {
                 ),
                 self.city_rule_effect(
                     city,
-                    "Output_Waste",
+                    EffectKind::OutputWaste,
                     None,
                     Some(output),
                     None,
@@ -205,7 +194,7 @@ impl Simulation {
                 ),
                 self.city_rule_effect(
                     city,
-                    "Output_Waste_Pct",
+                    EffectKind::OutputWastePct,
                     None,
                     Some(output),
                     None,
@@ -224,7 +213,7 @@ impl Simulation {
             }),
             happiness_to_gold: if self.city_rule_effect(
                 city,
-                "Happiness_To_Gold",
+                EffectKind::HappinessToGold,
                 None,
                 None,
                 None,
@@ -235,7 +224,7 @@ impl Simulation {
             {
                 self.city_rule_effect(
                     city,
-                    "Make_Content",
+                    EffectKind::MakeContent,
                     None,
                     None,
                     None,
@@ -244,7 +233,7 @@ impl Simulation {
                     granted_tech,
                 ) + self.city_rule_effect(
                     city,
-                    "Force_Content",
+                    EffectKind::ForceContent,
                     None,
                     None,
                     None,
@@ -320,7 +309,7 @@ impl Simulation {
     pub(in crate::sim) fn city_rule_effect(
         &self,
         city: &City,
-        kind: &str,
+        kind: EffectKind,
         tile: Option<(i32, i32)>,
         output_type: Option<&str>,
         specialist: Option<&str>,
@@ -328,7 +317,6 @@ impl Simulation {
         government: Government,
         granted_tech: Option<Tech>,
     ) -> i32 {
-        let rules = RulesetData::campaign_default();
         let mut context = SimulationRequirementContext::for_city_at(self, city, tile)
             .with_government(government)
             .with_granted_tech(granted_tech)
@@ -339,33 +327,20 @@ impl Simulation {
         if let Some(specialist) = specialist {
             context = context.with_specialist(specialist);
         }
-        self.evaluate_city_effect(rules, kind, &context)
+        context.effect_i32(kind)
     }
 
     pub(in crate::sim) fn city_rule_effect_for_unit(
         &self,
         city: &City,
         unit: &super::super::Unit,
-        kind: &str,
+        kind: EffectKind,
         government: Government,
     ) -> i32 {
-        let rules = RulesetData::campaign_default();
         let context = SimulationRequirementContext::for_city_at(self, city, Some((city.x, city.y)))
             .with_unit(unit)
             .with_government(government);
-        self.evaluate_city_effect(rules, kind, &context)
-    }
-
-    fn evaluate_city_effect(
-        &self,
-        rules: &RulesetData,
-        kind: &str,
-        context: &SimulationRequirementContext<'_>,
-    ) -> i32 {
-        let value = effect_value(&rules.effects, kind, context).unwrap_or_else(|error| {
-            panic!("could not evaluate selected C2C3 city effect {kind}: {error:?}")
-        });
-        i32::try_from(value).unwrap_or_else(|_| panic!("C2C3 city effect {kind} exceeds i32"))
+        context.effect_i32(kind)
     }
 
     #[expect(
@@ -384,7 +359,7 @@ impl Simulation {
     ) -> (i32, i32, i32) {
         let tile_xy = (x, y);
         let tile = self.tile(x, y);
-        let terrain = terrain_name(tile.terrain);
+        let terrain = tile.terrain.c2c3_rugged_rule_name();
         let native_terrain = native_terrain(terrain);
         let mut output = Outputs {
             food: native_terrain.food,
@@ -402,7 +377,7 @@ impl Simulation {
         if irrigation != 0 {
             let pct = self.city_rule_effect(
                 city,
-                "Irrigation_Pct",
+                EffectKind::IrrigationPct,
                 Some(tile_xy),
                 None,
                 None,
@@ -416,7 +391,7 @@ impl Simulation {
         if mining != 0 {
             let pct = self.city_rule_effect(
                 city,
-                "Mining_Pct",
+                EffectKind::MiningPct,
                 Some(tile_xy),
                 None,
                 None,
@@ -489,16 +464,16 @@ impl Simulation {
                     granted,
                 )
             };
-            let mut value = output.get(output_name) + effect("Output_Add_Tile");
+            let mut value = output.get(output_name) + effect(EffectKind::OutputAddTile);
             if value > 0 {
-                let penalty_threshold = effect("Output_Penalty_Tile");
+                let penalty_threshold = effect(EffectKind::OutputPenaltyTile);
                 if value >= CityEconomySettings::campaign().output_granularity {
-                    value += effect("Output_Inc_Tile");
+                    value += effect(EffectKind::OutputIncTile);
                     if celebrating {
-                        value += effect("Output_Inc_Tile_Celebrate");
+                        value += effect(EffectKind::OutputIncTileCelebrate);
                     }
                 }
-                value += value * effect("Output_Per_Tile") / 100;
+                value += value * effect(EffectKind::OutputPerTile) / 100;
                 if penalty_threshold > 0 && value > penalty_threshold {
                     value = if value <= CityEconomySettings::campaign().output_granularity {
                         0
@@ -507,7 +482,7 @@ impl Simulation {
                     };
                 }
             }
-            value -= value * effect("Output_Tile_Punish_Pct") / 100;
+            value -= value * effect(EffectKind::OutputTilePunishPct) / 100;
             if is_center {
                 let minimum = match output_type {
                     "Food" => CityEconomySettings::campaign().city_center_minimum[0],
@@ -545,7 +520,7 @@ impl Simulation {
             .map(|tile| {
                 self.city_rule_effect(
                     city,
-                    "Output_Add_Tile",
+                    EffectKind::OutputAddTile,
                     Some(tile),
                     Some(output_type),
                     None,
@@ -567,7 +542,7 @@ impl Simulation {
         let first = 100_i64
             + i64::from(self.city_rule_effect(
                 city,
-                "Output_Bonus",
+                EffectKind::OutputBonus,
                 None,
                 Some(output_type),
                 None,
@@ -578,7 +553,7 @@ impl Simulation {
         let second = 100_i64
             + i64::from(self.city_rule_effect(
                 city,
-                "Output_Bonus_2",
+                EffectKind::OutputBonus2,
                 None,
                 Some(output_type),
                 None,
@@ -646,7 +621,7 @@ impl Simulation {
         };
         let distance_factor = self.city_rule_effect(
             city,
-            "Output_Waste_By_Distance",
+            EffectKind::OutputWasteByDistance,
             None,
             Some(output_type),
             None,
@@ -657,7 +632,7 @@ impl Simulation {
         let mut waste_all = false;
         let mut waste_level = self.city_rule_effect(
             city,
-            "Output_Waste",
+            EffectKind::OutputWaste,
             None,
             Some(output_type),
             None,
@@ -685,7 +660,7 @@ impl Simulation {
         if !waste_all {
             let reduction = self.city_rule_effect(
                 city,
-                "Output_Waste_Pct",
+                EffectKind::OutputWastePct,
                 None,
                 Some(output_type),
                 None,
@@ -704,9 +679,9 @@ impl Simulation {
         self.city_rule_effect(
             city,
             if shrinking {
-                "Shrink_Food"
+                EffectKind::ShrinkFood
             } else {
-                "Growth_Food"
+                EffectKind::GrowthFood
             },
             None,
             None,
@@ -722,7 +697,7 @@ impl Simulation {
         let government = self.players[city.owner].government;
         if self.city_rule_effect(
             city,
-            "Size_Unlimit",
+            EffectKind::SizeUnlimit,
             None,
             None,
             None,
@@ -733,15 +708,24 @@ impl Simulation {
         {
             i32::MAX
         } else {
-            self.city_rule_effect(city, "Size_Adj", None, None, None, false, government, None)
-                .max(1)
+            self.city_rule_effect(
+                city,
+                EffectKind::SizeAdj,
+                None,
+                None,
+                None,
+                false,
+                government,
+                None,
+            )
+            .max(1)
         }
     }
 
     pub(in crate::sim) fn building_upkeep_free_limit(&self, city: &City) -> i32 {
         self.city_rule_effect(
             city,
-            "Upkeep_Free",
+            EffectKind::UpkeepFree,
             None,
             None,
             None,

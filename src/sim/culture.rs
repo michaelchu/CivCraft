@@ -2,7 +2,8 @@
 
 use super::action_rules::SimulationRequirementContext;
 use super::{BARBARIANS, City, Simulation};
-use crate::rules::freeciv::{RulesetData, VictoryCondition, effect_value};
+use crate::rules::freeciv::EffectKind;
+use crate::rules::freeciv::{RulesetData, VictoryCondition};
 
 fn culture_parameter(key: &str) -> i64 {
     let rules = RulesetData::campaign_default();
@@ -22,18 +23,6 @@ fn culture_parameter(key: &str) -> i64 {
         .integer_value()
         .unwrap_or_else(|error| panic!("invalid selected [culture].{key}: {error}"))
         .unwrap_or_else(|| panic!("selected [culture].{key} has no value"))
-}
-
-fn effect_for_city(game: &Simulation, city: &City, kind: &str) -> i64 {
-    let context = SimulationRequirementContext::for_city_at(game, city, Some((city.x, city.y)));
-    effect_value(&RulesetData::campaign_default().effects, kind, &context)
-        .unwrap_or_else(|error| panic!("failed to evaluate city {kind} effect: {error:?}"))
-}
-
-fn effect_for_player(game: &Simulation, owner: usize, kind: &str) -> i64 {
-    let context = SimulationRequirementContext::for_player_at(game, owner, None);
-    effect_value(&RulesetData::campaign_default().effects, kind, &context)
-        .unwrap_or_else(|error| panic!("failed to evaluate player {kind} effect: {error:?}"))
 }
 
 fn apply_culture_percent(value: i64, percent: i64) -> i64 {
@@ -71,8 +60,8 @@ impl Simulation {
     /// and active Performance/Culture_Pct effects.
     pub(crate) fn city_culture_score(&self, city: &City) -> i64 {
         i64::from(city.history).saturating_add(apply_culture_percent(
-            effect_for_city(self, city, "Performance"),
-            effect_for_city(self, city, "Culture_Pct"),
+            self.city_effect(city, EffectKind::Performance),
+            self.city_effect(city, EffectKind::CulturePct),
         ))
     }
 
@@ -84,13 +73,8 @@ impl Simulation {
             return 0;
         }
         let player_context = SimulationRequirementContext::for_player_at(self, owner, None);
-        let rules = RulesetData::campaign_default();
-        let national_performance =
-            effect_value(&rules.effects, "National_Performance", &player_context).unwrap_or_else(
-                |error| panic!("failed to evaluate National_Performance: {error:?}"),
-            );
-        let culture_percent = effect_value(&rules.effects, "Culture_Pct", &player_context)
-            .unwrap_or_else(|error| panic!("failed to evaluate player Culture_Pct: {error:?}"));
+        let national_performance = player_context.effect(EffectKind::NationalPerformance);
+        let culture_percent = player_context.effect(EffectKind::CulturePct);
         let cities = self
             .cities
             .iter()
@@ -109,8 +93,8 @@ impl Simulation {
         let city = &self.cities[city_index];
         let history = i64::from(city.history);
         let gain = apply_culture_percent(
-            effect_for_city(self, city, "History"),
-            effect_for_city(self, city, "Culture_Pct"),
+            self.city_effect(city, EffectKind::History),
+            self.city_effect(city, EffectKind::CulturePct),
         )
         .saturating_add(history.saturating_mul(culture_parameter("history_interest_pml")) / 1000);
         self.cities[city_index].history =
@@ -124,8 +108,8 @@ impl Simulation {
         }
         let history = i64::from(self.players[owner].history);
         let gain = apply_culture_percent(
-            effect_for_player(self, owner, "National_History"),
-            effect_for_player(self, owner, "Culture_Pct"),
+            self.player_effect(owner, EffectKind::NationalHistory),
+            self.player_effect(owner, EffectKind::CulturePct),
         )
         .saturating_add(history.saturating_mul(culture_parameter("history_interest_pml")) / 1000);
         self.players[owner].history =

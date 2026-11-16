@@ -613,13 +613,13 @@ fn profitable_war_target_loses_love_while_expansion_suppresses_war_desire() {
 fn war_desire_uses_the_selected_ruleset_city_defense_bonus() {
     let mut game = war_planning_game();
     assert_eq!(
-        game.campaign_city_effect(&game.cities[0], "Defend_Bonus"),
+        game.city_effect(&game.cities[0], EffectKind::DefendBonus),
         0
     );
     let undefended = game.ai_war_desire(1, HUMAN);
     game.tile_mut(8, 20).base = Some(Base::Fortress);
     assert_eq!(
-        game.campaign_city_effect(&game.cities[0], "Defend_Bonus"),
+        game.city_effect(&game.cities[0], EffectKind::DefendBonus),
         100
     );
     let fortified = game.ai_war_desire(1, HUMAN);
@@ -650,9 +650,9 @@ fn ai_love_wonder_bonus_uses_gain_ai_love_effect_and_apollo_requirement() {
     apollo.completed_wonders.push(Building::APOLLO_PROGRAM);
     apollo.apollo_completed = true;
 
-    assert_eq!(plain.campaign_player_effect(HUMAN, "Gain_AI_Love"), 0);
-    assert_eq!(eiffel.campaign_player_effect(HUMAN, "Gain_AI_Love"), 10);
-    assert_eq!(apollo.campaign_player_effect(HUMAN, "Gain_AI_Love"), 0);
+    assert_eq!(plain.player_effect(HUMAN, EffectKind::GainAiLove), 0);
+    assert_eq!(eiffel.player_effect(HUMAN, EffectKind::GainAiLove), 10);
+    assert_eq!(apollo.player_effect(HUMAN, EffectKind::GainAiLove), 0);
 }
 
 #[test]
@@ -932,10 +932,10 @@ fn treaty_lengths_and_cancellation_follow_selected_ruleset_effects() {
     game.create_city(1, 20, 20);
 
     assert_eq!(
-        game.diplomacy_effect_value(HUMAN, "Ceasefire_Length_Pct"),
+        game.player_effect(HUMAN, EffectKind::CeasefireLengthPct),
         100
     );
-    assert_eq!(game.diplomacy_effect_value(1, "Armistice_Length_Pct"), 100);
+    assert_eq!(game.player_effect(1, EffectKind::ArmisticeLengthPct), 100);
     game.sign_pact(HUMAN, 1, Pact::Ceasefire);
     assert_eq!(game.diplomacy[&(HUMAN, 1)].until, game.turn + 16);
     game.sign_pact(HUMAN, 1, Pact::Peace);

@@ -227,7 +227,7 @@ mod tests {
             assert!(record.string_list_field("effects").unwrap().is_some());
         }
         assert!(disaster("earthquake").requirements.iter().any(|req| {
-            req.kind.eq_ignore_ascii_case("Terrain")
+            req.kind == crate::rules::freeciv::RequirementKind::Terrain
                 && matches!(&req.name, crate::rules::freeciv::RequirementValue::String(name)
                     if name.eq_ignore_ascii_case("Hills"))
         }));

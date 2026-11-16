@@ -12,6 +12,7 @@
 //! depends on this ordering.
 
 use super::*;
+use crate::rules::freeciv::RequirementKind;
 use crate::rules::freeciv::{
     EffectContext, EffectEvaluationError, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, RulesetData, VictoryCondition,
@@ -227,13 +228,13 @@ struct CalendarContext<'a> {
 impl RequirementContext for CalendarContext<'_> {
     fn is_present(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
         let unsupported = || RequirementEvaluationError::Unsupported {
-            kind: requirement.kind.clone(),
+            kind: requirement.kind.name().to_owned(),
             name: requirement.name.clone(),
         };
         if requirement.range != RequirementRange::World {
             return Err(unsupported());
         }
-        if requirement.kind.eq_ignore_ascii_case("MinYear") {
+        if requirement.kind == RequirementKind::MinYear {
             let threshold = match &requirement.name {
                 RequirementValue::String(value) => value.parse::<i32>().ok(),
                 RequirementValue::Integer(value) => i32::try_from(*value).ok(),
@@ -242,7 +243,7 @@ impl RequirementContext for CalendarContext<'_> {
             .ok_or_else(unsupported)?;
             return Ok(self.year >= threshold);
         }
-        if requirement.kind.eq_ignore_ascii_case("Tech") && requirement.survives {
+        if requirement.kind == RequirementKind::Tech && requirement.survives {
             let name = match &requirement.name {
                 RequirementValue::String(value) => value,
                 _ => return Err(unsupported()),
@@ -287,14 +288,18 @@ fn next_calendar_state(
         global_advances,
         ruleset,
     };
-    let mut increase = i32::try_from(effect_value(&ruleset.effects, "Turn_Years", &context)?)
-        .map_err(|_| EffectEvaluationError::Overflow)?;
+    let mut increase = i32::try_from(effect_value(
+        &ruleset.effects,
+        EffectKind::TurnYears,
+        &context,
+    )?)
+    .map_err(|_| EffectEvaluationError::Overflow)?;
 
     if ruleset
         .victory_enabled(VictoryCondition::SpaceRace)
         .unwrap_or_else(|error| panic!("invalid campaign victories setting: {error}"))
     {
-        let slowdown = effect_value(&ruleset.effects, "Slow_Down_Timeline", &context)?;
+        let slowdown = effect_value(&ruleset.effects, EffectKind::SlowDownTimeline, &context)?;
         if slowdown >= 3 {
             increase = increase.min(1);
         } else if slowdown >= 2 {

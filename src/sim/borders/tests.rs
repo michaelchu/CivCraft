@@ -1,4 +1,5 @@
 use super::*;
+use crate::rules::freeciv::{EffectSet, RulesetData, effect_value};
 use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,8 +92,12 @@ fn selected_effect_active(
         target,
         source,
     };
-    effect_value(std::slice::from_ref(effect), "Tile_Claimable", &context)
-        .unwrap_or_else(|error| panic!("{effect_name} evaluation failed: {error:?}"))
+    effect_value(
+        &EffectSet::from(vec![effect.clone()]),
+        EffectKind::TileClaimable,
+        &context,
+    )
+    .unwrap_or_else(|error| panic!("{effect_name} evaluation failed: {error:?}"))
         > 0
 }
 

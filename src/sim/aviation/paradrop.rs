@@ -138,7 +138,7 @@ impl Simulation {
         );
         crate::rules::freeciv::effect_value(
             &crate::rules::freeciv::RulesetData::campaign_default().effects,
-            "Airlift",
+            EffectKind::Airlift,
             &context,
         )
         .ok()

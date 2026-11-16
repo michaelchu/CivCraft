@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::rules::TechEra;
-use crate::rules::freeciv::{ResearchRulesetSettings, RulesetData, effect_value};
+use crate::rules::freeciv::{ResearchRulesetSettings, RulesetData};
 use crate::sim::action_rules::SimulationRequirementContext;
 use std::sync::OnceLock;
 
@@ -343,7 +343,6 @@ impl Simulation {
         if tech != Tech::FUTURE && !loss_value && self.has_tech(owner, tech) {
             return 0;
         }
-        let rules = RulesetData::campaign_default();
         let settings = campaign_research_settings();
         let base = match settings.cost_style {
             crate::rules::freeciv::ResearchCostStyle::Linear => {
@@ -373,13 +372,10 @@ impl Simulation {
         // active Tech_Cost_Pct effect, embassy leakage, then sciencebox.
         let context = SimulationRequirementContext::for_player_at(self, owner, None)
             .with_government(player.government);
-        let cost_percent = effect_value(&rules.effects, "Tech_Cost_Pct", &context)
-            .expect("campaign Tech_Cost_Pct effects are evaluable");
+        let cost_percent = context.effect(EffectKind::TechCostPct);
         let mut cost = base as f64 * cost_percent as f64 / 100.0;
         if settings.leakage_style == crate::rules::freeciv::TechnologyLeakageStyle::Embassies
-            && effect_value(&rules.effects, "Tech_Leakage", &context)
-                .expect("campaign Tech_Leakage effects are evaluable")
-                > 0
+            && context.effect(EffectKind::TechLeakage) > 0
         {
             let mut alive = 0;
             let mut sources = 0;
@@ -441,14 +437,6 @@ impl Simulation {
         self.players[owner].research_saved = 0;
     }
 
-    fn player_effect_value(&self, owner: usize, kind: &str) -> i64 {
-        let rules = RulesetData::campaign_default();
-        let context = SimulationRequirementContext::for_player_at(self, owner, None)
-            .with_government(self.players[owner].government);
-        effect_value(&rules.effects, kind, &context)
-            .unwrap_or_else(|error| panic!("could not evaluate campaign {kind} effects: {error:?}"))
-    }
-
     pub(crate) fn technology_upkeep(&self, owner: usize) -> i32 {
         let player = &self.players[owner];
         let settings = campaign_research_settings();
@@ -479,8 +467,8 @@ impl Simulation {
         } else {
             0
         };
-        let cost_percent = self.player_effect_value(owner, "Tech_Cost_Pct");
-        let free = self.player_effect_value(owner, "Tech_Upkeep_Free");
+        let cost_percent = self.player_effect(owner, EffectKind::TechCostPct);
+        let free = self.player_effect(owner, EffectKind::TechUpkeepFree);
         let cities = match settings.upkeep_style {
             crate::rules::freeciv::TechnologyUpkeepStyle::Cities => self
                 .cities

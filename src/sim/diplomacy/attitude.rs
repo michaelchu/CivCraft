@@ -2,20 +2,6 @@
 
 use super::*;
 
-fn campaign_ai_effect_value(
-    context: &impl crate::rules::freeciv::EffectContext,
-    kind: &str,
-    scope: &str,
-) -> i32 {
-    let rules = crate::rules::freeciv::RulesetData::campaign_default();
-    i32::try_from(
-        crate::rules::freeciv::effect_value(&rules.effects, kind, context).unwrap_or_else(
-            |error| panic!("could not evaluate C2C3 {kind} for AI {scope}: {error:?}"),
-        ),
-    )
-    .unwrap_or_else(|_| panic!("C2C3 {kind} exceeds AI {scope} range"))
-}
-
 impl Simulation {
     pub(in crate::sim) fn refresh_diplomatic_intelligence(&mut self) {
         let mut cache = std::collections::BTreeMap::new();
@@ -61,22 +47,6 @@ impl Simulation {
             .is_some_and(|relation| relation.first_contact.is_some() && relation.pact == Pact::War)
     }
 
-    pub(super) fn campaign_city_effect(&self, city: &City, kind: &str) -> i32 {
-        let context = super::super::action_rules::SimulationRequirementContext::for_city_at(
-            self,
-            city,
-            Some((city.x, city.y)),
-        );
-        campaign_ai_effect_value(&context, kind, "city value")
-    }
-
-    pub(super) fn campaign_player_effect(&self, owner: usize, kind: &str) -> i32 {
-        let context = super::super::action_rules::SimulationRequirementContext::for_player_at(
-            self, owner, None,
-        );
-        campaign_ai_effect_value(&context, kind, "player value")
-    }
-
     pub(super) fn ai_war_desire(&self, owner: usize, target: usize) -> i32 {
         // daidiplomacy.c:dai_war_desire. This intentionally uses type power,
         // not current HP, veteran level or battle odds.
@@ -87,7 +57,12 @@ impl Simulation {
             want += 100 + city.size * 20 + output.shield_surplus() * 8 + output.trade * 6;
             // daidiplomacy.c uses get_city_bonus(EFT_DEFEND_BONUS) without a
             // unit context, matching Freeciv's certain-only effect query.
-            fear += self.campaign_city_effect(city, "Defend_Bonus");
+            fear += super::super::action_rules::SimulationRequirementContext::for_city_at(
+                self,
+                city,
+                Some((city.x, city.y)),
+            )
+            .effect_i32(EffectKind::DefendBonus);
             let mut appraisal = city.clone();
             appraisal.owner = owner;
             for &building in &city.buildings {
@@ -291,7 +266,11 @@ impl Simulation {
                     // daidiplomacy.c:get_player_bonus(EFT_GAIN_AI_LOVE) lets
                     // C2C3's selected effects decide which wonders apply and
                     // when (including the Apollo Program requirement).
-                    love += self.campaign_player_effect(other, "Gain_AI_Love");
+                    love +=
+                        super::super::action_rules::SimulationRequirementContext::for_player_at(
+                            self, other, None,
+                        )
+                        .effect_i32(EffectKind::GainAiLove);
                 }
                 if let Some((target, desire)) = desires[&owner]
                     && target == other

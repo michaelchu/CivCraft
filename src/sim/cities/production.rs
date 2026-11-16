@@ -112,7 +112,7 @@ impl Simulation {
         let celebrating = self.base_city_celebrating(city) && self.city_forecast(city).happy;
         self.city_rule_effect(
             city,
-            "Rapture_Grow",
+            EffectKind::RaptureGrow,
             None,
             None,
             None,

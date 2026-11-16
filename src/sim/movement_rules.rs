@@ -48,7 +48,8 @@ impl<'a> MovementRules<'a> {
         &self,
         terrain: Terrain,
     ) -> Result<TerrainMovementData, MovementRulesError> {
-        let rule_name = c2c3_terrain_rule_name(terrain)
+        let rule_name = terrain
+            .c2c3_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         if self.uses_native_terrain() {
             let record = self.native_terrain(rule_name)?;
@@ -196,7 +197,8 @@ impl<'a> MovementRules<'a> {
         if direct != 0 {
             return Ok(direct);
         }
-        let terrain_rule_name = c2c3_terrain_rule_name(terrain)
+        let terrain_rule_name = terrain
+            .c2c3_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         if self.uses_native_terrain() {
             let terrain_record = self.native_terrain(terrain_rule_name)?;
@@ -240,7 +242,8 @@ impl<'a> MovementRules<'a> {
         if direct != 0 {
             return Ok(direct);
         }
-        let terrain_rule_name = c2c3_terrain_rule_name(terrain)
+        let terrain_rule_name = terrain
+            .c2c3_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         if self.uses_native_terrain() {
             let terrain_record = self.native_terrain(terrain_rule_name)?;
@@ -332,7 +335,8 @@ impl<'a> MovementRules<'a> {
         &self,
         terrain: Terrain,
     ) -> Result<Vec<String>, MovementRulesError> {
-        let rule_name = c2c3_terrain_rule_name(terrain)
+        let rule_name = terrain
+            .c2c3_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         if self.uses_native_terrain() {
             return Ok(self.native_terrain(rule_name)?.native_to.clone());
@@ -346,7 +350,8 @@ impl<'a> MovementRules<'a> {
         terrain: Terrain,
         flag: TerrainFlag,
     ) -> Result<bool, MovementRulesError> {
-        let rule_name = c2c3_terrain_rule_name(terrain)
+        let rule_name = terrain
+            .c2c3_rule_name()
             .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?;
         if self.uses_native_terrain() {
             return Ok(self
@@ -368,11 +373,7 @@ impl<'a> MovementRules<'a> {
         &self,
         terrain: Terrain,
     ) -> Result<i32, MovementRulesError> {
-        let rule_name = match terrain {
-            Terrain::Volcano => "Mountains",
-            terrain => c2c3_terrain_rule_name(terrain)
-                .ok_or(MovementRulesError::UnsupportedTerrain(terrain))?,
-        };
+        let rule_name = terrain.c2c3_rugged_rule_name();
         if self.uses_native_terrain() {
             return Ok(self.native_terrain(rule_name)?.defense_bonus);
         }
@@ -386,7 +387,7 @@ impl<'a> MovementRules<'a> {
         class: UnitClass,
     ) -> Result<bool, MovementRulesError> {
         let classes = self.terrain_native_classes(terrain)?;
-        Ok(has_flag(&classes, c2c3_unit_class_rule_name(class)))
+        Ok(has_flag(&classes, class.rule_name()))
     }
 
     /// Check tile nativity from selected terrain and extra records while
@@ -413,7 +414,7 @@ impl<'a> MovementRules<'a> {
             return Ok(true);
         }
         if let Some(base) = base
-            && self.extra_is_native_to_class(c2c3_base_extra_rule_name(base), class)?
+            && self.extra_is_native_to_class(base.extra_rule_name(), class)?
         {
             return Ok(true);
         }
@@ -523,52 +524,53 @@ impl<'a> MovementRules<'a> {
                 )
             })?;
 
-        let mut movement_cost =
-            if !class_data.terrain_speed {
-                fragments
-            } else if ignores_terrain {
-                self.igter_cost()?
-            } else {
-                let mut worst_terrain_cost = 1;
-                if self.uses_native_terrain() {
-                    for terrain in &crate::rules::native::terrain().terrains {
-                        if terrain.flags.iter().any(|flag| {
-                            flag.eq_ignore_ascii_case(TerrainFlag::NotGenerated.rule_name())
-                        }) {
-                            continue;
-                        }
-                        if terrain.native_to.iter().any(|native| {
-                            native.eq_ignore_ascii_case(c2c3_unit_class_rule_name(class))
-                        }) {
-                            worst_terrain_cost = worst_terrain_cost.max(terrain.movement_cost);
-                        }
+        let mut movement_cost = if !class_data.terrain_speed {
+            fragments
+        } else if ignores_terrain {
+            self.igter_cost()?
+        } else {
+            let mut worst_terrain_cost = 1;
+            if self.uses_native_terrain() {
+                for terrain in &crate::rules::native::terrain().terrains {
+                    if terrain.flags.iter().any(|flag| {
+                        flag.eq_ignore_ascii_case(TerrainFlag::NotGenerated.rule_name())
+                    }) {
+                        continue;
                     }
-                } else {
-                    for terrain in self
-                        .rules
-                        .content
+                    if terrain
+                        .native_to
                         .iter()
-                        .filter(|record| record.kind == ContentKind::Terrain)
+                        .any(|native| native.eq_ignore_ascii_case(class.rule_name()))
                     {
-                        let flags = required_content_string_values(terrain, "flags")?;
-                        if has_flag(&flags, TerrainFlag::NotGenerated.rule_name()) {
-                            continue;
-                        }
-                        let native_classes = required_content_string_list(terrain, "native_to")?;
-                        if has_flag(&native_classes, c2c3_unit_class_rule_name(class)) {
-                            let cost = required_nonnegative_integer(terrain, "movement_cost")?;
-                            worst_terrain_cost = worst_terrain_cost.max(cost);
-                        }
+                        worst_terrain_cost = worst_terrain_cost.max(terrain.movement_cost);
                     }
                 }
-                worst_terrain_cost.checked_mul(fragments).ok_or_else(|| {
-                    invalid_field(
-                        "unknown tile movement cost",
-                        "movement_cost",
-                        "native terrain cost exceeds i32 range after movement-fragment scaling",
-                    )
-                })?
-            };
+            } else {
+                for terrain in self
+                    .rules
+                    .content
+                    .iter()
+                    .filter(|record| record.kind == ContentKind::Terrain)
+                {
+                    let flags = required_content_string_values(terrain, "flags")?;
+                    if has_flag(&flags, TerrainFlag::NotGenerated.rule_name()) {
+                        continue;
+                    }
+                    let native_classes = required_content_string_list(terrain, "native_to")?;
+                    if has_flag(&native_classes, class.rule_name()) {
+                        let cost = required_nonnegative_integer(terrain, "movement_cost")?;
+                        worst_terrain_cost = worst_terrain_cost.max(cost);
+                    }
+                }
+            }
+            worst_terrain_cost.checked_mul(fragments).ok_or_else(|| {
+                invalid_field(
+                    "unknown tile movement cost",
+                    "movement_cost",
+                    "native terrain cost exceeds i32 range after movement-fragment scaling",
+                )
+            })?
+        };
 
         // Freeciv doubles this estimate if any terrain with a nonempty
         // native_to list excludes the unit class. It intentionally does not
@@ -587,7 +589,7 @@ impl<'a> MovementRules<'a> {
                     && !terrain
                         .native_to
                         .iter()
-                        .any(|native| native.eq_ignore_ascii_case(c2c3_unit_class_rule_name(class)))
+                        .any(|native| native.eq_ignore_ascii_case(class.rule_name()))
                 {
                     may_be_non_native = true;
                     break;
@@ -605,9 +607,7 @@ impl<'a> MovementRules<'a> {
                     continue;
                 }
                 let native_classes = required_content_string_list(terrain, "native_to")?;
-                if !native_classes.is_empty()
-                    && !has_flag(&native_classes, c2c3_unit_class_rule_name(class))
-                {
+                if !native_classes.is_empty() && !has_flag(&native_classes, class.rule_name()) {
                     may_be_non_native = true;
                     break;
                 }
@@ -632,7 +632,7 @@ impl<'a> MovementRules<'a> {
         &self,
         class: UnitClass,
     ) -> Result<UnitClassMovementData, MovementRulesError> {
-        let rule_name = c2c3_unit_class_rule_name(class);
+        let rule_name = class.rule_name();
         let record = unique_rule_record(self.rules, "unit_class", rule_name)?;
         let flags = required_rule_string_list(record, "flags")?;
         Ok(UnitClassMovementData {
@@ -738,7 +738,7 @@ impl<'a> MovementRules<'a> {
         class: UnitClass,
     ) -> Result<bool, MovementRulesError> {
         let classes = self.extra_native_classes(extra_rule_name)?;
-        Ok(has_flag(&classes, c2c3_unit_class_rule_name(class)))
+        Ok(has_flag(&classes, class.rule_name()))
     }
 
     /// Read a selected extra's defender bonus after checking its native unit
@@ -982,44 +982,65 @@ pub(super) enum MovementRulesError {
 /// Desert and Grassland C2C3 base records, respectively. Volcano has no C2C3
 /// terrain equivalent and remains explicitly unsupported except for the
 /// movement-only rugged-terrain adaptations in cost and native-tile lookups.
-pub(super) fn c2c3_terrain_rule_name(terrain: Terrain) -> Option<&'static str> {
-    Some(match terrain {
-        Terrain::Sea => "Ocean",
-        Terrain::Ocean => "Deep Ocean",
-        Terrain::Lake | Terrain::Coast => "Lake",
-        Terrain::Glacier => "Glacier",
-        Terrain::Jungle => "Jungle",
-        Terrain::Desert | Terrain::FloodPlains => "Desert",
-        Terrain::Forest => "Forest",
-        Terrain::Grassland | Terrain::GrasslandShield => "Grassland",
-        Terrain::Hills => "Hills",
-        Terrain::Mountains => "Mountains",
-        Terrain::Plains => "Plains",
-        Terrain::Marsh => "Swamp",
-        Terrain::Tundra => "Tundra",
-        Terrain::Volcano => return None,
-    })
-}
+impl Terrain {
+    /// See the crosswalk notes above; `None` only for Volcano.
+    pub(in crate::sim) fn c2c3_rule_name(self) -> Option<&'static str> {
+        Some(match self {
+            Terrain::Sea => "Ocean",
+            Terrain::Ocean => "Deep Ocean",
+            Terrain::Lake | Terrain::Coast => "Lake",
+            Terrain::Glacier => "Glacier",
+            Terrain::Jungle => "Jungle",
+            Terrain::Desert | Terrain::FloodPlains => "Desert",
+            Terrain::Forest => "Forest",
+            Terrain::Grassland | Terrain::GrasslandShield => "Grassland",
+            Terrain::Hills => "Hills",
+            Terrain::Mountains => "Mountains",
+            Terrain::Plains => "Plains",
+            Terrain::Marsh => "Swamp",
+            Terrain::Tundra => "Tundra",
+            Terrain::Volcano => return None,
+        })
+    }
 
-pub(super) fn c2c3_unit_class_rule_name(class: UnitClass) -> &'static str {
-    match class {
-        UnitClass::Land => "Land",
-        UnitClass::SmallLand => "Small Land",
-        UnitClass::BigLand => "Big Land",
-        UnitClass::Sea => "Sea",
-        UnitClass::Trireme => "Trireme",
-        UnitClass::Air => "Air",
-        UnitClass::Helicopter => "Helicopter",
-        UnitClass::Missile => "Missile",
+    /// [`Self::c2c3_rule_name`] with CivCraft's rugged-terrain adaptation:
+    /// Volcano borrows the Mountains record. Only mechanics that document
+    /// this adaptation (terrain defense and tile output) may use it.
+    pub(in crate::sim) fn c2c3_rugged_rule_name(self) -> &'static str {
+        match self {
+            Terrain::Volcano => "Mountains",
+            terrain => terrain
+                .c2c3_rule_name()
+                .expect("every terrain except Volcano has a C2C3 record"),
+        }
     }
 }
 
-pub(super) fn c2c3_base_extra_rule_name(base: Base) -> &'static str {
-    match base {
-        Base::Fort => "Fort",
-        Base::Fortress => "Fortress",
-        Base::Airstrip => "Airstrip",
-        Base::Airbase => "Airbase",
+impl UnitClass {
+    /// The selected C2C3 unit-class rule name.
+    pub(in crate::sim) fn rule_name(self) -> &'static str {
+        match self {
+            UnitClass::Land => "Land",
+            UnitClass::SmallLand => "Small Land",
+            UnitClass::BigLand => "Big Land",
+            UnitClass::Sea => "Sea",
+            UnitClass::Trireme => "Trireme",
+            UnitClass::Air => "Air",
+            UnitClass::Helicopter => "Helicopter",
+            UnitClass::Missile => "Missile",
+        }
+    }
+}
+
+impl Base {
+    /// The selected C2C3 extra rule name for this base.
+    pub(in crate::sim) fn extra_rule_name(self) -> &'static str {
+        match self {
+            Base::Fort => "Fort",
+            Base::Fortress => "Fortress",
+            Base::Airstrip => "Airstrip",
+            Base::Airbase => "Airbase",
+        }
     }
 }
 
@@ -1496,7 +1517,7 @@ mod tests {
                 );
                 continue;
             };
-            assert_eq!(c2c3_terrain_rule_name(terrain), Some(source_name));
+            assert_eq!(terrain.c2c3_rule_name(), Some(source_name));
             let record = terrain_record(rules, source_name);
             let adapted = adapter.terrain_data(terrain).unwrap();
             assert_eq!(adapted.rule_name, record.rule_name, "{terrain:?}");
@@ -1630,7 +1651,7 @@ mod tests {
         let rules = campaign_rules();
         let adapter = MovementRules::new(rules);
         for (class, source_name) in UNIT_CLASS_ADAPTER {
-            assert_eq!(c2c3_unit_class_rule_name(class), source_name);
+            assert_eq!(class.rule_name(), source_name);
             let record = rules
                 .rule_records
                 .iter()
@@ -1719,7 +1740,7 @@ mod tests {
         let igter_cost = adapter.igter_cost().unwrap();
         for kind in UnitKind::ALL_NATIVE {
             let class = adapter.unit_class_for_kind(kind).unwrap();
-            let class_name = c2c3_unit_class_rule_name(class);
+            let class_name = class.rule_name();
             let class_record = rules
                 .rule_records
                 .iter()
@@ -1869,7 +1890,7 @@ mod tests {
             (Base::Airstrip, "Airstrip"),
             (Base::Airbase, "Airbase"),
         ] {
-            assert_eq!(c2c3_base_extra_rule_name(base), name);
+            assert_eq!(base.extra_rule_name(), name);
             assert!(adapter.extra_native_classes(name).is_ok(), "{name}");
         }
         assert!(

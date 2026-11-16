@@ -74,7 +74,7 @@ impl Simulation {
                 let adjacent = self.tile(nx, ny);
                 adjacent.terrain.is_water() || adjacent.river
             });
-        let terrain_name = super::movement_rules::c2c3_terrain_rule_name(tile.terrain)?;
+        let terrain_name = tile.terrain.c2c3_rule_name()?;
         let record = Self::climate_terrain_record(terrain_name);
         let (wet_field, dry_field) = if warming {
             ("warmer_wetter_result", "warmer_drier_result")
@@ -108,12 +108,10 @@ impl Simulation {
     /// Climate changes use Freeciv's terrain-control parameters, while worker
     /// transforms keep the separate CivCraft legality helper in terrain_work.
     fn climate_change_allowed(&self, x: i32, y: i32, target: Terrain) -> bool {
-        let Some(source_name) =
-            super::movement_rules::c2c3_terrain_rule_name(self.tile(x, y).terrain)
-        else {
+        let Some(source_name) = self.tile(x, y).terrain.c2c3_rule_name() else {
             return false;
         };
-        let Some(target_name) = super::movement_rules::c2c3_terrain_rule_name(target) else {
+        let Some(target_name) = target.c2c3_rule_name() else {
             return false;
         };
         let source = Self::climate_terrain_record(source_name);
@@ -139,7 +137,9 @@ impl Simulation {
         let adjacent_ocean = adjacent
             .iter()
             .filter(|&&(nx, ny)| {
-                super::movement_rules::c2c3_terrain_rule_name(self.tile(nx, ny).terrain)
+                self.tile(nx, ny)
+                    .terrain
+                    .c2c3_rule_name()
                     .is_some_and(|name| is_oceanic(Self::climate_terrain_record(name)))
             })
             .count() as i32;
@@ -165,7 +165,9 @@ impl Simulation {
         let frozen_neighbors = adjacent
             .iter()
             .filter(|&&(nx, ny)| {
-                super::movement_rules::c2c3_terrain_rule_name(self.tile(nx, ny).terrain)
+                self.tile(nx, ny)
+                    .terrain
+                    .c2c3_rule_name()
                     .is_some_and(|name| has_flag(Self::climate_terrain_record(name), "Frozen"))
             })
             .count() as i32;

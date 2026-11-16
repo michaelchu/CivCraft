@@ -127,7 +127,7 @@ fn martial_law_caps_follow_the_selected_c2c3_ruleset() {
         assert_eq!(
             game.city_rule_effect(
                 &city,
-                "Martial_Law_Max",
+                EffectKind::MartialLawMax,
                 None,
                 None,
                 None,
@@ -225,7 +225,7 @@ fn unit_unrest_still_changes_city_feelings_without_martial_law() {
         game.units.clear();
         let martial_law = game.city_rule_effect(
             &city,
-            "Martial_Law_Max",
+            EffectKind::MartialLawMax,
             None,
             None,
             None,

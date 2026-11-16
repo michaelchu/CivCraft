@@ -36,12 +36,12 @@ impl Simulation {
     }
 
     pub(crate) fn has_senate(&self, owner: usize) -> bool {
-        owner < self.players.len() && self.diplomacy_effect_value(owner, "Has_Senate") > 0
+        owner < self.players.len() && self.player_effect(owner, EffectKind::HasSenate) > 0
     }
 
     pub(crate) fn senate_blocks_cancellation(&self, owner: usize, other: usize) -> bool {
         self.has_senate(owner)
-            && self.diplomacy_effect_value(owner, "No_Anarchy") <= 0
+            && self.player_effect(owner, EffectKind::NoAnarchy) <= 0
             && self
                 .diplomacy
                 .get(&Self::relation_key(owner, other))
@@ -340,12 +340,20 @@ impl Simulation {
 
     fn treaty_length(&self, a: usize, b: usize, proposed: Pact) -> i32 {
         let (effect, default_length, take_minimum) = match proposed {
-            Pact::Ceasefire => ("Ceasefire_Length_Pct", DEFAULT_CEASEFIRE_LENGTH, true),
-            Pact::Peace => ("Armistice_Length_Pct", DEFAULT_ARMISTICE_LENGTH, false),
+            Pact::Ceasefire => (
+                EffectKind::CeasefireLengthPct,
+                DEFAULT_CEASEFIRE_LENGTH,
+                true,
+            ),
+            Pact::Peace => (
+                EffectKind::ArmisticeLengthPct,
+                DEFAULT_ARMISTICE_LENGTH,
+                false,
+            ),
             _ => return 0,
         };
-        let percent_a = self.diplomacy_effect_value(a, effect);
-        let percent_b = self.diplomacy_effect_value(b, effect);
+        let percent_a = self.player_effect(a, effect);
+        let percent_b = self.player_effect(b, effect);
         let percent = if take_minimum {
             percent_a.min(percent_b)
         } else {

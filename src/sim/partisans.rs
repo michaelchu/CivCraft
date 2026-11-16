@@ -7,7 +7,6 @@
 //! `"conquest"` transfer reason and only if the city survived conquest.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, effect_value};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PartisanCitizenSettings {
@@ -88,12 +87,10 @@ impl Simulation {
         // defeated owner, not the new city owner. Its selected C2C3 effects
         // supply government, Communism, Gunpowder, world Guerilla Warfare, and
         // non-barbarian requirements through the shared evaluator.
-        let rules = RulesetData::campaign_default();
         let effect_context = super::action_rules::SimulationRequirementContext::for_player_in_city(
             self, defender, &city,
         );
-        let inspiration = effect_value(&rules.effects, "Inspire_Partisans", &effect_context)
-            .expect("campaign C2C3 Inspire_Partisans requirements are supported");
+        let inspiration = effect_context.effect(EffectKind::InspirePartisans);
         if inspiration <= 0 {
             return 0;
         }
@@ -264,17 +261,13 @@ mod tests {
     #[test]
     fn partisan_callback_uses_effect_value_for_the_loser_and_rejects_barbarians() {
         let (mut game, city) = captured_city_fixture();
-        let rules = RulesetData::campaign_default();
         let city_record = game.cities[city].clone();
         let context = super::super::action_rules::SimulationRequirementContext::for_player_in_city(
             &game,
             1,
             &city_record,
         );
-        assert_eq!(
-            effect_value(&rules.effects, "Inspire_Partisans", &context).unwrap(),
-            0
-        );
+        assert_eq!(context.effect(EffectKind::InspirePartisans), 0);
         game.players[1].government = Government::Democracy;
         game.players[1]
             .known
@@ -286,10 +279,7 @@ mod tests {
             1,
             &city_record,
         );
-        assert_eq!(
-            effect_value(&rules.effects, "Inspire_Partisans", &context).unwrap(),
-            1
-        );
+        assert_eq!(context.effect(EffectKind::InspirePartisans), 1);
         assert_eq!(game.inspire_partisans(city, BARBARIANS), 0);
     }
 }

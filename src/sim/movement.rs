@@ -12,7 +12,7 @@
 
 use super::movement_rules::{MovementRules, MovementTile};
 use super::*;
-use crate::rules::freeciv::{RulesetData, effect_value};
+use crate::rules::freeciv::RulesetData;
 
 mod activities;
 mod combat;
@@ -151,10 +151,8 @@ impl Simulation {
         } else {
             base
         };
-        let ruleset = RulesetData::campaign_default();
         let context = super::action_rules::SimulationRequirementContext::for_unit(self, unit);
-        let effect_bonus = effect_value(&ruleset.effects, "Move_Bonus", &context)
-            .expect("campaign C2C3 Move_Bonus requirements are supported");
+        let effect_bonus = context.effect(EffectKind::MoveBonus);
         rate += i32::try_from(effect_bonus).expect("campaign C2C3 movement bonus fits in i32")
             * fragments;
         let minimum = (class.min_speed * fragments).min(base);
@@ -819,13 +817,9 @@ impl Simulation {
     }
 
     fn spend_action_success_move_cost(&mut self, actor: &Unit, action: &str) -> i32 {
-        let cost = effect_value(
-            &RulesetData::campaign_default().effects,
-            "Action_Success_Actor_Move_Cost",
-            &super::action_rules::SimulationRequirementContext::for_unit(self, actor)
-                .with_action(action),
-        )
-        .expect("campaign C2C3 action movement-cost requirements are supported");
+        let cost = super::action_rules::SimulationRequirementContext::for_unit(self, actor)
+            .with_action(action)
+            .effect(EffectKind::ActionSuccessActorMoveCost);
         let cost = i32::try_from(cost).expect("campaign C2C3 action movement cost fits in i32");
         if let Some(live_actor) = self.units.iter_mut().find(|unit| unit.id == actor.id) {
             live_actor.moves_left = (live_actor.moves_left - cost).max(0);

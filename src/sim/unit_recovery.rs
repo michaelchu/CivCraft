@@ -1,7 +1,6 @@
 //! Ruleset-driven hitpoint recovery and attrition.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, effect_value};
 use crate::sim::movement_rules::MovementRules;
 
 impl Simulation {
@@ -18,7 +17,6 @@ impl Simulation {
     }
 
     fn unit_hitpoint_delta_per_turn(&self, unit: &Unit, x: i32, y: i32) -> i32 {
-        let rules = RulesetData::campaign_default();
         let context =
             super::action_rules::SimulationRequirementContext::for_unit_at(self, unit, (x, y));
         let base = unit.max_hit_points();
@@ -28,12 +26,9 @@ impl Simulation {
 
         let mut gain = 0;
         if !unit.moved {
-            let hp_regen = effect_value(&rules.effects, "HP_Regen", &context)
-                .expect("campaign C2C3 HP_Regen requirements are supported");
-            let min_hp_pct = effect_value(&rules.effects, "Min_HP_Pct", &context)
-                .expect("campaign C2C3 Min_HP_Pct requirements are supported");
-            let regen_2 = effect_value(&rules.effects, "HP_Regen_2", &context)
-                .expect("campaign C2C3 HP_Regen_2 requirements are supported");
+            let hp_regen = context.effect(EffectKind::HpRegen);
+            let min_hp_pct = context.effect(EffectKind::MinHpPct);
+            let regen_2 = context.effect(EffectKind::HpRegen2);
             let regen = percent_of(
                 base,
                 i32::try_from(hp_regen).expect("campaign HP_Regen fits in i32"),
@@ -51,11 +46,7 @@ impl Simulation {
             gain += regen.max(minimum) + regen_2;
         }
 
-        gain += i32::try_from(
-            effect_value(&rules.effects, "Unit_Recover", &context)
-                .expect("campaign C2C3 Unit_Recover requirements are supported"),
-        )
-        .expect("campaign Unit_Recover fits in i32");
+        gain += context.effect_i32(EffectKind::UnitRecover);
 
         // The selected server default is killunhomed=0, so no additional
         // unhomed attrition applies. Non-native class attrition remains active
@@ -93,10 +84,7 @@ impl Simulation {
             .unit_class_for_kind(kind)
             .expect("campaign C2C3 unit class is explicitly mapped");
         movement
-            .extra_is_native_to_class(
-                crate::sim::movement_rules::c2c3_base_extra_rule_name(base),
-                class,
-            )
+            .extra_is_native_to_class(base.extra_rule_name(), class)
             .expect("campaign C2C3 base nativity is supported")
     }
 }

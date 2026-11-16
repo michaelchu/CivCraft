@@ -2,7 +2,7 @@
 //! rules.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, effect_value, requirements_met};
+use crate::rules::freeciv::{RulesetData, requirements_met};
 use std::collections::HashSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -251,15 +251,7 @@ impl Simulation {
         let context =
             super::action_rules::SimulationRequirementContext::for_unit_at(self, weapon, (x, y))
                 .with_action(action);
-        i32::try_from(
-            effect_value(
-                &RulesetData::campaign_default().effects,
-                "Nuke_Blast_Radius_1_Sq",
-                &context,
-            )
-            .expect("selected C2C3 nuclear blast-radius effects are supported"),
-        )
-        .expect("selected C2C3 nuclear blast radius fits in i32")
+        context.effect_i32(EffectKind::NukeBlastRadius1Sq)
     }
 
     fn nuclear_blast_tiles(&self, x: i32, y: i32, radius_sq: i32) -> Vec<(i32, i32)> {
@@ -284,12 +276,7 @@ impl Simulation {
             super::action_rules::SimulationRequirementContext::for_city_at(self, city, Some(blast))
                 .with_relation_target(Some(weapon.owner))
                 .with_action(action);
-        let value = effect_value(
-            &RulesetData::campaign_default().effects,
-            "Nuke_Proof",
-            &context,
-        )
-        .expect("selected C2C3 Nuke_Proof requirements are supported");
+        let value = context.effect(EffectKind::NukeProof);
         i32::try_from(value).expect("selected C2C3 Nuke_Proof value fits in i32")
     }
 

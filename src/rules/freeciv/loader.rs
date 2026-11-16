@@ -1,5 +1,6 @@
 //! Filesystem loading and typed decoding for native Freeciv rulesets.
 
+use crate::rules::freeciv::RequirementKind;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -108,7 +109,7 @@ impl RulesetData {
             files,
             settings,
             parameters,
-            effects,
+            effects: effects.into(),
             actions,
             action_enablers,
             content,
@@ -288,6 +289,7 @@ fn parse_effect(file: &Path, section: &Section) -> Result<EffectRecord, LoadErro
         super::identifiers::EFFECT_NAMES,
         "effect type",
     )?;
+    let kind = super::EffectKind::parse(&kind).expect("validated effect type");
     let value = match field_value(section, "value") {
         Some(Value::Integer(value)) => *value,
         None | Some(Value::Empty) => 1,
@@ -531,6 +533,7 @@ fn parse_requirement(
         super::identifiers::REQUIREMENT_KINDS,
         "requirement type",
     )?;
+    let kind = super::RequirementKind::parse(&kind).expect("validated requirement type");
     let name = match row_value(file, section, entry, row, "name")? {
         Value::String(value) => RequirementValue::String(value.clone()),
         Value::Integer(value) => RequirementValue::Integer(*value),
@@ -629,171 +632,176 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
     let Some(name) = requirement_name_text(&requirement.name) else {
         return false;
     };
-    match requirement.kind.to_ascii_lowercase().as_str() {
-        "none" => true,
-        "achievement" => record_name_exists(rules, "achievement", &name),
-        "action" => {
+    match requirement.kind {
+        RequirementKind::None => true,
+        RequirementKind::Achievement => record_name_exists(rules, "achievement", &name),
+        RequirementKind::Action => {
             super::identifiers::contains_case_insensitive(super::identifiers::ACTION_NAMES, &name)
         }
-        "activity" => {
+        RequirementKind::Activity => {
             super::identifiers::contains_case_insensitive(super::identifiers::ACTIVITY_NAMES, &name)
         }
-        "tech" => content_name_exists(rules, ContentKind::Technology, &name),
-        "age" => integer_value(&name).is_some_and(|value| value > 0),
-        "ai" => {
+        RequirementKind::Tech => content_name_exists(rules, ContentKind::Technology, &name),
+        RequirementKind::Age => integer_value(&name).is_some_and(|value| value > 0),
+        RequirementKind::Ai => {
             super::identifiers::contains_case_insensitive(super::identifiers::AI_LEVEL_NAMES, &name)
         }
-        "citystatus" => super::identifiers::contains_case_insensitive(
+        RequirementKind::CityStatus => super::identifiers::contains_case_insensitive(
             super::identifiers::CITY_STATUS_NAMES,
             &name,
         ),
-        "citytile" => super::identifiers::contains_case_insensitive(
+        RequirementKind::CityTile => super::identifiers::contains_case_insensitive(
             super::identifiers::CITY_TILE_NAMES,
             &name,
         ),
-        "counter" => record_name_exists(rules, "counter", &name),
-        "diplrel"
-        | "diplreltile"
-        | "diplreltileother"
-        | "diplrelunitany"
-        | "diplrelunitanyother" => super::identifiers::contains_case_insensitive(
+        RequirementKind::Counter => record_name_exists(rules, "counter", &name),
+        RequirementKind::DiplRel
+        | RequirementKind::DiplRelTile
+        | RequirementKind::DiplRelTileOther
+        | RequirementKind::DiplRelUnitAny
+        | RequirementKind::DiplRelUnitAnyOther => super::identifiers::contains_case_insensitive(
             super::identifiers::DIPLO_REL_NAMES,
             &name,
         ),
-        "extra" => record_name_exists(rules, "extra", &name),
-        "extraflag" => flag_name_exists(
+        RequirementKind::Extra => record_name_exists(rules, "extra", &name),
+        RequirementKind::ExtraFlag => flag_name_exists(
             rules,
             &name,
             "terrain.ruleset",
             "extra_flags",
             super::identifiers::EXTRA_FLAG_NAMES,
         ),
-        "formage" => integer_value(&name).is_some_and(|value| value > 0),
-        "futuretechs" => integer_value(&name).is_some_and(|value| value > 0),
-        "good" => record_name_exists(rules, "goods", &name),
-        "gov" => content_name_exists(rules, ContentKind::Government, &name),
-        "govflag" => flag_name_exists(
+        RequirementKind::FormAge => integer_value(&name).is_some_and(|value| value > 0),
+        RequirementKind::FutureTechs => integer_value(&name).is_some_and(|value| value > 0),
+        RequirementKind::Good => record_name_exists(rules, "goods", &name),
+        RequirementKind::Gov => content_name_exists(rules, ContentKind::Government, &name),
+        RequirementKind::GovFlag => flag_name_exists(
             rules,
             &name,
             "governments.ruleset",
             "flags",
             super::identifiers::GOV_FLAG_NAMES,
         ),
-        "building" => content_name_exists(rules, ContentKind::Building, &name),
-        "buildingflag" => flag_name_exists(
+        RequirementKind::Building => content_name_exists(rules, ContentKind::Building, &name),
+        RequirementKind::BuildingFlag => flag_name_exists(
             rules,
             &name,
             "buildings.ruleset",
             "building_flags",
             super::identifiers::BUILDING_FLAG_NAMES,
         ),
-        "buildinggenus" => super::identifiers::contains_case_insensitive(
+        RequirementKind::BuildingGenus => super::identifiers::contains_case_insensitive(
             super::identifiers::IMPR_GENUS_NAMES,
             &name,
         ),
-        "maxlatitude" | "minlatitude" => {
+        RequirementKind::MaxLatitude | RequirementKind::MinLatitude => {
             integer_value(&name).is_some_and(|value| (-1000..=1000).contains(&value))
         }
-        "maxtopunitsontile" | "maxunitsontile" | "maxdistancesq" => {
-            integer_value(&name).is_some_and(|value| value >= 0)
-        }
-        "maxregiontiles" => integer_value(&name).is_some_and(|value| value > 0),
-        "mincalfrag" => integer_value(&name).is_some_and(|value| value >= 0),
-        "mincities" | "minculture" | "minforeignpct" | "minhitpoints" | "minmovefrags"
-        | "minsize" | "mintechs" | "minveteran" | "minyear" => {
-            integer_value(&name).is_some_and(|value| {
-                if requirement.kind.eq_ignore_ascii_case("MinYear") {
-                    true
-                } else {
-                    value > 0
-                }
-            })
-        }
-        "nation" | "nationality" | "originalowner" => {
+        RequirementKind::MaxTopUnitsOnTile
+        | RequirementKind::MaxUnitsOnTile
+        | RequirementKind::MaxDistanceSq => integer_value(&name).is_some_and(|value| value >= 0),
+        RequirementKind::MaxRegionTiles => integer_value(&name).is_some_and(|value| value > 0),
+        RequirementKind::MinCalFrag => integer_value(&name).is_some_and(|value| value >= 0),
+        RequirementKind::MinCities
+        | RequirementKind::MinCulture
+        | RequirementKind::MinForeignPct
+        | RequirementKind::MinHitPoints
+        | RequirementKind::MinMoveFrags
+        | RequirementKind::MinSize
+        | RequirementKind::MinTechs
+        | RequirementKind::MinVeteran
+        | RequirementKind::MinYear => integer_value(&name).is_some_and(|value| {
+            if requirement.kind == RequirementKind::MinYear {
+                true
+            } else {
+                value > 0
+            }
+        }),
+        RequirementKind::Nation | RequirementKind::Nationality | RequirementKind::OriginalOwner => {
             content_name_exists(rules, ContentKind::Nation, &name)
         }
-        "nationgroup" => record_name_exists(rules, "nation_group", &name),
-        "outputtype" => super::identifiers::contains_case_insensitive(
+        RequirementKind::NationGroup => record_name_exists(rules, "nation_group", &name),
+        RequirementKind::OutputType => super::identifiers::contains_case_insensitive(
             super::identifiers::OUTPUT_TYPE_NAMES,
             &name,
         ),
-        "playerflag" => super::identifiers::contains_case_insensitive(
+        RequirementKind::PlayerFlag => super::identifiers::contains_case_insensitive(
             super::identifiers::PLAYER_FLAG_NAMES,
             &name,
         ),
-        "playerstate" => super::identifiers::contains_case_insensitive(
+        RequirementKind::PlayerState => super::identifiers::contains_case_insensitive(
             super::identifiers::PLAYER_STATE_NAMES,
             &name,
         ),
-        "roadflag" => flag_name_exists(
+        RequirementKind::RoadFlag => flag_name_exists(
             rules,
             &name,
             "terrain.ruleset",
             "road_flags",
             super::identifiers::ROAD_FLAG_NAMES,
         ),
-        "serversetting" => rules
+        RequirementKind::ServerSetting => rules
             .settings
             .iter()
             .any(|setting| setting.name.eq_ignore_ascii_case(&name)),
-        "site" => content_name_exists(rules, ContentKind::Building, &name),
-        "specialist" => record_name_exists(rules, "specialist", &name),
-        "style" => content_name_exists(rules, ContentKind::Style, &name),
-        "techflag" => flag_name_exists(
+        RequirementKind::Site => content_name_exists(rules, ContentKind::Building, &name),
+        RequirementKind::Specialist => record_name_exists(rules, "specialist", &name),
+        RequirementKind::Style => content_name_exists(rules, ContentKind::Style, &name),
+        RequirementKind::TechFlag => flag_name_exists(
             rules,
             &name,
             "techs.ruleset",
             "flags",
             super::identifiers::TECH_FLAG_NAMES,
         ),
-        "terrain" => content_name_exists(rules, ContentKind::Terrain, &name),
-        "terrainalter" => super::identifiers::contains_case_insensitive(
+        RequirementKind::Terrain => content_name_exists(rules, ContentKind::Terrain, &name),
+        RequirementKind::TerrainAlter => super::identifiers::contains_case_insensitive(
             super::identifiers::TERRAIN_ALTER_NAMES,
             &name,
         ),
-        "terrainclass" => super::identifiers::contains_case_insensitive(
+        RequirementKind::TerrainClass => super::identifiers::contains_case_insensitive(
             super::identifiers::TERRAIN_CLASS_NAMES,
             &name,
         ),
-        "terrainflag" => flag_name_exists(
+        RequirementKind::TerrainFlag => flag_name_exists(
             rules,
             &name,
             "terrain.ruleset",
             "flags",
             super::identifiers::TERRAIN_FLAG_NAMES,
         ),
-        "tiledef" | "tiledefconnected" => record_name_exists(rules, "tile_definition", &name),
-        "tilerel" => {
+        RequirementKind::Tiledef | RequirementKind::TiledefConnected => {
+            record_name_exists(rules, "tile_definition", &name)
+        }
+        RequirementKind::TileRel => {
             super::identifiers::contains_case_insensitive(super::identifiers::TILE_REL_NAMES, &name)
         }
-        "topology" => {
+        RequirementKind::Topology => {
             super::identifiers::contains_case_insensitive(super::identifiers::TOPOLOGY_NAMES, &name)
         }
-        "unitclassflag" => flag_name_exists(
+        RequirementKind::UnitClassFlag => flag_name_exists(
             rules,
             &name,
             "units.ruleset",
             "class_flags",
             super::identifiers::UNIT_CLASS_FLAG_NAMES,
         ),
-        "unitclass" => record_name_exists(rules, "unit_class", &name),
-        "unitstate" => super::identifiers::contains_case_insensitive(
+        RequirementKind::UnitClass => record_name_exists(rules, "unit_class", &name),
+        RequirementKind::UnitState => super::identifiers::contains_case_insensitive(
             super::identifiers::UNIT_STATE_NAMES,
             &name,
         ),
-        "unittypeflag" => flag_name_exists(
+        RequirementKind::UnitTypeFlag => flag_name_exists(
             rules,
             &name,
             "units.ruleset",
             "flags",
             super::identifiers::UNIT_TYPE_FLAG_NAMES,
         ),
-        "unittype" => content_name_exists(rules, ContentKind::Unit, &name),
-        "wrap" => {
+        RequirementKind::UnitType => content_name_exists(rules, ContentKind::Unit, &name),
+        RequirementKind::Wrap => {
             super::identifiers::contains_case_insensitive(super::identifiers::WRAP_NAMES, &name)
-        }
-        // A known type without a source-backed resolver is rejected explicitly.
-        _ => false,
+        } // A known type without a source-backed resolver is rejected explicitly.
     }
 }
 
