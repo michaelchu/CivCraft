@@ -398,9 +398,7 @@ impl Simulation {
                 let score = site.value
                     * ((settings.discount_period - 1) as f64 / settings.discount_period as f64)
                         .powi(settings.perfection * turns)
-                    - f64::from(crate::sim::action_rules::freeciv_unit_build_cost(
-                        founder.kind,
-                    ));
+                    - f64::from(crate::sim::action_rules::unit_build_cost(founder.kind));
                 if score > best_score {
                     best = Some(index);
                     best_score = score;

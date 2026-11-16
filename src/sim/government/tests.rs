@@ -29,7 +29,7 @@ fn default_government_uses_selected_ruleset_unit_upkeep() {
     let support = game.city_unit_upkeep(&game.cities[0]);
     assert_eq!(support.shields, 0);
     assert_eq!(support.food, 0);
-    assert_eq!(support.gold, 1); // Despotism's two free gold slots leave one paid.
+    assert_eq!(support.gold, 0); // Native Despotism supports four units per town.
 }
 
 #[test]

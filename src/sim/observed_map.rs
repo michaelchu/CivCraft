@@ -8,15 +8,10 @@ use crate::rules::freeciv::{
     RequirementValue, RulesetData, effect_value,
 };
 use std::collections::BTreeMap;
-#[cfg(test)]
-#[path = "observed_map/unit_sight_bindings.rs"]
-mod unit_sight_bindings;
-#[cfg(test)]
-use unit_sight_bindings::{SightBinding, binding_for as unit_sight_binding_for};
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::sim) enum UnitVisionLayer {
     Main,
+    #[allow(dead_code)] // Retained engine layer; native stealth aircraft use main vision.
     Stealth,
     Subsurface,
 }
@@ -833,19 +828,20 @@ impl EffectContext for VisionRequirementContext<'_> {
 }
 
 fn native_unit_vision_radius_sq(kind: UnitKind) -> i32 {
-    super::action_rules::native_unit_economics_binding(kind)
-        .map(|binding| binding.vision_radius_sq)
-        .unwrap_or(2)
+    // Radar sees two tiles in all directions; ordinary native sight sees one.
+    if kind.conquests_rule().has_flag_1(0, 5) {
+        8
+    } else {
+        2
+    }
 }
 
 fn native_unit_vision_layer(kind: UnitKind) -> UnitVisionLayer {
-    let layer = super::action_rules::native_unit_economics_binding(kind)
-        .map_or("Main", |binding| binding.vision_layer.as_str());
-    match layer.to_ascii_lowercase().as_str() {
-        "main" => UnitVisionLayer::Main,
-        "stealth" => UnitVisionLayer::Stealth,
-        "subsurface" => UnitVisionLayer::Subsurface,
-        _ => panic!("invalid native vision_layer {layer:?} for {}", kind.name()),
+    if kind.conquests_rule().has_flag_1(0, 7) {
+        UnitVisionLayer::Subsurface
+    } else {
+        // Stealth affects air interception, not surface invisibility.
+        UnitVisionLayer::Main
     }
 }
 
@@ -853,51 +849,6 @@ fn native_unit_vision_layer(kind: UnitKind) -> UnitVisionLayer {
 fn ruleset_unit_vision_radius_sq(_ruleset: &RulesetData, kind: UnitKind) -> i32 {
     native_unit_vision_radius_sq(kind)
 }
-
-#[cfg(test)]
-fn ruleset_unit_vision_layer(_ruleset: &RulesetData, kind: UnitKind) -> UnitVisionLayer {
-    native_unit_vision_layer(kind)
-}
-
-#[allow(dead_code)] // Explicit unmapped records are checked against the selected ruleset in tests.
-struct FreecivUnitVisionGap {
-    freeciv_section: &'static str,
-    freeciv_radius_sq: i32,
-    civ3_catalog_id: Option<&'static str>,
-    civ3_source: Option<&'static str>,
-    fallback_radius_sq: i32,
-    note: &'static str,
-}
-
-/// Freeciv C2C3 unit records whose vision has no direct Civ III unit identity.
-/// Similar roles remain explicit candidates, never automatic substitutions.
-#[allow(dead_code)] // Keeps Freeciv-only unit records and candidate IDs explicit for audits.
-const UNMAPPED_FREECIV_UNIT_VISION: &[FreecivUnitVisionGap] = &[
-    FreecivUnitVisionGap {
-        freeciv_section: "unit_partisan",
-        freeciv_radius_sq: 6,
-        civ3_catalog_id: Some("guerilla"),
-        civ3_source: Some("Conquests/conquests.biq#PRTO[75]"),
-        fallback_radius_sq: 2,
-        note: "Civ III Guerilla exists, but no Partisan identity crosswalk is established.",
-    },
-    FreecivUnitVisionGap {
-        freeciv_section: "unit_spy",
-        freeciv_radius_sq: 8,
-        civ3_catalog_id: None,
-        civ3_source: None,
-        fallback_radius_sq: 2,
-        note: "Civ III Conquests has no Spy unit identity; espionage uses city actions.",
-    },
-    FreecivUnitVisionGap {
-        freeciv_section: "unit_awacs",
-        freeciv_radius_sq: 26,
-        civ3_catalog_id: Some("f_15"),
-        civ3_source: Some("Conquests/conquests.biq#PRTO[64]"),
-        fallback_radius_sq: 2,
-        note: "Civ III F-15 is a Jet Fighter, not an AWACS unit identity.",
-    },
-];
 
 #[cfg(test)]
 #[path = "observed_map/tests.rs"]

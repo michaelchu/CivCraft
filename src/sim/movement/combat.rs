@@ -607,8 +607,7 @@ impl Simulation {
             return false;
         }
 
-        super::super::action_rules::native_unit_economics_binding(unit.kind)
-            .is_some_and(|binding| binding.hp_loss_pct == 0)
+        true
     }
 
     fn safe_ocean_tile(&self, x: i32, y: i32) -> bool {

@@ -111,32 +111,20 @@ fn ferry_tech_want_requires_the_local_city_search_to_need_a_boat() {
 }
 
 #[test]
-fn settlement_ferry_candidates_follow_selected_c2c3_roles() {
-    use super::super::action_rules::freeciv_unit_has_role;
-
-    assert_eq!(
-        Simulation::settlement_ferry_unit_kinds().collect::<Vec<_>>(),
-        vec![
-            UnitKind::Galley,
-            UnitKind::Caravel,
-            UnitKind::Galleon,
-            UnitKind::Transport,
-        ]
-    );
-    assert!(freeciv_unit_has_role(UnitKind::Galley, "Ferryboat"));
-    assert!(!freeciv_unit_has_role(UnitKind::Galley, "BarbarianBoat"));
-    assert!(freeciv_unit_has_role(UnitKind::Caravel, "Ferryboat"));
-    assert!(freeciv_unit_has_role(UnitKind::Caravel, "BarbarianBoat"));
-    assert!(freeciv_unit_has_role(UnitKind::Galleon, "Ferryboat"));
-    assert!(freeciv_unit_has_role(UnitKind::Galleon, "BarbarianBoat"));
-    assert!(freeciv_unit_has_role(UnitKind::Transport, "Ferryboat"));
-    assert!(!freeciv_unit_has_role(UnitKind::Transport, "BarbarianBoat"));
-    assert!(!freeciv_unit_has_role(UnitKind::Carrack, "Ferryboat"));
-    assert!(!freeciv_unit_has_role(UnitKind::Carrack, "BarbarianBoat"));
-    assert!(!freeciv_unit_has_role(UnitKind::Dromon, "Ferryboat"));
-    assert!(!freeciv_unit_has_role(UnitKind::Dromon, "BarbarianBoat"));
-    assert!(!freeciv_unit_has_role(UnitKind::Curragh, "Ferryboat"));
-    assert!(!freeciv_unit_has_role(UnitKind::Curragh, "BarbarianBoat"));
+fn settlement_ferries_follow_native_transport_strategies() {
+    let candidates = Simulation::settlement_ferry_unit_kinds().collect::<Vec<_>>();
+    for kind in [
+        UnitKind::Galley,
+        UnitKind::Caravel,
+        UnitKind::Galleon,
+        UnitKind::Transport,
+        UnitKind::Carrack,
+        UnitKind::Dromon,
+    ] {
+        assert!(candidates.contains(&kind));
+        assert!(kind.has_ai_strategy(crate::sim::unit_catalog::UnitAiStrategy::NavalTransport));
+    }
+    assert!(!candidates.contains(&UnitKind::Curragh));
 }
 
 #[test]

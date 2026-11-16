@@ -137,6 +137,11 @@ impl Simulation {
         let fragments = movement_rules
             .move_fragments()
             .expect("campaign C2C3 movement fragment setting");
+        if unit.kind.conquests_rule().unit_type == 2 {
+            // Aircraft execute a one-turn mission within their source range;
+            // the planner's tile budget is not the PRTO action-count field.
+            return unit.kind.operational_range().max(1) * fragments;
+        }
         let class = movement_rules
             .unit_class_movement_data_for_kind(unit.kind)
             .expect("campaign C2C3 unit-class movement data");
@@ -391,8 +396,8 @@ impl Simulation {
         let can_occupy_city = profile.map_or_else(
             || {
                 rules
-                    .unit_class_movement_data(class)
-                    .expect("campaign C2C3 unit class data")
+                    .unit_class_movement_data_for_kind(unit.kind)
+                    .expect("native unit movement data")
                     .can_occupy_city
             },
             |profile| profile.can_occupy_city,

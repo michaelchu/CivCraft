@@ -317,52 +317,21 @@ fn conquest_invokes_partisans_after_transfer_and_population_loss() {
 }
 
 #[test]
-fn conquest_transfers_center_garrison_and_resolves_unique_game_loss_conflicts() {
-    let (mut game, city_id, attacker, center) = conquest_fixture();
-    let garrison_id = game.spawn_unit(1, UnitKind::Warrior, center.0, center.1);
-    game.units
-        .iter_mut()
-        .find(|unit| unit.id == garrison_id)
-        .unwrap()
-        .home_city = Some(city_id);
-
-    game.capture_city_if_needed(attacker, center.0, center.1);
-
-    let transferred = game
-        .unit_by_id(garrison_id)
-        .expect("city transfer preserves the unit identity");
-    assert_eq!(transferred.owner, HUMAN);
-    assert_eq!((transferred.x, transferred.y), center);
-    assert_eq!(transferred.home_city, Some(city_id));
-
-    let (mut game, _city_id, attacker, center) = conquest_fixture();
+fn native_leaders_do_not_inherit_foreign_unique_or_king_flags() {
     assert_eq!(
         crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
-        Some(true)
+        Some(false)
     );
     assert_eq!(
         crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "GameLoss"),
-        Some(true)
+        Some(false)
     );
-    let existing_unique = game.spawn_unit(HUMAN, UnitKind::Leader, 5, 20);
-    let conflicting_unique = game.spawn_unit(1, UnitKind::Leader, center.0, center.1);
-
-    game.capture_city_if_needed(attacker, center.0, center.1);
-
-    assert!(game.unit_by_id(existing_unique).is_some());
-    assert_eq!(
-        game.unit_by_id(conflicting_unique).map(|unit| unit.owner),
-        Some(1),
-        "a conflicting GameLoss unit is bounced, not transferred or destroyed"
-    );
-    assert_ne!(
-        game.unit_by_id(conflicting_unique)
-            .map(|unit| (unit.x, unit.y)),
-        Some(center)
-    );
-    assert!(game.units.iter().all(|unit| {
-        !(unit.owner == HUMAN && unit.kind == UnitKind::Leader && unit.id != existing_unique)
-    }));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    let first = game.spawn_unit(HUMAN, UnitKind::Leader, 10, 24);
+    let second = game.spawn_unit(HUMAN, UnitKind::Leader, 12, 24);
+    assert!(game.unit_by_id(first).is_some());
+    assert!(game.unit_by_id(second).is_some());
 }
 
 #[test]

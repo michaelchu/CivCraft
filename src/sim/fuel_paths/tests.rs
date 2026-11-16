@@ -120,10 +120,17 @@ fn refuel_waits_are_recorded_at_the_city_without_extending_the_mapped_fuel_range
         boundary.movement_cost(&sim, target.0, target.1),
         Some(MOVE_FRAGMENTS)
     );
-    assert_eq!(
-        boundary.path(&sim, target.0, target.1).unwrap().first(),
-        Some(&(0, 0))
+    let path = boundary.path(&sim, target.0, target.1).unwrap();
+    assert!(
+        !path.contains(&(0, 0)),
+        "a full native mission budget needs no refuel wait"
     );
+    let endpoint = path
+        .into_iter()
+        .fold((plane.x, plane.y), |(x, y), (dx, dy)| {
+            sim.map_wrap.civ3_offset(x, y, dx, dy).unwrap()
+        });
+    assert_eq!(endpoint, target);
     // With no movement left, the route still records the city wait but the
     // native PF cost excludes that zero-movement boundary.
     plane.moves_left = 0;
@@ -169,21 +176,20 @@ fn fuel_goto_executes_only_the_prefix_before_refuel_wait() {
 }
 
 #[test]
-fn one_attack_bomber_returns_to_refuel_instead_of_attacking_on_last_fuel_turn() {
+fn native_bombers_have_one_mission_budget_and_use_bombard_instead_of_normal_attack() {
     let mut sim = world();
     sim.create_city(HUMAN, 10, 20);
-    let start = offset_native_by_map(10, 20, 1, 0);
-    let target = offset_native_by_map(10, 20, 2, 0);
-    let mut plane = actor(&mut sim, UnitKind::Bomber, start);
+    let plane = actor(&mut sim, UnitKind::Bomber, (10, 20));
+    let target = offset_native_by_map(10, 20, 1, 0);
     sim.spawn_unit(BARBARIANS, UnitKind::Warrior, target.0, target.1);
-    let rate = sim.unit_move_rate(&plane);
-    plane.fuel = 1;
-    let mut low = FuelPaths::new(&sim, &plane, true).unwrap();
-    assert!(!low.attack_possible(rate, MOVE_FRAGMENTS));
-    assert_eq!(low.movement_cost(&sim, target.0, target.1), Some(3 * rate));
-    plane.fuel = plane.kind.fuel_capacity();
-    let mut full = FuelPaths::new(&sim, &plane, true).unwrap();
-    assert_eq!(full.movement_cost(&sim, target.0, target.1), Some(rate));
+    assert_eq!(plane.kind.fuel_capacity(), 1);
+    assert_eq!(
+        sim.unit_move_rate(&plane),
+        plane.kind.operational_range() * MOVE_FRAGMENTS
+    );
+    assert_eq!(plane.kind.stats().attack, 0);
+    let mut map = FuelPaths::new(&sim, &plane, true).unwrap();
+    assert_eq!(map.movement_cost(&sim, target.0, target.1), None);
 }
 
 #[test]
@@ -226,7 +232,7 @@ fn refuel_callback_keeps_enemy_base_and_omniscient_known_map_quirks() {
 fn initialized_action_nodes_retain_native_cached_endpoints_when_the_live_stack_changes() {
     let mut sim = world();
     sim.create_city(HUMAN, 10, 20);
-    let plane = actor(&mut sim, UnitKind::Bomber, (10, 20));
+    let plane = actor(&mut sim, UnitKind::CruiseMissile, (10, 20));
     let target = offset_native_by_map(10, 20, 1, 0);
     sim.tile_mut(target.0, target.1).terrain = Terrain::Sea;
     let ship = sim.spawn_unit(1, UnitKind::Carrier, target.0, target.1);
@@ -236,9 +242,19 @@ fn initialized_action_nodes_retain_native_cached_endpoints_when_the_live_stack_c
     sim.units.retain(|unit| unit.id != ship);
     let mut fresh = FuelPaths::new(&sim, &plane, true).unwrap();
     assert_eq!(fresh.movement_cost(&sim, target.0, target.1), None);
-    assert_eq!(
-        cached.movement_cost(&sim, target.0, target.1),
-        Some(sim.unit_move_rate(&plane))
+    let index = Simulation::idx(target.0, target.1);
+    assert!(
+        cached.nodes[index].attack,
+        "the original stack was an attack endpoint"
+    );
+    assert!(cached.initialize(&sim, index));
+    assert!(
+        cached.nodes[index].attack,
+        "initialization preserves the cached action"
+    );
+    assert!(
+        !fresh.nodes[index].attack,
+        "a fresh map sees the changed stack"
     );
 }
 
@@ -249,11 +265,14 @@ fn full_allied_carrier_is_a_possible_refuel_point_and_unreachable_aircraft_do_no
     let plane = actor(&mut sim, UnitKind::Bomber, (10, 20));
     let carrier = sim.spawn_unit(HUMAN, UnitKind::Carrier, 10, 20);
     // The selected C2C3 Carrier record has capacity 8.
-    for _ in 0..8 {
+    for _ in 0..UnitKind::Carrier.transport_capacity() {
         let cargo = sim.spawn_unit(HUMAN, UnitKind::Fighter, 10, 20);
         assert!(sim.board_specific_ship(cargo, carrier));
     }
-    assert_eq!(sim.cargo_count(carrier), 8);
+    assert_eq!(
+        sim.cargo_count(carrier),
+        UnitKind::Carrier.transport_capacity()
+    );
     assert!(!sim.board_specific_ship(plane.id, carrier));
     let map = FuelPaths::new(&sim, &plane, true).unwrap();
     assert!(map.possible_base(&sim, 10, 20));

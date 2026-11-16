@@ -70,7 +70,7 @@ impl Simulation {
             for player in &mut self.players[..3] {
                 // Isolate the BarbarianSeaTech roster from Musketeer techs so
                 // the seed has a single eligible advanced sea-raider type.
-                player.known = vec![Tech::AMPHIBIOUS_WARFARE];
+                player.known = vec![Tech::HORSEBACK_RIDING];
             }
         }
 
@@ -140,21 +140,21 @@ impl Simulation {
         });
         let composition = if sea {
             boat.is_some_and(|boat| {
-                (2..=boat.kind.transport_capacity()).contains(&self.cargo_count(boat.id))
+                (1..=boat.kind.transport_capacity()).contains(&self.cargo_count(boat.id))
             })
         } else {
             (2..=4).contains(
                 &self
                     .units
                     .iter()
-                    .filter(|unit| unit.kind == UnitKind::Horseman)
+                    .filter(|unit| unit.kind == UnitKind::Warrior)
                     .count(),
             )
         };
         let expected = if advanced {
-            UnitKind::Marine
+            UnitKind::Horseman
         } else {
-            UnitKind::Swordsman
+            UnitKind::Warrior
         };
         let sea_roster = !sea
             || boat.is_some_and(|boat| {

@@ -577,3 +577,58 @@ Related manual rules:
 - Details the manual leaves unspecified: Conquests-specific mission cost equations, success probabilities, incident response thresholds, precise per-mission technology gates, and selected operation outcomes.
 - Supplementary source ID(s): CIV3-CONQUESTS-CIVILOPEDIA; CIVFANATICS-ESPIONAGE-STUDY; CIVWIKI-CIV3-ESPIONAGE
 - Related manual rules: None
+
+### Native unit capability cutover (2026-11-16)
+
+- Source ID: CIV3-UNIT-PRTO-LAYOUT
+- Title / author: `QueryCiv3/BiqSections/Prto.cs`, OpenCiv3 contributors
+- URL: <https://github.com/C7-Game/OpenCiv3/blob/main/QueryCiv3/BiqSections/Prto.cs>
+- Source type: Supplementary reverse-engineered BIQ field layout, not official gameplay documentation
+- Scope: Conquests PRTO record layout; checked 2026-11-16.
+- Claims supported: Flags1 maps Radar [0].5, all terrain as roads [0].4,
+  carry aircraft [1].0, carry foot units only [1].6, tactical missiles [2].7,
+  carry tactical missiles [3].0, and hidden nationality [2].1. Flags3 maps
+  Load/Unload/Airlift/Pillage/Airdrop to [4].0–5 and Intercept to [12].2.
+  `Capacity`, `OperationalRange`, `RequireSupport`, and `ZoneOfControl` are
+  separate fields. The checked-in BIQ extraction supplies their values.
+- Limitations: These bit names are reverse engineering, not evidence that
+  the retained generic engine's algorithms match the executable.
+
+- Source ID: CIV3-EDITOR-UNIT-ABILITIES
+- Title / author: “Editor Rules - Explained”, Bluemofia, CivFanatics forums,
+  posted 2007-03-02, edited 2016-11-20.
+- URL: <https://forums.civfanatics.com/threads/editor-rules-explained.210035/>
+- Source type: Supplementary community explanation; checked 2026-11-16.
+- Scope / section: Civilization III editor, Units / unit abilities.
+- Claims supported: Radar sees two squares in every direction; all terrain as
+  roads changes terrain movement; transport-only-foot restricts passengers.
+- Limitations: Includes cracked-editor options and community corrections.
+  Ordinary ground sight (one square), treasury-only support, aircraft
+  missions, and naval cargo are independently described by the official manual.
+
+Native runtime expectations:
+
+- Manual printed pp. 38–39: national support is paid in gold; no food or
+  shields, and home-city bookkeeping does not determine eligibility. Use the
+  native Conquests government tables and PRTO `RequireSupport` values.
+- Manual printed pp. 73, 77–78: aircraft use operational range for missions;
+  the generic planner's one-turn budget is engine state, not a new editable
+  fuel statistic. Aircraft rebase/path planning remains an adaptation; exact
+  Conquests mission-only movement is not established by this cutover.
+- Manual printed pp. 77–78: ground observation is normally one tile;
+  naval transports carry ground units, carriers carry aircraft, and nuclear
+  submarines carry Tactical Nukes only. PRTO capacity is authoritative.
+- PRIMA-CIV3-GUIDE p. 174: experience changes HP, not attack/defense power.
+  The generic veterancy view uses native experience levels with neutral
+  power and movement modifiers; old serialized compatibility fields remain.
+- Native PRTO capabilities replace the removed foreign-unit crosswalk. No
+  inherited per-target Destroyer/Aegis multipliers, leader GameLoss/Unique
+  flags, Explorer/Partisan ZOC exemptions, or percentage class attrition are
+  supplied as native unit statistics.
+- Remaining algorithm gaps: the generic action/effect graph, ZOC blocking,
+  aircraft flight/refueling planner, recovery formulas, and conquest partisan
+  extension are retained implementation behavior, not claims of Civ III
+  parity. Barbarian/partisan unit IDs are explicit native AI configuration;
+  they do not grant additional PRTO abilities. War weariness has not been
+  implemented here; the removed per-home-city military-unrest charge is not
+  used as a substitute.

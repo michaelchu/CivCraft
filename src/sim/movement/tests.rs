@@ -18,26 +18,6 @@ fn prepare_zoc_test_map(game: &mut Simulation) {
     }
 }
 
-type CapturedUnitState = (u32, usize, UnitKind, i32, i32, Option<u32>, i32, i32);
-
-fn capture_unit_state(game: &Simulation) -> Vec<CapturedUnitState> {
-    game.units
-        .iter()
-        .map(|unit| {
-            (
-                unit.id,
-                unit.owner,
-                unit.kind,
-                unit.x,
-                unit.y,
-                unit.home_city,
-                unit.moves_left,
-                unit.hp,
-            )
-        })
-        .collect()
-}
-
 fn blocked_zoc_positions(game: &Simulation) -> ((i32, i32), (i32, i32), (i32, i32)) {
     let start = (10, 20);
     let destination = game.map_wrap.civ3_neighbor(start.0, start.1, 2).unwrap();
@@ -72,20 +52,22 @@ fn activity_completion_is_immediate_and_old_mp_controls_only_work_count() {
 }
 
 #[test]
-fn stealth_fighter_targets_follow_c2c3_unit_classes() {
-    let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.units.clear();
-    game.cities.clear();
-    let attacker = game.spawn_unit(HUMAN, UnitKind::StealthFighter, 10, 24);
-    let leader = game.spawn_unit(1, UnitKind::Leader, 11, 24);
-    let attacker = game.unit_by_id(attacker).unwrap().clone();
-
-    assert_eq!(game.best_defender_id(&attacker, 11, 24), Some(leader));
-    let fighter = game.spawn_unit(1, UnitKind::Fighter, 11, 24);
-    game.units.retain(|unit| unit.id != leader);
-    assert_eq!(game.best_defender_id(&attacker, 11, 24), Some(fighter));
-    game.units.retain(|unit| unit.id != fighter);
-    assert_eq!(game.best_defender_id(&attacker, 11, 24), None);
+fn stealth_bombing_does_not_grant_native_air_interception() {
+    assert!(!UnitKind::StealthFighter.conquests_rule().has_flag_3(12, 2));
+    assert_eq!(
+        crate::sim::action_rules::freeciv_unit_can_target_class(
+            UnitKind::StealthFighter,
+            UnitKind::Fighter
+        ),
+        Some(false)
+    );
+    assert_eq!(
+        crate::sim::action_rules::freeciv_unit_can_target_class(
+            UnitKind::Fighter,
+            UnitKind::Fighter
+        ),
+        Some(true)
+    );
 }
 
 #[test]
@@ -101,29 +83,21 @@ fn ordinary_attackers_keep_their_normal_defender_eligibility() {
 }
 
 #[test]
-fn game_loss_units_are_last_defenders_only_on_protected_tiles() {
-    let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.units.clear();
-    game.cities.clear();
-    let (x, y) = (11, 24);
-    game.create_city(1, x, y);
-    game.sign_pact(HUMAN, 1, Pact::War);
-    let attacker_id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
-    let warrior_id = game.spawn_unit(1, UnitKind::Warrior, x, y);
-    let leader_id = game.spawn_unit(1, UnitKind::Leader, x, y);
-    let attacker = game.unit_by_id(attacker_id).unwrap().clone();
-    let leader = game.unit_by_id(leader_id).unwrap().clone();
+fn native_leaders_do_not_inherit_foreign_unique_or_king_flags_during_capture() {
+    assert_eq!(
+        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
+        Some(false)
+    );
     assert_eq!(
         crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "GameLoss"),
-        Some(true)
+        Some(false)
     );
-    assert_eq!(game.defender_rank(&attacker, &leader, x, y).0, -1);
-    assert_eq!(game.best_defender_id(&attacker, x, y), Some(warrior_id));
-
-    game.cities.clear();
-    game.units.retain(|unit| unit.id != warrior_id);
-    assert_ne!(game.defender_rank(&attacker, &leader, x, y).0, -1);
-    assert_eq!(game.best_defender_id(&attacker, x, y), Some(leader_id));
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    let first = game.spawn_unit(HUMAN, UnitKind::Leader, 10, 24);
+    let second = game.spawn_unit(HUMAN, UnitKind::Leader, 12, 24);
+    assert!(game.unit_by_id(first).is_some());
+    assert!(game.unit_by_id(second).is_some());
 }
 
 #[test]
@@ -302,7 +276,7 @@ fn defender_reachability_uses_c2c3_target_classes_and_city_exception() {
 }
 
 #[test]
-fn military_move_does_not_capture_non_capturable_worker() {
+fn native_workers_can_be_captured_without_foreign_unit_aliases() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -311,19 +285,13 @@ fn military_move_does_not_capture_non_capturable_worker() {
     game.tile_mut(nx, ny).terrain = Terrain::Grassland;
     game.sign_pact(HUMAN, 1, Pact::War);
     let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
-    let worker = game.spawn_unit(1, UnitKind::Worker, nx, ny);
-
-    assert!(!game.apply(Command::CaptureUnits(attacker, nx, ny)));
-    assert_eq!(
-        game.try_move_unit_civ3_by_offset(attacker, 1, 0),
-        MoveResult::Fought
-    );
+    game.spawn_unit(1, UnitKind::Worker, nx, ny);
+    assert!(game.apply(Command::CaptureUnits(attacker, nx, ny)));
     assert!(
         game.units
             .iter()
-            .all(|unit| unit.kind != UnitKind::Worker || unit.owner != HUMAN)
+            .any(|unit| unit.owner == HUMAN && unit.kind == UnitKind::Worker)
     );
-    assert!(game.unit_by_id(worker).is_none_or(|unit| unit.owner == 1));
 }
 
 #[test]
@@ -483,7 +451,7 @@ fn imported_marine_small_land_units_can_occupy_cities() {
 }
 
 #[test]
-fn settlers_are_not_captured_by_military_move_under_c2c3() {
+fn native_settlers_are_capture_targets() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
@@ -493,20 +461,14 @@ fn settlers_are_not_captured_by_military_move_under_c2c3() {
     let attacker = game.spawn_unit(HUMAN, UnitKind::Swordsman, 10, 24);
     let settler = game.spawn_unit(1, UnitKind::Settler, nx, ny);
     game.sign_pact(HUMAN, 1, Pact::War);
-    let actor = game.unit_by_id(attacker).unwrap().clone();
-    let target = game.unit_by_id(settler).unwrap();
     assert!(
-        !game
-            .action_available_for_unit_against_unit(&actor, "Capture Units", target)
-            .unwrap()
+        game.action_available_for_unit_against_unit(
+            game.unit_by_id(attacker).unwrap(),
+            "Capture Units",
+            game.unit_by_id(settler).unwrap()
+        )
+        .unwrap()
     );
-
-    assert_eq!(
-        game.try_move_unit_civ3_by_offset(attacker, 1, 0),
-        MoveResult::Fought
-    );
-    assert!(game.unit_by_id(settler).is_none());
-    assert!(game.units.iter().all(|unit| unit.kind != UnitKind::Worker));
 }
 
 #[test]
@@ -557,63 +519,35 @@ fn worker_strength_keeps_actual_and_projected_foreign_worker_rates_aligned() {
 }
 
 #[test]
-fn capture_eligibility_comes_from_selected_action_rules_not_civ3_technology() {
+fn native_capture_does_not_require_the_victims_technology() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
     game.cities.clear();
     game.tile_mut(10, 24).terrain = Terrain::Grassland;
     game.tile_mut(11, 24).terrain = Terrain::Grassland;
     game.players[HUMAN].known.clear();
-    let attacker_id = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
     game.sign_pact(HUMAN, 1, Pact::War);
     game.spawn_unit(1, UnitKind::Artillery, 11, 24);
-
-    assert!(!game.apply(Command::CaptureUnits(attacker_id, 11, 24)));
-
-    game.players[HUMAN]
-        .known
-        .push(UnitKind::Artillery.required_tech().unwrap());
-    assert!(!game.apply(Command::CaptureUnits(attacker_id, 11, 24)));
+    assert!(game.apply(Command::CaptureUnits(attacker, 11, 24)));
 }
 
 #[test]
-fn capture_unique_preflight_rejects_conflicts_without_state_or_rng_changes() {
-    for already_owned in [false, true] {
-        let mut game = Simulation::new(crate::test_support::seeded_map());
-        game.units.clear();
-        game.cities.clear();
-        let (x, y) = (11, 24);
-        game.tile_mut(10, 24).terrain = Terrain::Grassland;
-        game.tile_mut(x, y).terrain = Terrain::Grassland;
-        game.spawn_unit(HUMAN, UnitKind::Marine, 10, 24);
-        if already_owned {
-            game.spawn_unit(HUMAN, UnitKind::Leader, 18, 24);
-        }
-        game.spawn_unit(1, UnitKind::Worker, x, y);
-        game.spawn_unit(1, UnitKind::Leader, x, y);
-        if !already_owned {
-            game.spawn_unit(2, UnitKind::Leader, x, y);
-        }
-
-        let targets = game
-            .units
-            .iter()
-            .filter(|unit| (unit.x, unit.y) == (x, y))
-            .cloned()
-            .collect::<Vec<_>>();
-        assert_eq!(
-            crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
-            Some(true)
-        );
-        let before_units = capture_unit_state(&game);
-        let before_events = game.events.clone();
-        let before_rng = game.random_snapshot();
-
-        assert!(!game.capture_units_unique_preflight(HUMAN, &targets));
-        assert_eq!(capture_unit_state(&game), before_units);
-        assert_eq!(game.events, before_events);
-        assert_eq!(game.random_snapshot(), before_rng);
-    }
+fn native_leaders_do_not_inherit_foreign_unique_or_king_flags() {
+    assert_eq!(
+        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Unique"),
+        Some(false)
+    );
+    assert_eq!(
+        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "GameLoss"),
+        Some(false)
+    );
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    let first = game.spawn_unit(HUMAN, UnitKind::Leader, 10, 24);
+    let second = game.spawn_unit(HUMAN, UnitKind::Leader, 12, 24);
+    assert!(game.unit_by_id(first).is_some());
+    assert!(game.unit_by_id(second).is_some());
 }
 
 #[test]
@@ -743,25 +677,16 @@ fn freeciv_bounce_uses_survivable_tiles_and_keeps_source_iteration_order() {
 }
 
 #[test]
-fn selected_roster_has_no_capturable_civ_iii_target_type() {
-    let mut game = Simulation::new(crate::test_support::seeded_map());
-    game.units.clear();
-    game.cities.clear();
-    let actor_id = game.spawn_unit(HUMAN, UnitKind::Marine, 10, 24);
-    let target_id = game.spawn_unit(1, UnitKind::Worker, 11, 24);
-    game.sign_pact(HUMAN, 1, Pact::War);
-    let actor = game.unit_by_id(actor_id).unwrap().clone();
-    let target = game.unit_by_id(target_id).unwrap().clone();
-
+fn civilian_capture_flags_come_from_native_combat_capability() {
+    for kind in [UnitKind::Worker, UnitKind::Settler, UnitKind::Artillery] {
+        assert_eq!(
+            crate::sim::action_rules::freeciv_unit_type_flag(kind, "Capturable"),
+            Some(true)
+        );
+    }
     assert_eq!(
-        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Worker, "Capturable"),
-        Some(false),
-        "Civ III Worker maps to C2C3 unit_worker, not the distinct unit_migrants"
-    );
-    assert!(
-        !game
-            .action_available_for_unit_against_unit(&actor, "Capture Units", &target)
-            .unwrap()
+        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Warrior, "Capturable"),
+        Some(false)
     );
 }
 
@@ -1168,7 +1093,7 @@ fn big_land_has_no_terrain_defense_and_nuclear_is_not_air_attacker() {
     let nuclear = game.defense_power_against(&aegis, p.0, p.1, UnitKind::TacticalNuke);
     assert_eq!(
         game.defense_power_against(&aegis, p.0, p.1, UnitKind::Bomber),
-        nuclear * 5
+        nuclear
     );
 }
 
@@ -1289,11 +1214,11 @@ fn destroyer_defense_multiplier_uses_the_selected_submarine_flag() {
     let base = destroyer.kind.stats().defense * POWER_FACTOR;
     assert_eq!(
         game.defense_power_against(&destroyer, x, y, UnitKind::Submarine),
-        base * 2
+        base
     );
     assert_eq!(
         game.defense_power_against(&destroyer, x, y, UnitKind::NuclearSubmarine),
-        base * 2,
+        base,
         "native Nuclear Submarine rules retain the explicit Submarine flag"
     );
     assert_eq!(
@@ -1355,16 +1280,16 @@ fn combat_firepower_uses_selected_c2c3_unit_flags() {
     let warrior = game.make_unit(1, 1, UnitKind::Warrior, x, y);
     assert_eq!(
         game.combat_firepower(&cruise, &warrior),
-        (2, 1),
-        "C2C3 CityBuster doubles the Cruise Missile's attack firepower in a city"
+        (1, 1),
+        "Native missiles do not inherit the foreign CityBuster multiplier"
     );
 
     let bomber = game.make_unit(2, HUMAN, UnitKind::Bomber, x, y);
     let caravel = game.make_unit(3, 1, UnitKind::Caravel, x, y);
     assert_eq!(
         game.combat_firepower(&bomber, &caravel),
-        (2, 1),
-        "C2C3 BadCityDefender doubles city attack firepower and applies its configured defender cap"
+        (1, 1),
+        "Native ships do not inherit the foreign BadCityDefender flag"
     );
 }
 
@@ -1535,7 +1460,7 @@ fn freeciv_zoc_blocks_a_step_between_two_enemy_controlled_tiles() {
     prepare_zoc_test_map(&mut game);
     let (start, destination, enemy) = blocked_zoc_positions(&game);
     let mover = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
-    game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
+    game.spawn_unit(1, UnitKind::Cavalry, enemy.0, enemy.1);
     let unit = game.unit_by_id(mover).unwrap().clone();
 
     assert!(game.zone_blocks_step(&unit, start, destination));
@@ -1623,7 +1548,7 @@ fn zoc_legality_does_not_preempt_the_existing_attack_action_path() {
     let start = (10, 20);
     let destination = game.map_wrap.civ3_neighbor(start.0, start.1, 2).unwrap();
     let attacker = game.spawn_unit(HUMAN, UnitKind::ModernArmor, start.0, start.1);
-    game.spawn_unit(1, UnitKind::Warrior, destination.0, destination.1);
+    game.spawn_unit(1, UnitKind::Cavalry, destination.0, destination.1);
     let unit = game.unit_by_id(attacker).unwrap().clone();
     game.sign_pact(HUMAN, 1, Pact::War);
 
@@ -1673,7 +1598,7 @@ fn freeciv_route_zoc_uses_only_observed_enemy_units() {
     prepare_zoc_test_map(&mut game);
     let (start, destination, enemy) = blocked_zoc_positions(&game);
     let mover_id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
-    let enemy_id = game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
+    let enemy_id = game.spawn_unit(1, UnitKind::Cavalry, enemy.0, enemy.1);
     game.remember_route_tiles(false);
     game.tile_mut(enemy.0, enemy.1).visible = false;
     let mover = game.unit_by_id(mover_id).unwrap().clone();
@@ -1685,7 +1610,7 @@ fn freeciv_route_zoc_uses_only_observed_enemy_units() {
 
     game.units.retain(|unit| unit.id != enemy_id);
     game.create_city(1, enemy.0, enemy.1);
-    game.spawn_unit(1, UnitKind::Warrior, enemy.0, enemy.1);
+    game.spawn_unit(1, UnitKind::Cavalry, enemy.0, enemy.1);
     game.remember_route_tiles(false);
     assert!(game.zone_blocks_route(&mover, start, destination, true));
     game.units

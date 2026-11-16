@@ -1,7 +1,15 @@
 schema_version = 1
 source = "CivCraft native settlement rules"
 
+# Native AI archetypes; no foreign-unit aliases.
+[barbarians]
+basic_unit = "warrior"
+advanced_unit = "horseman"
+sea_unit = "galley"
+
 [citizens]
+# Retained CivCraft conquest extension; not a Civ III unit ability.
+partisan_unit = "guerilla"
 nationality = true
 partisans_pct = 75
 

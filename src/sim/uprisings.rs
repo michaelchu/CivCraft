@@ -31,21 +31,10 @@ impl Simulation {
     /// does not duplicate the same barbarian choice. The native TOML is the
     /// only source for barbarian archetypes.
     fn barbarian_role_units(&self, role: &str) -> Vec<BarbarianRoleUnit> {
-        let mut seen_profiles = std::collections::HashSet::new();
-        crate::rules::native::unit_economics()
-            .bindings
-            .iter()
-            .filter(|binding| {
-                binding
-                    .roles
-                    .iter()
-                    .any(|candidate| candidate.eq_ignore_ascii_case(role))
-            })
-            .filter(|binding| seen_profiles.insert(binding.profile.to_ascii_lowercase()))
-            .filter_map(|binding| {
-                UnitKind::from_conquests_id(&binding.civ3_unit_id)
-                    .map(|runtime_kind| BarbarianRoleUnit { runtime_kind })
-            })
+        UnitKind::ALL_NATIVE
+            .into_iter()
+            .filter(|&kind| super::native_unit_rules::has_role(kind, role))
+            .map(|runtime_kind| BarbarianRoleUnit { runtime_kind })
             .collect()
     }
 
@@ -207,10 +196,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn advanced_sea_raider_role_uses_c2c3_buildable_marines() {
+    fn advanced_raiders_use_the_native_configured_unit() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         for owner in 0..game.civilization_count {
-            game.players[owner].known = vec![Tech::AMPHIBIOUS_WARFARE];
+            game.players[owner].known = vec![Tech::HORSEBACK_RIDING];
         }
         let selected = game.find_barbarian_role_unit("BarbarianSea", "BarbarianSeaTech");
         let candidates = game.barbarian_role_units("BarbarianSeaTech");
@@ -237,7 +226,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             selected,
-            Some(UnitKind::Marine),
+            Some(UnitKind::Horseman),
             "eligibility={eligibility:?}"
         );
     }

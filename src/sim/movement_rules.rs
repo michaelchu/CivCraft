@@ -690,7 +690,14 @@ impl<'a> MovementRules<'a> {
         &self,
         kind: UnitKind,
     ) -> Result<UnitClassMovementData, MovementRulesError> {
-        self.unit_class_movement_data(self.unit_class_for_kind(kind)?)
+        let mut data = self.unit_class_movement_data(self.unit_class_for_kind(kind)?)?;
+        let source = kind.conquests_rule();
+        if source.unit_type == 0 {
+            // Foot/wheeled flags restrict transport/terrain; they do not remove
+            // Civ III ground-unit pillage, occupation, or terrain defense.
+            data.can_occupy_city = source.attack > 0;
+        }
+        Ok(data)
     }
 
     /// Combine the selected ruleset's class behavior with an individual
@@ -1771,21 +1778,11 @@ mod tests {
     }
 
     #[test]
-    fn mapped_unit_records_supply_freeciv_class_before_civ3_class_fallback() {
+    fn unit_classes_come_directly_from_native_prto() {
         let rules = MovementRules::campaign();
-        assert_eq!(UnitKind::Marine.unit_class(), UnitClass::SmallLand);
-        assert_eq!(
-            rules.unit_class_for_kind(UnitKind::Marine).unwrap(),
-            UnitClass::Land
-        );
-        assert_eq!(
-            rules.unit_class_for_kind(UnitKind::Worker).unwrap(),
-            UnitClass::SmallLand
-        );
-        assert_eq!(
-            rules.unit_class_for_kind(UnitKind::Panzer).unwrap(),
-            UnitClass::BigLand
-        );
+        for kind in UnitKind::ALL_NATIVE {
+            assert_eq!(rules.unit_class_for_kind(kind).unwrap(), kind.unit_class());
+        }
     }
 
     #[test]
@@ -1991,9 +1988,7 @@ mod tests {
             let adapted = adapter.unit_movement_data(kind).unwrap();
             assert_eq!(
                 adapted.class,
-                adapter
-                    .unit_class_movement_data(adapter.unit_class_for_kind(kind).unwrap())
-                    .unwrap()
+                adapter.unit_class_movement_data_for_kind(kind).unwrap()
             );
             assert_eq!(
                 adapted.ignores_zoc,

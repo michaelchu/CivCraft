@@ -61,13 +61,9 @@ Their values come from `common/game.h` (`GAME_DEFAULT_SCIENCEBOX`,
 inputs editable in the selected derivative instead of depending on implicit
 server defaults.
 
-P8's `unit_economics.tsv` maps all 92 Conquests unit IDs to selected C2C3 unit
-records for upkeep and supported-unit happiness only: 33 direct adapters and
-59 explicit role aliases. The aliases for Army, Curragh, Flak, Mobile SAM,
-Privateer, and TOW Infantry are economics profiles, not claims that Freeciv
-and Civ III unit identities match. Civ III identity, combat values, movement,
-and presentation remain on the Civ III catalog; the adapter consumes C2C3
-`uk_*` values and effects. Each bridge rationale is recorded in the table.
+The former P8 unit-economics crosswalk has been removed. Unit capabilities,
+statistics, and support eligibility now come from native Conquests rules;
+unit support allowances come from the native government catalog.
 
 For P9, the selected C2C3 `[combat_rules]` values are loaded as required typed
 inputs. Its explicit `occupychance = 100` is retained. `killstack = TRUE` and

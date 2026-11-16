@@ -131,6 +131,10 @@ impl Simulation {
                 .units
                 .iter()
                 .any(|unit| unit.id == marine && unit.transport == Some(helicopter));
+        for _ in 1..UnitKind::Helicopter.transport_capacity() {
+            let filler = self.spawn_unit(HUMAN, UnitKind::Marine, sea.0, sea.1);
+            assert!(self.board_specific_ship(filler, helicopter));
+        }
         let second = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
         // Marines can be carried by both the Transport and Helicopter in the
         // selected C2C3 records; Guerilla cannot be embarked on a Helicopter.
@@ -535,7 +539,7 @@ impl Simulation {
         let actors = !UnitKind::Worker.ignores_zoc()
             && !UnitKind::Chariot.ignores_zoc()
             && !UnitKind::Galley.ignores_zoc()
-            && UnitKind::Explorer.ignores_zoc();
+            && !UnitKind::Explorer.ignores_zoc();
         (
             river && rail && hostile,
             !mountain_accessible && wheel_road && boarding,

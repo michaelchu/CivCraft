@@ -79,10 +79,9 @@ impl Simulation {
         self.unit_hitpoint_delta_per_turn(&stationary, x, y).max(0)
     }
 
-    fn unit_class_hp_loss_pct(&self, kind: UnitKind) -> i32 {
-        super::action_rules::native_unit_economics_binding(kind)
-            .map(|binding| binding.hp_loss_pct)
-            .unwrap_or(0)
+    fn unit_class_hp_loss_pct(&self, _kind: UnitKind) -> i32 {
+        // No Civ III evidence for C2C3's percentage attrition by unit class.
+        0
     }
 
     fn unit_is_on_native_base(&self, kind: UnitKind, x: i32, y: i32) -> bool {

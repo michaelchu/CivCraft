@@ -379,11 +379,11 @@ mod tests {
         ] {
             assert!(!kind.ignores_zoc(), "{kind:?}");
         }
-        assert!(UnitKind::Explorer.ignores_zoc());
+        assert!(!UnitKind::Explorer.ignores_zoc());
         // The native Guerilla profile deliberately inherits the selected
         // Partisan archetype's IgZOC capability.
-        assert!(UnitKind::Guerilla.ignores_zoc());
-        assert!(UnitKind::Leader.ignores_zoc());
+        assert!(!UnitKind::Guerilla.ignores_zoc());
+        assert!(!UnitKind::Leader.ignores_zoc());
         assert!(!UnitKind::Carrier.ignores_zoc());
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         for terrain in [Terrain::Jungle, Terrain::Mountains, Terrain::Marsh] {

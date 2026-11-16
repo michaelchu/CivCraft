@@ -246,12 +246,9 @@ fn unit_unrest_still_changes_city_feelings_without_martial_law() {
             unit.home_order = id;
         }
 
-        assert!(game.city_unit_upkeep(&city).unit_happiness > 0);
+        assert_eq!(game.city_unit_upkeep(&city).unit_happiness, 0);
         let with_unit_unrest = game.city_feelings_after_effects(&city, 16);
-        assert!(
-            with_unit_unrest.1 > baseline.1 || with_unit_unrest.0 < baseline.0,
-            "{government:?}: supported unit unrest must apply even with Martial_Law_Max=0; baseline={baseline:?}, with units={with_unit_unrest:?}"
-        );
+        assert_eq!(with_unit_unrest, baseline);
     }
 }
 

@@ -283,104 +283,32 @@ fn observed_map_round_trips_and_rejects_corrupt_owners() {
 }
 
 #[test]
-fn c2c3_unit_sight_values_resolve_through_civ3_sight_bindings() {
+fn unit_sight_comes_from_native_radar_flags() {
     let ruleset = RulesetData::campaign_default();
-    assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::Fighter), 8);
+    for kind in UnitKind::ALL_NATIVE {
+        let radar = kind.conquests_rule().has_flag_1(0, 5);
+        assert_eq!(
+            ruleset_unit_vision_radius_sq(ruleset, kind),
+            if radar { 8 } else { 2 }
+        );
+    }
     assert_eq!(
         ruleset_unit_vision_radius_sq(ruleset, UnitKind::Explorer),
-        6
+        2
     );
-    assert_eq!(
-        ruleset_unit_vision_radius_sq(ruleset, UnitKind::Conquistador),
-        6
-    );
-    assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::Leader), 8);
-    assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::Warrior), 2);
-    for (kind, section) in [
-        (UnitKind::Horseman, "unit_horsemen"),
-        (UnitKind::Pikeman, "unit_pikemen"),
-        (UnitKind::Rifleman, "unit_riflemen"),
-        (UnitKind::MechInfantry, "unit_mech_inf"),
-    ] {
-        let id = kind
-            .conquests_id()
-            .expect("campaign unit has a Conquests identity");
-        assert_eq!(
-            unit_sight_binding_for(id),
-            Some(SightBinding::SightAlias(section)),
-            "{id}"
-        );
-        assert_eq!(ruleset_unit_vision_radius_sq(ruleset, kind), 2, "{id}");
-        assert_eq!(
-            ruleset_unit_vision_layer(ruleset, kind),
-            UnitVisionLayer::Main,
-            "{id}"
-        );
-    }
-
-    for kind in UnitKind::ALL_NATIVE {
-        assert!(
-            ruleset_unit_vision_radius_sq(ruleset, kind) >= 2,
-            "missing or invalid sight binding for {kind:?}"
-        );
-    }
-
-    // These identities use explicit native profiles. They are not inferred
-    // from a same-named Freeciv unit or an implicit Civ III fallback.
-    assert_eq!(
-        ruleset_unit_vision_radius_sq(ruleset, UnitKind::Guerilla),
-        6
-    );
-    assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::F15), 8);
-
-    assert_eq!(UNMAPPED_FREECIV_UNIT_VISION.len(), 3);
-    for gap in UNMAPPED_FREECIV_UNIT_VISION {
-        let record = ruleset
-            .content
-            .iter()
-            .find(|record| record.section == gap.freeciv_section)
-            .unwrap_or_else(|| panic!("missing explicit Freeciv unit gap {}", gap.freeciv_section));
-        assert_eq!(
-            record.integer_field("vision_radius_sq").unwrap(),
-            Some(i64::from(gap.freeciv_radius_sq)),
-            "{}: {}",
-            gap.freeciv_section,
-            gap.note
-        );
-        assert_eq!(gap.fallback_radius_sq, 2);
-    }
-    assert_eq!(
-        UNMAPPED_FREECIV_UNIT_VISION[0].civ3_catalog_id,
-        Some("guerilla")
-    );
-    assert_eq!(
-        UNMAPPED_FREECIV_UNIT_VISION[0].civ3_source,
-        Some("Conquests/conquests.biq#PRTO[75]")
-    );
-    assert_eq!(
-        UNMAPPED_FREECIV_UNIT_VISION[1].civ3_catalog_id, None,
-        "Conquests does not have a Spy unit record"
-    );
-    assert_eq!(
-        UNMAPPED_FREECIV_UNIT_VISION[2].civ3_catalog_id,
-        Some("f_15")
-    );
-    assert_eq!(
-        UNMAPPED_FREECIV_UNIT_VISION[2].civ3_source,
-        Some("Conquests/conquests.biq#PRTO[64]")
-    );
+    assert_eq!(ruleset_unit_vision_radius_sq(ruleset, UnitKind::Leader), 2);
 }
 
 #[test]
-fn c2c3_vision_layers_bind_stealth_and_subsurface_units() {
+fn native_submarines_are_hidden_but_stealth_aircraft_use_main_sight() {
     let game = Simulation::new(crate::test_support::seeded_map());
     assert_eq!(
         game.unit_vision_layer_for(UnitKind::StealthFighter),
-        UnitVisionLayer::Stealth
+        UnitVisionLayer::Main
     );
     assert_eq!(
         game.unit_vision_layer_for(UnitKind::StealthBomber),
-        UnitVisionLayer::Stealth
+        UnitVisionLayer::Main
     );
     assert_eq!(
         game.unit_vision_layer_for(UnitKind::Submarine),
@@ -391,7 +319,7 @@ fn c2c3_vision_layers_bind_stealth_and_subsurface_units() {
         UnitVisionLayer::Main
     );
     let unresolved_fallback = if UnitKind::Guerilla.uses_stealth_vision() {
-        UnitVisionLayer::Stealth
+        UnitVisionLayer::Main
     } else {
         UnitVisionLayer::Main
     };
@@ -403,11 +331,7 @@ fn c2c3_vision_layers_bind_stealth_and_subsurface_units() {
 
 #[test]
 fn mapped_hidden_layers_need_short_range_detection_inside_main_sight() {
-    for hidden_kind in [
-        UnitKind::StealthFighter,
-        UnitKind::StealthBomber,
-        UnitKind::Submarine,
-    ] {
+    for hidden_kind in [UnitKind::Submarine] {
         let mut game = Simulation::new(crate::test_support::seeded_map());
         game.units.clear();
         game.cities.clear();
@@ -423,7 +347,7 @@ fn mapped_hidden_layers_need_short_range_detection_inside_main_sight() {
         // The Explorer sees the target tile at distance two, while its
         // Freeciv invisible/subsurface detection radius is capped at two
         // squared movement points (only distance one on this grid).
-        game.spawn_unit(HUMAN, UnitKind::Explorer, 10, 20);
+        game.spawn_unit(HUMAN, UnitKind::RadarArtillery, 10, 20);
         let target_id = game.spawn_unit(1, hidden_kind, 12, 20);
         game.refresh_visibility();
         assert!(

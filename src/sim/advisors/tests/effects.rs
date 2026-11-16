@@ -92,7 +92,7 @@ fn research_movement_and_upgrade_effects_count_current_civ_iii_units() {
     game.units.clear();
     game.cities.clear();
     game.create_city(1, 10, 24);
-    let sea = game.spawn_unit(1, UnitKind::Caravel, 10, 24);
+    let sea = game.spawn_unit(1, UnitKind::Galleon, 10, 24);
     let land = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
     game.players[1].known.push(Tech::IRON_WORKING);
     let city = game.cities[0].clone();

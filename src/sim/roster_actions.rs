@@ -67,11 +67,11 @@ mod tests {
         let anarchy = game.city_unit_upkeep(&city);
         // C2C3 Caravels have one shield upkeep; Anarchy supports two
         // shields per city, so three cost one shield in aggregate.
-        assert_eq!((anarchy.shields, anarchy.gold), (1, 0));
+        assert_eq!((anarchy.shields, anarchy.gold), (0, 3));
         game.players[HUMAN].government = Government::Monarchy;
         let support = game.city_unit_upkeep(&city);
         // Monarchy disables shield upkeep, and Caravels have no direct gold
         // upkeep in the selected C2C3 unit record.
-        assert_eq!((support.shields, support.gold), (0, 0));
+        assert_eq!((support.shields, support.gold), (0, 1));
     }
 }

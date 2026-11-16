@@ -80,9 +80,7 @@ pub(super) struct UnitMetadata {
     #[allow(dead_code)] // Source unit prerequisite retained for research and advisor behavior.
     pub(super) tech: Option<Tech>,
     pub(super) government: Option<Government>,
-    pub(super) cargo: &'static [UnitClass],
     pub(super) capacity: usize,
-    pub(super) fuel: u8,
     pub(super) veteran_levels: usize,
     pub(super) attacks_air: bool,
     #[allow(dead_code)]

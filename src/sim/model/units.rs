@@ -392,7 +392,7 @@ impl UnitKind {
 
     pub(crate) fn fuel_capacity(self) -> u8 {
         crate::sim::action_rules::freeciv_unit_type_fuel_capacity(self)
-            .unwrap_or_else(|| self.metadata().fuel)
+            .expect("native unit mission budget")
     }
 
     pub(in crate::sim) fn operational_range(self) -> i32 {
@@ -451,10 +451,7 @@ impl UnitKind {
     }
 
     pub(crate) fn can_carry(self, kind: Self) -> bool {
-        if self.conquests_rule().has_flag_1(1, 6) {
-            return kind.conquests_rule().has_flag_1(0, 1);
-        }
-        self.metadata().cargo.contains(&kind.unit_class())
+        crate::sim::native_unit_rules::can_carry(self, kind)
     }
 
     pub(crate) fn has_hostile_action(self) -> bool {
@@ -466,10 +463,8 @@ impl UnitKind {
         self.attack_strength() > 0
     }
 
-    /// Combat strength for the selected ruleset action profile. Most mapped
-    /// units retain their Civ III catalog attack value; Cruise Missile uses
-    /// C2C3's suicide-attack strength because Civ III stores that capability
-    /// separately as bombard strength.
+    /// Strength consumed by the retained combat-action engine. Ordinary attacks
+    /// use PRTO attack; its Cruise Missile action consumes PRTO bombard strength.
     pub(crate) fn attack_strength(self) -> i32 {
         crate::sim::action_rules::freeciv_missile_attack_strength(self)
             .unwrap_or_else(|| self.stats().attack)

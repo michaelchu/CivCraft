@@ -39,7 +39,7 @@ impl Simulation {
         // C2C3 Despotism supports two gold-upkeep units per city. Five
         // Warriors create the three-gold expense needed to expose the cash
         // reserve.
-        for _ in 0..5 {
+        for _ in 0..7 {
             let id = self.spawn_unit(1, UnitKind::Warrior, home.0, home.1);
             let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
             unit.home_city = Some(city);

@@ -92,7 +92,7 @@ fn city_defense_fixture_uses_selected_c2c3_treasury_support_allowance() {
     }
     // Warriors have one shield upkeep and ShieldToGold. C2C3 Despotism
     // converts that to one gold and grants two free units per city.
-    assert_eq!(game.city_gold_upkeep(&city).paid.len(), 18);
+    assert_eq!(game.city_gold_upkeep(&city).paid.len(), 16);
 }
 
 #[test]

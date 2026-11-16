@@ -170,10 +170,14 @@ impl UnitRule {
             }
         };
         let worker = self.flags_3[8] & 0xfc != 0 || self.flags_3[9] != 0 || self.flags_3[10] != 0;
-        let nonmilitary = self.attack == 0 && self.defense == 0;
+        let nonmilitary = self.attack == 0
+            && self.defense == 0
+            && self.bombard_strength == 0
+            && class != C::Missile;
         set_flag(F::Workers, worker);
         set_flag(F::NonMil, nonmilitary);
-        let can_gain_ranks = !nonmilitary && class != C::Missile && self.id != "leader";
+        let can_gain_ranks =
+            (self.attack > 0 || self.defense > 0) && class != C::Missile && self.id != "leader";
         set_flag(F::NoVeteran, !can_gain_ranks);
         set_flag(F::CantFortify, !self.has_flag_3(0, 2));
         set_flag(
@@ -207,35 +211,13 @@ impl UnitRule {
         );
         set_flag(F::GameLoss, self.has_flag_1(3, 5));
         set_flag(F::AirAttacker, self.has_flag_3(12, 2));
-        let cargo = if self.id == "nuclear_submarine" {
-            // Conquests grants this unit one tactical-missile slot. Regular
-            // submarines have no transport capacity, and nuclear submarines
-            // do not carry land or air units.
-            &[C::Missile][..]
-        } else if self.has_flag_1(1, 0) {
-            &[C::Air, C::Helicopter][..]
-        } else if self.capacity > 0 && matches!(class, C::Sea | C::Trireme) {
-            &[C::Land, C::SmallLand, C::BigLand, C::Missile][..]
-        } else if self.capacity > 0 && class == C::Air {
-            &[C::Missile][..]
-        } else if self.capacity > 0 && self.id == "army" {
-            &[C::Land, C::SmallLand, C::BigLand][..]
-        } else {
-            &[]
-        };
         crate::sim::unit_catalog_data::UnitMetadata {
             class,
             flags,
             ai_strategies: self.ai_strategies,
             tech: self.required_tech(),
             government: None,
-            cargo,
             capacity: self.capacity,
-            fuel: if matches!(class, C::Air | C::Helicopter) {
-                self.operational_range.min(u8::MAX as i32) as u8
-            } else {
-                0
-            },
             veteran_levels: if can_gain_ranks { 4 } else { 1 },
             attacks_air: self.has_flag_3(12, 2),
             stealth: self.has_flag_1(2, 5),

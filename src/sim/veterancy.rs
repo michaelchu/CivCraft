@@ -10,26 +10,16 @@ fn selected_veteran_systems() -> &'static [(UnitKind, VeteranSystem)] {
         UnitKind::ALL_NATIVE
             .into_iter()
             .map(|kind| {
-                let binding = crate::sim::action_rules::native_unit_economics_binding(kind)
-                    .unwrap_or_else(|| panic!("missing native veteran system for {kind:?}"));
-                let lengths = [
-                    binding.veteran_names.len(),
-                    binding.veteran_base_raise_chance.len(),
-                    binding.veteran_work_raise_chance.len(),
-                    binding.veteran_power_factor.len(),
-                    binding.veteran_move_bonus.len(),
-                ];
-                assert!(lengths.iter().all(|length| *length == lengths[0]));
-                let levels = binding
-                    .veteran_names
+                let levels = crate::rules::native::experience()
+                    .levels
                     .iter()
-                    .enumerate()
-                    .map(|(index, name)| VeteranLevel {
-                        name: name.clone(),
-                        base_raise_chance: binding.veteran_base_raise_chance[index],
-                        work_raise_chance: binding.veteran_work_raise_chance[index],
-                        power_factor: binding.veteran_power_factor[index],
-                        move_bonus: binding.veteran_move_bonus[index],
+                    .take(if kind.no_veteran() { 1 } else { 4 })
+                    .map(|rank| VeteranLevel {
+                        name: rank.name.clone(),
+                        base_raise_chance: rank.promotion_chance_per_mille / 10,
+                        work_raise_chance: 0,
+                        power_factor: 100,
+                        move_bonus: 0,
                     })
                     .collect();
                 (kind, VeteranSystem { levels })
@@ -236,7 +226,7 @@ mod tests {
         freeciv_veteran.c2c3_veteran = 1;
         assert_eq!(
             Simulation::attack_power(&freeciv_veteran),
-            UnitKind::Warrior.stats().attack * POWER_FACTOR * 150 / 100
+            UnitKind::Warrior.stats().attack * POWER_FACTOR
         );
     }
 

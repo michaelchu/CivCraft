@@ -28,6 +28,7 @@ mod borders;
 mod buildings;
 mod civ3_unit_rules;
 mod civilization_start_rules;
+mod native_unit_rules;
 mod nuclear;
 pub(crate) use bases::Base;
 mod cities;

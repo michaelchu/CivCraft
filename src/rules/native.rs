@@ -10,6 +10,7 @@ use serde::Deserialize;
 use std::sync::OnceLock;
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct UnitCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
@@ -17,6 +18,7 @@ pub(crate) struct UnitCatalog {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeUnit {
     pub(crate) id: String,
     pub(crate) name: String,
@@ -348,6 +350,7 @@ pub(crate) struct NativeTerrainExtraSetting {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct SettlementCatalog {
+    pub(crate) barbarians: NativeBarbarianUnits,
     pub(crate) schema_version: u32,
     pub(crate) source: String,
     pub(crate) ai: NativeSettlementAi,
@@ -356,7 +359,15 @@ pub(crate) struct SettlementCatalog {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct NativeBarbarianUnits {
+    pub(crate) basic_unit: String,
+    pub(crate) advanced_unit: String,
+    pub(crate) sea_unit: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct NativeCitizenRules {
+    pub(crate) partisan_unit: String,
     pub(crate) nationality: bool,
     pub(crate) partisans_pct: i32,
 }
@@ -395,13 +406,6 @@ pub(crate) struct ExperienceCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
     pub(crate) levels: Vec<NativeExperienceLevel>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct UnitEconomicsCatalog {
-    pub(crate) schema_version: u32,
-    pub(crate) source: String,
-    pub(crate) bindings: Vec<NativeUnitEconomicsBinding>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -460,71 +464,6 @@ pub(crate) struct NativeEffectRequirement {
 
 fn native_requirement_present() -> bool {
     true
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeUnitEconomicsBinding {
-    pub(crate) civ3_unit_id: String,
-    pub(crate) profile: String,
-    pub(crate) mapping_kind: String,
-    pub(crate) basis: String,
-    pub(crate) unit_class: String,
-    pub(crate) class_flags: Vec<String>,
-    pub(crate) targets: Vec<String>,
-    #[serde(default)]
-    pub(crate) transport_capacity: i32,
-    #[serde(default)]
-    pub(crate) cargo: Vec<String>,
-    #[serde(default)]
-    pub(crate) transport_defense: String,
-    #[serde(default)]
-    pub(crate) embarks: String,
-    #[serde(default)]
-    pub(crate) disembarks: String,
-    pub(crate) paratroopers_range: i32,
-    #[serde(default)]
-    pub(crate) attack: i32,
-    #[serde(default)]
-    pub(crate) veteran_names: Vec<String>,
-    #[serde(default)]
-    pub(crate) veteran_base_raise_chance: Vec<i32>,
-    #[serde(default)]
-    pub(crate) veteran_work_raise_chance: Vec<i32>,
-    #[serde(default)]
-    pub(crate) veteran_power_factor: Vec<i32>,
-    #[serde(default)]
-    pub(crate) veteran_move_bonus: Vec<i32>,
-    #[serde(default)]
-    pub(crate) combat_bonuses: Vec<NativeUnitCombatBonus>,
-    pub(crate) build_cost: i32,
-    pub(crate) fuel: i32,
-    pub(crate) support_food: i32,
-    pub(crate) support_shields: i32,
-    pub(crate) support_gold: i32,
-    pub(crate) happiness: i32,
-    pub(crate) flags: Vec<String>,
-    pub(crate) roles: Vec<String>,
-    #[serde(default)]
-    pub(crate) hp_loss_pct: i32,
-    #[serde(default = "native_default_vision_radius")]
-    pub(crate) vision_radius_sq: i32,
-    #[serde(default = "native_default_vision_layer")]
-    pub(crate) vision_layer: String,
-}
-
-fn native_default_vision_radius() -> i32 {
-    2
-}
-
-fn native_default_vision_layer() -> String {
-    "Main".to_owned()
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeUnitCombatBonus {
-    pub(crate) flag: String,
-    pub(crate) kind: String,
-    pub(crate) value: i32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -676,10 +615,22 @@ pub(crate) fn terrain() -> &'static TerrainCatalog {
 pub(crate) fn settlements() -> &'static SettlementCatalog {
     static CATALOG: OnceLock<SettlementCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
+        let catalog: SettlementCatalog = toml::from_str(include_str!(
             "../../data/rulesets/civcraft_native/settlements.toml"
         ))
-        .expect("native settlement TOML must be valid")
+        .expect("native settlement TOML must be valid");
+        for id in [
+            &catalog.barbarians.basic_unit,
+            &catalog.barbarians.advanced_unit,
+            &catalog.barbarians.sea_unit,
+            &catalog.citizens.partisan_unit,
+        ] {
+            assert!(
+                units().units.iter().any(|unit| unit.id == *id),
+                "native settlement policy references unknown unit {id:?}"
+            );
+        }
+        catalog
     })
 }
 
@@ -690,16 +641,6 @@ pub(crate) fn experience() -> &'static ExperienceCatalog {
             "../../data/rulesets/civcraft_native/experience_levels.toml"
         ))
         .expect("native experience TOML must be valid")
-    })
-}
-
-pub(crate) fn unit_economics() -> &'static UnitEconomicsCatalog {
-    static CATALOG: OnceLock<UnitEconomicsCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/unit_economics.toml"
-        ))
-        .expect("native unit economics TOML must be valid")
     })
 }
 
@@ -784,8 +725,6 @@ mod tests {
         assert_eq!(settlements().schema_version, 1);
         assert_eq!(experience().schema_version, 1);
         assert_eq!(experience().levels.len(), 4);
-        assert_eq!(unit_economics().schema_version, 1);
-        assert_eq!(unit_economics().bindings.len(), 92);
         assert_eq!(effects().schema_version, 1);
         assert_eq!(effects().source, "CivCraft native effect graph");
         assert_eq!(effects().effects.len(), 508);
@@ -793,25 +732,6 @@ mod tests {
         assert_eq!(actions().source, "CivCraft native action graph");
         assert_eq!(actions().actions.len(), 19);
         assert_eq!(actions().enablers.len(), 89);
-        assert!(
-            unit_economics()
-                .bindings
-                .iter()
-                .all(|binding| binding.fuel >= 0)
-        );
-        assert!(unit_economics().bindings.iter().all(|binding| {
-            !binding.unit_class.is_empty()
-                && binding.class_flags.iter().all(|flag| !flag.is_empty())
-        }));
-        assert_eq!(
-            unit_economics()
-                .bindings
-                .iter()
-                .find(|binding| binding.civ3_unit_id == "tactical_nuke")
-                .expect("native Tactical Nuke economics")
-                .fuel,
-            1
-        );
         assert_eq!(
             experience()
                 .levels

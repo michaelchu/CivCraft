@@ -93,7 +93,7 @@ fn counter_defender_selection_accounts_for_attacker_class_and_naval_city_penalty
     );
     assert_eq!(
         game.defender_versus(city, &land).unwrap().kind,
-        UnitKind::Musketman
+        UnitKind::AegisCruiser
     );
     assert!(
         game.production_city_defender(city, 100)

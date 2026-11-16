@@ -6,7 +6,6 @@ use crate::sim::economy::{
     CityForecast,
     ruleset::{CityEconomySettings, GoldUpkeepStyle},
 };
-use crate::sim::upkeep::UnitUpkeepMapping;
 
 impl Simulation {
     fn resolve_city_shield_upkeep(&mut self, city_id: u32, forecast: &CityForecast) -> Option<i32> {
@@ -38,9 +37,7 @@ impl Simulation {
             else {
                 continue;
             };
-            let UnitUpkeepMapping::Mapped { net, .. } = current_row.economics else {
-                continue;
-            };
+            let net = current_row.costs;
             if net.shields <= 0 || self.unit_by_id(row.unit_id).is_none() {
                 continue;
             }
@@ -57,9 +54,7 @@ impl Simulation {
             if surplus >= 0 {
                 break;
             }
-            let UnitUpkeepMapping::Mapped { net, .. } = row.economics else {
-                continue;
-            };
+            let net = row.costs;
             if net.shields > 0 && self.unit_by_id(row.unit_id).is_some() {
                 // C2C3 has shield_wipe=FALSE. Units that survive their listed
                 // actions are waived for this turn and each costs one citizen.
@@ -101,10 +96,7 @@ impl Simulation {
         self.city_unit_upkeep(city)
             .per_unit
             .into_iter()
-            .find_map(|row| match row.economics {
-                UnitUpkeepMapping::Mapped { net, .. } if net.food > 0 => Some(row.unit_id),
-                UnitUpkeepMapping::Mapped { .. } | UnitUpkeepMapping::Unsupported(_) => None,
-            })
+            .find_map(|row| (row.costs.food > 0).then_some(row.unit_id))
     }
 
     fn city_rapture_growth_due(&self, city: &City, food_surplus: i32) -> bool {
@@ -457,19 +449,7 @@ impl Simulation {
                 } else {
                     initial_gold
                 };
-                let unit_gold_cost = unit_gold.paid.iter().map(|(_, cost)| cost).sum::<i32>();
-                let local_unit_upkeep = match CityEconomySettings::campaign().gold_upkeep_style {
-                    GoldUpkeepStyle::City => unit_gold_cost,
-                    GoldUpkeepStyle::Mixed | GoldUpkeepStyle::Nation => 0,
-                };
-                self.players[snapshot.owner].gold += income.gold_surplus(local_unit_upkeep);
-                if CityEconomySettings::campaign().gold_upkeep_style == GoldUpkeepStyle::Mixed {
-                    // cityturn.c subtracts each city's supported-unit costs
-                    // before checking whether that city must sell buildings.
-                    // National unit disbanding still waits until every city
-                    // has been processed.
-                    self.players[snapshot.owner].gold -= unit_gold_cost;
-                }
+                self.players[snapshot.owner].gold += income.gold_surplus(0);
                 gold_paid.extend(unit_gold.paid);
                 if CityEconomySettings::campaign().gold_upkeep_style != GoldUpkeepStyle::Nation {
                     self.balance_building_upkeep(snapshot.owner, city_id);
@@ -496,19 +476,12 @@ impl Simulation {
     ) {
         if owner != BARBARIANS {
             let style = CityEconomySettings::campaign().gold_upkeep_style;
-            let mut paid = income.1.clone();
-            if style != GoldUpkeepStyle::City {
-                let homeless = self.homeless_unit_gold_upkeep(owner);
-                self.players[owner].gold -= homeless.paid.iter().map(|(_, cost)| cost).sum::<i32>();
-                paid.extend(homeless.paid);
-            }
             if style == GoldUpkeepStyle::Nation {
                 self.balance_national_building_upkeep(owner);
             }
             self.record_player_history(owner);
-            if style == GoldUpkeepStyle::Nation {
-                self.players[owner].gold -= income.1.iter().map(|(_, cost)| cost).sum::<i32>();
-            }
+            let paid = self.national_unit_gold_upkeep(owner).paid;
+            self.players[owner].gold -= paid.iter().map(|(_, cost)| cost).sum::<i32>();
             self.balance_unit_gold_upkeep(owner, &paid);
             self.resolve_research_turn(owner, income.0);
         }
@@ -602,7 +575,6 @@ impl City {
 #[cfg(test)]
 mod upkeep_tests {
     use super::*;
-    use crate::sim::action_rules::{UnitEconomicsRecordBinding, freeciv_unit_economics_record};
 
     fn flat_game() -> Simulation {
         let mut game = Simulation::new(crate::mapgen::generate(42));
@@ -645,86 +617,53 @@ mod upkeep_tests {
     }
 
     #[test]
-    fn shield_deficit_uses_net_cost_and_ordered_recover_action() {
+    fn native_unit_support_does_not_consume_shields_or_disband_units() {
         let mut game = flat_game();
         game.players[HUMAN].government = Government::Republic;
         let city_id = game.cities[0].id;
         let older = add_supported_unit(&mut game, city_id, UnitKind::Warrior);
         let newer = add_supported_unit(&mut game, city_id, UnitKind::Warrior);
         let mut forecast = game.city_forecast(&game.cities[0]);
-        assert_eq!(forecast.support.shields, 1);
+        assert_eq!(forecast.support.shields, 0);
         forecast.shields = 0;
-        let unit = game.unit_by_id(older).unwrap().clone();
-        let UnitEconomicsRecordBinding::Mapped { native, .. } =
-            freeciv_unit_economics_record(UnitKind::Warrior)
-        else {
-            panic!("Warrior has a selected C2C3 economics record");
-        };
-        let recover_value =
-            game.unit_shield_value_for_action(&unit, native, "Disband Unit Recover");
-
         assert_eq!(game.resolve_city_shield_upkeep(city_id, &forecast), Some(0));
-        assert!(game.unit_by_id(older).is_none());
+        assert!(game.unit_by_id(older).is_some());
         assert!(game.unit_by_id(newer).is_some());
-        assert_eq!(game.cities[0].shields, recover_value);
-        assert!(recover_value > 0);
     }
 
     #[test]
-    fn newly_built_unit_uses_free_gold_support_before_same_turn_charging_excess_units() {
+    fn newly_built_units_share_the_national_support_allowance() {
         let mut game = flat_game();
+        game.players[HUMAN].government = Government::Despotism;
         let city_id = game.cities[0].id;
-        let already_supported = [
-            add_supported_unit(&mut game, city_id, UnitKind::Warrior),
-            add_supported_unit(&mut game, city_id, UnitKind::Warrior),
-        ];
+        for _ in 0..4 {
+            add_supported_unit(&mut game, city_id, UnitKind::Warrior);
+        }
+        assert!(game.national_unit_gold_upkeep(HUMAN).paid.is_empty());
         game.cities[0].production = Production::Unit(UnitKind::Warrior);
         game.cities[0].shields = game.cities[0].production.cost();
-
-        let (_, paid) = game.process_player_cities(HUMAN);
-        let built = game
+        game.process_player_cities(HUMAN);
+        let newest = game
             .units
             .iter()
-            .find(|unit| {
-                unit.home_city == Some(city_id)
-                    && unit.kind == UnitKind::Warrior
-                    && !already_supported.contains(&unit.id)
-            })
-            .expect("city completed its Warrior");
-        let built_row = game
-            .city_unit_upkeep(&game.cities[0])
-            .per_unit
-            .into_iter()
-            .find(|row| row.unit_id == built.id)
-            .expect("new unit is included in the same-turn upkeep refresh");
-        assert!(matches!(
-            built_row.economics,
-            UnitUpkeepMapping::Mapped {
-                raw: crate::sim::upkeep::UnitOutputCosts { gold: 1, .. },
-                net: crate::sim::upkeep::UnitOutputCosts { gold: 0, .. },
-            }
-        ));
-        assert!(
-            paid.iter()
-                .any(|&(unit_id, cost)| { already_supported.contains(&unit_id) && cost > 0 })
+            .filter(|unit| unit.owner == HUMAN)
+            .max_by_key(|unit| unit.id)
+            .unwrap();
+        assert_eq!(
+            game.national_unit_gold_upkeep(HUMAN).paid,
+            vec![(newest.id, 1)]
         );
-        assert!(paid.iter().all(|&(unit_id, _)| unit_id != built.id));
     }
 
     #[test]
-    fn food_deficit_applies_ruleset_wipe_to_first_supported_food_unit() {
+    fn settlers_do_not_create_food_upkeep_candidates() {
         let mut game = flat_game();
         let city_id = game.cities[0].id;
-        let settlers = (0..5)
-            .map(|_| add_supported_unit(&mut game, city_id, UnitKind::Settler))
-            .collect::<Vec<_>>();
-        let settler = settlers[0];
-        assert_eq!(game.first_food_upkeep_unit(city_id), Some(settler));
-
-        assert!(game.resolve_missing_unit_upkeep(settler, UnitUpkeepOutput::Food));
-
-        assert!(game.unit_by_id(settler).is_none());
-        assert_eq!(game.cities[0].size, 1);
+        for _ in 0..5 {
+            add_supported_unit(&mut game, city_id, UnitKind::Settler);
+        }
+        assert_eq!(game.first_food_upkeep_unit(city_id), None);
+        assert_eq!(game.city_unit_upkeep(&game.cities[0]).food, 0);
     }
 
     #[test]
@@ -735,7 +674,7 @@ mod upkeep_tests {
             add_supported_unit(&mut game, city_id, UnitKind::Settler);
         }
         let forecast = game.city_forecast(&game.cities[0]);
-        assert_eq!(forecast.support.food, 2);
+        assert_eq!(forecast.support.food, 0);
         let expected = forecast.food
             - game.cities[0].size * CityEconomySettings::campaign().food_cost
             - forecast.support.food;
@@ -750,16 +689,19 @@ mod upkeep_tests {
     fn city_turn_disbands_food_upkeep_before_famine_reduces_population() {
         let mut game = flat_game();
         let city_id = game.cities[0].id;
+        game.cities[0].size = 2;
         for _ in 0..5 {
             add_supported_unit(&mut game, city_id, UnitKind::Settler);
         }
+        game.cities[0].production = Production::Building(Building::GRANARY);
+        game.cities[0].shields = 0;
         game.cities[0].food = -20;
         let supported_before = game
             .units
             .iter()
             .filter(|unit| unit.home_city == Some(city_id))
             .count();
-        assert!(game.first_food_upkeep_unit(city_id).is_some());
+        assert!(game.first_food_upkeep_unit(city_id).is_none());
 
         game.process_player_cities(HUMAN);
 
@@ -769,7 +711,7 @@ mod upkeep_tests {
                 .iter()
                 .filter(|unit| unit.home_city == Some(city_id))
                 .count(),
-            supported_before - 1
+            supported_before
         );
         assert!(game.cities[0].food >= 0);
     }

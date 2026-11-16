@@ -52,20 +52,9 @@ fn city_has_partisan_local_support(
 fn selected_partisan_unit() -> UnitKind {
     static UNIT: std::sync::OnceLock<UnitKind> = std::sync::OnceLock::new();
     *UNIT.get_or_init(|| {
-        // The selected `unit_economics.tsv` explicitly maps Civ III Guerilla
-        // to C2C3 `unit_partisan`. Confirm that this is the one selected unit
-        // carrying Freeciv's Partisan role before using the Civ III identity.
         let candidates = UnitKind::ALL_NATIVE
             .into_iter()
-            .filter(|&kind| {
-                matches!(super::action_rules::freeciv_unit_economics_record(kind),
-                super::action_rules::UnitEconomicsRecordBinding::Mapped {
-                    native,
-                    kind: mapping,
-                    ..
-                } if mapping == super::action_rules::UnitEconomicsBindingKind::RoleAlias
-                    && native.roles.iter().any(|role| role.eq_ignore_ascii_case("Partisan")))
-            })
+            .filter(|&kind| super::native_unit_rules::has_role(kind, "Partisan"))
             .collect::<Vec<_>>();
         assert_eq!(
             candidates.len(),
@@ -229,15 +218,7 @@ mod tests {
     fn selected_partisan_role_uses_the_explicit_civ3_guerilla_alias() {
         let kind = selected_partisan_unit();
         assert_eq!(kind, UnitKind::Guerilla);
-        let super::super::action_rules::UnitEconomicsRecordBinding::Mapped {
-            native,
-            kind: super::super::action_rules::UnitEconomicsBindingKind::RoleAlias,
-            ..
-        } = super::super::action_rules::freeciv_unit_economics_record(kind)
-        else {
-            panic!("C2C3 Partisan must use an explicit Civ III role alias");
-        };
-        assert_eq!(native.profile, "unit_partisan");
+        assert!(super::super::native_unit_rules::has_role(kind, "Partisan"));
     }
 
     #[test]

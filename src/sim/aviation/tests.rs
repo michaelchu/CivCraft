@@ -41,7 +41,7 @@ fn nuclear_submarines_use_the_selected_submarine_transport_role() {
     assert_eq!(
         game.ruleset_transport_capacity(UnitKind::NuclearSubmarine)
             .unwrap(),
-        8
+        1
     );
     assert!(
         game.ruleset_transport_pair_allowed(UnitKind::NuclearSubmarine, UnitKind::TacticalNuke)
@@ -55,21 +55,15 @@ fn nuclear_submarines_use_the_selected_submarine_transport_role() {
 }
 
 #[test]
-fn ai_submarine_launches_its_loaded_cruise_missile_at_an_adjacent_carrier() {
+fn native_submarines_cannot_load_cruise_missiles_for_a_hunt() {
     let mut game = Simulation::new(crate::mapgen::generate(42));
-    let (submarine, missile, target) = game.ai_submarine_playtest_setup();
-    let hunter = game.unit_by_id(submarine).unwrap().clone();
-    let target_unit = game.unit_by_id(target).unwrap();
-    let mut paths = super::super::normal_paths::NormalPaths::enemy_map(&game, &hunter);
-    let target_cost = paths.movement_cost(&game, target_unit.x, target_unit.y);
-    assert_eq!(target_cost, Some(MOVE_FRAGMENTS));
-    assert_eq!(game.unit_by_id(missile).unwrap().moves_left, MOVE_FRAGMENTS);
-
-    game.run_ai_player(1);
-
-    assert!(game.unit_by_id(submarine).is_some());
-    assert!(game.unit_by_id(missile).is_none());
-    assert!(game.unit_by_id(target).is_none());
+    game.units.clear();
+    game.cities.clear();
+    game.tile_mut(10, 20).terrain = Terrain::Sea;
+    let sub = game.spawn_unit(HUMAN, UnitKind::NuclearSubmarine, 10, 20);
+    let missile = game.spawn_unit(HUMAN, UnitKind::CruiseMissile, 10, 20);
+    assert!(!game.board_specific_ship(missile, sub));
+    assert_eq!(game.unit_by_id(missile).unwrap().transport, None);
 }
 
 #[test]
@@ -336,8 +330,18 @@ fn paradrop_uses_selected_actions_minimum_moves_and_unit_range() {
         tile.seen = true;
     }
     remember_all_tiles_for_human(&mut game);
-    let in_range = offset_native_by_map(source.0, source.1, 10, 0);
-    let out_of_range = offset_native_by_map(source.0, source.1, 11, 0);
+    let in_range = offset_native_by_map(
+        source.0,
+        source.1,
+        UnitKind::Paratrooper.operational_range(),
+        0,
+    );
+    let out_of_range = offset_native_by_map(
+        source.0,
+        source.1,
+        UnitKind::Paratrooper.operational_range() + 1,
+        0,
+    );
 
     let troop = game.spawn_unit(HUMAN, UnitKind::Paratrooper, source.0, source.1);
     game.units
@@ -411,7 +415,7 @@ fn blind_paradrop_uses_remembered_land_then_resolves_actual_water_death() {
     let source = (10, 20);
     game.create_city(HUMAN, source.0, source.1);
     remember_all_tiles_for_human(&mut game);
-    let landing = offset_native_by_map(source.0, source.1, 10, 0);
+    let landing = offset_native_by_map(source.0, source.1, 5, 0);
     let hidden_occupier = game.map_wrap.offset(landing.0, landing.1, 1, 0).unwrap();
     let hidden_enemy = game.spawn_unit(1, UnitKind::Warrior, hidden_occupier.0, hidden_occupier.1);
     let troop = game.spawn_unit(HUMAN, UnitKind::Paratrooper, source.0, source.1);
@@ -423,6 +427,10 @@ fn blind_paradrop_uses_remembered_land_then_resolves_actual_water_death() {
 
     // The player's last observation says land. The actual map has since
     // changed to water, and the target is outside current sight.
+    game.tile_mut(landing.0, landing.1).road = false;
+    game.tile_mut(landing.0, landing.1).railroad = false;
+    game.tile_mut(landing.0, landing.1).river = false;
+    game.tile_mut(landing.0, landing.1).base = None;
     game.tile_mut(landing.0, landing.1).terrain = Terrain::Ocean;
     game.tile_mut(landing.0, landing.1).visible = false;
     assert_eq!(
@@ -460,7 +468,7 @@ fn paradrop_action_enablers_use_remembered_target_ownership() {
     let source = (10, 20);
     game.create_city(HUMAN, source.0, source.1);
     remember_all_tiles_for_human(&mut game);
-    let landing = offset_native_by_map(source.0, source.1, 10, 0);
+    let landing = offset_native_by_map(source.0, source.1, 5, 0);
     let troop = game.spawn_unit(HUMAN, UnitKind::Paratrooper, source.0, source.1);
     game.units
         .iter_mut()
@@ -534,8 +542,8 @@ fn cruise_missile_uses_missile_class_city_defense_and_sdi_bonus() {
     assert_eq!(defense(&game), 540);
     assert_eq!(
         game.combat_firepower(&attacker, &target),
-        (2, 1),
-        "selected C2C3 CityBuster doubles Cruise Missile firepower in a city"
+        (1, 1),
+        "Native missiles do not inherit the foreign CityBuster multiplier"
     );
     assert_eq!(attacker.kind.fuel_capacity(), 1);
 }
@@ -548,8 +556,8 @@ fn aegis_cruisers_defend_against_air_attackers_and_sail_without_cargo() {
     let (x, y) = (cruiser.x, cruiser.y);
     let defense = |attacker| game.defense_power_against(cruiser, x, y, attacker);
     assert_eq!(defense(UnitKind::Caravel), 100);
-    assert_eq!(defense(UnitKind::Fighter), 500);
-    assert_eq!(defense(UnitKind::Helicopter), 500);
+    assert_eq!(defense(UnitKind::Fighter), 100);
+    assert_eq!(defense(UnitKind::Helicopter), 100);
     assert_eq!(cruiser.kind.transport_capacity(), 0);
     assert_eq!(cruiser.kind.required_tech(), Some(Tech::ROBOTICS));
     assert!(!UnitKind::Transport.can_carry(cruiser.kind));
@@ -1257,7 +1265,7 @@ fn civ3_bombard_can_target_an_empty_enemy_city_and_uses_selected_citizen_class_r
     );
     assert_eq!(
         selected_unit_class_flag(UnitKind::Artillery, "KillCitizen"),
-        Some(true)
+        Some(false)
     );
     assert!(
         game.action_available_for_unit_against_city(&attacker, "Bombard", target_city)
@@ -1687,7 +1695,7 @@ mod stealth_tests {
 
     #[test]
     fn fuel_free_c2c3_helicopter_does_not_emergency_embark() {
-        let (mut game, _boat, helicopter, _victim) =
+        let (mut game, boat, helicopter, _victim) =
             loaded_hunt(2, UnitKind::Helicopter, UnitKind::Carrier);
         assert!(game.board_or_deboard(helicopter));
         let before = game
@@ -1696,12 +1704,11 @@ mod stealth_tests {
             .find(|unit| unit.id == helicopter)
             .unwrap()
             .hp;
-        let nonnative_decay = game.unit_by_id(helicopter).unwrap().max_hit_points() * 10 / 100;
         game.restore_aircraft();
         assert!(game.units.iter().any(|unit| unit.id == helicopter
-            && unit.transport.is_none()
+            && unit.transport == Some(boat)
             && unit.fuel == UnitKind::Helicopter.fuel_capacity()
-            && unit.hp == before - nonnative_decay));
+            && unit.hp == before));
     }
 
     #[test]
@@ -1723,7 +1730,7 @@ mod stealth_tests {
     #[test]
     fn civ3_bombard_units_use_installed_strength_rate_and_range_data() {
         let one_attack = super::super::unit_catalog::UnitFlag::OneAttack;
-        assert_eq!(UnitKind::Bomber.fuel_capacity(), 3);
+        assert_eq!(UnitKind::Bomber.fuel_capacity(), 1);
         assert_eq!(UnitKind::Bomber.bombard_rate(), 3);
         assert!(!UnitKind::Bomber.has_flag(one_attack));
         assert!(UnitKind::CruiseMissile.has_flag(one_attack));
@@ -1826,7 +1833,7 @@ mod stealth_tests {
         target.kind = UnitKind::StealthFighter;
         game.refresh_visibility();
         assert!(game.tile(distant.0, distant.1).visible);
-        assert!(!game.unit_visible_to_human(game.unit_by_id(hidden).unwrap()));
+        assert!(game.unit_visible_to_human(game.unit_by_id(hidden).unwrap()));
         let explorer = game.spawn_unit(HUMAN, UnitKind::Explorer, city.x, city.y);
         assert!(game.apply(Command::move_civ3_by_offset(&game, explorer, 1, 0)));
         assert!(game.unit_visible_to_human(game.unit_by_id(hidden).unwrap()));

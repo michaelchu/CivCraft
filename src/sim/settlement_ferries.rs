@@ -480,9 +480,8 @@ impl Simulation {
         let mut best = None;
         let mut best_value = 0.0;
         let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
-        let unit_cost = crate::sim::action_rules::freeciv_unit_build_cost(founder.kind)
-            + crate::sim::action_rules::freeciv_unit_build_cost(ship.kind)
-                / settings.ferry_cost_divisor;
+        let unit_cost = crate::sim::action_rules::unit_build_cost(founder.kind)
+            + crate::sim::action_rules::unit_build_cost(ship.kind) / settings.ferry_cost_divisor;
         let mut land_expansions = 0_u64;
         while let Some(Reverse((cost, index))) = land_queue.pop() {
             if cost != land_costs[index] {

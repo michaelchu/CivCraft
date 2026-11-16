@@ -35,6 +35,15 @@ fn hunter_assigns_same_tile_missiles_only_when_a_real_hunt_begins() {
         hunter_unit.kind = UnitKind::NuclearSubmarine;
         hunter_unit.hp = hunter_unit.max_hit_points();
     }
+    {
+        let cargo = sim
+            .units
+            .iter_mut()
+            .find(|unit| unit.id == missile)
+            .unwrap();
+        cargo.kind = UnitKind::TacticalNuke;
+        cargo.hp = cargo.max_hit_points();
+    }
     let hunter_clone = sim.unit_by_id(hunter).unwrap().clone();
     let hunter_rate = sim.unit_move_rate(&hunter_clone);
     sim.units

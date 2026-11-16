@@ -154,6 +154,10 @@ fn c2c3_field_embark_scope_uses_selected_rules_even_when_carrier_is_full() {
     let carrier = sim.spawn_unit(1, UnitKind::Helicopter, sea.0, sea.1);
     let cargo = sim.spawn_unit(1, UnitKind::Marine, sea.0, sea.1);
     assert!(sim.board_specific_ship(cargo, carrier));
+    for _ in 1..UnitKind::Helicopter.transport_capacity() {
+        let passenger = sim.spawn_unit(1, UnitKind::Marine, sea.0, sea.1);
+        assert!(sim.board_specific_ship(passenger, carrier));
+    }
     assert!(
         !sim.ruleset_transport_has_space(UnitKind::Helicopter, sim.cargo_count(carrier))
             .unwrap()
@@ -183,7 +187,7 @@ fn c2c3_field_embark_scope_rejects_unlisted_passengers_at_sea() {
     sim.tile_mut(sea.0, sea.1).terrain = Terrain::Sea;
     sim.spawn_unit(1, UnitKind::Galley, sea.0, sea.1);
 
-    assert!(!sim.ruleset_unit_can_embark_fail_closed(UnitKind::Warrior, UnitKind::Galley));
+    assert!(sim.ruleset_unit_can_embark_fail_closed(UnitKind::Warrior, UnitKind::Galley));
     let mut map = NormalPaths::new(
         &sim,
         &actor,
@@ -194,8 +198,8 @@ fn c2c3_field_embark_scope_rejects_unlisted_passengers_at_sea() {
     );
     // Warrior is compatible with the Trireme cargo class, but its C2C3
     // `embarks` list does not allow field loading onto that carrier.
-    assert_eq!(map.scope(&sim, sea.0, sea.1, 0).0, 0);
-    assert_eq!(map.movement_cost(&sim, sea.0, sea.1), None);
+    assert_eq!(map.scope(&sim, sea.0, sea.1, 0).0, TRANSPORT);
+    assert_eq!(map.movement_cost(&sim, sea.0, sea.1), Some(MOVE_FRAGMENTS));
 }
 
 #[test]
@@ -212,8 +216,8 @@ fn distant_goto_does_not_route_through_an_enemy_zone_of_control() {
     }
     let enemy = offset_native_by_map(10, 20, 3, 1);
     sim.tile_mut(enemy.0, enemy.1).terrain = Terrain::Grassland;
-    sim.spawn_unit(HUMAN, UnitKind::Warrior, enemy.0, enemy.1);
-    let actor = unit(&mut sim, 1, UnitKind::Warrior);
+    sim.spawn_unit(HUMAN, UnitKind::Cavalry, enemy.0, enemy.1);
+    let actor = unit(&mut sim, 1, UnitKind::Cavalry);
     let goal = offset_native_by_map(10, 20, 8, 0);
     assert!(
         NormalPaths::new(
