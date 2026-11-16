@@ -29,7 +29,7 @@ Conquests identities in source order. The source-backed `units.tsv` supplies
 their stats, technology and resource requirements, civilization availability,
 unique replacements, flags, and art folder/root mappings. The editable rules
 input and export provenance are documented in
-`data/rulesets/civcraft_native/README.md`. `civilizations.toml` contains all
+`data/rulesets/civcraft/README.md`. `content/civilizations.toml` contains all
 31 playable-civilization identities and start profiles.
 
 This is the active campaign catalog, not yet a complete purge of inherited
@@ -274,7 +274,7 @@ Settler/Worker start with the possible Expansionist Scout.
 
 ## Source-derived ruleset data now checked in
 
-`data/rulesets/civcraft_native/units.toml` now contains 92 entries generated
+`data/rulesets/civcraft/content/units.toml` now contains 92 entries generated
 from the installed Conquests BIQ: 59 standard campaign identities, 31 unique
 units, and two wonder-created units. It records gameplay stats, prerequisites,
 resources, upgrades, availability, unique replacements, raw BIQ flags, source
@@ -285,7 +285,7 @@ civilizations, default Settler/Worker stacks, and the eight Expansionist Scout
 bonuses, including Chasqui Scout for the Inca.
 
 The catalog provenance is documented in
-`data/rulesets/civcraft_native/README.md`. The extraction utility and its
+`data/rulesets/civcraft/README.md`. The extraction utility and its
 intermediate tables are no longer distributed. The installed source BIQ
 SHA-256 at export time is
 `1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c`.

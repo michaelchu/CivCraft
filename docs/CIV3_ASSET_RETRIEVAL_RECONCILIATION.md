@@ -4,7 +4,7 @@
 
 This is a source-level comparison of the checked-out `openciv3/` tree and CivCraft's current working tree. It maps how each program chooses Civilization III installation files. It does not claim that every OpenCiv3 path is correct or that its behavior is the target: the parity goal is to make CivCraft's installation lookup and precedence match OpenCiv3 where the same asset is used, while retaining documented CivCraft-only tileset choices.
 
-OpenCiv3's shared resolver is `openciv3/C7/Util.cs::Civ3MediaPath`; installation discovery is in `openciv3/QueryCiv3/Civ3Location.cs`; root selection is exposed in `openciv3/C7/UIElements/MainMenu/MainMenu.cs`. CivCraft's source root and renderer lookup live in `app/src/client/tileset.rs`; per-unit art identities and source folders come from `app/data/rulesets/civcraft_native/units.toml`.
+OpenCiv3's shared resolver is `openciv3/C7/Util.cs::Civ3MediaPath`; installation discovery is in `openciv3/QueryCiv3/Civ3Location.cs`; root selection is exposed in `openciv3/C7/UIElements/MainMenu/MainMenu.cs`. CivCraft's source root and renderer lookup live in `app/src/client/tileset.rs`; per-unit art identities and source folders come from `app/data/rulesets/civcraft/content/units.toml`.
 
 ## Installation root discovery
 

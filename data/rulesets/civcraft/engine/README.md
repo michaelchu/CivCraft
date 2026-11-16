@@ -1,19 +1,19 @@
-# CivCraft `civ2civ3` Ruleset Baseline
+# CivCraft engine layer
 
-This directory is CivCraft's editable baseline derived from Freeciv's
-`civ2civ3` ruleset. Its sole Freeciv source is revision
+This directory is the engine-compatibility layer inside the CivCraft campaign
+package. It is derived from Freeciv's `civ2civ3` ruleset. Its sole Freeciv source is revision
 `9ff184b6eb128ca636c7ad6269e27aa959600006`.
 
 ## Contents and source
 
-- The eleven top-level `*.ruleset` files come from Freeciv's
+- The eleven `*.ruleset` files come from Freeciv's
   `data/civ2civ3/` directory.
 - `README.civ2civ3` is retained because `game.ruleset` references it for the
   Freeciv ruleset editor.
-- `script.lua` and `../default/default.lua` are retained as source references.
+- `script.lua` and `../../default/default.lua` are retained as source references.
   CivCraft does not execute the Lua files; their gameplay hooks still need
   Rust implementations under the later campaign-system milestones.
-- The sibling `default/` and `override/` files are shared C2C3 include and
+- The top-level `default/` and `override/` files are shared C2C3 include and
   script dependencies, not another gameplay ruleset. CivCraft intentionally
   omits Freeciv's general nation catalog: `nations.ruleset` embeds only the
   Barbarian, Pirate, and Animal Kingdom records needed by C2C3 mechanics,
@@ -27,7 +27,7 @@ This directory is CivCraft's editable baseline derived from Freeciv's
   the imported copy at the time recorded, not necessarily the current file.
 
 The `game.ruleset` copy has intentional changes: its ruledit description
-paths point to `civcraft_civ2civ3/README.civ2civ3`, and its `[settings]` table
+paths point to `civcraft/engine/README.civ2civ3`, and its `[settings]` table
 records `victories = "SPACERACE|ALLIED"`, `landmass = 30`,
 `startpos = "DEFAULT"`, `specials = 250`, and `huts = 15` explicitly. These
 settings are inherited engine defaults that the upstream C2C3 table does not
@@ -40,8 +40,8 @@ editable without relying on implicit server defaults. The `ocean_resources`
 parameter remains selected from C2C3 `terrain.ruleset` (default `FALSE`), where
 it controls whether resource extras may appear away from safe coastline. No
 files or values are sourced from `classic` or another Freeciv gameplay ruleset.
-All eleven required gameplay files are present in this selected directory; the
-sibling `default/` folder contains include and script data only.
+All eleven required gameplay files are present in this engine layer; the
+top-level `default/` folder contains include and script data only.
 
 For P8, the same `[settings]` table also records eight pinned Freeciv engine
 defaults that C2C3 does not set itself: `sciencebox = 100`, `techpenalty = 100`,
@@ -84,7 +84,7 @@ Airlift source and destination capacity overrides remain explicit in
 alongside the selected `Airlift` effect and action range.
 
 CivCraft's playable civilization roster is the Civ III catalog in
-`../civcraft_native/civilizations.toml`. The selected ruleset keeps only three
+`../content/civilizations.toml`. The selected ruleset keeps only three
 embedded special non-player nation records for barbarian and animal mechanics.
 
 CivCraft also extends `game.ruleset` with `[civcraft_settlement_ai]`. These

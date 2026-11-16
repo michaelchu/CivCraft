@@ -539,7 +539,7 @@ pub(crate) fn units() -> &'static UnitCatalog {
     static CATALOG: OnceLock<UnitCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/units.toml"
+            "../../data/rulesets/civcraft/content/units.toml"
         ))
         .expect("native unit TOML must be valid")
     })
@@ -549,7 +549,7 @@ pub(crate) fn civilizations() -> &'static CivilizationCatalog {
     static CATALOG: OnceLock<CivilizationCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/civilizations.toml"
+            "../../data/rulesets/civcraft/content/civilizations.toml"
         ))
         .expect("native civilization TOML must be valid")
     })
@@ -559,7 +559,7 @@ pub(crate) fn buildings() -> &'static BuildingCatalog {
     static CATALOG: OnceLock<BuildingCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/buildings.toml"
+            "../../data/rulesets/civcraft/content/buildings.toml"
         ))
         .expect("native building TOML must be valid")
     })
@@ -576,7 +576,7 @@ pub(crate) fn technologies() -> &'static TechnologyCatalog {
     static CATALOG: OnceLock<TechnologyCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/technologies.toml"
+            "../../data/rulesets/civcraft/content/technologies.toml"
         ))
         .expect("native technology TOML must be valid")
     })
@@ -586,7 +586,7 @@ pub(crate) fn governments() -> &'static GovernmentCatalog {
     static CATALOG: OnceLock<GovernmentCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/governments.toml"
+            "../../data/rulesets/civcraft/content/governments.toml"
         ))
         .expect("native government TOML must be valid")
     })
@@ -596,7 +596,7 @@ pub(crate) fn economy() -> &'static EconomyCatalog {
     static CATALOG: OnceLock<EconomyCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/economy.toml"
+            "../../data/rulesets/civcraft/content/economy.toml"
         ))
         .expect("native economy TOML must be valid")
     })
@@ -606,7 +606,7 @@ pub(crate) fn terrain() -> &'static TerrainCatalog {
     static CATALOG: OnceLock<TerrainCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/terrain.toml"
+            "../../data/rulesets/civcraft/content/terrain.toml"
         ))
         .expect("native terrain TOML must be valid")
     })
@@ -616,7 +616,7 @@ pub(crate) fn settlements() -> &'static SettlementCatalog {
     static CATALOG: OnceLock<SettlementCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         let catalog: SettlementCatalog = toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/settlements.toml"
+            "../../data/rulesets/civcraft/content/settlements.toml"
         ))
         .expect("native settlement TOML must be valid");
         for id in [
@@ -638,7 +638,7 @@ pub(crate) fn experience() -> &'static ExperienceCatalog {
     static CATALOG: OnceLock<ExperienceCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/experience_levels.toml"
+            "../../data/rulesets/civcraft/content/experience_levels.toml"
         ))
         .expect("native experience TOML must be valid")
     })
@@ -648,7 +648,7 @@ pub(crate) fn effects() -> &'static EffectCatalog {
     static CATALOG: OnceLock<EffectCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/effects.toml"
+            "../../data/rulesets/civcraft/content/effects.toml"
         ))
         .expect("native effects TOML must be valid")
     })
@@ -658,7 +658,7 @@ pub(crate) fn actions() -> &'static ActionCatalog {
     static CATALOG: OnceLock<ActionCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
         toml::from_str(include_str!(
-            "../../data/rulesets/civcraft_native/actions.toml"
+            "../../data/rulesets/civcraft/content/actions.toml"
         ))
         .expect("native actions TOML must be valid")
     })
