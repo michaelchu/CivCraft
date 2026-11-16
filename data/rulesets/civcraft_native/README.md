@@ -6,11 +6,10 @@ III: Conquests campaign.  It is intentionally separate from
 Freeciv engine configuration.
 
 The catalogs are the runtime source for the migrated campaign systems.  The
-legacy TSV extraction tables remain only as temporary source material for the
-conversion tool while building rules and Freeciv effect adapters are being
-cut over.  Do not edit the TSVs directly for a rules change once the
-corresponding TOML field exists; regenerate only when reconciling source data,
-then keep the TOML and focused tests authoritative.
+legacy extraction tables and one-time conversion tool have been removed after
+the generated TOML catalogs were verified against them.  Edit the TOML files
+and keep the focused catalog and parity tests authoritative; source BIQ
+provenance remains recorded in the catalog records and migration documents.
 
 Current catalogs:
 

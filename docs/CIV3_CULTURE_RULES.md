@@ -32,9 +32,10 @@ promoting a fan formula to an official rule.
 
 ## Extracted ruleset data
 
-`data/rulesets/civ3_conquests/culture_biq.json` contains the extracted culture
-records. Every record carries its BIQ section/index and source hash; the
-extraction utility is no longer distributed.
+The former checked-in culture extraction contained the records summarized
+below. Every extracted record carried its BIQ section/index and source hash;
+the intermediate extraction files are no longer distributed after their
+contents were audited and documented here.
 
 | BIQ section | Extracted data | Current confidence |
 |---|---|---|
@@ -56,10 +57,10 @@ victory-limit block. The main Conquests `GAME[0]` stores `0` under BIQ SHA-256
 `Scenarios/MPTournament.biq`, `GAME[0]`, stores `1` under SHA-256
 `555921731b41667f81a6fc6709fdacce2c57706b123ebeb9648a59950d433185`. A scan
 of all 29 installed Conquests BIQs found the flag enabled only in these five
-scenario files. The complete raw inventory is checked into
-`data/rulesets/civ3_conquests/culture_capture_settings.tsv`; its byte offset follows the
-structural GAME layout in `../openciv3/QueryCiv3/BiqSections/Game.cs` only to
-locate the raw field. That structural lead is cross-checked against the
+scenario files. The complete raw inventory was captured in the former
+culture-capture export; its byte offset follows the structural GAME layout in
+`../openciv3/QueryCiv3/BiqSections/Game.cs` only to locate the raw field. That
+structural lead is cross-checked against the
 shipped release-note case:
 
 | BIQ | `GAME[0].RetainCulture` | SHA-256 |
@@ -981,7 +982,7 @@ Sources checked: [Dan Magaha / Firaxis, “Culture-Flipping Exposed”](https://
   reference says default victory conditions enable cultural victory even when
   the individual flag is off. CivCraft now computes effective enablement as
   `default_victory_conditions || cultural_victory_flag`, using the reproducible
-  `culture_victory_settings.tsv` export. This interpretation is community
+  former culture-victory-settings export. This interpretation is community
   reverse-engineering, not extracted editor-help text or controlled observation;
   custom scenario victory settings are not selectable at runtime. Source checked
   2026-11-10: [CivFanatics, “Editor Rules - Explained”](https://forums.civfanatics.com/threads/editor-rules-explained.210035/).
@@ -1122,8 +1123,8 @@ verification.
   completion year for culture-producing buildings. Ownership transfer retains
   prior civilization totals and creates an entry for future output from the
   new owner.
-- Runtime culture rates load from `culture_buildings.tsv`, generated from the
-  installed BIQ. All 46 positive-output BLDG records map to the current
+- Runtime culture rates load from the native `buildings.toml` catalog, generated
+  from the installed BIQ. All 46 positive-output BLDG records map to the current
   CivCraft catalog. Sistine Chapel and Knights Templar were appended as new
   catalog records at unused IDs, with their BIQ culture, cost, prerequisite,
   and obsolescence fields extracted and mapped.
@@ -1223,7 +1224,7 @@ verification.
   under a fresh temporary directory; each output byte-matches its checked-in
   counterpart. The `export_conquests_capture_culture_flags.py` run covered all
   29 Conquests BIQs
-  and its `culture_capture_settings.tsv` also byte-matches. This confirms the
+  and its former culture-capture export also byte-matches. This confirms the
   ten culture-related exports are reproducible from the current installed
   source. The entire offline test suite also passed: 689 passed, 0 failed.
 - Earlier built desktop self-test, seed 42, report
@@ -1420,10 +1421,9 @@ verification.
   625 passed, 7 failed in unrelated AI advisor, civilization-start, and fogged
   city-style checks; no culture, capture, resistance, or save tests failed.
 - Used `/private/tmp/civ3-blast` to re-unpack the installed `conquests.biq` and
-  regenerate `culture_biq.json`,
-  `culture_buildings.tsv`, `culture_victory.tsv`, and the all-scenario capture
-  settings TSV into `/private/tmp`. All four regenerated files byte-match the
-  checked-in exports. This verifies extraction reproducibility, not the
+  regenerate the former culture, building, victory, and all-scenario capture
+  exports into `/private/tmp`. The regenerated values matched the audited
+  exports. This verifies extraction reproducibility, not the
   unverified gameplay meaning of the fields.
 - `cargo build --offline --release`: succeeds.
 - Required desktop scenario run, seed 42, report

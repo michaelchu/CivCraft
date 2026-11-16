@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 const PACING_TOML: &str =
-    include_str!("../../data/rulesets/civ3_conquests/unit_animation_pacing.toml");
+    include_str!("../../data/rulesets/civcraft_native/unit_animation_pacing.toml");
 
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]

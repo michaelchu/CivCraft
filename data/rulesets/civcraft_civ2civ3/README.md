@@ -84,7 +84,7 @@ Airlift source and destination capacity overrides remain explicit in
 alongside the selected `Airlift` effect and action range.
 
 CivCraft's playable civilization roster is the Civ III catalog in
-`../civ3_conquests/civilizations.tsv`. The selected ruleset keeps only three
+`../civcraft_native/civilizations.toml`. The selected ruleset keeps only three
 embedded special non-player nation records for barbarian and animal mechanics.
 
 CivCraft also extends `game.ruleset` with `[civcraft_settlement_ai]`. These

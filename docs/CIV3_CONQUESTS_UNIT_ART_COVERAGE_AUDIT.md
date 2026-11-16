@@ -2,9 +2,9 @@
 
 ## Scope and evidence
 
-This audit compares the 92 active rows in [`data/rulesets/civ3_conquests/units.tsv`](../data/rulesets/civ3_conquests/units.tsv) with the checked-in original art trees: `../../source/Art/Units`, `../../source/civ3PTW/Art/Units`, and `../../source/Conquests/Art/Units`. Folder and file matching was case-insensitive to reflect the source game’s Windows paths. This is filesystem evidence, not a claim that CivCraft currently loads every source animation correctly.
+This audit compares the 92 active records in [`data/rulesets/civcraft_native/units.toml`](../data/rulesets/civcraft_native/units.toml) with the checked-in original art trees: `../../source/Art/Units`, `../../source/civ3PTW/Art/Units`, and `../../source/Conquests/Art/Units`. Folder and file matching was case-insensitive to reflect the source game’s Windows paths. This is filesystem evidence, not a claim that CivCraft currently loads every source animation correctly.
 
-Roster counts in the TSV: **92 identities** (59 standard, 31 unique, 2 wonder-created). All 92 rows resolve to at least one source unit folder and an `.ini` animation manifest. The Leader and Army rows each use four era-specific folders, so their mappings cover 8 folders; the other 90 rows each name one folder. The catalog lists the two Paratrooper identities separately but both point to a folder named `Paratrooper`; preserve the distinction in rules and determine the intended era/root per identity.
+Roster counts in the native catalog: **92 identities** (59 standard, 31 unique, 2 wonder-created). All 92 records resolve to at least one source unit folder and an `.ini` animation manifest. The Leader and Army records each use four era-specific folders, so their mappings cover 8 folders; the other 90 records each name one folder. The catalog lists the two Paratrooper identities separately but both point to a folder named `Paratrooper`; preserve the distinction in rules and determine the intended era/root per identity.
 
 ## Per-identity folder and manifest mapping
 

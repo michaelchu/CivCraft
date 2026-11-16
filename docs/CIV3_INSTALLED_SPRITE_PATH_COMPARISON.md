@@ -8,7 +8,7 @@ In the tables, `<INSTALL>` is the folder containing `civ3id.mb` and the `Art/`, 
 
 CivCraft's `Theme::image` commonly requests a `.png` name; `read_theme_image` then tries `.pcx` and `.PCX` and scans the requested directory for a supported image with a case-insensitive basename match. Thus filename and extension case differences such as `XTGC` versus `xtgc.pcx` do not by themselves prevent image loading on a case-sensitive filesystem. Directory components are still looked up literally by this image path, so directory spelling and the selected root still matter. OpenCiv3's `Civ3MediaPath` resolves each path component case-insensitively on non-Windows platforms.
 
-Sources inspected: `openciv3/C7/Util.cs`, `openciv3/C7/Lua/civ3/textures/terrain.lua`, `terrain_improvements.lua`, `cities.lua`, `resources.lua`, `unit_icons.lua`, `civ_colors.lua`, `openciv3/C7/Animations/AnimationManager.cs`, `app/src/client/tileset.rs`, and `app/data/rulesets/civ3_conquests/units.tsv`.
+Sources inspected: `openciv3/C7/Util.cs`, `openciv3/C7/Lua/civ3/textures/terrain.lua`, `terrain_improvements.lua`, `cities.lua`, `resources.lua`, `unit_icons.lua`, `civ_colors.lua`, `openciv3/C7/Animations/AnimationManager.cs`, `app/src/client/tileset.rs`, and `app/data/rulesets/civcraft_native/units.toml`.
 
 ## World terrain and map sprites
 
