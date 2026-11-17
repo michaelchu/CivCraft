@@ -498,6 +498,13 @@ impl Simulation {
                     })
                     .map(|unit| unit.id)
                     .collect();
+                for unit in self.units.iter().filter(|unit| {
+                    expelled.contains(&unit.id)
+                        || unit.transport.is_some_and(|id| expelled.contains(&id))
+                }) {
+                    self.trace
+                        .unit_removed(self.turn, unit, lifecycle::UnitRemoval::Expelled);
+                }
                 self.units.retain(|unit| {
                     !expelled.contains(&unit.id)
                         && unit.transport.is_none_or(|id| !expelled.contains(&id))

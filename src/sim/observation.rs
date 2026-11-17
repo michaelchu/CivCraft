@@ -54,6 +54,9 @@ impl Snapshot {
     pub fn units(&self) -> Option<&Vec<UnitSnapshot>> {
         self.get("units")
     }
+    pub fn lifecycle(&self) -> Option<&lifecycle::LifecycleSnapshot> {
+        self.get("lifecycle")
+    }
 }
 impl Serialize for Snapshot {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -129,6 +132,7 @@ pub(crate) struct UnitSnapshot {
     pub id: u32,
     pub owner: usize,
     pub kind: String,
+    pub home_city: Option<u32>,
     pub x: i32,
     pub y: i32,
     pub hp: i32,
@@ -232,6 +236,7 @@ impl Simulation {
                 id: unit.id,
                 owner: unit.owner,
                 kind: unit.kind.name().into(),
+                home_city: unit.home_city,
                 x: unit.x,
                 y: unit.y,
                 hp: unit.hp,

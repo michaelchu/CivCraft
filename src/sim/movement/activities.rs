@@ -173,7 +173,7 @@ impl Simulation {
         unit.air_superiority_shot = false;
         unit.paradropped = false;
         if hp <= 0 {
-            self.remove_units_with_cargo(vec![id]);
+            self.remove_units_with_cargo_because(vec![id], lifecycle::UnitRemoval::Attrition);
         }
     }
 

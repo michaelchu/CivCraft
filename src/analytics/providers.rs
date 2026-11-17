@@ -34,6 +34,15 @@ impl SnapshotProvider for Units {
     }
 }
 struct Territory;
+struct Lifecycle;
+impl SnapshotProvider for Lifecycle {
+    fn id(&self) -> &'static str {
+        "lifecycle"
+    }
+    fn capture(&self, game: &Simulation, snapshot: &mut Snapshot) {
+        snapshot.insert(self.id(), game.observe_lifecycle());
+    }
+}
 impl SnapshotProvider for Territory {
     fn id(&self) -> &'static str {
         "territory"
@@ -42,7 +51,7 @@ impl SnapshotProvider for Territory {
         snapshot.insert(self.id(), game.observe_territory());
     }
 }
-pub(crate) const IDS: &[&str] = &["cities", "civilizations", "territory", "units"];
+pub(crate) const IDS: &[&str] = &["cities", "civilizations", "territory", "units", "lifecycle"];
 pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvider>>, String> {
     ids.iter()
         .map(|id| -> Result<Box<dyn SnapshotProvider>, String> {
@@ -51,6 +60,7 @@ pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvid
                 "civilizations" => Box::new(Civilizations),
                 "units" => Box::new(Units),
                 "territory" => Box::new(Territory),
+                "lifecycle" => Box::new(Lifecycle),
                 _ => return Err(format!("unknown snapshot provider {id}")),
             })
         })

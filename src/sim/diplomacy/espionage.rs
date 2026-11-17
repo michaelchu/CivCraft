@@ -760,7 +760,7 @@ impl Simulation {
             })
             .count() as i32;
         if influenced * 4 >= city.size * 3 {
-            self.transfer_traded_city(index, actor);
+            self.transfer_city_because(index, actor, lifecycle::TransferReason::Propaganda);
             self.add_espionage_event(
                 actor,
                 opponent,

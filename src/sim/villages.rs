@@ -220,6 +220,14 @@ impl Simulation {
                 };
             }
         }
+        for unit in self
+            .units
+            .iter()
+            .filter(|unit| (unit.x, unit.y) == (x, y) && unit.owner != BARBARIANS)
+        {
+            self.trace
+                .unit_removed(self.turn, unit, lifecycle::UnitRemoval::HutBarbarians);
+        }
         self.units
             .retain(|unit| (unit.x, unit.y) != (x, y) || unit.owner == BARBARIANS);
         "Barbarians killed your expedition.".into()

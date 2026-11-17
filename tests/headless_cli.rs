@@ -119,6 +119,65 @@ fn failed_scenario_publishes_its_checks_and_exits_unsuccessfully() {
 }
 
 #[test]
+fn lifecycle_snapshots_survive_disabled_event_output() {
+    let directory = report_directory("lifecycle");
+    let report = directory.join("report.json");
+    let output = headless()
+        .args([
+            "--scenario",
+            "lifecycle-history",
+            "--turns",
+            "1",
+            "--analytics",
+            "none",
+            "--trace-domains",
+            "none",
+            "--snapshot-providers",
+            "lifecycle,units",
+            "--report",
+        ])
+        .arg(&report)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = read_report(&report);
+    assert_eq!(report["version"], 8);
+    assert_eq!(report["summary"]["lifecycle"]["history_available"], true);
+    assert_eq!(report["summary"]["lifecycle"]["complete_since_start"], true);
+    let snapshots = directory.join(report["evidence"]["snapshots"]["path"].as_str().unwrap());
+    let snapshots = std::fs::read_to_string(snapshots).unwrap();
+    let snapshots: Vec<serde_json::Value> = snapshots
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert!(
+        snapshots[0]["lifecycle"]["changes"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        snapshots
+            .iter()
+            .any(|s| !s["lifecycle"]["changes"].as_array().unwrap().is_empty())
+    );
+    assert!(
+        snapshots[0]["units"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|u| u.get("home_city").is_some())
+    );
+    let events = directory.join(report["evidence"]["events"]["path"].as_str().unwrap());
+    assert!(std::fs::read(events).unwrap().is_empty());
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn world_options_validate_against_the_generator_and_report_the_effective_inputs() {
     let message = headless()
         .args(["--ocean-coverage", "60"])
@@ -165,7 +224,7 @@ fn world_options_validate_against_the_generator_and_report_the_effective_inputs(
             String::from_utf8_lossy(&run.stderr)
         );
         let report = read_report(&report);
-        assert_eq!(report["version"], 7);
+        assert_eq!(report["version"], 8);
         let config = &report["run"]["configuration"];
         assert_eq!(config["map_generator"], "opensimplex");
         assert_eq!(

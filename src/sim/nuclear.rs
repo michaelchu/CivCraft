@@ -292,7 +292,7 @@ impl Simulation {
         if loss >= size {
             // cityturn.c:city_reduce_size removes a city when the requested
             // population loss is at least its current size.
-            self.remove_city_for_population_loss(city_id);
+            self.remove_city_because(city_id, lifecycle::CityRemoval::Nuclear, None);
             return;
         }
 
@@ -389,13 +389,13 @@ impl Simulation {
             // consequence against the defending city owner before wiping
             // the intercepted weapon.
             self.action_caught_casus_belli(weapon, action, Some(defending_city_owner), (x, y));
-            self.remove_units_with_cargo(vec![weapon.id]);
+            self.remove_units_with_cargo_because(vec![weapon.id], lifecycle::UnitRemoval::Combat);
             self.add_event("SDI Defense intercepted the incoming nuclear attack.");
             return;
         }
 
         if nuclear_action_rules(action).consuming_always {
-            self.remove_units_with_cargo(vec![weapon.id]);
+            self.remove_units_with_cargo_because(vec![weapon.id], lifecycle::UnitRemoval::Expended);
         }
 
         let radius_sq = self.nuclear_blast_radius_sq(weapon, action, x, y);
@@ -429,7 +429,10 @@ impl Simulation {
                     continue;
                 }
                 let before = self.units.len();
-                self.remove_units_with_cargo(vec![unit_id]);
+                self.remove_units_with_cargo_because(
+                    vec![unit_id],
+                    lifecycle::UnitRemoval::Nuclear,
+                );
                 let removed = before.saturating_sub(self.units.len()) as i32;
                 casualties += removed;
                 self.nation_scores[weapon.owner].units_killed += removed;

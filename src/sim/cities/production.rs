@@ -131,6 +131,8 @@ impl Simulation {
             self.lose_spaceship(self.cities[index].owner);
         }
         let removed = self.cities.remove(index);
+        self.trace
+            .city_destroyed(self.turn, &removed, lifecycle::CityRemoval::Upkeep, None);
         self.city_founders.remove(&removed.id);
         self.city_rapture.remove(&removed.id);
         self.rebuild_city_ownership_for_city_event(removed.id);
@@ -293,7 +295,13 @@ impl Simulation {
                             self.remove_citizen_nationalities(index, kind.stats().pop_cost);
                         let rank = self.trained_rank(&snapshot, kind);
                         let c2c3_veteran = self.trained_c2c3_veteran(&snapshot, kind);
-                        let id = self.spawn_unit(snapshot.owner, kind, snapshot.x, snapshot.y);
+                        let id = self.spawn_unit_with_origin(
+                            snapshot.owner,
+                            kind,
+                            snapshot.x,
+                            snapshot.y,
+                            lifecycle::UnitOrigin::Built { city_id },
+                        );
                         let unit = self.units.iter_mut().find(|unit| unit.id == id).unwrap();
                         unit.nationality = nationality;
                         unit.home_city = Some(city_id);
@@ -408,6 +416,12 @@ impl Simulation {
                     self.lose_spaceship(snapshot.owner);
                 }
                 let removed = self.cities.remove(index);
+                self.trace.city_destroyed(
+                    self.turn,
+                    &removed,
+                    lifecycle::CityRemoval::Famine,
+                    None,
+                );
                 self.city_founders.remove(&removed.id);
                 self.city_rapture.remove(&removed.id);
                 self.rebuild_city_ownership_for_city_event(removed.id);

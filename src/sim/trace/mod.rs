@@ -46,6 +46,7 @@ pub(crate) struct Event {
 
 #[derive(Default)]
 pub(crate) struct Collector {
+    lifecycle: Option<super::lifecycle::Ledger>,
     enabled: bool,
     kinds: BTreeSet<String>,
     capacity: usize,
@@ -131,6 +132,58 @@ impl Clone for Collector {
     }
 }
 impl Collector {
+    pub(super) fn enable_lifecycle(
+        &mut self,
+        turn: i32,
+        units: Vec<super::lifecycle::UnitRecord>,
+        cities: Vec<super::lifecycle::CityRecord>,
+    ) {
+        self.lifecycle = Some(super::lifecycle::Ledger::new(turn, units, cities));
+    }
+    pub(super) fn lifecycle(&self) -> Option<&super::lifecycle::Ledger> {
+        self.lifecycle.as_ref()
+    }
+    pub(crate) fn clear_lifecycle_changes(&mut self) {
+        if let Some(ledger) = &mut self.lifecycle {
+            ledger.clear_changes();
+        }
+    }
+    pub(super) fn lifecycle_change(
+        &mut self,
+        turn: i32,
+        make: impl FnOnce() -> super::lifecycle::Change,
+    ) {
+        if self.lifecycle.is_none() && !self.wants::<super::lifecycle::Change>() {
+            return;
+        }
+        if self.lifecycle.is_none() && self.pending.len() >= self.capacity {
+            // Keep normal sequence/drop accounting without constructing a
+            // payload when only the bounded event stream requested it.
+            self.emit(turn, Vec::new, make);
+            return;
+        }
+        let change = make();
+        if let Some(ledger) = &mut self.lifecycle {
+            ledger.record(turn, self.phase, change.clone());
+        }
+        let entities = change.entities();
+        self.emit(turn, || entities, || change);
+    }
+    pub(super) fn reconcile_lifecycle(
+        &mut self,
+        turn: i32,
+        units: Vec<super::lifecycle::UnitRecord>,
+        cities: Vec<super::lifecycle::CityRecord>,
+    ) {
+        if let Some(ledger) = &self.lifecycle {
+            for change in ledger.differences(&units, &cities) {
+                self.lifecycle_change(turn, || change);
+            }
+        }
+        if let Some(ledger) = &mut self.lifecycle {
+            ledger.refresh_rosters(units, cities);
+        }
+    }
     pub fn enabled(kinds: BTreeSet<String>, capacity: usize) -> Self {
         Self {
             enabled: true,
@@ -400,6 +453,7 @@ mod integration_tests {
         plain.enable_all_civilizations_as_ai();
         let mut traced = plain.clone();
         traced.trace = Collector::enabled(BTreeSet::from(["*".into()]), 10000);
+        traced.start_lifecycle_observation();
         let mut profiled = plain.clone();
         profiled.trace.enable_profiling();
         let mut event_count = 0;
@@ -407,10 +461,13 @@ mod integration_tests {
         for _ in 0..3 {
             plain.simulate_turn();
             traced.simulate_turn();
+            traced.reconcile_lifecycle_observation();
             profiled.simulate_turn();
             let _ = traced.observe_cities();
             let _ = traced.observe_units();
             let _ = traced.observe_civilizations();
+            assert!(traced.observe_lifecycle().complete_since_start);
+            traced.trace.clear_lifecycle_changes();
             assert_eq!(
                 plain.encode_campaign().unwrap(),
                 traced.encode_campaign().unwrap()
@@ -441,9 +498,11 @@ mod integration_tests {
         std::fs::remove_file(path).unwrap();
         assert!(!loaded.trace.wants::<Example>());
         assert!(loaded.trace.drain().is_empty());
+        assert!(!loaded.observe_lifecycle().history_available);
         let mut cloned = traced.clone();
         assert!(!cloned.trace.wants::<Example>());
         assert!(cloned.trace.drain().is_empty());
+        assert!(!cloned.observe_lifecycle().history_available);
     }
 
     #[test]

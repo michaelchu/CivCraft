@@ -156,7 +156,7 @@ impl Report {
             reason.unwrap_or("checkpoint")
         };
         let report = json!({
-            "version":7,
+            "version":8,
             "run":{"status":status,"stop_reason":stop_reason,
                 "configuration":config.metadata(&self.scenario.world),"turns_simulated":turns,"final_turn":last.turn,"game_over":game_over,
                 "scenario":self.scenario,
@@ -166,7 +166,7 @@ impl Report {
                 "analyzer_event_coverage_complete":dropped==0,
                 "effective_snapshot_providers":registry.providers().into_iter().map(str::to_owned).chain(config.providers.iter().cloned()).collect::<std::collections::BTreeSet<_>>(),
                 "note":"Trace output filters do not filter analyzer input. Collector overflow does. No finding is not proof of correct gameplay."},
-            "summary":{"finding_count":registry.output.findings.len(),"finding_observations":observations,
+            "summary":{"lifecycle":last.lifecycle(),"finding_count":registry.output.findings.len(),"finding_observations":observations,
                 "open_findings":registry.output.findings.iter().filter(|f|f.status=="open").count(),
                 "scenario_checks_passed":scenario_checks_passed,"scenario_checks_total":self.scenario.checks.len(),
                 "final_city_count":last.city_count,"civilizations":civilizations,"city_growth_status_counts":growth_counts},
@@ -174,6 +174,7 @@ impl Report {
             "evidence":{
                 "snapshots":{"format":"jsonl","path":self.snapshot_path.file_name().unwrap().to_string_lossy(),"records":self.snapshot_records,"lookup":"Select by turn; initial snapshot is before the first step. Entity IDs identify cities, civilizations, and units."},
                 "events":{"format":"jsonl","path":self.event_path.file_name().unwrap().to_string_lossy(),"records":self.event_records,"bytes":self.event_bytes,"lookup":"Select by sequence. Event turn and phase identify when the action occurred, not the next turn's snapshot."},
+                "lifecycle":{"enabled":last.lifecycle().is_some(),"lookup":"Read lifecycle.changes across snapshot records for unit and city histories. Totals start at lifecycle.since_turn; they do not reconstruct earlier campaign history."},
                 "finding_semantics":"First/last observed turns do not imply continuous failure. Explicit recovery closes an episode; recurrence creates a new ID. Unavailable references are marked available:false."
             }
         });

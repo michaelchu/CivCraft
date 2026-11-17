@@ -286,7 +286,8 @@ cargo run --offline --release --bin headless_sim -- \
   listed participant matches. Filters apply to persisted events, not snapshots
   or analyzer inputs. Arbitrary domain names allow newly instrumented modules;
   an unmatched name produces no events from that domain.
-- `--snapshot-providers cities,civilizations,territory,units` selects output providers;
+- `--snapshot-providers cities,civilizations,units,lifecycle` selects output providers
+  (these four are the default; `territory` is also available);
   `none` records just the envelope plus analyzer-required data.
 - The `territory` provider records map dimensions, row-major tile ownership,
   and a land mask so unowned land can be distinguished from water. City
@@ -311,7 +312,7 @@ size grows with requested turns and selected/required providers; event limits
 do not limit snapshots. The compact timeline and findings remain in memory.
 I/O errors fail the runner rather than silently continuing without evidence.
 
-## Report schema 7
+## Report schema 8
 
 `report.json` is the review entry point:
 
@@ -335,7 +336,7 @@ I/O errors fail the runner rather than silently continuing without evidence.
 Sidecars:
 
 - `report.json.snapshots.jsonl`: initial snapshot plus one per completed step.
-  `cities`, `civilizations`, and `units` are independent provider sections.
+  `cities`, `civilizations`, `units`, and `lifecycle` are independent provider sections.
 - `report.json.events.jsonl`: events selected for persistence. Sequences are
   stable within the run but may have gaps after filtering or overflow.
 
@@ -349,7 +350,8 @@ Both streams flush before a summary checkpoint is atomically published.
 limit, game over, or configured finding stop. A terminated run can leave its
 last valid `running` checkpoint. No findings is not proof of correct gameplay.
 
-Schema 6 replaces implicit sequential step timings with scoped timing
+Schema 8 adds lifecycle accounting and each live unit's `home_city`. Schema 6
+replaces implicit sequential step timings with scoped timing
 aggregates. Schema 5 replaced schema 4's history sidecar with independent
 snapshots/events, added the initial snapshot and analyzer metadata, and
 introduced finding episode IDs. Readers should inspect `version` before
@@ -368,6 +370,48 @@ but represents only that saved state's population, unit rosters, and AI
 decisions. Prefer a naturally advanced save over a hand-built turn-80 scenario
 when diagnosing the observed slowdown. Use a named scenario for a compact,
 controlled workload that exercises one specific path.
+
+### Unit and city lifecycle history
+
+The default `lifecycle` provider adds cumulative `unit_totals` by owner and unit
+kind, cumulative `city_totals` by owner, and `changes` since the previous snapshot.
+The final totals and final interval also appear at `summary.lifecycle`. Read the
+snapshot stream for the full history; each interval is written once to avoid
+repeating an ever-growing history in every snapshot.
+
+Unit totals distinguish city production (`built`, a subset of `created`), live
+units (`existing`), destruction, consumption (founding/joining a city or an
+expendable action), disbanding, transfers, and upgrades. Change records identify
+the unit, type, owner, location, turn and phase, with a reason or creation source.
+Built units include the producing `origin.city_id`; `units[].home_city` is the
+current support city and may differ. Transfers that replace a unit ID link the
+previous ID. Upgrades and transfers do not count as new production or deaths.
+
+City records identify the city ID, name, location, population and owner before
+the action. Conquests record both owners; trade, propaganda and civil-war
+transfers have separate reasons. Destruction records its reason and responsible
+owner when known. A city captured and then destroyed between snapshots retains
+both records, as does a unit built and lost within one interval.
+A size-one city razed during conquest records destruction with reason `conquest`;
+it does not count as an ownership transfer.
+
+History starts at `since_turn`. Starting units and cities, including those in a
+loaded campaign, count as `initial`; earlier production or losses cannot be
+reconstructed from a save. Cloning or saving a campaign does not carry its
+run-local history. Event filters, disabled analyzers and event-buffer/output
+limits do not truncate lifecycle snapshots. Unexpected uninstrumented roster
+changes are explicitly marked `unobserved`, counted separately, and set
+`complete_since_start:false` rather than inventing causes.
+
+```sh
+jq '.summary.lifecycle.unit_totals, .summary.lifecycle.city_totals' report.json
+jq -c '.lifecycle.changes[] | select(.event == "city_transferred" or .event == "city_destroyed")' \
+  report.json.snapshots.jsonl
+```
+
+Run `--scenario lifecycle-history --turns 1` for a regression exercising actual
+production, same-interval loss, founding, disbanding, conquest, trade and city
+destruction.
 
 ### Seed-42 80-turn ramp baseline
 

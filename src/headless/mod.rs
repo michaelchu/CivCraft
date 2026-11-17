@@ -39,17 +39,22 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         scenario::generated(config.seed, config.world)
     };
     scenario.game.trace = Collector::enabled(kinds, config.buffer_events);
+    if provider_ids.contains("lifecycle") {
+        scenario.game.start_lifecycle_observation();
+    }
     if config.profile_turns {
         scenario.game.trace.enable_profiling();
     }
     let mut report = report::Report::new(&config.report, scenario.provenance.clone())?;
     let mut snapshot = analytics::providers::capture(&scenario.game, &providers, Phase::Initial);
     report.snapshot(&snapshot)?;
+    scenario.game.trace.clear_lifecycle_changes();
     registry.start(&snapshot);
     let mut previous_dropped = 0;
     if scenario.has_actions() {
         scenario.game.trace.phase(Phase::ScenarioActions);
         scenario.execute_actions();
+        scenario.game.reconcile_lifecycle_observation();
         report.scenario(scenario.provenance.clone());
         let dropped = scenario.game.trace.dropped();
         registry.gap(dropped - previous_dropped);
@@ -61,6 +66,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         snapshot =
             analytics::providers::capture(&scenario.game, &providers, Phase::ScenarioActions);
         report.snapshot(&snapshot)?;
+        scenario.game.trace.clear_lifecycle_changes();
         registry.boundary(&snapshot);
     }
     report.checkpoint(
@@ -88,6 +94,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
             break;
         }
         game.simulate_turn();
+        game.reconcile_lifecycle_observation();
         report.turn_profiles(game.trace.drain_profiles());
         turns += 1;
         let dropped = game.trace.dropped();
@@ -99,6 +106,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         }
         snapshot = analytics::providers::capture(game, &providers, Phase::TurnEnd);
         report.snapshot(&snapshot)?;
+        game.trace.clear_lifecycle_changes();
         registry.boundary(&snapshot);
         if config.stop_on_finding != "none"
             && registry.output.findings.iter().any(|f| {

@@ -376,7 +376,7 @@ impl Simulation {
                     unit.home_city = Some(replacement_id);
                 }
             }
-            self.remove_city_for_population_loss(source_id);
+            self.remove_city_because(source_id, lifecycle::CityRemoval::Migration, None);
         } else {
             let index = self
                 .city_index_by_id(source_id)

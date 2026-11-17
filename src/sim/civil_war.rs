@@ -176,6 +176,12 @@ impl Simulation {
             if remaining >= candidates.len() - position
                 || (remaining > 0 && self.rand_below(2) == 1)
             {
+                self.trace.city_transferred(
+                    self.turn,
+                    &self.cities[index],
+                    rebel,
+                    lifecycle::TransferReason::CivilWar,
+                );
                 self.cities[index].transfer_citizens(rebel);
                 self.list_order.city(&self.cities[index]);
                 defectors.push(index);
@@ -203,8 +209,20 @@ impl Simulation {
                 if unit.home_city.is_some() && (city.owner != owner || rebel_home) {
                     unit.home_city = Some(city.id);
                 }
+                self.trace.unit_transferred(
+                    self.turn,
+                    unit,
+                    city.owner,
+                    lifecycle::TransferReason::CivilWar,
+                );
                 unit.owner = city.owner;
             } else if rebel_home {
+                self.trace.unit_transferred(
+                    self.turn,
+                    unit,
+                    rebel,
+                    lifecycle::TransferReason::CivilWar,
+                );
                 unit.owner = rebel;
             }
             self.list_order.unit(unit);
@@ -289,7 +307,7 @@ impl Simulation {
                 }
                 self.move_cargo(id, x, y);
             } else {
-                self.remove_units_with_cargo(vec![id]);
+                self.remove_units_with_cargo_because(vec![id], lifecycle::UnitRemoval::CivilWar);
             }
         }
     }

@@ -69,6 +69,7 @@ mod ferries;
 mod fuel_paths;
 mod illness;
 mod leaders;
+pub(crate) mod lifecycle;
 mod list_order;
 mod migration;
 mod movement;
