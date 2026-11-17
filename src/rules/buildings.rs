@@ -118,6 +118,7 @@ impl Building {
     pub(crate) const STATUE_OF_ZEUS: Self = Self(63);
     pub(crate) const STOCK_EXCHANGE: Self = Self(37);
     pub(crate) const TEMPLE: Self = Self(40);
+    pub(crate) const COINAGE: Self = Self(72);
     pub(crate) const UNITED_NATIONS: Self = Self(70);
     pub(crate) const UNIVERSITY: Self = Self(41);
     pub(crate) const WOMENS_SUFFRAGE: Self = Self(71);
