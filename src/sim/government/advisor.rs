@@ -300,13 +300,17 @@ impl super::Simulation {
     }
 
     pub(in crate::sim) fn ai_goal_government(&self, owner: usize) -> Government {
-        if let Some(cache) = self
-            .ai_government_cache
-            .get(&owner)
-            .filter(|cache| self.turn >= cache.evaluated_turn && self.turn < cache.next_evaluation)
+        // Freeciv's settler reads adv->goal.govt.gov. The reevaluation date
+        // schedules the government advisor; settlement queries between that
+        // date and the advisor phase still use its last published assessment.
+        if let Some(cache) = self.ai_government_cache.get(&owner)
+            && cache.evaluated_turn <= self.turn
         {
             return self.government_goals(owner, &cache.scores).0;
         }
+        // A new campaign or standalone preview may have no assessment yet.
+        self.trace
+            .count_operation("government.goal_preview_evaluations", 1);
         let mut scratch = self.clone();
         scratch.refresh_government_advisor(owner);
         scratch

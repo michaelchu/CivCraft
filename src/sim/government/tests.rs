@@ -84,6 +84,38 @@ fn cached_government_scores_follow_reference_cadence_but_unlocks_apply_immediate
 }
 
 #[test]
+fn settlement_reads_last_assessment_until_government_advisor_refreshes() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    let owner = 1;
+    game.turn = 12;
+    let mut scores = [0.0; 11];
+    scores[Government::Democracy as usize] = 1.0;
+    game.ai_government_cache.insert(
+        owner,
+        GovernmentAdvisorCache {
+            evaluated_turn: 7,
+            next_evaluation: 12,
+            scores,
+        },
+    );
+
+    game.trace.enable_profiling();
+    game.trace
+        .begin_turn_profile(game.turn, game.cities.len(), game.units.len());
+    assert_eq!(game.ai_goal_government(owner), Government::Democracy);
+    game.trace.finish_turn_profile();
+    let profiles = game.trace.drain_profiles();
+    assert!(
+        !profiles[0]
+            .operations
+            .contains_key("government.goal_preview_evaluations")
+    );
+    assert_eq!(game.ai_government_cache[&owner].evaluated_turn, 7);
+    game.refresh_government_advisor(owner);
+    assert_eq!(game.ai_government_cache[&owner].evaluated_turn, 12);
+}
+
+#[test]
 fn government_cache_interval_uses_city_count_with_five_and_twenty_turn_bounds() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     game.units.clear();
