@@ -90,13 +90,15 @@ fn runs_a_named_scenario_and_publishes_its_checks() {
 fn failed_scenario_publishes_its_checks_and_exits_unsuccessfully() {
     let directory = report_directory("failing");
     let report = directory.join("report.json");
-    // Seed 1 reproduces a pre-existing failure in the ferry fixture.
+    // Seed 18 reproduces a pre-existing failure in the ferry fixture. Seed 1
+    // used to fail only because France could not build units (civilization
+    // masks were matched against display names), so it no longer applies.
     let output = headless()
         .args([
             "--scenario",
             "settlement-ferry",
             "--seed",
-            "1",
+            "18",
             "--turns",
             "1",
             "--report",
