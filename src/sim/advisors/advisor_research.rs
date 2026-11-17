@@ -593,15 +593,18 @@ fn bound_player_tech(
     {
         return None;
     }
-    let RequirementValue::String(name) = &requirement.name else {
-        return None;
+    let tech = match requirement.resolved {
+        Some(crate::rules::freeciv::ResolvedRequirementValue::Tech(tech)) => tech,
+        _ => match &requirement.name {
+            RequirementValue::String(name) => match bind_freeciv_technology(ruleset, name).ok()? {
+                FreecivTechBinding::Bound(tech) => tech,
+                FreecivTechBinding::MissingFromCiv3Catalog => return None,
+            },
+            _ => return None,
+        },
     };
-    match bind_freeciv_technology(ruleset, name).ok()? {
-        FreecivTechBinding::Bound(tech) if tech.is_civ3_advance() => {
-            Some((tech, requirement.present))
-        }
-        FreecivTechBinding::Bound(_) | FreecivTechBinding::MissingFromCiv3Catalog => None,
-    }
+    tech.is_civ3_advance()
+        .then_some((tech, requirement.present))
 }
 
 #[cfg(test)]

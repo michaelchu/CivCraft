@@ -7,7 +7,7 @@ on:
 
 jobs:
   formatting:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -17,11 +17,9 @@ jobs:
         run: cargo fmt --all -- --check
 
   rust:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install native dependencies
-        run: sudo apt-get update && sudo apt-get install --yes libasound2-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -37,11 +35,9 @@ jobs:
         run: cargo test --doc
 
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install native dependencies
-        run: sudo apt-get update && sudo apt-get install --yes libasound2-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview

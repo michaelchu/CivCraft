@@ -157,16 +157,28 @@ mod tests {
             game.paid_upgrade(&original),
             Some((UnitKind::Legionary, price))
         );
-        assert!(!game.apply(Command::UpgradeUnit(id, UnitKind::Legionary, price - 1)));
+        assert!(!game.apply(Command::UpgradeUnit {
+            unit_id: id,
+            target: UnitKind::Legionary,
+            price: price - 1,
+        }));
         let gold = game.players[HUMAN].gold;
-        assert!(game.apply(Command::UpgradeUnit(id, UnitKind::Legionary, price)));
+        assert!(game.apply(Command::UpgradeUnit {
+            unit_id: id,
+            target: UnitKind::Legionary,
+            price,
+        }));
         let unit = game.units.last().unwrap();
         assert_eq!(unit.veteran, 1);
         assert_eq!(unit.c2c3_veteran, 2);
         assert_eq!(unit.hp, expected_hp);
         assert_eq!(game.players[HUMAN].gold, gold - price);
         let field = game.spawn_unit(HUMAN, UnitKind::Warrior, 11, 20);
-        assert!(!game.apply(Command::UpgradeUnit(field, UnitKind::Legionary, price)));
+        assert!(!game.apply(Command::UpgradeUnit {
+            unit_id: field,
+            target: UnitKind::Legionary,
+            price,
+        }));
     }
 
     #[test]

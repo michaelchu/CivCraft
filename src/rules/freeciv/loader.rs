@@ -1,6 +1,8 @@
 //! Filesystem loading and typed decoding for native Freeciv rulesets.
 
 use crate::rules::freeciv::RequirementKind;
+use crate::rules::{Building, Tech};
+use crate::world::Terrain;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,8 +10,8 @@ use std::path::{Path, PathBuf};
 use super::super::freeciv_ini::{self, Entry, Section, SectionFile, Value};
 use super::{
     ActionEnabler, ActionRecord, ContentKind, ContentRecord, EffectRecord, LoadError,
-    LoadedRuleFile, Requirement, RequirementRange, RequirementValue, RuleFileSource, RuleParameter,
-    RuleRecord, RuleSourceLocation, RulesetData, SettingRecord,
+    LoadedRuleFile, Requirement, RequirementRange, RequirementValue, ResolvedRequirementValue,
+    RuleFileSource, RuleParameter, RuleRecord, RuleSourceLocation, RulesetData, SettingRecord,
 };
 
 pub(crate) const RULESET_FILES: &[&str] = &[
@@ -113,7 +115,7 @@ impl RulesetData {
             }
         }
 
-        let rules = Self {
+        let mut rules = Self {
             name: name.to_owned(),
             files,
             settings,
@@ -126,7 +128,138 @@ impl RulesetData {
             rule_records,
         };
         validate_requirement_values(&rules)?;
+        resolve_requirement_values(&mut rules);
         Ok(rules)
+    }
+}
+
+/// Resolve runtime-backed requirement names once, at ruleset load time. Names
+/// without a stable CivCraft identity intentionally remain strings: they are
+/// still valid Freeciv content, but cannot be evaluated against campaign
+/// state by the runtime adapters.
+pub(super) fn resolve_requirement_values(rules: &mut RulesetData) {
+    let mut effects: Vec<_> = rules.effects.iter().cloned().collect();
+    for effect in &mut effects {
+        resolve_requirements(&mut effect.requirements);
+    }
+    rules.effects = effects.into();
+    for enabler in &mut rules.action_enablers {
+        resolve_requirements(&mut enabler.actor_requirements);
+        resolve_requirements(&mut enabler.target_requirements);
+    }
+    for record in &mut rules.content {
+        resolve_requirements(&mut record.requirements);
+        resolve_requirements(&mut record.obsolete_by);
+    }
+    for record in &mut rules.rule_records {
+        resolve_requirements(&mut record.requirements);
+    }
+}
+
+fn resolve_requirements(requirements: &mut [Requirement]) {
+    for requirement in requirements {
+        let RequirementValue::String(name) = &requirement.name else {
+            continue;
+        };
+        let resolved = match requirement.kind {
+            RequirementKind::Tech => resolve_tech(name).map(ResolvedRequirementValue::Tech),
+            RequirementKind::Building => {
+                resolve_building(name).map(ResolvedRequirementValue::Building)
+            }
+            RequirementKind::Terrain => {
+                resolve_terrain(name).map(ResolvedRequirementValue::Terrain)
+            }
+            _ => None,
+        };
+        if let Some(resolved) = resolved {
+            requirement.resolved = Some(resolved);
+        }
+    }
+}
+
+fn resolve_tech(name: &str) -> Option<Tech> {
+    if name.eq_ignore_ascii_case("Plastics") {
+        return None;
+    }
+    if name.eq_ignore_ascii_case("Radio") {
+        return Some(Tech::FLIGHT);
+    }
+    if let Some(tech) = Tech::all()
+        .find(|tech| tech.name().eq_ignore_ascii_case(name))
+        .and_then(|tech| {
+            tech.is_civ3_advance()
+                .then_some(tech)
+                .or_else(|| tech.civ3_equivalent())
+        })
+    {
+        return Some(tech);
+    }
+    let source = crate::rules::native::technologies()
+        .technologies
+        .iter()
+        .find(|source| {
+            source.name.eq_ignore_ascii_case(name)
+                || (name.eq_ignore_ascii_case("Superconductors")
+                    && source.name.eq_ignore_ascii_case("Superconductor"))
+                || (name.eq_ignore_ascii_case("Amphibious Warfare")
+                    && source.name.eq_ignore_ascii_case("Amphibious War"))
+                || (name.eq_ignore_ascii_case("Conscription")
+                    && source.name.eq_ignore_ascii_case("Nationalism"))
+                || (name.eq_ignore_ascii_case("Environmentalism")
+                    && source.name.eq_ignore_ascii_case("Ecology"))
+                || (name.eq_ignore_ascii_case("Laser")
+                    && source.name.eq_ignore_ascii_case("The Laser"))
+                || (name.eq_ignore_ascii_case("Mobile Warfare")
+                    && source.name.eq_ignore_ascii_case("Motorized Transportation"))
+                || (name.eq_ignore_ascii_case("Nuclear Fission")
+                    && source.name.eq_ignore_ascii_case("Fission"))
+        })?;
+    Tech::all().find(|tech| {
+        tech.name().eq_ignore_ascii_case(&source.name)
+            || (source.name.eq_ignore_ascii_case("Amphibious War")
+                && *tech == Tech::AMPHIBIOUS_WARFARE)
+    })
+}
+
+fn resolve_building(name: &str) -> Option<Building> {
+    Building::all().find(|building| {
+        building.data().name.eq_ignore_ascii_case(name)
+            || (building.data().name.eq_ignore_ascii_case("Harbor")
+                && name.eq_ignore_ascii_case("Harbour"))
+            || (building
+                .data()
+                .name
+                .eq_ignore_ascii_case("Shakespeare's Theater")
+                && name.eq_ignore_ascii_case("Shakespeare's Theatre"))
+    })
+}
+
+fn resolve_terrain(name: &str) -> Option<Terrain> {
+    match name.to_ascii_lowercase().as_str() {
+        "ocean" => Some(Terrain::Sea),
+        "deep ocean" => Some(Terrain::Ocean),
+        "swamp" => Some(Terrain::Marsh),
+        _ => [
+            Terrain::Sea,
+            Terrain::Ocean,
+            Terrain::Lake,
+            Terrain::Glacier,
+            Terrain::Jungle,
+            Terrain::Desert,
+            Terrain::Forest,
+            Terrain::Grassland,
+            Terrain::Hills,
+            Terrain::Mountains,
+            Terrain::Plains,
+            Terrain::Marsh,
+            Terrain::Tundra,
+            Terrain::Coast,
+            Terrain::FloodPlains,
+            Terrain::Volcano,
+            Terrain::GrasslandShield,
+        ]
+        .into_iter()
+        .find(|terrain| terrain.name().eq_ignore_ascii_case(name)),
     }
 }
 
@@ -581,6 +714,7 @@ fn parse_requirement(
     Ok(Requirement {
         kind,
         name,
+        resolved: None,
         range,
         present: row_bool(file, section, entry, row, "present", true)?,
         survives: row_bool(file, section, entry, row, "survives", false)?,

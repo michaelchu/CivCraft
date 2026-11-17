@@ -101,6 +101,11 @@ cargo run --offline --release --bin headless_sim -- \
   --load-campaign /path/to/campaign.save --turns 10 --report /tmp/resumed.json
 ```
 
+Registered scenarios and the fixtures they use are compiled by the default
+`scenarios` feature. Add `--no-default-features` (plus `--features
+desktop-audio` for the game itself) to build without them; that build lists
+only `generated-ai` and cannot build the test suite.
+
 `--scenario` and `--load-campaign` are mutually exclusive. Named scenarios
 record their version and setup checks in `run.scenario`; loaded campaigns record
 the source path. Both attach a fresh trace collector before simulation begins.

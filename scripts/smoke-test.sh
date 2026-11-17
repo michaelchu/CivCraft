@@ -26,5 +26,36 @@ fi
 
 export CIVCRAFT_SOURCE_DIR="$source_dir"
 cd "$app_dir"
-cargo run --offline --release --features desktop-audio --bin civcraft -- \
-    --smoke-test --smoke-turns "$turns" --seed 42 --map-size tiny
+
+smoke_args=(--smoke-test --smoke-turns "$turns" --seed 42 --map-size tiny)
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    # LaunchServices gives Macroquad the same desktop-session path as a normal
+    # Finder-launched app. Direct shell launches can lack the active AppKit /
+    # Metal session and fail before the first frame is rendered.
+    bundle_root=$(mktemp -d "$app_dir/target/civcraft-smoke.XXXXXX")
+    bundle="$bundle_root/CivCraft.app"
+    stdout_log="$bundle_root/stdout.log"
+    stderr_log="$bundle_root/stderr.log"
+    trap 'rm -rf "$bundle_root"' EXIT
+
+    mkdir -p "$bundle/Contents/MacOS"
+    cargo build --offline --release --features desktop-audio --bin civcraft
+    cp target/release/civcraft "$bundle/Contents/MacOS/civcraft"
+    cp scripts/macos-smoke/Info.plist "$bundle/Contents/Info.plist"
+    codesign --force --deep --sign - "$bundle" >/dev/null
+
+    open -n -W \
+        --stdout "$stdout_log" \
+        --stderr "$stderr_log" \
+        --env "CIVCRAFT_SOURCE_DIR=$source_dir" \
+        "$bundle" --args "${smoke_args[@]}"
+    cat "$stdout_log"
+    cat "$stderr_log" >&2
+    if ! rg -q "^Smoke test passed:" "$stdout_log"; then
+        echo "Desktop smoke test did not report success." >&2
+        exit 1
+    fi
+else
+    cargo run --offline --release --features desktop-audio --bin civcraft -- \
+        "${smoke_args[@]}"
+fi

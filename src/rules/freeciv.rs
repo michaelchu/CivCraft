@@ -438,11 +438,45 @@ pub(crate) struct Requirement {
     /// A string, integer, or boolean universal value. Native rulesets use
     /// strings for most names and may use integers for numeric universals.
     pub(crate) name: RequirementValue,
+    /// Runtime identity resolved during ruleset loading for stable campaign
+    /// catalogs; the original spelling remains available for diagnostics.
+    pub(crate) resolved: Option<ResolvedRequirementValue>,
     pub(crate) range: RequirementRange,
     pub(crate) present: bool,
     pub(crate) survives: bool,
     pub(crate) quiet: bool,
     pub(crate) source: RuleSourceLocation,
+}
+
+impl Requirement {
+    pub(crate) fn matches_name(&self, expected: &str) -> bool {
+        match (&self.resolved, &self.name) {
+            (Some(ResolvedRequirementValue::Tech(value)), _) => {
+                value.name().eq_ignore_ascii_case(expected)
+            }
+            (Some(ResolvedRequirementValue::Building(value)), _) => {
+                value.data().name.eq_ignore_ascii_case(expected)
+            }
+            (Some(ResolvedRequirementValue::Terrain(value)), _) => {
+                value.name().eq_ignore_ascii_case(expected)
+            }
+            (_, RequirementValue::String(value)) => value.eq_ignore_ascii_case(expected),
+            (_, RequirementValue::Integer(value)) => {
+                value.to_string().eq_ignore_ascii_case(expected)
+            }
+            (_, RequirementValue::Bool(value)) => {
+                (*value && expected.eq_ignore_ascii_case("TRUE"))
+                    || (!*value && expected.eq_ignore_ascii_case("FALSE"))
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ResolvedRequirementValue {
+    Tech(crate::rules::Tech),
+    Building(crate::rules::Building),
+    Terrain(crate::world::Terrain),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -887,6 +921,7 @@ impl RulesetData {
         let source_catalog =
             Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
         rules.source_content = source_catalog.records;
+        loader::resolve_requirement_values(&mut rules);
         Ok(rules)
     }
 
@@ -1527,10 +1562,7 @@ impl RulesetData {
             |effect: &EffectRecord, kind: RequirementKind, name: &str, present: bool| {
                 effect.requirements.iter().any(|requirement| {
                     requirement.kind == kind
-                        && matches!(
-                            &requirement.name,
-                            RequirementValue::String(value) if value.eq_ignore_ascii_case(name)
-                        )
+                        && requirement.matches_name(name)
                         && requirement.range == RequirementRange::Tile
                         && requirement.present == present
                 })
@@ -1706,6 +1738,7 @@ fn native_requirement(
     Ok(Requirement {
         kind,
         name: RequirementValue::String(requirement.name.clone()),
+        resolved: None,
         range,
         present: requirement.present,
         survives: requirement.survives,
@@ -1954,6 +1987,7 @@ impl RulesetData {
                     .then(|| Requirement {
                         kind: RequirementKind::Tech,
                         name: RequirementValue::String(source.required_technology.clone()),
+                        resolved: None,
                         range: RequirementRange::Player,
                         present: true,
                         survives: false,
@@ -2774,6 +2808,7 @@ mod tests {
         Requirement {
             kind: RequirementKind::parse(kind).expect("known requirement type"),
             name: RequirementValue::String(name.to_owned()),
+            resolved: None,
             range: RequirementRange::Player,
             present,
             survives: false,

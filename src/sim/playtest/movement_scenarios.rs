@@ -64,11 +64,13 @@ impl Simulation {
         let transport = self.spawn_unit(HUMAN, UnitKind::Transport, sea.0, sea.1);
         let marine = self.spawn_unit(HUMAN, UnitKind::Marine, sea.0, sea.1);
         assert!(self.board_specific_ship(marine, transport));
-        let rescued = self.apply(Command::Disband(transport, None))
-            && self
-                .units
-                .iter()
-                .any(|unit| unit.id == marine && unit.transport == Some(helicopter));
+        let rescued = self.apply(Command::Disband {
+            unit_id: transport,
+            city_id: None,
+        }) && self
+            .units
+            .iter()
+            .any(|unit| unit.id == marine && unit.transport == Some(helicopter));
         for _ in 1..UnitKind::Helicopter.transport_capacity() {
             let filler = self.spawn_unit(HUMAN, UnitKind::Marine, sea.0, sea.1);
             assert!(self.board_specific_ship(filler, helicopter));

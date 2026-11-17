@@ -29,7 +29,10 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 image-compare = "0.5"
 
 [features]
-default = []
+default = ["scenarios"]
+# Regression scenarios and their fixtures, run by `headless_sim --scenario`.
+# Tests require it.
+scenarios = []
 desktop-audio = ["macroquad/audio"]
 
 [dev-dependencies]
