@@ -14,12 +14,7 @@ pub(crate) struct UnitContextView {
     pub(crate) owner_name: String,
     pub(crate) terrain_name: &'static str,
     pub(crate) status: String,
-    pub(crate) hp: i32,
-    pub(crate) max_hp: i32,
     pub(crate) moves_left: i32,
-    pub(crate) moves_allowance: i32,
-    pub(crate) attack: i32,
-    pub(crate) defense: i32,
 }
 
 /// The computed values needed by the selected city's compact context card.
@@ -53,15 +48,11 @@ pub(crate) struct TechnologyResearchView {
     pub(crate) target_cost: i32,
 }
 
-/// Display-ready status and controls for the top bar.
+/// Display-ready turn, economy and control state for the HUD.
 pub(crate) struct TopBarView {
-    pub(crate) turn: i32,
     pub(crate) year: i32,
     pub(crate) gold: i32,
     pub(crate) government_name: &'static str,
-    pub(crate) anarchy: bool,
-    pub(crate) rates: [i32; 3],
-    pub(crate) max_rate: i32,
     pub(crate) research_name: &'static str,
     pub(crate) research_points: i32,
     pub(crate) research_cost: i32,
@@ -73,6 +64,12 @@ pub(crate) struct GovernmentView {
     pub(crate) leader_line: String,
     pub(crate) status_line: String,
     pub(crate) options: Vec<GovernmentOptionView>,
+    /// Science, tax and luxury percentages as shown; anarchy forces all to luxury.
+    pub(crate) rates: [i32; 3],
+    /// The government's maximum share for any one rate.
+    pub(crate) max_rate: i32,
+    /// True during anarchy, when the rates cannot be changed.
+    pub(crate) rates_locked: bool,
     pub(crate) can_mobilize: bool,
     pub(crate) mobilization_label: &'static str,
 }
@@ -462,11 +459,7 @@ mod tests {
         let view = sim.unit_context_view(unit);
         assert_eq!(view.kind, unit.kind);
         assert_eq!(view.owner, unit.owner);
-        assert_eq!(view.hp, unit.hp);
-        assert_eq!(view.max_hp, unit.max_hit_points());
         assert_eq!(view.moves_left, unit.moves_left);
-        assert_eq!(view.attack, unit.kind.stats().attack);
-        assert_eq!(view.defense, unit.kind.stats().defense);
         assert_eq!(view.terrain_name, sim.tile(unit.x, unit.y).terrain.name());
     }
 
@@ -582,15 +575,29 @@ mod tests {
     }
 
     #[test]
+    fn government_projection_carries_rates_cap_and_lock() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        let player = &sim.players[HUMAN];
+        let max = player.government.max_rate();
+        let view = sim.government_view(HUMAN).unwrap();
+        assert_eq!(view.rates, player.rates);
+        assert_eq!(view.max_rate, max);
+        assert!(!view.rates_locked);
+
+        sim.players[HUMAN].government = Government::during_revolution();
+        let view = sim.government_view(HUMAN).unwrap();
+        assert_eq!(view.rates, [0, 0, 100]);
+        assert!(view.rates_locked);
+    }
+
+    #[test]
     fn top_bar_projection_contains_display_values_and_control_state() {
         let sim = Simulation::new(crate::mapgen::generate(42));
         let player = &sim.players[HUMAN];
         let view = sim.top_bar_view(HUMAN).unwrap();
-        assert_eq!(view.turn, sim.turn);
         assert_eq!(view.year, sim.year);
         assert_eq!(view.gold, player.gold);
         assert_eq!(view.government_name, player.government.name());
-        assert_eq!(view.rates, player.rates);
         assert_eq!(view.research_name, player.researching.name());
         assert_eq!(view.research_points, player.research);
         assert_eq!(

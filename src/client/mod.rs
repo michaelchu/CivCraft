@@ -88,7 +88,8 @@ use research_tree::{NODE_SIZE, RESEARCH_AGES, ResearchTree};
 
 const TILE_W: f32 = 96.0;
 const TILE_H: f32 = 48.0;
-const TOP_H: f32 = 46.0;
+/// Height of the floating button row; the map itself fills the whole window.
+const CONTROLS_H: f32 = HUD_MARGIN + 33.0 + 5.0;
 const HUD_MARGIN: f32 = 14.0;
 const WORLD_ART_SCALE: f32 = 0.75;
 const ZOOMED_OUT: f32 = 1.0;
@@ -135,7 +136,8 @@ pub(crate) enum UiAction {
     ToggleSpaceship,
     ToggleManualAssembly,
     PlaceShipPart(ShipPart),
-    RaiseRate(usize),
+    /// Sets the science, tax and luxury split from a rate slider.
+    SetRates([i32; 3]),
     Specialist(u32, usize, i32),
     CityTiles,
     WorkCityTile(u32, i32, i32),

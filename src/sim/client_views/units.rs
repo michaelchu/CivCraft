@@ -294,7 +294,6 @@ impl Simulation {
             status
         };
         let player = &self.players[unit.owner];
-        let stats = unit.kind.stats();
         UnitContextView {
             kind: unit.kind,
             owner: unit.owner,
@@ -303,12 +302,7 @@ impl Simulation {
             owner_name: player.name.clone(),
             terrain_name: self.tile(unit.x, unit.y).terrain.name(),
             status,
-            hp: unit.hp,
-            max_hp: unit.max_hit_points(),
             moves_left: unit.moves_left,
-            moves_allowance: self.unit_move_rate(unit),
-            attack: stats.attack,
-            defense: stats.defense,
         }
     }
 

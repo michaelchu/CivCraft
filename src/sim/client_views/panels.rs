@@ -119,7 +119,16 @@ impl Simulation {
                 }
             })
             .collect();
+        let in_anarchy = player.government == Government::during_revolution();
+        let max_rate = player.government.max_rate();
         Some(GovernmentView {
+            rates: if in_anarchy {
+                [0, 0, 100]
+            } else {
+                player.rates
+            },
+            max_rate,
+            rates_locked: in_anarchy,
             leader_line: format!("{} · {}", player.name, player.leader_name()),
             status_line,
             options,
@@ -138,13 +147,9 @@ impl Simulation {
         let player = self.players.get(owner)?;
         let research = player.researching;
         Some(TopBarView {
-            turn: self.turn,
             year: self.year,
             gold: player.gold,
             government_name: player.government.name(),
-            anarchy: player.government == Government::during_revolution(),
-            rates: player.rates,
-            max_rate: player.government.max_rate(),
             research_name: research.name(),
             research_points: player.research,
             research_cost: self.target_cost(owner, research),
