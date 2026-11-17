@@ -107,625 +107,465 @@ metropolis_free_units = 1
 cost_per_excess_unit_gold = 3
 
 [[assimilation]]
-source_section = "GOVT"
-source_record_index = 0
 government = "Anarchy"
 assimilation_chance_percent = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Anarchy"
 
 [[assimilation]]
-source_section = "GOVT"
-source_record_index = 1
 government = "Despotism"
 assimilation_chance_percent = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Despotism"
 
 [[assimilation]]
-source_section = "GOVT"
-source_record_index = 2
 government = "Monarchy"
 assimilation_chance_percent = 2
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Monarchy"
 
 [[assimilation]]
-source_section = "GOVT"
-source_record_index = 3
 government = "Communism"
 assimilation_chance_percent = 4
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Communism"
 
 [[assimilation]]
-source_section = "GOVT"
-source_record_index = 4
 government = "Republic"
 assimilation_chance_percent = 2
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Republic"
 
 [[assimilation]]
-source_section = "GOVT"
-source_record_index = 5
 government = "Democracy"
 assimilation_chance_percent = 4
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Democracy"
 
 [[assimilation]]
-source_section = "GOVT"
-source_record_index = 6
 government = "Fascism"
 assimilation_chance_percent = 2
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Fascism"
 
 [[assimilation]]
-source_section = "GOVT"
-source_record_index = 7
 government = "Feudalism"
 assimilation_chance_percent = 3
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Feudalism"
 
 [[resistance]]
-captor_biq_index = 0
 captor_name = "Anarchy"
-defender_biq_index = 0
 defender_name = "Anarchy"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "anarchy_to_anarchy"
 
 [[resistance]]
-captor_biq_index = 0
 captor_name = "Anarchy"
-defender_biq_index = 1
 defender_name = "Despotism"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "anarchy_to_despotism"
 
 [[resistance]]
-captor_biq_index = 0
 captor_name = "Anarchy"
-defender_biq_index = 2
 defender_name = "Monarchy"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "anarchy_to_monarchy"
 
 [[resistance]]
-captor_biq_index = 0
 captor_name = "Anarchy"
-defender_biq_index = 3
 defender_name = "Communism"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "anarchy_to_communism"
 
 [[resistance]]
-captor_biq_index = 0
 captor_name = "Anarchy"
-defender_biq_index = 4
 defender_name = "Republic"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "anarchy_to_republic"
 
 [[resistance]]
-captor_biq_index = 0
 captor_name = "Anarchy"
-defender_biq_index = 5
 defender_name = "Democracy"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "anarchy_to_democracy"
 
 [[resistance]]
-captor_biq_index = 0
 captor_name = "Anarchy"
-defender_biq_index = 6
 defender_name = "Fascism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "anarchy_to_fascism"
 
 [[resistance]]
-captor_biq_index = 0
 captor_name = "Anarchy"
-defender_biq_index = 7
 defender_name = "Feudalism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "anarchy_to_feudalism"
 
 [[resistance]]
-captor_biq_index = 1
 captor_name = "Despotism"
-defender_biq_index = 0
 defender_name = "Anarchy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "despotism_to_anarchy"
 
 [[resistance]]
-captor_biq_index = 1
 captor_name = "Despotism"
-defender_biq_index = 1
 defender_name = "Despotism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "despotism_to_despotism"
 
 [[resistance]]
-captor_biq_index = 1
 captor_name = "Despotism"
-defender_biq_index = 2
 defender_name = "Monarchy"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "despotism_to_monarchy"
 
 [[resistance]]
-captor_biq_index = 1
 captor_name = "Despotism"
-defender_biq_index = 3
 defender_name = "Communism"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "despotism_to_communism"
 
 [[resistance]]
-captor_biq_index = 1
 captor_name = "Despotism"
-defender_biq_index = 4
 defender_name = "Republic"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "despotism_to_republic"
 
 [[resistance]]
-captor_biq_index = 1
 captor_name = "Despotism"
-defender_biq_index = 5
 defender_name = "Democracy"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "despotism_to_democracy"
 
 [[resistance]]
-captor_biq_index = 1
 captor_name = "Despotism"
-defender_biq_index = 6
 defender_name = "Fascism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "despotism_to_fascism"
 
 [[resistance]]
-captor_biq_index = 1
 captor_name = "Despotism"
-defender_biq_index = 7
 defender_name = "Feudalism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "despotism_to_feudalism"
 
 [[resistance]]
-captor_biq_index = 2
 captor_name = "Monarchy"
-defender_biq_index = 0
 defender_name = "Anarchy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "monarchy_to_anarchy"
 
 [[resistance]]
-captor_biq_index = 2
 captor_name = "Monarchy"
-defender_biq_index = 1
 defender_name = "Despotism"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "monarchy_to_despotism"
 
 [[resistance]]
-captor_biq_index = 2
 captor_name = "Monarchy"
-defender_biq_index = 2
 defender_name = "Monarchy"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "monarchy_to_monarchy"
 
 [[resistance]]
-captor_biq_index = 2
 captor_name = "Monarchy"
-defender_biq_index = 3
 defender_name = "Communism"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "monarchy_to_communism"
 
 [[resistance]]
-captor_biq_index = 2
 captor_name = "Monarchy"
-defender_biq_index = 4
 defender_name = "Republic"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "monarchy_to_republic"
 
 [[resistance]]
-captor_biq_index = 2
 captor_name = "Monarchy"
-defender_biq_index = 5
 defender_name = "Democracy"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "monarchy_to_democracy"
 
 [[resistance]]
-captor_biq_index = 2
 captor_name = "Monarchy"
-defender_biq_index = 6
 defender_name = "Fascism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "monarchy_to_fascism"
 
 [[resistance]]
-captor_biq_index = 2
 captor_name = "Monarchy"
-defender_biq_index = 7
 defender_name = "Feudalism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "monarchy_to_feudalism"
 
 [[resistance]]
-captor_biq_index = 3
 captor_name = "Communism"
-defender_biq_index = 0
 defender_name = "Anarchy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "communism_to_anarchy"
 
 [[resistance]]
-captor_biq_index = 3
 captor_name = "Communism"
-defender_biq_index = 1
 defender_name = "Despotism"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "communism_to_despotism"
 
 [[resistance]]
-captor_biq_index = 3
 captor_name = "Communism"
-defender_biq_index = 2
 defender_name = "Monarchy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "communism_to_monarchy"
 
 [[resistance]]
-captor_biq_index = 3
 captor_name = "Communism"
-defender_biq_index = 3
 defender_name = "Communism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "communism_to_communism"
 
 [[resistance]]
-captor_biq_index = 3
 captor_name = "Communism"
-defender_biq_index = 4
 defender_name = "Republic"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "communism_to_republic"
 
 [[resistance]]
-captor_biq_index = 3
 captor_name = "Communism"
-defender_biq_index = 5
 defender_name = "Democracy"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "communism_to_democracy"
 
 [[resistance]]
-captor_biq_index = 3
 captor_name = "Communism"
-defender_biq_index = 6
 defender_name = "Fascism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "communism_to_fascism"
 
 [[resistance]]
-captor_biq_index = 3
 captor_name = "Communism"
-defender_biq_index = 7
 defender_name = "Feudalism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "communism_to_feudalism"
 
 [[resistance]]
-captor_biq_index = 4
 captor_name = "Republic"
-defender_biq_index = 0
 defender_name = "Anarchy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "republic_to_anarchy"
 
 [[resistance]]
-captor_biq_index = 4
 captor_name = "Republic"
-defender_biq_index = 1
 defender_name = "Despotism"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "republic_to_despotism"
 
 [[resistance]]
-captor_biq_index = 4
 captor_name = "Republic"
-defender_biq_index = 2
 defender_name = "Monarchy"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "republic_to_monarchy"
 
 [[resistance]]
-captor_biq_index = 4
 captor_name = "Republic"
-defender_biq_index = 3
 defender_name = "Communism"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "republic_to_communism"
 
 [[resistance]]
-captor_biq_index = 4
 captor_name = "Republic"
-defender_biq_index = 4
 defender_name = "Republic"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "republic_to_republic"
 
 [[resistance]]
-captor_biq_index = 4
 captor_name = "Republic"
-defender_biq_index = 5
 defender_name = "Democracy"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "republic_to_democracy"
 
 [[resistance]]
-captor_biq_index = 4
 captor_name = "Republic"
-defender_biq_index = 6
 defender_name = "Fascism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "republic_to_fascism"
 
 [[resistance]]
-captor_biq_index = 4
 captor_name = "Republic"
-defender_biq_index = 7
 defender_name = "Feudalism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "republic_to_feudalism"
 
 [[resistance]]
-captor_biq_index = 5
 captor_name = "Democracy"
-defender_biq_index = 0
 defender_name = "Anarchy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "democracy_to_anarchy"
 
 [[resistance]]
-captor_biq_index = 5
 captor_name = "Democracy"
-defender_biq_index = 1
 defender_name = "Despotism"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "democracy_to_despotism"
 
 [[resistance]]
-captor_biq_index = 5
 captor_name = "Democracy"
-defender_biq_index = 2
 defender_name = "Monarchy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "democracy_to_monarchy"
 
 [[resistance]]
-captor_biq_index = 5
 captor_name = "Democracy"
-defender_biq_index = 3
 defender_name = "Communism"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "democracy_to_communism"
 
 [[resistance]]
-captor_biq_index = 5
 captor_name = "Democracy"
-defender_biq_index = 4
 defender_name = "Republic"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "democracy_to_republic"
 
 [[resistance]]
-captor_biq_index = 5
 captor_name = "Democracy"
-defender_biq_index = 5
 defender_name = "Democracy"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "democracy_to_democracy"
 
 [[resistance]]
-captor_biq_index = 5
 captor_name = "Democracy"
-defender_biq_index = 6
 defender_name = "Fascism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "democracy_to_fascism"
 
 [[resistance]]
-captor_biq_index = 5
 captor_name = "Democracy"
-defender_biq_index = 7
 defender_name = "Feudalism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "democracy_to_feudalism"
 
 [[resistance]]
-captor_biq_index = 6
 captor_name = "Fascism"
-defender_biq_index = 0
 defender_name = "Anarchy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "fascism_to_anarchy"
 
 [[resistance]]
-captor_biq_index = 6
 captor_name = "Fascism"
-defender_biq_index = 1
 defender_name = "Despotism"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "fascism_to_despotism"
 
 [[resistance]]
-captor_biq_index = 6
 captor_name = "Fascism"
-defender_biq_index = 2
 defender_name = "Monarchy"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "fascism_to_monarchy"
 
 [[resistance]]
-captor_biq_index = 6
 captor_name = "Fascism"
-defender_biq_index = 3
 defender_name = "Communism"
 modifier = -10
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "fascism_to_communism"
 
 [[resistance]]
-captor_biq_index = 6
 captor_name = "Fascism"
-defender_biq_index = 4
 defender_name = "Republic"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "fascism_to_republic"
 
 [[resistance]]
-captor_biq_index = 6
 captor_name = "Fascism"
-defender_biq_index = 5
 defender_name = "Democracy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "fascism_to_democracy"
 
 [[resistance]]
-captor_biq_index = 6
 captor_name = "Fascism"
-defender_biq_index = 6
 defender_name = "Fascism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "fascism_to_fascism"
 
 [[resistance]]
-captor_biq_index = 6
 captor_name = "Fascism"
-defender_biq_index = 7
 defender_name = "Feudalism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "fascism_to_feudalism"
 
 [[resistance]]
-captor_biq_index = 7
 captor_name = "Feudalism"
-defender_biq_index = 0
 defender_name = "Anarchy"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "feudalism_to_anarchy"
 
 [[resistance]]
-captor_biq_index = 7
 captor_name = "Feudalism"
-defender_biq_index = 1
 defender_name = "Despotism"
 modifier = -5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "feudalism_to_despotism"
 
 [[resistance]]
-captor_biq_index = 7
 captor_name = "Feudalism"
-defender_biq_index = 2
 defender_name = "Monarchy"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "feudalism_to_monarchy"
 
 [[resistance]]
-captor_biq_index = 7
 captor_name = "Feudalism"
-defender_biq_index = 3
 defender_name = "Communism"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "feudalism_to_communism"
 
 [[resistance]]
-captor_biq_index = 7
 captor_name = "Feudalism"
-defender_biq_index = 4
 defender_name = "Republic"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "feudalism_to_republic"
 
 [[resistance]]
-captor_biq_index = 7
 captor_name = "Feudalism"
-defender_biq_index = 5
 defender_name = "Democracy"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "feudalism_to_democracy"
 
 [[resistance]]
-captor_biq_index = 7
 captor_name = "Feudalism"
-defender_biq_index = 6
 defender_name = "Fascism"
 modifier = 5
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "feudalism_to_fascism"
 
 [[resistance]]
-captor_biq_index = 7
 captor_name = "Feudalism"
-defender_biq_index = 7
 defender_name = "Feudalism"
 modifier = 0
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "feudalism_to_feudalism"
 
 [[military_law]]
-source_section = "DIFF"
-source_record_index = 0
 difficulty = "Chieftain"
 military_law = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Chieftain"
 
 [[military_law]]
-source_section = "DIFF"
-source_record_index = 1
 difficulty = "Warlord"
 military_law = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Warlord"
 
 [[military_law]]
-source_section = "DIFF"
-source_record_index = 2
 difficulty = "Regent"
 military_law = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Regent"
 
 [[military_law]]
-source_section = "DIFF"
-source_record_index = 3
 difficulty = "Monarch"
 military_law = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Monarch"
 
 [[military_law]]
-source_section = "DIFF"
-source_record_index = 4
 difficulty = "Emperor"
 military_law = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Emperor"
 
 [[military_law]]
-source_section = "DIFF"
-source_record_index = 5
 difficulty = "Demigod"
 military_law = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Demigod"
 
 [[military_law]]
-source_section = "DIFF"
-source_record_index = 6
 difficulty = "Deity"
 military_law = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Deity"
 
 [[military_law]]
-source_section = "DIFF"
-source_record_index = 7
 difficulty = "Sid"
 military_law = 1
-biq_sha256 = "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+id = "Sid"

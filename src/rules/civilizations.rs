@@ -1,10 +1,5 @@
-//! Source-backed Civilization III: Conquests civilization catalog.
-//!
-//! The native TOML catalog contains the playable RACE records in the installed
-//! Conquests BIQ order. OpenCiv3's ruleset JSON is the checked-in extraction
-//! reference; the original BIQ remains the authority for names and city order.
-//! City-style IDs are a renderer mapping because the BIQ stores culture groups,
-//! not the five Civ III city-sheet IDs.
+//! Native civilization catalog. Names and save aliases are explicit content;
+//! catalog construction does not depend on imported RACE records.
 
 use crate::rules::Tech;
 use std::sync::OnceLock;
@@ -14,7 +9,6 @@ pub(crate) struct Civilization {
     pub(crate) id: String,
     /// Existing CivCraft display name, retained where possible for save/UI compatibility.
     pub(crate) name: String,
-    pub(crate) source_name: String,
     pub(crate) noun: String,
     #[allow(dead_code)] // Source-backed catalog metadata for future leader and UI text.
     pub(crate) adjective: String,
@@ -25,8 +19,6 @@ pub(crate) struct Civilization {
     pub(crate) primary_color_index: u8,
     pub(crate) secondary_color_index: u8,
     pub(crate) legacy_names: Vec<String>,
-    #[allow(dead_code)] // Kept to preserve and validate the source BIQ record identity.
-    pub(crate) source_race_index: usize,
     /// Raw Conquests RACE CultureGroup index; separate from culture points.
     #[allow(dead_code)] // Kept as source metadata for city-style and culture rules.
     pub(crate) culture_group_index: i32,
@@ -45,18 +37,9 @@ fn parse_catalog() -> Vec<Civilization> {
         .iter()
         .enumerate()
     {
-        let source_race_index = native.source_race_index;
-        assert_eq!(
-            source_race_index,
-            result.len() + 1,
-            "catalog must preserve BIQ RACE order"
-        );
-        assert_eq!(native.starting_techs.len(), 2);
-        assert!(!native.cities.is_empty(), "empty city list on row {index}");
         result.push(Civilization {
             id: native.id.clone(),
             name: native.name.clone(),
-            source_name: native.source_name.clone(),
             noun: native.noun.clone(),
             adjective: native.adjective.clone(),
             leader: native.leader.clone(),
@@ -68,7 +51,6 @@ fn parse_catalog() -> Vec<Civilization> {
                 parse_tech(&native.starting_techs[1], index + 1),
             ],
             legacy_names: native.legacy_names.clone(),
-            source_race_index,
             culture_group_index: native.culture_group_index,
             cities: native.cities.clone(),
         });
@@ -93,7 +75,6 @@ pub(crate) fn by_id(id: &str) -> Option<&'static Civilization> {
 pub(crate) fn by_name(name: &str) -> Option<&'static Civilization> {
     all().iter().find(|civilization| {
         civilization.name.eq_ignore_ascii_case(name)
-            || civilization.source_name.eq_ignore_ascii_case(name)
             || civilization.noun.eq_ignore_ascii_case(name)
             || civilization
                 .legacy_names
@@ -162,8 +143,7 @@ mod tests {
     #[test]
     fn conquests_civilization_catalog_covers_31_unique_source_races() {
         assert_eq!(all().len(), 31);
-        for (index, civilization) in all().iter().enumerate() {
-            assert_eq!(civilization.source_race_index, index + 1);
+        for civilization in all() {
             assert!((0..=4).contains(&civilization.culture_group_index));
             assert!(!civilization.leader.is_empty());
             assert!(civilization.civ3_city_style < 5);
@@ -171,11 +151,11 @@ mod tests {
             assert!((civilization.secondary_color_index as usize) < 32);
             assert_eq!(
                 civilization.cities.first().map(String::as_str),
-                Some(match civilization.source_name.as_str() {
-                    "Rome" => "Rome",
-                    "Egypt" => "Thebes",
-                    "Greece" => "Athens",
-                    "Babylon" => "Babylon",
+                Some(match civilization.id.as_str() {
+                    "rome" => "Rome",
+                    "egypt" => "Thebes",
+                    "greece" => "Athens",
+                    "babylon" => "Babylon",
                     _ => civilization.cities[0].as_str(),
                 })
             );
@@ -201,7 +181,6 @@ mod tests {
                 .iter()
                 .find(|civilization| civilization.id == source.id)
                 .unwrap_or_else(|| panic!("native TOML is missing {}", source.id));
-            assert_eq!(migrated.source_name, source.source_name);
             assert_eq!(migrated.name, source.name);
             assert_eq!(migrated.noun, source.noun);
             assert_eq!(migrated.adjective, source.adjective);
@@ -209,7 +188,6 @@ mod tests {
             assert_eq!(migrated.primary_color_index, source.primary_color_index);
             assert_eq!(migrated.secondary_color_index, source.secondary_color_index);
             assert_eq!(migrated.city_style, source.civ3_city_style);
-            assert_eq!(migrated.source_race_index, source.source_race_index);
             assert_eq!(migrated.culture_group_index, source.culture_group_index);
             assert_eq!(migrated.legacy_names, source.legacy_names);
             assert_eq!(migrated.cities, source.cities);

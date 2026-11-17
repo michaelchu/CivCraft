@@ -20,7 +20,7 @@ pub(crate) enum Genus {
     Convert,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Requirement {
     Tech(usize),
     Improvement(usize),
@@ -210,4 +210,33 @@ fn native_building_requirement(
         other => panic!("unknown native building requirement {other:?}"),
     };
     (parsed, requirement.present)
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+    #[test]
+    fn named_references_preserve_pre_migration_building_rules_and_save_ids() {
+        let expected: Vec<serde_json::Value> =
+            serde_json::from_str(include_str!("../../tests/fixtures/building_rules_v1.json"))
+                .unwrap();
+        for (index, baseline) in expected.iter().enumerate() {
+            let actual = Building(index).data();
+            assert_eq!(actual.name, baseline["name"].as_str().unwrap());
+            assert_eq!(actual.cost as i64, baseline["cost"].as_i64().unwrap());
+            assert_eq!(actual.upkeep as i64, baseline["upkeep"].as_i64().unwrap());
+            for (key, actual) in [
+                ("requirements", actual.requirements),
+                ("obsolete", actual.obsolete),
+            ] {
+                let requirements: Vec<crate::rules::native::NativeBuildingRequirement> =
+                    serde_json::from_value(baseline[key].clone()).unwrap();
+                let expected: Vec<_> = requirements
+                    .iter()
+                    .map(native_building_requirement)
+                    .collect();
+                assert_eq!(actual, expected, "building {index} {key}");
+            }
+        }
+    }
 }

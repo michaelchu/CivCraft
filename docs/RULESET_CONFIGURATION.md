@@ -1,0 +1,127 @@
+# Ruleset configuration boundary
+
+The native ruleset preserves campaign gameplay and saved identities while
+separating editable gameplay from internal compatibility data. Runtime and
+build-time BIQ metadata dependencies have been removed. Bundled catalogs are
+embedded at build time;
+editing them requires rebuilding the application. Live reload and a mod loader
+are outside this migration.
+
+## Ownership
+
+| Owner | Contents |
+| --- | --- |
+| `data/rulesets/civcraft/content/` | Gameplay values, unit/building definitions, economy, terrain, governments, AI priorities, and village reward weights |
+| `src/rules/technologies.rs` | Technology identities, research costs, prerequisites, eras, capabilities, display metadata, and stable serialized indices |
+| `data/rulesets/civcraft/engine/` | Generic effects, action enablers, and remaining engine settings, using the engine's existing ruleset format |
+| `src/rules/compatibility.rs` | Stable building save identities and the existing obsolescence selection policy |
+| Rust simulation modules | Formulas, rule interpretation, state execution, validation, and turn processing |
+| `data/presentation/` | Animation pacing, independent of gameplay rules |
+| Campaign saves | Current health, activities, discovered technologies, research progress, owned buildings, and other mutable state |
+
+Changing a supported value or composing an existing capability belongs in data.
+Adding a new kind of mechanic, effect, action, or state requires engine support.
+The migration does not introduce another gameplay scripting language.
+
+## Units
+
+`content/units.toml` retains costs, population costs, combat and bombardment
+statistics, movement, capacity, range, support and worker values, availability,
+and artwork bindings. `domain` is `Land`, `Sea`, or `Air`.
+
+`required_technology` references a compiled technology ID, such as
+`TECH_Bronze_Working`; `upgrade_to` and `replaces` reference unit IDs, such as
+`swordsman`. Empty strings mean no reference. Resource requirements retain their
+named resource vocabulary.
+
+`capabilities` names supported behaviors, including `Fortify`, `FoundCity`,
+`Worker`, `JoinCity`, `Paradrop`, `Embark`, `Disembark`, `Airlift`, `AttackAir`,
+`IgnoreTerrain`, `Radar`, and transport/combat restrictions. The complete accepted
+vocabulary is in `src/rules/unit_capabilities.rs`. `ai_roles` names existing
+strategies such as `Offense`, `Defense`, `Terraform`, or `NavalTransport`.
+Unknown capabilities and roles fail validation. No raw PRTO masks or imported AI
+profiles are decoded. Frozen native capability and strategy expectations live in
+the test fixtures.
+
+`enslave_result` retains a native unit ID for the unfinished enslave mechanic;
+its presence does not promise execution support. Unused import bytes and indices
+have been removed. The current fixed `UnitKind` roster still requires Rust changes to introduce a new unit identity.
+
+## Buildings
+
+`content/buildings.toml` contains the 91 active runtime definitions. Each has a
+stable `id`, display name, genus, cost, upkeep, requirements, obsolescence, and
+flags. The original source records and import mappings have been removed.
+
+Named requirement targets replace numeric references:
+
+```toml
+requirements = [{ kind = "Tech", present = true, target = "TECH_Flight" }]
+obsolete = [{ kind = "Tech", present = true, target = "TECH_Motorized_Transportation" }]
+```
+
+`Improvement` and `OwnerBuildingCount` targets use building IDs. `Resource`
+targets use strategic resource names. `OwnerBuildingCount` uses `count` for its
+threshold; scalar requirements such as `MinSize` retain `value`.
+
+Some inherited requirements refer to nonresearchable compatibility identities.
+Their `TECH_COMPAT_<index>` IDs preserve historical engine semantics. They do not
+add technologies to the campaign tree and should not be used to invent new ones.
+
+Building IDs resolve through internal serialized indices; author record order
+does not change save identities. Renumbering or extending the fixed runtime
+catalog needs an explicit Rust/save
+compatibility change; changing normal rule values does not.
+
+## Supported states
+
+Unit activity execution remains in Rust. Whether a unit can fortify, found a
+city, or perform another supported action comes from its capabilities and engine
+action requirements. State modifiers use the existing effect graph: for example,
+`Fortify_Defense_Bonus` and healing effects can require `Activity = Fortified`.
+Building prerequisites and obsolescence are editable in the building catalog;
+building-dependent effects remain in the engine effect graph.
+
+This migration preserves these supported states. It does not add an arbitrary
+state-transition editor or new building disabled/damaged states. Individual
+entities' current states continue to live in campaign saves.
+
+## Villages
+
+`content/settlements.toml` exposes positive integer outcome weights, gold amounts,
+barbarian onset, map reveal radius, and existing AI priorities. For example:
+
+```toml
+[[villages.outcomes]]
+weight = 3
+reward = { kind = "Gold", amount = 50 }
+```
+
+Supported reward kinds are `Gold`, `Technology`, `Reinforcements`, `Barbarians`,
+`Settlement`, and `Map`. Rust executes rewards and their eligibility/fallback
+rules. Weights determine the roll total; no separate roll count is editable.
+The shipped order and weights preserve the original 14 rolls and random-number
+consumption. Empty tables, nonpositive weights, overflowing totals, and negative
+gold amounts or map radii fail validation.
+
+## Compatibility and evidence
+
+Native catalogs load directly from their TOML definitions. The technology tree
+constructs directly from Rust definitions. Neither path joins source records or
+requires BIQ files, hashes, source indices, or raw flag encodings.
+
+Building IDs resolve through `src/rules/compatibility.rs`, whose array positions
+are existing serialized identities. The table also retains the prior choice
+between selected-rule and legacy obsolescence behavior; removing source records
+must not change that gameplay policy. This table is a native compatibility
+contract, not a BIQ catalog. Existing unit and technology save identities remain
+unchanged.
+
+Civilization aliases in `legacy_names` preserve old display names and saved
+labels without source-name lookups. Frozen native technology, building, unit
+capability, and obsolescence fixtures check behavior independently of import
+metadata. Save tests and headless scenarios exercise the resulting simulation.
+Do not update baselines merely to make a migration pass.
+
+Civ III art files remain a separate runtime asset dependency. This change does
+not replace or remove those assets.

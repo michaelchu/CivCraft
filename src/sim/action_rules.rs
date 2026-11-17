@@ -895,7 +895,9 @@ pub(crate) fn selected_building_is_obsolete(
     building: Building,
     granted: Option<Tech>,
 ) -> Option<bool> {
-    native_building_for_runtime(building)?;
+    if !crate::rules::compatibility::uses_selected_obsolescence(building.0) {
+        return None;
+    }
     let obsolete_technology = building
         .data()
         .obsolete
@@ -1281,20 +1283,6 @@ fn runtime_building_for_name(name: &str) -> Option<Building> {
                 .iter()
                 .any(|alias| alias.eq_ignore_ascii_case(name))
     })
-}
-
-fn native_building_for_runtime(
-    building: Building,
-) -> Option<&'static crate::rules::native::NativeBuilding> {
-    let catalog = crate::rules::native::buildings();
-    let binding = catalog
-        .bindings
-        .iter()
-        .find(|binding| binding.legacy_runtime_index == building.0 as i32)?;
-    catalog
-        .buildings
-        .iter()
-        .find(|candidate| candidate.id == binding.civ3_id)
 }
 
 impl Simulation {
@@ -1865,8 +1853,8 @@ impl Simulation {
         field: &str,
     ) -> Result<bool, ActionEvaluationError> {
         let allowed = match field {
-            "embarks" => passenger.conquests_rule().has_flag_3(4, 0),
-            "disembarks" => carrier.conquests_rule().has_flag_3(4, 1),
+            "embarks" => passenger.conquests_rule().has_capability("Embark"),
+            "disembarks" => carrier.conquests_rule().has_capability("Disembark"),
             _ => return Err(Self::unsupported_transport_field(passenger, field)),
         };
         Ok(allowed && self.ruleset_transport_accepts(carrier, passenger)?)
@@ -2246,7 +2234,8 @@ pub(crate) fn freeciv_unit_transport_defense(
 
 pub(crate) fn freeciv_unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
     let rule = unit.conquests_rule();
-    rule.has_flag_3(4, 5).then_some(rule.operational_range)
+    rule.has_capability("Paradrop")
+        .then_some(rule.operational_range)
 }
 
 /// The retained suicide-action engine consumes the native missile's bombard
@@ -2276,7 +2265,7 @@ pub(crate) fn freeciv_unit_can_target_class(
     defender: UnitKind,
 ) -> Option<bool> {
     let target_is_air = defender.conquests_rule().unit_type == 2 || defender.is_missile();
-    Some(!target_is_air || attacker.conquests_rule().has_flag_3(12, 2))
+    Some(!target_is_air || attacker.conquests_rule().has_capability("AttackAir"))
 }
 
 /// Resolve one selected C2C3 class flag through the Civ III unit-class

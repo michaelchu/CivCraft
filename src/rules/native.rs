@@ -1,8 +1,7 @@
 //! Native TOML content for the CivCraft campaign.
 //!
-//! This module is the first migration boundary away from the legacy TSV
-//! extraction tables.  It deliberately loads beside the current runtime
-//! adapters until parity tests prove that switching consumers is safe.
+//! Catalogs decode directly into native definitions. Import records and BIQ
+//! provenance are not required to construct or validate campaign rules.
 
 #![allow(dead_code)]
 
@@ -23,9 +22,6 @@ pub(crate) struct NativeUnit {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) category: String,
-    pub(crate) expansion: String,
-    pub(crate) source_biq: String,
-    pub(crate) source_prototypes: Vec<i32>,
     pub(crate) cost_shields: i32,
     pub(crate) population_cost: i32,
     pub(crate) attack: i32,
@@ -42,21 +38,16 @@ pub(crate) struct NativeUnit {
     pub(crate) available_to: Vec<String>,
     pub(crate) unique_civilization: String,
     pub(crate) replaces: String,
-    pub(crate) unit_type: i32,
-    pub(crate) flags_1_hex: String,
-    pub(crate) flags_2_hex: String,
-    pub(crate) flags_3_hex: String,
+    pub(crate) domain: UnitDomain,
+    pub(crate) enslave_result: String,
+    pub(crate) capabilities: Vec<String>,
+    pub(crate) ai_roles: Vec<String>,
     pub(crate) hit_point_bonus: i32,
-    pub(crate) ai_other_strategy: i32,
-    pub(crate) source_ai_profiles: String,
     pub(crate) art_folder: String,
     pub(crate) art_root: String,
-    pub(crate) ignore_movement_cost_hex: String,
     pub(crate) zone_of_control: i32,
     pub(crate) bombard_effects: i32,
     pub(crate) require_support: i32,
-    pub(crate) enslave_result_prototype_index: i32,
-    pub(crate) stealth_target_prototype_indices: Vec<i32>,
     pub(crate) create_craters: i32,
     pub(crate) worker_strength: f32,
     pub(crate) air_defense: i32,
@@ -65,6 +56,24 @@ pub(crate) struct NativeUnit {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) enum UnitDomain {
+    Land,
+    Sea,
+    Air,
+}
+
+impl UnitDomain {
+    pub(crate) fn index(&self) -> i32 {
+        match self {
+            Self::Land => 0,
+            Self::Sea => 1,
+            Self::Air => 2,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct CivilizationCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
@@ -72,18 +81,19 @@ pub(crate) struct CivilizationCatalog {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct BuildingCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
-    pub(crate) buildings: Vec<NativeBuilding>,
-    #[serde(default)]
-    pub(crate) bindings: Vec<NativeBuildingBinding>,
     #[serde(default)]
     pub(crate) rules: Vec<NativeBuildingRule>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeBuildingRule {
+    pub(crate) id: String,
+    #[serde(skip)]
     pub(crate) legacy_runtime_index: usize,
     pub(crate) name: String,
     pub(crate) genus: String,
@@ -96,69 +106,16 @@ pub(crate) struct NativeBuildingRule {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeBuildingRequirement {
+    pub(crate) target: Option<String>,
     pub(crate) kind: String,
     #[serde(default)]
     pub(crate) value: i32,
     #[serde(default)]
+    #[serde(rename = "count", alias = "second_value")]
     pub(crate) second_value: i32,
     pub(crate) present: bool,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeBuilding {
-    pub(crate) id: String,
-    pub(crate) source_record_index: usize,
-    pub(crate) source_biq: String,
-    pub(crate) name: String,
-    pub(crate) civilopedia_entry: String,
-    pub(crate) doubles_happiness: i32,
-    pub(crate) gain_in_every_city: i32,
-    pub(crate) gain_in_every_city_on_continent: i32,
-    pub(crate) required_building_index: i32,
-    pub(crate) cost: i32,
-    pub(crate) culture: i32,
-    pub(crate) bombard_defense: i32,
-    pub(crate) naval_bombard_defense: i32,
-    pub(crate) defense_bonus: i32,
-    pub(crate) naval_defense_bonus: i32,
-    pub(crate) maintenance_cost: i32,
-    pub(crate) content_faces_all_cities: i32,
-    pub(crate) content_faces: i32,
-    pub(crate) unhappy_faces_all_cities: i32,
-    pub(crate) unhappy_faces: i32,
-    pub(crate) number_of_required_buildings: i32,
-    pub(crate) air_power: i32,
-    pub(crate) naval_power: i32,
-    pub(crate) pollution: i32,
-    pub(crate) production: i32,
-    pub(crate) required_government: i32,
-    pub(crate) spaceship_part: i32,
-    pub(crate) required_advance_index: i32,
-    pub(crate) rendered_obsolete_by_advance_index: i32,
-    pub(crate) required_resource_1_index: i32,
-    pub(crate) required_resource_2_index: i32,
-    pub(crate) flags_hex: String,
-    pub(crate) number_of_armies_required: i32,
-    pub(crate) flavors: i32,
-    pub(crate) unknown_tail_hex: String,
-    pub(crate) unit_produced_index: i32,
-    pub(crate) unit_frequency: i32,
-    pub(crate) required_building_name: String,
-    pub(crate) required_advance_name: String,
-    pub(crate) rendered_obsolete_by_advance_name: String,
-    pub(crate) required_resource_1_name: String,
-    pub(crate) required_resource_2_name: String,
-    pub(crate) unit_produced_name: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct NativeBuildingBinding {
-    pub(crate) civ3_id: String,
-    pub(crate) source_record_index: usize,
-    pub(crate) legacy_runtime_index: i32,
-    pub(crate) mapping_status: String,
-    pub(crate) mapping_note: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -169,6 +126,7 @@ pub(crate) struct TechnologyCatalog {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct GovernmentCatalog {
     pub(crate) schema_version: u32,
     pub(crate) source: String,
@@ -187,6 +145,7 @@ impl GovernmentCatalog {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeGovernment {
     pub(crate) government: String,
     pub(crate) name: String,
@@ -206,31 +165,28 @@ pub(crate) struct NativeGovernment {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeAssimilation {
-    pub(crate) source_section: String,
-    pub(crate) source_record_index: usize,
+    pub(crate) id: String,
     pub(crate) government: String,
     pub(crate) assimilation_chance_percent: i32,
-    pub(crate) biq_sha256: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeResistance {
-    pub(crate) captor_biq_index: usize,
+    pub(crate) id: String,
     pub(crate) captor_name: String,
-    pub(crate) defender_biq_index: usize,
     pub(crate) defender_name: String,
     pub(crate) modifier: i32,
-    pub(crate) biq_sha256: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeMilitaryLaw {
-    pub(crate) source_section: String,
-    pub(crate) source_record_index: usize,
+    pub(crate) id: String,
     pub(crate) difficulty: String,
     pub(crate) military_law: i32,
-    pub(crate) biq_sha256: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -396,8 +352,61 @@ pub(crate) struct NativeSettlementAi {
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeVillageRules {
     pub(crate) barbarian_onset_turn: i32,
-    pub(crate) outcome_rolls: i32,
+    pub(crate) outcomes: Vec<NativeVillageOutcome>,
     pub(crate) map_reveal_radius_squared: i32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct NativeVillageOutcome {
+    pub(crate) weight: i32,
+    pub(crate) reward: NativeVillageReward,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", deny_unknown_fields)]
+pub(crate) enum NativeVillageReward {
+    Gold { amount: i32 },
+    Technology,
+    Reinforcements,
+    Barbarians,
+    Settlement,
+    Map,
+}
+
+impl NativeVillageRules {
+    pub(crate) fn total_weight(&self) -> i32 {
+        self.outcomes.iter().map(|outcome| outcome.weight).sum()
+    }
+
+    pub(crate) fn reward_at(&self, mut roll: i32) -> &NativeVillageReward {
+        for outcome in &self.outcomes {
+            if roll < outcome.weight {
+                return &outcome.reward;
+            }
+            roll -= outcome.weight;
+        }
+        unreachable!("village roll must be below the validated total weight")
+    }
+
+    fn validate(&self) -> Result<(), &'static str> {
+        if self.outcomes.is_empty() || self.map_reveal_radius_squared < 0 {
+            return Err("village outcomes need rewards and a nonnegative reveal radius");
+        }
+        let mut total = 0_i32;
+        for outcome in &self.outcomes {
+            if outcome.weight <= 0 {
+                return Err("village outcome weights must be positive");
+            }
+            total = total
+                .checked_add(outcome.weight)
+                .ok_or("village weight total overflows")?;
+            if matches!(outcome.reward, NativeVillageReward::Gold { amount } if amount < 0) {
+                return Err("village gold must be nonnegative");
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -423,8 +432,6 @@ pub(crate) struct NativeTechnology {
     /// Stable serialized `Tech` index. This is an identity bridge, not a
     /// second technology definition.
     pub(crate) runtime_index: usize,
-    pub(crate) source_record_index: usize,
-    pub(crate) source_biq: String,
     pub(crate) name: String,
     #[serde(default)]
     pub(crate) display_name: Option<String>,
@@ -434,17 +441,6 @@ pub(crate) struct NativeTechnology {
     pub(crate) advance_icon: i32,
     pub(crate) x: i32,
     pub(crate) y: i32,
-    pub(crate) prerequisite_1_index: i32,
-    pub(crate) prerequisite_2_index: i32,
-    pub(crate) prerequisite_3_index: i32,
-    pub(crate) prerequisite_4_index: i32,
-    pub(crate) flags_hex: String,
-    pub(crate) flavors: i32,
-    pub(crate) unknown_tail_hex: String,
-    pub(crate) prerequisite_1_name: String,
-    pub(crate) prerequisite_2_name: String,
-    pub(crate) prerequisite_3_name: String,
-    pub(crate) prerequisite_4_name: String,
     pub(crate) prerequisites: Vec<String>,
     #[serde(default)]
     pub(crate) flags: Vec<String>,
@@ -459,12 +455,10 @@ fn native_required_for_era() -> bool {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct NativeCivilization {
     pub(crate) id: String,
-    pub(crate) source_id: String,
-    pub(crate) source_biq: String,
     pub(crate) name: String,
-    pub(crate) source_name: String,
     pub(crate) noun: String,
     pub(crate) adjective: String,
     pub(crate) leader: String,
@@ -473,7 +467,6 @@ pub(crate) struct NativeCivilization {
     pub(crate) city_style: u8,
     pub(crate) starting_techs: Vec<String>,
     pub(crate) legacy_names: Vec<String>,
-    pub(crate) source_race_index: usize,
     pub(crate) cities: Vec<String>,
     pub(crate) culture_group_index: i32,
     pub(crate) expansionist: bool,
@@ -489,33 +482,196 @@ pub(crate) struct NativeUnitStack {
     pub(crate) count: i32,
 }
 
+fn validate_ids<'a>(ids: impl Iterator<Item = &'a str>, kind: &str) {
+    let mut seen = std::collections::HashSet::new();
+    for id in ids {
+        assert!(
+            !id.is_empty() && seen.insert(id),
+            "empty or duplicate native {kind} ID {id:?}"
+        );
+    }
+}
+
 pub(crate) fn units() -> &'static UnitCatalog {
     static CATALOG: OnceLock<UnitCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
+        let catalog: UnitCatalog = toml::from_str(include_str!(
             "../../data/rulesets/civcraft/content/units.toml"
         ))
-        .expect("native unit TOML must be valid")
+        .expect("native units TOML must be valid");
+        validate_ids(catalog.units.iter().map(|unit| unit.id.as_str()), "unit");
+        for unit in &catalog.units {
+            assert!(
+                unit.required_technology.is_empty()
+                    || super::technologies::runtime_index(&unit.required_technology).is_some(),
+                "unknown technology ID for {}",
+                unit.id
+            );
+            for target in [&unit.upgrade_to, &unit.replaces, &unit.enslave_result] {
+                assert!(
+                    target.is_empty()
+                        || catalog
+                            .units
+                            .iter()
+                            .any(|candidate| &candidate.id == target),
+                    "unknown unit ID {target}"
+                );
+            }
+            assert!(
+                unit.required_resources.len() <= 3,
+                "unit supports at most three resource requirements"
+            );
+            assert!(
+                unit.cost_shields >= 0 && unit.attack >= 0 && unit.defense >= 0 && unit.moves >= 0,
+                "negative unit stats for {}",
+                unit.id
+            );
+            for capability in &unit.capabilities {
+                assert!(
+                    super::unit_capabilities::CAPABILITIES.contains(&capability.as_str()),
+                    "unknown unit capability {capability}"
+                );
+            }
+            for role in &unit.ai_roles {
+                assert!(
+                    super::unit_capabilities::AI_ROLES.contains(&role.as_str()),
+                    "unknown unit AI role {role}"
+                );
+            }
+        }
+        catalog
     })
 }
 
 pub(crate) fn civilizations() -> &'static CivilizationCatalog {
     static CATALOG: OnceLock<CivilizationCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
+        let catalog = toml::from_str::<CivilizationCatalog>(include_str!(
             "../../data/rulesets/civcraft/content/civilizations.toml"
         ))
-        .expect("native civilization TOML must be valid")
+        .expect("native civilizations TOML must be valid");
+        validate_ids(
+            catalog.civilizations.iter().map(|c| c.id.as_str()),
+            "civilization",
+        );
+        catalog
     })
 }
 
 pub(crate) fn buildings() -> &'static BuildingCatalog {
     static CATALOG: OnceLock<BuildingCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
+        let mut catalog: BuildingCatalog = toml::from_str(include_str!(
             "../../data/rulesets/civcraft/content/buildings.toml"
         ))
-        .expect("native building TOML must be valid")
+        .expect("native buildings TOML must be valid");
+        let mut seen = std::collections::HashSet::new();
+        for rule in &mut catalog.rules {
+            assert!(
+                seen.insert(rule.id.clone()),
+                "duplicate building ID {}",
+                rule.id
+            );
+            rule.legacy_runtime_index = super::compatibility::building_index(&rule.id)
+                .unwrap_or_else(|| panic!("unknown building save identity {}", rule.id));
+        }
+        assert_eq!(
+            catalog.rules.len(),
+            super::compatibility::BUILDINGS.len(),
+            "missing building save identities"
+        );
+        catalog.rules.sort_by_key(|rule| rule.legacy_runtime_index);
+        assert!(
+            catalog
+                .rules
+                .iter()
+                .enumerate()
+                .all(|(index, rule)| index == rule.legacy_runtime_index),
+            "building rule order must preserve save identities"
+        );
+        for rule in &catalog.rules {
+            for requirement in rule.requirements.iter().chain(&rule.obsolete) {
+                match requirement.kind.as_str() {
+                    "Tech" => assert!(
+                        requirement
+                            .target
+                            .as_deref()
+                            .and_then(super::technologies::runtime_index)
+                            .is_some(),
+                        "unknown technology target in {}",
+                        rule.id
+                    ),
+                    "Improvement" | "OwnerBuildingCount" => assert!(
+                        requirement.target.as_deref().is_some_and(|id| catalog
+                            .rules
+                            .iter()
+                            .any(|candidate| candidate.id == id)),
+                        "unknown building target in {}",
+                        rule.id
+                    ),
+                    "Resource" => assert!(
+                        requirement.target.as_deref().is_some_and(|id| [
+                            "Aluminum",
+                            "Coal",
+                            "Horses",
+                            "Iron",
+                            "Oil",
+                            "Rubber",
+                            "Saltpeter",
+                            "Uranium"
+                        ]
+                        .contains(&id)),
+                        "unknown resource target in {}",
+                        rule.id
+                    ),
+                    "River" | "Lake" | "Sea" | "Water" | "MinSize" | "OwnerCityCount" => assert!(
+                        requirement.target.is_none(),
+                        "unexpected named target in {}",
+                        rule.id
+                    ),
+                    other => panic!("unsupported building requirement {other}"),
+                }
+                assert!(
+                    requirement.value >= 0 && requirement.second_value >= 0,
+                    "negative building requirement in {}",
+                    rule.id
+                );
+            }
+        }
+        // Resolve once for every consumer, including advisors that inspect the
+        // native requirement records directly rather than BuildingData.
+        let building_ids: std::collections::HashMap<_, _> = catalog
+            .rules
+            .iter()
+            .map(|rule| (rule.id.clone(), rule.legacy_runtime_index))
+            .collect();
+        for rule in &mut catalog.rules {
+            for requirement in rule.requirements.iter_mut().chain(&mut rule.obsolete) {
+                if let Some(id) = requirement.target.as_deref() {
+                    let index = match requirement.kind.as_str() {
+                        "Tech" => super::technologies::runtime_index(id).unwrap(),
+                        "Improvement" | "OwnerBuildingCount" => building_ids[id],
+                        "Resource" => [
+                            "Aluminum",
+                            "Coal",
+                            "Horses",
+                            "Iron",
+                            "Oil",
+                            "Rubber",
+                            "Saltpeter",
+                            "Uranium",
+                        ]
+                        .iter()
+                        .position(|name| *name == id)
+                        .unwrap(),
+                        _ => unreachable!("named reference was validated above"),
+                    };
+                    requirement.value =
+                        i32::try_from(index).expect("resolved rule index fits in i32");
+                }
+            }
+        }
+        catalog
     })
 }
 
@@ -527,22 +683,33 @@ pub(crate) fn building_rule(runtime_index: usize) -> Option<&'static NativeBuild
 }
 
 pub(crate) fn technologies() -> &'static TechnologyCatalog {
-    static CATALOG: OnceLock<TechnologyCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
-            "../../data/rulesets/civcraft/content/technologies.toml"
-        ))
-        .expect("native technology TOML must be valid")
-    })
+    super::technologies::catalog()
 }
 
 pub(crate) fn governments() -> &'static GovernmentCatalog {
     static CATALOG: OnceLock<GovernmentCatalog> = OnceLock::new();
     CATALOG.get_or_init(|| {
-        toml::from_str(include_str!(
+        let catalog = toml::from_str::<GovernmentCatalog>(include_str!(
             "../../data/rulesets/civcraft/content/governments.toml"
         ))
-        .expect("native government TOML must be valid")
+        .expect("native governments TOML must be valid");
+        validate_ids(
+            catalog.governments.iter().map(|g| g.government.as_str()),
+            "government",
+        );
+        validate_ids(
+            catalog.assimilation.iter().map(|r| r.id.as_str()),
+            "assimilation",
+        );
+        validate_ids(
+            catalog.resistance.iter().map(|r| r.id.as_str()),
+            "resistance",
+        );
+        validate_ids(
+            catalog.military_law.iter().map(|r| r.id.as_str()),
+            "military law",
+        );
+        catalog
     })
 }
 
@@ -573,6 +740,10 @@ pub(crate) fn settlements() -> &'static SettlementCatalog {
             "../../data/rulesets/civcraft/content/settlements.toml"
         ))
         .expect("native settlement TOML must be valid");
+        catalog
+            .villages
+            .validate()
+            .expect("native village outcomes must be valid");
         for id in [
             &catalog.barbarians.basic_unit,
             &catalog.barbarians.advanced_unit,
@@ -603,6 +774,55 @@ mod tests {
     use super::*;
 
     #[test]
+    fn village_weights_preserve_original_rolls_and_reject_invalid_tables() {
+        let villages = &settlements().villages;
+        assert_eq!(villages.total_weight(), 14);
+        let labels: Vec<_> = (0..14)
+            .map(|roll| match villages.reward_at(roll) {
+                NativeVillageReward::Gold { amount } => format!("gold:{amount}"),
+                NativeVillageReward::Technology => "technology".into(),
+                NativeVillageReward::Reinforcements => "reinforcements".into(),
+                NativeVillageReward::Barbarians => "barbarians".into(),
+                NativeVillageReward::Settlement => "settlement".into(),
+                NativeVillageReward::Map => "map".into(),
+            })
+            .collect();
+        assert_eq!(
+            labels,
+            [
+                "gold:25",
+                "gold:50",
+                "gold:50",
+                "gold:50",
+                "gold:100",
+                "technology",
+                "technology",
+                "technology",
+                "reinforcements",
+                "reinforcements",
+                "barbarians",
+                "settlement",
+                "map",
+                "map"
+            ]
+        );
+        for weights in [vec![], vec![0], vec![-1], vec![i32::MAX, 1]] {
+            let invalid = NativeVillageRules {
+                barbarian_onset_turn: 60,
+                map_reveal_radius_squared: 30,
+                outcomes: weights
+                    .into_iter()
+                    .map(|weight| NativeVillageOutcome {
+                        weight,
+                        reward: NativeVillageReward::Map,
+                    })
+                    .collect(),
+            };
+            assert!(invalid.validate().is_err());
+        }
+    }
+
+    #[test]
     fn native_catalogs_have_expected_schema_and_campaign_coverage() {
         assert_eq!(units().schema_version, 1);
         assert_eq!(units().source, "Civilization III: Conquests");
@@ -612,8 +832,6 @@ mod tests {
         assert_eq!(civilizations().civilizations.len(), 31);
         assert_eq!(buildings().schema_version, 1);
         assert_eq!(buildings().source, "Civilization III: Conquests");
-        assert_eq!(buildings().buildings.len(), 83);
-        assert_eq!(buildings().bindings.len(), 83);
         assert_eq!(buildings().rules.len(), 91);
         assert_eq!(technologies().schema_version, 1);
         assert_eq!(technologies().source, "Civilization III: Conquests");
@@ -702,26 +920,18 @@ mod tests {
     }
 
     #[test]
-    fn native_buildings_and_bindings_have_stable_source_identity() {
+    fn native_building_ids_preserve_serialized_identity() {
         let catalog = buildings();
-        let source_indices = catalog
-            .buildings
-            .iter()
-            .map(|building| building.source_record_index)
-            .collect::<std::collections::HashSet<_>>();
-        assert_eq!(source_indices.len(), catalog.buildings.len());
-        assert!(
-            catalog
-                .buildings
-                .iter()
-                .all(|building| !building.id.is_empty() && !building.name.is_empty())
+        assert_eq!(
+            catalog.rules.len(),
+            super::super::compatibility::BUILDINGS.len()
         );
-        assert!(catalog.bindings.iter().all(|binding| {
-            catalog
-                .buildings
-                .iter()
-                .any(|building| building.id == binding.civ3_id)
-        }));
+        for rule in &catalog.rules {
+            assert_eq!(
+                super::super::compatibility::building_index(&rule.id),
+                Some(rule.legacy_runtime_index)
+            );
+        }
     }
 
     #[test]

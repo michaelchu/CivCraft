@@ -53,7 +53,11 @@ fn activity_completion_is_immediate_and_old_mp_controls_only_work_count() {
 
 #[test]
 fn stealth_bombing_does_not_grant_native_air_interception() {
-    assert!(!UnitKind::StealthFighter.conquests_rule().has_flag_3(12, 2));
+    assert!(
+        !UnitKind::StealthFighter
+            .conquests_rule()
+            .has_capability("AttackAir")
+    );
     assert_eq!(
         crate::sim::action_rules::freeciv_unit_can_target_class(
             UnitKind::StealthFighter,
@@ -691,19 +695,10 @@ fn civilian_capture_flags_come_from_native_combat_capability() {
 }
 
 #[test]
-fn enslave_result_indices_resolve_separately_from_capture_eligibility() {
-    for (prototype, expected_id) in [(1, "worker"), (63, "man_o_war"), (65, "privateer")] {
-        assert_eq!(
-            crate::sim::civ3_unit_rules::get_by_prototype_index(prototype).map(|rule| rule.id),
-            Some(expected_id)
-        );
-    }
-    assert_eq!(
-        UnitKind::JavelinThrower
-            .conquests_rule()
-            .enslave_result_prototype_index,
-        1
-    );
+fn enslave_result_ids_resolve_separately_from_capture_eligibility() {
+    let result = UnitKind::JavelinThrower.conquests_rule().enslave_result;
+    assert_eq!(result, "worker");
+    assert!(crate::sim::civ3_unit_rules::get(result).is_some());
 }
 
 #[test]

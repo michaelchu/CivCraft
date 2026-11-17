@@ -870,7 +870,7 @@ impl EffectContext for VisionRequirementContext<'_> {
 
 fn native_unit_vision_radius_sq(kind: UnitKind) -> i32 {
     // Radar sees two tiles in all directions; ordinary native sight sees one.
-    if kind.conquests_rule().has_flag_1(0, 5) {
+    if kind.conquests_rule().has_capability("Radar") {
         8
     } else {
         2
@@ -878,7 +878,7 @@ fn native_unit_vision_radius_sq(kind: UnitKind) -> i32 {
 }
 
 fn native_unit_vision_layer(kind: UnitKind) -> UnitVisionLayer {
-    if kind.conquests_rule().has_flag_1(0, 7) {
+    if kind.conquests_rule().has_capability("Submarine") {
         UnitVisionLayer::Subsurface
     } else {
         // Stealth affects air interception, not surface invisibility.

@@ -11,3 +11,5 @@ Start here for the project’s current sources of truth:
 
 Focused audits remain beside the source-of-truth document they support; obsolete
 historical and migration-only notes have been removed.
+
+- [`RULESET_CONFIGURATION.md`](RULESET_CONFIGURATION.md) — editable gameplay, compiled technology tree, and retained metadata boundaries.

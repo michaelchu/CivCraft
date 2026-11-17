@@ -14,8 +14,6 @@ const FREECIV_OCEAN_DEPTH_MAXIMUM: i32 = 100;
 use super::section_file;
 use super::section_file::{Entry, Section, SectionFile, Value};
 
-#[path = "engine_rules/civ3_content.rs"]
-mod civ3_content;
 #[path = "engine_rules/civil_war.rs"]
 mod civil_war;
 #[path = "engine_rules/combat.rs"]
@@ -30,10 +28,6 @@ mod settlement_ai;
 mod trade_routes;
 #[path = "engine_rules/veterancy.rs"]
 mod veterancy;
-#[allow(unused_imports)]
-pub(crate) use civ3_content::{
-    Civ3ContentCatalog, SourceContentRecord, SourceField, SourceRecordIdentity,
-};
 pub(crate) use civil_war::CivilWarRulesetSettings;
 pub(crate) use combat::{
     CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
@@ -76,10 +70,6 @@ pub(crate) struct RulesetData {
     pub(crate) actions: Vec<ActionRecord>,
     pub(crate) action_enablers: Vec<ActionEnabler>,
     pub(crate) content: Vec<ContentRecord>,
-    /// Source-authoritative Civ III records supplied to the explicit campaign
-    /// adapter. These remain separate from Freeciv's native records until a
-    /// runtime crosswalk binds their identities to stable CivCraft IDs.
-    pub(crate) source_content: Vec<SourceContentRecord>,
     /// Ordered records from Freeciv namespaces that do not have a dedicated
     /// CivCraft adapter yet (extras, resources, roads, disasters, and others).
     pub(crate) rule_records: Vec<RuleRecord>,
@@ -910,15 +900,11 @@ impl std::fmt::Display for LoadError {
 impl std::error::Error for LoadError {}
 
 impl RulesetData {
-    /// Load the single CivCraft campaign package: generic Freeciv engine
-    /// inputs from `engine/` and Civ III content bindings from `content/`.
+    /// Load the generic engine layer from the CivCraft campaign package.
+    /// Native content catalogs construct independently, without import bindings.
     pub(crate) fn load_civcraft(data_root: &Path) -> Result<Self, LoadError> {
         let engine_dir = data_root.join("civcraft/engine");
-        let mut rules = Self::load_from_directory(data_root, &engine_dir, "civcraft")?;
-        let source_catalog =
-            Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
-        rules.source_content = source_catalog.records;
-        Ok(rules)
+        Self::load_from_directory(data_root, &engine_dir, "civcraft")
     }
 
     /// Cache the single CivCraft campaign package once.
@@ -3158,7 +3144,7 @@ mod tests {
     }
 
     #[test]
-    fn campaign_ruleset_keeps_civ3_source_catalog_separate_and_identifiable() {
+    fn campaign_ruleset_keeps_native_catalogs_separate_from_engine_records() {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
         let rules = RulesetData::load_civcraft(&data_root).unwrap();
 
@@ -3187,65 +3173,13 @@ mod tests {
                 .count(),
             87
         );
-        for (kind, expected) in [
-            (ContentKind::Unit, 92),
-            (ContentKind::Building, 83),
-            (ContentKind::Technology, 83),
-            (ContentKind::Nation, 31),
-        ] {
-            assert_eq!(
-                rules
-                    .source_content
-                    .iter()
-                    .filter(|record| record.kind == kind)
-                    .count(),
-                expected
-            );
-        }
-
-        let find_source = |kind, id: &str| {
-            rules
-                .source_content
-                .iter()
-                .find(|record| record.kind == kind && record.catalog_id == id)
-                .unwrap()
-        };
-        let warrior = find_source(ContentKind::Unit, "warrior");
-        assert_eq!(warrior.source.section, "PRTO");
-        assert_eq!(warrior.source.record_indices, [6]);
+        assert_eq!(crate::rules::native::units().units.len(), 92);
+        assert_eq!(crate::rules::native::buildings().rules.len(), 91);
+        assert_eq!(crate::rules::native::technologies().technologies.len(), 83);
         assert_eq!(
-            warrior.source.sha256,
-            "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+            crate::rules::native::civilizations().civilizations.len(),
+            31
         );
-        assert!(
-            warrior
-                .fields
-                .iter()
-                .any(|field| field.name == "attack" && field.value == "1")
-        );
-
-        let palace = find_source(ContentKind::Building, "BLDG_Palace");
-        assert_eq!(palace.source.key, "BLDG[0]");
-        assert!(
-            palace
-                .fields
-                .iter()
-                .any(|field| field.name == "cost" && field.value == "10")
-        );
-        assert!(palace.fields.iter().any(|field| field.name == "flags_hex"));
-
-        let fascism = find_source(ContentKind::Technology, "TECH_Fascism");
-        assert_eq!(fascism.source.record_indices, [82]);
-        assert!(
-            fascism
-                .fields
-                .iter()
-                .any(|field| field.name == "prerequisite_4_index")
-        );
-
-        let rome = find_source(ContentKind::Nation, "rome");
-        assert_eq!(rome.source.section, "RACE");
-        assert_eq!(rome.source.record_indices, [1]);
     }
 }
 

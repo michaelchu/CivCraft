@@ -97,11 +97,7 @@ impl Simulation {
             .civil_war_settings()
             .expect("selected C2C3 civil-war settings are valid");
         let normal_player_count = self.players.len().saturating_sub(1);
-        let playable_nations = rules
-            .source_content
-            .iter()
-            .filter(|record| record.kind == crate::rules::engine_rules::ContentKind::Nation)
-            .count();
+        let playable_nations = crate::rules::civilizations::all().len();
         if normal_player_count >= settings.max_players
             || normal_player_count >= playable_nations
             || normal_player_count >= PLAYER_SLOTS - 12

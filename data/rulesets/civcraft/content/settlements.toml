@@ -35,5 +35,37 @@ ferry_tech_want = 500
 
 [villages]
 barbarian_onset_turn = 60
-outcome_rolls = 14
 map_reveal_radius_squared = 30
+
+# Order and weights preserve the campaign's original 14 equally likely rolls.
+[[villages.outcomes]]
+weight = 1
+reward = { kind = "Gold", amount = 25 }
+
+[[villages.outcomes]]
+weight = 3
+reward = { kind = "Gold", amount = 50 }
+
+[[villages.outcomes]]
+weight = 1
+reward = { kind = "Gold", amount = 100 }
+
+[[villages.outcomes]]
+weight = 3
+reward = { kind = "Technology" }
+
+[[villages.outcomes]]
+weight = 2
+reward = { kind = "Reinforcements" }
+
+[[villages.outcomes]]
+weight = 1
+reward = { kind = "Barbarians" }
+
+[[villages.outcomes]]
+weight = 1
+reward = { kind = "Settlement" }
+
+[[villages.outcomes]]
+weight = 2
+reward = { kind = "Map" }

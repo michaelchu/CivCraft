@@ -23,3 +23,7 @@ pub(crate) mod native;
 #[allow(dead_code)]
 pub(crate) mod engine_rules;
 mod section_file;
+
+pub(crate) mod compatibility;
+pub(crate) mod technologies;
+pub(crate) mod unit_capabilities;

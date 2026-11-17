@@ -21,7 +21,7 @@ checkout.
 | Initial settings, effects, requirements, actions, and defaults | A CivCraft-owned copy/derivative of the pinned `civ2civ3` ruleset |
 | Units and their retained campaign identities and artwork mappings | Civ III: Conquests source catalog in `data/rulesets/civcraft/content/units.toml`; Freeciv rules govern behavior |
 | Buildings and their campaign identities and source values | Civ III source-derived catalog in `data/rulesets/civcraft/content/buildings.toml` |
-| Technology tree and advance identities | Civ III source-derived catalog in `data/rulesets/civcraft/content/technologies.toml`, loaded by `src/rules/research.rs`, with source gaps recorded explicitly |
+| Technology tree and advance identities | Compiled Civ III source-derived catalog in `src/rules/technologies.rs`, loaded by `src/rules/research.rs`, with source gaps recorded explicitly |
 | Original unit, terrain, resource, and other selected game art | Civ III source assets and existing asset mappings |
 
 Freeciv ruleset fields still provide the schema through which retained content
@@ -292,7 +292,7 @@ that code has been added.
   `effects.ruleset`, `units.ruleset`, `cities.ruleset`, and `actions.ruleset`.
 - The Conquests BIQ technology table is now the sole researchable tech graph:
   83 advances and their direct prerequisite slots are loaded from
-  `data/rulesets/civcraft/content/technologies.toml`. Freeciv algorithms supply
+  `src/rules/technologies.rs`. Freeciv algorithms supply
   goal selection, availability, cost scaling, research progress, leakage,
   first-discovery handling, loss, and transfer. The old Freeciv tech IDs remain
   stable for effects/save compatibility, but Freeciv-only entries such as Radio

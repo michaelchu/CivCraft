@@ -124,7 +124,6 @@ impl RulesetData {
             actions,
             action_enablers,
             content,
-            source_content: Vec::new(),
             rule_records,
         };
         validate_requirement_values(&rules)?;

@@ -61,13 +61,16 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
                 && rule.bombard_strength == 0
                 && class != UnitClass::Missile,
         ),
-        ("IgTer", rule.has_flag_1(0, 4)),
+        ("IgTer", rule.has_capability("IgnoreTerrain")),
         ("HasNoZOC", rule.zone_of_control == 0),
-        ("Flagless", rule.has_flag_1(2, 1)),
-        ("Coast", rule.has_flag_1(1, 3) || rule.has_flag_1(1, 4)),
-        ("Paratroopers", rule.has_flag_3(4, 5)),
-        ("AddToCity", rule.has_flag_3(9, 4)),
-        ("Cant_Fortify", !rule.has_flag_3(0, 2)),
+        ("Flagless", rule.has_capability("HiddenNationality")),
+        (
+            "Coast",
+            rule.has_capability("SinksInSea") || rule.has_capability("SinksInOcean"),
+        ),
+        ("Paratroopers", rule.has_capability("Paradrop")),
+        ("AddToCity", rule.has_capability("JoinCity")),
+        ("Cant_Fortify", !rule.has_capability("Fortify")),
     ] {
         if enabled {
             flags.push(name.to_owned());
@@ -81,12 +84,12 @@ fn derive(kind: UnitKind) -> UnitCapabilities {
         ("TerrainSpeed", ground),
         ("TerrainDefense", ground),
         ("ZOC", ground),
-        ("CanFortify", rule.has_flag_3(0, 2)),
+        ("CanFortify", rule.has_capability("Fortify")),
         ("CanPillage", ground && rule.attack > 0),
         ("CanOccupyCity", ground && rule.attack > 0),
         ("BuildAnywhere", ground),
         ("Barracks", ground),
-        ("Airliftable", rule.has_flag_3(4, 2)),
+        ("Airliftable", rule.has_capability("Airlift")),
         ("Aerial", aerial),
         ("Missile", class == UnitClass::Missile),
         ("Unreachable", aerial),
@@ -114,10 +117,10 @@ pub(super) fn has_role(kind: UnitKind, role: &str) -> bool {
     match role.to_ascii_lowercase().as_str() {
         "defendgood" | "defendgoodstartunit" => {
             kind.has_ai_strategy(UnitAiStrategy::Defense)
-                || (rule.unit_type == 0 && rule.defense > 1 && !rule.has_flag_1(2, 2))
+                || (rule.unit_type == 0 && rule.defense > 1 && !rule.has_capability("Army"))
         }
         "defendok" | "defendokstartunit" => {
-            rule.unit_type == 0 && rule.defense > 0 && !rule.has_flag_1(2, 2)
+            rule.unit_type == 0 && rule.defense > 0 && !rule.has_capability("Army")
         }
         "hunter" => {
             (kind.has_ai_strategy(UnitAiStrategy::Offense) && rule.moves > 1)
@@ -167,14 +170,14 @@ pub(super) fn can_carry(carrier: UnitKind, passenger: UnitKind) -> bool {
     if source.capacity == 0 || carrier == passenger {
         return false;
     }
-    if source.has_flag_1(3, 0) {
-        return cargo.has_flag_1(2, 7);
+    if source.has_capability("CarryIcbm") {
+        return cargo.has_capability("Icbm");
     }
-    if source.has_flag_1(1, 0) {
+    if source.has_capability("CarryAir") {
         return cargo.unit_type == 2;
     }
-    if source.has_flag_1(1, 6) && !cargo.has_flag_1(0, 1) {
+    if source.has_capability("CarryFootOnly") && !cargo.has_capability("Foot") {
         return false;
     }
-    cargo.unit_type == 0 && !cargo.has_flag_1(2, 2)
+    cargo.unit_type == 0 && !cargo.has_capability("Army")
 }
