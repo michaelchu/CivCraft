@@ -10,6 +10,35 @@ from that revision. Source inspection originally referenced OpenCiv3's
 animation manager. OpenCiv3 is a design reference for media lookup, not gameplay
 authority; Freeciv remains the gameplay authority.
 
+## Module boundaries
+
+Desktop startup constructs one `AssetContext`. It reads root configuration and
+trace settings once, retains an `Arc<Civ3MediaResolver>`, and, when audio is
+enabled, constructs one shared `Arc<AudioLibrary>`. Tileset selection, terrain
+fallbacks, fog, music and unit players receive this context or its resolver;
+they do not reconstruct configuration from the environment. Catalog overrides
+are a startup snapshot; changing files requires a new context or restart.
+
+`media.rs` supplies generic filesystem resolution and root filtering. Civ III
+unit catalog edition selection, owning-INI searches and the broad `.amb` WAV
+fallback live in `unit_media.rs`. `tileset.rs` interprets graphics and animation
+metadata. `audio_codecs.rs` contains pure format decoding and WAV assembly with
+no dependency on playback players, catalogs or filesystem lookup.
+`audio_assets.rs` supplies catalog lookup and sound caching; `audio.rs` and
+`unit_sound.rs` own playback policy and timing. Caches remain per loader; shared
+configuration does not imply a global sound cache.
+
+Asset entry points consistently return `AssetResult<T>` with `AssetError` from
+`asset_error.rs`. Missing requests carry searched roots; I/O failures preserve
+the underlying error and path; configuration and decode errors retain their
+origin; contextual wrapping preserves the error chain. Callers can inspect
+variants and causes instead of parsing text. Low-level private codec routines
+may use textual format reasons, which are classified at decoder boundaries.
+
+Built-in audio defaults are Rust mappings in `audio_assets.rs`. There is no
+required audio TOML file or startup parsing for those defaults. External
+scenario/package overrides remain optional and are read at startup.
+
 ## Configuration and precedence
 
 The usual setup remains:
@@ -97,8 +126,8 @@ sheets, resources, overlays and routes use the theme resolver.
 
 ## Audio catalog, decoding and playback
 
-`data/civ3_audio.toml` maps stable campaign keys to relative media names,
-playback bus, loop policy and optional/required policy. Each scenario/package
+Rust defaults in `audio_assets.rs` map stable campaign keys to relative media
+names, playback bus, loop policy and optional/required policy. Each scenario/package
 root may supply `audio.toml` with the same `[cues."key"]` structure. Entries merge
 by key; higher-precedence roots win. Example:
 
@@ -123,7 +152,7 @@ policy. No new UI/ambience controls are needed until those categories are used.
 `src/client/audio_assets.rs` supplies key/path loading and caches decoded
 Macroquad sounds by canonical path. Unit sounds use this loader. WAV validation,
 MP3 decoding through the existing Symphonia path, and OGG/OGA Vorbis decoding
-through Lewton feed WAV data to Macroquad. Malformed present audio errors even
+through Lewton live in `audio_codecs.rs` and feed WAV data to Macroquad. Malformed present audio errors even
 when a cue is optional; missing optional cues do not stop startup.
 
 Campaign music uses the same catalog/resolver and format decoder while keeping
@@ -165,3 +194,10 @@ Validation recorded for this change:
 - Nextest is unavailable here, so Cargo's test runner was used. Installed-asset
   playback and `--ui-review` were not run because the complete installation is
   absent.
+
+Modularity-refactor validation: the audio-enabled all-target suite passed 1,133
+tests with one ignored; the final focused client run passed 95 tests after the
+additional intro-assembly regression. Clippy passed with and without desktop
+audio, and documentation, formatting and whitespace checks passed. These checks
+used Cargo's test runner because nextest is unavailable. Installed-asset visual
+and playback checks remain unavailable without a complete Civ III installation.

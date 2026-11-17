@@ -1,13 +1,13 @@
 //! Unit sound lookup and playback, kept separate from simulation and drawing.
+use super::asset_error::AssetResult;
 
 use super::amb::read_amb_cues;
-use super::audio_assets::{AudioAssetLoader, AudioLibrary};
+use super::audio_assets::AudioAssetLoader;
 use super::media::Civ3MediaResolver;
 use super::*;
 use macroquad::audio::{PlaySoundParams, play_sound};
 use std::{
     collections::{HashMap, VecDeque},
-    fs,
     path::{Path, PathBuf},
 };
 
@@ -34,20 +34,10 @@ pub(crate) struct UnitSoundPlayer {
 }
 
 impl UnitSoundPlayer {
-    pub(crate) fn new(enabled: bool) -> Self {
+    pub(crate) fn new(context: &super::AssetContext) -> Self {
         Self {
-            enabled,
-            loader: if enabled {
-                match AudioLibrary::configured() {
-                    Ok(library) => Some(AudioAssetLoader::new(library)),
-                    Err(error) => {
-                        eprintln!("Could not configure unit audio: {error}");
-                        None
-                    }
-                }
-            } else {
-                None
-            },
+            enabled: context.audio.is_some(),
+            loader: context.audio.clone().map(AudioAssetLoader::new),
             schedule: VecDeque::new(),
             component_index: None,
         }
@@ -128,75 +118,25 @@ fn resolve_amb_component(
     amb_path: &Path,
     reference: &str,
     index: &mut Option<HashMap<String, PathBuf>>,
-) -> Result<Option<PathBuf>, String> {
-    if let Some(found) = media
-        .unit_lookup(amb_path, reference)
-        .map_err(|e| format!("{}: {e}", amb_path.display()))?
+) -> AssetResult<Option<PathBuf>> {
+    if let Some(found) = super::unit_media::UnitMedia::new(media)
+        .lookup(amb_path, reference)
+        .map_err(|e| e.context(format!("AMB {}", amb_path.display())))?
     {
         return Ok(Some(found.path));
     }
     if index.is_none() {
-        *index = Some(build_unit_audio_index(media)?);
+        *index = Some(super::unit_media::build_unit_audio_index(media)?);
     }
     Ok(index
         .as_ref()
         .and_then(|index| index.get(&reference.to_ascii_lowercase()).cloned()))
 }
-fn build_unit_audio_index(media: &Civ3MediaResolver) -> Result<HashMap<String, PathBuf>, String> {
-    fn visit(
-        directory: &Path,
-        files: &mut HashMap<String, PathBuf>,
-        visited: &mut std::collections::HashSet<PathBuf>,
-        media: &Civ3MediaResolver,
-    ) -> Result<(), String> {
-        let directory = match Civ3MediaResolver::new(vec![directory.to_owned()])
-            .lookup(".")
-            .map_err(|e| e.to_string())?
-        {
-            Some(found) => found.path,
-            None => return Ok(()),
-        };
-        if !visited.insert(directory.clone()) {
-            return Ok(());
-        }
-        media.existing(&directory)?;
-        let mut entries = fs::read_dir(&directory)
-            .map_err(|e| format!("{}: {e}", directory.display()))?
-            .map(|entry| entry.map(|e| e.path()))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        entries.sort();
-        for path in entries {
-            if path.is_dir() {
-                visit(&path, files, visited, media)?
-            } else if path
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("wav"))
-            {
-                let path = media.existing(&path)?;
-                files
-                    .entry(
-                        path.file_name()
-                            .unwrap()
-                            .to_string_lossy()
-                            .to_ascii_lowercase(),
-                    )
-                    .or_insert(path);
-            }
-        }
-        Ok(())
-    }
-    let mut files = HashMap::new();
-    let mut visited = std::collections::HashSet::new();
-    for root in media.prefixed("Art/Units").roots() {
-        visit(root, &mut files, &mut visited, media)?
-    }
-    Ok(files)
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     #[test]
     fn amb_global_fallback_is_deterministic_and_obeys_edition_precedence() {
         let root = std::env::temp_dir().join(format!("civcraft-amb-media-{}", std::process::id()));

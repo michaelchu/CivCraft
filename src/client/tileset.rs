@@ -1,4 +1,5 @@
 //! Civ III sheet decoding. Both map views keep the same projection and painter passes.
+use super::asset_error::{AssetError, AssetResult};
 use super::media::Civ3MediaResolver;
 #[cfg(all(test, feature = "desktop-audio"))]
 use super::media::resolve_case_insensitive_path;
@@ -47,7 +48,7 @@ enum Ground {
 use Ground::*;
 
 #[cfg(all(test, feature = "desktop-audio"))]
-pub(crate) fn locate_source_root() -> Result<PathBuf, String> {
+pub(crate) fn locate_source_root() -> AssetResult<PathBuf> {
     let root = std::env::var_os("CIVCRAFT_SOURCE_DIR")
         .map(PathBuf::from)
         .ok_or_else(|| {
@@ -59,29 +60,28 @@ pub(crate) fn locate_source_root() -> Result<PathBuf, String> {
         Err(format!(
             "CIVCRAFT_SOURCE_DIR points to '{}', which does not look like a Civ III install folder (expected Conquests/Art/Terrain)",
             root.display()
-        ))
+        ).into())
     }
 }
 
-fn locate_default_art() -> Result<PathBuf, String> {
-    Civ3MediaResolver::configured()?.resolve("Art")
+fn locate_default_art(media: &Civ3MediaResolver) -> AssetResult<PathBuf> {
+    media.resolve("Art")
 }
 
-pub(crate) fn load_source_fog_atlas() -> Result<Image, String> {
+pub(crate) fn load_source_fog_atlas(media: &Civ3MediaResolver) -> AssetResult<Image> {
     // Preserve the selected base-game fog atlas as an explicit policy.
-    let path = Civ3MediaResolver::configured()?
-        .base_policy()
-        .resolve("Art/Terrain/FogOfWar.pcx")?;
-    let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let path = media.base_policy().resolve("Art/Terrain/FogOfWar.pcx")?;
+    let bytes = fs::read(&path).map_err(|error| AssetError::io("read asset", &path, error))?;
     let mut image =
-        decode_pcx(&bytes, &[254, 255]).map_err(|error| format!("{}: {error}", path.display()))?;
+        decode_pcx(&bytes, &[254, 255]).map_err(|error| AssetError::decode(&path, error))?;
     if (image.width, image.height) != (1152, 576) {
         return Err(format!(
             "{}: expected a 1152x576 Civ III fog atlas, got {}x{}",
             path.display(),
             image.width,
             image.height
-        ));
+        )
+        .into());
     }
     // FogOfWar.pcx stores opacity inversely in its grayscale palette; magenta
     // color-key pixels stay transparent even though they also have a palette value.
@@ -189,22 +189,22 @@ pub(crate) enum Tileset {
 }
 
 impl Tileset {
-    pub(crate) fn select(name: &str) -> Result<Self, String> {
+    pub(super) fn select(name: &str, media: &Civ3MediaResolver) -> AssetResult<Self> {
         match name {
-            "civ3" | "conquests" => locate_default_art().map(Self::Civ3),
+            "civ3" | "conquests" => locate_default_art(media).map(Self::Civ3),
             "snoopy" | "snoopy-standard" | "snoopy-greener" | "snoopy-extended" => {
                 let folder = match name {
                     "snoopy-standard" => "Sn00pys Terrain",
                     "snoopy-extended" => "Sn00pys TerrainX",
                     _ => "Sn00pys TerrainG",
                 };
-                Civ3MediaResolver::configured()?
+                media
                     .resolve(&format!("civ3PTW/Scenarios/{folder}/Art"))
                     .map(Self::Civ3)
             }
             _ => Err(format!(
                 "Unknown tileset '{name}'. Available: civ3, conquests, snoopy-standard, snoopy-greener, snoopy-extended"
-            )),
+            ).into()),
         }
     }
 
@@ -224,7 +224,30 @@ struct Theme {
 }
 
 impl Theme {
-    fn read(path: &Path) -> Result<Self, String> {
+    fn read_with_media(path: &Path, media: &Civ3MediaResolver) -> AssetResult<Self> {
+        Self::read_inner(path, media, true)
+    }
+    #[cfg(test)]
+    fn read(path: &Path) -> AssetResult<Self> {
+        let root = if path.is_dir() {
+            path
+        } else {
+            path.parent().unwrap_or(Path::new("."))
+        };
+        let install = root
+            .parent()
+            .filter(|p| {
+                p.file_name().is_some_and(|n| {
+                    n.eq_ignore_ascii_case("Conquests") || n.eq_ignore_ascii_case("civ3PTW")
+                })
+            })
+            .and_then(Path::parent);
+        let media = install
+            .map(Civ3MediaResolver::installation)
+            .unwrap_or_else(|| Civ3MediaResolver::new(vec![root.to_owned()]));
+        Self::read_inner(path, &media, false)
+    }
+    fn read_inner(path: &Path, media: &Civ3MediaResolver, load_units: bool) -> AssetResult<Self> {
         let (root, manifest) = if path.is_dir() {
             (path, path.join("tileset.conf"))
         } else {
@@ -235,7 +258,7 @@ impl Theme {
         let mut civilization_city_styles = HashMap::new();
         if !path.is_dir() || manifest.exists() {
             let contents = fs::read_to_string(&manifest)
-                .map_err(|error| format!("{}: {error}", manifest.display()))?;
+                .map_err(|error| AssetError::io("read theme manifest", &manifest, error))?;
             for (index, line) in contents.lines().enumerate() {
                 let line = line.trim();
                 if line.is_empty() || line.starts_with('#') {
@@ -290,7 +313,8 @@ impl Theme {
                         "{}:{}: expected a unique sheet role and path",
                         manifest.display(),
                         index + 1
-                    ));
+                    )
+                    .into());
                 };
                 if let Some(role) = key.strip_prefix("transparent-") {
                     let parsed = value
@@ -311,7 +335,7 @@ impl Theme {
                                 "{}:{}: expected unique transparent palette indices 0–255 for a sheet role",
                                 manifest.display(),
                                 index + 1
-                            ));
+                            ).into());
                         }
                     }
                 } else if let Some(civilization) = key.strip_prefix("civilization-style.") {
@@ -337,7 +361,7 @@ impl Theme {
                                 .map(|(style, _)| *style)
                                 .collect::<Vec<_>>()
                                 .join(", ")
-                        ));
+                        ).into());
                     }
                 } else if valid(key) && !value.is_empty() && !paths.contains_key(key) {
                     paths.insert(key.to_owned(), value.to_owned());
@@ -346,28 +370,11 @@ impl Theme {
                         "{}:{}: expected a unique sheet role and path",
                         manifest.display(),
                         index + 1
-                    ));
+                    )
+                    .into());
                 }
             }
         }
-        let configured = ["CIVCRAFT_SOURCE_DIR", "CIV3_HOME", "CIVCRAFT_MEDIA_CONFIG"]
-            .iter()
-            .any(|key| std::env::var_os(key).is_some());
-        let media = if configured {
-            Civ3MediaResolver::configured()?
-        } else {
-            let install = root
-                .parent()
-                .filter(|p| {
-                    p.file_name().is_some_and(|n| {
-                        n.eq_ignore_ascii_case("Conquests") || n.eq_ignore_ascii_case("civ3PTW")
-                    })
-                })
-                .and_then(Path::parent);
-            install
-                .map(Civ3MediaResolver::installation)
-                .unwrap_or_else(|| Civ3MediaResolver::new(vec![root.to_owned()]))
-        };
         let is_default = media
             .prefixed("Art")
             .roots()
@@ -378,11 +385,11 @@ impl Theme {
             media.prefixed("Art").with_override(root)
         };
         let media = if is_default {
-            media
+            media.clone()
         } else {
             media.with_override(root)
         };
-        if configured {
+        if load_units {
             load_campaign_unit_ini_paths_with_resolver(&media, &mut paths)?;
         }
         Ok(Self {
@@ -400,7 +407,7 @@ impl Theme {
         default: &str,
         size: (u16, u16),
         required: bool,
-    ) -> Result<Option<Image>, String> {
+    ) -> AssetResult<Option<Image>> {
         let override_path = self.paths.get(key);
         let relative = override_path.map_or(default, String::as_str);
         let transparent_indices = self
@@ -427,7 +434,7 @@ impl Theme {
         let resolved = self
             .images
             .lookup_variants(&names)
-            .map_err(|e| format!("{relative}: {e}"))?;
+            .map_err(|e| e.context(relative))?;
         let Some(resolved) = resolved else {
             if !required && override_path.is_none() {
                 return Ok(None);
@@ -435,15 +442,15 @@ impl Theme {
             return Err(self.images.missing(relative));
         };
         let path = resolved.path;
-        let (_, image) = read_theme_image(&path, transparent_indices)
-            .map_err(|e| format!("{}: {e}", path.display()))?;
+        let (_, image) = read_theme_image(&path, transparent_indices)?;
         if image.width < size.0 || image.height < size.1 {
             return Err(format!(
                 "{}: expected at least {}×{} pixels",
                 path.display(),
                 size.0,
                 size.1
-            ));
+            )
+            .into());
         }
         Ok(Some(image))
     }
@@ -453,13 +460,13 @@ impl Theme {
 fn load_campaign_unit_ini_paths(
     source: &Path,
     paths: &mut HashMap<String, String>,
-) -> Result<(), String> {
+) -> AssetResult<()> {
     load_campaign_unit_ini_paths_with_resolver(&Civ3MediaResolver::installation(source), paths)
 }
 fn load_campaign_unit_ini_paths_with_resolver(
     media: &Civ3MediaResolver,
     paths: &mut HashMap<String, String>,
-) -> Result<(), String> {
+) -> AssetResult<()> {
     let mut identities = 0;
     for unit in &crate::rules::native::units().units {
         identities += 1;
@@ -467,18 +474,10 @@ fn load_campaign_unit_ini_paths_with_resolver(
         let folders = unit.art_folder.split('|').collect::<Vec<_>>();
         let labels = unit.art_root.split('|').collect::<Vec<_>>();
         if folders.len() != labels.len() {
-            return Err(format!(
-                "{} has unmatched art folder/root variants",
-                unit.name
-            ));
+            return Err(format!("{} has unmatched art folder/root variants", unit.name).into());
         }
         for (variant, (folder, label)) in folders.into_iter().zip(labels).enumerate() {
-            if !matches!(label, "base" | "ptw" | "conquests") {
-                return Err(format!("{}: unknown art root {label}", unit.name));
-            }
-            let ini = media
-                .edition(label)
-                .resolve(&format!("Art/Units/{folder}/{folder}.ini"))?;
+            let ini = super::unit_media::UnitMedia::new(media).catalog_ini(label, folder)?;
             let key = if variant == 0 {
                 role.clone()
             } else {
@@ -498,9 +497,9 @@ fn load_campaign_unit_ini_paths_with_resolver(
         }
     }
     if identities != 92 {
-        return Err(format!(
-            "expected 92 campaign units when loading art, got {identities}"
-        ));
+        return Err(
+            format!("expected 92 campaign units when loading art, got {identities}").into(),
+        );
     }
     Ok(())
 }
@@ -520,21 +519,21 @@ pub(super) struct UnitSoundSource {
 }
 
 impl Theme {
-    fn resolve_theme_file(&self, reference: &str) -> Result<PathBuf, String> {
+    fn resolve_theme_file(&self, reference: &str) -> AssetResult<PathBuf> {
         if Path::new(reference).is_absolute() {
             return self.media.existing(Path::new(reference));
         }
         match self
             .images
             .lookup(reference)
-            .map_err(|e| format!("{reference}: {e}"))?
+            .map_err(|e| e.context(reference))?
         {
             Some(found) => Ok(found.path),
             None => self.media.resolve(reference),
         }
     }
-    fn resolve_unit_file(&self, ini_path: &Path, reference: &str) -> Result<PathBuf, String> {
-        self.media.unit_reference(ini_path, reference)
+    fn resolve_unit_file(&self, ini_path: &Path, reference: &str) -> AssetResult<PathBuf> {
+        super::unit_media::UnitMedia::new(&self.media).resolve(ini_path, reference)
     }
 }
 
@@ -542,10 +541,10 @@ fn expand_unit_animation_ini(
     theme: &Theme,
     role: &str,
     relative_path: &str,
-) -> Result<(Vec<UnitAnimationSource>, HashMap<String, UnitSoundSource>), String> {
+) -> AssetResult<(Vec<UnitAnimationSource>, HashMap<String, UnitSoundSource>)> {
     let ini_path = theme.resolve_theme_file(relative_path)?;
     let contents = fs::read_to_string(&ini_path)
-        .map_err(|error| format!("{}: {error}", ini_path.display()))?;
+        .map_err(|error| AssetError::io("read unit INI", &ini_path, error))?;
     let mut section = String::new();
     let mut animations_raw = Vec::<(String, String)>::new();
     let mut timings = HashMap::<String, f32>::new();
@@ -582,7 +581,8 @@ fn expand_unit_animation_ini(
                     return Err(format!(
                         "{}: invalid negative/nonfinite timing for {action}",
                         ini_path.display()
-                    ));
+                    )
+                    .into());
                 }
                 timings.insert(action, duration);
             }
@@ -597,7 +597,8 @@ fn expand_unit_animation_ini(
                     return Err(format!(
                         "{}: [Speed] value for {action} must be positive",
                         ini_path.display()
-                    ));
+                    )
+                    .into());
                 }
                 let slot = match action.as_str() {
                     "NORMAL SPEED" => &mut normal_speed,
@@ -608,15 +609,15 @@ fn expand_unit_animation_ini(
                     return Err(format!(
                         "{}: conflicting [Speed] values for {action}",
                         ini_path.display()
-                    ));
+                    )
+                    .into());
                 }
                 *slot = Some(speed);
             }
             "SOUND EFFECTS" if !value.is_empty() => {
-                match theme
-                    .media
-                    .unit_lookup(&ini_path, value)
-                    .map_err(|e| format!("{}: sound {value}: {e}", ini_path.display()))?
+                match super::unit_media::UnitMedia::new(&theme.media)
+                    .lookup(&ini_path, value)
+                    .map_err(|e| e.context(format!("{}: sound {value}", ini_path.display())))?
                 {
                     Some(found) => {
                         sounds.insert(action, UnitSoundSource { path: found.path });
@@ -639,10 +640,7 @@ fn expand_unit_animation_ini(
         });
     }
     if !animations.iter().any(|animation| animation.role == role) {
-        return Err(format!(
-            "{}: [Animations] has no DEFAULT FLC",
-            ini_path.display()
-        ));
+        return Err(format!("{}: [Animations] has no DEFAULT FLC", ini_path.display()).into());
     }
     Ok((animations, sounds))
 }
@@ -683,26 +681,22 @@ fn unit_animation_suffix(action: &str) -> String {
     format!("-{suffix}")
 }
 
-fn read_theme_image(
-    path: &Path,
-    transparent_indices: &[u8],
-) -> Result<(PathBuf, Image), std::io::Error> {
-    let bytes = fs::read(path)?;
+fn read_theme_image(path: &Path, transparent_indices: &[u8]) -> AssetResult<(PathBuf, Image)> {
+    let bytes = fs::read(path).map_err(|e| AssetError::io("read image", path, e))?;
     let image = if path
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("pcx"))
     {
-        decode_pcx(&bytes, transparent_indices)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?
+        decode_pcx(&bytes, transparent_indices).map_err(|e| AssetError::decode(path, e))?
     } else {
         Image::from_file_with_format(&bytes, Some(ImageFormat::Png))
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?
+            .map_err(|e| AssetError::decode(path, e))?
     };
     Ok((path.to_owned(), image))
 }
 
 /// Decode the 8-bit, one-plane, indexed RLE PCX form used by Civ III terrain mods.
-fn decode_pcx(bytes: &[u8], transparent_indices: &[u8]) -> Result<Image, String> {
+fn decode_pcx(bytes: &[u8], transparent_indices: &[u8]) -> AssetResult<Image> {
     if bytes.len() < 897 || bytes[0] != 0x0a || bytes[2] != 1 || bytes[3] != 8 || bytes[65] != 1 {
         return Err("unsupported PCX: expected 8-bit, single-plane RLE image".into());
     }
@@ -1309,9 +1303,9 @@ fn civilization_city_style<'a>(
 }
 
 impl Civ3 {
-    pub(super) fn load(path: &Path) -> Result<Self, String> {
+    pub(super) fn load(path: &Path, media: &Civ3MediaResolver) -> AssetResult<Self> {
         let animation_pacing = super::unit_animation_pacing::UnitAnimationPacing::load()?;
-        let theme = Theme::read(path)?;
+        let theme = Theme::read_with_media(path, media)?;
         let required = |key: &str, file: &str, size| {
             theme
                 .image(key, &format!("Terrain/{file}.png"), size, true)
@@ -1331,12 +1325,12 @@ impl Civ3 {
             theme.image("territory", "Terrain/Territory.pcx", (256, 288), false)?;
         let territory_image = match territory_image {
             Some(image) => image,
-            None => Theme::read(&locate_default_art()?)?
+            None => Theme::read_with_media(&locate_default_art(media)?, media)?
                 .image("territory", "Terrain/Territory.pcx", (256, 288), true)?
                 .expect("required territory border texture"),
         };
         let territory = TerritoryArt::new(territory_image);
-        let optional = |key, file, size| -> Result<_, String> {
+        let optional = |key, file, size| -> AssetResult<_> {
             Ok(theme
                 .image(key, &format!("Terrain/{file}.png"), size, false)?
                 .map(|mut image| {
@@ -1363,14 +1357,15 @@ impl Civ3 {
         let route_texture = |key: &str,
                              file: &str,
                              fallback_theme: &mut Option<Theme>|
-         -> Result<Option<Texture2D>, String> {
+         -> AssetResult<Option<Texture2D>> {
             let default = format!("Terrain/{file}.png");
             let image = theme.image(key, &default, (2048, 1024), false)?;
             let image = if image.is_some() {
                 image
             } else {
                 if fallback_theme.is_none() {
-                    *fallback_theme = Some(Theme::read(&locate_default_art()?)?);
+                    *fallback_theme =
+                        Some(Theme::read_with_media(&locate_default_art(media)?, media)?);
                 }
                 fallback_theme
                     .as_ref()
@@ -1389,14 +1384,15 @@ impl Civ3 {
                                    file: &str,
                                    size: (u16, u16),
                                    fallback_theme: &mut Option<Theme>|
-         -> Result<Option<Texture2D>, String> {
+         -> AssetResult<Option<Texture2D>> {
             let default = format!("Terrain/{file}.png");
             let image = theme.image(key, &default, size, false)?;
             let image = if image.is_some() {
                 image
             } else {
                 if fallback_theme.is_none() {
-                    *fallback_theme = Some(Theme::read(&locate_default_art()?)?);
+                    *fallback_theme =
+                        Some(Theme::read_with_media(&locate_default_art(media)?, media)?);
                 }
                 fallback_theme
                     .as_ref()
@@ -1433,7 +1429,7 @@ impl Civ3 {
                 optional_improvements.insert(role, texture);
             }
         }
-        let river_texture = |key, file| -> Result<Texture2D, String> {
+        let river_texture = |key, file| -> AssetResult<Texture2D> {
             let image = required(key, file, (512, 256))?;
             let texture = Texture2D::from_image(&image);
             texture.set_filter(FilterMode::Nearest);
@@ -1450,7 +1446,7 @@ impl Civ3 {
         let movement_image = if let Some(image) = movement_image {
             image
         } else {
-            Theme::read(&locate_default_art()?)?
+            Theme::read_with_media(&locate_default_art(media)?, media)?
                 .image(
                     "movement-indicators",
                     "interface/MovementLED.PCX",
@@ -1482,10 +1478,7 @@ impl Civ3 {
                 .image(&key, &default, (501, 380), true)?
                 .expect("required city image");
             if image.width() < 501 || image.height() < 380 {
-                return Err(format!(
-                    "{}: expected at least 501×380 pixels",
-                    path.display()
-                ));
+                return Err(format!("{}: expected at least 501×380 pixels", path.display()).into());
             }
             // Civ III city sheets use the bright magenta key color for transparency.
             for pixel in image.get_image_data_mut() {
@@ -1540,12 +1533,12 @@ impl Civ3 {
             .base_policy()
             .resolve("Art/Animations/Cursor/Cursor.flc")?;
         let cursor_bytes = fs::read(&cursor_path)
-            .map_err(|error| format!("{}: {error}", cursor_path.display()))?;
+            .map_err(|error| AssetError::io("read animation", &cursor_path, error))?;
         let cursor_flic = super::flc::decode_flic(&cursor_bytes)
-            .map_err(|error| format!("{}: {error}", cursor_path.display()))?;
+            .map_err(|error| AssetError::decode(&cursor_path, error))?;
         let (mut cursor_image, cursor_tint) = cursor_flic
             .image_atlases()
-            .map_err(|error| format!("{}: {error}", cursor_path.display()))?;
+            .map_err(|error| AssetError::decode(&cursor_path, error))?;
         // The cursor artwork is monochrome white. Civ III uses the unit shadow
         // palette range (240..=255) for some arrow pixels, but those indices
         // should fade the white cursor rather than draw black unit shadows.
@@ -1743,7 +1736,7 @@ impl Civ3 {
             })
     }
 
-    fn load_unit_animation(&self, role: &str) -> Result<(), String> {
+    fn load_unit_animation(&self, role: &str) -> AssetResult<()> {
         if self.unit_art.borrow().contains_key(role) {
             return Ok(());
         }
@@ -1752,12 +1745,12 @@ impl Civ3 {
             .get(role)
             .ok_or_else(|| format!("no Civ III animation is mapped for {role}"))?;
         let bytes = fs::read(&source.path)
-            .map_err(|error| format!("{}: {error}", source.path.display()))?;
+            .map_err(|error| AssetError::io("read animation", &source.path, error))?;
         let flic = super::flc::decode_flic(&bytes)
-            .map_err(|error| format!("{}: {error}", source.path.display()))?;
+            .map_err(|error| AssetError::decode(&source.path, error))?;
         let (base_image, tint_image) = flic
             .image_atlases()
-            .map_err(|error| format!("{}: {error}", source.path.display()))?;
+            .map_err(|error| AssetError::decode(&source.path, error))?;
         let base = Texture2D::from_image(&base_image);
         let tint = Texture2D::from_image(&tint_image);
         base.set_filter(FilterMode::Nearest);
@@ -2519,6 +2512,7 @@ mod tests {
         assert!(
             decode_pcx(&bytes, &DEFAULT_PCX_TRANSPARENT_INDICES)
                 .unwrap_err()
+                .to_string()
                 .contains("8-bit, single-plane")
         );
     }
@@ -2587,6 +2581,7 @@ mod tests {
             Theme::read(&directory)
                 .err()
                 .unwrap()
+                .to_string()
                 .contains("civilization-style")
         );
         fs::remove_file(manifest).unwrap();

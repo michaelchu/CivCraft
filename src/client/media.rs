@@ -1,4 +1,5 @@
 //! Shared installation, scenario and packaged media resolution.
+use super::asset_error::{AssetError, AssetResult};
 use serde::Deserialize;
 use std::{
     fs, io,
@@ -32,11 +33,14 @@ pub(super) struct AssetRoots {
     pub standalone: bool,
 }
 impl AssetRoots {
-    pub fn from_file(path: &Path) -> Result<Self, String> {
+    pub fn from_file(path: &Path) -> AssetResult<Self> {
         let mut config: Self = toml::from_str(
-            &fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?,
+            &fs::read_to_string(path).map_err(|e| AssetError::io("read configuration", path, e))?,
         )
-        .map_err(|e| format!("{}: {e}", path.display()))?;
+        .map_err(|source| AssetError::Configuration {
+            path: path.to_owned(),
+            source,
+        })?;
         let base = path.parent().unwrap_or(Path::new("."));
         for root in config
             .install
@@ -50,7 +54,7 @@ impl AssetRoots {
         }
         Ok(config)
     }
-    pub fn from_env() -> Result<Self, String> {
+    pub fn from_env() -> AssetResult<Self> {
         let mut config = if let Some(path) = std::env::var_os("CIVCRAFT_MEDIA_CONFIG") {
             Self::from_file(Path::new(&path))?
         } else {
@@ -76,8 +80,10 @@ pub(super) struct Civ3MediaResolver {
     roots: Vec<(PathBuf, MediaClass)>,
     boundaries: Vec<PathBuf>,
     origins: Vec<(PathBuf, MediaClass)>,
+    trace: bool,
 }
 impl Civ3MediaResolver {
+    #[cfg(any(test, feature = "desktop-audio"))]
     pub fn new(roots: Vec<PathBuf>) -> Self {
         Self::classified(
             roots
@@ -93,10 +99,15 @@ impl Civ3MediaResolver {
             .collect();
         let boundaries = roots.iter().map(|(p, _)| p.clone()).collect();
         Self {
+            trace: false,
             origins: roots.clone(),
             roots,
             boundaries,
         }
+    }
+    pub fn tracing(mut self, enabled: bool) -> Self {
+        self.trace = enabled;
+        self
     }
     pub fn installation(root: &Path) -> Self {
         Self::classified(vec![
@@ -104,9 +115,6 @@ impl Civ3MediaResolver {
             (root.join("civ3PTW"), MediaClass::Ptw),
             (root.to_owned(), MediaClass::Base),
         ])
-    }
-    pub fn configured() -> Result<Self, String> {
-        Ok(Self::from_config(&AssetRoots::from_env()?))
     }
     pub fn from_config(config: &AssetRoots) -> Self {
         if config.standalone {
@@ -143,6 +151,7 @@ impl Civ3MediaResolver {
                 .collect(),
             boundaries: self.boundaries.clone(),
             origins: self.origins.clone(),
+            trace: self.trace,
         }
     }
     pub fn with_override(&self, root: &Path) -> Self {
@@ -173,7 +182,11 @@ impl Civ3MediaResolver {
             .filter(|(_, c)| matches!(c, MediaClass::Scenario | MediaClass::Packaged))
             .map(|(p, _)| p.as_path())
     }
-    pub fn lookup(&self, name: &str) -> io::Result<Option<ResolvedMedia>> {
+    pub fn lookup(&self, name: &str) -> AssetResult<Option<ResolvedMedia>> {
+        self.lookup_io(name)
+            .map_err(|e| AssetError::io("resolve", Path::new(name), e))
+    }
+    fn lookup_io(&self, name: &str) -> io::Result<Option<ResolvedMedia>> {
         for (root, class) in &self.roots {
             let Some(path) = resolve_path(root, name)? else {
                 continue;
@@ -206,7 +219,7 @@ impl Civ3MediaResolver {
                 class: source_class,
                 root: source_root,
             };
-            if std::env::var_os("CIVCRAFT_MEDIA_TRACE").is_some() {
+            if self.trace {
                 eprintln!(
                     "Media {name:?}: {:?} root={} path={}",
                     resolved.class,
@@ -218,42 +231,37 @@ impl Civ3MediaResolver {
         }
         Ok(None)
     }
-    pub fn resolve(&self, name: &str) -> Result<PathBuf, String> {
-        self.lookup(name)
-            .map_err(|e| format!("Media '{name}': {e}"))?
+    pub fn resolve(&self, name: &str) -> AssetResult<PathBuf> {
+        self.lookup(name)?
             .map(|m| m.path)
             .ok_or_else(|| self.missing(name))
     }
-    pub fn missing(&self, name: &str) -> String {
-        format!(
-            "Media '{name}' not found; searched: {}",
-            self.roots()
-                .map(|p| p.display().to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
+    pub fn missing(&self, name: &str) -> AssetError {
+        AssetError::Missing {
+            requested: name.to_owned(),
+            searched: self.roots().map(Path::to_owned).collect(),
+        }
     }
-    pub fn edition(&self, edition: &str) -> Self {
+    pub fn classes(&self, classes: &[MediaClass]) -> Self {
         let mut result = self.clone();
-        result.roots.retain(|(_, class)| {
-            matches!(
-                class,
-                MediaClass::Scenario | MediaClass::Packaged | MediaClass::Explicit
-            ) || matches!(
-                (edition, class),
-                ("base", MediaClass::Base)
-                    | ("ptw", MediaClass::Ptw)
-                    | ("conquests", MediaClass::Conquests)
-            )
-        });
+        result.roots.retain(|(_, class)| classes.contains(class));
         result
     }
-    pub fn lookup_variants(&self, names: &[String]) -> io::Result<Option<ResolvedMedia>> {
+    pub fn searching(&self, roots: Vec<PathBuf>) -> Self {
+        let mut result = self.clone();
+        result.roots = roots
+            .into_iter()
+            .map(|root| (root, MediaClass::Explicit))
+            .collect();
+        result
+    }
+    pub fn lookup_variants(&self, names: &[String]) -> AssetResult<Option<ResolvedMedia>> {
         for entry in &self.roots {
             let resolver = Self {
                 roots: vec![entry.clone()],
                 boundaries: self.boundaries.clone(),
                 origins: self.origins.clone(),
+                trace: self.trace,
             };
             for name in names {
                 if let Some(found) = resolver.lookup(name)? {
@@ -263,10 +271,10 @@ impl Civ3MediaResolver {
         }
         Ok(None)
     }
-    pub fn existing(&self, path: &Path) -> Result<PathBuf, String> {
+    pub fn existing(&self, path: &Path) -> AssetResult<PathBuf> {
         let path = path
             .canonicalize()
-            .map_err(|e| format!("{}: {e}", path.display()))?;
+            .map_err(|e| AssetError::io("canonicalize", path, e))?;
         if self
             .boundaries
             .iter()
@@ -274,38 +282,8 @@ impl Civ3MediaResolver {
         {
             Ok(path)
         } else {
-            Err(format!(
-                "{} is outside configured media roots",
-                path.display()
-            ))
+            Err(format!("{} is outside configured media roots", path.display()).into())
         }
-    }
-    pub fn unit_reference(&self, owner: &Path, name: &str) -> Result<PathBuf, String> {
-        self.unit_lookup(owner, name)
-            .map_err(|e| format!("{}: {name}: {e}", owner.display()))?
-            .map(|found| found.path)
-            .ok_or_else(|| self.missing(name))
-    }
-    pub fn unit_lookup(&self, owner: &Path, name: &str) -> io::Result<Option<ResolvedMedia>> {
-        let parent = owner.parent().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidInput, "Media owner has no parent")
-        })?;
-        let mut roots = vec![(parent.to_owned(), MediaClass::Explicit)];
-        if let Some(folder) = parent.file_name() {
-            roots.extend(
-                self.roots
-                    .iter()
-                    .map(|(p, c)| (p.join("Art/Units").join(folder), *c)),
-            );
-        }
-        roots.extend(self.prefixed("Art").roots);
-        roots.extend(self.roots.clone());
-        let resolver = Self {
-            roots,
-            boundaries: self.boundaries.clone(),
-            origins: self.origins.clone(),
-        };
-        resolver.lookup(name)
     }
 }
 
@@ -397,6 +375,35 @@ mod tests {
         root.canonicalize().unwrap()
     }
     #[test]
+    fn errors_preserve_missing_requests_and_io_causes() {
+        use std::error::Error;
+        let root = fixture("typed-errors");
+        let resolver = Civ3MediaResolver::new(vec![root.clone()]);
+        match resolver.resolve("absent").unwrap_err() {
+            AssetError::Missing {
+                requested,
+                searched,
+            } => {
+                assert_eq!(requested, "absent");
+                assert_eq!(searched, vec![root.clone()]);
+            }
+            error => panic!("unexpected error: {error:?}"),
+        }
+        fs::write(root.join("blocked"), "file").unwrap();
+        let error = resolver.lookup("blocked/child").unwrap_err();
+        assert!(
+            matches!(&error,AssetError::Io {source,..} if source.kind()==io::ErrorKind::NotADirectory)
+        );
+        assert!(
+            error
+                .source()
+                .unwrap()
+                .downcast_ref::<io::Error>()
+                .is_some()
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn config_paths_are_relative_to_the_config_file_and_schema_is_checked() {
         let root = fixture("config-file");
         let file = root.join("media.toml");
@@ -467,47 +474,6 @@ mod tests {
         );
         fs::remove_dir_all(root).unwrap();
     }
-    #[test]
-    fn unit_owner_shared_references_and_invalid_optional_requests() {
-        let root = fixture("owner");
-        let owner = root.join("Conquests/Art/Units/Archer/Archer.ini");
-        fs::create_dir_all(owner.parent().unwrap()).unwrap();
-        fs::write(&owner, "ini").unwrap();
-        let shared = root.join("Art/Units/Archer/run.flc");
-        fs::create_dir_all(shared.parent().unwrap()).unwrap();
-        fs::write(&shared, "run").unwrap();
-        let resolver = Civ3MediaResolver::installation(&root);
-        assert_eq!(resolver.unit_reference(&owner, "RUN.FLC").unwrap(), shared);
-        assert_eq!(
-            resolver
-                .unit_lookup(&owner, "RUN.FLC")
-                .unwrap()
-                .unwrap()
-                .class,
-            MediaClass::Base
-        );
-        fs::write(owner.parent().unwrap().join("local.flc"), "local").unwrap();
-        assert_eq!(
-            resolver
-                .unit_lookup(&owner, "local.flc")
-                .unwrap()
-                .unwrap()
-                .class,
-            MediaClass::Conquests
-        );
-
-        assert_eq!(
-            resolver
-                .unit_reference(&owner, "..\\..\\..\\..\\Art\\Units\\Archer\\run.flc")
-                .unwrap(),
-            shared
-        );
-        fs::write(root.join("blocked"), "file").unwrap();
-        assert!(resolver.lookup("blocked/child").is_err());
-        assert!(resolver.lookup("/absolute").is_err());
-        assert!(resolver.lookup("genuinely-missing").unwrap().is_none());
-        fs::remove_dir_all(root).unwrap();
-    }
     #[cfg(unix)]
     #[test]
     fn symlink_cannot_escape_configured_roots() {
@@ -551,6 +517,7 @@ mod tests {
             resolver
                 .resolve("missing")
                 .unwrap_err()
+                .to_string()
                 .contains("searched:")
         );
         assert!(resolver.resolve("/etc/passwd").is_err());
