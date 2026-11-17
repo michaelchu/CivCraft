@@ -471,7 +471,7 @@ mod tests {
     }
 
     #[test]
-    fn selectable_units_skip_automated_sentry_and_fortified_military_units() {
+    fn selectable_units_skip_automated_sentry_and_fortifying_or_fortified_units() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         for unit in &mut sim.units {
             if unit.owner == HUMAN {
@@ -500,6 +500,13 @@ mod tests {
             .unwrap()
             .state = UnitState::Fortified;
 
+        let fortifying_worker = sim.spawn_unit(HUMAN, UnitKind::Worker, 15, 20);
+        sim.units
+            .iter_mut()
+            .find(|unit| unit.id == fortifying_worker)
+            .unwrap()
+            .state = UnitState::Fortifying;
+
         let worker = sim.spawn_unit(HUMAN, UnitKind::Worker, 13, 20);
 
         let ordinary_military = sim.spawn_unit(HUMAN, UnitKind::Warrior, 14, 20);
@@ -513,6 +520,7 @@ mod tests {
         assert!(!selectable.contains(&automated));
         assert!(!selectable.contains(&sentry));
         assert!(!selectable.contains(&fortified_military));
+        assert!(!selectable.contains(&fortifying_worker));
         assert!(selectable.contains(&worker));
         assert!(selectable.contains(&ordinary_military));
     }

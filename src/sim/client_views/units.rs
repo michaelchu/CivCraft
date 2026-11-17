@@ -216,7 +216,7 @@ impl Simulation {
                     && !self.unit_goto_tiles.contains_key(&unit.id)
                     && unit.order.is_none()
                     && unit.state != UnitState::Sentry
-                    && !(unit.kind.is_military() && unit.state == UnitState::Fortified)
+                    && !matches!(unit.state, UnitState::Fortifying | UnitState::Fortified)
             })
             .map(|unit| SelectableUnitView {
                 id: unit.id,
