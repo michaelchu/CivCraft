@@ -24,6 +24,7 @@ pub(crate) struct SettlementAiSettings {
     pub(crate) discount_period: i32,
     pub(crate) defense_emphasis: i32,
     pub(crate) naval_emphasis: i32,
+    pub(crate) wonder_city_min_cities: i32,
     pub(crate) wonder_city_pop_founder_divisor: i32,
     pub(crate) wonder_city_other_founder_divisor: i32,
     pub(crate) expansionist_trait_baseline: i32,
@@ -41,6 +42,7 @@ impl SettlementAiSettings {
             assert!(native.expansion_cost_priority >= 0);
             assert!(native.free_expansion_cities >= 0);
             assert!(native.discount_period > 0);
+            assert!(native.wonder_city_min_cities >= 0);
             assert!(native.wonder_city_pop_founder_divisor > 0);
             assert!(native.wonder_city_other_founder_divisor > 0);
             assert!(native.expansionist_trait_baseline > 0);
@@ -62,6 +64,7 @@ impl SettlementAiSettings {
                 discount_period: native.discount_period,
                 defense_emphasis: native.defense_emphasis,
                 naval_emphasis: native.naval_emphasis,
+                wonder_city_min_cities: native.wonder_city_min_cities,
                 wonder_city_pop_founder_divisor: native.wonder_city_pop_founder_divisor,
                 wonder_city_other_founder_divisor: native.wonder_city_other_founder_divisor,
                 expansionist_trait_baseline: native.expansionist_trait_baseline,
