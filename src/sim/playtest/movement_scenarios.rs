@@ -30,7 +30,7 @@ impl Simulation {
         }
         self.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
         let warrior = self.units.last().unwrap().clone();
-        self.remember_route_tiles(false);
+        self.remember_visible_human_tiles();
         self.remember_render_map(&[vec![true; self.tiles.len()]]);
         let route = self.plan_route(&warrior, goal.0, goal.1, true);
         let bridge = point(1, -1);

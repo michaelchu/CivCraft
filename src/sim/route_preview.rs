@@ -93,7 +93,7 @@ mod tests {
             tile.seen = true;
         }
         let id = sim.spawn_unit(HUMAN, kind, 10, 24);
-        sim.remember_route_tiles(false);
+        sim.remember_visible_human_tiles();
         (sim, id)
     }
 
@@ -261,7 +261,7 @@ mod tests {
                 tile.road = true;
                 tile.railroad = true;
             }
-            sim.remember_route_tiles(false);
+            sim.remember_visible_human_tiles();
             sim.remember_render_map(&[vec![true; sim.tiles.len()]]);
             let before = sim.preview_goto(id, target.0, target.1).unwrap();
             for tile in &mut sim.tiles {

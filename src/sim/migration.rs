@@ -303,8 +303,8 @@ impl Simulation {
             .map(|(_, _, x, y)| {
                 self.c2c3_city_tile_yields(
                     destination,
-                    x,
-                    y,
+                    (x, y),
+                    self.tile(x, y),
                     false,
                     false,
                     None,

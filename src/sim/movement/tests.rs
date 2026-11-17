@@ -937,7 +937,7 @@ fn player_goto_continues_across_turns_until_destination() {
     let start = (10, 24);
     let destination = game.map_wrap.offset(start.0, start.1, 4, 0).unwrap();
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
-    game.remember_route_tiles(false);
+    game.remember_visible_human_tiles();
 
     assert!(game.player_goto(id, destination.0, destination.1));
     let first_turn_position = {
@@ -1594,7 +1594,7 @@ fn freeciv_route_zoc_uses_only_observed_enemy_units() {
     let (start, destination, enemy) = blocked_zoc_positions(&game);
     let mover_id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
     let enemy_id = game.spawn_unit(1, UnitKind::Cavalry, enemy.0, enemy.1);
-    game.remember_route_tiles(false);
+    game.remember_visible_human_tiles();
     game.tile_mut(enemy.0, enemy.1).visible = false;
     let mover = game.unit_by_id(mover_id).unwrap().clone();
 
@@ -1606,7 +1606,7 @@ fn freeciv_route_zoc_uses_only_observed_enemy_units() {
     game.units.retain(|unit| unit.id != enemy_id);
     game.create_city(1, enemy.0, enemy.1);
     game.spawn_unit(1, UnitKind::Cavalry, enemy.0, enemy.1);
-    game.remember_route_tiles(false);
+    game.remember_visible_human_tiles();
     assert!(game.zone_blocks_route(&mover, start, destination, true));
     game.units
         .retain(|unit| unit.id != enemy_id && (unit.x, unit.y) != enemy);

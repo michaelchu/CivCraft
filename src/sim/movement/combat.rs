@@ -604,19 +604,13 @@ impl Simulation {
         let movement = MovementRules::campaign();
         self.map_wrap.civ3_neighbors(x, y).any(|(tx, ty)| {
             let terrain = self.tile(tx, ty).terrain;
-            let Ok(data) = movement.terrain_data(terrain) else {
-                return false;
-            };
-            crate::rules::native::terrain()
-                .terrains
-                .iter()
-                .find(|record| record.rule_name.eq_ignore_ascii_case(&data.rule_name))
-                .is_some_and(|record| {
-                    !record
-                        .flags
-                        .iter()
-                        .any(|flag| flag.eq_ignore_ascii_case("UnsafeCoast"))
-                })
+            matches!(
+                movement.terrain_has_flag(
+                    terrain,
+                    super::super::movement_rules::TerrainFlag::UnsafeCoast
+                ),
+                Ok(false)
+            )
         })
     }
 

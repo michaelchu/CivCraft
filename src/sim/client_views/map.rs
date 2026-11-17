@@ -8,16 +8,18 @@ impl Simulation {
     }
 
     pub(crate) fn minimap_tile_view(&self, x: i32, y: i32) -> MinimapTileView {
-        let tile = self.render_tile(x, y);
+        let known = self.human_known_tile(x, y);
+        let tile = known.unwrap_or_else(|| self.tile(x, y));
         MinimapTileView {
             terrain: tile.terrain,
-            seen: tile.seen,
+            seen: known.is_some(),
             visible: tile.visible,
         }
     }
 
     pub(crate) fn render_tile_view(&self, x: i32, y: i32) -> RenderTileView {
-        let tile = self.render_tile(x, y);
+        let known = self.human_known_tile(x, y);
+        let tile = known.unwrap_or_else(|| self.tile(x, y));
         RenderTileView {
             terrain: tile.terrain,
             base_terrain: tile.base_terrain,
@@ -37,7 +39,7 @@ impl Simulation {
             mine: tile.mine,
             oil_well: tile.oil_well,
             oil_platform: tile.oil_platform,
-            seen: tile.seen,
+            seen: known.is_some(),
             visible: tile.visible,
         }
     }

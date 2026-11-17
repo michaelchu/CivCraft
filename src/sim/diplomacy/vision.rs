@@ -77,7 +77,7 @@ impl Simulation {
             let observation = if requester_sees {
                 self.live_map_observation(index)
             } else {
-                self.route_memory[index]
+                self.observed_route_tile(x, y)
                     .map(|route| MapObservation {
                         route,
                         owner: self.tiles[index].last_seen_owner,
@@ -97,7 +97,6 @@ impl Simulation {
                 if recipient == HUMAN {
                     self.tiles[index].seen = true;
                     self.tiles[index].last_seen_owner = observation.owner;
-                    self.route_memory[index] = Some(observation.route);
                 } else {
                     self.ai_map_memory.insert((recipient, index), observation);
                 }
@@ -138,7 +137,8 @@ impl Simulation {
             }
             // Older saves and knowledge granted without direct sight may lack a snapshot.
             let observation = if giver == HUMAN && !tile.visible {
-                self.route_memory[index].map(|route| MapObservation {
+                let (x, y) = self.map_wrap.position(index);
+                self.observed_route_tile(x, y).map(|route| MapObservation {
                     route,
                     owner: tile.last_seen_owner,
                     ocean: route.is_water(),
@@ -160,7 +160,6 @@ impl Simulation {
             if recipients.contains(&HUMAN) && !tile.seen {
                 tile.seen = true;
                 tile.last_seen_owner = observation.owner;
-                self.route_memory[index] = Some(observation.route);
             }
         }
     }

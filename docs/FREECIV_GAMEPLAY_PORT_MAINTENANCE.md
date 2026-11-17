@@ -134,10 +134,12 @@ the user. Update the owning ledger row when one of these decisions changes.
 
 The gameplay simulation remains authoritative behind CivCraft's existing
 command/client-view boundary; rendering consumes simulation state. Current
-saves use header `CIVCRAFT\0\x27`. The loader reads `0x26` campaigns and
-writes the new format on the next save. Round-trip checks cover supported
-map sizes through 512×512. Future persistent-state changes should specify the
-save version and cover round-trip, invalid-input, and compatibility behavior.
+saves use header `CIVCRAFT\0\x28`. The loader reads `0x26` and `0x27`
+campaigns and writes the new format on the next save. Human map knowledge
+uses the same saved observations for the world view, city tile labels and
+route planning. Round-trip checks cover map sizes through 512×512.
+The positional wire layouts live in `src/sim/save/schema.rs`. Use a new
+schema for incompatible changes and keep fixtures for supported versions.
 
 P14 is complete when a maintainer can identify the authority and owner for a
 ruleset change, content mapping, upstream revision, and parity vector; every

@@ -169,24 +169,15 @@ impl Simulation {
         tile
     }
 
-    pub(super) fn remember_route_tiles(&mut self, legacy_save: bool) {
-        self.route_memory.resize(self.tiles.len(), None);
-        for (index, tile) in self.tiles.iter().enumerate() {
-            if tile.visible || (legacy_save && tile.seen) {
-                let (x, y) = self.map_wrap.position(index);
-                self.route_memory[index] = Some(self.live_route_tile(x, y));
-            }
-        }
-    }
-
     pub(super) fn observed_route_tile(&self, x: i32, y: i32) -> Option<RouteTile> {
-        let tile = self.tile(x, y);
+        let tile = self.human_known_tile(x, y)?;
         if tile.visible {
             Some(self.live_route_tile(x, y))
-        } else if tile.seen {
-            self.route_memory[self.map_wrap.index(x, y)]
         } else {
-            None
+            let mut route = RouteTile::from(tile);
+            route.city_owner =
+                self.remembered_human_city_owner(x.rem_euclid(self.map_wrap.width()), y);
+            Some(route)
         }
     }
 

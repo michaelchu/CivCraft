@@ -1,6 +1,41 @@
 //! Regression tests for the behavior of the parent module.
 
 use super::*;
+
+#[test]
+fn apollo_program_reveals_the_same_ocean_to_rendering_and_routes() {
+    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    sim.units.clear();
+    let origin = (10, 24);
+    let destination = offset_native_by_map(origin.0, origin.1, 8, 0);
+    for tile in &mut sim.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.hut = false;
+    }
+    sim.tile_mut(destination.0, destination.1).terrain = Terrain::Ocean;
+    sim.create_city(HUMAN, origin.0, origin.1);
+    sim.cities
+        .last_mut()
+        .unwrap()
+        .buildings
+        .push(Building::APOLLO_PROGRAM);
+    let unit = sim.spawn_unit(HUMAN, UnitKind::Warrior, origin.0, origin.1);
+    sim.refresh_visibility();
+
+    let tile = sim.render_tile_view(destination.0, destination.1);
+    assert!(tile.seen && !tile.visible);
+    assert_eq!(tile.terrain, Terrain::Ocean);
+    assert_eq!(
+        sim.observed_route_tile(destination.0, destination.1)
+            .unwrap()
+            .terrain,
+        tile.terrain
+    );
+    assert!(
+        sim.preview_goto(unit, destination.0, destination.1)
+            .is_none()
+    );
+}
 use crate::rules::engine_rules::RulesetData;
 
 #[test]

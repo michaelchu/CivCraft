@@ -17,8 +17,10 @@ fn stable_city_advice_is_reused_until_its_persisted_schedule_is_due() {
     assert_eq!(reused.ai_building_next, first.ai_building_next);
     assert_eq!(reused.ai_settlement_next, first.ai_settlement_next);
 
-    let bytes = bincode::serialize(&game).unwrap();
-    let mut loaded: Simulation = bincode::deserialize(&bytes).unwrap();
+    let path = crate::sim::save::tests::temporary_save("city-advice");
+    game.save_campaign(&path).unwrap();
+    let mut loaded = Simulation::load_campaign(&path).unwrap();
+    std::fs::remove_file(path).unwrap();
     assert_eq!(loaded.cities[0].ai_building_next, first.ai_building_next);
     loaded.turn = first.ai_building_next.max(first.ai_settlement_next);
     loaded.prepare_ai_city_defenses(1);

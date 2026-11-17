@@ -39,6 +39,8 @@ pub(super) struct ObservedMap {
     revision: u64,
     tiles: BTreeMap<(usize, usize), (u64, Tile)>,
     cities: BTreeMap<(usize, u32), (u64, ObservedCity)>,
+    #[serde(skip)]
+    human_city_owners: BTreeMap<(i32, i32), usize>,
 }
 
 impl Simulation {
@@ -279,9 +281,6 @@ impl Simulation {
         let _profile = profiler.scope("visibility.refresh.remember_borders");
         self.remember_visible_borders();
         drop(_profile);
-        let _profile = profiler.scope("visibility.refresh.remember_routes");
-        self.remember_route_tiles(false);
-        drop(_profile);
         let _profile = profiler.scope("visibility.refresh.remember_rivals");
         self.remember_visible_rivals();
         drop(_profile);
@@ -338,17 +337,82 @@ impl Simulation {
         self.visibility_render_scope = None;
     }
 
-    /// Knowledge flags remain current; unexplored callers must still honor `seen`.
-    pub(crate) fn render_tile(&self, x: i32, y: i32) -> &Tile {
+    pub(super) fn human_known_tile(&self, x: i32, y: i32) -> Option<&Tile> {
         let tile = self.tile(x, y);
-        if tile.visible || !tile.seen {
-            tile
+        if tile.visible {
+            Some(tile)
+        } else if tile.seen {
+            self.remembered_tile(HUMAN, x, y)
         } else {
+            None
+        }
+    }
+
+    /// Render projections keep the knowledge flag separate from their tile data.
+    pub(crate) fn render_tile(&self, x: i32, y: i32) -> &Tile {
+        self.human_known_tile(x, y)
+            .unwrap_or_else(|| self.tile(x, y))
+    }
+
+    pub(super) fn remembered_human_city_owner(&self, x: i32, y: i32) -> Option<usize> {
+        self.observed_map.human_city_owners.get(&(x, y)).copied()
+    }
+
+    pub(super) fn rebuild_observed_city_index(&mut self) {
+        self.observed_map.human_city_owners = self
+            .observed_map
+            .cities
+            .range((HUMAN, 0)..=(HUMAN, u32::MAX))
+            .map(|(_, (_, observed))| {
+                let city = &observed.city;
+                ((city.x, city.y), city.owner)
+            })
+            .collect();
+    }
+
+    pub(super) fn import_legacy_routes(&mut self, routes: Vec<Option<movement::RouteTile>>) {
+        for (index, route) in routes.into_iter().enumerate() {
+            let tile = &self.tiles[index];
+            let Some(route) = route.filter(|_| tile.seen) else {
+                continue;
+            };
             self.observed_map
                 .tiles
-                .get(&(HUMAN, self.map_wrap.index(x, y)))
-                .map_or(tile, |(_, remembered)| remembered)
+                .entry((HUMAN, index))
+                .or_insert_with(|| {
+                    let base_terrain = match route.terrain {
+                        Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
+                        Terrain::Sea => TerrainBase::Sea,
+                        Terrain::Ocean => TerrainBase::Ocean,
+                        Terrain::Plains => TerrainBase::Plains,
+                        Terrain::Desert | Terrain::FloodPlains => TerrainBase::Desert,
+                        Terrain::Tundra => TerrainBase::Tundra,
+                        Terrain::Glacier => TerrainBase::Ice,
+                        _ => TerrainBase::Grassland,
+                    };
+                    let mut snapshot = Tile::from(crate::world::GeneratedTile {
+                        terrain: route.terrain,
+                        base_terrain,
+                        altitude: 0,
+                        hut: false,
+                        river: route.river,
+                        river_edges: 0,
+                        resource: None,
+                    });
+                    snapshot.seen = true;
+                    snapshot.known_by[HUMAN] = true;
+                    snapshot.owner = tile.last_seen_owner;
+                    snapshot.road = route.road;
+                    snapshot.railroad = route.railroad;
+                    (0, snapshot)
+                });
         }
+    }
+
+    #[cfg(test)]
+    pub(super) fn remember_visible_human_tiles(&mut self) {
+        let visible = self.tiles.iter().map(|tile| tile.visible).collect();
+        self.remember_render_map(&[visible]);
     }
 
     pub(crate) fn remembered_tile(&self, owner: usize, x: i32, y: i32) -> Option<&Tile> {
@@ -562,6 +626,7 @@ impl Simulation {
                 }
             }
         }
+        self.rebuild_observed_city_index();
     }
 
     /// Reveal a remembered map circle without granting current sight or unit
@@ -616,10 +681,8 @@ impl Simulation {
                     continue;
                 }
                 let owner = self.tiles[index].owner;
-                let route = movement::RouteTile::from(&self.tiles[index]);
                 if recipient == HUMAN {
                     self.tiles[index].last_seen_owner = owner;
-                    self.route_memory[index] = Some(route);
                 } else {
                     self.ai_map_memory
                         .insert((recipient, index), self.live_map_observation(index));
@@ -702,7 +765,6 @@ impl Simulation {
                 };
                 if receiver == HUMAN {
                     self.tiles[index].last_seen_owner = observation.owner;
-                    self.route_memory[index] = Some(route);
                 } else if receiver != BARBARIANS {
                     self.ai_map_memory.insert((receiver, index), observation);
                 }
@@ -726,6 +788,9 @@ impl Simulation {
             .collect();
         for (id, city) in cities {
             self.observed_map.cities.insert((receiver, id), city);
+        }
+        if receiver == HUMAN {
+            self.rebuild_observed_city_index();
         }
     }
 

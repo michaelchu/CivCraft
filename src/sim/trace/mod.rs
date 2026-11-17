@@ -412,16 +412,16 @@ mod integration_tests {
             let _ = traced.observe_units();
             let _ = traced.observe_civilizations();
             assert_eq!(
-                bincode::serialize(&plain).unwrap(),
-                bincode::serialize(&traced).unwrap()
+                plain.encode_campaign().unwrap(),
+                traced.encode_campaign().unwrap()
             );
             assert_eq!(
                 bincode::serialize(&plain.native_random).unwrap(),
                 bincode::serialize(&traced.native_random).unwrap()
             );
             assert_eq!(
-                bincode::serialize(&plain).unwrap(),
-                bincode::serialize(&profiled).unwrap()
+                plain.encode_campaign().unwrap(),
+                profiled.encode_campaign().unwrap()
             );
             assert_eq!(
                 bincode::serialize(&plain.native_random).unwrap(),
@@ -435,8 +435,10 @@ mod integration_tests {
         assert!(event_kinds.contains("settlement.city_founded"));
         assert!(event_kinds.contains("cities.growth_applied"));
         assert_eq!(profiled.trace.drain_profiles().len(), 3);
-        let bytes = bincode::serialize(&traced).unwrap();
-        let mut loaded: Simulation = bincode::deserialize(&bytes).unwrap();
+        let path = crate::sim::save::tests::temporary_save("trace-reset");
+        traced.save_campaign(&path).unwrap();
+        let mut loaded = Simulation::load_campaign(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
         assert!(!loaded.trace.wants::<Example>());
         assert!(loaded.trace.drain().is_empty());
         let mut cloned = traced.clone();

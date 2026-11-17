@@ -654,6 +654,7 @@ mod tests {
         for (index, &(x, y)) in positions.iter().enumerate() {
             let tile = sim.tile_mut(x, y);
             tile.seen = index != 3;
+            tile.visible = tile.seen;
             tile.terrain = if index == 0 {
                 Terrain::Coast
             } else {
@@ -685,6 +686,41 @@ mod tests {
         let (x, y) = positions[0];
         assert_ne!(shown_yields((x, y)), sim.tile(x, y).yields());
         assert_eq!(shown_yields(positions[3]), (0, 0, 0));
+    }
+
+    #[test]
+    fn city_map_labels_keep_last_seen_yields_until_the_tile_is_visible() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.create_city(HUMAN, 20, 24);
+        let id = sim.cities.last().unwrap().id;
+        let (_, _, x, y) = sim
+            .map_city_radius(sim.city_by_id(id).unwrap())
+            .find(|&(dx, dy, _, _)| (dx, dy) != (0, 0))
+            .unwrap();
+        let tile = sim.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.resource = None;
+        tile.river = false;
+        tile.seen = true;
+        tile.visible = true;
+        sim.remember_visible_human_tiles();
+        let label = |sim: &Simulation| {
+            sim.city_manager_view(id)
+                .unwrap()
+                .map_tiles
+                .into_iter()
+                .find(|tile| (tile.x, tile.y) == (x, y))
+                .unwrap()
+                .yields
+        };
+        let original = label(&sim);
+        let tile = sim.tile_mut(x, y);
+        tile.visible = false;
+        tile.terrain = Terrain::Mountains;
+        assert_eq!(sim.render_tile_view(x, y).terrain, Terrain::Grassland);
+        assert_eq!(label(&sim), original);
+        sim.tile_mut(x, y).visible = true;
+        assert_ne!(label(&sim), original);
     }
 
     #[test]

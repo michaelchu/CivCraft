@@ -350,15 +350,18 @@ impl Simulation {
     pub(in crate::sim) fn c2c3_city_tile_yields(
         &self,
         city: &City,
-        x: i32,
-        y: i32,
+        tile_xy: (i32, i32),
+        tile: &Tile,
         is_center: bool,
         celebrating: bool,
         granted: Option<Tech>,
         government: Government,
     ) -> (i32, i32, i32) {
-        let tile_xy = (x, y);
-        let tile = self.tile(x, y);
+        let mut context = SimulationRequirementContext::for_city_at(self, city, Some(tile_xy))
+            .with_government(government)
+            .with_granted_tech(granted)
+            .with_celebrating(celebrating)
+            .with_tile_override(tile_xy, tile);
         let terrain = tile.terrain.c2c3_rugged_rule_name();
         let native_terrain = native_terrain(terrain);
         let mut output = Outputs {
@@ -375,30 +378,12 @@ impl Simulation {
 
         let irrigation = native_terrain.irrigation_food_incr;
         if irrigation != 0 {
-            let pct = self.city_rule_effect(
-                city,
-                EffectKind::IrrigationPct,
-                Some(tile_xy),
-                None,
-                None,
-                celebrating,
-                government,
-                granted,
-            );
+            let pct = context.effect_i32(EffectKind::IrrigationPct);
             output.food += irrigation * pct / 100;
         }
         let mining = native_terrain.mining_shield_incr;
         if mining != 0 {
-            let pct = self.city_rule_effect(
-                city,
-                EffectKind::MiningPct,
-                Some(tile_xy),
-                None,
-                None,
-                celebrating,
-                government,
-                granted,
-            );
+            let pct = context.effect_i32(EffectKind::MiningPct);
             output.shield += mining * pct / 100;
         }
 
@@ -452,18 +437,8 @@ impl Simulation {
                 "shield" => "Shield",
                 _ => "Trade",
             };
-            let effect = |kind| {
-                self.city_rule_effect(
-                    city,
-                    kind,
-                    Some(tile_xy),
-                    Some(output_type),
-                    None,
-                    celebrating,
-                    government,
-                    granted,
-                )
-            };
+            context = context.with_output_type(output_type);
+            let effect = |kind| context.effect_i32(kind);
             let mut value = output.get(output_name) + effect(EffectKind::OutputAddTile);
             if value > 0 {
                 let penalty_threshold = effect(EffectKind::OutputPenaltyTile);

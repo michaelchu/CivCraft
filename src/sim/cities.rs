@@ -902,7 +902,15 @@ impl Simulation {
         government: Government,
     ) -> (i32, i32, i32) {
         let celebrating = self.base_city_celebrating(city);
-        self.c2c3_city_tile_yields(city, x, y, is_center, celebrating, granted, government)
+        self.c2c3_city_tile_yields(
+            city,
+            (x, y),
+            self.tile(x, y),
+            is_center,
+            celebrating,
+            granted,
+            government,
+        )
     }
 
     pub(super) fn city_yields_with_tech(
