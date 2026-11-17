@@ -1,7 +1,5 @@
 # CivCraft
 
-[![codecov](https://codecov.io/gh/michaelchu/CivCraft/branch/main/graph/badge.svg)](https://codecov.io/gh/michaelchu/CivCraft)
-
 CivCraft is an offline strategy game written in Rust. Its gameplay rules are
 based on Freeciv, with Civilization III: Conquests graphics. Choose from the
 full roster of 31 civilizations:
