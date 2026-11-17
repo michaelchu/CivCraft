@@ -603,6 +603,49 @@ mod tests {
     }
 
     #[test]
+    fn leader_action_view_offers_complete_production_only_where_legal() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        game.cities.clear();
+        game.players[HUMAN].known = Tech::all().collect();
+        game.create_city(HUMAN, 20, 24);
+        let city = game.cities[0].id;
+        let leader = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+        game.refresh_visibility();
+        let offered = |game: &Simulation| {
+            game.unit_action_view(leader)
+                .unwrap()
+                .cities
+                .iter()
+                .any(|entry| entry.id == city && entry.can_complete_production)
+        };
+
+        game.cities[0].production = Production::Building(Building::PYRAMIDS);
+        game.cities[0].shields = 0;
+        assert!(offered(&game), "a wonder in the Leader's own city");
+
+        game.cities[0].production = Production::Building(Building::COINAGE);
+        assert!(!offered(&game), "Coinage is never offered");
+
+        game.cities[0].production = Production::Unit(UnitKind::Warrior);
+        assert!(!offered(&game), "units are never offered");
+
+        game.cities[0].production = Production::Building(Building::PYRAMIDS);
+        game.tile_mut(20, 24).visible = false;
+        assert!(!offered(&game), "a city hidden by fog is not offered");
+        game.tile_mut(20, 24).visible = true;
+
+        assert!(game.apply(Command::CompleteProduction {
+            unit_id: leader,
+            city_id: city,
+        }));
+        assert!(
+            game.unit_action_view(leader).is_none(),
+            "the Leader is used up"
+        );
+    }
+
+    #[test]
     fn minimap_city_projection_resolves_owner_civilization_identity() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.create_city(HUMAN, 20, 24);
