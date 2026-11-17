@@ -18,9 +18,10 @@ use std::{
 };
 
 mod schema;
-use schema::{LegacyAiMap, LegacyCampaign, SavedCampaign};
+use schema::{LegacyAiMap, LegacyCampaign, SavedCampaign, SavedCampaignV2A};
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x29";
+const HEADER: &[u8] = b"CIVCRAFT\0\x2A";
+const V29_HEADER: &[u8] = b"CIVCRAFT\0\x29";
 const V28_HEADER: &[u8] = b"CIVCRAFT\0\x28";
 const PACKED_LEGACY_HEADER: &[u8] = b"CIVCRAFT\0\x27";
 const LEGACY_HEADER: &[u8] = b"CIVCRAFT\0\x26";
@@ -64,9 +65,8 @@ impl Simulation {
 
     pub(in crate::sim) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
         codec(MAX_PAYLOAD)
-            .serialize(&SavedCampaign::from_game(
+            .serialize(&SavedCampaignV2A::from_game(
                 self,
-                (),
                 Cow::Borrowed(&self.observed_map.partial_sites),
             ))
             .map_err(io::Error::other)
@@ -77,7 +77,7 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         let max_payload = match header.as_slice() {
-            HEADER | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
+            HEADER | V29_HEADER | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
             LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
             _ => return Err(invalid("Unsupported CivCraft save format")),
         };
@@ -111,12 +111,20 @@ impl Simulation {
                 let (game, legacy_ai_map, ()) = saved.into_game();
                 (game, None, legacy_ai_map, Default::default())
             }
-            _ => {
+            V29_HEADER => {
                 let saved: SavedCampaign<'_, (), observed_map::PartialCitySites> =
                     codec(max_payload)
                         .deserialize(&payload)
                         .map_err(|error| invalid(error.to_string()))?;
                 let (game, (), partial_sites) = saved.into_game();
+                (game, None, LegacyAiMap::default(), partial_sites)
+            }
+            _ => {
+                let saved: SavedCampaignV2A<'_, observed_map::PartialCitySites> =
+                    codec(max_payload)
+                        .deserialize(&payload)
+                        .map_err(|error| invalid(error.to_string()))?;
+                let (game, partial_sites) = saved.into_game();
                 (game, None, LegacyAiMap::default(), partial_sites)
             }
         };

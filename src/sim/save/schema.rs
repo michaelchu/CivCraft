@@ -22,7 +22,7 @@ pub(super) struct LegacyAiMap(
     #[serde(with = "records::map")] pub(super) BTreeMap<(usize, usize), MapObservation>,
 );
 
-// Field order is part of the 0x26 through 0x29 wire formats. Make a
+// Field order is part of the 0x26 through 0x2A wire formats. Make a
 // version-specific type if a future version changes any existing payload.
 #[derive(Serialize, Deserialize)]
 struct SavedCore<'a> {
@@ -108,6 +108,36 @@ pub(super) struct SavedCampaign<'a, A, S> {
     ai: SavedAi<'a, A>,
     world: SavedWorld<'a>,
     partial_sites: S,
+}
+
+/// Format 0x2A: the 0x29 payload followed by the ids of units that have
+/// already created a Great Leader. Appending keeps every earlier layout valid.
+#[derive(Serialize, Deserialize)]
+pub(super) struct SavedCampaignV2A<'a, S> {
+    campaign: SavedCampaign<'a, (), S>,
+    created_leader: Vec<u32>,
+}
+
+impl<'a, S> SavedCampaignV2A<'a, S> {
+    pub(super) fn from_game(game: &'a Simulation, partial_sites: S) -> Self {
+        Self {
+            campaign: SavedCampaign::from_game(game, (), partial_sites),
+            created_leader: game
+                .units
+                .iter()
+                .filter(|unit| unit.created_leader)
+                .map(|unit| unit.id)
+                .collect(),
+        }
+    }
+
+    pub(super) fn into_game(self) -> (Simulation, S) {
+        let (mut game, (), partial_sites) = self.campaign.into_game();
+        for unit in &mut game.units {
+            unit.created_leader = self.created_leader.contains(&unit.id);
+        }
+        (game, partial_sites)
+    }
 }
 
 #[derive(Deserialize)]
