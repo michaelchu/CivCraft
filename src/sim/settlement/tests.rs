@@ -41,7 +41,7 @@ fn settlement_island() -> Simulation {
 }
 
 #[test]
-fn founder_can_choose_useful_work_over_a_positive_city_site_and_keeps_committed_missions() {
+fn founder_ignores_useful_terrain_work_and_pursues_the_city_site() {
     let mut game = settlement_island();
     game.create_city(1, 12, 24);
     game.tile_mut(12, 24).pollution = true;
@@ -49,13 +49,13 @@ fn founder_can_choose_useful_work_over_a_positive_city_site_and_keeps_committed_
     let id = game.spawn_unit(1, UnitKind::Settler, 12, 24);
     let founder = game.unit_by_id(id).unwrap().clone();
     let (destination, _, city_want) = game.best_city_site(&founder).unwrap();
-    let improvement = game.worker_improvement_want(&founder);
     assert!(city_want > 0.0);
-    assert!(improvement > city_want as f32);
+    // Settlers only found cities, so cleanup never outranks the city site.
+    assert!(!founder.kind.stats().can_work);
 
     let mut committed = game.clone();
     committed.reserve_settlement_site(&founder, destination);
-    assert!(committed.run_ai_founder_with_improvement(&founder, improvement));
+    assert!(committed.run_ai_founder_with_improvement(&founder, 0.0));
     assert!(
         committed
             .ai_settlement_targets
@@ -68,10 +68,9 @@ fn founder_can_choose_useful_work_over_a_positive_city_site_and_keeps_committed_
     );
 
     game.run_ai_founder(&founder);
-    assert!(!game.ai_settlement_targets.contains_key(&id));
-    assert_eq!(game.cities.len(), 1);
-    assert_eq!(
-        game.unit_by_id(id).unwrap().work_kind,
+    assert!(game.ai_settlement_targets.contains_key(&id) || game.cities.len() > 1);
+    assert_ne!(
+        game.unit_by_id(id).and_then(|unit| unit.work_kind),
         Some(WorkKind::Clean(Contamination::Pollution))
     );
 }

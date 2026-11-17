@@ -575,6 +575,43 @@ mod tests {
     }
 
     #[test]
+    fn settlers_found_and_explore_while_workers_keep_terrain_work() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.units.clear();
+        sim.cities.clear();
+        for tile in &mut sim.tiles {
+            tile.terrain = Terrain::Grassland;
+            tile.visible = true;
+        }
+        let settler = sim.spawn_unit(HUMAN, UnitKind::Settler, 12, 24);
+        let worker = sim.spawn_unit(HUMAN, UnitKind::Worker, 14, 24);
+
+        let view = sim.unit_action_view(settler).unwrap();
+        assert!(view.found_city.is_some());
+        assert!(view.automate && !view.worker, "Settlers explore, not work");
+        assert!(view.road_action.is_none());
+        assert!(view.irrigation_action.is_none());
+        assert!(view.mine_action.is_none());
+        assert!(view.terrain_work.is_empty());
+
+        let view = sim.unit_action_view(worker).unwrap();
+        assert!(view.found_city.is_none());
+        assert!(view.worker);
+        assert!(view.road_action.is_some());
+        assert!(view.irrigation_action.is_some());
+        assert!(view.mine_action.is_some());
+
+        // Exploring never founds a city.
+        sim.units
+            .iter_mut()
+            .find(|u| u.id == settler)
+            .unwrap()
+            .automated = true;
+        sim.run_automated_unit(settler);
+        assert!(sim.cities.is_empty());
+    }
+
+    #[test]
     fn government_projection_carries_rates_cap_and_lock() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         let player = &sim.players[HUMAN];

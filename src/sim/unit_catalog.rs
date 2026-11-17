@@ -123,6 +123,8 @@ mod tests {
         assert!(marine.has_marine_attack());
         assert!(UnitKind::Settler.stats().can_found);
         assert!(UnitKind::Worker.stats().can_work);
+        // Project decision: Settlers only found cities; they do not improve terrain.
+        assert!(!UnitKind::Settler.stats().can_work);
         assert_eq!(UnitKind::Transport.transport_capacity(), 6);
         assert!(UnitKind::Fighter.is_aircraft());
         assert_eq!(UnitKind::CruiseMissile.bombard_rate(), 3);

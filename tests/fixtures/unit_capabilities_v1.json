@@ -1,5 +1,5 @@
 [
-{"id": "settler", "capabilities": ["Fortify", "Embark", "FoundCity", "JoinCity", "Worker"], "ai_strategy_mask": 8192, "domain": 0},
+{"id": "settler", "capabilities": ["Fortify", "Embark", "FoundCity", "JoinCity"], "ai_strategy_mask": 8192, "domain": 0},
 {"id": "worker", "capabilities": ["Fortify", "Embark", "Airlift", "BuildFortress", "JoinCity", "Worker"], "ai_strategy_mask": 4096, "domain": 0},
 {"id": "scout", "capabilities": ["Fortify", "Embark"], "ai_strategy_mask": 8, "domain": 0},
 {"id": "explorer", "capabilities": ["IgnoreTerrain", "Fortify", "Embark"], "ai_strategy_mask": 8, "domain": 0},

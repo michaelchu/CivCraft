@@ -351,7 +351,9 @@ impl Simulation {
             .filter(|u| {
                 u.moves_left > 0
                     && if self.players[owner].ai {
-                        u.kind.is_worker()
+                        // Settlers are driven here too (settler_run), though
+                        // they cannot do terrain work themselves.
+                        u.kind.is_worker() || u.kind.stats().can_found
                     } else {
                         u.automated && u.kind.is_worker()
                     }
