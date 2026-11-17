@@ -94,10 +94,12 @@ impl Simulation {
 
         let mut sold_any = false;
         for city_id in sellers {
-            if self.ai_projected_income(owner) >= -self.players[owner].gold {
-                break;
+            if self.ai_sell_city_building(owner, city_id, false) {
+                sold_any = true;
+                if self.ai_projected_income(owner) >= -self.players[owner].gold {
+                    break;
+                }
             }
-            sold_any |= self.ai_sell_city_building(owner, city_id, false);
         }
         sold_any
     }
@@ -123,20 +125,7 @@ impl Simulation {
                     income += city.shields + forecast.shield_surplus();
                 }
             }
-            match style {
-                crate::sim::economy::ruleset::GoldUpkeepStyle::City => {
-                    income -= forecast.support.gold;
-                }
-                crate::sim::economy::ruleset::GoldUpkeepStyle::Mixed
-                | crate::sim::economy::ruleset::GoldUpkeepStyle::Nation => {
-                    income -= self
-                        .city_gold_upkeep(city)
-                        .paid
-                        .iter()
-                        .map(|(_, upkeep)| upkeep)
-                        .sum::<i32>();
-                }
-            }
+            income -= forecast.support.gold;
         }
         if style != crate::sim::economy::ruleset::GoldUpkeepStyle::City {
             income -= self

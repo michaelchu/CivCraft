@@ -3,6 +3,7 @@
 Start here for the project’s current sources of truth:
 
 - [`FREECIV_GAMEPLAY_PORT_PLAN.md`](FREECIV_GAMEPLAY_PORT_PLAN.md) — gameplay scope, status, and validation ledger.
+- [Freeciv AI algorithm audit](FREECIV_AI_ALGORITHM_AUDIT.md) — measured late-game costs, source comparisons, and open efficiency gaps.
 - [`FREECIV_GAMEPLAY_PORT_MAINTENANCE.md`](FREECIV_GAMEPLAY_PORT_MAINTENANCE.md) — maintaining the port and its provenance.
 - [`HEADLESS_ANALYTICS.md`](HEADLESS_ANALYTICS.md) — headless scenarios, tracing, and analytics.
 - [`CIV3_ASSET_RETRIEVAL_RECONCILIATION.md`](CIV3_ASSET_RETRIEVAL_RECONCILIATION.md) — restored media resolver plan and implementation status.

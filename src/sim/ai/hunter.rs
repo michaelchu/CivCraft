@@ -217,7 +217,7 @@ impl Simulation {
         let mut map = crate::sim::normal_paths::NormalPaths::enemy_map(self, hunter);
         // Native PF order, then native tile-list order; this is deliberately
         // the FIRST worthwhile stack, rather than the globally richest stack.
-        for (x, y) in map.reachable_within(self, limit) {
+        for (x, y, distance) in map.reachable_within(self, limit) {
             if self.cities.iter().any(|city| (city.x, city.y) == (x, y))
                 || self
                     .tile_units_ordered(x, y)
@@ -225,7 +225,6 @@ impl Simulation {
             {
                 continue;
             }
-            let distance = map.movement_cost(self, x, y)?;
             for target in self.tile_units_ordered(x, y) {
                 if !self.advisor_player_dangerous(hunter.owner, target.owner)
                     || claimed.contains(&target.id)

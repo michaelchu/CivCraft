@@ -266,8 +266,9 @@ impl Simulation {
             // goal cost includes its still-unknown prerequisites. The source
             // overwrites (not sums) costs for multi-tech requirements.
             let tech_cost = *tech_costs[index].get_or_insert_with(|| {
-                self.research_path(city.owner, tech)
-                    .into_iter()
+                self.shared_research_path(city.owner, tech)
+                    .iter()
+                    .copied()
                     .map(|required| self.target_cost(city.owner, required))
                     .sum::<i32>()
                     / 4

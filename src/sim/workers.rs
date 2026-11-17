@@ -249,16 +249,16 @@ impl Simulation {
         requests: &mut Vec<WorkerRequest>,
         depth: usize,
     ) {
-        if depth > 5 && (depth as f64) > self.units.len() as f64 * 1.5 {
+        let Some(mut actor) = self.unit_by_id(id).cloned() else {
+            return;
+        };
+        if depth > 5 && depth * 2 > self.units_owned_by(actor.owner).count() * 3 {
             state.orders.remove(&id);
             state.reservations.retain(|_, (worker, _)| *worker != id);
             self.ai_worker_tasks.remove(&id);
             self.unit_goto_tiles.remove(&id);
             return;
         }
-        let Some(mut actor) = self.unit_by_id(id).cloned() else {
-            return;
-        };
         if actor.transport.is_some() {
             return;
         }
@@ -361,7 +361,13 @@ impl Simulation {
             .map(|u| u.id)
             .collect();
         let mut state = WorkMap::default();
+        self.founder_phase = true;
+        let mut city_count = self.cities.len();
         for &id in &workers {
+            if self.cities.len() != city_count {
+                city_count = self.cities.len();
+                self.clear_founder_phase_maps();
+            }
             if self.players[owner].ai
                 && let Some(actor) = self
                     .units
@@ -395,6 +401,8 @@ impl Simulation {
             }
             self.run_worker(id, &mut state, requests, 0);
         }
+        self.founder_phase = false;
+        self.clear_founder_phase_maps();
         workers.into_iter().collect()
     }
 

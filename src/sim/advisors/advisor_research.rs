@@ -117,7 +117,15 @@ impl Simulation {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn record_ai_military_tech_wants(&mut self, city: &City) {
+        self.record_ai_military_tech_wants_for_wonder_city(city, self.ai_wonder_city(city.owner));
+    }
+    pub(super) fn record_ai_military_tech_wants_for_wonder_city(
+        &mut self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("advisor.military_tech.counter_defenders");
         for (tech, want) in self.counter_defender_tech_feedback(city) {
@@ -130,7 +138,7 @@ impl Simulation {
         }
         drop(_profile);
         let _profile = profiler.scope("advisor.military_tech.offense");
-        for (tech, want) in self.offensive_advice(city).1 {
+        for (tech, want) in self.offensive_advice_for_wonder_city(city, wonder_city).1 {
             self.add_ai_tech_want(city.owner, tech, want);
         }
         drop(_profile);
@@ -384,25 +392,44 @@ impl Simulation {
                     && requirement.range == RequirementRange::Local
             })
             .collect();
+        let mut spatial = self.ai_spatial_index.borrow_mut();
+        let mut uncached = std::collections::BTreeMap::new();
+        let cache = if self.ai_advisor_cache_enabled.get() {
+            &mut spatial.unit_class_totals
+        } else {
+            &mut uncached
+        };
+        let classes = cache.entry(owner).or_insert_with(|| {
+            let mut classes = std::collections::BTreeMap::new();
+            for unit in self.units_owned_by(owner) {
+                let class = super::super::action_rules::freeciv_unit_class_rule_name(unit.kind);
+                *classes.entry(class).or_default() += 1;
+            }
+            classes
+        });
         if class_requirements.is_empty() {
-            return Some(self.units.iter().filter(|unit| unit.owner == owner).count() as i32);
+            return Some(classes.values().sum());
         }
-
         let mut count = 0;
-        for unit in self.units.iter().filter(|unit| unit.owner == owner) {
-            let class = super::super::action_rules::freeciv_unit_class_rule_name(unit.kind)?;
-            let matches = class_requirements.iter().all(|requirement| {
+        for (class, units) in classes.iter() {
+            let class = class.as_ref()?;
+            if class_requirements.iter().all(|requirement| {
                 let RequirementValue::String(name) = &requirement.name else {
                     return false;
                 };
                 class.eq_ignore_ascii_case(name) == requirement.present
-            });
-            count += i32::from(matches);
+            }) {
+                count += units;
+            }
         }
         Some(count)
     }
 
     pub(in crate::sim) fn record_ai_tech_effect_wants(&mut self, owner: usize) {
+        self.ai_spatial_index
+            .get_mut()
+            .unit_class_totals
+            .remove(&owner);
         let cities: Vec<_> = self.player_cities_ordered(owner).cloned().collect();
         let baselines = cities
             .iter()

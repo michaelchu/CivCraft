@@ -332,24 +332,24 @@ impl Simulation {
         // are land cities, so CivCraft's connected-land labels provide that
         // grouping. The Civ III unit catalog determines which units have the
         // worker role; Settlers remain founders only.
-        let labels = self.advisor_continent_labels();
+        let (labels, counts) = worker_cache.worker_demographics.get_or_insert_with(|| {
+            let labels = self.advisor_continent_labels();
+            let mut counts = std::collections::BTreeMap::new();
+            for city in &self.cities {
+                let place = labels[self.map_wrap.index(city.x, city.y)];
+                counts.entry((city.owner, place)).or_insert((0, 0)).1 += 1;
+            }
+            for worker in self.units.iter().filter(|u| u.kind.is_worker()) {
+                let place = labels[self.map_wrap.index(worker.x, worker.y)];
+                counts.entry((worker.owner, place)).or_insert((0, 0)).0 += 1;
+            }
+            (labels, counts)
+        });
         let place = labels[self.map_wrap.index(city.x, city.y)];
-        let workers = self
-            .units
-            .iter()
-            .filter(|unit| {
-                unit.owner == city.owner
-                    && unit.kind.is_worker()
-                    && labels[self.map_wrap.index(unit.x, unit.y)] == place
-            })
-            .count() as i32;
-        let cities = self
-            .cities
-            .iter()
-            .filter(|other| {
-                other.owner == city.owner && labels[self.map_wrap.index(other.x, other.y)] == place
-            })
-            .count() as i32;
+        let (workers, cities) = counts
+            .get(&(city.owner, place))
+            .copied()
+            .unwrap_or_default();
         want /= (workers / (cities + 1)).max(1);
         want = (want - workers).max(0);
         (want > 0).then_some((kind, f64::from(want)))
@@ -729,14 +729,7 @@ impl Simulation {
 
     /// Shared native stages preceding the sea/land offensive callbacks.
     /// Returns (current choice, immediate return, severe-defense return).
-    pub(in crate::sim) fn pre_offensive_military_advice(
-        &self,
-        city: &City,
-    ) -> (Option<AiBuildChoice>, bool, bool) {
-        self.pre_offensive_military_advice_with_wonder_city(city, self.ai_wonder_city(city.owner))
-    }
-
-    fn pre_offensive_military_advice_with_wonder_city(
+    pub(in crate::sim) fn pre_offensive_military_advice_with_wonder_city(
         &self,
         city: &City,
         wonder_city: Option<u32>,
@@ -905,7 +898,7 @@ impl Simulation {
                 continue;
             };
             let _profile = profiler.scope("advisor.build.military_tech_wants");
-            self.record_ai_military_tech_wants(&city);
+            self.record_ai_military_tech_wants_for_wonder_city(&city, wonder_city);
             drop(_profile);
             if let Some(choice) =
                 self.ai_build_choice_with_worker_cache(&city, wonder_city, &mut worker_cache)

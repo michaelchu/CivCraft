@@ -124,12 +124,10 @@ impl Simulation {
                 let valid = owner.is_some_and(|owner| match target {
                     GuardTarget::Unit(id) => {
                         id != guard
-                            && self.units.iter().any(|u| u.id == id && u.owner == owner)
+                            && self.unit_by_id(id).is_some_and(|u| u.owner == owner)
                             && self.ai_guard_state(id) == GuardState::Assigned(guard)
                     }
-                    GuardTarget::City(id) => {
-                        self.cities.iter().any(|c| c.id == id && c.owner == owner)
-                    }
+                    GuardTarget::City(id) => self.city_by_id(id).is_some_and(|c| c.owner == owner),
                 });
                 (!valid).then_some(guard)
             })
@@ -489,23 +487,33 @@ impl Simulation {
             }
             let mut best = None;
             let mut best_want = 0;
-            for enemy in self
+            let enemies: Vec<_> = self
                 .units
                 .iter()
-                .filter(|u| self.at_war(actor.owner, u.owner))
-            {
+                .filter(|enemy| {
+                    self.at_war(actor.owner, enemy.owner)
+                        && (actor.x, actor.y) != (enemy.x, enemy.y)
+                })
+                .collect();
+            if enemies.is_empty() {
+                return true;
+            }
+            let goals: Vec<_> = enemies
+                .iter()
+                .map(|enemy| self.map_wrap.index(enemy.x, enemy.y))
+                .collect();
+            let (_, previous, expanded) =
+                self.search_route_graph_map(&actor, &goals, actor.moves_left, false, true);
+            let previous = previous.expect("rampage search requests paths");
+            self.trace.count_operation("rampage.searches", 1);
+            self.trace
+                .count_operation("rampage.tiles_expanded", expanded);
+            for (enemy, goal) in enemies.into_iter().zip(goals) {
                 let target = (enemy.x, enemy.y);
-                if self.best_defender_id(&actor, target.0, target.1) != Some(enemy.id)
+                if previous[goal].is_none()
+                    || self.best_defender_id(&actor, target.0, target.1) != Some(enemy.id)
                     || !self.ground_attack_is_my_turn(&actor, enemy)
                 {
-                    continue;
-                }
-                let Some((path, _)) =
-                    self.search_route(&actor, target.0, target.1, false, actor.moves_left)
-                else {
-                    continue;
-                };
-                if path.is_empty() {
                     continue;
                 }
                 let vulnerable = !self.cities.iter().any(|c| (c.x, c.y) == target)
@@ -546,11 +554,14 @@ impl Simulation {
                     movement_threshold
                 };
                 if desire > threshold && desire > best_want {
-                    best = Some(path);
+                    best = Some(goal);
                     best_want = desire;
                 }
             }
-            let Some(path) = best else {
+            let start = self.map_wrap.index(actor.x, actor.y);
+            let Some(path) =
+                best.and_then(|goal| super::pathfinding::reconstruct_path(&previous, start, goal))
+            else {
                 return true;
             };
             self.follow_civ3_path(id, path);

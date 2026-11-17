@@ -24,6 +24,9 @@ impl Simulation {
     }
 
     pub(crate) fn cargo_count(&self, carrier: u32) -> usize {
+        if self.list_order.planning_active() {
+            return self.cargo_order.get(&carrier).map_or(0, Vec::len);
+        }
         self.units
             .iter()
             .filter(|unit| unit.transport == Some(carrier))

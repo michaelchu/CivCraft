@@ -110,7 +110,16 @@ impl super::Simulation {
         })
     }
 
+    #[cfg(test)]
     pub(super) fn offensive_target(&self, city: &City, seed: &Unit) -> Option<OffensiveTarget> {
+        self.offensive_target_with_assignments(city, seed, &self.assigned_attack_strength(seed))
+    }
+    pub(super) fn offensive_target_with_assignments(
+        &self,
+        city: &City,
+        seed: &Unit,
+        assigned: &std::collections::HashMap<u32, (i32, i32)>,
+    ) -> Option<OffensiveTarget> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("offense.target_search");
         self.trace.count_operation("offensive.target_searches", 1);
@@ -175,7 +184,7 @@ impl super::Simulation {
                 let mut benefit = defender
                     .as_ref()
                     .map_or(0.0, |d| d.kind.stats().cost as f32);
-                let (helper, helper_cost) = self.offensive_helpers(seed, enemy);
+                let (helper, helper_cost) = self.offensive_helpers(seed, enemy, assigned);
                 let (invaders, occupiers) =
                     invasion_support.get(&enemy.id).copied().unwrap_or_default();
                 let victims = self.tile_units_ordered(enemy.x, enemy.y).count() as i32;

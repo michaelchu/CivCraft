@@ -384,7 +384,10 @@ impl Simulation {
         }
         for &(requirement, present) in building.data().obsolete {
             if let (Requirement::Tech(index), true) = (requirement, present) {
-                let remaining = self.research_path(city.owner, Tech(index)).len().max(1);
+                let remaining = self
+                    .shared_research_path(city.owner, Tech(index))
+                    .len()
+                    .max(1);
                 want -= want / remaining as f64;
             }
         }
@@ -426,7 +429,7 @@ impl Simulation {
                 .map(|(tech, value)| {
                     value
                         .min(65)
-                        .min(self.research_path(city.owner, tech).len() as i32 * 10)
+                        .min(self.shared_research_path(city.owner, tech).len() as i32 * 10)
                 })
                 .unwrap_or(0)
         } else {

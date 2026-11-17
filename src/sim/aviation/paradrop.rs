@@ -277,8 +277,10 @@ impl Simulation {
 
         let mut best = None;
         let mut best_value = 0.0;
-        for (index, _) in self.tiles.iter().enumerate() {
-            let (x, y) = self.map_wrap.position(index);
+        let range = selected_paratroopers_range(unit.kind).unwrap_or(0);
+        let mut candidates = self.map_wrap.civ3_radius(unit.x, unit.y, range);
+        candidates.sort_unstable_by_key(|&(x, y, _)| self.map_wrap.index(x, y));
+        for (x, y, _) in candidates {
             if !empty(x, y)
                 || !self.paradrop_tile_legal(&unit, x, y)
                 || self

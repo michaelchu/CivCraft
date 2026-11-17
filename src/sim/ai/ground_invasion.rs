@@ -233,7 +233,13 @@ impl Simulation {
             })
             .cloned()
             .collect();
+        let production = std::cell::OnceCell::new();
+        let mut threatened = std::collections::HashMap::new();
         for unit in actors {
+            if reserved.contains(&unit.id) {
+                self.ai_ground_targets.remove(&unit.id);
+                continue;
+            }
             let guarding = self.cities.iter().any(|c| {
                 c.owner == owner
                     && (c.x, c.y) == (unit.x, unit.y)
@@ -245,13 +251,23 @@ impl Simulation {
                         })
                         .count()
                         <= 1
-                        || self.city_threats(c).next().is_some())
+                        || *threatened
+                            .entry(c.id)
+                            .or_insert_with(|| self.city_threats(c).next().is_some()))
             });
-            if reserved.contains(&unit.id) || guarding {
+            if guarding {
                 self.ai_ground_targets.remove(&unit.id);
                 continue;
             }
-            if let Some(target) = self.ground_city_attack_choice(&unit) {
+            let (outputs, average) = production.get_or_init(|| {
+                let outputs: std::collections::HashMap<_, _> = self
+                    .cities_owned_by(owner)
+                    .map(|city| (city.id, self.city_forecast(city).shield_surplus()))
+                    .collect();
+                let average = outputs.values().sum::<i32>() / outputs.len().max(1) as i32;
+                (outputs, average)
+            });
+            if let Some(target) = self.ground_city_attack_choice(&unit, outputs, *average) {
                 self.ai_ground_targets.insert(unit.id, target);
             } else {
                 self.ai_ground_targets.remove(&unit.id);
@@ -267,21 +283,23 @@ impl Simulation {
         };
         let own = rating(actor);
         let own_defense = self.defense_power_against(defender, defender.x, defender.y, actor.kind);
-        for other in self.units.iter().filter(|u| {
-            u.id != actor.id
-                && u.owner == actor.owner
-                && u.moves_left > 0
-                && u.kind.is_military()
-                && !u.kind.is_aircraft()
-                && !u.kind.is_naval()
-                && (u.transport.is_none() || u.kind.has_marine_attack())
-                && self
-                    .map_wrap
-                    .civ3_distance(u.x, u.y, defender.x, defender.y)
-                    <= 1
-                && !self.treaty_blocks_move(u, defender.x, defender.y)
-                && self.best_defender_id(u, defender.x, defender.y).is_some()
-        }) {
+        for other in self
+            .map_wrap
+            .civ3_radius(defender.x, defender.y, 1)
+            .into_iter()
+            .flat_map(|(x, y, _)| self.tile_units_ordered(x, y))
+            .filter(|u| {
+                u.id != actor.id
+                    && u.owner == actor.owner
+                    && u.moves_left > 0
+                    && u.kind.is_military()
+                    && !u.kind.is_aircraft()
+                    && !u.kind.is_naval()
+                    && (u.transport.is_none() || u.kind.has_marine_attack())
+                    && !self.treaty_blocks_move(u, defender.x, defender.y)
+                    && self.best_defender_id(u, defender.x, defender.y).is_some()
+            })
+        {
             let defense = self.defense_power_against(defender, defender.x, defender.y, other.kind);
             if defense == 0 {
                 return true;
@@ -371,21 +389,18 @@ impl Simulation {
         }
     }
 
-    pub(super) fn ground_city_attack_choice(&self, unit: &Unit) -> Option<u32> {
+    pub(super) fn ground_city_attack_choice(
+        &self,
+        unit: &Unit,
+        outputs: &std::collections::HashMap<u32, i32>,
+        average: i32,
+    ) -> Option<u32> {
         let mut best = None;
         let mut best_value = 0.0;
-        let production: Vec<_> = self
-            .cities
-            .iter()
-            .filter(|city| city.owner == unit.owner)
-            .map(|city| self.city_forecast(city).shield_surplus())
-            .collect();
-        let average = production.iter().sum::<i32>() / production.len().max(1) as i32;
-        let output = self
-            .cities
-            .iter()
-            .find(|city| Some(city.id) == unit.home_city)
-            .map_or(1, |city| self.city_forecast(city).shield_surplus())
+        let output = unit
+            .home_city
+            .and_then(|id| outputs.get(&id).copied())
+            .unwrap_or(1)
             .max(average)
             .max(1);
         let rating = |actor: &Unit| {
@@ -403,6 +418,7 @@ impl Simulation {
             .collect();
         let invasion = self.invasion_support_many(unit.owner, &targets, unit.id);
         let destinations: Vec<_> = targets.iter().map(|city| (city.x, city.y)).collect();
+        let assigned = self.assigned_attack_strength(unit);
         let route_costs = self.route_costs_to_many(unit, &destinations);
         for (city, route_cost) in targets.into_iter().zip(route_costs) {
             let Some(cost) = route_cost else {
@@ -426,7 +442,7 @@ impl Simulation {
             if turns > 10 {
                 continue;
             }
-            let (helper_attack, helper_cost) = self.offensive_helpers(unit, city);
+            let (helper_attack, helper_cost) = self.offensive_helpers(unit, city, &assigned);
             let attack = rating(unit) + helper_attack;
             let attack = f64::from(attack).powi(2);
             let loss = unit.kind.stats().cost + helper_cost;

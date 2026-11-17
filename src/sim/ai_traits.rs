@@ -6,6 +6,20 @@ use crate::rules::engine_rules::RulesetData;
 /// values use the selected ruleset's `*_default` (or its default midpoint).
 /// CivCraft currently has no Freeciv nation-specific trait overrides.
 pub(super) fn fixed_default(trait_name: &str) -> i32 {
+    use std::sync::OnceLock;
+    static BUILDER: OnceLock<i32> = OnceLock::new();
+    static EXPANSIONIST: OnceLock<i32> = OnceLock::new();
+    static AGGRESSIVE: OnceLock<i32> = OnceLock::new();
+    let cached = match trait_name {
+        "builder" => &BUILDER,
+        "expansionist" => &EXPANSIONIST,
+        "aggressive" => &AGGRESSIVE,
+        _ => return read_default(trait_name),
+    };
+    *cached.get_or_init(|| read_default(trait_name))
+}
+
+fn read_default(trait_name: &str) -> i32 {
     let rules = RulesetData::campaign_default();
     let read = |suffix: &str| -> Option<i32> {
         let key = format!("{trait_name}_{suffix}");

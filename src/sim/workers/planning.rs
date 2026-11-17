@@ -141,6 +141,11 @@ struct WorkerTileValueCache {
     road_then_rail: Option<f32>,
 }
 
+type WorkerDemographics = (
+    std::sync::Arc<[usize]>,
+    BTreeMap<(usize, usize), (i32, i32)>,
+);
+
 #[derive(Default)]
 pub(in crate::sim) struct WorkMap {
     // This is native's calloc-per-phase workermap, not save-game state.
@@ -150,6 +155,7 @@ pub(in crate::sim) struct WorkMap {
     // once for an auto-worker pass. Routing, arrival and reservations remain
     // worker-specific, while these yield projections are shared by every real
     // or virtual worker considered in the phase.
+    pub(in crate::sim) worker_demographics: Option<WorkerDemographics>,
     infrastructure: BTreeMap<u32, Vec<WorkerTileValueCache>>,
     // Work action eligibility and terrain projection depend on player, unit
     // type, tile, and activity. This cache is phase-local and is invalidated

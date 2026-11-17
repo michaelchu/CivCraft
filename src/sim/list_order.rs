@@ -10,6 +10,8 @@ pub(super) struct ListOrder {
     cities: BTreeMap<u32, CityOrder>,
     #[serde(skip)]
     tile_revision: u64,
+    #[serde(skip)]
+    membership: Option<PlanningMembership>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -26,14 +28,105 @@ struct CityOrder {
     player: u64,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct PlanningMembership {
+    tiles: BTreeMap<(i32, i32), Vec<u32>>,
+    owners: BTreeMap<usize, Vec<u32>>,
+    cities: BTreeMap<usize, Vec<u32>>,
+    city_tiles: BTreeMap<(i32, i32), u32>,
+}
+
 impl ListOrder {
+    pub(super) fn begin_planning(&mut self, units: &[Unit], cities: &[City]) {
+        let mut membership = PlanningMembership::default();
+        for unit in units {
+            membership
+                .tiles
+                .entry((unit.x, unit.y))
+                .or_default()
+                .push(unit.id);
+            membership
+                .owners
+                .entry(unit.owner)
+                .or_default()
+                .push(unit.id);
+        }
+        for (tile, ids) in &mut membership.tiles {
+            ids.sort_by_key(|id| {
+                std::cmp::Reverse(
+                    self.units
+                        .get(id)
+                        .filter(|order| order.tile == *tile)
+                        .map_or((true, u64::from(*id)), |order| (false, order.arrival)),
+                )
+            });
+        }
+        for (owner, ids) in &mut membership.owners {
+            ids.sort_by_key(|id| {
+                std::cmp::Reverse(
+                    self.units
+                        .get(id)
+                        .filter(|order| order.owner == *owner)
+                        .map_or((true, u64::from(*id)), |order| (false, order.player)),
+                )
+            });
+        }
+        for city in cities {
+            membership
+                .cities
+                .entry(city.owner)
+                .or_default()
+                .push(city.id);
+            membership.city_tiles.insert((city.x, city.y), city.id);
+        }
+        for ids in membership.cities.values_mut() {
+            ids.sort_by_key(|id| std::cmp::Reverse(self.cities[id].player));
+        }
+        self.membership = Some(membership);
+    }
+    pub(super) fn unit_ids_at(&self, x: i32, y: i32) -> Option<&[u32]> {
+        self.membership
+            .as_ref()
+            .map(|m| m.tiles.get(&(x, y)).map_or(&[][..], Vec::as_slice))
+    }
+
+    pub(super) fn city_id_at(&self, x: i32, y: i32) -> Option<u32> {
+        self.membership.as_ref()?.city_tiles.get(&(x, y)).copied()
+    }
+    pub(super) fn planning_active(&self) -> bool {
+        self.membership.is_some()
+    }
+    pub(super) fn end_planning(&mut self) {
+        self.membership = None;
+    }
+
     fn stamp(&mut self) -> u64 {
         self.next = self.next.checked_add(1).expect("entity order exhausted");
         self.next
     }
 
     pub(super) fn unit(&mut self, unit: &Unit) {
-        let Some(old) = self.units.get(&unit.id) else {
+        let previous = self.units.get(&unit.id);
+        if let Some(membership) = &mut self.membership {
+            let tile = (unit.x, unit.y);
+            if previous.is_none_or(|old| old.tile != tile) {
+                if let Some(ids) = previous.and_then(|old| membership.tiles.get_mut(&old.tile)) {
+                    ids.retain(|&id| id != unit.id);
+                }
+                membership.tiles.entry(tile).or_default().insert(0, unit.id);
+            }
+            if previous.is_none_or(|old| old.owner != unit.owner) {
+                if let Some(ids) = previous.and_then(|old| membership.owners.get_mut(&old.owner)) {
+                    ids.retain(|&id| id != unit.id);
+                }
+                membership
+                    .owners
+                    .entry(unit.owner)
+                    .or_default()
+                    .insert(0, unit.id);
+            }
+        }
+        let Some(old) = previous else {
             let stamp = self.stamp();
             self.tile_revision = self.tile_revision.wrapping_add(1);
             self.units.insert(
@@ -73,6 +166,21 @@ impl ListOrder {
         {
             return;
         }
+        if let Some(membership) = &mut self.membership {
+            if let Some(ids) = self
+                .cities
+                .get(&city.id)
+                .and_then(|old| membership.cities.get_mut(&old.owner))
+            {
+                ids.retain(|&id| id != city.id);
+            }
+            membership
+                .cities
+                .entry(city.owner)
+                .or_default()
+                .insert(0, city.id);
+            membership.city_tiles.insert((city.x, city.y), city.id);
+        }
         let stamp = self.stamp();
         self.cities.insert(
             city.id,
@@ -84,7 +192,15 @@ impl ListOrder {
     }
 
     pub(super) fn forget_unit(&mut self, id: u32) {
-        if self.units.remove(&id).is_some() {
+        if let Some(old) = self.units.remove(&id) {
+            if let Some(membership) = &mut self.membership {
+                if let Some(ids) = membership.tiles.get_mut(&old.tile) {
+                    ids.retain(|&entry| entry != id);
+                }
+                if let Some(ids) = membership.owners.get_mut(&old.owner) {
+                    ids.retain(|&entry| entry != id);
+                }
+            }
             self.tile_revision = self.tile_revision.wrapping_add(1);
         }
     }
@@ -101,10 +217,10 @@ impl ListOrder {
     }
 
     pub(super) fn synchronize(&mut self, units: &[Unit], cities: &[City]) {
-        self.units
-            .retain(|id, _| units.iter().any(|unit| unit.id == *id));
-        self.cities
-            .retain(|id, _| cities.iter().any(|city| city.id == *id));
+        let live_units: BTreeSet<_> = units.iter().map(|unit| unit.id).collect();
+        let live_cities: BTreeSet<_> = cities.iter().map(|city| city.id).collect();
+        self.units.retain(|id, _| live_units.contains(id));
+        self.cities.retain(|id, _| live_cities.contains(id));
         for unit in units {
             self.unit(unit);
         }
@@ -149,6 +265,14 @@ impl Simulation {
 
     pub(super) fn cargo_units_ordered(&self, boat: u32) -> impl Iterator<Item = &Unit> {
         let order = self.cargo_order.get(&boat);
+        if self.list_order.planning_active() {
+            return order
+                .into_iter()
+                .flatten()
+                .filter_map(|id| self.unit_by_id(*id))
+                .collect::<Vec<_>>()
+                .into_iter();
+        }
         let mut cargo: Vec<_> = self
             .units
             .iter()
@@ -248,6 +372,16 @@ impl Simulation {
     }
 
     pub(super) fn player_units_ordered(&self, owner: usize) -> impl Iterator<Item = &Unit> {
+        if let Some(membership) = &self.list_order.membership {
+            return membership
+                .owners
+                .get(&owner)
+                .into_iter()
+                .flatten()
+                .filter_map(|id| self.unit_by_id(*id))
+                .collect::<Vec<_>>()
+                .into_iter();
+        }
         let mut units: Vec<_> = self
             .units
             .iter()
@@ -267,6 +401,18 @@ impl Simulation {
 
     pub(super) fn tile_units_ordered(&self, x: i32, y: i32) -> impl Iterator<Item = &Unit> {
         self.trace.count_operation("tile_units_ordered.calls", 1);
+        if let Some(membership) = &self.list_order.membership {
+            self.trace
+                .count_operation("tile_units_ordered.index_hits", 1);
+            return membership
+                .tiles
+                .get(&(x, y))
+                .into_iter()
+                .flatten()
+                .filter_map(|id| self.unit_by_id(*id))
+                .collect::<Vec<_>>()
+                .into_iter();
+        }
         let indexed_units = if self.ai_advisor_cache_enabled.get() {
             let tile_index = self.map_wrap.index(x, y);
             let spatial = self.ai_spatial_index.borrow();
@@ -311,6 +457,16 @@ impl Simulation {
     }
 
     pub(super) fn player_cities_ordered(&self, owner: usize) -> impl Iterator<Item = &City> {
+        if let Some(membership) = &self.list_order.membership {
+            return membership
+                .cities
+                .get(&owner)
+                .into_iter()
+                .flatten()
+                .filter_map(|id| self.city_by_id(*id))
+                .collect::<Vec<_>>()
+                .into_iter();
+        }
         let mut cities: Vec<_> = self
             .cities
             .iter()
@@ -366,6 +522,28 @@ mod tests {
     fn cargo_appends_on_boarding_and_reboarding_independently_of_unit_creation() {
         let mut game = Simulation::new(crate::mapgen::generate(42));
         assert!(game.native_cargo_order_playtest());
+    }
+
+    #[test]
+    fn planning_membership_tracks_arrivals_and_transfers_in_native_order() {
+        let mut game = city_activity_order_game();
+        game.sync_list_order();
+        game.list_order.begin_planning(&game.units, &game.cities);
+        let first = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+        let second = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+        assert_eq!(
+            game.list_order.unit_ids_at(10, 24),
+            Some(&[second, first][..])
+        );
+        let index = game.unit_index_by_id(first).unwrap();
+        game.units[index].owner = 1;
+        game.units[index].x = 11;
+        game.list_order.unit(&game.units[index]);
+        assert_eq!(game.list_order.unit_ids_at(10, 24), Some(&[second][..]));
+        assert_eq!(game.player_units_ordered(1).next().unwrap().id, first);
+        assert_eq!(game.list_order.unit_ids_at(11, 24), Some(&[first][..]));
+        game.list_order.forget_unit(first);
+        assert!(game.list_order.unit_ids_at(11, 24).unwrap().is_empty());
     }
 
     #[test]

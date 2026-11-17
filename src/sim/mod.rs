@@ -280,6 +280,12 @@ pub(crate) struct Simulation {
     ai_ferries: ferries::FerryRegistry,
     ai_government_cache: std::collections::BTreeMap<usize, government::GovernmentAdvisorCache>,
     diplomatic_contact_until: std::collections::BTreeMap<(usize, usize), i32>,
+    research_knowledge: std::cell::RefCell<Vec<research::ResearchKnowledge>>,
+    founder_phase: bool,
+    planning_airfields: std::cell::OnceCell<Vec<(i32, i32)>>,
+    planning_continents: std::cell::OnceCell<std::sync::Arc<[usize]>>,
+    planning_guard_danger:
+        std::cell::RefCell<Option<std::collections::HashMap<u32, advisors::GuardCityAssessment>>>,
     ai_advisor_cache_enabled: std::cell::Cell<bool>,
     ai_threat_route_cache_enabled: std::cell::Cell<bool>,
     ai_threat_arrival_cache:
@@ -304,13 +310,16 @@ struct AdvisorSpatialIndex {
     tile_unit_indices: Option<Vec<Vec<usize>>>,
     tile_unit_revision: u64,
     city_at: Vec<Option<usize>>,
-    continent_labels: Vec<usize>,
+    continent_labels: std::sync::Arc<[usize]>,
+    unit_class_totals:
+        std::collections::BTreeMap<usize, std::collections::BTreeMap<Option<String>, i32>>,
+    average_production: std::collections::BTreeMap<usize, i32>,
     offensive_outputs: std::collections::BTreeMap<u32, i32>,
     offensive_advice: std::collections::BTreeMap<u32, CachedOffensiveAdvice>,
     guard_assessments: std::collections::BTreeMap<u32, advisors::GuardCityAssessment>,
-    research_paths: std::collections::BTreeMap<(usize, usize), Vec<Tech>>,
-    research_eras: std::collections::BTreeMap<usize, crate::rules::TechEra>,
     counter_defenders: std::collections::BTreeMap<(u32, usize), Option<(Tech, bool)>>,
+    settlement_base: Option<Vec<i32>>,
+    settlement_spacing: Option<std::sync::Arc<[bool]>>,
     virtual_city_sites:
         std::collections::BTreeMap<usize, Vec<Option<Option<settlement::CitySite>>>>,
     virtual_city_tile_yields: std::collections::BTreeMap<usize, VirtualCityTileYieldCache>,
@@ -403,6 +412,12 @@ impl Simulation {
     }
     /// Finds the city occupying the given map coordinate.
     pub(crate) fn city_at(&self, x: i32, y: i32) -> Option<&City> {
+        if self.list_order.planning_active() {
+            return self
+                .list_order
+                .city_id_at(x, y)
+                .and_then(|id| self.city_by_id(id));
+        }
         self.cities.iter().find(|city| (city.x, city.y) == (x, y))
     }
     /// Finds the index of the city occupying the given map coordinate.
@@ -585,6 +600,11 @@ impl Simulation {
             ai_ferries: Default::default(),
             ai_government_cache: Default::default(),
             diplomatic_contact_until: Default::default(),
+            research_knowledge: Default::default(),
+            founder_phase: false,
+            planning_airfields: Default::default(),
+            planning_continents: Default::default(),
+            planning_guard_danger: Default::default(),
             ai_advisor_cache_enabled: Default::default(),
             ai_threat_route_cache_enabled: Default::default(),
             ai_threat_arrival_cache: Default::default(),

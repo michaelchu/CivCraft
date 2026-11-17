@@ -88,11 +88,12 @@ impl Simulation {
                     .required_tech()
                     .filter(|&tech| !self.has_tech(city.owner, tech))
                     .and_then(|tech| {
-                        let path = self.research_path(city.owner, tech);
+                        let path = self.shared_research_path(city.owner, tech);
                         (!path.is_empty()).then(|| {
                             (
                                 tech,
-                                path.into_iter()
+                                path.iter()
+                                    .copied()
                                     .map(|required| self.target_cost(city.owner, required))
                                     .sum(),
                             )

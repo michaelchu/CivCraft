@@ -391,3 +391,23 @@ fn completed_ai_tree_continues_with_future_technology() {
     game.players[1].researching = Tech::FUTURE;
     assert_eq!(game.next_ai_research_target(1), Tech::FUTURE);
 }
+
+#[test]
+fn shared_research_paths_follow_gains_and_losses_of_knowledge() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.players[HUMAN].known.clear();
+    let original = game.shared_research_path(HUMAN, Tech::FEUDALISM);
+    assert!(std::sync::Arc::ptr_eq(
+        &original,
+        &game.shared_research_path(HUMAN, Tech::FEUDALISM)
+    ));
+    let first = original[0];
+    game.players[HUMAN].known.push(first);
+    assert!(
+        !game
+            .shared_research_path(HUMAN, Tech::FEUDALISM)
+            .contains(&first)
+    );
+    game.players[HUMAN].known.clear();
+    assert_eq!(game.shared_research_path(HUMAN, Tech::FEUDALISM), original);
+}

@@ -15,7 +15,7 @@ impl Simulation {
             .chain(self.unit_goto_tiles.keys())
             .chain(self.ai_worker_tasks.iter())
             .copied()
-            .filter(|id| !self.units.iter().any(|unit| unit.id == *id))
+            .filter(|id| self.unit_by_id(*id).is_none())
             .collect();
         for id in ids {
             self.discard_unit_ai(id);

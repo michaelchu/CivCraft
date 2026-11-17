@@ -120,7 +120,7 @@ impl Simulation {
         if owner == BARBARIANS {
             return assigned;
         }
-        let labels = self.continent_labels();
+        let labels = std::cell::OnceCell::new();
         let boats: Vec<_> = self
             .units
             .iter()
@@ -148,17 +148,12 @@ impl Simulation {
         }
         for boat in boats {
             let mut best: Option<Pickup> = None;
-            for port in self.cities.iter().filter(|port| {
-                port.owner == owner
-                    && self.naval_city_access(port, boat.kind)
-                    && self.city_threats(port).next().is_none()
-            }) {
+            for port in self
+                .cities
+                .iter()
+                .filter(|port| port.owner == owner && self.naval_city_access(port, boat.kind))
+            {
                 let position = (port.x, port.y);
-                let Some((_, pickup_cost)) =
-                    self.search_route(&boat, port.x, port.y, false, i32::MAX)
-                else {
-                    continue;
-                };
                 let mut troops: Vec<_> = self
                     .units
                     .iter()
@@ -188,6 +183,14 @@ impl Simulation {
                 if troops.is_empty() {
                     continue;
                 }
+                if self.city_threats(port).next().is_some() {
+                    continue;
+                }
+                let Some((_, pickup_cost)) =
+                    self.search_route(&boat, port.x, port.y, false, i32::MAX)
+                else {
+                    continue;
+                };
                 let mut staged = boat.clone();
                 (staged.x, staged.y) = position;
                 let allowance = self.unit_move_rate(&boat).max(1);
@@ -195,9 +198,10 @@ impl Simulation {
                     ((pickup_cost - boat.moves_left).max(0) + allowance - 1) / allowance;
                 staged.moves_left =
                     (boat.moves_left + pickup_turns * allowance - pickup_cost).max(0);
+                let labels = labels.get_or_init(|| self.continent_labels());
                 let origin = labels[self.map_wrap.index(port.x, port.y)];
                 let Some((distance, _, _, _)) =
-                    self.raider_landing(&staged, Some((&labels, origin)), Some(&troops), &[])
+                    self.raider_landing(&staged, Some((labels, origin)), Some(&troops), &[])
                 else {
                     continue;
                 };
@@ -317,7 +321,7 @@ impl Simulation {
             .collect();
         let landing = self.raider_landing(
             boat,
-            origin.map(|region| (labels.as_slice(), region)),
+            origin.map(|region| (labels.as_ref(), region)),
             (boat.owner != BARBARIANS).then_some(troops.as_slice()),
             &[],
         );

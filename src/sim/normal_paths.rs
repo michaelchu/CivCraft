@@ -667,19 +667,23 @@ impl NormalPaths {
                 .wrapping_add(self.actor.moves_left),
         )
     }
-    pub(super) fn reachable_within(&mut self, sim: &Simulation, limit: i32) -> Vec<(i32, i32)> {
-        let mut positions = Vec::new();
-        while self.iterate(sim) {
+    pub(super) fn reachable_within<'a>(
+        &'a mut self,
+        sim: &'a Simulation,
+        limit: i32,
+    ) -> impl Iterator<Item = (i32, i32, i32)> + 'a {
+        std::iter::from_fn(move || {
+            if !self.iterate(sim) {
+                return None;
+            }
             let cost = self.nodes[self.current]
                 .cost
                 .wrapping_sub(self.rate)
                 .wrapping_add(self.actor.moves_left);
-            if cost > limit {
-                break;
-            }
-            positions.push(self.map_wrap.position(self.current));
-        }
-        positions
+            let (x, y) = self.map_wrap.position(self.current);
+            Some((x, y, cost))
+        })
+        .take_while(move |&(_, _, cost)| cost <= limit)
     }
     pub(super) fn path(
         &mut self,

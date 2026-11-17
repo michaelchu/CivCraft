@@ -96,9 +96,9 @@ impl Simulation {
             .boats
             .iter()
             .filter_map(|(&id, boat)| {
-                (!self.units.iter().any(|unit| {
-                    unit.id == id && unit.owner == boat.owner && Self::is_ai_ferry(unit.kind)
-                }))
+                (!self
+                    .unit_by_id(id)
+                    .is_some_and(|unit| unit.owner == boat.owner && Self::is_ai_ferry(unit.kind)))
                 .then_some(id)
             })
             .chain(
@@ -107,9 +107,8 @@ impl Simulation {
                     .iter()
                     .filter_map(|(&id, passenger)| {
                         (!self
-                            .units
-                            .iter()
-                            .any(|unit| unit.id == id && unit.owner == passenger.owner))
+                            .unit_by_id(id)
+                            .is_some_and(|unit| unit.owner == passenger.owner))
                         .then_some(id)
                     }),
             )

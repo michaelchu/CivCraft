@@ -47,14 +47,26 @@ impl Simulation {
             .is_some_and(|relation| relation.first_contact.is_some() && relation.pact == Pact::War)
     }
 
+    #[cfg(test)]
     pub(super) fn ai_war_desire(&self, owner: usize, target: usize) -> i32 {
+        self.ai_war_desire_with_outputs(owner, target, &mut Default::default())
+    }
+
+    fn ai_war_desire_with_outputs(
+        &self,
+        owner: usize,
+        target: usize,
+        outputs: &mut std::collections::HashMap<u32, i32>,
+    ) -> i32 {
         // daidiplomacy.c:dai_war_desire. This intentionally uses type power,
         // not current HP, veteran level or battle odds.
         let mut want = 0i32;
         let mut fear = 0i32;
         for city in self.cities_owned_by(target) {
-            let output = self.city_forecast(city);
-            want += 100 + city.size * 20 + output.shield_surplus() * 8 + output.trade * 6;
+            want += *outputs.entry(city.id).or_insert_with(|| {
+                let output = self.city_forecast(city);
+                100 + city.size * 20 + output.shield_surplus() * 8 + output.trade * 6
+            });
             // daidiplomacy.c uses get_city_bonus(EFT_DEFEND_BONUS) without a
             // unit context, matching Freeciv's certain-only effect query.
             fear += super::super::action_rules::SimulationRequirementContext::for_city_at(
@@ -179,6 +191,7 @@ impl Simulation {
         // dai_diplomacy_begin_new_phase runs before diplomatic actions.
         // Native love is integer [-1000,1000]; UI trust is ten times love.
         let pairs: Vec<_> = self.diplomacy.keys().copied().collect();
+        let mut outputs = Default::default();
         let desires: std::collections::BTreeMap<_, _> = (0..self.players.len())
             .map(|owner| {
                 let mut best = None;
@@ -193,7 +206,7 @@ impl Simulation {
                     {
                         continue;
                     }
-                    let desire = self.ai_war_desire(owner, other);
+                    let desire = self.ai_war_desire_with_outputs(owner, other, &mut outputs);
                     if desire > best.map_or(0, |(_, score)| score) {
                         best = Some((other, desire));
                     }

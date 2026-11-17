@@ -15,6 +15,13 @@ pub(super) fn campaign_research_settings() -> &'static ResearchRulesetSettings {
     })
 }
 
+#[derive(Clone, Default)]
+pub(super) struct ResearchKnowledge {
+    known: Vec<Tech>,
+    era: Option<TechEra>,
+    paths: std::collections::HashMap<usize, std::sync::Arc<[Tech]>>,
+}
+
 impl Simulation {
     pub(crate) fn research_unit_unlocks(tech: Tech) -> Vec<&'static str> {
         UnitKind::ALL_NATIVE
@@ -62,21 +69,11 @@ impl Simulation {
     /// preceding era. The result also gates access to later-era technologies.
     pub(crate) fn research_era(&self, owner: usize) -> TechEra {
         self.trace.count_operation("research_era.calls", 1);
-        let cache_enabled = self.ai_advisor_cache_enabled.get();
-        if cache_enabled
-            && let Some(era) = self
-                .ai_spatial_index
-                .borrow()
-                .research_eras
-                .get(&owner)
-                .copied()
-        {
+        if let Some(era) = self.current_knowledge(owner).era {
             self.trace.count_operation("research_era.cache_hit", 1);
             return era;
         }
-        if cache_enabled {
-            self.trace.count_operation("research_era.cache_miss", 1);
-        }
+        self.trace.count_operation("research_era.cache_miss", 1);
         let mut current = TechEra::Ancient;
         for era in [TechEra::Ancient, TechEra::MiddleAges, TechEra::Industrial] {
             if Tech::all()
@@ -93,40 +90,49 @@ impl Simulation {
                 break;
             }
         }
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
-                .borrow_mut()
-                .research_eras
-                .insert(owner, current);
-        }
+        self.current_knowledge(owner).era = Some(current);
         current
     }
 
+    fn current_knowledge(&self, owner: usize) -> std::cell::RefMut<'_, ResearchKnowledge> {
+        let mut table = self.research_knowledge.borrow_mut();
+        table.resize_with(self.players.len(), ResearchKnowledge::default);
+        let entry = &mut table[owner];
+        if entry.known != self.players[owner].known {
+            entry.known.clone_from(&self.players[owner].known);
+            entry.era = None;
+            entry.paths.clear();
+        }
+        std::cell::RefMut::map(table, |owners| &mut owners[owner])
+    }
+
+    #[cfg(test)]
     pub(super) fn research_path(&self, owner: usize, goal: Tech) -> Vec<Tech> {
+        self.shared_research_path(owner, goal).to_vec()
+    }
+
+    pub(super) fn shared_research_path(&self, owner: usize, goal: Tech) -> std::sync::Arc<[Tech]> {
         self.trace.count_operation("research_path.calls", 1);
-        let cache_enabled = self.ai_advisor_cache_enabled.get();
-        if cache_enabled
-            && let Some(path) = self
-                .ai_spatial_index
-                .borrow()
-                .research_paths
-                .get(&(owner, goal.0))
-                .cloned()
-        {
+        if let Some(path) = self.current_knowledge(owner).paths.get(&goal.0).cloned() {
             self.trace.count_operation("research_path.cache_hit", 1);
             return path;
         }
-        if cache_enabled {
-            self.trace.count_operation("research_path.cache_miss", 1);
-        }
+        self.trace.count_operation("research_path.cache_miss", 1);
         if (goal.data().is_none() || !goal.is_civ3_advance()) && goal != Tech::FUTURE {
-            return Vec::new();
+            return Default::default();
         }
-        fn visit(game: &Simulation, owner: usize, tech: Tech, path: &mut Vec<Tech>) {
-            if game.has_tech(owner, tech) || path.contains(&tech) {
+        fn visit(
+            game: &Simulation,
+            owner: usize,
+            tech: Tech,
+            path: &mut Vec<Tech>,
+            current_era: TechEra,
+            visited: &mut [bool],
+        ) {
+            if game.has_tech(owner, tech) || visited[tech.0] {
                 return;
             }
-            let current_era = game.research_era(owner);
+            visited[tech.0] = true;
             for era in TechEra::ALL
                 .into_iter()
                 .filter(|era| *era >= current_era && *era < tech.era())
@@ -134,34 +140,42 @@ impl Simulation {
                 for required in Tech::all()
                     .filter(|advance| advance.era() == era && advance.required_for_civ3_era())
                 {
-                    visit(game, owner, required, path);
+                    visit(game, owner, required, path, current_era, visited);
                 }
             }
             for &req in tech.civ3_prerequisites().unwrap_or(&[]) {
-                visit(game, owner, req, path);
+                visit(game, owner, req, path, current_era, visited);
             }
             path.push(tech);
         }
 
         let mut path = Vec::new();
+        let era = self.research_era(owner);
+        let mut visited = vec![
+            false;
+            Tech::all()
+                .map(|tech| tech.0)
+                .max()
+                .unwrap_or(0)
+                .max(goal.0)
+                + 1
+        ];
         if goal == Tech::FUTURE {
             for advance in Tech::all().filter(|advance| advance.is_civ3_advance()) {
-                visit(self, owner, advance, &mut path);
+                visit(self, owner, advance, &mut path, era, &mut visited);
             }
         }
-        visit(self, owner, goal, &mut path);
-        if self.ai_advisor_cache_enabled.get() {
-            self.ai_spatial_index
-                .borrow_mut()
-                .research_paths
-                .insert((owner, goal.0), path.clone());
-        }
+        visit(self, owner, goal, &mut path, era, &mut visited);
+        let path: std::sync::Arc<[Tech]> = path.into();
+        self.current_knowledge(owner)
+            .paths
+            .insert(goal.0, path.clone());
         path
     }
 
     pub(super) fn research_target(&self, owner: usize) -> Tech {
         let goal = self.research_goal_for_target(owner);
-        self.research_path(owner, goal)
+        self.shared_research_path(owner, goal)
             .first()
             .copied()
             .or_else(|| {
@@ -176,7 +190,7 @@ impl Simulation {
     /// every currently researchable advance in source ID order.
     pub(super) fn choose_research_target(&mut self, owner: usize) -> Tech {
         let goal = self.research_goal_for_target(owner);
-        if let Some(step) = self.research_path(owner, goal).first().copied() {
+        if let Some(step) = self.shared_research_path(owner, goal).first().copied() {
             return step;
         }
         self.random_available_research_target(owner)
@@ -221,7 +235,7 @@ impl Simulation {
         let advances: Vec<_> = Tech::all().collect();
         let paths: Vec<_> = advances
             .iter()
-            .map(|&tech| self.research_path(owner, tech))
+            .map(|&tech| self.shared_research_path(owner, tech))
             .collect();
         if self.players[owner].researching == Tech::FUTURE
             && !advances
@@ -274,7 +288,7 @@ impl Simulation {
 
     pub(in crate::sim) fn source_research_scores(
         wants: &[f32],
-        paths: &[Vec<Tech>],
+        paths: &[impl AsRef<[Tech]>],
     ) -> (Vec<i32>, Vec<i32>) {
         let mut values = vec![0_i32; wants.len()];
         // daitech.c123-127 uses int += adv_want. Each compound addition
@@ -282,6 +296,7 @@ impl Simulation {
         // int. Truncating wants once before this loop changes the result.
         for (index, path) in paths
             .iter()
+            .map(AsRef::as_ref)
             .enumerate()
             .filter(|(_, path)| !path.is_empty())
         {
@@ -295,6 +310,7 @@ impl Simulation {
         // neither the path average nor the later per-city average is f32.
         let goals = paths
             .iter()
+            .map(AsRef::as_ref)
             .enumerate()
             .map(|(index, path)| {
                 if path.is_empty() {

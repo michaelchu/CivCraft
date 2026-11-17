@@ -198,7 +198,7 @@ impl super::Simulation {
             // technology requirement, even if already known or bypassed.
             let _profile = profiler.scope("government.research_distance");
             let distance = government.requirement().map_or(0, |tech| {
-                self.research_path(owner, tech).len().max(1) as i32
+                self.shared_research_path(owner, tech).len().max(1) as i32
             });
             scores[government as usize] =
                 f64::from((f64::from(value) * (23.0_f64 / 24.0).powi(distance)) as f32);

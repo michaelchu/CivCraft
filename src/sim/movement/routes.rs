@@ -153,7 +153,7 @@ impl Simulation {
         Some((path, best[goal].0))
     }
 
-    fn search_route_graph_map(
+    pub(in crate::sim) fn search_route_graph_map(
         &self,
         unit: &Unit,
         goals: &[usize],

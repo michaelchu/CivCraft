@@ -111,11 +111,7 @@ impl Simulation {
         let mut best = None;
         let mut best_value = 0.0;
         for (x, y, _) in map.reachable_within(self, plane.moves_left, true, false) {
-            if !self
-                .units
-                .iter()
-                .any(|unit| (unit.x, unit.y) == (x, y) && self.at_war(plane.owner, unit.owner))
-            {
+            if !self.any_unit_at(x, y, |unit| self.at_war(plane.owner, unit.owner)) {
                 continue;
             }
             let value = self.aircraft_target_value(plane, x, y);
@@ -189,7 +185,7 @@ impl Simulation {
             // `missile->moves_left / SINGLE_MOVE` is therefore already the
             // corresponding fragment budget in CivCraft; do not divide a
             // second time before passing it to reachable_within().
-            for (x, y) in map.reachable_within(self, missile.moves_left) {
+            for (x, y, _) in map.reachable_within(self, missile.moves_left) {
                 if self.cities.iter().any(|city| (city.x, city.y) == (x, y))
                     || self.best_defender_id(&hunter, x, y).is_none()
                 {
@@ -377,14 +373,11 @@ impl Simulation {
                 .map_or(0.0, |t| t.2)
         };
         let mut map = super::fuel_paths::FuelPaths::new(self, plane, true)?;
-        let routes: Vec<_> = map
-            .reachable_within(self, plane.moves_left, true, false)
-            .into_iter()
-            .filter(|&(x, y, _)| bases.contains(&(x, y)))
-            .filter_map(|(x, y, cost)| Some((cost, x, y, map.path(self, x, y)?)))
-            .collect();
         let mut best = None;
-        for (_, x, y, path) in routes {
+        for (x, y, _) in map.reachable_within(self, plane.moves_left, true, false) {
+            if !bases.contains(&(x, y)) {
+                continue;
+            }
             let mut faster = false;
             if lost > 0 {
                 let turns = self.aircraft_regen_turns(plane, x, y);
@@ -393,17 +386,18 @@ impl Simulation {
                 }
                 if turns < minimum_regen {
                     minimum_regen = turns;
-                    best = Some((path.clone(), (x, y)));
+                    best = Some((x, y));
                     worth = 0.0;
                     faster = true;
                 }
             }
             if self.aircraft_city_needs_defender(plane, x, y, false) {
                 if lost <= 0 {
-                    return Some((path, (x, y)));
+                    best = Some((x, y));
+                    break;
                 }
                 if !defend {
-                    best = Some((path, (x, y)));
+                    best = Some((x, y));
                     defend = true;
                 }
                 continue;
@@ -420,10 +414,11 @@ impl Simulation {
                 .map_or(0.0, |t| t.2);
             if value > worth {
                 worth = value;
-                best = Some((path, (x, y)));
+                best = Some((x, y));
             }
         }
-        best
+        let (x, y) = best?;
+        Some((map.path(self, x, y)?, (x, y)))
     }
 
     pub(in crate::sim) fn run_ai_strike_aircraft(&mut self, aircraft: &Unit) {
@@ -431,17 +426,45 @@ impl Simulation {
             return;
         }
         let position = (aircraft.x, aircraft.y);
-        let mut bases = Vec::new();
-        for (index, _) in self.tiles.iter().enumerate() {
-            let (x, y) = self.map_wrap.position(index);
-            if self.refuel_site(aircraft.owner, x, y)
-                && !self.units.iter().any(|unit| {
-                    (unit.x, unit.y) == (x, y) && !self.allied(aircraft.owner, unit.owner)
-                })
-            {
-                bases.push((x, y));
-            }
+        let on_base = self.refuel_site(aircraft.owner, position.0, position.1)
+            || self.aboard_refueling_transport(aircraft);
+        if on_base && self.run_ai_bombard(aircraft) {
+            return;
         }
+        if on_base && aircraft.fuel < aircraft.kind.fuel_capacity() {
+            return;
+        }
+        let attack = on_base
+            .then(|| self.aircraft_attack_path(aircraft))
+            .flatten();
+        if on_base && attack.is_none() && self.ai_assign_air_superiority(aircraft) {
+            return;
+        }
+        let static_sites = self.planning_airfields.get_or_init(|| {
+            self.tiles
+                .iter()
+                .enumerate()
+                .filter(|(_, tile)| matches!(tile.base, Some(Base::Airstrip | Base::Airbase)))
+                .map(|(i, _)| self.map_wrap.position(i))
+                .collect()
+        });
+        let mut bases: Vec<_> = self
+            .cities
+            .iter()
+            .filter(|c| self.allied(aircraft.owner, c.owner))
+            .map(|c| (c.x, c.y))
+            .chain(static_sites.iter().copied().filter(|&(x, y)| {
+                let tile = self.tile(x, y);
+                tile.known_by[aircraft.owner]
+                    && matches!(tile.base, Some(Base::Airstrip | Base::Airbase))
+            }))
+            .filter(|&(x, y)| !self.any_unit_at(x, y, |u| !self.allied(aircraft.owner, u.owner)))
+            .collect();
+        if !self.list_order.planning_active() {
+            self.planning_airfields.take();
+        }
+        bases.sort_unstable_by_key(|&(x, y)| self.map_wrap.index(x, y));
+        bases.dedup();
         let decks: Vec<_> = self
             .units
             .iter()
@@ -458,23 +481,9 @@ impl Simulation {
                 bases.push(tile);
             }
         }
-        let on_base = self.refuel_site(aircraft.owner, position.0, position.1)
-            || self.aboard_refueling_transport(aircraft);
-        if on_base && self.run_ai_bombard(aircraft) {
-            return;
-        }
-        if on_base && aircraft.fuel < aircraft.kind.fuel_capacity() {
-            return;
-        }
-        if on_base
-            && self.aircraft_attack_path(aircraft).is_none()
-            && self.ai_assign_air_superiority(aircraft)
-        {
-            return;
-        }
         let before = aircraft.moves_left;
         let route = if on_base {
-            self.aircraft_attack_path(aircraft)
+            attack
                 .map(|(path, target, _)| (path, target))
                 .or_else(|| self.aircraft_bombard_base_route(aircraft, &bases))
                 .or_else(|| self.strategic_airbase(aircraft, &bases))

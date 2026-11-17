@@ -65,12 +65,28 @@ impl Simulation {
     }
 
     fn offensive_production_output(&self, city: &City) -> i32 {
-        let cities: Vec<_> = self.player_cities_ordered(city.owner).collect();
-        let average = cities
-            .iter()
-            .map(|c| self.city_forecast(c).shield_surplus())
-            .sum::<i32>()
-            / cities.len().max(1) as i32;
+        let cached = self
+            .ai_spatial_index
+            .borrow()
+            .average_production
+            .get(&city.owner)
+            .copied();
+        let average = cached.unwrap_or_else(|| {
+            let mut count = 0;
+            let mut total = 0;
+            for other in self.cities_owned_by(city.owner) {
+                count += 1;
+                total += self.city_forecast(other).shield_surplus();
+            }
+            let average = total / count.max(1);
+            if self.ai_advisor_cache_enabled.get() {
+                self.ai_spatial_index
+                    .borrow_mut()
+                    .average_production
+                    .insert(city.owner, average);
+            }
+            average
+        });
         self.city_forecast(city)
             .shield_surplus()
             .max(average)
@@ -137,9 +153,35 @@ impl Simulation {
         rating * rating
     }
 
-    pub(in crate::sim) fn offensive_helpers(&self, unit: &Unit, city: &City) -> (i32, i32) {
-        let mut attack = 0;
-        let mut cost = 0;
+    pub(in crate::sim) fn assigned_attack_strength(
+        &self,
+        unit: &Unit,
+    ) -> std::collections::HashMap<u32, (i32, i32)> {
+        let mut totals = std::collections::HashMap::new();
+        for (&id, &target) in &self.ai_ground_targets {
+            if id == unit.id && unit.id != 0 {
+                continue;
+            }
+            let Some(helper) = self.unit_by_id(id).filter(|u| u.owner == unit.owner) else {
+                continue;
+            };
+            let rating = Self::offensive_attack_rating(helper);
+            if rating != 0 {
+                let entry = totals.entry(target).or_insert((0, 0));
+                entry.0 += rating;
+                entry.1 += helper.kind.stats().cost;
+            }
+        }
+        totals
+    }
+
+    pub(in crate::sim) fn offensive_helpers(
+        &self,
+        unit: &Unit,
+        city: &City,
+        assigned: &std::collections::HashMap<u32, (i32, i32)>,
+    ) -> (i32, i32) {
+        let (mut attack, mut cost) = assigned.get(&city.id).copied().unwrap_or_default();
         let mut nearby_ids = std::collections::HashSet::new();
         // Freeciv's reinforcements_cost_and_value checks the local radius
         // around a target. Query those tiles directly instead of scanning the
@@ -156,29 +198,6 @@ impl Simulation {
                 if rating == 0 {
                     continue;
                 }
-                let going = i32::from(
-                    helper.owner == unit.owner
-                        && self.ai_ground_targets.get(&helper.id) == Some(&city.id),
-                );
-                attack += rating * (1 + going);
-                cost += helper.kind.stats().cost * (1 + going);
-            }
-        }
-        // A unit assigned to this target can contribute from beyond the
-        // adjacent tiles. Count only assigned ids here; nearby assigned units
-        // were already counted with both contributions above.
-        for (&id, &target) in &self.ai_ground_targets {
-            if target != city.id || nearby_ids.contains(&id) || id == unit.id && unit.id != 0 {
-                continue;
-            }
-            let Some(helper) = self.unit_by_id(id) else {
-                continue;
-            };
-            if helper.owner != unit.owner {
-                continue;
-            }
-            let rating = Self::offensive_attack_rating(helper);
-            if rating != 0 {
                 attack += rating;
                 cost += helper.kind.stats().cost;
             }
@@ -250,12 +269,13 @@ impl Simulation {
                 continue;
             }
             if let Some(tech) = kind.required_tech() {
-                let path = self.research_path(city.owner, tech);
+                let path = self.shared_research_path(city.owner, tech);
                 if path.is_empty() {
                     continue;
                 }
                 let cost = path
-                    .into_iter()
+                    .iter()
+                    .copied()
                     .map(|tech| self.target_cost(city.owner, tech))
                     .sum::<i32>();
                 if cost < best_cost {
@@ -274,7 +294,16 @@ impl Simulation {
         &self,
         city: &City,
     ) -> (Option<AiBuildChoice>, Vec<(Tech, f32)>) {
-        let (prior, early, severe) = self.pre_offensive_military_advice(city);
+        self.offensive_advice_for_wonder_city(city, self.ai_wonder_city(city.owner))
+    }
+
+    pub(in crate::sim) fn offensive_advice_for_wonder_city(
+        &self,
+        city: &City,
+        wonder_city: Option<u32>,
+    ) -> (Option<AiBuildChoice>, Vec<(Tech, f32)>) {
+        let (prior, early, severe) =
+            self.pre_offensive_military_advice_with_wonder_city(city, wonder_city);
         if early || severe {
             return (None, Vec::new());
         }
@@ -344,13 +373,16 @@ impl Simulation {
                 1
             };
             seed.hp = seed.max_hit_points();
-            let Some(target) = self.offensive_target(city, &seed) else {
+            let assigned = self.assigned_attack_strength(&seed);
+            let Some(target) = self.offensive_target_with_assignments(city, &seed, &assigned)
+            else {
                 continue;
             };
             let enemy_city = target.city.and_then(|id| self.city_by_id(id));
             let (defender, base_benefit) = self.offensive_victim(&seed, &target);
-            let (helper, helper_cost) =
-                enemy_city.map_or((0, 0), |enemy| self.offensive_helpers(&seed, enemy));
+            let (helper, helper_cost) = enemy_city.map_or((0, 0), |enemy| {
+                self.offensive_helpers(&seed, enemy, &assigned)
+            });
             let (enemy_attacks, occupiers) =
                 enemy_city.map_or((0, 0), |enemy| self.invasion_support(city.owner, enemy, 0));
             let enemy_city_worth = enemy_city.map_or(0.0, |enemy| self.offensive_city_worth(enemy));
@@ -385,8 +417,9 @@ impl Simulation {
                 candidate.veteran = self.trained_rank(city, kind);
                 candidate.hp = candidate.max_hit_points();
                 let tech = kind.required_tech();
-                let missing =
-                    tech.map_or_else(Vec::new, |tech| self.research_path(city.owner, tech));
+                let missing = tech.map_or_else(Default::default, |tech| {
+                    self.shared_research_path(city.owner, tech)
+                });
                 let tech_cost = missing
                     .iter()
                     .map(|&tech| self.target_cost(city.owner, tech))

@@ -92,7 +92,17 @@ impl Achievement<'_> {
 }
 
 impl Simulation {
-    pub(super) fn continent_labels(&self) -> Vec<usize> {
+    pub(super) fn continent_labels(&self) -> std::sync::Arc<[usize]> {
+        if self.list_order.planning_active() {
+            return self
+                .planning_continents
+                .get_or_init(|| self.build_continent_labels())
+                .clone();
+        }
+        self.build_continent_labels()
+    }
+
+    fn build_continent_labels(&self) -> std::sync::Arc<[usize]> {
         let mut labels = vec![0; self.tiles.len()];
         let mut continent = 0;
         for index in 0..self.tiles.len() {
@@ -112,7 +122,7 @@ impl Simulation {
                 }
             }
         }
-        labels
+        labels.into()
     }
 
     fn map_known_at_percent(&self, owner: usize, percent: i32) -> bool {

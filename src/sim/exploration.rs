@@ -411,7 +411,11 @@ impl Simulation {
         let mut db = 10 + self.tile(x, y).terrain.defense_bonus() / 10;
         db += db * self.pf_extra_class_defense(unit.kind, x, y) / 100;
         let mut attack = 0_i64;
-        for enemy in &self.units {
+        for enemy in self
+            .map_wrap
+            .civ3_neighbors(x, y)
+            .flat_map(|(tx, ty)| self.tile_units_ordered(tx, ty))
+        {
             if self.map_distance(x, y, enemy.x, enemy.y) != 1
                 || !self.at_war(unit.owner, enemy.owner)
                 || enemy.kind.stats().attack <= 0

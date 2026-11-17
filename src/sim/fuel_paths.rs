@@ -560,34 +560,32 @@ impl FuelPaths {
 
     // A fresh map's native iteration order, including its fuel/slack tie
     // priorities. Air advisors stop at the first out-of-budget position.
-    pub(super) fn reachable_within(
-        &mut self,
-        sim: &Simulation,
+    pub(super) fn reachable_within<'a>(
+        &'a mut self,
+        sim: &'a Simulation,
         limit: i32,
         strict: bool,
         include_start: bool,
-    ) -> Vec<(i32, i32, i32)> {
-        let mut result = Vec::new();
-        if include_start && (!strict && limit >= 0 || strict && limit > 0) {
-            let (x, y) = self.map_wrap.position(self.start);
-            result.push((x, y, 0));
-        }
-        while self.iterate(sim) {
-            let index = self.current;
-            let Some(segment) = self.nodes[index].segment else {
-                continue;
-            };
-            let cost = self.positions[segment]
-                .cost
-                .wrapping_sub(self.full_moves())
-                .wrapping_add(self.initial_bundle);
-            if cost > limit || strict && cost == limit {
-                break;
-            }
-            let (x, y) = self.map_wrap.position(index);
-            result.push((x, y, cost));
-        }
-        result
+    ) -> impl Iterator<Item = (i32, i32, i32)> + 'a {
+        let (x, y) = self.map_wrap.position(self.start);
+        let start = include_start.then_some((x, y, 0));
+        start
+            .into_iter()
+            .chain(std::iter::from_fn(move || {
+                while self.iterate(sim) {
+                    let index = self.current;
+                    if let Some(segment) = self.nodes[index].segment {
+                        let cost = self.positions[segment]
+                            .cost
+                            .wrapping_sub(self.full_moves())
+                            .wrapping_add(self.initial_bundle);
+                        let (x, y) = self.map_wrap.position(index);
+                        return Some((x, y, cost));
+                    }
+                }
+                None
+            }))
+            .take_while(move |&(_, _, cost)| cost < limit || !strict && cost == limit)
     }
 }
 

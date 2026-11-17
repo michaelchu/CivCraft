@@ -110,8 +110,9 @@ impl Simulation {
             return 0;
         }
         let bulbs: i32 = self
-            .research_path(buyer, tech)
-            .into_iter()
+            .shared_research_path(buyer, tech)
+            .iter()
+            .copied()
             .map(|required| self.target_cost(buyer, required))
             .sum();
         let want = if include_advisor {

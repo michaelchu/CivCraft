@@ -82,7 +82,7 @@ impl Simulation {
         y: i32,
         government: Government,
     ) -> (i32, i32, i32) {
-        if !self.ai_advisor_cache_enabled.get() {
+        if !self.ai_advisor_cache_enabled.get() && !self.founder_phase {
             return self.city_tile_yields_under_government(city, x, y, false, None, government);
         }
         let owner = city.owner;
@@ -114,20 +114,37 @@ impl Simulation {
         output
     }
 
+    pub(super) fn clear_founder_phase_maps(&mut self) {
+        let spatial = self.ai_spatial_index.get_mut();
+        spatial.settlement_base = None;
+        spatial.settlement_spacing = None;
+        spatial.virtual_city_tile_yields.clear();
+    }
+
     pub(super) fn settlement_citymap(&self, owner: usize, except: Option<u32>) -> Vec<i32> {
-        let mut map = vec![0; self.tiles.len()];
-        for city in &self.cities {
-            for (_, _, x, y) in self.map_city_radius_at(city.x, city.y) {
-                let index = self.map_wrap.index(x, y);
-                if map[index] >= 0 {
-                    map[index] += 1;
+        let cache = self.founder_phase || self.ai_advisor_cache_enabled.get();
+        let cached = cache
+            .then(|| self.ai_spatial_index.borrow().settlement_base.clone())
+            .flatten();
+        let mut map = cached.unwrap_or_else(|| {
+            let mut map = vec![0; self.tiles.len()];
+            for city in &self.cities {
+                for (_, _, x, y) in self.map_city_radius_at(city.x, city.y) {
+                    let index = self.map_wrap.index(x, y);
+                    if map[index] >= 0 {
+                        map[index] += 1;
+                    }
                 }
+                for &(x, y) in &city.worked_tiles {
+                    map[self.map_wrap.index(x, y)] = -1;
+                }
+                map[self.map_wrap.index(city.x, city.y)] = -1;
             }
-            for &(x, y) in &city.worked_tiles {
-                map[self.map_wrap.index(x, y)] = -1;
+            if cache {
+                self.ai_spatial_index.borrow_mut().settlement_base = Some(map.clone());
             }
-            map[self.map_wrap.index(city.x, city.y)] = -1;
-        }
+            map
+        });
         for (&id, reservation) in &self.ai_settlement_targets {
             if reservation.owner != owner
                 || Some(id) == except
@@ -362,7 +379,17 @@ impl Simulation {
         self.trace.count_operation("settlement.site_searches", 1);
         let government = self.ai_goal_government(founder.owner);
         let reservations = self.settlement_citymap(founder.owner, Some(founder.id));
-        let city_distance_blocked = self.city_distance_blocked_map();
+        let cache_spacing = self.founder_phase || self.ai_advisor_cache_enabled.get();
+        let cached = cache_spacing
+            .then(|| self.ai_spatial_index.borrow().settlement_spacing.clone())
+            .flatten();
+        let city_distance_blocked = cached.unwrap_or_else(|| {
+            let spacing: std::sync::Arc<[bool]> = self.city_distance_blocked_map().into();
+            if cache_spacing {
+                self.ai_spatial_index.borrow_mut().settlement_spacing = Some(spacing.clone());
+            }
+            spacing
+        });
         let start = self.map_wrap.index(founder.x, founder.y);
         let (_, _, blocked_land, hostile_military) =
             self.settlement_route_blocked_tiles(founder.owner);

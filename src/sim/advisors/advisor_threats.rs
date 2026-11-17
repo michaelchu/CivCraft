@@ -69,6 +69,12 @@ impl Simulation {
         y: i32,
         predicate: impl Fn(&Unit) -> bool,
     ) -> bool {
+        if let Some(ids) = self.list_order.unit_ids_at(x, y) {
+            return ids
+                .iter()
+                .filter_map(|id| self.unit_by_id(*id))
+                .any(predicate);
+        }
         if !self.ai_advisor_cache_enabled.get() {
             return self
                 .units
@@ -95,7 +101,7 @@ impl Simulation {
             let index = self.ai_spatial_index.borrow().city_at[self.map_wrap.index(x, y)]?;
             self.cities.get(index)
         } else {
-            self.cities.iter().find(|city| (city.x, city.y) == (x, y))
+            self.city_at(x, y)
         }
     }
 
@@ -115,7 +121,7 @@ impl Simulation {
             .is_some_and(|index| predicate(&self.cities[index]))
     }
 
-    pub(in crate::sim) fn advisor_continent_labels(&self) -> Vec<usize> {
+    pub(in crate::sim) fn advisor_continent_labels(&self) -> std::sync::Arc<[usize]> {
         if self.ai_advisor_cache_enabled.get() {
             self.ai_spatial_index.borrow().continent_labels.clone()
         } else {
@@ -317,25 +323,37 @@ impl Simulation {
         if cache_enabled {
             self.trace.count_operation("guard_assessment.cache_miss", 1);
         }
-        let mut result = GuardCityAssessment {
-            danger: 0,
-            urgency: 0,
-            grave: 0,
-            defense: 0,
-            defense_igwall: 0,
-        };
-        for (enemy, _, turns) in self.city_threat_arrivals(city) {
-            let occupies = enemy.kind.can_occupy_city() || enemy.kind.can_carry(UnitKind::Warrior);
-            let danger = self.advisor_threat_vulnerability(city, enemy);
-            if occupies && turns <= 3 {
-                result.urgency += 1;
-                if turns <= 1 {
-                    result.grave += 1;
+        let previous = self
+            .planning_guard_danger
+            .borrow()
+            .as_ref()
+            .and_then(|cities| cities.get(&city.id).copied());
+        let mut result = previous.unwrap_or_else(|| {
+            let mut result = GuardCityAssessment {
+                danger: 0,
+                urgency: 0,
+                grave: 0,
+                defense: 0,
+                defense_igwall: 0,
+            };
+            for (enemy, _, turns) in self.city_threat_arrivals(city) {
+                let occupies =
+                    enemy.kind.can_occupy_city() || enemy.kind.can_carry(UnitKind::Warrior);
+                let danger = self.advisor_threat_vulnerability(city, enemy);
+                if occupies && turns <= 3 {
+                    result.urgency += 1;
+                    if turns <= 1 {
+                        result.grave += 1;
+                    }
                 }
+                result.danger += danger * danger / turns.max(1);
             }
-            result.danger += danger * danger / turns.max(1);
-        }
-        result.urgency += 10 * result.grave;
+            result.urgency += 10 * result.grave;
+            if let Some(cities) = self.planning_guard_danger.borrow_mut().as_mut() {
+                cities.insert(city.id, result);
+            }
+            result
+        });
         // Native chooses 90 whenever danger is nonzero, 5 otherwise, then
         // finds the integer ceiling square root of wallvalue*10.
         let wall_value = if result.danger > 0 { 90 } else { 5 };
@@ -470,6 +488,7 @@ impl Simulation {
         // exists; player-list order cannot affect the result. Scan the unit
         // vector once instead of rebuilding and sorting one owner list per
         // player for every city assessment.
+        let mut arrivals = std::collections::HashMap::new();
         self.units.iter().filter_map(move |unit| {
             let stats = unit.kind.stats();
             let carries_occupiers = unit.kind.can_carry(UnitKind::Warrior);
@@ -478,7 +497,20 @@ impl Simulation {
             {
                 return None;
             }
-            let turns = self.city_danger_arrival(unit, city)?;
+            let turns = if unit.transport.is_none() && !self.ai_threat_route_cache_enabled.get() {
+                let profile = (
+                    unit.owner,
+                    unit.kind as usize,
+                    unit.x,
+                    unit.y,
+                    self.unit_move_rate(unit),
+                );
+                *arrivals
+                    .entry(profile)
+                    .or_insert_with(|| self.city_danger_arrival(unit, city))
+            } else {
+                self.city_danger_arrival(unit, city)
+            }?;
             let rating = percent_of(POWER_FACTOR * stats.attack, unit.veteran_power())
                 * unit.hp
                 * stats.firepower
