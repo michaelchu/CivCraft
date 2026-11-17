@@ -265,6 +265,7 @@ pub(crate) struct Game {
     unit_sound_requests: std::collections::VecDeque<unit_sound::UnitSoundRequest>,
     pending_sound_unit: Option<u32>,
     fidget_sound_cycle: Option<(u32, i64)>,
+    fortify_animation_started_at: std::collections::HashMap<u32, f64>,
     dragging: bool,
     drag_last: Vec2,
 }
@@ -334,6 +335,7 @@ impl Game {
             unit_sound_requests: Default::default(),
             pending_sound_unit: None,
             fidget_sound_cycle: None,
+            fortify_animation_started_at: Default::default(),
             dragging: false,
             drag_last: vec2(0.0, 0.0),
         }
@@ -460,7 +462,13 @@ impl Game {
         self.normalize_camera();
         let sound_unit = self.pending_sound_unit.take().or(self.selected_unit);
         let events = self.sim.take_presentation_event_views();
-        self.playback.update(events, get_time(), sound_unit);
+        let now = get_time();
+        for event in &events {
+            if let PresentationEventView::Fortify { unit, .. } = event {
+                self.fortify_animation_started_at.insert(unit.id, now);
+            }
+        }
+        self.playback.update(events, now, sound_unit);
         self.unit_sound_requests
             .extend(self.playback.take_sound_requests());
         if !self.overlay.hides_map() && self.overlay != Overlay::Intro {
