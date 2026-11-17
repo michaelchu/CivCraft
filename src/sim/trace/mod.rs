@@ -466,6 +466,7 @@ mod integration_tests {
             let _ = traced.observe_cities();
             let _ = traced.observe_units();
             let _ = traced.observe_civilizations();
+            #[cfg(feature = "desktop")]
             let _ = traced.observe_minimap();
             assert!(traced.observe_lifecycle().complete_since_start);
             traced.trace.clear_lifecycle_changes();

@@ -32,6 +32,7 @@ pub(crate) struct Report {
     timeline: Vec<Value>,
     scenario: Provenance,
     turn_profiles: Vec<TurnProfile>,
+    #[cfg(feature = "desktop")]
     minimaps: super::minimap::MinimapReport,
 }
 impl Report {
@@ -58,6 +59,7 @@ impl Report {
         Ok(Self {
             snapshots: BufWriter::new(File::create(&snapshot_path).map_err(|e| e.to_string())?),
             events: BufWriter::new(File::create(&event_path).map_err(|e| e.to_string())?),
+            #[cfg(feature = "desktop")]
             minimaps: super::minimap::MinimapReport::new(&path),
             path,
             snapshot_path,
@@ -75,6 +77,7 @@ impl Report {
         })
     }
     pub fn snapshot(&mut self, snapshot: &Snapshot) -> Result<(), String> {
+        #[cfg(feature = "desktop")]
         if let Some(map) = snapshot.minimap() {
             self.minimaps.capture(snapshot.turn, snapshot.phase, map)?;
         }
@@ -124,7 +127,12 @@ impl Report {
     ) -> Result<(), String> {
         self.snapshots.flush().map_err(|e| e.to_string())?;
         self.events.flush().map_err(|e| e.to_string())?;
+        // Minimap images need the desktop graphics dependencies; headless
+        // builds report the same null as a run with the provider disabled.
+        #[cfg(feature = "desktop")]
         let minimap = self.minimaps.publish()?;
+        #[cfg(not(feature = "desktop"))]
+        let minimap = serde_json::Value::Null;
         let mut civilizations =
             serde_json::to_value(last.civilizations()).map_err(|e| e.to_string())?;
         if let Some(players) = civilizations.as_array_mut() {

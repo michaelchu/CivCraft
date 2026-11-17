@@ -10,6 +10,7 @@ mod client;
 #[cfg(feature = "desktop")]
 mod desktop;
 mod headless;
+#[cfg(feature = "desktop")]
 mod map_palette;
 mod mapgen;
 mod random;

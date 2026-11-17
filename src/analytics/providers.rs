@@ -34,7 +34,9 @@ impl SnapshotProvider for Units {
     }
 }
 struct Territory;
+#[cfg(feature = "desktop")]
 struct Minimap;
+#[cfg(feature = "desktop")]
 impl SnapshotProvider for Minimap {
     fn id(&self) -> &'static str {
         "minimap"
@@ -66,6 +68,7 @@ pub(crate) const IDS: &[&str] = &[
     "territory",
     "units",
     "lifecycle",
+    #[cfg(feature = "desktop")]
     "minimap",
 ];
 pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvider>>, String> {
@@ -77,6 +80,7 @@ pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvid
                 "units" => Box::new(Units),
                 "territory" => Box::new(Territory),
                 "lifecycle" => Box::new(Lifecycle),
+                #[cfg(feature = "desktop")]
                 "minimap" => Box::new(Minimap),
                 _ => return Err(format!("unknown snapshot provider {id}")),
             })

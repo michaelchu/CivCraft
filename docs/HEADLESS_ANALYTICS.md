@@ -343,7 +343,9 @@ Sidecars:
   Open the HTML file locally; use the slider or Play to compare development over time.
   Keep the image folder next to the viewer when sharing it. No server is required.
 
-The default `minimap` provider records row-major terrain RGB, ownership, map size,
+The default `minimap` provider (desktop builds only: it needs the graphics
+dependencies, so `--no-default-features --features scenarios` builds reject it
+and omit `evidence.minimap`) records row-major terrain RGB, ownership, map size,
 city IDs/names/locations/populations, and civilization names/colors. Images show
 the full map without fog of war, using the in-game terrain/civilization palette
 and staggered, horizontally wrapped minimap projection. Territory tints the terrain;

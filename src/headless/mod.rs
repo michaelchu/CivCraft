@@ -1,4 +1,5 @@
 pub(crate) mod config;
+#[cfg(feature = "desktop")]
 mod minimap;
 mod report;
 pub(crate) mod scenario;
