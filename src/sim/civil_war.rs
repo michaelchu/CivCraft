@@ -3,22 +3,6 @@
 use super::*;
 use crate::rules::engine_rules::{RulesetData, action_enabled};
 
-// Retained for the existing Civ III uprising path, which is scheduled for
-// the P12 world-events migration. The capital-capture path below uses C2C3
-// effects directly and does not call this compatibility helper.
-impl Government {
-    pub(super) fn civil_war_chance(self) -> i32 {
-        if let Some(value) = self.ruleset_effect_value(EffectKind::CivilWarChance) {
-            return i32::try_from(value).expect("government civil-war chance fits i32");
-        }
-        match self {
-            Government::Fascism => 60,
-            Government::Feudalism => 20,
-            _ => unreachable!("selected government has a ruleset civil-war effect"),
-        }
-    }
-}
-
 impl Simulation {
     pub(super) fn capital_loss_triggers_civil_war(&mut self, owner: usize) -> bool {
         if owner == BARBARIANS || owner >= self.players.len() {
@@ -166,9 +150,7 @@ impl Simulation {
         self.ai_tech_wants.insert(rebel, wants);
         self.spaceships.push(Spaceship::default());
         self.nation_scores.push(NationScore::default());
-        for tile in &mut self.tiles {
-            tile.known_by[rebel] = tile.known_by[owner];
-        }
+        self.transfer_map_observations(owner, rebel, TreatyMap::World, |_| true);
 
         let mut remaining = (candidates.len() / 2).max(1);
         let mut defectors = Vec::new();

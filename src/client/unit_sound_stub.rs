@@ -15,7 +15,7 @@ pub(crate) struct UnitSoundRequest {
 pub(crate) struct UnitSoundPlayer;
 
 impl UnitSoundPlayer {
-    pub(crate) fn new(_enabled: bool) -> Self {
+    pub(crate) fn new(_context: &super::AssetContext) -> Self {
         Self
     }
 

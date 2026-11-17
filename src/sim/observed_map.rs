@@ -34,13 +34,19 @@ pub(crate) struct ObservedCity {
     pub(crate) remembered: bool,
 }
 
+pub(super) type PartialCitySites = BTreeMap<(usize, usize), usize>;
+
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub(super) struct ObservedMap {
     pub(super) revision: u64,
     pub(super) tiles: BTreeMap<(usize, usize), (u64, Tile)>,
     pub(super) cities: BTreeMap<(usize, u32), (u64, ObservedCity)>,
     #[serde(skip)]
-    pub(super) human_city_owners: BTreeMap<(i32, i32), usize>,
+    pub(super) city_owners: BTreeMap<(usize, usize), usize>,
+    // A legacy route can identify the owner at a city site without a city
+    // record. Keep that observation until this observer sees the tile again.
+    #[serde(skip)]
+    pub(super) partial_sites: PartialCitySites,
 }
 
 impl Simulation {
@@ -213,7 +219,6 @@ impl Simulation {
         let recipients: Vec<_> = (0..self.players.len())
             .map(|owner| self.vision_recipients(owner))
             .collect();
-        let mut observations = vec![None; self.tiles.len()];
         let mut render_seen = vec![vec![false; self.tiles.len()]; self.players.len()];
         let _profile = profiler.scope("visibility.refresh.revealers");
         for (owner, x, y, radius_sq, stealth_sq) in revealers {
@@ -227,11 +232,6 @@ impl Simulation {
                     for &target in &recipients[owner] {
                         self.tiles[idx].known_by[target] = true;
                         render_seen[target][idx] = true;
-                        if target != HUMAN && target != BARBARIANS {
-                            let observation = *observations[idx]
-                                .get_or_insert_with(|| self.live_map_observation(idx));
-                            self.ai_map_memory.insert((target, idx), observation);
-                        }
                     }
                 }
                 if recipients[owner].contains(&HUMAN) {
@@ -318,14 +318,22 @@ impl Simulation {
     }
 
     pub(super) fn human_known_tile(&self, x: i32, y: i32) -> Option<&Tile> {
+        self.known_tile_for(HUMAN, x, y)
+    }
+
+    pub(super) fn known_tile_for(&self, observer: usize, x: i32, y: i32) -> Option<&Tile> {
         let tile = self.tile(x, y);
-        if tile.visible {
-            Some(tile)
-        } else if tile.seen {
-            self.remembered_tile(HUMAN, x, y)
-        } else {
-            None
+        if observer == HUMAN && tile.visible {
+            return Some(tile);
         }
+        let known = if observer == HUMAN {
+            tile.seen
+        } else {
+            tile.known_by[observer]
+        };
+        known
+            .then(|| self.remembered_tile(observer, x, y))
+            .flatten()
     }
 
     /// Render projections keep the knowledge flag separate from their tile data.
@@ -334,59 +342,93 @@ impl Simulation {
             .unwrap_or_else(|| self.tile(x, y))
     }
 
-    pub(super) fn remembered_human_city_owner(&self, x: i32, y: i32) -> Option<usize> {
-        self.observed_map.human_city_owners.get(&(x, y)).copied()
+    pub(super) fn observed_city_owner(&self, observer: usize, x: i32, y: i32) -> Option<usize> {
+        let index = self.map_wrap.index(x, y);
+        if observer == HUMAN && self.tiles[index].visible {
+            let (x, y) = self.map_wrap.position(index);
+            return self.city_at(x, y).map(|city| city.owner);
+        }
+        self.observed_map
+            .city_owners
+            .get(&(observer, index))
+            .copied()
     }
 
     pub(super) fn rebuild_observed_city_index(&mut self) {
-        self.observed_map.human_city_owners = self
-            .observed_map
-            .cities
-            .range((HUMAN, 0)..=(HUMAN, u32::MAX))
-            .map(|(_, (_, observed))| {
-                let city = &observed.city;
-                ((city.x, city.y), city.owner)
-            })
-            .collect();
+        self.observed_map
+            .city_owners
+            .clone_from(&self.observed_map.partial_sites);
+        self.observed_map
+            .city_owners
+            .extend(
+                self.observed_map
+                    .cities
+                    .iter()
+                    .map(|(&(observer, _), (_, observed))| {
+                        let city = &observed.city;
+                        ((observer, self.map_wrap.index(city.x, city.y)), city.owner)
+                    }),
+            );
     }
 
     pub(super) fn import_legacy_routes(&mut self, routes: Vec<Option<movement::RouteTile>>) {
         for (index, route) in routes.into_iter().enumerate() {
-            let tile = &self.tiles[index];
-            let Some(route) = route.filter(|_| tile.seen) else {
-                continue;
-            };
-            self.observed_map
-                .tiles
-                .entry((HUMAN, index))
-                .or_insert_with(|| {
-                    let base_terrain = match route.terrain {
-                        Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
-                        Terrain::Sea => TerrainBase::Sea,
-                        Terrain::Ocean => TerrainBase::Ocean,
-                        Terrain::Plains => TerrainBase::Plains,
-                        Terrain::Desert | Terrain::FloodPlains => TerrainBase::Desert,
-                        Terrain::Tundra => TerrainBase::Tundra,
-                        Terrain::Glacier => TerrainBase::Ice,
-                        _ => TerrainBase::Grassland,
-                    };
-                    let mut snapshot = Tile::from(crate::world::GeneratedTile {
-                        terrain: route.terrain,
-                        base_terrain,
-                        altitude: 0,
-                        hut: false,
-                        river: route.river,
-                        river_edges: 0,
-                        resource: None,
-                    });
-                    snapshot.seen = true;
-                    snapshot.known_by[HUMAN] = true;
-                    snapshot.owner = tile.last_seen_owner;
-                    snapshot.road = route.road;
-                    snapshot.railroad = route.railroad;
-                    (0, snapshot)
-                });
+            if let Some(route) = route.filter(|_| self.tiles[index].seen) {
+                let owner = self.tiles[index].last_seen_owner;
+                self.import_partial_tile(HUMAN, index, route, owner);
+            }
         }
+    }
+
+    /// Older formats could preserve routing information without a full tile.
+    /// Build a snapshot using the fields actually known to the observer.
+    pub(super) fn import_partial_tile(
+        &mut self,
+        observer: usize,
+        index: usize,
+        route: movement::RouteTile,
+        owner: Option<usize>,
+    ) {
+        if let Some(owner) = route.city_owner
+            && !self
+                .observed_map
+                .city_owners
+                .contains_key(&(observer, index))
+        {
+            self.observed_map
+                .partial_sites
+                .insert((observer, index), owner);
+        }
+        self.observed_map
+            .tiles
+            .entry((observer, index))
+            .or_insert_with(|| {
+                let base_terrain = match route.terrain {
+                    Terrain::Coast | Terrain::Lake => TerrainBase::Coast,
+                    Terrain::Sea => TerrainBase::Sea,
+                    Terrain::Ocean => TerrainBase::Ocean,
+                    Terrain::Plains => TerrainBase::Plains,
+                    Terrain::Desert | Terrain::FloodPlains => TerrainBase::Desert,
+                    Terrain::Tundra => TerrainBase::Tundra,
+                    Terrain::Glacier => TerrainBase::Ice,
+                    _ => TerrainBase::Grassland,
+                };
+                let mut snapshot = Tile::from(crate::world::GeneratedTile {
+                    terrain: route.terrain,
+                    base_terrain,
+                    altitude: 0,
+                    hut: false,
+                    river: route.river,
+                    river_edges: 0,
+                    resource: None,
+                });
+                snapshot.seen = true;
+                snapshot.known_by[observer] = true;
+                snapshot.owner = owner;
+                snapshot.road = route.road;
+                snapshot.railroad = route.railroad;
+                (0, snapshot)
+            });
     }
 
     #[cfg(test)]
@@ -537,6 +579,13 @@ impl Simulation {
                     || scope.is_some_and(|indices| indices.binary_search(&index).is_err())
                     || !visible[index]
             });
+            self.observed_map
+                .partial_sites
+                .retain(|&(viewer, index), _| {
+                    viewer != owner
+                        || scope.is_some_and(|indices| indices.binary_search(&index).is_err())
+                        || !visible[index]
+                });
             drop(_prune_profile);
             let _tile_profile = self
                 .trace
@@ -619,13 +668,20 @@ impl Simulation {
         y: i32,
         unit_kind: UnitKind,
     ) {
+        // Freeciv's map_show_circle uses the unit type's base sight radius.
+        self.reveal_map_circle(owner, x, y, native_unit_vision_radius_sq(unit_kind));
+    }
+
+    pub(in crate::sim) fn reveal_map_circle(
+        &mut self,
+        owner: usize,
+        x: i32,
+        y: i32,
+        radius_sq: i32,
+    ) {
         if owner >= self.players.len() || owner == BARBARIANS {
             return;
         }
-        // Freeciv map_show_circle receives the unit type's base
-        // vision_radius_sq, not the effect-adjusted sight used for normal
-        // vision updates.
-        let radius_sq = native_unit_vision_radius_sq(unit_kind);
         let radius = (radius_sq.max(0) as f64).sqrt().ceil() as i32;
         let mut indices = self
             .map_wrap
@@ -656,17 +712,8 @@ impl Simulation {
         }
         self.remember_render_positions(&remembered, Some(&indices));
         for &index in &indices {
-            for &recipient in &recipients {
-                if !remembered[recipient][index] {
-                    continue;
-                }
-                let owner = self.tiles[index].owner;
-                if recipient == HUMAN {
-                    self.tiles[index].last_seen_owner = owner;
-                } else {
-                    self.ai_map_memory
-                        .insert((recipient, index), self.live_map_observation(index));
-                }
+            if remembered[HUMAN][index] {
+                self.tiles[index].last_seen_owner = self.tiles[index].owner;
             }
         }
     }
@@ -734,37 +781,28 @@ impl Simulation {
             .map(|((_, index), entry)| (*index, entry.clone()))
             .collect();
 
-        let donor_cities: BTreeMap<_, _> = self
-            .observed_map
-            .cities
-            .range((giver, 0)..=(giver, u32::MAX))
-            .map(|(_, (_, observed))| {
-                let city = &observed.city;
-                (self.map_wrap.index(city.x, city.y), city.owner)
-            })
-            .collect();
         let mut transferred = std::collections::BTreeSet::new();
         for (index, entry) in tiles {
-            let mut route = movement::RouteTile::from(&entry.1);
-            route.city_owner = donor_cities.get(&index).copied();
-            let observation = MapObservation {
-                route,
-                owner: entry.1.owner,
-                ocean: route.is_water(),
-            };
             let tile = &mut self.tiles[index];
             tile.known_by[receiver] = true;
             if receiver == HUMAN {
                 tile.seen = true;
-                tile.last_seen_owner = observation.owner;
-            } else {
-                self.ai_map_memory.insert((receiver, index), observation);
+                tile.last_seen_owner = entry.1.owner;
             }
             self.observed_map.tiles.insert((receiver, index), entry);
             transferred.insert(index);
         }
         if transferred.is_empty() {
             return;
+        }
+        for &index in &transferred {
+            if let Some(&owner) = self.observed_map.partial_sites.get(&(giver, index)) {
+                self.observed_map
+                    .partial_sites
+                    .insert((receiver, index), owner);
+            } else {
+                self.observed_map.partial_sites.remove(&(receiver, index));
+            }
         }
         // A newer observation of an empty tile must also clear a stale city.
         self.observed_map.cities.retain(|(viewer, _), (_, city)| {
@@ -783,9 +821,7 @@ impl Simulation {
         for (id, city) in cities {
             self.observed_map.cities.insert((receiver, id), city);
         }
-        if receiver == HUMAN {
-            self.rebuild_observed_city_index();
-        }
+        self.rebuild_observed_city_index();
     }
 
     pub(super) fn valid_render_memory(&self) -> bool {

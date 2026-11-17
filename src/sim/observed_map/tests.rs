@@ -41,7 +41,6 @@ fn sea_map_uses_live_ocean_for_eligibility_and_the_sellers_last_snapshot_for_con
     let mut sim = Simulation::new(crate::mapgen::generate(42));
     sim.units.clear();
     sim.observed_map = Default::default();
-    sim.ai_map_memory.clear();
     for tile in &mut sim.tiles {
         tile.known_by.fill(false);
         tile.seen = false;
@@ -60,10 +59,6 @@ fn sea_map_uses_live_ocean_for_eligibility_and_the_sellers_last_snapshot_for_con
     assert_eq!(
         sim.remembered_tile(1, x, y).unwrap().terrain,
         Terrain::Grassland
-    );
-    assert!(
-        !sim.ai_map_memory
-            .contains_key(&(1, sim.map_wrap.index(x, y)))
     );
 
     sim.transfer_treaty_map(1, HUMAN, TreatyMap::Sea);
@@ -300,7 +295,6 @@ fn newer_trade_maps_update_existing_visual_and_movement_knowledge_together() {
         tile.known_by.fill(false);
     }
     let (x, y) = (23, 36);
-    let index = Simulation::idx(x, y);
     let tile = game.tile_mut(x, y);
     tile.terrain = Terrain::Grassland;
     tile.road = false;
@@ -339,9 +333,9 @@ fn newer_trade_maps_update_existing_visual_and_movement_knowledge_together() {
     let route = game.observed_route_tile(x, y).unwrap();
     assert_eq!(route.terrain, Terrain::Hills);
     assert!(route.road && route.railroad && !route.is_water());
-    let ai = game.ai_map_memory.get(&(2, index)).unwrap();
-    assert_eq!(ai.route.terrain, Terrain::Hills);
-    assert!(ai.route.road && ai.route.railroad && !ai.ocean);
+    let ai = game.known_tile_for(2, x, y).unwrap();
+    assert_eq!(ai.terrain, Terrain::Hills);
+    assert!(ai.road && ai.railroad && !ai.terrain.is_water());
     assert_eq!(ai.owner, Some(1));
     assert_eq!(random, game.random_snapshot());
 }
@@ -604,5 +598,79 @@ fn c2c3_hex_radius_sq_uses_civ3_steps_without_crossing_poles() {
             .civ3_radius(south.0, south.1, 3)
             .iter()
             .all(|(_, y, _)| *y < game.map_wrap.height())
+    );
+}
+
+fn empty_observation_game() -> Simulation {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    game.observed_map = ObservedMap::default();
+    for tile in &mut game.tiles {
+        tile.known_by.fill(false);
+        tile.seen = false;
+        tile.visible = false;
+        tile.stealth_visible = false;
+        tile.terrain = Terrain::Grassland;
+    }
+    game
+}
+
+#[test]
+fn ai_targeting_has_its_apollo_observation() {
+    let mut game = empty_observation_game();
+    game.create_city(1, 10, 24);
+    game.cities[0].buildings.push(Building::APOLLO_PROGRAM);
+    game.refresh_visibility();
+    assert!(!game.has_main_sight_at(1, 40, 32));
+    assert!(game.tile(40, 32).known_by[1]);
+    assert!(game.remembered_tile(1, 40, 32).is_some());
+    assert_eq!(
+        game.known_tile_for(1, 40, 32).unwrap().terrain,
+        Terrain::Grassland
+    );
+    let neighbor = game.map_wrap.position(game.map_wrap.index(40, 32));
+    assert!(game.safe_ocean_at(neighbor.0, neighbor.1, Some(1)));
+}
+
+#[test]
+fn ai_targeting_does_not_mix_last_seen_and_live_improvements() {
+    let mut game = empty_observation_game();
+    game.tile_mut(10, 24).base = Some(Base::Fortress);
+    let id = game.spawn_unit(1, UnitKind::Warrior, 10, 24);
+    game.refresh_visibility();
+    game.units.retain(|unit| unit.id != id);
+    game.tile_mut(10, 24).base = None;
+    game.tile_mut(10, 24).mine = true;
+    game.refresh_visibility();
+    assert!(!game.has_main_sight_at(1, 10, 24));
+    let actual = game.known_tile_for(1, 10, 24).unwrap();
+    let expected = game.remembered_tile(1, 10, 24).unwrap();
+    assert_eq!((actual.base, actual.mine), (expected.base, expected.mine));
+}
+
+#[test]
+fn civil_war_inherits_private_observations() {
+    let mut game = empty_observation_game();
+    for (x, y) in [(10, 24), (20, 24), (30, 24)] {
+        game.create_city(1, x, y);
+    }
+    let (x, y) = (40, 32);
+    let scout = game.spawn_unit(1, UnitKind::Explorer, x, y);
+    game.refresh_visibility();
+    game.units.retain(|unit| unit.id != scout);
+    game.tile_mut(x, y).terrain = Terrain::Ocean;
+    game.refresh_visibility();
+    assert_eq!(
+        game.remembered_tile(1, x, y).unwrap().terrain,
+        Terrain::Grassland
+    );
+    let rebel = game.players.len();
+    game.split_civil_war(1);
+    assert!(game.players.len() > rebel);
+    assert!(game.tile(x, y).known_by[rebel]);
+    assert_eq!(
+        game.remembered_tile(rebel, x, y).map(|tile| tile.terrain),
+        Some(Terrain::Grassland)
     );
 }

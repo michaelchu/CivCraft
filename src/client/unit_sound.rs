@@ -1,11 +1,13 @@
 //! Unit sound lookup and playback, kept separate from simulation and drawing.
+use super::asset_error::AssetResult;
 
 use super::amb::read_amb_cues;
+use super::audio_assets::AudioAssetLoader;
+use super::media::Civ3MediaResolver;
 use super::*;
-use macroquad::audio::{PlaySoundParams, Sound, load_sound_from_bytes, play_sound};
+use macroquad::audio::{PlaySoundParams, play_sound};
 use std::{
     collections::{HashMap, VecDeque},
-    fs,
     path::{Path, PathBuf},
 };
 
@@ -26,16 +28,16 @@ struct ScheduledCue {
 /// Owns decoded one-shot sounds and scheduled cues for unit actions.
 pub(crate) struct UnitSoundPlayer {
     enabled: bool,
-    cache: HashMap<PathBuf, Sound>,
+    loader: Option<AudioAssetLoader>,
     schedule: VecDeque<ScheduledCue>,
     component_index: Option<HashMap<String, PathBuf>>,
 }
 
 impl UnitSoundPlayer {
-    pub(crate) fn new(enabled: bool) -> Self {
+    pub(crate) fn new(context: &super::AssetContext) -> Self {
         Self {
-            enabled,
-            cache: HashMap::new(),
+            enabled: context.audio.is_some(),
+            loader: context.audio.clone().map(AudioAssetLoader::new),
             schedule: VecDeque::new(),
             component_index: None,
         }
@@ -47,7 +49,7 @@ impl UnitSoundPlayer {
         muted: bool,
         volume: u8,
     ) {
-        if !self.enabled {
+        if !self.enabled || self.loader.is_none() {
             return;
         }
         if muted {
@@ -63,16 +65,21 @@ impl UnitSoundPlayer {
                 match read_amb_cues(&path) {
                     Ok(cues) => {
                         for (delay, filename) in cues {
-                            match resolve_amb_component(&path, &filename, &mut self.component_index)
-                            {
-                                Some(wav) => self.schedule.push_back(ScheduledCue {
+                            match resolve_amb_component(
+                                &self.loader.as_ref().unwrap().library.media,
+                                &path,
+                                &filename,
+                                &mut self.component_index,
+                            ) {
+                                Ok(Some(wav)) => self.schedule.push_back(ScheduledCue {
                                     at: now + delay_seconds.max(0.0) + delay,
                                     path: wav,
                                 }),
-                                None => eprintln!(
+                                Ok(None) => eprintln!(
                                     "Unit sound {} references missing WAV '{filename}'",
                                     path.display()
                                 ),
+                                Err(error) => eprintln!("Could not resolve unit cue: {error}"),
                             }
                         }
                     }
@@ -92,127 +99,69 @@ impl UnitSoundPlayer {
         self.schedule = cues.into();
         while self.schedule.front().is_some_and(|cue| cue.at <= now) {
             let cue = self.schedule.pop_front().unwrap();
-            if !self.cache.contains_key(&cue.path) {
-                match fs::read(&cue.path) {
-                    Ok(bytes) => match load_sound_from_bytes(&bytes).await {
-                        Ok(sound) => {
-                            self.cache.insert(cue.path.clone(), sound);
-                        }
-                        Err(error) => {
-                            eprintln!("Could not load unit sound {}: {error}", cue.path.display());
-                            continue;
-                        }
-                    },
-                    Err(error) => {
-                        eprintln!("Could not read unit sound {}: {error}", cue.path.display());
-                        continue;
-                    }
-                }
-            }
-            if let Some(sound) = self.cache.get(&cue.path) {
-                play_sound(
-                    sound,
+            match self.loader.as_mut().unwrap().load_path(&cue.path).await {
+                Ok(sound) => play_sound(
+                    &sound,
                     PlaySoundParams {
                         looped: false,
                         volume: f32::from(volume.min(100)) / 100.0,
                     },
-                );
+                ),
+                Err(error) => eprintln!("Could not load unit sound: {error}"),
             }
         }
     }
-}
-
-fn resolve_case_insensitive_path(base: &Path, reference: &str) -> Option<PathBuf> {
-    let normalized = reference.trim().trim_matches('"').replace('\\', "/");
-    let mut path = base.to_owned();
-    for component in normalized.split('/') {
-        if component.is_empty() || component == "." {
-            continue;
-        }
-        if component == ".." {
-            path.pop();
-            continue;
-        }
-        let exact = path.join(component);
-        if exact.exists() {
-            path = exact;
-            continue;
-        }
-        path = fs::read_dir(&path)
-            .ok()?
-            .filter_map(Result::ok)
-            .find(|entry| {
-                entry
-                    .file_name()
-                    .to_string_lossy()
-                    .eq_ignore_ascii_case(component)
-            })?
-            .path();
-    }
-    path.is_file().then_some(path)
 }
 
 fn resolve_amb_component(
+    media: &Civ3MediaResolver,
     amb_path: &Path,
     reference: &str,
     index: &mut Option<HashMap<String, PathBuf>>,
-) -> Option<PathBuf> {
-    let parent = amb_path.parent().unwrap_or(Path::new("."));
-    if let Some(found) = resolve_case_insensitive_path(parent, reference) {
-        return Some(found);
-    }
-    let folder = parent.file_name()?;
-    let source = parent.ancestors().find(|path| {
-        ["Art/Units", "civ3PTW/Art/Units", "Conquests/Art/Units"]
-            .iter()
-            .any(|relative| path.join(relative).is_dir())
-    })?;
-    for root in [
-        source.join("Conquests/Art"),
-        source.join("civ3PTW/Art"),
-        source.join("Art"),
-    ] {
-        if let Some(found) =
-            resolve_case_insensitive_path(&root.join("Units").join(folder), reference)
-        {
-            return Some(found);
-        }
+) -> AssetResult<Option<PathBuf>> {
+    if let Some(found) = super::unit_media::UnitMedia::new(media)
+        .lookup(amb_path, reference)
+        .map_err(|e| e.context(format!("AMB {}", amb_path.display())))?
+    {
+        return Ok(Some(found.path));
     }
     if index.is_none() {
-        *index = Some(build_unit_audio_index(source));
+        *index = Some(super::unit_media::build_unit_audio_index(media)?);
     }
-    index
-        .as_ref()?
-        .get(&reference.to_ascii_lowercase())
-        .cloned()
+    Ok(index
+        .as_ref()
+        .and_then(|index| index.get(&reference.to_ascii_lowercase()).cloned()))
 }
 
-fn build_unit_audio_index(source: &Path) -> HashMap<String, PathBuf> {
-    let roots = [
-        source.join("Conquests/Art/Units"),
-        source.join("civ3PTW/Art/Units"),
-        source.join("Art/Units"),
-    ];
-    let mut files = HashMap::new();
-    let mut pending = roots.into_iter().collect::<Vec<_>>();
-    while let Some(directory) = pending.pop() {
-        let Ok(entries) = fs::read_dir(directory) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                pending.push(path);
-            } else if path
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"))
-                && let Some(name) = path.file_name()
-            {
-                files
-                    .entry(name.to_string_lossy().to_ascii_lowercase())
-                    .or_insert(path);
-            }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    #[test]
+    fn amb_global_fallback_is_deterministic_and_obeys_edition_precedence() {
+        let root = std::env::temp_dir().join(format!("civcraft-amb-media-{}", std::process::id()));
+        let owner = root.join("Conquests/Art/Units/Archer/run.amb");
+        fs::create_dir_all(owner.parent().unwrap()).unwrap();
+        fs::write(&owner, "cue").unwrap();
+        let expansion = root.join("Conquests/Art/Units/Other/Shared.WAV");
+        let base = root.join("Art/Units/Other/shared.wav");
+        for path in [&expansion, &base] {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "wav").unwrap();
         }
+        let media = Civ3MediaResolver::installation(&root);
+        let mut index = None;
+        let found = resolve_amb_component(&media, &owner, "shared.wav", &mut index)
+            .unwrap()
+            .unwrap();
+        assert_eq!(found, expansion.canonicalize().unwrap());
+        assert!(index.is_some());
+        assert!(
+            resolve_amb_component(&media, &owner, "missing.wav", &mut index)
+                .unwrap()
+                .is_none()
+        );
+        assert!(resolve_amb_component(&media, &owner, "/absolute", &mut index).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
-    files
 }

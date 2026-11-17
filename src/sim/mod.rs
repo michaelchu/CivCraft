@@ -33,18 +33,22 @@ mod nuclear;
 pub(crate) use bases::Base;
 mod cities;
 mod civil_war;
+#[cfg(feature = "desktop")]
 mod client_api;
 mod client_views;
 #[allow(dead_code)]
-mod content_adapter;
+#[cfg(feature = "desktop")]
 pub(crate) use client_api::ClientSimulation;
+#[cfg(feature = "desktop")]
 pub(crate) use client_views::{
-    CityContextView, CityManagerView, CombatPresentationView, DiplomacyMeetingView,
-    DiplomacyRivalView, GameOverView, GovernmentView, MinimapCityView, MinimapTileView,
-    MusicCueView, PresentationEventView, RenderTileView, RenderedCityView, RenderedUnitView,
-    ResearchProgressView, SelectableUnitView, SpaceshipAssemblyView, TechnologyResearchView,
-    TopBarView, UnitActionView, UnitContextView, UnitFidgetView,
+    CityContextView, CityManagerView, DiplomacyMeetingView, DiplomacyRivalView, GameOverView,
+    GovernmentView, MinimapCityView, MinimapTileView, MusicCueView, RenderTileView,
+    RenderedCityView, RenderedUnitView, ResearchProgressView, SelectableUnitView,
+    SpaceshipAssemblyView, TechnologyResearchView, TopBarView, UnitActionView, UnitContextView,
+    UnitFidgetView,
 };
+pub(crate) use client_views::{CombatPresentationView, PresentationEventView};
+#[cfg(feature = "desktop")]
 pub(crate) use diplomacy::EspionageRivalView;
 mod combat_rules;
 mod commands;
@@ -90,7 +94,9 @@ mod pillage;
 mod pollution;
 mod route_preview;
 pub(crate) use crate::random::FreecivRng;
-pub(crate) use route_preview::{GotoPoint, GotoPreview};
+#[cfg(feature = "desktop")]
+pub(crate) use route_preview::GotoPoint;
+pub(crate) use route_preview::GotoPreview;
 mod save;
 mod score;
 mod settlement;
@@ -206,15 +212,6 @@ pub(crate) enum MoveResult {
     Blocked,
 }
 
-type AiMapMemory = std::collections::BTreeMap<(usize, usize), MapObservation>;
-
-#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
-struct MapObservation {
-    route: movement::RouteTile,
-    owner: Option<usize>,
-    ocean: bool,
-}
-
 /// Complete mutable campaign state and the operations that advance its rules.
 ///
 /// The save module defines the disk representation and initializes derived state on load.
@@ -261,7 +258,6 @@ pub(crate) struct Simulation {
     climate_pressure: [ClimatePressure; 2],
     climate_current: [i32; 2],
     observed_map: observed_map::ObservedMap,
-    ai_map_memory: AiMapMemory,
     ai_purchase_reserve: std::collections::BTreeMap<usize, i32>,
     city_founders: std::collections::BTreeMap<u32, usize>,
     ai_war_plans: std::collections::BTreeMap<(usize, usize), diplomacy::WarPlan>,
@@ -567,7 +563,6 @@ impl Simulation {
             climate_pressure: [ClimatePressure::new(map.map_wrap.tile_count()); 2],
             climate_current: [0; 2],
             observed_map: Default::default(),
-            ai_map_memory: Default::default(),
             ai_purchase_reserve: Default::default(),
             city_founders: Default::default(),
             ai_war_plans: Default::default(),

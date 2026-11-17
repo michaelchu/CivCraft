@@ -1,5 +1,6 @@
 //! Filesystem loading and typed decoding for native Freeciv rulesets.
 
+use crate::rules::content_adapter::{FreecivTechBinding, bind_freeciv_technology};
 use crate::rules::engine_rules::RequirementKind;
 use crate::rules::{Building, Tech};
 use crate::world::Terrain;
@@ -210,47 +211,10 @@ fn resolve_requirements(requirements: &mut [Requirement]) {
 }
 
 fn resolve_tech(name: &str) -> Option<Tech> {
-    if name.eq_ignore_ascii_case("Plastics") {
-        return None;
+    match bind_freeciv_technology(name).ok()? {
+        FreecivTechBinding::Bound(tech) => Some(tech),
+        FreecivTechBinding::MissingFromCiv3Catalog => None,
     }
-    if name.eq_ignore_ascii_case("Radio") {
-        return Some(Tech::FLIGHT);
-    }
-    if let Some(tech) = Tech::all()
-        .find(|tech| tech.name().eq_ignore_ascii_case(name))
-        .and_then(|tech| {
-            tech.is_civ3_advance()
-                .then_some(tech)
-                .or_else(|| tech.civ3_equivalent())
-        })
-    {
-        return Some(tech);
-    }
-    let source = crate::rules::native::technologies()
-        .technologies
-        .iter()
-        .find(|source| {
-            source.name.eq_ignore_ascii_case(name)
-                || (name.eq_ignore_ascii_case("Superconductors")
-                    && source.name.eq_ignore_ascii_case("Superconductor"))
-                || (name.eq_ignore_ascii_case("Amphibious Warfare")
-                    && source.name.eq_ignore_ascii_case("Amphibious War"))
-                || (name.eq_ignore_ascii_case("Conscription")
-                    && source.name.eq_ignore_ascii_case("Nationalism"))
-                || (name.eq_ignore_ascii_case("Environmentalism")
-                    && source.name.eq_ignore_ascii_case("Ecology"))
-                || (name.eq_ignore_ascii_case("Laser")
-                    && source.name.eq_ignore_ascii_case("The Laser"))
-                || (name.eq_ignore_ascii_case("Mobile Warfare")
-                    && source.name.eq_ignore_ascii_case("Motorized Transportation"))
-                || (name.eq_ignore_ascii_case("Nuclear Fission")
-                    && source.name.eq_ignore_ascii_case("Fission"))
-        })?;
-    Tech::all().find(|tech| {
-        tech.name().eq_ignore_ascii_case(&source.name)
-            || (source.name.eq_ignore_ascii_case("Amphibious War")
-                && *tech == Tech::AMPHIBIOUS_WARFARE)
-    })
 }
 
 fn resolve_building(name: &str) -> Option<Building> {
@@ -870,7 +834,11 @@ fn requirement_value_is_valid(requirement: &Requirement, rules: &RulesetData) ->
         RequirementKind::FormAge => integer_value(&name).is_some_and(|value| value > 0),
         RequirementKind::FutureTechs => integer_value(&name).is_some_and(|value| value > 0),
         RequirementKind::Good => record_name_exists(rules, "goods", &name),
-        RequirementKind::Gov => content_name_exists(rules, ContentKind::Government, &name),
+        RequirementKind::Gov => {
+            content_name_exists(rules, ContentKind::Government, &name)
+                || (rules.name == "civcraft"
+                    && crate::rules::native::governments().get(&name).is_some())
+        }
         RequirementKind::GovFlag => flag_name_exists(
             rules,
             &name,
@@ -1260,6 +1228,54 @@ fn content_kind(file: &str, section: &str) -> Option<ContentKind> {
 #[cfg(test)]
 mod bundle_tests {
     use super::*;
+
+    #[test]
+    fn compiled_requirements_and_runtime_use_the_same_technology_aliases() {
+        let rules = RulesetData::campaign_default();
+        let tech_requirements = rules
+            .action_enablers
+            .iter()
+            .flat_map(|enabler| {
+                enabler
+                    .actor_requirements
+                    .iter()
+                    .chain(&enabler.target_requirements)
+            })
+            .chain(rules.effects.iter().flat_map(|effect| &effect.requirements))
+            .chain(
+                rules
+                    .content
+                    .iter()
+                    .flat_map(|record| record.requirements.iter().chain(&record.obsolete_by)),
+            )
+            .chain(
+                rules
+                    .rule_records
+                    .iter()
+                    .flat_map(|record| &record.requirements),
+            )
+            .filter(|requirement| requirement.kind == RequirementKind::Tech)
+            .collect::<Vec<_>>();
+        for (alias, technology) in [("Radio", Tech::FLIGHT), ("Conscription", Tech::NATIONALISM)] {
+            let requirement = tech_requirements
+                .iter()
+                .find(|req| matches!(&req.name, RequirementValue::String(name) if name.eq_ignore_ascii_case(alias)))
+                .unwrap();
+            assert_eq!(
+                requirement.resolved,
+                Some(ResolvedRequirementValue::Tech(technology))
+            );
+            assert_eq!(
+                bind_freeciv_technology(alias),
+                Ok(FreecivTechBinding::Bound(technology))
+            );
+        }
+        assert_eq!(
+            bind_freeciv_technology("Plastics"),
+            Ok(FreecivTechBinding::MissingFromCiv3Catalog)
+        );
+        assert!(bind_freeciv_technology("Unknown modification").is_err());
+    }
 
     #[test]
     fn embedded_campaign_matches_the_filesystem_ruleset() {

@@ -83,6 +83,7 @@ pub(super) struct RouteTile {
     pub(super) city_owner: Option<usize>,
 }
 
+#[cfg(test)]
 impl RouteTile {
     pub(super) fn is_water(self) -> bool {
         self.terrain.is_water()
@@ -181,15 +182,13 @@ impl Simulation {
     }
 
     pub(super) fn observed_route_tile(&self, x: i32, y: i32) -> Option<RouteTile> {
-        let tile = self.human_known_tile(x, y)?;
-        if tile.visible {
-            Some(self.live_route_tile(x, y))
-        } else {
-            let mut route = RouteTile::from(tile);
-            route.city_owner =
-                self.remembered_human_city_owner(x.rem_euclid(self.map_wrap.width()), y);
-            Some(route)
-        }
+        self.route_tile_for(HUMAN, x, y)
+    }
+
+    fn route_tile_for(&self, observer: usize, x: i32, y: i32) -> Option<RouteTile> {
+        let mut route = RouteTile::from(self.known_tile_for(observer, x, y)?);
+        route.city_owner = self.observed_city_owner(observer, x, y);
+        Some(route)
     }
 
     pub(super) fn observed_move_cost(
@@ -459,14 +458,9 @@ impl Simulation {
             .civ3_neighbors(x, y)
             .filter(|&(nx, ny)| self.movement_is_cardinal((x, y), (nx, ny)))
             .any(|(nx, ny)| {
-                let index = self.map_wrap.index(nx, ny);
                 let route = match observer {
+                    Some(owner) => self.route_tile_for(owner, nx, ny),
                     None => Some(self.live_route_tile(nx, ny)),
-                    Some(HUMAN) => self.observed_route_tile(nx, ny),
-                    Some(owner) => self
-                        .ai_map_memory
-                        .get(&(owner, index))
-                        .map(|observation| observation.route),
                 };
                 route.is_some_and(|tile| {
                     match rules.terrain_has_flag(
@@ -1320,47 +1314,59 @@ impl Simulation {
         moved
     }
 
-    pub(super) fn start_connect_order(&mut self, id: u32, x: i32, y: i32) -> bool {
-        let Some(unit) = self.unit_by_id(id) else {
-            return false;
-        };
-        if !unit.kind.stats().can_work
-            || unit.transport.is_some()
-            || unit.work_left > 0
-            || (unit.x, unit.y) == (x, y)
+    pub(super) fn can_start_connect(&self, unit: &Unit) -> bool {
+        unit.kind.stats().can_work
+            && unit.order.is_none()
+            && unit.transport.is_none()
+            && unit.work_left == 0
+    }
+
+    pub(super) fn can_start_patrol(&self, unit: &Unit) -> bool {
+        unit.kind.is_military() && unit.order.is_none() && unit.transport.is_none()
+    }
+
+    fn movement_order_path(&self, unit: &Unit, x: i32, y: i32) -> Option<Vec<(i32, i32)>> {
+        if (unit.x, unit.y) == (x, y)
             || !(0..self.map_wrap.width()).contains(&x)
             || !(0..self.map_wrap.height()).contains(&y)
-            || self.plan_route(unit, x, y, true).is_empty()
         {
+            return None;
+        }
+        let path = self.plan_route(unit, x, y, true);
+        (!path.is_empty()).then_some(path)
+    }
+
+    pub(super) fn start_connect_order(&mut self, id: u32, x: i32, y: i32) -> bool {
+        let Some(index) = self.unit_index_by_id(id) else {
+            return false;
+        };
+        let unit = &self.units[index];
+        if !self.can_start_connect(unit) || self.movement_order_path(unit, x, y).is_none() {
             return false;
         }
-        let index = self.unit_index_by_id(id).expect("unit checked above");
         self.units[index].order = Some(UnitOrder::Connect { x, y });
         self.unit_goto_tiles.remove(&id);
         true
     }
 
     pub(super) fn start_patrol_order(&mut self, id: u32, x: i32, y: i32) -> bool {
-        let Some(unit) = self.unit_by_id(id) else {
+        let Some(index) = self.unit_index_by_id(id) else {
+            return false;
+        };
+        let unit = &self.units[index];
+        if !self.can_start_patrol(unit) {
+            return false;
+        }
+        let Some(path) = self.movement_order_path(unit, x, y) else {
             return false;
         };
         let origin = (unit.x, unit.y);
-        if unit.transport.is_some()
-            || origin == (x, y)
-            || !(0..self.map_wrap.width()).contains(&x)
-            || !(0..self.map_wrap.height()).contains(&y)
-            || self.plan_route(unit, x, y, true).is_empty()
-        {
-            return false;
-        }
-        let index = self.unit_index_by_id(id).expect("unit checked above");
         self.units[index].order = Some(UnitOrder::Patrol {
             origin,
             destination: (x, y),
             returning: false,
         });
-        self.unit_goto_tiles.remove(&id);
-        self.player_goto(id, x, y);
+        self.follow_player_goto(id, (x, y), path);
         if self
             .unit_by_id(id)
             .is_some_and(|unit| (unit.x, unit.y) == (x, y))

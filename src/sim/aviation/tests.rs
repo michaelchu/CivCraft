@@ -2137,7 +2137,10 @@ mod stealth_tests {
         ));
         let hidden_unit = game.spawn_unit(1, UnitKind::Warrior, landing.0, landing.1);
         game.tile_mut(landing.0, landing.1).visible = false;
-        assert!(!game.known_target_is_city(HUMAN, landing.0, landing.1));
+        assert!(
+            game.observed_city_owner(HUMAN, landing.0, landing.1)
+                .is_none()
+        );
         assert!(!game.unit_visible_to_human(game.unit_by_id(hidden_unit).unwrap()));
 
         assert!(game.paradrop(troop, landing.0, landing.1));

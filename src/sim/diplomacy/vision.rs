@@ -76,16 +76,6 @@ impl Simulation {
         true
     }
 
-    pub(in crate::sim) fn live_map_observation(&self, index: usize) -> MapObservation {
-        let (x, y) = self.map_wrap.position(index);
-        let tile = &self.tiles[index];
-        MapObservation {
-            route: self.live_route_tile(x, y),
-            owner: tile.owner,
-            ocean: tile.terrain.is_water(),
-        }
-    }
-
     pub(in crate::sim) fn transfer_treaty_map(
         &mut self,
         giver: usize,

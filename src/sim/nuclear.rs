@@ -98,8 +98,8 @@ impl Simulation {
     fn nuclear_action_for_target(&self, unit: &Unit, x: i32, y: i32) -> Option<&'static str> {
         if (x, y) == (unit.x, unit.y) {
             Some("Explode Nuclear")
-        } else if self.known_target_tile(unit.owner, x, y).is_some() {
-            Some(if self.known_target_is_city(unit.owner, x, y) {
+        } else if self.known_tile_for(unit.owner, x, y).is_some() {
+            Some(if self.observed_city_owner(unit.owner, x, y).is_some() {
                 "Nuke City"
             } else {
                 "Nuke Units"
@@ -202,14 +202,14 @@ impl Simulation {
         let target_state = if position == (unit.x, unit.y) {
             // The actor's own tile is known to its owner, even if the test or
             // load path has not refreshed the broader observed-map snapshot.
-            self.tile(x, y).clone()
+            self.tile(x, y)
         } else {
-            let Some(known) = self.known_target_tile(unit.owner, x, y) else {
+            let Some(known) = self.known_tile_for(unit.owner, x, y) else {
                 return false;
             };
             known
         };
-        let target_is_city_center = self.known_target_is_city(unit.owner, x, y);
+        let target_is_city_center = self.observed_city_owner(unit.owner, x, y).is_some();
         let Some(action) = self.nuclear_action_for_target(unit, x, y) else {
             return false;
         };
@@ -218,7 +218,7 @@ impl Simulation {
                 unit,
                 action,
                 position,
-                &target_state,
+                target_state,
                 target_is_city_center,
             )
         {
@@ -581,7 +581,10 @@ mod tests {
             game.turn,
         ));
         game.tile_mut(target.0, target.1).visible = false;
-        assert!(!game.known_target_is_city(HUMAN, target.0, target.1));
+        assert!(
+            game.observed_city_owner(HUMAN, target.0, target.1)
+                .is_none()
+        );
         assert_eq!(
             game.nuclear_action_for_target(&unit, target.0, target.1),
             Some("Nuke Units")

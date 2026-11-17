@@ -1097,8 +1097,24 @@ impl ContextInfo {
     }
 }
 
+/// Framebuffer pixels in RGBA order, with the bottom row first.
+pub struct ScreenPixels {
+    pub width: u16,
+    pub height: u16,
+    pub rgba: Vec<u8>,
+}
+
 pub trait RenderingBackend {
     fn info(&self) -> ContextInfo;
+
+    /// Allow framebuffer readback before rendering a frame that will be captured.
+    fn enable_screen_readback(&mut self) {}
+
+    /// Read the rendered default framebuffer before presenting it.
+    fn read_screen_pixels(&mut self) -> Result<ScreenPixels, &'static str> {
+        Err("screen readback is unsupported by this backend")
+    }
+
     /// For metal context's ShaderSource should contain MSL source string, for GL - glsl.
     ///
     /// If in doubt, _most_ OpenGL contexts support "#version 100" glsl shaders.
