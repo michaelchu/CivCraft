@@ -2,6 +2,13 @@
 
 use super::*;
 
+/// Strip covering the floating buttons and the gaps around them, so a near-miss
+/// click is not delivered to the map underneath.
+fn controls_row_rect(button_start: f32, width: f32) -> Rect {
+    let left = button_start - 4.0;
+    Rect::new(left, 0.0, (width - left).max(0.0), CONTROLS_H - 3.0)
+}
+
 impl Game {
     pub(super) fn draw_top_bar(&self, actions: &mut Vec<(Rect, UiAction)>) {
         let width = screen_width();
@@ -136,6 +143,11 @@ impl Game {
             );
         }
         actions.push((music_rect, UiAction::ToggleMusicPanel));
+        // Listed after the buttons so they win; this only catches the gaps and margins.
+        actions.push((
+            controls_row_rect(button_start, width),
+            UiAction::BlockMapClick,
+        ));
         if music_rect.contains(ui_pointer()) {
             tooltip = Some((music_rect, "Audio controls".to_owned()));
         }
@@ -215,5 +227,21 @@ impl Game {
             draw_hud_card(rect);
             draw_text(&label, rect.x + 8.0, rect.y + 17.0, 15.0, WHITE);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn controls_row_blocks_clicks_in_gaps_and_margins_but_not_beside_it() {
+        let row = controls_row_rect(1000.0, 1280.0);
+        // Gap between two 38px buttons that sit 42px apart, plus the strips above and below.
+        assert!(row.contains(vec2(1000.0 + 40.0, 20.0)));
+        assert!(row.contains(vec2(1100.0, 1.0)));
+        assert!(row.contains(vec2(1100.0, CONTROLS_H - 4.0)));
+        assert!(!row.contains(vec2(900.0, 20.0)));
+        assert!(!row.contains(vec2(1100.0, CONTROLS_H + 2.0)));
     }
 }
