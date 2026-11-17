@@ -15,6 +15,7 @@ use super::*;
 
 mod assault_transports;
 mod city_defense;
+mod great_leader;
 mod ground_invasion;
 mod hunter;
 mod unit_automation;
@@ -255,6 +256,11 @@ impl Simulation {
             }
             if unit.moves_left <= 0 {
                 self.trace.count_operation("ai.units.no_moves_skipped", 1);
+                continue;
+            }
+            if unit.kind == UnitKind::Leader {
+                let _profile = profiler.scope("ai.units.great_leader");
+                self.run_ai_great_leader(&unit);
                 continue;
             }
             // Ranged bombardment is an action on the current tile; try it

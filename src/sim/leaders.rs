@@ -24,7 +24,12 @@ impl Simulation {
             && unit.moves_left > 0
             && unit.owner == city.owner
             && (unit.x, unit.y) == (city.x, city.y)
-            && !city.bought_production
+            && self.leader_can_complete_in(city)
+    }
+
+    /// The part of the rule that depends only on the city and its production.
+    pub(in crate::sim) fn leader_can_complete_in(&self, city: &City) -> bool {
+        !city.bought_production
             && matches!(city.production, Production::Building(building)
             if matches!(
                 building.data().genus,
