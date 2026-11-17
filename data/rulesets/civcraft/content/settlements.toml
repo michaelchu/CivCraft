@@ -31,6 +31,10 @@ good_enough = 250
 discount_period = 24
 defense_emphasis = 20
 naval_emphasis = 20
+# CivCraft extension to Freeciv's wonder city: with no Help Wonder unit a lone
+# capital would otherwise become the wonder city and spend dozens of turns on a
+# wonder instead of founding its first cities. Fewer cities than this: none.
+wonder_city_min_cities = 3
 wonder_city_pop_founder_divisor = 5
 wonder_city_other_founder_divisor = 2
 expansionist_trait_baseline = 50

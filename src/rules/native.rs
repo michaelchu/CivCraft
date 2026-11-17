@@ -263,6 +263,7 @@ pub(crate) struct NativeSettlementAi {
     pub(crate) discount_period: i32,
     pub(crate) defense_emphasis: i32,
     pub(crate) naval_emphasis: i32,
+    pub(crate) wonder_city_min_cities: i32,
     pub(crate) wonder_city_pop_founder_divisor: i32,
     pub(crate) wonder_city_other_founder_divisor: i32,
     pub(crate) expansionist_trait_baseline: i32,

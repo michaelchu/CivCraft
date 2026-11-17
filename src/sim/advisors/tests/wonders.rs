@@ -173,3 +173,36 @@ fn space_parts_need_a_competitive_empire_or_an_active_race() {
         Some("Spaceship part unavailable")
     );
 }
+
+#[test]
+fn wonder_city_waits_for_the_minimum_number_of_cities() {
+    let minimum = crate::rules::engine_rules::SettlementAiSettings::campaign()
+        .wonder_city_min_cities as usize;
+    assert!(
+        minimum >= 2,
+        "the default must keep lone capitals expanding"
+    );
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for tile in &mut game.tiles {
+        tile.terrain = Terrain::Forest;
+    }
+    let sites = [(5, 8), (20, 24), (20, 40), (30, 30)];
+    for (count, &(x, y)) in sites.iter().take(minimum).enumerate() {
+        game.create_city(1, x, y);
+        game.reconcile_city_workers();
+        if count + 1 < minimum {
+            assert_eq!(
+                game.ai_wonder_city(1),
+                None,
+                "{} cities is below the wonder-city minimum",
+                count + 1
+            );
+        }
+    }
+    assert!(
+        game.ai_wonder_city(1).is_some(),
+        "{minimum} productive cities can host a wonder city"
+    );
+}
