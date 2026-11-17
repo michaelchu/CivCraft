@@ -62,6 +62,7 @@ mod government;
 mod guards;
 mod headless;
 pub(crate) mod observation;
+pub(crate) mod research_observation;
 pub(crate) mod trace;
 pub(crate) use government::Government;
 mod achievements;
@@ -73,6 +74,7 @@ mod ferries;
 mod fuel_paths;
 mod illness;
 mod leaders;
+pub(crate) mod lifecycle;
 mod list_order;
 mod migration;
 mod movement;
@@ -604,8 +606,11 @@ impl Simulation {
         game.native_random = Some(game_random);
 
         for (owner, start) in starts.iter().take(civilization_count).enumerate() {
-            let profile =
-                civilization_start_rules::get(&game.players[owner].name).unwrap_or_else(|| {
+            let profile = game.players[owner]
+                .civilization_id
+                .as_deref()
+                .and_then(civilization_start_rules::get)
+                .unwrap_or_else(|| {
                     panic!(
                         "missing Civ III start profile for {}",
                         game.players[owner].name
@@ -746,7 +751,12 @@ impl Simulation {
         } else {
             kind.conquests_id()
                 .and_then(civ3_unit_rules::get)
-                .is_some_and(|rule| rule.available_to(&self.players[owner].name))
+                .is_some_and(|rule| {
+                    self.players[owner]
+                        .civilization_id
+                        .as_deref()
+                        .is_some_and(|id| rule.available_to(id))
+                })
         };
         !kind.has_no_build()
             && civilization_available

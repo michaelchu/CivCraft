@@ -516,3 +516,26 @@ fn invalid_campaign_state_is_rejected_on_load() {
     assert!(Simulation::load_campaign(&path).is_err());
     fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn civilization_identity_and_unit_access_survive_renaming_and_save_reload() {
+    let path = temporary_save("civilization-id");
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.players[HUMAN].known = Tech::all().filter(|tech| tech.is_civ3_advance()).collect();
+    let leader = game.players[HUMAN].leader_name();
+    assert_eq!(game.players[HUMAN].civilization_id.as_deref(), Some("rome"));
+    assert!(game.unit_available(HUMAN, UnitKind::Worker));
+    assert!(game.unit_available(HUMAN, UnitKind::Legionary));
+    // A label belonging to another civilization must not change Rome's rules.
+    game.players[HUMAN].name = "Inca".into();
+    game.save_campaign(&path).unwrap();
+    let loaded = Simulation::load_campaign(&path).unwrap();
+    fs::remove_file(path).unwrap();
+    assert_eq!(
+        loaded.players[HUMAN].civilization_id.as_deref(),
+        Some("rome")
+    );
+    assert_eq!(loaded.players[HUMAN].leader_name(), leader);
+    assert!(loaded.unit_available(HUMAN, UnitKind::Worker));
+    assert!(loaded.unit_available(HUMAN, UnitKind::Legionary));
+}

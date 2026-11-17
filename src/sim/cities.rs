@@ -107,6 +107,8 @@ impl Simulation {
             .map(|city| (self.map_distance(unit.x, unit.y, city.x, city.y), city.id))
             .min();
         self.publish_visual_event(VisualEvent::FoundCity { unit: unit.clone() });
+        self.trace
+            .unit_removed(self.turn, &unit, lifecycle::UnitRemoval::FoundedCity);
         self.units.remove(index);
         self.discard_unit_ai(unit_id);
         self.ai_settlement_targets.remove(&unit_id);
@@ -153,6 +155,8 @@ impl Simulation {
             city.buildings.push(Building::PALACE);
         }
         self.cities.push(city);
+        self.trace
+            .city_created(self.turn, self.cities.last().unwrap());
         self.list_order.city(self.cities.last().unwrap());
         let tile = self.tile_mut(x, y);
         tile.base = None;
@@ -193,7 +197,7 @@ impl Simulation {
         let name = city.name.clone();
         let kind = unit.kind;
         let owner = unit.owner;
-        self.remove_units_with_cargo(vec![unit_id]);
+        self.remove_units_with_cargo_because(vec![unit_id], lifecycle::UnitRemoval::JoinedCity);
         self.rebuild_city_ownership_for_city_event(city_id);
         self.refresh_visibility();
         if owner == HUMAN {
@@ -257,7 +261,11 @@ impl Simulation {
         let event = (attacker.owner == HUMAN || city.owner == HUMAN)
             .then(|| format!("{} lost one citizen during {action}.", city.name));
         if city.size <= 1 {
-            self.remove_city_for_population_loss(city.id);
+            self.remove_city_because(
+                city.id,
+                lifecycle::CityRemoval::PopulationLoss,
+                Some(attacker.owner),
+            );
         } else {
             self.reduce_city_population(index);
         }
@@ -266,12 +274,19 @@ impl Simulation {
         }
     }
 
-    pub(super) fn remove_city_for_population_loss(&mut self, city_id: u32) {
+    pub(super) fn remove_city_because(
+        &mut self,
+        city_id: u32,
+        reason: lifecycle::CityRemoval,
+        by_owner: Option<usize>,
+    ) {
         let Some(index) = self.city_index_by_id(city_id) else {
             return;
         };
         self.release_city_support(city_id);
         let removed = self.cities.remove(index);
+        self.trace
+            .city_destroyed(self.turn, &removed, reason, by_owner);
         for unit in self
             .units
             .iter_mut()
@@ -298,10 +313,21 @@ impl Simulation {
     }
 
     pub(super) fn transfer_traded_city(&mut self, index: usize, buyer: usize) {
+        self.transfer_city_because(index, buyer, lifecycle::TransferReason::Trade);
+    }
+
+    pub(super) fn transfer_city_because(
+        &mut self,
+        index: usize,
+        buyer: usize,
+        reason: lifecycle::TransferReason,
+    ) {
         let original = self.cities[index].owner;
         let id = self.cities[index].id;
         let center = (self.cities[index].x, self.cities[index].y);
         let first_city = !self.cities.iter().any(|city| city.owner == buyer);
+        self.trace
+            .city_transferred(self.turn, &self.cities[index], buyer, reason);
         self.cities[index].transfer_citizens(buyer);
         self.list_order.city(&self.cities[index]);
         self.cities[index]
@@ -333,6 +359,7 @@ impl Simulation {
                 continue;
             }
             affected.insert((unit.x, unit.y));
+            self.trace.unit_transferred(self.turn, unit, buyer, reason);
             unit.owner = buyer;
             self.list_order.unit(unit);
             unit.home_city = unit.home_city.map(|_| id);
@@ -462,7 +489,7 @@ impl Simulation {
         // citytools.c destroys a size-one city before transferring it or
         // awarding its gold. The same path also clears its supported units.
         if city_size <= 1 {
-            self.remove_city_for_population_loss(city_id);
+            self.remove_city_because(city_id, lifecycle::CityRemoval::Conquest, Some(unit.owner));
             if civil_war {
                 self.split_civil_war(old_owner);
             }
@@ -503,6 +530,12 @@ impl Simulation {
         // City history remains with the city and is scored for its new owner.
         // Freeciv applies the selected conquest_convert_pct after transfer;
         // C2C3 sets that value to zero.
+        self.trace.city_transferred(
+            self.turn,
+            &self.cities[city_index],
+            unit.owner,
+            lifecycle::TransferReason::Conquest,
+        );
         self.cities[city_index].transfer_citizens(unit.owner);
         self.convert_conquest_citizens(city_index);
         self.cities[city_index]
@@ -706,6 +739,12 @@ impl Simulation {
         {
             // citytools.c::transfer_unit routes city ownership changes through
             // unit_change_homecity_handling(), which preserves unit identity.
+            self.trace.unit_transferred(
+                self.turn,
+                transferred,
+                new_owner,
+                lifecycle::TransferReason::Conquest,
+            );
             transferred.owner = new_owner;
             transferred.home_city = rehome.then_some(city_id);
             if rehome {
@@ -852,6 +891,14 @@ impl Simulation {
                     .all(|&known| !known.civ3_prerequisites().unwrap_or(&[]).contains(&tech)))
             && self.rand_below(100) < settings.tech_lost_donor_percent
         {
+            self.trace.technology_changed(
+                self.turn,
+                victim,
+                tech,
+                research_observation::TechnologyAction::Lost,
+                research_observation::TechnologySource::TransferLoss,
+                Some(taker),
+            );
             if tech == Tech::FUTURE {
                 self.players[victim].future_techs -= 1;
             } else {
@@ -869,7 +916,12 @@ impl Simulation {
         // Freeciv's engine default GAME_DEFAULT_CONQUERCOST is 0 for this
         // pinned ruleset; it is not a C2C3 ruleset field.
         self.apply_research_penalty(taker, tech, 0);
-        self.discover(taker, tech);
+        self.discover_with_source(
+            taker,
+            tech,
+            research_observation::TechnologySource::Conquest,
+            Some(victim),
+        );
         if was_researching {
             let next = self.choose_research_target(taker);
             self.choose_research_tech(taker, next, free_bulbs);

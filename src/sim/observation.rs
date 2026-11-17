@@ -54,6 +54,12 @@ impl Snapshot {
     pub fn units(&self) -> Option<&Vec<UnitSnapshot>> {
         self.get("units")
     }
+    pub fn research(&self) -> Option<&research_observation::ResearchSnapshot> {
+        self.get("research")
+    }
+    pub fn lifecycle(&self) -> Option<&lifecycle::LifecycleSnapshot> {
+        self.get("lifecycle")
+    }
 }
 impl Serialize for Snapshot {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -115,6 +121,32 @@ pub(crate) struct TerritorySnapshot {
     pub land: Vec<bool>,
 }
 #[derive(Clone, Serialize)]
+pub(crate) struct MinimapCivilization {
+    pub id: usize,
+    pub name: String,
+    pub color: [u8; 3],
+    pub alive: bool,
+}
+#[derive(Clone, Serialize)]
+pub(crate) struct MinimapCity {
+    pub id: u32,
+    pub owner: usize,
+    pub name: String,
+    pub x: i32,
+    pub y: i32,
+    pub population: i32,
+}
+#[derive(Clone, Serialize)]
+pub(crate) struct MinimapSnapshot {
+    pub width: i32,
+    pub height: i32,
+    /// Row-major terrain RGB and ownership, using map coordinates before projection.
+    pub terrain: Vec<[u8; 3]>,
+    pub owners: Vec<Option<usize>>,
+    pub cities: Vec<MinimapCity>,
+    pub civilizations: Vec<MinimapCivilization>,
+}
+#[derive(Clone, Serialize)]
 pub(crate) struct CivilizationSnapshot {
     pub id: usize,
     pub name: String,
@@ -129,6 +161,7 @@ pub(crate) struct UnitSnapshot {
     pub id: u32,
     pub owner: usize,
     pub kind: String,
+    pub home_city: Option<u32>,
     pub x: i32,
     pub y: i32,
     pub hp: i32,
@@ -142,6 +175,51 @@ pub(crate) struct UnitSnapshot {
 }
 
 impl Simulation {
+    #[cfg(feature = "desktop")]
+    pub(crate) fn observe_minimap(&self) -> MinimapSnapshot {
+        let rgb = |color: macroquad::prelude::Color| {
+            [color.r, color.g, color.b].map(|c| (c * 255.0).round() as u8)
+        };
+        let width = self.map_wrap.width();
+        let height = self.map_wrap.height();
+        MinimapSnapshot {
+            width,
+            height,
+            terrain: (0..height)
+                .flat_map(|y| (0..width).map(move |x| (x, y)))
+                .map(|(x, y)| rgb(self.tile(x, y).terrain.minimap_color()))
+                .collect(),
+            owners: (0..height)
+                .flat_map(|y| (0..width).map(move |x| self.tile(x, y).owner))
+                .collect(),
+            cities: self
+                .cities
+                .iter()
+                .map(|c| MinimapCity {
+                    id: c.id,
+                    owner: c.owner,
+                    name: c.name.clone(),
+                    x: c.x,
+                    y: c.y,
+                    population: c.size,
+                })
+                .collect(),
+            civilizations: self
+                .players
+                .iter()
+                .enumerate()
+                .map(|(id, p)| MinimapCivilization {
+                    id,
+                    name: p.name.clone(),
+                    color: rgb(crate::map_palette::player_color(
+                        p.civilization_id.as_deref(),
+                        id,
+                    )),
+                    alive: self.player_alive(id),
+                })
+                .collect(),
+        }
+    }
     pub(crate) fn observe_cities(&self) -> Vec<CitySnapshot> {
         self.cities()
             .iter()
@@ -232,6 +310,7 @@ impl Simulation {
                 id: unit.id,
                 owner: unit.owner,
                 kind: unit.kind.name().into(),
+                home_city: unit.home_city,
                 x: unit.x,
                 y: unit.y,
                 hp: unit.hp,

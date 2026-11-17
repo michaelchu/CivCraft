@@ -213,10 +213,9 @@ mod tests {
                             (
                                 game.players[owner].name.as_str(),
                                 game.player_alive(owner),
-                                candidate
-                                    .runtime_kind
-                                    .conquests_rule()
-                                    .available_to(&game.players[owner].name),
+                                candidate.runtime_kind.conquests_rule().available_to(
+                                    game.players[owner].civilization_id.as_deref().unwrap(),
+                                ),
                                 game.barbarian_role_buildable_by(candidate.runtime_kind, owner),
                             )
                         })

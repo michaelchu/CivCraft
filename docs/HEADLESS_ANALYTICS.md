@@ -286,7 +286,9 @@ cargo run --offline --release --bin headless_sim -- \
   listed participant matches. Filters apply to persisted events, not snapshots
   or analyzer inputs. Arbitrary domain names allow newly instrumented modules;
   an unmatched name produces no events from that domain.
-- `--snapshot-providers cities,civilizations,territory,units` selects output providers;
+- `--snapshot-providers cities,civilizations,units,lifecycle,research,minimap` selects output providers
+  (these six are the default; `territory` is also available). The final minimap
+  requires the default `desktop` feature; graphics-free builds omit it;
   `none` records just the envelope plus analyzer-required data.
 - The `territory` provider records map dimensions, row-major tile ownership,
   and a land mask so unowned land can be distinguished from water. City
@@ -311,7 +313,7 @@ size grows with requested turns and selected/required providers; event limits
 do not limit snapshots. The compact timeline and findings remain in memory.
 I/O errors fail the runner rather than silently continuing without evidence.
 
-## Report schema 7
+## Report schema 8
 
 `report.json` is the review entry point:
 
@@ -335,7 +337,19 @@ I/O errors fail the runner rather than silently continuing without evidence.
 Sidecars:
 
 - `report.json.snapshots.jsonl`: initial snapshot plus one per completed step.
-  `cities`, `civilizations`, and `units` are independent provider sections.
+  `cities`, `civilizations`, `units`, `lifecycle`, and `research` are independent provider sections.
+- `report.json.minimap.png`: one final minimap, written when the run stops.
+  It shows terrain, current territory and city markers without fog of war, using
+  the in-game terrain/civilization palette and staggered, horizontally wrapped
+  projection. `evidence.minimap` links the PNG and records its turn, phase,
+  map dimensions and civilization color legend. This is an asset-free simulation
+  overview, not a screenshot of the desktop UI.
+  The default `minimap` output selection is final-only: no map arrays are written
+  to per-turn snapshots, no intermediate PNGs or HTML viewer are generated, and
+  running checkpoints have `evidence.minimap:null`. Excluding `minimap` from
+  `--snapshot-providers` disables the export; `none` does so too. Builds using
+  `--no-default-features --features scenarios` retain research analytics but omit
+  minimap support and keep `evidence.minimap:null`.
 - `report.json.events.jsonl`: events selected for persistence. Sequences are
   stable within the run but may have gaps after filtering or overflow.
 
@@ -349,7 +363,8 @@ Both streams flush before a summary checkpoint is atomically published.
 limit, game over, or configured finding stop. A terminated run can leave its
 last valid `running` checkpoint. No findings is not proof of correct gameplay.
 
-Schema 6 replaces implicit sequential step timings with scoped timing
+Schema 8 adds lifecycle accounting and each live unit's `home_city`. Schema 6
+replaces implicit sequential step timings with scoped timing
 aggregates. Schema 5 replaced schema 4's history sidecar with independent
 snapshots/events, added the initial snapshot and analyzer metadata, and
 introduced finding episode IDs. Readers should inspect `version` before
@@ -368,6 +383,91 @@ but represents only that saved state's population, unit rosters, and AI
 decisions. Prefer a naturally advanced save over a hand-built turn-80 scenario
 when diagnosing the observed slowdown. Use a named scenario for a compact,
 controlled workload that exercises one specific path.
+
+### Research analytics
+
+The default `research` provider records each civilization's sorted
+`known_technology_ids`, `known_count`, `future_techs`, `current_technology_id`,
+`goal_technology_id`, current `progress`/`cost`, and `science_rate_percent`.
+Resolve technology IDs using the report's single `technology_catalog` (ID, name,
+era and prerequisites). Names and prerequisites are not repeated in every snapshot.
+Unset targets/goals have null IDs; progress can be negative during a science deficit.
+Barbarians and unused civilization slots are excluded from the civilization rows.
+
+`science_output` records the last actual accounting phase: its turn, gross science,
+technology upkeep and net output. It is null before the first observed accounting
+phase. An inactive civilization can retain an older output record; inspect its turn.
+This records the upkeep actually charged, rather than recalculating it after new
+technologies have changed maintenance costs.
+
+`changes` contains acquisitions and losses since the previous snapshot, with turn,
+phase, technology ID, owner, source and other owner where applicable. Sources
+include `research`, `trade` (including treaty gifts), `espionage`, `conquest`,
+`village`, `free_advance`, `first_discovery_bonus`, `civil_war`, `upkeep` and
+`transfer_loss`. Test-fixture grants without a more specific source use `unspecified`.
+A technology gained and lost within one turn retains both records. Future Tech
+completions and losses count individually and also update `future_techs`.
+
+Each civilization's `totals` records initial knowledge, cumulative acquisitions
+and losses, and counts by source. The latest state, totals and last interval are
+also under `summary.research`; read the snapshot stream for earlier intervals.
+History begins at `since_turn`, so starting or loaded technologies are baseline
+knowledge, not new discoveries. Saves and speculative clones do not carry this
+run-local history. Disabled analyzers, trace filters and event-buffer/output limits
+do not truncate research snapshots. Direct uninstrumented knowledge edits are
+marked `unobserved` and set `complete_since_start:false` rather than guessing a source.
+
+```sh
+jq '.summary.research.civilizations[] | {name, known_count, science_rate_percent, science_output, totals}' report.json
+jq -c '.research.changes[]' report.json.snapshots.jsonl
+```
+
+Run `--scenario research-history --turns 1` to exercise actual research completion,
+treaty transfer and upkeep-driven loss with four regression checks. Select
+`--snapshot-providers research` for research-only data, or exclude `research` to
+omit it and the shared catalog. The final-only `minimap` export is independent.
+
+### Unit and city lifecycle history
+
+The default `lifecycle` provider adds cumulative `unit_totals` by owner and unit
+kind, cumulative `city_totals` by owner, and `changes` since the previous snapshot.
+The final totals and final interval also appear at `summary.lifecycle`. Read the
+snapshot stream for the full history; each interval is written once to avoid
+repeating an ever-growing history in every snapshot.
+
+Unit totals distinguish city production (`built`, a subset of `created`), live
+units (`existing`), destruction, consumption (founding/joining a city or an
+expendable action), disbanding, transfers, and upgrades. Change records identify
+the unit, type, owner, location, turn and phase, with a reason or creation source.
+Built units include the producing `origin.city_id`; `units[].home_city` is the
+current support city and may differ. Transfers that replace a unit ID link the
+previous ID. Upgrades and transfers do not count as new production or deaths.
+
+City records identify the city ID, name, location, population and owner before
+the action. Conquests record both owners; trade, propaganda and civil-war
+transfers have separate reasons. Destruction records its reason and responsible
+owner when known. A city captured and then destroyed between snapshots retains
+both records, as does a unit built and lost within one interval.
+A size-one city razed during conquest records destruction with reason `conquest`;
+it does not count as an ownership transfer.
+
+History starts at `since_turn`. Starting units and cities, including those in a
+loaded campaign, count as `initial`; earlier production or losses cannot be
+reconstructed from a save. Cloning or saving a campaign does not carry its
+run-local history. Event filters, disabled analyzers and event-buffer/output
+limits do not truncate lifecycle snapshots. Unexpected uninstrumented roster
+changes are explicitly marked `unobserved`, counted separately, and set
+`complete_since_start:false` rather than inventing causes.
+
+```sh
+jq '.summary.lifecycle.unit_totals, .summary.lifecycle.city_totals' report.json
+jq -c '.lifecycle.changes[] | select(.event == "city_transferred" or .event == "city_destroyed")' \
+  report.json.snapshots.jsonl
+```
+
+Run `--scenario lifecycle-history --turns 1` for a regression exercising actual
+production, same-interval loss, founding, disbanding, conquest, trade and city
+destruction.
 
 ### Seed-42 80-turn ramp baseline
 
@@ -446,6 +546,19 @@ CivCraft now follows those shapes without introducing a global path cache:
 - worker tile/activity values and safety checks are shared within a phase,
   while route cost, reservations, work rate, and road-network bonuses remain
   worker-specific; worker activity occupancy uses map-indexed vectors;
+- production advice shares infrastructure values and compatible terrain
+  projections across the owner's virtual workers, following
+  `daicity.c:dai_manage_cities`'s single `initialize_infrastructure_cache`
+  before the city loop. This cache is local to `prepare_ai_city_defenses`;
+  isolated advice starts fresh, and nothing survives into spending, movement,
+  city processing, or the next pass. Routes and arrival times are still
+  calculated separately for each virtual worker;
+- worker planning skips units without the worker flag, matching `daisettler.c`'s
+  `UTYF_WORKERS` guard. Road-to-rail eligibility shares the phase's terrain
+  projection cache. Road-network bonuses are reused only while the actual
+  road/rail worker activity maps remain unchanged, and founding a city clears
+  these caches along with other terrain projections. This preserves
+  `infracache.c`'s requirement that newly assigned road work affect bonuses;
 - government evaluation scans owner and home-city unit facts once per refresh;
 - ferry and rendezvous searches consume `NormalPaths` lazily and stop after a
   result is determined. Cross-actor reuse remains deliberately unsupported
@@ -474,6 +587,29 @@ advice, government projection, worker routing, and per-unit AI planning. Use
 counters for subsequent comparisons.
 
 ## Test entry points
+
+### Expansion balance
+
+The `expansion-balance` scenario checks that founder backlogs and other cities'
+founder queues immediately reduce production wants even when site advice is
+cached, that clearing those commitments restores expansion, and that valuable
+opportunities remain possible beyond twenty cities.
+
+CivCraft deliberately tunes Freeciv's dense small-city preference: overlap is
+more expensive and unclaimed room for growth is worth more. Founder production
+also pays a rising price against the smaller of government administration
+capacity (`Empire_Size_Base`) and a fair share of habitable map area. Live
+founders and other cities' founder queues count as committed expansion. The
+ruleset's `preferred_land_tiles_per_city` and `expansion_cost_priority` tune
+this price. `free_expansion_cities` preserves an initial foothold, including
+the first ferry on a small island. This changes AI incentives, not founding
+legality or a city cap.
+These are CivCraft balance choices, not claims about unmodified Freeciv AI.
+
+```sh
+cargo run --offline --release --bin headless_sim -- \
+  --scenario expansion-balance --turns 1 --report /tmp/expansion-balance.json
+```
 
 Both executables are thin wrappers around the library. Shared simulation,
 analytics, UI, and CLI tests run once in the library harness:

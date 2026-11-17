@@ -924,3 +924,55 @@ fn overlapping_cities_reserve_worked_tiles_and_release_them_on_reassignment() {
     assert_eq!(game.cities[1].worked_tiles.len(), 1);
     assert!(!game.cities[0].worked_tiles.contains(&shared));
 }
+
+#[test]
+fn coinage_constant_names_the_convert_building() {
+    let data = Building::COINAGE.data();
+    assert_eq!(data.name, "Coinage");
+    assert_eq!(data.genus, Genus::Convert);
+}
+
+#[test]
+fn ai_city_that_cannot_build_its_item_switches_to_something_buildable() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    // A civilization ID unknown to the catalog matches no unit mask, so it can
+    // build no units; with no technology few buildings are open either.
+    game.players[1].name = "Atlantis".into();
+    game.players[1].civilization_id = Some("atlantis".into());
+    game.players[1].ai = true;
+    game.create_city(1, 20, 24);
+    let id = game.cities[0].id;
+    assert!(!game.unit_available(1, UnitKind::Warrior));
+    game.cities[0].production = Production::Unit(UnitKind::Warrior);
+    game.cities[0].shields = 0;
+
+    game.process_player_cities(1);
+
+    let city = game.city_by_id(id).unwrap();
+    assert!(
+        game.can_produce(city, city.production),
+        "AI production must be buildable, got {:?}",
+        city.production
+    );
+    let fallback = game.choose_ai_production(1, id);
+    assert!(game.can_produce(game.city_by_id(id).unwrap(), fallback));
+}
+
+#[test]
+fn ai_fallback_is_coinage_when_nothing_else_is_buildable() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    game.players[1].name = "Atlantis".into();
+    game.players[1].civilization_id = Some("atlantis".into());
+    game.players[1].ai = true;
+    game.create_city(1, 20, 24);
+    let city = game.cities[0].clone();
+    assert_eq!(
+        game.ai_fallback_production(&city),
+        Production::Building(Building::COINAGE)
+    );
+    assert!(game.can_produce(&city, Production::Building(Building::COINAGE)));
+}

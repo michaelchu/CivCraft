@@ -35,7 +35,7 @@ impl Simulation {
         };
         let city_name = self.cities[city_index].name.clone();
         self.cities[city_index].shields = self.cities[city_index].production.cost();
-        self.remove_units_with_cargo(vec![unit_id]);
+        self.remove_units_with_cargo_because(vec![unit_id], lifecycle::UnitRemoval::Expended);
         self.add_event(format!("A Leader hurried production in {city_name}."));
         true
     }

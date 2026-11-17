@@ -611,7 +611,12 @@ impl Simulation {
                     return true;
                 }
                 let tech = eligible[self.rand_below(eligible.len() as i32) as usize];
-                self.discover(actor, tech);
+                self.discover_with_source(
+                    actor,
+                    tech,
+                    research_observation::TechnologySource::Espionage,
+                    Some(opponent),
+                );
                 self.add_espionage_event(
                     actor,
                     opponent,
@@ -756,7 +761,7 @@ impl Simulation {
             })
             .count() as i32;
         if influenced * 4 >= city.size * 3 {
-            self.transfer_traded_city(index, actor);
+            self.transfer_city_because(index, actor, lifecycle::TransferReason::Propaganda);
             self.add_espionage_event(
                 actor,
                 opponent,

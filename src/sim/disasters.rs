@@ -136,7 +136,7 @@ impl Simulation {
                 self.reconcile_city_workers();
                 details.push("One citizen lost.".to_owned());
             } else if has_effect("ReducePopDestroy") {
-                self.remove_city_for_population_loss(city.id);
+                self.remove_city_because(city.id, lifecycle::CityRemoval::Disaster, None);
                 details.push("City destroyed.".to_owned());
             }
         }

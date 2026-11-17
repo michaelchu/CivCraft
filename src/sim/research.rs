@@ -489,6 +489,7 @@ impl Simulation {
     pub(super) fn apply_research_upkeep(&mut self, owner: usize, income: i32) {
         let upkeep = self.technology_upkeep(owner);
         self.players[owner].last_science = income - upkeep;
+        self.trace.research_output(owner, self.turn, income, upkeep);
         // Freeciv's per-city update_bulbs() adds normal science output to the
         // suspended project's pool. The later negative upkeep update runs
         // after researching_saved is cleared, so only city science belongs
@@ -544,6 +545,14 @@ impl Simulation {
         } else {
             self.players[owner].known.retain(|&known| known != tech);
         }
+        self.trace.technology_changed(
+            self.turn,
+            owner,
+            tech,
+            research_observation::TechnologyAction::Lost,
+            research_observation::TechnologySource::Upkeep,
+            None,
+        );
         self.invalidate_stable_city_advice_for_owner(owner);
         self.players[owner].researching_saved = None;
         self.players[owner].research_saved = 0;
@@ -579,7 +588,12 @@ impl Simulation {
                 }
             }
         };
-        self.discover(owner, advance);
+        self.discover_with_source(
+            owner,
+            advance,
+            research_observation::TechnologySource::FreeAdvance,
+            None,
+        );
         if self.players[owner].researching == advance {
             let free = self.players[owner].research;
             let next = self.choose_research_target(owner);
@@ -587,7 +601,23 @@ impl Simulation {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn discover(&mut self, owner: usize, tech: Tech) {
+        self.discover_with_source(
+            owner,
+            tech,
+            research_observation::TechnologySource::Unspecified,
+            None,
+        );
+    }
+
+    pub(super) fn discover_with_source(
+        &mut self,
+        owner: usize,
+        tech: Tech,
+        source: research_observation::TechnologySource,
+        other_owner: Option<usize>,
+    ) {
         if !tech.is_civ3_advance() && tech != Tech::FUTURE {
             return;
         }
@@ -601,6 +631,16 @@ impl Simulation {
         // project after any newly discovered technology.
         self.players[owner].researching_saved = None;
         self.players[owner].research_saved = 0;
+        if tech == Tech::FUTURE || !self.players[owner].known.contains(&tech) {
+            self.trace.technology_changed(
+                self.turn,
+                owner,
+                tech,
+                research_observation::TechnologyAction::Acquired,
+                source,
+                other_owner,
+            );
+        }
         if tech == Tech::FUTURE {
             self.players[owner].future_techs += 1;
         } else {
@@ -697,11 +737,21 @@ impl Simulation {
                     .players
                     .iter()
                     .all(|player| !player.known.contains(&current));
-            self.discover(owner, current);
+            self.discover_with_source(
+                owner,
+                current,
+                research_observation::TechnologySource::Research,
+                None,
+            );
             if first_bonus {
                 let bonus = self.choose_research_target(owner);
                 if bonus != Tech::FUTURE {
-                    self.discover(owner, bonus);
+                    self.discover_with_source(
+                        owner,
+                        bonus,
+                        research_observation::TechnologySource::FirstDiscoveryBonus,
+                        None,
+                    );
                 }
             }
             if !self.players[owner].ai {

@@ -214,26 +214,30 @@ impl UnitRule {
         }
     }
 
-    fn civilization_mask_allows(&self, civilization: &str) -> bool {
+    fn civilization_mask_allows(&self, source_noun: &str) -> bool {
         self.available_to
             .split(';')
-            .any(|available| available == civilization)
+            .any(|available| available == source_noun)
     }
 
-    pub(super) fn available_to(&self, civilization: &str) -> bool {
+    /// Resolve a stable civilization ID to the canonical Civ III noun used by
+    /// the unit catalog. Display labels never determine gameplay eligibility.
+    pub(super) fn available_to(&self, civilization_id: &str) -> bool {
+        let Some(civilization) = crate::rules::civilizations::by_id(civilization_id) else {
+            return false;
+        };
+        let source_noun = civilization.noun.as_str();
         if self.category == "wonder_created"
-            || (!self.unique_civilization.is_empty() && self.unique_civilization != civilization)
-            || !self.civilization_mask_allows(civilization)
+            || (!self.unique_civilization.is_empty() && self.unique_civilization != source_noun)
+            || !self.civilization_mask_allows(source_noun)
         {
             return false;
         }
-        // Civ III's RACE mask alone can still include the replaced base unit.
-        // The unique-unit relationship takes precedence for production.
         !rules().iter().any(|unique| {
             unique.category == "unique"
-                && unique.unique_civilization == civilization
+                && unique.unique_civilization == source_noun
                 && unique.replacement_id() == Some(self.id)
-                && unique.civilization_mask_allows(civilization)
+                && unique.civilization_mask_allows(source_noun)
         })
     }
 
@@ -464,13 +468,31 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(unique.len(), 31);
         for unit in unique {
-            let civilization = unit.unique_civilization;
+            let civilization = crate::rules::civilizations::all()
+                .iter()
+                .find(|c| c.noun == unit.unique_civilization)
+                .unwrap()
+                .id
+                .as_str();
             let base_id = unit
                 .replacement_id()
                 .unwrap_or_else(|| panic!("unique unit {} has no replacement", unit.id));
             let base = get(base_id).unwrap();
             assert!(!base.available_to(civilization), "{}", unit.id);
             assert!(unit.available_to(civilization), "{}", unit.id);
+        }
+    }
+
+    #[test]
+    fn every_civilization_id_can_build_basic_units() {
+        for civilization in crate::rules::civilizations::all() {
+            for id in ["settler", "worker"] {
+                assert!(
+                    get(id).unwrap().available_to(&civilization.id),
+                    "{} must be able to build {id}",
+                    civilization.name
+                );
+            }
         }
     }
 

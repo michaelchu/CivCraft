@@ -153,8 +153,13 @@ impl Simulation {
         let home = (10, 24);
         let baseline = self.city_site_value(1, home.0, home.1);
         // Source: center115*2 (2food/2shield/1trade) + best68
-        // +19 individually truncated68/8 for the 20 surrounding BFC tiles.
-        let expected = f64::from(298.0_f32 + 100.0_f32 / 299.0 * 200.0 + 152.0);
+        // +19 individually truncated contributions for the surrounding BFC.
+        // The selected balance tuning controls how strongly room to grow is
+        // valued; keep the known tile outputs and rounding oracle explicit.
+        let deemphasis = crate::rules::engine_rules::SettlementAiSettings::campaign()
+            .growth_potential_deemphasis;
+        let remaining = 19 * (68 / deemphasis);
+        let expected = f64::from(298.0_f32 + 100.0_f32 / 299.0 * 200.0 + remaining as f32);
         let rounded = baseline.is_some_and(|value| (value - expected).abs() < 0.0001);
         let mut reservations = vec![0; self.tiles.len()];
         let reserved_tile = self

@@ -709,7 +709,7 @@ impl Simulation {
             .map(|unit| unit.id)
             .collect();
         let before = self.units.len();
-        self.remove_units_with_cargo(losses);
+        self.remove_units_with_cargo_because(losses, lifecycle::UnitRemoval::Combat);
         self.nation_scores[winner.owner].units_killed += (before - self.units.len()) as i32;
     }
 
@@ -955,7 +955,10 @@ impl Simulation {
             self.remove_combat_losses(&defender, &attacker);
             self.apply_combat_population_loss(&attacker, nx, ny);
             if attacker.kind == UnitKind::CruiseMissile {
-                self.remove_units_with_cargo(vec![attacker_id]);
+                self.remove_units_with_cargo_because(
+                    vec![attacker_id],
+                    lifecycle::UnitRemoval::Expended,
+                );
             }
             // server/unithand.c consumes one `fc_rand(100)` roll for every
             // surviving attacker win, even when the selected chance is 0 or
