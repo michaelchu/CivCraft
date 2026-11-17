@@ -8,8 +8,11 @@ overlay.
 ## Goals
 - No top bar (no background strip, no "CivCraft" title).
 - The bar's buttons float top-right over the map, unchanged in behavior:
-  Government, Diplomacy, Espionage, Research tree, Science/Tax/Luxury rates,
+  Government, Diplomacy, Espionage, Research tree,
   Spaceship (when available), Music. Tooltips and the music panel are kept.
+  The Science/Tax/Luxury rate buttons are removed from this row; they became
+  three sliders in the Government panel (a later change). `Command::SetRates`
+  replaces `RaiseRate`; the client works out the 10-point steps.
 - Bottom-right context card gains a fixed info block directly below the
   header section at the top of the card (the unit icon, name and status, or the
   city name): Year (no label) and Government on the first row, Gold and Research progress on the second; there is no turn number. It uses the 2x2

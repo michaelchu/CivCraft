@@ -37,7 +37,8 @@ pub(crate) enum Command {
     },
     SellBuilding(u32, Building),
     Research(Tech),
-    RaiseRate(usize),
+    /// Sets the science, tax and luxury split; see `Simulation::set_rates`.
+    SetRates([i32; 3]),
     Government(super::Government),
     Mobilize,
     Espionage(
@@ -248,7 +249,7 @@ impl Simulation {
             Espionage(owner, mission, city, risk) => {
                 self.perform_espionage(owner, mission, city, risk)
             }
-            RaiseRate(index) => self.raise_rate(HUMAN, index),
+            SetRates(rates) => self.set_rates(HUMAN, rates),
             WorkCityTile { city_id, x, y } => self.toggle_city_tile(city_id, x, y),
             Specialist {
                 city_id,

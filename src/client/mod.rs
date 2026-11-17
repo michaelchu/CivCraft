@@ -136,7 +136,8 @@ pub(crate) enum UiAction {
     ToggleSpaceship,
     ToggleManualAssembly,
     PlaceShipPart(ShipPart),
-    RaiseRate(usize),
+    /// Sets the science, tax and luxury split from a rate slider.
+    SetRates([i32; 3]),
     Specialist(u32, usize, i32),
     CityTiles,
     WorkCityTile(u32, i32, i32),

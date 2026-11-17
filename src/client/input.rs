@@ -351,8 +351,13 @@ impl Game {
             || self.selected_city.is_some()
         {
             let (x, y) = mouse_position();
-            if is_mouse_button_pressed(MouseButton::Left)
+            let pressed = is_mouse_button_pressed(MouseButton::Left);
+            // Holding the button down on a rate slider keeps following the pointer.
+            let dragging_slider =
+                self.overlay == Overlay::Government && is_mouse_button_down(MouseButton::Left);
+            if (pressed || dragging_slider)
                 && let Some(action) = Self::ui_action_at(vec2(x, y), buttons)
+                && (pressed || matches!(action, UiAction::SetRates(_)))
             {
                 self.perform_action(action);
             }

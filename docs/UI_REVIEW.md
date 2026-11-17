@@ -21,7 +21,7 @@ This is deliberately a small shared UI layer rather than a retained widget frame
 
 | Surface | Cleanup |
 | --- | --- |
-| Control buttons | There is no top bar. Government, diplomacy, espionage, research, rate, spaceship and audio icons float in the upper right over the map. |
+| Control buttons | There is no top bar. Government, diplomacy, espionage, research, spaceship and audio icons float in the upper right over the map. The science, tax and luxury rate sliders live in the Government panel. |
 | Map overlays | The map fills the whole window. The minimap sits in the lower left. The context card and End Turn sit in the lower right, and the card always shows year, government, gold and research progress. Recent messages sit below the floating buttons. |
 | Action strip | One centered row of icons. Hover shows the action and its shortcut when available. More opens the next page of actions. |
 | City manager | Wider responsive modal; separate name, forecast, progress and specialist rows; production grid adapts rows and columns to available space. |

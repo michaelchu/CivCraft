@@ -18,10 +18,10 @@ fn controls_row_rect(button_start: f32, width: f32) -> Rect {
     )
 }
 
-/// Left edge of the floating button row: eight buttons, plus one while a
+/// Left edge of the floating button row: five buttons, plus one while a
 /// spaceship status is shown, right-aligned to the HUD margin.
 pub(super) fn controls_start_x(screen_width: f32, has_spaceship: bool) -> f32 {
-    let count = 8 + usize::from(has_spaceship);
+    let count = 5 + usize::from(has_spaceship);
     screen_width - HUD_MARGIN - count as f32 * 42.0 + 4.0
 }
 
@@ -40,19 +40,16 @@ impl Game {
             return;
         };
         let status = view.spaceship_status;
-        let button_count = 8 + usize::from(status.is_some());
+        let button_count = 5 + usize::from(status.is_some());
         let button_width = 38.0;
         let step = button_width + 4.0;
         let button_start = controls_start_x(width, status.is_some());
 
-        let in_anarchy = view.anarchy;
-        let rates = if in_anarchy { [0, 0, 100] } else { view.rates };
         let mut controls = vec![
             (
                 HudIcon::Government,
                 UiAction::ToggleGovernment,
                 "Government".to_owned(),
-                None,
                 true,
                 false,
             ),
@@ -60,7 +57,6 @@ impl Game {
                 HudIcon::Diplomacy,
                 UiAction::ToggleDiplomacy,
                 "Diplomacy".to_owned(),
-                None,
                 true,
                 false,
             ),
@@ -68,7 +64,6 @@ impl Game {
                 HudIcon::Target,
                 UiAction::ToggleEspionage,
                 "Espionage".to_owned(),
-                None,
                 !self.sim.espionage_rivals_view().is_empty(),
                 false,
             ),
@@ -76,45 +71,22 @@ impl Game {
                 HudIcon::Research,
                 UiAction::OpenResearch,
                 "Research tree".to_owned(),
-                None,
                 true,
                 false,
             ),
         ];
-        for (index, (icon, label)) in [
-            (HudIcon::Science, "Science"),
-            (HudIcon::Tax, "Tax"),
-            (HudIcon::Luxury, "Luxury"),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let rate = rates[index];
-            let enabled = !in_anarchy && rate < view.max_rate;
-            controls.push((
-                icon,
-                UiAction::RaiseRate(index),
-                format!("{label} {rate}%"),
-                Some(rate),
-                enabled,
-                false,
-            ));
-        }
         if let Some(status) = status {
             controls.push((
                 HudIcon::Spaceship,
                 UiAction::ToggleSpaceship,
                 status,
-                None,
                 true,
                 view.can_launch_spaceship,
             ));
         }
 
         let mut tooltip = None;
-        for (index, (icon, action, label, rate, enabled, accent)) in
-            controls.into_iter().enumerate()
-        {
+        for (index, (icon, action, label, enabled, accent)) in controls.into_iter().enumerate() {
             let rect = Rect::new(
                 button_start + index as f32 * step,
                 BUTTON_TOP,
@@ -127,21 +99,8 @@ impl Game {
             } else {
                 GRAY
             };
-            let center = vec2(
-                rect.x + rect.w * 0.5,
-                rect.y + if rate.is_some() { 11.0 } else { 16.5 },
-            );
-            draw_hud_icon(
-                icon,
-                center,
-                if rate.is_some() { 15.0 } else { 21.0 },
-                color,
-            );
-            if let Some(rate) = rate {
-                let label = format!("{rate}%");
-                let w = measure_text(&label, None, 12, 1.0).width;
-                draw_text(&label, center.x - w * 0.5, rect.bottom() - 4.0, 12.0, color);
-            }
+            let center = vec2(rect.x + rect.w * 0.5, rect.y + 16.5);
+            draw_hud_icon(icon, center, 21.0, color);
             if enabled {
                 actions.push((rect, action));
             }
@@ -266,7 +225,7 @@ mod tests {
     fn controls_start_x_ends_at_the_margin_and_a_spaceship_button_widens_the_row() {
         let step = 42.0;
         let plain = controls_start_x(1280.0, false);
-        assert_eq!(plain + 8.0 * step - 4.0, 1280.0 - HUD_MARGIN);
+        assert_eq!(plain + 5.0 * step - 4.0, 1280.0 - HUD_MARGIN);
         assert_eq!(controls_start_x(1280.0, true), plain - step);
     }
 
