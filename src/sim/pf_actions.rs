@@ -1,7 +1,18 @@
 //! Shared default PF action policy from common/aicore/pf_tools.c. Planning
 //! capabilities deliberately differ from legal action execution.
 use super::movement_rules::{MovementRules, MovementTile};
+use super::unit_catalog::UnitClass;
 use super::*;
+use std::{cell::RefCell, collections::HashMap};
+
+type StepCostCacheKey = (MovementTile, MovementTile, UnitClass, bool, bool, bool);
+
+/// Derived movement data lives with the code that constructs its cache keys.
+#[derive(Clone, Default)]
+pub(super) struct MovementCache {
+    step_cost: RefCell<HashMap<StepCostCacheKey, i32>>,
+    native: RefCell<Vec<i8>>,
+}
 
 impl UnitKind {
     // IgZOC and absence of UCF_ZOC are separate native exemptions.
@@ -45,7 +56,7 @@ impl Simulation {
             + extras;
         let cache_len = CLASS_COUNT * TERRAIN_COUNT * BASE_VARIANTS * EXTRA_COMBINATIONS;
         {
-            let mut cache = self.movement_native_cache.borrow_mut();
+            let mut cache = self.movement_cache.native.borrow_mut();
             if cache.is_empty() {
                 cache.resize(cache_len, -1);
             }
@@ -63,7 +74,7 @@ impl Simulation {
                 class,
             )
             .expect("campaign C2C3 movement native_to data");
-        self.movement_native_cache.borrow_mut()[index] = i8::from(native);
+        self.movement_cache.native.borrow_mut()[index] = i8::from(native);
         native
     }
 
@@ -124,7 +135,7 @@ impl Simulation {
             restricted,
             ignores,
         );
-        if let Some(cost) = self.movement_step_cost_cache.borrow().get(&key).copied() {
+        if let Some(cost) = self.movement_cache.step_cost.borrow().get(&key).copied() {
             return cost;
         }
         let cost = rules
@@ -137,7 +148,7 @@ impl Simulation {
                 ignores,
             )
             .expect("campaign C2C3 step movement data");
-        self.movement_step_cost_cache.borrow_mut().insert(key, cost);
+        self.movement_cache.step_cost.borrow_mut().insert(key, cost);
         cost
     }
     pub(super) fn pf_native_tile(&self, kind: UnitKind, x: i32, y: i32) -> bool {

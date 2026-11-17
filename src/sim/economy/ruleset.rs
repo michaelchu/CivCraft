@@ -7,6 +7,7 @@
 use std::sync::OnceLock;
 
 use super::*;
+use crate::rules::engine_rules::{ContentKind, RoadYields, RulesetData, TerrainYields};
 use crate::sim::action_rules::SimulationRequirementContext;
 use crate::world::Resource;
 
@@ -77,39 +78,33 @@ impl CityEconomySettings {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct Outputs {
-    food: i32,
-    shield: i32,
-    trade: i32,
+struct TileYieldRules {
+    terrains: std::collections::BTreeMap<&'static str, TerrainYields>,
+    roads: [RoadYields; 3],
 }
 
-impl Outputs {
-    fn get(self, output: &str) -> i32 {
-        match output.to_ascii_lowercase().as_str() {
-            "food" => self.food,
-            "shield" => self.shield,
-            "trade" => self.trade,
-            _ => 0,
-        }
+impl TileYieldRules {
+    fn campaign() -> &'static Self {
+        static RULES: OnceLock<TileYieldRules> = OnceLock::new();
+        RULES.get_or_init(|| {
+            let rules = RulesetData::campaign_default();
+            Self {
+                terrains: rules
+                    .content
+                    .iter()
+                    .filter(|record| record.kind == ContentKind::Terrain)
+                    .map(|record| {
+                        (
+                            record.rule_name.as_str(),
+                            record.terrain_yields().expect("valid terrain yields"),
+                        )
+                    })
+                    .collect(),
+                roads: ["Road", "Railroad", "River"]
+                    .map(|name| rules.road_yields(name).expect("valid road yields")),
+            }
+        })
     }
-
-    fn add(&mut self, output: &str, amount: i32) {
-        match output.to_ascii_lowercase().as_str() {
-            "food" => self.food += amount,
-            "shield" => self.shield += amount,
-            "trade" => self.trade += amount,
-            _ => unreachable!("tile output must be Food, Shield, or Trade"),
-        }
-    }
-}
-
-fn native_terrain(name: &str) -> &'static crate::rules::native::NativeTerrain {
-    crate::rules::native::terrain()
-        .terrains
-        .iter()
-        .find(|terrain| terrain.rule_name.eq_ignore_ascii_case(name))
-        .unwrap_or_else(|| panic!("native catalog has no terrain {name:?}"))
 }
 
 fn resource_name(resource: Resource) -> Option<&'static str> {
@@ -151,14 +146,6 @@ fn native_resource(name: &str) -> &'static crate::rules::native::NativeResource 
         .iter()
         .find(|resource| resource.id.eq_ignore_ascii_case(name))
         .unwrap_or_else(|| panic!("native catalog has no resource {name:?}"))
-}
-
-fn native_road(name: &str) -> &'static crate::rules::native::NativeRoad {
-    crate::rules::native::economy()
-        .roads
-        .iter()
-        .find(|road| road.id.eq_ignore_ascii_case(name))
-        .unwrap_or_else(|| panic!("native catalog has no road {name:?}"))
 }
 
 impl Simulation {
@@ -350,121 +337,50 @@ impl Simulation {
     pub(in crate::sim) fn c2c3_city_tile_yields(
         &self,
         city: &City,
-        x: i32,
-        y: i32,
+        tile_xy: (i32, i32),
+        tile: &Tile,
         is_center: bool,
         celebrating: bool,
         granted: Option<Tech>,
         government: Government,
     ) -> (i32, i32, i32) {
-        let tile_xy = (x, y);
-        let tile = self.tile(x, y);
-        let terrain = tile.terrain.c2c3_rugged_rule_name();
-        let native_terrain = native_terrain(terrain);
-        let mut output = Outputs {
-            food: native_terrain.food,
-            shield: native_terrain.shield,
-            trade: native_terrain.trade,
-        };
+        let mut context = SimulationRequirementContext::for_city_at(self, city, Some(tile_xy))
+            .with_government(government)
+            .with_granted_tech(granted)
+            .with_celebrating(celebrating)
+            .with_tile_override(tile_xy, tile);
+        let rules = TileYieldRules::campaign();
+        let terrain = rules.terrains[tile.terrain.c2c3_rugged_rule_name()];
+        let mut output = terrain.base;
         if let Some(resource) = tile.active_resource().and_then(resource_name) {
             let resource = native_resource(resource);
-            output.food += resource.food;
-            output.shield += resource.shield;
-            output.trade += resource.trade;
+            output[0] += resource.food;
+            output[1] += resource.shield;
+            output[2] += resource.trade;
+        }
+        if terrain.irrigation != 0 {
+            output[0] += terrain.irrigation * context.effect_i32(EffectKind::IrrigationPct) / 100;
+        }
+        if terrain.mining != 0 {
+            output[1] += terrain.mining * context.effect_i32(EffectKind::MiningPct) / 100;
         }
 
-        let irrigation = native_terrain.irrigation_food_incr;
-        if irrigation != 0 {
-            let pct = self.city_rule_effect(
-                city,
-                EffectKind::IrrigationPct,
-                Some(tile_xy),
-                None,
-                None,
-                celebrating,
-                government,
-                granted,
-            );
-            output.food += irrigation * pct / 100;
-        }
-        let mining = native_terrain.mining_shield_incr;
-        if mining != 0 {
-            let pct = self.city_rule_effect(
-                city,
-                EffectKind::MiningPct,
-                Some(tile_xy),
-                None,
-                None,
-                celebrating,
-                government,
-                granted,
-            );
-            output.shield += mining * pct / 100;
-        }
-
-        // Road-type records carry constant and terrain-percent increments,
-        // followed by output percentage bonuses. A railroad remains an
-        // independent represented extra, as it is in CivCraft's tile state.
-        let roads = [
-            (tile.road, "Road"),
-            (tile.railroad, "Railroad"),
-            (tile.river, "River"),
-        ];
-        for output_name in ["food", "shield", "trade"] {
-            let mut increment = 0;
-            let mut constant = 0;
-            let mut bonus = 0;
-            for (present, road) in roads {
-                if !present {
-                    continue;
-                }
-                let road = native_road(road);
-                match output_name {
-                    "food" => {
-                        increment += road.food_incr;
-                        constant += road.food_incr_const;
-                        bonus += road.food_bonus;
-                    }
-                    "shield" => {
-                        increment += road.shield_incr;
-                        constant += road.shield_incr_const;
-                        bonus += road.shield_bonus;
-                    }
-                    "trade" => {
-                        increment += road.trade_incr;
-                        constant += road.trade_incr_const;
-                        bonus += road.trade_bonus;
-                    }
-                    _ => unreachable!(),
+        // Railroads remain independent extras in CivCraft's tile state.
+        let roads = [tile.road, tile.railroad, tile.river];
+        for (index, output_type) in ["Food", "Shield", "Trade"].into_iter().enumerate() {
+            let (mut increment, mut constant, mut bonus) = (0, 0, 0);
+            for (present, road) in roads.into_iter().zip(rules.roads) {
+                if present {
+                    increment += road.increment[index];
+                    constant += road.constant[index];
+                    bonus += road.bonus[index];
                 }
             }
-            let terrain_percent = match output_name {
-                "food" => native_terrain.road_food_incr_pct,
-                "shield" => native_terrain.road_shield_incr_pct,
-                "trade" => native_terrain.road_trade_incr_pct,
-                _ => unreachable!(),
-            };
-            output.add(output_name, constant + increment * terrain_percent / 100);
-            output.add(output_name, output.get(output_name) * bonus / 100);
-
-            let output_type = match output_name {
-                "food" => "Food",
-                "shield" => "Shield",
-                _ => "Trade",
-            };
-            let effect = |kind| {
-                self.city_rule_effect(
-                    city,
-                    kind,
-                    Some(tile_xy),
-                    Some(output_type),
-                    None,
-                    celebrating,
-                    government,
-                    granted,
-                )
-            };
-            let mut value = output.get(output_name) + effect(EffectKind::OutputAddTile);
+            let base = output[index] + constant + increment * terrain.road_percent[index] / 100;
+            let base = base + base * bonus / 100;
+            context = context.with_output_type(output_type);
+            let effect = |kind| context.effect_i32(kind);
+            let mut value = base + effect(EffectKind::OutputAddTile);
             if value > 0 {
                 let penalty_threshold = effect(EffectKind::OutputPenaltyTile);
                 if value >= CityEconomySettings::campaign().output_granularity {
@@ -484,21 +400,12 @@ impl Simulation {
             }
             value -= value * effect(EffectKind::OutputTilePunishPct) / 100;
             if is_center {
-                let minimum = match output_type {
-                    "Food" => CityEconomySettings::campaign().city_center_minimum[0],
-                    "Shield" => CityEconomySettings::campaign().city_center_minimum[1],
-                    _ => CityEconomySettings::campaign().city_center_minimum[2],
-                };
-                value = value.max(minimum);
+                value = value.max(CityEconomySettings::campaign().city_center_minimum[index]);
             }
-            output.add(output_name, value - output.get(output_name));
+            output[index] = value.max(0);
         }
 
-        (
-            output.food.max(0),
-            output.shield.max(0),
-            output.trade.max(0),
-        )
+        (output[0], output[1], output[2])
     }
 
     /// Science, gold, and luxury are assigned from trade, but C2C3 may add

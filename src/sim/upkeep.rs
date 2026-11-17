@@ -1,7 +1,7 @@
 //! Unit support and upkeep calculations.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, UnitUpkeepOutput};
+use crate::rules::engine_rules::{RulesetData, UnitUpkeepOutput};
 use crate::sim::action_rules::SimulationRequirementContext;
 use std::sync::OnceLock;
 
@@ -40,8 +40,10 @@ pub(crate) struct UnitUpkeepRow {
     pub(crate) costs: UnitOutputCosts,
 }
 
-fn missing_unit_upkeep_settings() -> &'static crate::rules::freeciv::MissingUnitUpkeepSettings {
-    static SETTINGS: OnceLock<crate::rules::freeciv::MissingUnitUpkeepSettings> = OnceLock::new();
+fn missing_unit_upkeep_settings() -> &'static crate::rules::engine_rules::MissingUnitUpkeepSettings
+{
+    static SETTINGS: OnceLock<crate::rules::engine_rules::MissingUnitUpkeepSettings> =
+        OnceLock::new();
     SETTINGS.get_or_init(|| {
         RulesetData::campaign_default()
             .missing_unit_upkeep_settings()

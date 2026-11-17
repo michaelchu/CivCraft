@@ -3,6 +3,7 @@
 //! Screen code receives read-only projections and submits gameplay commands
 //! through this type. The underlying campaign model stays private to `sim`.
 
+use super::scenarios::ui_review::{ReviewFixture, ReviewState};
 use super::{
     CityContextView, CityManagerView, Command, DiplomacyMeetingView, DiplomacyRivalView,
     EspionageRivalView, GameOverView, GotoPreview, GovernmentView, MinimapCityView,
@@ -239,13 +240,20 @@ impl ClientSimulation {
         self.simulation.pact(first, second)
     }
 
-    /// Raw simulation access is reserved for the UI review fixture harness.
-    pub(crate) fn review_simulation(&self) -> &Simulation {
-        &self.simulation
+    pub(crate) fn fork_for_review(&self) -> Self {
+        Self::new(self.simulation.clone())
     }
 
-    /// Mutable raw access is reserved for UI review fixture setup.
-    pub(crate) fn review_simulation_mut(&mut self) -> &mut Simulation {
-        &mut self.simulation
+    pub(crate) fn review_fixture(&mut self) -> ReviewFixture<'_> {
+        ReviewFixture(&mut self.simulation)
+    }
+
+    pub(crate) fn review_state(&self) -> ReviewState<'_> {
+        ReviewState(&self.simulation)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn review_simulation(&self) -> &Simulation {
+        &self.simulation
     }
 }

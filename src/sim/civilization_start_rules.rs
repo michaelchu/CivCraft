@@ -38,9 +38,9 @@ fn profiles() -> &'static [StartProfile] {
         let mut parsed = Vec::new();
         for civilization in &crate::rules::native::civilizations().civilizations {
             assert_eq!(civilization.starting_units.len(), 2);
-            let source_civilization = match civilization.source_id.as_str() {
-                "zulus" => "Zulus",
-                "mayans" => "Mayans",
+            let source_civilization = match civilization.id.as_str() {
+                "zululand" => "Zulus",
+                "maya" => "Mayans",
                 _ => civilization.noun.as_str(),
             };
             let bonus = civilization.bonus_units.first();
@@ -143,9 +143,12 @@ mod tests {
                 .civilizations
                 .iter()
                 .find(|civilization| {
-                    civilization
-                        .source_id
-                        .eq_ignore_ascii_case(profile.civilization)
+                    let name = match civilization.id.as_str() {
+                        "zululand" => "Zulus",
+                        "maya" => "Mayans",
+                        _ => civilization.noun.as_str(),
+                    };
+                    name.eq_ignore_ascii_case(profile.civilization)
                 })
                 .unwrap_or_else(|| panic!("native TOML is missing {}", profile.civilization));
             assert_eq!(migrated.expansionist, profile.expansionist);

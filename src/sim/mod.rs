@@ -104,6 +104,7 @@ pub(crate) use pillage::PillageTarget;
 pub(crate) use pollution::Contamination;
 use spaceship::Spaceship;
 pub(crate) use spaceship::{STRUCTURE_PARENT, ShipPart};
+#[cfg(any(test, feature = "scenarios"))]
 mod headless_scenarios;
 #[cfg(test)]
 mod playtest;
@@ -129,7 +130,7 @@ mod workers;
 mod worklist;
 pub(crate) use worklist::{WORKLIST_LIMIT, WorklistEdit};
 
-use crate::rules::freeciv::EffectKind;
+use crate::rules::engine_rules::EffectKind;
 use crate::rules::{Building, Tech};
 pub(crate) use model::*;
 use topology::*;
@@ -142,7 +143,10 @@ pub(crate) const BARBARIANS: usize = MAX_CIVILIZATIONS;
 const FREECIV_GAME_IDENTIFIER_DRAWS: usize = 32;
 const FREECIV_BASE64URL_CHARACTERS: u32 = 64;
 const PERCENT_SCALE: i32 = crate::world::PERCENT_SCALE;
-pub(crate) const MOVE_FRAGMENTS: i32 = 6;
+use movement_rules::campaign_move_fragments;
+// Historical movement fixtures use the original six-fragment scale.
+#[cfg(test)]
+const MOVE_FRAGMENTS: i32 = 6;
 const ACTIVITY_FACTOR: i32 = 10;
 const POWER_FACTOR: i32 = 10;
 const CITY_DEFEND_BONUS: i32 = 50;
@@ -212,11 +216,9 @@ struct MapObservation {
 
 /// Complete mutable campaign state and the operations that advance its rules.
 ///
-/// Serialized fields form the saved campaign. Runtime-only indexes, visibility
-/// snapshots, and event presentation caches are rebuilt or reset as needed.
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+/// The save module defines the disk representation and initializes derived state on load.
+#[derive(Clone, Default)]
 pub(crate) struct Simulation {
-    #[serde(skip)]
     pub(crate) trace: trace::Collector,
     /// Full caller-provided campaign/game seed used as the reproducible world ID.
     pub(crate) world_seed: u64,
@@ -227,17 +229,13 @@ pub(crate) struct Simulation {
     tiles: Vec<Tile>,
     units: Vec<Unit>,
     cities: Vec<City>,
-    #[serde(skip)]
     unit_id_index: std::cell::RefCell<std::collections::HashMap<u32, usize>>,
-    #[serde(skip)]
     city_id_index: std::cell::RefCell<std::collections::HashMap<u32, usize>>,
     trade_routes: Vec<trade_routes::TradeRoute>,
     completed_wonders: Vec<Building>,
     spaceships: Vec<Spaceship>,
     nation_scores: Vec<NationScore>,
-    #[serde(serialize_with = "save::serialize_unit_map")]
     hunter_targets: std::collections::HashMap<u32, u32>,
-    #[serde(serialize_with = "save::serialize_unit_map")]
     previous_naval_positions: std::collections::HashMap<u32, (i32, i32)>,
     diplomacy: std::collections::BTreeMap<(usize, usize), diplomacy::Relation>,
     apollo_completed: bool,
@@ -254,86 +252,45 @@ pub(crate) struct Simulation {
     next_unit_id: u32,
     next_city_id: u32,
     rng: u64,
-    #[serde(skip)]
     native_random: Option<FreecivRng>,
-    #[serde(skip)]
     cargo_order: std::collections::BTreeMap<u32, Vec<u32>>,
     events: Vec<String>,
-    #[serde(skip)]
     visual_events: presentation::VisualEvents,
     game_over: Option<String>,
     climate_pressure: [ClimatePressure; 2],
-    #[serde(skip)]
     climate_current: [i32; 2],
-    #[serde(skip)]
-    route_memory: Vec<Option<movement::RouteTile>>,
-    #[serde(skip)]
     observed_map: observed_map::ObservedMap,
-    #[serde(skip)]
     ai_map_memory: AiMapMemory,
-    #[serde(skip)]
     ai_purchase_reserve: std::collections::BTreeMap<usize, i32>,
-    #[serde(skip)]
     city_founders: std::collections::BTreeMap<u32, usize>,
-    #[serde(skip)]
     ai_war_plans: std::collections::BTreeMap<(usize, usize), diplomacy::WarPlan>,
-    #[serde(skip)]
     ai_space_warnings: std::collections::BTreeMap<(usize, usize), i32>,
-    #[serde(skip)]
     ai_free_bulbs: std::collections::BTreeMap<usize, i32>,
-    #[serde(skip)]
     ai_tech_wants: std::collections::BTreeMap<usize, Vec<f32>>,
-    #[serde(skip)]
     ai_ground_targets: std::collections::BTreeMap<u32, u32>,
-    #[serde(skip)]
     ai_settlement_targets: std::collections::BTreeMap<u32, settlement::SettlementReservation>,
-    #[serde(skip)]
     ai_diplomatic_memory: std::collections::BTreeMap<(usize, usize), diplomacy::DiplomaticMemory>,
-    #[serde(skip)]
     ai_diplomatic_intel: std::collections::BTreeMap<(usize, usize), diplomacy::DiplomaticIntel>,
-    #[serde(skip)]
     ai_pending_war_targets: std::collections::BTreeMap<usize, usize>,
-    #[serde(skip)]
     ai_guard_targets: std::collections::BTreeMap<u32, guards::GuardTarget>,
-    #[serde(skip)]
     ai_unit_guards: std::collections::BTreeMap<u32, guards::GuardState>,
-    #[serde(skip)]
     city_rapture: std::collections::BTreeMap<u32, i32>,
-    #[serde(skip)]
     unit_goto_tiles: std::collections::BTreeMap<u32, (i32, i32)>,
-    #[serde(skip)]
     list_order: list_order::ListOrder,
-    #[serde(skip)]
     ai_worker_tasks: std::collections::BTreeSet<u32>,
-    #[serde(skip)]
     ai_ferries: ferries::FerryRegistry,
-    #[serde(skip)]
     ai_government_cache: std::collections::BTreeMap<usize, government::GovernmentAdvisorCache>,
-    #[serde(skip)]
     diplomatic_contact_until: std::collections::BTreeMap<(usize, usize), i32>,
-    #[serde(skip)]
     ai_advisor_cache_enabled: std::cell::Cell<bool>,
-    #[serde(skip)]
     ai_threat_route_cache_enabled: std::cell::Cell<bool>,
-    #[serde(skip)]
     ai_threat_arrival_cache:
         std::cell::RefCell<std::collections::BTreeMap<(u32, u32), Option<i32>>>,
-    #[serde(skip)]
     ai_danger_route_cache: std::cell::RefCell<std::collections::BTreeMap<u32, Vec<i32>>>,
-    #[serde(skip)]
-    movement_step_cost_cache:
-        std::cell::RefCell<std::collections::HashMap<movement_rules::StepCostCacheKey, i32>>,
-    #[serde(skip)]
-    movement_native_cache: std::cell::RefCell<Vec<i8>>,
-    #[serde(skip)]
+    movement_cache: pf_actions::MovementCache,
     visibility_refresh_deferred: bool,
-    #[serde(skip)]
     visibility_refresh_pending: bool,
-    #[serde(skip)]
     visibility_pending_render_tiles: Vec<bool>,
-    #[serde(skip)]
     visibility_render_scope: Option<Vec<usize>>,
-    #[serde(skip)]
     ai_spatial_index: std::cell::RefCell<AdvisorSpatialIndex>,
 }
 
@@ -503,36 +460,7 @@ impl Simulation {
 
         apply_player_shuffle_randomness(&mut game_random);
 
-        let tiles = generated_tiles
-            .into_iter()
-            .map(|tile| Tile {
-                terrain: tile.terrain,
-                base_terrain: tile.base_terrain,
-                altitude: tile.altitude,
-                hut: tile.hut,
-                river: tile.river,
-                river_edges: tile.river_edges,
-                resource: tile.resource,
-                road: false,
-                railroad: false,
-                irrigation: false,
-                farmland: false,
-                pollution: false,
-                fallout: false,
-                craters: false,
-                base: None,
-                mine: false,
-                oil_well: false,
-                oil_platform: false,
-                owner: None,
-                border_city: None,
-                last_seen_owner: None,
-                seen: false,
-                visible: false,
-                stealth_visible: false,
-                known_by: [false; PLAYER_SLOTS],
-            })
-            .collect();
+        let tiles = generated_tiles.into_iter().map(Tile::from).collect();
 
         let roster = crate::rules::civilizations::select_roster(seed, MAX_CIVILIZATIONS);
         let mut players = Vec::new();
@@ -590,7 +518,7 @@ impl Simulation {
             }
         }
 
-        let calendar = crate::rules::freeciv::RulesetData::campaign_default()
+        let calendar = crate::rules::engine_rules::RulesetData::campaign_default()
             .calendar_settings()
             .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
         let start_year = calendar.start_year;
@@ -637,7 +565,6 @@ impl Simulation {
             game_over: None,
             climate_pressure: [ClimatePressure::new(map.map_wrap.tile_count()); 2],
             climate_current: [0; 2],
-            route_memory: vec![None; map.map_wrap.tile_count()],
             observed_map: Default::default(),
             ai_map_memory: Default::default(),
             ai_purchase_reserve: Default::default(),
@@ -664,8 +591,7 @@ impl Simulation {
             ai_threat_route_cache_enabled: Default::default(),
             ai_threat_arrival_cache: Default::default(),
             ai_danger_route_cache: Default::default(),
-            movement_step_cost_cache: Default::default(),
-            movement_native_cache: Default::default(),
+            movement_cache: Default::default(),
             visibility_refresh_deferred: false,
             visibility_refresh_pending: false,
             visibility_pending_render_tiles: Default::default(),
@@ -699,7 +625,7 @@ impl Simulation {
                 });
                 for _ in 0..count {
                     let mut unit = Unit::new(game.next_unit_id, owner, kind, start.0, start.1);
-                    unit.moves_left = kind.stats().moves * MOVE_FRAGMENTS;
+                    unit.moves_left = kind.stats().moves * campaign_move_fragments();
                     game.units.push(unit);
                     game.next_unit_id += 1;
                 }
@@ -889,7 +815,7 @@ impl Simulation {
 
 /// Formats an in-game year using the selected ruleset's calendar labels.
 pub(crate) fn year_label(year: i32) -> String {
-    let calendar = crate::rules::freeciv::RulesetData::campaign_default()
+    let calendar = crate::rules::engine_rules::RulesetData::campaign_default()
         .calendar_settings()
         .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
     if year < 0 {

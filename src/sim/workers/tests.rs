@@ -387,11 +387,11 @@ fn virtual_evaluation_restores_tiles_and_shelter_does_not_randomly_wander() {
     game.worker_tile_value(&city, (10, 20), irrigated);
     assert_eq!(before, bincode::serialize(&game.tiles).unwrap());
     game.cities.clear();
-    let before = bincode::serialize(&game).unwrap();
+    let before = game.encode_campaign().unwrap();
     game.run_auto_worker(id);
     assert_eq!(
         before,
-        bincode::serialize(&game).unwrap(),
+        game.encode_campaign().unwrap(),
         "no useful work or shelter preserves RNG and position"
     );
     assert_eq!(actor.id, id);

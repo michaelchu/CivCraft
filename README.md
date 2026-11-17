@@ -23,7 +23,7 @@ world, or add supported world setup options to the same command:
 
 ```sh
 CIVCRAFT_SOURCE_DIR="/path/to/civ3-install" cargo run --release --features desktop-audio -- \
-  --seed 42 --map-size standard --ocean-coverage 70 --climate normal \
+  --seed 42 --map-size standard --map-generator opensimplex --ocean-coverage 70 --climate normal \
   --world-age 4 --landform continents --temperature temperate --tileset civ3
 ```
 
@@ -40,11 +40,12 @@ neither path contains `Conquests/Art/Terrain`. Set `CIVCRAFT_SMOKE_TURNS` to
 change the default three turns.
 
 `--map-size` defaults to `small` (80×80). It accepts `tiny`, `small`,
-`standard`, `large`, `huge`, or custom `WIDTHxHEIGHT` dimensions. Ocean
-coverage accepts `60`, `70`, or `80`; climate
-accepts `arid`, `normal`, or `wet`; world age accepts `3`, `4`, or `5` billion
-years; landform accepts `archipelago`, `continents`, or `pangaea`; and
-temperature accepts `cool`, `temperate`, or `warm`. The built-in `--tileset`
+`standard`, `large`, `huge`, or custom `WIDTHxHEIGHT` dimensions. The default
+`fractal` generator uses the campaign ruleset. To set ocean coverage
+(`60`, `70`, `80`), climate (`arid`, `normal`, `wet`), world age
+(`3`, `4`, `5` billion years), landform (`archipelago`, `continents`,
+`pangaea`), or temperature (`cool`, `temperate`, `warm`), select
+`--map-generator opensimplex`. The built-in `--tileset`
 choices are `civ3`, `conquests`, `snoopy-standard`, `snoopy-greener`, and
 `snoopy-extended`.
 
@@ -83,8 +84,7 @@ compact JSON review report with a JSONL evidence sidecar:
 
 ```sh
 cargo run --offline --release --bin headless_sim -- \
-  --seed 42 --map-size tiny --ocean-coverage 70 --climate normal \
-  --world-age 4 --landform continents --temperature temperate \
+  --seed 42 --map-size tiny \
   --turns 30 --checkpoint-every 10 \
   --report /tmp/civcraft-simulation.json
 ```
@@ -114,7 +114,7 @@ only `generated-ai` and cannot build the test suite.
 record their version and setup checks in `run.scenario`; loaded campaigns record
 the source path. Both attach a fresh trace collector before simulation begins.
 
-Report schema 6 provides a compact summary and two streamed evidence sidecars:
+Report schema 7 provides a compact summary and two streamed evidence sidecars:
 
 - `/tmp/civcraft-simulation.json`: run configuration/status, enabled analyzers,
   metrics, coverage, findings, final totals, and a compact timeline.

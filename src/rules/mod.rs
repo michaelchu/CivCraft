@@ -18,8 +18,12 @@ pub(crate) use research::{Tech, TechEra};
 pub(crate) mod civilizations;
 pub(crate) mod native;
 
-// The shared model keeps Freeciv mechanics data separate from Civ III source
+// The shared model keeps engine mechanics data separate from Civ III source
 // content; simulation adapters bind source identities to stable wrappers.
 #[allow(dead_code)]
-pub(crate) mod freeciv;
-mod freeciv_ini;
+pub(crate) mod engine_rules;
+mod section_file;
+
+pub(crate) mod compatibility;
+pub(crate) mod technologies;
+pub(crate) mod unit_capabilities;

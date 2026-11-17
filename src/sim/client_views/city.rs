@@ -66,7 +66,7 @@ impl Simulation {
         let city_map_tiles = self
             .map_city_radius(city)
             .map(|(dx, dy, x, y)| {
-                let tile = self.tile(x, y);
+                let tile = self.human_known_tile(x, y);
                 let is_city = (dx, dy) == (0, 0);
                 let worked = city.worked_tiles.contains(&(x, y));
                 CityMapTileView {
@@ -75,13 +75,23 @@ impl Simulation {
                     x,
                     y,
                     is_city,
-                    seen: tile.seen,
+                    seen: tile.is_some(),
                     worked,
                     can_assign: !is_city
                         && (worked
                             || (city.specialists.iter().any(|&n| n > 0)
                                 && self.can_assign_city_tile(city, x, y))),
-                    yields: tile.yields(),
+                    yields: tile.map_or((0, 0, 0), |tile| {
+                        self.c2c3_city_tile_yields(
+                            city,
+                            (x, y),
+                            tile,
+                            is_city,
+                            self.base_city_celebrating(city),
+                            None,
+                            self.players[city.owner].government,
+                        )
+                    }),
                 }
             })
             .collect();

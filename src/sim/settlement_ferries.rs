@@ -73,7 +73,7 @@ impl Simulation {
             })
             .count() as i32;
         // Freeciv's settlement advisor assigns this want to the first ferry role's tech.
-        crate::rules::freeciv::SettlementAiSettings::campaign().ferry_tech_want * ports
+        crate::rules::engine_rules::SettlementAiSettings::campaign().ferry_tech_want * ports
     }
 
     fn local_settlement_site_is_sufficient(&self, owner: usize, city: &City) -> bool {
@@ -83,7 +83,9 @@ impl Simulation {
         self.best_city_site(&virtual_settler)
             .is_some_and(|(_, _, score)| {
                 score
-                    > f64::from(crate::rules::freeciv::SettlementAiSettings::campaign().good_enough)
+                    > f64::from(
+                        crate::rules::engine_rules::SettlementAiSettings::campaign().good_enough,
+                    )
             })
     }
 
@@ -115,7 +117,9 @@ impl Simulation {
         let land = self
             .best_city_site(founder)
             .map_or(0.0, |(_, _, value)| value);
-        if land > f64::from(crate::rules::freeciv::SettlementAiSettings::campaign().good_enough) {
+        if land
+            > f64::from(crate::rules::engine_rules::SettlementAiSettings::campaign().good_enough)
+        {
             self.trace
                 .count_operation("settlement.local_sites_above_ferry_cutoff", 1);
             self.trace
@@ -463,13 +467,13 @@ impl Simulation {
                         land_queue.push(Reverse((cost, index)));
                     }
                 }
-                if cost + MOVE_FRAGMENTS * land_speed < sea_costs[index]
+                if cost + campaign_move_fragments() * land_speed < sea_costs[index]
                     && self.tile(nx, ny).terrain.is_water()
                     && self.movement_cost_for(&staged, nx, ny).is_some()
                     && !self.treaty_blocks_move(&staged, nx, ny)
                     && !blocked
                 {
-                    let cost = cost + MOVE_FRAGMENTS * land_speed;
+                    let cost = cost + campaign_move_fragments() * land_speed;
                     sea_costs[index] = cost;
                     sea_queue.push(Reverse((cost, index, meeting)));
                 }
@@ -480,7 +484,7 @@ impl Simulation {
         traveler.transport = None;
         let mut best = None;
         let mut best_value = 0.0;
-        let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
+        let settings = crate::rules::engine_rules::SettlementAiSettings::campaign();
         let unit_cost = crate::sim::action_rules::unit_build_cost(founder.kind)
             + crate::sim::action_rules::unit_build_cost(ship.kind) / settings.ferry_cost_divisor;
         let mut land_expansions = 0_u64;
@@ -490,7 +494,7 @@ impl Simulation {
             }
             land_expansions += 1;
             let turns = cost / turn_cost;
-            let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
+            let settings = crate::rules::engine_rules::SettlementAiSettings::campaign();
             let discount = ((settings.discount_period - 1) as f64
                 / settings.discount_period as f64)
                 .powi(settings.perfection * turns);
@@ -582,7 +586,7 @@ impl Simulation {
             } else {
                 None
             };
-            if matches!(local_site, Some(Some(land)) if land > f64::from(crate::rules::freeciv::SettlementAiSettings::campaign().good_enough))
+            if matches!(local_site, Some(Some(land)) if land > f64::from(crate::rules::engine_rules::SettlementAiSettings::campaign().good_enough))
             {
                 self.trace
                     .count_operation("settlement.local_sites_above_ferry_cutoff", 1);

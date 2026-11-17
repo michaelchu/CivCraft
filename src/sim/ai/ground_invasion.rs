@@ -92,7 +92,7 @@ impl Simulation {
                 continue;
             };
             let support = cargo_support.entry(transport).or_default();
-            support.0 += cargo.kind.stats().moves * MOVE_FRAGMENTS;
+            support.0 += cargo.kind.stats().moves * campaign_move_fragments();
             support.1 += i32::from(cargo.kind.can_occupy_city());
         }
         self.trace
@@ -107,7 +107,7 @@ impl Simulation {
                     * if actor.kind.bombard_rate() > 0 {
                         1
                     } else {
-                        actor.kind.stats().moves * MOVE_FRAGMENTS
+                        actor.kind.stats().moves * campaign_move_fragments()
                     };
                 result[index].1 += marks * i32::from(actor.kind.can_occupy_city());
                 if let Some(&(cargo_attacks, cargo_occupiers)) = cargo_support.get(&actor.id) {
@@ -123,7 +123,7 @@ impl Simulation {
             {
                 add_actor_marker(&mut result, index, 1, actor);
             }
-            let radius = self.unit_move_rate(actor) / MOVE_FRAGMENTS;
+            let radius = self.unit_move_rate(actor) / campaign_move_fragments();
             for (x, y, _) in self.map_wrap.civ3_radius(actor.x, actor.y, radius) {
                 if let Some(index) = city_at[self.map_wrap.index(x, y)]
                     && undefended[index]

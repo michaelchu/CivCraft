@@ -2,7 +2,7 @@
 //!
 //! Stable advance IDs retain the Freeciv-derived aliases used by existing
 //! effects and requirements. Researchable Civ III advances and all research
-//! metadata are loaded from the checked-in native TOML catalog.
+//! metadata come from the modular Rust technology catalog.
 //! Research eligibility and progress are resolved in `sim::research` and
 //! `sim::research_phase`.
 //!
@@ -194,13 +194,13 @@ impl Tech {
         self.data().map_or(&[], |advance| advance.prerequisites)
     }
 
-    /// True when this stable runtime ID names a researchable Conquests BIQ
+    /// True when this stable runtime ID names a researchable native campaign
     /// technology. Radio and Freeciv-only aliases are intentionally excluded.
     pub(crate) fn is_civ3_advance(self) -> bool {
         civ3_tech_catalog().is_researchable(self)
     }
 
-    /// Direct BIQ prerequisites, preserving the order of the four source
+    /// Direct native prerequisites, preserving the order of the four historical
     /// prerequisite slots. Returns `None` for a Freeciv-only technology ID.
     pub(crate) fn civ3_prerequisites(self) -> Option<&'static [Self]> {
         self.is_civ3_advance().then(|| {
@@ -211,7 +211,7 @@ impl Tech {
     }
 
     /// Freeciv linear requirement count: this advance plus every unique
-    /// transitive prerequisite in the Conquests BIQ graph.
+    /// transitive prerequisite in the native campaign graph.
     pub(crate) fn civ3_requirement_count(self) -> Option<i32> {
         self.is_civ3_advance().then(|| {
             self.data()
@@ -315,7 +315,7 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
         );
         assert!(
             !seen_runtime_ids[tech.0],
-            "multiple Civ III BIQ technologies map to runtime Tech({})",
+            "multiple native campaign technologies map to runtime Tech({})",
             tech.0
         );
         seen_runtime_ids[tech.0] = true;
@@ -330,7 +330,7 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
                     .find(|candidate| candidate.name.eq_ignore_ascii_case(name))
                     .unwrap_or_else(|| {
                         panic!(
-                            "unmapped Civ III BIQ prerequisite {name:?} for {:?}",
+                            "unmapped native campaign prerequisite {name:?} for {:?}",
                             native.name
                         )
                     });
@@ -345,7 +345,7 @@ fn build_civ3_tech_catalog() -> Civ3TechCatalog {
     assert_eq!(
         raw_advances.len(),
         83,
-        "unexpected Conquests BIQ tech count"
+        "unexpected native campaign tech count"
     );
 
     let mut advances: Vec<Option<Advance>> = std::iter::repeat_with(|| None)
@@ -401,7 +401,7 @@ fn civ3_linear_requirement_count(tech: Tech, graph: &[RawCiv3Advance]) -> i32 {
         let advance = graph
             .iter()
             .find(|advance| advance.tech == current)
-            .expect("Civ III prerequisite belongs to the BIQ graph");
+            .expect("Civ III prerequisite belongs to the native graph");
         pending.extend(advance.prerequisites.iter().copied());
     }
     seen.into_iter().filter(|included| *included).count() as i32
@@ -445,7 +445,7 @@ mod sentinel_tests {
     }
 
     #[test]
-    fn conquests_biq_is_the_civ3_research_graph() {
+    fn compiled_catalog_is_the_campaign_research_graph() {
         assert_eq!(
             civ3_tech_catalog()
                 .advances
@@ -476,7 +476,7 @@ mod sentinel_tests {
                     Tech::MOTORIZED_TRANSPORTATION
                 ][..]
             ),
-            "BIQ prerequisite slot order is retained"
+            "Native prerequisite order is retained"
         );
         assert_eq!(
             Tech::COMMUNISM.civ3_prerequisites(),
@@ -493,7 +493,7 @@ mod sentinel_tests {
         assert_eq!(
             Tech::AMPHIBIOUS_WARFARE.civ3_prerequisites(),
             Some(&[Tech::MASS_PRODUCTION][..]),
-            "the shorter BIQ name binds to the stable Amphibious Warfare ID"
+            "the shorter campaign name binds to the stable Amphibious Warfare ID"
         );
         assert_eq!(
             Tech::IRONCLADS.civ3_prerequisites(),

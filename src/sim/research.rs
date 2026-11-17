@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::rules::TechEra;
-use crate::rules::freeciv::{ResearchRulesetSettings, RulesetData};
+use crate::rules::engine_rules::{ResearchRulesetSettings, RulesetData};
 use crate::sim::action_rules::SimulationRequirementContext;
 use std::sync::OnceLock;
 
@@ -346,7 +346,7 @@ impl Simulation {
         }
         let settings = campaign_research_settings();
         let base = match settings.cost_style {
-            crate::rules::freeciv::ResearchCostStyle::Linear => {
+            crate::rules::engine_rules::ResearchCostStyle::Linear => {
                 if tech == Tech::FUTURE {
                     i64::from(settings.base_tech_cost)
                         * i64::from(
@@ -375,7 +375,7 @@ impl Simulation {
             .with_government(player.government);
         let cost_percent = context.effect(EffectKind::TechCostPct);
         let mut cost = base as f64 * cost_percent as f64 / 100.0;
-        if settings.leakage_style == crate::rules::freeciv::TechnologyLeakageStyle::Embassies
+        if settings.leakage_style == crate::rules::engine_rules::TechnologyLeakageStyle::Embassies
             && context.effect(EffectKind::TechLeakage) > 0
         {
             let mut alive = 0;
@@ -471,11 +471,12 @@ impl Simulation {
         let cost_percent = self.player_effect(owner, EffectKind::TechCostPct);
         let free = self.player_effect(owner, EffectKind::TechUpkeepFree);
         let cities = match settings.upkeep_style {
-            crate::rules::freeciv::TechnologyUpkeepStyle::Cities => self
-                .cities
-                .iter()
-                .filter(|city| city.owner == owner)
-                .count() as f64,
+            crate::rules::engine_rules::TechnologyUpkeepStyle::Cities => {
+                self.cities
+                    .iter()
+                    .filter(|city| city.owner == owner)
+                    .count() as f64
+            }
         };
         let base = (known_cost + future_cost) as f64;
         let upkeep = base
@@ -562,7 +563,7 @@ impl Simulation {
             .filter(|&tech| self.tech_available(owner, tech))
             .collect();
         let advance = match campaign_research_settings().free_technology_style {
-            crate::rules::freeciv::FreeTechnologyStyle::Cheapest => {
+            crate::rules::engine_rules::FreeTechnologyStyle::Cheapest => {
                 if let Some(cost) = available
                     .iter()
                     .map(|&tech| self.target_cost(owner, tech))

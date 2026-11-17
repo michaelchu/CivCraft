@@ -156,9 +156,9 @@ impl Report {
             reason.unwrap_or("checkpoint")
         };
         let report = json!({
-            "version":6,
+            "version":7,
             "run":{"status":status,"stop_reason":stop_reason,
-                "configuration":config.metadata(),"turns_simulated":turns,"final_turn":last.turn,"game_over":game_over,
+                "configuration":config.metadata(&self.scenario.world),"turns_simulated":turns,"final_turn":last.turn,"game_over":game_over,
                 "scenario":self.scenario,
                 "git_commit":self.commit,"working_tree_dirty":self.dirty,"elapsed_seconds":self.started.elapsed().as_secs_f64()},
             "analytics":{"enabled":registry.descriptors(),"observation_boundaries":["initial","turn_end"],"metrics":registry.output.metrics},
@@ -215,12 +215,7 @@ mod tests {
         .unwrap();
         let mut report = Report::new(
             path.to_str().unwrap(),
-            Provenance {
-                kind: "generated",
-                name: "test".into(),
-                version: 1,
-                checks: vec![],
-            },
+            super::super::scenario::generated(config.seed, config.world).provenance,
         )
         .unwrap();
         let registry = Registry::new(vec![]).unwrap();

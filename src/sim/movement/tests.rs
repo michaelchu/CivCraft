@@ -53,7 +53,11 @@ fn activity_completion_is_immediate_and_old_mp_controls_only_work_count() {
 
 #[test]
 fn stealth_bombing_does_not_grant_native_air_interception() {
-    assert!(!UnitKind::StealthFighter.conquests_rule().has_flag_3(12, 2));
+    assert!(
+        !UnitKind::StealthFighter
+            .conquests_rule()
+            .has_capability("AttackAir")
+    );
     assert_eq!(
         crate::sim::action_rules::freeciv_unit_can_target_class(
             UnitKind::StealthFighter,
@@ -691,19 +695,10 @@ fn civilian_capture_flags_come_from_native_combat_capability() {
 }
 
 #[test]
-fn enslave_result_indices_resolve_separately_from_capture_eligibility() {
-    for (prototype, expected_id) in [(1, "worker"), (63, "man_o_war"), (65, "privateer")] {
-        assert_eq!(
-            crate::sim::civ3_unit_rules::get_by_prototype_index(prototype).map(|rule| rule.id),
-            Some(expected_id)
-        );
-    }
-    assert_eq!(
-        UnitKind::JavelinThrower
-            .conquests_rule()
-            .enslave_result_prototype_index,
-        1
-    );
+fn enslave_result_ids_resolve_separately_from_capture_eligibility() {
+    let result = UnitKind::JavelinThrower.conquests_rule().enslave_result;
+    assert_eq!(result, "worker");
+    assert!(crate::sim::civ3_unit_rules::get(result).is_some());
 }
 
 #[test]
@@ -942,7 +937,7 @@ fn player_goto_continues_across_turns_until_destination() {
     let start = (10, 24);
     let destination = game.map_wrap.offset(start.0, start.1, 4, 0).unwrap();
     let id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
-    game.remember_route_tiles(false);
+    game.remember_visible_human_tiles();
 
     assert!(game.player_goto(id, destination.0, destination.1));
     let first_turn_position = {
@@ -1599,7 +1594,7 @@ fn freeciv_route_zoc_uses_only_observed_enemy_units() {
     let (start, destination, enemy) = blocked_zoc_positions(&game);
     let mover_id = game.spawn_unit(HUMAN, UnitKind::Warrior, start.0, start.1);
     let enemy_id = game.spawn_unit(1, UnitKind::Cavalry, enemy.0, enemy.1);
-    game.remember_route_tiles(false);
+    game.remember_visible_human_tiles();
     game.tile_mut(enemy.0, enemy.1).visible = false;
     let mover = game.unit_by_id(mover_id).unwrap().clone();
 
@@ -1611,7 +1606,7 @@ fn freeciv_route_zoc_uses_only_observed_enemy_units() {
     game.units.retain(|unit| unit.id != enemy_id);
     game.create_city(1, enemy.0, enemy.1);
     game.spawn_unit(1, UnitKind::Cavalry, enemy.0, enemy.1);
-    game.remember_route_tiles(false);
+    game.remember_visible_human_tiles();
     assert!(game.zone_blocks_route(&mover, start, destination, true));
     game.units
         .retain(|unit| unit.id != enemy_id && (unit.x, unit.y) != enemy);

@@ -1,7 +1,88 @@
 //! Regression tests for the behavior of the parent module.
 
 use super::*;
-use crate::rules::freeciv::RulesetData;
+
+#[test]
+fn apollo_program_reveals_the_same_ocean_to_rendering_and_routes() {
+    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    sim.units.clear();
+    let origin = (10, 24);
+    let destination = offset_native_by_map(origin.0, origin.1, 8, 0);
+    for tile in &mut sim.tiles {
+        tile.terrain = Terrain::Grassland;
+        tile.hut = false;
+    }
+    sim.tile_mut(destination.0, destination.1).terrain = Terrain::Ocean;
+    sim.create_city(HUMAN, origin.0, origin.1);
+    sim.cities
+        .last_mut()
+        .unwrap()
+        .buildings
+        .push(Building::APOLLO_PROGRAM);
+    let unit = sim.spawn_unit(HUMAN, UnitKind::Warrior, origin.0, origin.1);
+    sim.refresh_visibility();
+
+    let tile = sim.render_tile_view(destination.0, destination.1);
+    assert!(tile.seen && !tile.visible);
+    assert_eq!(tile.terrain, Terrain::Ocean);
+    assert_eq!(
+        sim.observed_route_tile(destination.0, destination.1)
+            .unwrap()
+            .terrain,
+        tile.terrain
+    );
+    assert!(
+        sim.preview_goto(unit, destination.0, destination.1)
+            .is_none()
+    );
+}
+#[test]
+fn sea_map_uses_live_ocean_for_eligibility_and_the_sellers_last_snapshot_for_contents() {
+    let mut sim = Simulation::new(crate::mapgen::generate(42));
+    sim.units.clear();
+    sim.observed_map = Default::default();
+    sim.ai_map_memory.clear();
+    for tile in &mut sim.tiles {
+        tile.known_by.fill(false);
+        tile.seen = false;
+    }
+    let (x, y) = (40, 32);
+    sim.tile_mut(10, 24).terrain = Terrain::Grassland;
+    sim.tile_mut(x, y).terrain = Terrain::Grassland;
+    sim.create_city(1, 10, 24);
+    sim.cities
+        .last_mut()
+        .unwrap()
+        .buildings
+        .push(Building::APOLLO_PROGRAM);
+    sim.refresh_visibility();
+    assert!(sim.human_known_tile(x, y).is_none());
+    assert_eq!(
+        sim.remembered_tile(1, x, y).unwrap().terrain,
+        Terrain::Grassland
+    );
+    assert!(
+        !sim.ai_map_memory
+            .contains_key(&(1, sim.map_wrap.index(x, y)))
+    );
+
+    sim.transfer_treaty_map(1, HUMAN, TreatyMap::Sea);
+    assert!(sim.human_known_tile(x, y).is_none());
+
+    sim.tile_mut(x, y).terrain = Terrain::Ocean;
+    sim.transfer_treaty_map(1, HUMAN, TreatyMap::Sea);
+    assert_eq!(
+        sim.human_known_tile(x, y).unwrap().terrain,
+        Terrain::Grassland
+    );
+    sim.refresh_visibility();
+    assert_eq!(
+        sim.observed_route_tile(x, y).unwrap().terrain,
+        Terrain::Grassland
+    );
+}
+
+use crate::rules::engine_rules::RulesetData;
 
 #[test]
 fn filtered_city_rendering_and_markers_preserve_live_and_remembered_state() {
@@ -138,7 +219,7 @@ fn sea_map_copies_the_sellers_visual_snapshot_not_live_world() {
     let mut game = Simulation::new(crate::test_support::seeded_map());
     assert!(game.map_snapshot_playtest());
     assert_eq!(game.render_tile(23, 36).terrain, Terrain::Sea);
-    assert_eq!(game.tile(23, 36).terrain, Terrain::Grassland);
+    assert_eq!(game.tile(23, 36).terrain, Terrain::Ocean);
 }
 
 #[test]
@@ -287,7 +368,7 @@ fn observed_map_round_trips_and_rejects_corrupt_owners() {
 fn unit_sight_comes_from_native_radar_flags() {
     let ruleset = RulesetData::campaign_default();
     for kind in UnitKind::ALL_NATIVE {
-        let radar = kind.conquests_rule().has_flag_1(0, 5);
+        let radar = kind.conquests_rule().has_capability("Radar");
         assert_eq!(
             ruleset_unit_vision_radius_sq(ruleset, kind),
             if radar { 8 } else { 2 }

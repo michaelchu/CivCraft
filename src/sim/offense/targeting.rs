@@ -75,7 +75,7 @@ impl super::Simulation {
                         continue;
                     }
                     let ferry_turns = (((extra / 65536) as i32 * 16) - boat.moves_left)
-                        / (boat.kind.stats().moves * MOVE_FRAGMENTS);
+                        / (boat.kind.stats().moves * campaign_move_fragments());
                     let turns = turn.max(ferry_turns);
                     if turns < best_turns {
                         best_turns = turns;
@@ -183,7 +183,7 @@ impl super::Simulation {
                     + if seed.kind.has_flag(UnitFlag::OneAttack) {
                         1
                     } else {
-                        seed.kind.stats().moves * MOVE_FRAGMENTS
+                        seed.kind.stats().moves * campaign_move_fragments()
                     };
                 if reserves > 0 && (seed.kind.can_occupy_city() || occupiers > 0) {
                     benefit += (self.advisor_city_output(enemy, None) * reserves / 5) as f32;

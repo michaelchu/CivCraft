@@ -2,7 +2,7 @@
 
 use super::research::campaign_research_settings;
 use super::*;
-use crate::rules::freeciv::ResearchRulesetSettings;
+use crate::rules::engine_rules::ResearchRulesetSettings;
 
 impl Simulation {
     /// Runs Freeciv's receiver-side transfer-loss roll for a technology treaty.

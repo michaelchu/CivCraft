@@ -2,7 +2,7 @@
 //! rules.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, requirements_met};
+use crate::rules::engine_rules::{RulesetData, requirements_met};
 use std::collections::HashSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -12,7 +12,7 @@ struct NuclearActionRules {
     consuming_always: bool,
 }
 
-fn required_action_parameter(key: &str) -> &'static crate::rules::freeciv::RuleParameter {
+fn required_action_parameter(key: &str) -> &'static crate::rules::engine_rules::RuleParameter {
     let mut matching = RulesetData::campaign_default()
         .parameters
         .iter()

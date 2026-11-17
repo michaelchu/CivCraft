@@ -640,6 +640,112 @@ mod tests {
     }
 
     #[test]
+    fn city_map_labels_use_the_worked_tile_rules() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.create_city(HUMAN, 20, 24);
+        sim.players[HUMAN].government = Government::Despotism;
+        let city_id = sim.cities.last().unwrap().id;
+        let positions: Vec<_> = sim
+            .map_city_radius(sim.city_by_id(city_id).unwrap())
+            .filter(|&(dx, dy, _, _)| (dx, dy) != (0, 0))
+            .take(4)
+            .map(|(_, _, x, y)| (x, y))
+            .collect();
+        for (index, &(x, y)) in positions.iter().enumerate() {
+            let tile = sim.tile_mut(x, y);
+            tile.seen = index != 3;
+            tile.visible = tile.seen;
+            tile.terrain = if index == 0 {
+                Terrain::Coast
+            } else {
+                Terrain::Plains
+            };
+            tile.resource = if index == 1 {
+                Some(Resource::Wheat)
+            } else {
+                None
+            };
+            tile.road = index == 2;
+            tile.irrigation = index == 2;
+        }
+        let city = sim.city_by_id(city_id).unwrap();
+        let view = sim.city_manager_view(city_id).unwrap();
+        let shown_yields = |(x, y)| {
+            view.map_tiles
+                .iter()
+                .find(|tile| (tile.x, tile.y) == (x, y))
+                .unwrap()
+                .yields
+        };
+        for &(x, y) in &positions[..3] {
+            assert_eq!(
+                shown_yields((x, y)),
+                sim.city_tile_yields(city, x, y, false, None)
+            );
+        }
+        let (x, y) = positions[0];
+        assert_ne!(shown_yields((x, y)), sim.tile(x, y).yields());
+        assert_eq!(shown_yields(positions[3]), (0, 0, 0));
+    }
+
+    #[test]
+    fn found_city_button_and_command_share_movement_and_treaty_checks() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.units.clear();
+        sim.tile_mut(20, 24).terrain = Terrain::Grassland;
+        let id = sim.spawn_unit(HUMAN, UnitKind::Settler, 20, 24);
+        let moves = sim.units[0].moves_left;
+        sim.units[0].moves_left = 0;
+        assert_eq!(sim.unit_action_view(id).unwrap().found_city, Some(false));
+        assert!(!sim.apply(Command::FoundCity(id)));
+
+        sim.units[0].moves_left = moves;
+        sim.sign_pact(HUMAN, 1, Pact::Peace);
+        sim.tile_mut(20, 24).owner = Some(1);
+        assert_eq!(sim.unit_action_view(id).unwrap().found_city, Some(false));
+        assert!(!sim.apply(Command::FoundCity(id)));
+
+        sim.tile_mut(20, 24).owner = None;
+        assert_eq!(sim.unit_action_view(id).unwrap().found_city, Some(true));
+        assert!(sim.apply(Command::FoundCity(id)));
+    }
+
+    #[test]
+    fn city_map_labels_keep_last_seen_yields_until_the_tile_is_visible() {
+        let mut sim = Simulation::new(crate::mapgen::generate(42));
+        sim.create_city(HUMAN, 20, 24);
+        let id = sim.cities.last().unwrap().id;
+        let (_, _, x, y) = sim
+            .map_city_radius(sim.city_by_id(id).unwrap())
+            .find(|&(dx, dy, _, _)| (dx, dy) != (0, 0))
+            .unwrap();
+        let tile = sim.tile_mut(x, y);
+        tile.terrain = Terrain::Grassland;
+        tile.resource = None;
+        tile.river = false;
+        tile.seen = true;
+        tile.visible = true;
+        sim.remember_visible_human_tiles();
+        let label = |sim: &Simulation| {
+            sim.city_manager_view(id)
+                .unwrap()
+                .map_tiles
+                .into_iter()
+                .find(|tile| (tile.x, tile.y) == (x, y))
+                .unwrap()
+                .yields
+        };
+        let original = label(&sim);
+        let tile = sim.tile_mut(x, y);
+        tile.visible = false;
+        tile.terrain = Terrain::Mountains;
+        assert_eq!(sim.render_tile_view(x, y).terrain, Terrain::Grassland);
+        assert_eq!(label(&sim), original);
+        sim.tile_mut(x, y).visible = true;
+        assert_ne!(label(&sim), original);
+    }
+
+    #[test]
     fn map_painter_projection_filters_undiscovered_strategic_resources() {
         let mut sim = Simulation::new(crate::mapgen::generate(42));
         sim.players[HUMAN].known.clear();

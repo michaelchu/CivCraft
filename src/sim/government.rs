@@ -1,7 +1,7 @@
 //! Government selection and government-dependent rules.
 
 use super::*;
-use crate::rules::freeciv::RulesetData;
+use crate::rules::engine_rules::RulesetData;
 use crate::sim::action_rules::SimulationRequirementContext;
 use std::sync::OnceLock;
 
@@ -94,12 +94,7 @@ impl Government {
     }
 
     pub(crate) fn requirement(self) -> Option<Tech> {
-        let name = self.rule_name()?;
-        let technology = crate::rules::native::governments()
-            .get(name)
-            .map(|government| government.required_technology.as_str())
-            .filter(|name| !name.is_empty())?;
-        Tech::all().find(|tech| tech.name().eq_ignore_ascii_case(technology))
+        self.native_record()?.technology
     }
 
     fn native_record(self) -> Option<&'static crate::rules::native::NativeGovernment> {
@@ -318,7 +313,7 @@ impl Simulation {
         if anarchy
             && turns <= 0
             && self.players[owner].government != Government::during_revolution()
-            && settings.revolution_type == crate::rules::freeciv::RevolutionType::RandomQuick
+            && settings.revolution_type == crate::rules::engine_rules::RevolutionType::RandomQuick
         {
             return false;
         }

@@ -4,8 +4,7 @@ use crate::sim::UnitKind;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-const PACING_TOML: &str =
-    include_str!("../../data/rulesets/civcraft/content/unit_animation_pacing.toml");
+const PACING_TOML: &str = include_str!("../../data/presentation/unit_animation_pacing.toml");
 
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]

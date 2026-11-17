@@ -1,6 +1,7 @@
 //! Village discovery outcomes and rewards.
 
 use super::*;
+use crate::rules::native::NativeVillageReward;
 
 // Freeciv common/game.h::GAME_DEFAULT_ONSETBARBARIAN. C2C3 does not override
 // the engine setting, so both hut barbarians and uprisings start on turn 60.
@@ -20,16 +21,14 @@ impl Simulation {
             return;
         }
 
-        let outcome_rolls = crate::rules::native::settlements().villages.outcome_rolls;
-        let message = match self.rand_below(outcome_rolls) {
-            0 => self.village_gold(owner, 25),
-            1..=3 => self.village_gold(owner, 50),
-            4 => self.village_gold(owner, 100),
-            5..=7 => {
+        let villages = &crate::rules::native::settlements().villages;
+        let message = match villages.reward_at(self.rand_below(villages.total_weight())) {
+            NativeVillageReward::Gold { amount } => self.village_gold(owner, *amount),
+            NativeVillageReward::Technology => {
                 let tech = self.village_tech(owner);
                 format!("The village shared ancient knowledge of {}.", tech.name())
             }
-            8..=9 => {
+            NativeVillageReward::Reinforcements => {
                 let kind = if self.has_tech(owner, Tech::CHIVALRY) {
                     UnitKind::Knight
                 } else if self.has_tech(owner, Tech::GUNPOWDER) {
@@ -40,16 +39,16 @@ impl Simulation {
                 self.spawn_unit(owner, kind, x, y);
                 format!("Friendly {} joined your expedition.", kind.name())
             }
-            10 => self.village_barbarians(x, y),
-            11 if self.can_found_at(x, y) => {
+            NativeVillageReward::Barbarians => self.village_barbarians(x, y),
+            NativeVillageReward::Settlement if self.can_found_at(x, y) => {
                 let name = self.create_city(owner, x, y);
                 format!("The friendly city of {name} joined your civilization.")
             }
-            11 => {
+            NativeVillageReward::Settlement => {
                 self.spawn_unit(owner, UnitKind::Settler, x, y);
                 "Friendly nomads joined your expedition as Settlers.".into()
             }
-            12..=13 => {
+            NativeVillageReward::Map => {
                 let reveal_radius = (crate::rules::native::settlements()
                     .villages
                     .map_reveal_radius_squared as f32)
@@ -71,7 +70,6 @@ impl Simulation {
                 }
                 "The village shared a map of the surrounding terrain.".into()
             }
-            _ => unreachable!(),
         };
         if owner == HUMAN {
             self.add_event(message);

@@ -12,7 +12,7 @@
 
 use super::*;
 use crate::rules::Genus;
-use crate::rules::freeciv::{RuleParameter, RulesetData};
+use crate::rules::engine_rules::{RuleParameter, RulesetData};
 use std::collections::HashMap;
 
 /// Freeciv server settings that control the city migration pass.
@@ -303,8 +303,8 @@ impl Simulation {
             .map(|(_, _, x, y)| {
                 self.c2c3_city_tile_yields(
                     destination,
-                    x,
-                    y,
+                    (x, y),
+                    self.tile(x, y),
                     false,
                     false,
                     None,

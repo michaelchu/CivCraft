@@ -1,7 +1,7 @@
 //! Typed veterancy data from the selected Freeciv `units.ruleset`.
 
 use super::{ContentKind, LoadError, RulesetData};
-use crate::rules::freeciv_ini::Value;
+use crate::rules::section_file::Value;
 
 const MAX_VETERAN_LEVELS: usize = 20;
 
@@ -246,7 +246,7 @@ fn parameter_ints(rules: &RulesetData, key: &str) -> Result<Vec<i32>, LoadError>
 }
 
 fn record_values(
-    entries: &[crate::rules::freeciv_ini::Entry],
+    entries: &[crate::rules::section_file::Entry],
     key: &str,
 ) -> Result<Vec<Value>, LoadError> {
     let mut found = entries
@@ -262,7 +262,7 @@ fn record_values(
 }
 
 fn record_ints(
-    entries: &[crate::rules::freeciv_ini::Entry],
+    entries: &[crate::rules::section_file::Entry],
     key: &str,
     section: &str,
 ) -> Result<Vec<i32>, LoadError> {

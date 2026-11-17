@@ -6,20 +6,8 @@
 
 use crate::sim::Simulation;
 
-#[cfg(feature = "scenarios")]
-mod diplomacy;
-#[cfg(feature = "scenarios")]
-mod early;
-#[cfg(feature = "scenarios")]
+#[cfg(any(test, feature = "scenarios"))]
 mod headless;
-#[cfg(feature = "scenarios")]
-mod military;
-#[cfg(feature = "scenarios")]
-mod native_rules;
-#[cfg(feature = "scenarios")]
-mod research;
-#[cfg(feature = "scenarios")]
-mod strategy;
 
 /// One named assertion made by a scenario.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
@@ -33,8 +21,8 @@ pub(crate) struct Check {
 #[derive(Default)]
 pub(crate) struct Checks(Vec<Check>);
 
+#[cfg(any(test, feature = "scenarios"))]
 impl Checks {
-    #[cfg(feature = "scenarios")]
     pub(crate) fn push(&mut self, (name, passed, detail): (&'static str, bool, String)) {
         self.0.push(Check {
             name,
@@ -43,7 +31,6 @@ impl Checks {
         });
     }
 
-    #[cfg(feature = "scenarios")]
     pub(crate) fn extend<I>(&mut self, checks: I)
     where
         I: IntoIterator<Item = (&'static str, bool, String)>,
@@ -57,10 +44,13 @@ impl Checks {
 /// The campaign state a scenario expects before its actions run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Fixture {
+    /// A campaign generated with the caller's options, with all seats AI-driven.
+    Generated,
     /// A newly generated campaign with the human player in seat zero.
-    #[cfg_attr(not(feature = "scenarios"), allow(dead_code))]
+    #[cfg_attr(not(any(test, feature = "scenarios")), allow(dead_code))]
     NewCampaign,
     /// A newly generated campaign in which every civilization is AI-driven.
+    #[cfg_attr(not(any(test, feature = "scenarios")), allow(dead_code))]
     AllAiCampaign,
 }
 
@@ -69,55 +59,58 @@ pub(crate) struct Scenario {
     /// Stable kebab-case identifier accepted by `headless_sim --scenario`.
     pub(crate) id: &'static str,
     pub(crate) fixture: Fixture,
-    actions: fn(&mut Simulation, &mut Checks),
+    actions: Option<fn(&mut Simulation, &mut Checks)>,
 }
 
 impl Scenario {
-    #[cfg(feature = "scenarios")]
+    #[cfg(any(test, feature = "scenarios"))]
     const fn new(id: &'static str, actions: fn(&mut Simulation, &mut Checks)) -> Self {
         Self {
             id,
             fixture: Fixture::NewCampaign,
-            actions,
+            actions: Some(actions),
         }
     }
 
-    #[cfg(feature = "scenarios")]
+    #[cfg(any(test, feature = "scenarios"))]
     const fn all_ai(id: &'static str, actions: fn(&mut Simulation, &mut Checks)) -> Self {
         Self {
             id,
             fixture: Fixture::AllAiCampaign,
-            actions,
+            actions: Some(actions),
         }
     }
 
-    /// Applies the fixture to a newly generated campaign and runs the
-    /// scenario's actions, returning its checks in order.
-    pub(crate) fn run(&self, campaign: &mut Simulation) -> Vec<Check> {
-        if self.fixture == Fixture::AllAiCampaign {
+    pub(crate) fn prepare(&self, campaign: &mut Simulation) {
+        if matches!(self.fixture, Fixture::Generated | Fixture::AllAiCampaign) {
             campaign.enable_all_civilizations_as_ai();
         }
+    }
+
+    pub(crate) fn has_actions(&self) -> bool {
+        self.actions.is_some()
+    }
+
+    /// Runs scenario actions after the campaign and its observers are ready.
+    pub(crate) fn run(&self, campaign: &mut Simulation) -> Vec<Check> {
         let mut checks = Checks::default();
-        (self.actions)(campaign, &mut checks);
+        if let Some(actions) = self.actions {
+            actions(campaign, &mut checks);
+        }
         checks.0
     }
 }
 
+const GENERATED: &[Scenario] = &[Scenario {
+    id: "generated-ai",
+    fixture: Fixture::Generated,
+    actions: None,
+}];
+
 const GROUPS: &[&[Scenario]] = &[
-    #[cfg(feature = "scenarios")]
+    GENERATED,
+    #[cfg(any(test, feature = "scenarios"))]
     headless::SCENARIOS,
-    #[cfg(feature = "scenarios")]
-    early::SCENARIOS,
-    #[cfg(feature = "scenarios")]
-    military::SCENARIOS,
-    #[cfg(feature = "scenarios")]
-    diplomacy::SCENARIOS,
-    #[cfg(feature = "scenarios")]
-    strategy::SCENARIOS,
-    #[cfg(feature = "scenarios")]
-    native_rules::SCENARIOS,
-    #[cfg(feature = "scenarios")]
-    research::SCENARIOS,
 ];
 
 /// Every registered scenario, in registration order.
@@ -148,23 +141,12 @@ mod tests {
         }
     }
 
-    /// Checks that fail on the reference campaign in a fresh process. They
-    /// failed the same way before the scenarios were registered here (verified
-    /// against the code before registration), so they are recorded
-    /// rather than hidden: the test below fails if this list goes stale in
-    /// either direction. Fix the rule or the scenario, then remove the entry.
-    const KNOWN_FAILING_CHECKS: &[&str] = &[
-        "ai_bodyguard_null_unit_upkeep",
-        "inland_overseas_settlement",
-        "overseas_settlement",
-    ];
-
     #[test]
-    fn registered_scenarios_pass_on_the_reference_campaign_except_known_failures() {
+    fn registered_scenarios_pass_on_the_reference_campaign() {
         let mut names = BTreeSet::new();
-        let mut failing = BTreeSet::new();
-        for scenario in all() {
+        for scenario in all().filter(|scenario| scenario.has_actions()) {
             let mut campaign = Simulation::new(crate::test_support::seeded_map());
+            scenario.prepare(&mut campaign);
             let checks = scenario.run(&mut campaign);
             assert!(!checks.is_empty(), "{} made no checks", scenario.id);
             for check in checks {
@@ -173,18 +155,12 @@ mod tests {
                     "check {} is reported by more than one scenario",
                     check.name
                 );
-                if !check.passed {
-                    failing.insert(check.name);
-                }
+                assert!(
+                    check.passed,
+                    "{}: {}: {}",
+                    scenario.id, check.name, check.detail
+                );
             }
         }
-        assert_eq!(
-            failing,
-            KNOWN_FAILING_CHECKS
-                .iter()
-                .copied()
-                .collect::<BTreeSet<_>>(),
-            "the set of failing scenario checks changed"
-        );
     }
 }

@@ -4,7 +4,7 @@
 use super::terrain_work::neighbors;
 use super::*;
 use crate::rules::Genus;
-use crate::rules::freeciv::{RuleRecord, RulesetData, requirements_met};
+use crate::rules::engine_rules::{RuleRecord, RulesetData, requirements_met};
 
 impl Simulation {
     pub(super) fn check_disasters(&mut self) {
@@ -227,7 +227,8 @@ mod tests {
             assert!(record.string_list_field("effects").unwrap().is_some());
         }
         assert!(disaster("earthquake").requirements.iter().any(|req| {
-            req.kind == crate::rules::freeciv::RequirementKind::Terrain && req.matches_name("Hills")
+            req.kind == crate::rules::engine_rules::RequirementKind::Terrain
+                && req.matches_name("Hills")
         }));
     }
 

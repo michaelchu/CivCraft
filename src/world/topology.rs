@@ -152,6 +152,9 @@ impl std::fmt::Display for MapWrap {
     }
 }
 impl MapWrap {
+    const MAX_DIMENSION: i32 = 512;
+    pub(crate) const MAX_TILES: u64 = Self::MAX_DIMENSION as u64 * Self::MAX_DIMENSION as u64;
+
     pub(crate) const X: Self = Self {
         width: 3 * source_map_linear_scale(MAP_TARGET_TILES, 3, 2) * MAP_EVEN_FACTOR,
         height: 2
@@ -160,12 +163,15 @@ impl MapWrap {
             * MAP_ISO_FACTOR,
     };
     pub(crate) fn with_dimensions(width: i32, height: i32) -> Result<Self, String> {
-        if !(16..=512).contains(&width)
-            || !(16..=512).contains(&height)
+        if !(16..=Self::MAX_DIMENSION).contains(&width)
+            || !(16..=Self::MAX_DIMENSION).contains(&height)
             || width % 2 != 0
             || height % 2 != 0
         {
-            return Err("map dimensions must be even and between 16 and 512 tiles per side".into());
+            return Err(format!(
+                "map dimensions must be even and between 16 and {} tiles per side",
+                Self::MAX_DIMENSION
+            ));
         }
         Ok(Self { width, height })
     }

@@ -16,8 +16,10 @@ impl Simulation {
 
     fn attack_power_with_base(unit: &Unit, attack: i32) -> i32 {
         let mut power = percent_of(attack * POWER_FACTOR, unit.veteran_power());
-        if super::super::combat_rules::selected().tired_attack && unit.moves_left < MOVE_FRAGMENTS {
-            power = power * unit.moves_left.max(0) / MOVE_FRAGMENTS;
+        if super::super::combat_rules::selected().tired_attack
+            && unit.moves_left < campaign_move_fragments()
+        {
+            power = power * unit.moves_left.max(0) / campaign_move_fragments();
         }
         power
     }
@@ -155,12 +157,12 @@ impl Simulation {
                 100 + self.unit_combat_bonus_total(
                     unit.kind,
                     attacker,
-                    crate::rules::freeciv::CombatBonusKind::DefenseMultiplierPct,
+                    crate::rules::engine_rules::CombatBonusKind::DefenseMultiplierPct,
                 ) + 100
                     * self.unit_combat_bonus_total(
                         unit.kind,
                         attacker,
-                        crate::rules::freeciv::CombatBonusKind::DefenseMultiplier,
+                        crate::rules::engine_rules::CombatBonusKind::DefenseMultiplier,
                     );
             power = (power * defense_multiplier / 100).max(0);
             let defend_bonus = self.defend_bonus_against(unit.owner, attacker, x, y, building);
@@ -169,12 +171,12 @@ impl Simulation {
                 100 + self.unit_combat_bonus_total(
                     attacker,
                     unit.kind,
-                    crate::rules::freeciv::CombatBonusKind::DefenseDividerPct,
+                    crate::rules::engine_rules::CombatBonusKind::DefenseDividerPct,
                 ) + 100
                     * self.unit_combat_bonus_total(
                         attacker,
                         unit.kind,
-                        crate::rules::freeciv::CombatBonusKind::DefenseDivider,
+                        crate::rules::engine_rules::CombatBonusKind::DefenseDivider,
                     );
             assert!(
                 defense_divider > 0,
@@ -225,7 +227,7 @@ impl Simulation {
         &self,
         unit: UnitKind,
         target: UnitKind,
-        kind: crate::rules::freeciv::CombatBonusKind,
+        kind: crate::rules::engine_rules::CombatBonusKind,
     ) -> i32 {
         let Some(bonuses) = crate::sim::action_rules::freeciv_unit_combat_bonuses(unit) else {
             return 0;
@@ -284,7 +286,7 @@ impl Simulation {
         if self.unit_combat_bonus_total(
             attacker.kind,
             defender.kind,
-            crate::rules::freeciv::CombatBonusKind::LowFirepower,
+            crate::rules::engine_rules::CombatBonusKind::LowFirepower,
         ) != 0
         {
             defense =
@@ -602,19 +604,13 @@ impl Simulation {
         let movement = MovementRules::campaign();
         self.map_wrap.civ3_neighbors(x, y).any(|(tx, ty)| {
             let terrain = self.tile(tx, ty).terrain;
-            let Ok(data) = movement.terrain_data(terrain) else {
-                return false;
-            };
-            crate::rules::native::terrain()
-                .terrains
-                .iter()
-                .find(|record| record.rule_name.eq_ignore_ascii_case(&data.rule_name))
-                .is_some_and(|record| {
-                    !record
-                        .flags
-                        .iter()
-                        .any(|flag| flag.eq_ignore_ascii_case("UnsafeCoast"))
-                })
+            matches!(
+                movement.terrain_has_flag(
+                    terrain,
+                    super::super::movement_rules::TerrainFlag::UnsafeCoast
+                ),
+                Ok(false)
+            )
         })
     }
 
@@ -636,14 +632,14 @@ impl Simulation {
                 {
                     // Unmapped Civ III identities use Freeciv's selected engine
                     // default from ruleload.c: TDT_ALIGHT.
-                    crate::rules::freeciv::TransportDefense::Alight
+                    crate::rules::engine_rules::TransportDefense::Alight
                 }
                 None => return false,
             };
         match transport_defense {
-            crate::rules::freeciv::TransportDefense::Blocked => false,
-            crate::rules::freeciv::TransportDefense::Always => true,
-            crate::rules::freeciv::TransportDefense::Alight => {
+            crate::rules::engine_rules::TransportDefense::Blocked => false,
+            crate::rules::engine_rules::TransportDefense::Always => true,
+            crate::rules::engine_rules::TransportDefense::Alight => {
                 self.combat_unit_can_exist_at_tile(unit, unit.x, unit.y)
                     && (self.action_available_for_unit_fail_closed(
                         unit,
@@ -918,8 +914,10 @@ impl Simulation {
 
         let mut damaged_attacker = attacker.clone();
         damaged_attacker.hp = att_hp;
-        let attacker_moves_left =
-            (self.unit_move_rate(&damaged_attacker) - attacker_moves_used - MOVE_FRAGMENTS).max(0);
+        let attacker_moves_left = (self.unit_move_rate(&damaged_attacker)
+            - attacker_moves_used
+            - campaign_move_fragments())
+        .max(0);
         let mut damaged_defender = defender.clone();
         damaged_defender.hp = def_hp;
         let defender_moves_left =
@@ -994,7 +992,8 @@ impl Simulation {
                 if entered
                     && let Some(unit) = self.units.iter_mut().find(|unit| unit.id == attacker_id)
                 {
-                    let occupation_cost = (full_moves - unit.moves_left - MOVE_FRAGMENTS).max(0);
+                    let occupation_cost =
+                        (full_moves - unit.moves_left - campaign_move_fragments()).max(0);
                     unit.moves_left = (old_moves - occupation_cost).max(0);
                 }
             }

@@ -58,11 +58,11 @@ impl Simulation {
         let choice = self.settlement_production_choice(city).map(|(kind, want)| {
             let want = want * f64::from(super::super::ai_traits::fixed_default("expansionist"))
                 / f64::from(
-                    crate::rules::freeciv::SettlementAiSettings::campaign()
+                    crate::rules::engine_rules::SettlementAiSettings::campaign()
                         .expansionist_trait_baseline,
                 );
             let want = if wonder_city == Some(city.id) {
-                let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
+                let settings = crate::rules::engine_rules::SettlementAiSettings::campaign();
                 want / f64::from(if kind.stats().pop_cost > 0 {
                     settings.wonder_city_pop_founder_divisor
                 } else {

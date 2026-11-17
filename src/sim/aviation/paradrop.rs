@@ -13,7 +13,7 @@ fn selected_paratroopers_range(kind: UnitKind) -> Option<i32> {
 }
 
 fn selected_airlift_max_range() -> Option<SelectedActionRange> {
-    let rules = crate::rules::freeciv::RulesetData::campaign_default();
+    let rules = crate::rules::engine_rules::RulesetData::campaign_default();
     let mut parameters = rules.parameters.iter().filter(|parameter| {
         parameter.file.eq_ignore_ascii_case("actions.ruleset")
             && parameter.section.eq_ignore_ascii_case("actions")
@@ -41,7 +41,7 @@ fn selected_airlift_capacity_always_enabled(source: bool) -> Option<bool> {
     } else {
         "airlift_to_always_enabled"
     };
-    let rules = crate::rules::freeciv::RulesetData::campaign_default();
+    let rules = crate::rules::engine_rules::RulesetData::campaign_default();
     let mut parameters = rules.parameters.iter().filter(|parameter| {
         parameter.file.eq_ignore_ascii_case("game.ruleset")
             && parameter.key.eq_ignore_ascii_case(key)
@@ -136,8 +136,8 @@ impl Simulation {
             city,
             Some((city.x, city.y)),
         );
-        crate::rules::freeciv::effect_value(
-            &crate::rules::freeciv::RulesetData::campaign_default().effects,
+        crate::rules::engine_rules::effect_value(
+            &crate::rules::engine_rules::RulesetData::campaign_default().effects,
             EffectKind::Airlift,
             &context,
         )

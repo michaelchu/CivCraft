@@ -46,6 +46,7 @@ pub(super) const C2C3_CITY_MAP_RADIUS_5: [(i32, i32); 19] = [
 ];
 
 impl Tile {
+    #[cfg(test)]
     pub(crate) fn contamination_output(&self, value: i32) -> i32 {
         let value = (value - i32::from(self.craters)).max(0);
         let penalty = match (self.pollution, self.fallout) {

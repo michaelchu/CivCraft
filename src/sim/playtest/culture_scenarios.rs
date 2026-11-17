@@ -32,7 +32,7 @@ impl Simulation {
         });
 
         let c2c3_victory_default =
-            !self.victory_enabled(crate::rules::freeciv::VictoryCondition::Culture);
+            !self.victory_enabled(crate::rules::engine_rules::VictoryCondition::Culture);
         (history_uses_ruleset, captured, c2c3_victory_default)
     }
 }

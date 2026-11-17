@@ -25,10 +25,11 @@ scope, status, and subsystem-difference ledger.
 
 ## Change the CivCraft ruleset
 
-1. Edit the corresponding file under
-   `data/rulesets/civcraft/engine/` and record the reason and intended
-   Freeciv behavior in the change description. Keep copied C2C3 records and
-   CivCraft-specific overrides distinguishable.
+1. Edit the corresponding file under `data/rulesets/civcraft/engine/`.
+   `actions.ruleset` owns actions and enablers, `effects.ruleset` owns
+   effects and their requirements, and `terrain.ruleset` owns
+   `[parameters].move_fragments`. Record the reason and intended Freeciv
+   behavior in the change description.
 2. Keep inherited engine defaults that affect gameplay explicit in
    `game.ruleset` when the campaign relies on them. Do not silently fall back
    to values from another Freeciv ruleset.
@@ -44,7 +45,7 @@ scope, status, and subsystem-difference ledger.
    checkout roots and compare the output with the manifest row.
 5. Check that `RulesetData` still loads the selected baseline and its required
    include closure. The `packaged_baseline_loads_only_selected_civcraft_ruleset_files`
-   check in `src/rules/freeciv.rs` records the current selected-file and record
+   check in `src/rules/engine_rules.rs` records the current selected-file and record
    counts.
 
 When advancing Freeciv, use a clean checkout or detached worktree for the new
@@ -55,7 +56,7 @@ overrides; copy only the selected C2C3 files and required include dependencies.
 Update the revision in this guide, the port plan, the baseline README and
 manifest, plus any fixture metadata affected by the change. If generated engine
 identifiers or ruleset enums change, update their source-derived tables in
-`src/rules/freeciv/identifiers.rs` and the adapters that consume them.
+`src/rules/engine_rules/identifiers.rs` and the adapters that consume them.
 
 For example, from `app/`, check the source revision and review the selected
 ruleset diff before importing it:
@@ -75,21 +76,20 @@ order or a similar display name.
 
 | Content | Source data | Runtime bridge and maintenance rule |
 |---|---|---|
-| Units and unit art | `data/rulesets/civcraft/content/units.toml` has 92 campaign identities, source values, unique replacements, requirements, and `art_folder` / `art_root`. `civilizations.toml` and `experience_levels.toml` hold associated start and rank inputs. | `UnitKind::from_conquests_id` in `src/sim/model/units.rs` resolves stable identities. When correcting a source row, preserve its BIQ identity and provenance, then check the identity, art path, unique-unit, and start-profile consumers. |
+| Units and unit art | `data/rulesets/civcraft/content/units.toml` has 92 campaign identities, source values, unique replacements, requirements, and `art_folder` / `art_root`. `civilizations.toml` and `experience_levels.toml` hold associated start and rank inputs. | `UnitKind::from_conquests_id` in `src/sim/model/units.rs` resolves stable identities. When correcting a native record, preserve its stable ID, then check the identity, art path, unique-unit, and start-profile consumers. |
 | Unit mechanics profiles | Native unit statistics and capabilities live in `data/rulesets/civcraft/content/units.toml`; the former unit-economics crosswalk has been removed. | `src/sim/action_rules.rs` maps native unit capabilities into the shared Freeciv requirement evaluator. For a new or changed unit, update the native record and its focused consumers. Do not copy C2C3 combat, movement, or art values into the Civ III catalog. |
-| Buildings | `data/rulesets/civcraft/content/buildings.toml` retains all 83 BIQ records and their native bindings. | Native building rules and bindings are authoritative; 36 source records retain explicit unresolved reasons. Add a stable binding only when the identity is deliberate and unique. Keep unresolved reasons until then; never assign by BIQ or enum row order. |
-| Technologies | `data/rulesets/civcraft/content/technologies.toml` is the sole source for all 83 researchable BIQ advances, stable runtime indices, display aliases, prerequisites, eras, and era gates. | `src/rules/research.rs` builds the runtime catalog from the native records; `src/sim/content_adapter.rs` maps Freeciv compatibility names into it. Current explicit bridges include Superconductors/Superconductor, Amphibious Warfare/Amphibious War, Conscription/Nationalism, Environmentalism/Ecology, Laser/The Laser, Mobile Warfare/Motorized Transportation, and Nuclear Fission/Fission. C2C3 Radio maps to Civ III Flight; Freeciv-only Plastics has no Civ III advance. `engine/techs.ruleset` remains a generic compatibility/schema input and must not be edited to change the Civ III research graph. |
+| Buildings | `data/rulesets/civcraft/content/buildings.toml` contains 91 active native rules. | Native building rules are authoritative; `src/rules/compatibility.rs` preserves serialized IDs and the existing obsolescence policy. The unused source records have been removed. Never infer save identities from author record order. |
+| Technologies | `src/rules/technologies.rs` is the sole source for all 83 researchable native advances, stable runtime indices, display aliases, prerequisites, eras, and era gates. | `src/rules/research.rs` builds the runtime catalog from the native records; `src/sim/content_adapter.rs` maps Freeciv compatibility names into it. Current explicit bridges include Superconductors/Superconductor, Amphibious Warfare/Amphibious War, Conscription/Nationalism, Environmentalism/Ecology, Laser/The Laser, Mobile Warfare/Motorized Transportation, and Nuclear Fission/Fission. C2C3 Radio maps to Civ III Flight; Freeciv-only Plastics has no Civ III advance. `engine/techs.ruleset` remains a generic compatibility/schema input and must not be edited to change the Civ III research graph. |
 | Civilizations | `data/rulesets/civcraft/content/civilizations.toml` preserves 31 playable Conquests identities and their campaign start profiles. | `src/rules/civilizations.rs` and `src/sim/civilization_start_rules.rs` load them. The `city_style` field is a CivCraft renderer mapping, not a BIQ field. Keep roster IDs and art style bindings explicit. |
-| Terrain and resources | `data/rulesets/civcraft/content/terrain.toml` and `economy.toml` own the migrated native terrain/resource inputs. | Terrain name adaptation is in `src/mapgen/terrain.rs`; resource identities, habitats, and yields are in `src/world/terrain.rs`; Freeciv placement adapted to those resources is in `src/mapgen/placement.rs`. Record this as code-owned mapping when changing it; do not claim it is editable through the C2C3 ruleset. |
+| Terrain and resources | `engine/terrain.ruleset` owns terrain and road rules, including yields and climate. `content/economy.toml` owns the campaign resource yield overrides. | Terrain name adaptation is in `src/mapgen/terrain.rs`; resource identities, habitats, and yields are in `src/world/terrain.rs`; Freeciv placement adapted to those resources is in `src/mapgen/placement.rs`. Record this as code-owned mapping when changing it; do not claim it is editable through the C2C3 ruleset. |
 | Other art | Unit art roots come from `civcraft/content/units.toml`; civilization city styles come from `civcraft/content/civilizations.toml`. Other terrain, improvement, road, river, and UI sprite selection is resolved by the existing client tileset/theme loaders. | Update the owning mapping in `src/client/tileset.rs` and its asset/theme coverage checks. Keep presentation mapping out of simulation rules. |
 
-`src/sim/content_adapter.rs::civ3_source_content_binds_to_stable_ids_and_reports_catalog_gaps`
-is the current identity-count contract: 92/92 units, 83/83 technologies,
-31/31 civilizations, and 47/83 buildings mapped to legacy wrappers, with the
-remaining 36 buildings carrying explicit reasons. The `Amphibious War` BIQ
-identity binds to the stable `Amphibious Warfare` technology ID. Keep serialized
-unit, building, and technology IDs stable; if persistent representation must
-change, make an explicit save-version and migration decision.
+`src/sim/content_adapter.rs` maps engine technology names to compiled native
+technology IDs. Runtime source-record catalogs and BIQ metadata have been removed.
+The native catalogs and compatibility table preserve existing identities and
+obsolescence behavior. Keep serialized unit, building, and technology IDs stable;
+if persistent representation must change, make an explicit save-version and
+migration decision.
 
 ## Extend parity fixtures
 
@@ -134,10 +134,13 @@ the user. Update the owning ledger row when one of these decisions changes.
 
 The gameplay simulation remains authoritative behind CivCraft's existing
 command/client-view boundary; rendering consumes simulation state. Current
-saves use header `CIVCRAFT\0\x22`. Older save headers are rejected and are not
-migrated. A future persistent-state change must explicitly choose a save-version
-policy and cover round-trip, invalid-input, and compatibility behavior before
-the corresponding plan item is complete.
+saves use header `CIVCRAFT\0\x28`. The loader reads `0x26` and `0x27`
+campaigns and writes the new format on the next save. Human map knowledge
+uses the same saved observations for the world view, city tile labels and
+route planning. Round-trip checks cover map sizes through 512×512.
+The positional wire layouts live under `src/sim/save/schema/` and in
+`src/sim/save/schema.rs`. The fixtures pin the layouts of all three supported
+versions. Use a new schema for incompatible changes.
 
 P14 is complete when a maintainer can identify the authority and owner for a
 ruleset change, content mapping, upstream revision, and parity vector; every

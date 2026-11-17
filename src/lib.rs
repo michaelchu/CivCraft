@@ -10,6 +10,7 @@ mod rules;
 mod sim;
 mod visual_test;
 mod world;
+mod world_setup;
 
 pub use desktop::run_desktop;
 pub use headless::run_cli as run_headless_cli;

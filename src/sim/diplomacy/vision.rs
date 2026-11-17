@@ -61,53 +61,18 @@ impl Simulation {
         // squared real distance; the integer radius is therefore floor(sqrt).
         let radius_sq = self.city_work_radius_sq(&city).max(0);
         let radius = (radius_sq as f64).sqrt().floor() as i32;
-        let coordinates = self.map_wrap.freeciv_square_radius(city.x, city.y, radius);
-        let recipients = self.vision_recipients(receiver);
-        let mut remembered = vec![vec![false; self.tiles.len()]; self.players.len()];
-
-        for (x, y) in coordinates {
-            let index = self.map_wrap.index(x, y);
-            // handle_diplomacy_create_clause_req passes its packet sender
-            // (the human player in this single-player campaign), not the
-            // owner of the city clause, as the map source.
-            if !self.tiles[index].known_by[HUMAN] {
-                continue;
-            }
-            let requester_sees = self.has_main_sight_at(HUMAN, x, y);
-            let observation = if requester_sees {
-                self.live_map_observation(index)
-            } else {
-                self.route_memory[index]
-                    .map(|route| MapObservation {
-                        route,
-                        owner: self.tiles[index].last_seen_owner,
-                        ocean: route.is_water(),
-                    })
-                    .unwrap_or_else(|| self.live_map_observation(index))
-            };
-
-            for &recipient in &recipients {
-                if recipient == BARBARIANS
-                    || self.has_main_sight_at(recipient, x, y)
-                    || (!requester_sees && self.tiles[index].known_by[recipient])
-                {
-                    continue;
-                }
-                self.tiles[index].known_by[recipient] = true;
-                if recipient == HUMAN {
-                    self.tiles[index].seen = true;
-                    self.tiles[index].last_seen_owner = observation.owner;
-                    self.route_memory[index] = Some(observation.route);
-                } else {
-                    self.ai_map_memory.insert((recipient, index), observation);
-                }
-                remembered[recipient][index] = true;
-            }
+        let scope: std::collections::BTreeSet<_> = self
+            .map_wrap
+            .freeciv_square_radius(city.x, city.y, radius)
+            .into_iter()
+            .map(|(x, y)| self.map_wrap.index(x, y))
+            .collect();
+        // Freeciv uses the packet sender's private map for a city clause.
+        for recipient in self.vision_recipients(receiver) {
+            self.transfer_map_observations(HUMAN, recipient, TreatyMap::World, |index| {
+                scope.contains(&index)
+            });
         }
-
-        // Store a bounded remembered view for the recipients. The boolean
-        // mask contains only tiles inside this city's effective work radius.
-        self.remember_render_map(&remembered);
         true
     }
 
@@ -127,41 +92,8 @@ impl Simulation {
         receiver: usize,
         map: TreatyMap,
     ) {
-        let recipients = self.vision_recipients(receiver);
-        for &recipient in &recipients {
-            self.transfer_render_map(giver, recipient, map);
-        }
-        for index in 0..self.tiles.len() {
-            let tile = &self.tiles[index];
-            if !tile.known_by[giver] {
-                continue;
-            }
-            // Older saves and knowledge granted without direct sight may lack a snapshot.
-            let observation = if giver == HUMAN && !tile.visible {
-                self.route_memory[index].map(|route| MapObservation {
-                    route,
-                    owner: tile.last_seen_owner,
-                    ocean: route.is_water(),
-                })
-            } else {
-                self.ai_map_memory.get(&(giver, index)).copied()
-            }
-            .unwrap_or_else(|| self.live_map_observation(index));
-            if map == TreatyMap::Sea && !observation.ocean {
-                continue;
-            }
-            let tile = &mut self.tiles[index];
-            for &recipient in &recipients {
-                if !tile.known_by[recipient] && recipient != HUMAN && recipient != BARBARIANS {
-                    self.ai_map_memory.insert((recipient, index), observation);
-                }
-                tile.known_by[recipient] = true;
-            }
-            if recipients.contains(&HUMAN) && !tile.seen {
-                tile.seen = true;
-                tile.last_seen_owner = observation.owner;
-                self.route_memory[index] = Some(observation.route);
-            }
+        for recipient in self.vision_recipients(receiver) {
+            self.transfer_map_observations(giver, recipient, map, |_| true);
         }
     }
 

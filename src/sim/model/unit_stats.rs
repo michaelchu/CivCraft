@@ -35,10 +35,10 @@ impl UnitKind {
             // round; bombardment uses the separately imported rate-of-fire.
             firepower: 1,
             moves: rule.moves,
-            ignores_terrain: rule.has_flag_1(0, 4),
+            ignores_terrain: rule.has_capability("IgnoreTerrain"),
             can_work: metadata.flags & (1u64 << crate::sim::unit_catalog::UnitFlag::Workers as u32)
                 != 0,
-            can_found: rule.has_flag_3(8, 1),
+            can_found: rule.has_capability("FoundCity"),
         }
     }
 }

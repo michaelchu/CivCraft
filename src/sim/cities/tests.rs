@@ -3,6 +3,36 @@
 use super::production::Growth;
 use super::*;
 
+#[test]
+fn lost_worker_assignment_is_replaced_using_production_yields() {
+    let mut game = Simulation::new(crate::mapgen::generate(42));
+    game.units.clear();
+    game.create_city(HUMAN, 20, 24);
+    let id = game.cities.last().unwrap().id;
+    let positions: Vec<_> = game
+        .map_city_radius(game.city_by_id(id).unwrap())
+        .filter(|&(dx, dy, _, _)| (dx, dy) != (0, 0))
+        .map(|(_, _, x, y)| (x, y))
+        .collect();
+    for &(x, y) in &positions {
+        game.tile_mut(x, y).owner = None;
+    }
+    let (coast, forest) = (positions[0], positions[1]);
+    for ((x, y), terrain) in [(coast, Terrain::Coast), (forest, Terrain::Forest)] {
+        let tile = game.tile_mut(x, y);
+        tile.terrain = terrain;
+        tile.owner = Some(HUMAN);
+        tile.resource = None;
+        tile.river = false;
+    }
+    let city = game.cities.last_mut().unwrap();
+    city.size = 1;
+    city.specialists = [0; 3];
+    city.worked_tiles.clear();
+    game.reconcile_city_workers();
+    assert_eq!(game.city_by_id(id).unwrap().worked_tiles, [coast]);
+}
+
 fn kill_citizen_unit_kind() -> UnitKind {
     UnitKind::ALL_NATIVE
         .into_iter()

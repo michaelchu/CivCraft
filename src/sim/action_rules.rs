@@ -9,10 +9,10 @@ use super::{
     Base, City, Contamination, Pact, PillageTarget, Simulation, Tile, Unit, UnitKind, UnitState,
     WorkKind,
 };
-use crate::rules::freeciv::RequirementKind;
+use crate::rules::engine_rules::RequirementKind;
 #[cfg(test)]
-use crate::rules::freeciv::effect_value;
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::effect_value;
+use crate::rules::engine_rules::{
     ActionEvaluationError, EffectContext, EffectKind, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, ResolvedRequirementValue,
     RuleRecord, RulesetData, action_enabled, campaign_effect, requirements_met,
@@ -31,7 +31,7 @@ pub(crate) struct SimulationRequirementContext<'a> {
     unit: Option<&'a Unit>,
     city: Option<&'a super::City>,
     tile: Option<(i32, i32)>,
-    tile_override: Option<((i32, i32), Tile)>,
+    tile_override: Option<((i32, i32), &'a Tile)>,
     city_tile_center_override: Option<((i32, i32), bool)>,
     building_override: Option<Building>,
     relation_target: Option<usize>,
@@ -42,7 +42,7 @@ pub(crate) struct SimulationRequirementContext<'a> {
     granted_tech: Option<Tech>,
     celebrating: Option<bool>,
     disordered: Option<bool>,
-    unit_type_flag_record: Option<&'static crate::rules::freeciv::ContentRecord>,
+    unit_type_flag_record: Option<&'static crate::rules::engine_rules::ContentRecord>,
     native_unit_capabilities: Option<&'static super::native_unit_rules::UnitCapabilities>,
     unbound_content_is_absent: bool,
 }
@@ -160,7 +160,7 @@ impl<'a> SimulationRequirementContext<'a> {
 
     pub(crate) fn with_unit_type_flag_record(
         mut self,
-        record: &'static crate::rules::freeciv::ContentRecord,
+        record: &'static crate::rules::engine_rules::ContentRecord,
     ) -> Self {
         self.unit_type_flag_record = Some(record);
         // Upkeep and production callers intentionally supply the selected
@@ -235,7 +235,7 @@ impl<'a> SimulationRequirementContext<'a> {
             unit: self.unit,
             city: self.city,
             tile: Some(tile),
-            tile_override: self.tile_override.clone(),
+            tile_override: self.tile_override,
             city_tile_center_override: self.city_tile_center_override,
             building_override: self.building_override,
             relation_target: self.relation_target,
@@ -252,8 +252,8 @@ impl<'a> SimulationRequirementContext<'a> {
         }
     }
 
-    fn with_tile_override(mut self, tile: (i32, i32), state: &Tile) -> Self {
-        self.tile_override = Some((tile, state.clone()));
+    pub(in crate::sim) fn with_tile_override(mut self, tile: (i32, i32), state: &'a Tile) -> Self {
+        self.tile_override = Some((tile, state));
         self
     }
 
@@ -278,7 +278,7 @@ impl<'a> SimulationRequirementContext<'a> {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "terrain.ruleset".into(),
                 section: format!("extra_{name}"),
                 key: "reqs".to_owned(),
@@ -299,28 +299,6 @@ impl<'a> SimulationRequirementContext<'a> {
             RequirementValue::String(name) => Ok(name),
             _ => Err(Self::unsupported(requirement)),
         }
-    }
-
-    fn terrain_record(
-        &self,
-        tile: (i32, i32),
-    ) -> Result<&'static crate::rules::native::NativeTerrain, RequirementEvaluationError> {
-        let terrain = self.tile_state(tile).terrain;
-        let terrain_name = super::movement_rules::MovementRules::campaign()
-            .terrain_data(terrain)
-            .map_err(|_| RequirementEvaluationError::Unsupported {
-                kind: "Terrain mapping".to_owned(),
-                name: RequirementValue::String(terrain.name().to_owned()),
-            })?
-            .rule_name;
-        crate::rules::native::terrain()
-            .terrains
-            .iter()
-            .find(|record| record.rule_name.eq_ignore_ascii_case(&terrain_name))
-            .ok_or_else(|| RequirementEvaluationError::Unsupported {
-                kind: "Terrain mapping".to_owned(),
-                name: RequirementValue::String(terrain_name),
-            })
     }
 
     fn tile_positions(
@@ -344,49 +322,24 @@ impl<'a> SimulationRequirementContext<'a> {
         }
     }
 
-    fn terrain_field_matches(
-        &self,
-        requirement: &Requirement,
-        field: &str,
-        expected: &str,
-    ) -> Result<bool, RequirementEvaluationError> {
-        let name = Self::string_name(requirement)?;
-        if !name.eq_ignore_ascii_case(expected) {
-            return Err(Self::unsupported(requirement));
-        }
-        let tile = self.tile.ok_or_else(|| Self::unsupported(requirement))?;
-        let record = self.terrain_record(tile)?;
-        match field {
-            "class" => Ok(record.class.eq_ignore_ascii_case(name)),
-            "flags" => Ok(record
-                .flags
-                .iter()
-                .any(|flag| flag.eq_ignore_ascii_case(name))),
-            _ => unreachable!("field helper only handles named terrain fields"),
-        }
-    }
-
     fn terrain_alter(&self, requirement: &Requirement) -> Result<bool, RequirementEvaluationError> {
         let name = Self::string_name(requirement)?;
-        let field = match name.to_ascii_lowercase().as_str() {
-            "canroad" => "road_time",
-            "canmine" => "mining_time",
-            "canirrigate" => "irrigation_time",
-            "canbase" => "base_time",
-            "cancultivate" => "cultivate_time",
-            "canplant" => "plant_time",
-            _ => return Err(Self::unsupported(requirement)),
-        };
         let tile = self.tile.ok_or_else(|| Self::unsupported(requirement))?;
-        let record = self.terrain_record(tile)?;
-        let time = match field {
-            "road_time" => record.road_time,
-            "mining_time" => record.mining_time,
-            "irrigation_time" => record.irrigation_time,
-            "base_time" => record.base_time,
-            "cultivate_time" => record.cultivate_time,
-            "plant_time" => record.plant_time,
-            _ => unreachable!("validated terrain alteration field"),
+        let terrain = self.tile_state(tile).terrain;
+        if terrain == Terrain::Volcano {
+            return Ok(false);
+        }
+        let times = super::movement_rules::MovementRules::new(self.ruleset)
+            .terrain_activity_times(terrain)
+            .map_err(|_| Self::unsupported(requirement))?;
+        let time = match name.to_ascii_lowercase().as_str() {
+            "canroad" => times.road,
+            "canmine" => times.mining,
+            "canirrigate" => times.irrigation,
+            "canbase" => times.base,
+            "cancultivate" => times.cultivate,
+            "canplant" => times.plant,
+            _ => return Err(Self::unsupported(requirement)),
         };
         Ok(time > 0)
     }
@@ -894,7 +847,9 @@ pub(crate) fn selected_building_is_obsolete(
     building: Building,
     granted: Option<Tech>,
 ) -> Option<bool> {
-    native_building_for_runtime(building)?;
+    if !crate::rules::compatibility::uses_selected_obsolescence(building.0) {
+        return None;
+    }
     let obsolete_technology = building
         .data()
         .obsolete
@@ -1100,23 +1055,15 @@ impl RequirementContext for SimulationRequirementContext<'_> {
             RequirementKind::Terrain if requirement.range == RequirementRange::Tile => {
                 let tile = self.tile.ok_or_else(unsupported)?;
                 let actual = self.tile_state(tile).terrain;
+                let Some(actual_name) = actual.c2c3_rule_name() else {
+                    return Ok(false);
+                };
                 match requirement.resolved {
                     Some(ResolvedRequirementValue::Terrain(expected)) => {
-                        let actual_name = super::movement_rules::MovementRules::campaign()
-                            .terrain_data(actual)
-                            .map_err(|_| unsupported())?
-                            .rule_name;
                         let expected_name = expected.c2c3_rule_name().ok_or_else(unsupported)?;
                         Ok(actual_name.eq_ignore_ascii_case(expected_name))
                     }
-                    _ => {
-                        let name = Self::string_name(requirement)?;
-                        let terrain_name = super::movement_rules::MovementRules::campaign()
-                            .terrain_data(actual)
-                            .map_err(|_| unsupported())?
-                            .rule_name;
-                        Ok(terrain_name.eq_ignore_ascii_case(name))
-                    }
+                    _ => Ok(actual_name.eq_ignore_ascii_case(Self::string_name(requirement)?)),
                 }
             }
             RequirementKind::TerrainClass
@@ -1128,17 +1075,27 @@ impl RequirementContext for SimulationRequirementContext<'_> {
                 ) =>
             {
                 let name = Self::string_name(requirement)?;
-                let positions = self.tile_positions(requirement)?;
-                for tile in positions {
-                    let record = self.terrain_record(tile)?;
-                    if record.class.eq_ignore_ascii_case(name) {
+                let rules = super::movement_rules::MovementRules::new(self.ruleset);
+                for tile in self.tile_positions(requirement)? {
+                    let class = rules
+                        .terrain_class(self.tile_state(tile).terrain)
+                        .map_err(|_| unsupported())?;
+                    if class.eq_ignore_ascii_case(name) {
                         return Ok(true);
                     }
                 }
                 Ok(false)
             }
             RequirementKind::TerrainFlag if requirement.range == RequirementRange::Tile => {
-                self.terrain_field_matches(requirement, "flags", Self::string_name(requirement)?)
+                let tile = self.tile.ok_or_else(unsupported)?;
+                let terrain = self.tile_state(tile).terrain;
+                // Volcano has a land class but no C2C3 terrain flags.
+                if terrain == Terrain::Volcano {
+                    return Ok(false);
+                }
+                super::movement_rules::MovementRules::new(self.ruleset)
+                    .terrain_has_named_flag(terrain, Self::string_name(requirement)?)
+                    .map_err(|_| unsupported())
             }
             RequirementKind::TerrainAlter if requirement.range == RequirementRange::Tile => {
                 self.terrain_alter(requirement)
@@ -1288,20 +1245,6 @@ fn runtime_building_for_name(name: &str) -> Option<Building> {
                 .iter()
                 .any(|alias| alias.eq_ignore_ascii_case(name))
     })
-}
-
-fn native_building_for_runtime(
-    building: Building,
-) -> Option<&'static crate::rules::native::NativeBuilding> {
-    let catalog = crate::rules::native::buildings();
-    let binding = catalog
-        .bindings
-        .iter()
-        .find(|binding| binding.legacy_runtime_index == building.0 as i32)?;
-    catalog
-        .buildings
-        .iter()
-        .find(|candidate| candidate.id == binding.civ3_id)
 }
 
 impl Simulation {
@@ -1487,7 +1430,7 @@ impl Simulation {
         actor: &Unit,
         action: &str,
         target_xy: (i32, i32),
-        unit_record: &'static crate::rules::freeciv::ContentRecord,
+        unit_record: &'static crate::rules::engine_rules::ContentRecord,
         target_city: Option<&super::City>,
     ) -> Result<bool, ActionEvaluationError> {
         self.action_available_for_unit_with_context(
@@ -1551,7 +1494,7 @@ impl Simulation {
         target_xy: (i32, i32),
         actor_tile_xy: (i32, i32),
         target_state: Option<&Tile>,
-        unit_record: Option<&'static crate::rules::freeciv::ContentRecord>,
+        unit_record: Option<&'static crate::rules::engine_rules::ContentRecord>,
         target_unit_override: Option<&Unit>,
         target_city: Option<&super::City>,
         city_tile_center_override: Option<((i32, i32), bool)>,
@@ -1872,8 +1815,8 @@ impl Simulation {
         field: &str,
     ) -> Result<bool, ActionEvaluationError> {
         let allowed = match field {
-            "embarks" => passenger.conquests_rule().has_flag_3(4, 0),
-            "disembarks" => carrier.conquests_rule().has_flag_3(4, 1),
+            "embarks" => passenger.conquests_rule().has_capability("Embark"),
+            "disembarks" => carrier.conquests_rule().has_capability("Disembark"),
             _ => return Err(Self::unsupported_transport_field(passenger, field)),
         };
         Ok(allowed && self.ruleset_transport_accepts(carrier, passenger)?)
@@ -2233,7 +2176,7 @@ pub(crate) fn freeciv_unit_class_rule_name(unit: UnitKind) -> Option<String> {
 /// Civ III PRTO supplies no per-target Freeciv combat-bonus table.
 pub(crate) fn freeciv_unit_combat_bonuses(
     _unit: UnitKind,
-) -> Option<Vec<crate::rules::freeciv::UnitCombatBonus>> {
+) -> Option<Vec<crate::rules::engine_rules::UnitCombatBonus>> {
     Some(Vec::new())
 }
 
@@ -2247,13 +2190,14 @@ pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
 
 pub(crate) fn freeciv_unit_transport_defense(
     _unit: UnitKind,
-) -> Option<crate::rules::freeciv::TransportDefense> {
-    Some(crate::rules::freeciv::TransportDefense::Alight)
+) -> Option<crate::rules::engine_rules::TransportDefense> {
+    Some(crate::rules::engine_rules::TransportDefense::Alight)
 }
 
 pub(crate) fn freeciv_unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
     let rule = unit.conquests_rule();
-    rule.has_flag_3(4, 5).then_some(rule.operational_range)
+    rule.has_capability("Paradrop")
+        .then_some(rule.operational_range)
 }
 
 /// The retained suicide-action engine consumes the native missile's bombard
@@ -2283,7 +2227,7 @@ pub(crate) fn freeciv_unit_can_target_class(
     defender: UnitKind,
 ) -> Option<bool> {
     let target_is_air = defender.conquests_rule().unit_type == 2 || defender.is_missile();
-    Some(!target_is_air || attacker.conquests_rule().has_flag_3(12, 2))
+    Some(!target_is_air || attacker.conquests_rule().has_capability("AttackAir"))
 }
 
 /// Resolve one selected C2C3 class flag through the Civ III unit-class
@@ -2302,7 +2246,7 @@ pub(crate) fn freeciv_unit_class_flag(unit: UnitKind, flag: &str) -> Option<bool
 mod tests {
     use super::*;
     use crate::mapgen;
-    use crate::rules::freeciv::ActionEvaluationError;
+    use crate::rules::engine_rules::ActionEvaluationError;
     use crate::world::Terrain;
 
     #[test]
@@ -2361,7 +2305,7 @@ mod tests {
             present,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: std::path::PathBuf::new(),
                 section: "fixture".to_owned(),
                 key: "target_reqs".to_owned(),
@@ -2395,7 +2339,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: std::path::PathBuf::new(),
                 section: "fixture".to_owned(),
                 key: "reqs".to_owned(),
@@ -2696,7 +2640,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "effects.ruleset".into(),
                 section: "test".to_owned(),
                 key: "reqs".to_owned(),
@@ -2753,7 +2697,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "buildings.ruleset".into(),
                 section: "building_great_wall".to_owned(),
                 key: "obsolete_by".to_owned(),
@@ -2795,7 +2739,7 @@ mod tests {
             present,
             survives,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "effects.ruleset".into(),
                 section: "test".to_owned(),
                 key: "reqs".to_owned(),
@@ -2816,7 +2760,7 @@ mod tests {
                 .unwrap()
         );
         assert!(
-            crate::rules::freeciv::requirements_met(
+            crate::rules::engine_rules::requirements_met(
                 &[requirement("Apollo Program", false, true)],
                 &context,
             )
@@ -2835,7 +2779,7 @@ mod tests {
                 .unwrap()
         );
         assert!(
-            crate::rules::freeciv::requirements_met(
+            crate::rules::engine_rules::requirements_met(
                 &[requirement("United Nations", false, false)],
                 &context,
             )
@@ -2856,7 +2800,7 @@ mod tests {
                 .unwrap()
         );
         assert!(
-            !crate::rules::freeciv::requirements_met(
+            !crate::rules::engine_rules::requirements_met(
                 &[requirement("Apollo Program", false, true)],
                 &context,
             )
@@ -2878,7 +2822,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "effects.ruleset".into(),
                 section: "test_team_relation".to_owned(),
                 key: "reqs".to_owned(),
@@ -3035,7 +2979,7 @@ mod tests {
             present: true,
             survives,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "effects.ruleset".into(),
                 section: "test_world_tech".to_owned(),
                 key: "reqs".to_owned(),
@@ -3100,7 +3044,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "actions.ruleset".into(),
                 section: "test".to_owned(),
                 key: "actor_reqs".to_owned(),
@@ -3276,7 +3220,7 @@ mod tests {
             .content
             .iter()
             .find(|record| {
-                record.kind == crate::rules::freeciv::ContentKind::Unit
+                record.kind == crate::rules::engine_rules::ContentKind::Unit
                     && record.section.eq_ignore_ascii_case("unit_caravan")
             })
             .unwrap();
@@ -3336,7 +3280,7 @@ mod tests {
         let context =
             SimulationRequirementContext::for_unit(&game, unit).with_action("Disband Unit Recover");
         assert_eq!(
-            crate::rules::freeciv::effect_value(
+            crate::rules::engine_rules::effect_value(
                 &RulesetData::campaign_default().effects,
                 EffectKind::UnitShieldValuePct,
                 &context,
@@ -3377,7 +3321,7 @@ mod tests {
         assert!(matches!(
             game.work_activity_time(WorkKind::Clean(Contamination::Craters), Terrain::Grassland),
             Err(ActionEvaluationError::Requirement(
-                crate::rules::freeciv::RequirementEvaluationError::Unsupported { .. }
+                crate::rules::engine_rules::RequirementEvaluationError::Unsupported { .. }
             ))
         ));
     }

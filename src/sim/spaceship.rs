@@ -293,7 +293,7 @@ impl Simulation {
     pub(super) fn auto_launch_ai_spaceship(&mut self, owner: usize) {
         if owner >= self.civilization_count
             || !self.players[owner].ai
-            || !self.victory_enabled(crate::rules::freeciv::VictoryCondition::SpaceRace)
+            || !self.victory_enabled(crate::rules::engine_rules::VictoryCondition::SpaceRace)
         {
             return;
         }
@@ -311,7 +311,7 @@ impl Simulation {
     /// Checks completed arrivals after end-turn processing and the calendar
     /// advances, matching Freeciv's `check_for_game_over()` timing.
     pub(super) fn check_space_race_arrivals(&mut self) {
-        if !self.victory_enabled(crate::rules::freeciv::VictoryCondition::SpaceRace) {
+        if !self.victory_enabled(crate::rules::engine_rules::VictoryCondition::SpaceRace) {
             return;
         }
         let arrivals: Vec<_> = self

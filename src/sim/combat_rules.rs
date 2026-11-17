@@ -1,6 +1,6 @@
 //! Cached access to the selected ruleset's combat settings.
 
-use crate::rules::freeciv::{CombatRulesetSettings, RulesetData};
+use crate::rules::engine_rules::{CombatRulesetSettings, RulesetData};
 use std::sync::OnceLock;
 
 pub(super) fn selected() -> &'static CombatRulesetSettings {

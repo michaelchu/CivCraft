@@ -1,7 +1,7 @@
 //! Achievement checks and rewards from the selected Freeciv ruleset.
 
 use super::*;
-use crate::rules::freeciv::{RuleRecord, RulesetData};
+use crate::rules::engine_rules::{RuleRecord, RulesetData};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AchievementKind {

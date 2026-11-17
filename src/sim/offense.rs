@@ -89,7 +89,7 @@ impl Simulation {
             }
             let s = kind.stats();
             let mut want = s.hp as f32;
-            want *= (s.moves * MOVE_FRAGMENTS) as f32;
+            want *= (s.moves * campaign_move_fragments()) as f32;
             want *= s.firepower as f32;
             want *= s.attack as f32;
             want += s.defense as f32;

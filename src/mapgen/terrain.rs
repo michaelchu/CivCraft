@@ -906,7 +906,7 @@ mod freeciv_terrain_tests {
     use super::*;
 
     fn settings() -> MapGenerationSettings {
-        crate::rules::freeciv::RulesetData::campaign_default()
+        crate::rules::engine_rules::RulesetData::campaign_default()
             .map_generation_settings()
             .unwrap()
     }
@@ -921,7 +921,7 @@ mod freeciv_terrain_tests {
 
     #[test]
     fn c2c3_starter_flags_drive_civ3_terrain_eligibility() {
-        let terrains = crate::rules::freeciv::RulesetData::campaign_default()
+        let terrains = crate::rules::engine_rules::RulesetData::campaign_default()
             .terrain_mapgen_properties()
             .unwrap();
         assert_eq!(
@@ -937,7 +937,7 @@ mod freeciv_terrain_tests {
 
     #[test]
     fn c2c3_property_selection_preserves_civ3_terrain_identity_mapping() {
-        let terrains = crate::rules::freeciv::RulesetData::campaign_default()
+        let terrains = crate::rules::engine_rules::RulesetData::campaign_default()
             .terrain_mapgen_properties()
             .unwrap();
         let frozen = pick_freeciv_terrain(
@@ -990,7 +990,7 @@ mod freeciv_terrain_tests {
 
     #[test]
     fn unmapped_generated_terrain_is_reported_explicitly() {
-        let mut terrains = crate::rules::freeciv::RulesetData::campaign_default()
+        let mut terrains = crate::rules::engine_rules::RulesetData::campaign_default()
             .terrain_mapgen_properties()
             .unwrap();
         let desert = terrains

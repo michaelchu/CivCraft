@@ -79,12 +79,45 @@ pub(crate) struct Tile {
     pub(crate) known_by: [bool; PLAYER_SLOTS],
 }
 
+impl From<crate::world::GeneratedTile> for Tile {
+    fn from(tile: crate::world::GeneratedTile) -> Self {
+        Self {
+            terrain: tile.terrain,
+            base_terrain: tile.base_terrain,
+            altitude: tile.altitude,
+            hut: tile.hut,
+            river: tile.river,
+            river_edges: tile.river_edges,
+            resource: tile.resource,
+            road: false,
+            railroad: false,
+            irrigation: false,
+            farmland: false,
+            pollution: false,
+            fallout: false,
+            craters: false,
+            base: None,
+            mine: false,
+            oil_well: false,
+            oil_platform: false,
+            owner: None,
+            border_city: None,
+            last_seen_owner: None,
+            seen: false,
+            visible: false,
+            stealth_visible: false,
+            known_by: [false; PLAYER_SLOTS],
+        }
+    }
+}
+
 impl Tile {
     pub(crate) fn active_resource(&self) -> Option<Resource> {
         self.resource
             .filter(|resource| self.terrain.resource_options().contains(resource))
     }
 
+    #[cfg(test)]
     pub(in crate::sim) fn irrigation_food(&self) -> i32 {
         let bonus = self.terrain.irrigation_bonus();
         if self.terrain == Terrain::Desert && self.river && self.resource != Some(Resource::Oasis) {
@@ -94,6 +127,7 @@ impl Tile {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn yields(&self) -> (i32, i32, i32) {
         let (mut food, mut shields, mut trade) = self
             .terrain

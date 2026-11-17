@@ -1,7 +1,7 @@
 //! Current campaign persistence, input validation, and runtime restoration.
 //!
 //! Saves encode the durable part of [`Simulation`] with the current versioned
-//! binary format. Older formats are not migrated or loaded.
+//! binary format. The previous 0x26 and 0x27 formats are read and upgraded on save.
 //!
 //! When adding persistent fields, decide whether they belong in the save,
 //! update the round-trip and corruption checks. Runtime caches should remain excluded when
@@ -16,113 +16,23 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-// Make save/replay comparisons independent of randomized HashMap bucket order.
-pub(super) fn serialize_unit_map<S, V>(
-    map: &std::collections::HashMap<u32, V>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-    V: serde::Serialize,
-{
-    let ordered: std::collections::BTreeMap<_, _> = map.iter().collect();
-    serde::Serialize::serialize(&ordered, serializer)
-}
+mod schema;
+use schema::{LegacyCampaign, SavedCampaign};
 
-// P10 replaces Civ III's culture ledger with Freeciv city/player history,
-// persists city-pair trade routes, and stores multi-city/multi-map treaty
-// clauses in pending offers. P12 changes achievement claim IDs from a
-// compact enum bitmask to stable ruleset names (supporting Freeciv's 40-record
-// limit), and persists the Freeciv begin-turn culture/literacy score snapshot.
-// P11-format saves are rejected because their NationScore encoding is
-// incompatible. Achievement culture now goes directly into Player.history,
-// matching Freeciv's persisted player-history field.
-// Earlier save versions remain unsupported rather than silently discarding it.
-const HEADER: &[u8] = b"CIVCRAFT\0\x26";
-const MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
-
-type PairMemory<T> = std::collections::BTreeMap<(usize, usize), T>;
-type UnitTargets = std::collections::BTreeMap<u32, u32>;
-type Strategy8 = (
-    PairMemory<diplomacy::WarPlan>,
-    PairMemory<i32>,
-    std::collections::BTreeMap<usize, i32>,
-    UnitTargets,
-    std::collections::BTreeMap<u32, settlement::SettlementReservation>,
-    PairMemory<diplomacy::DiplomaticMemory>,
-);
-type Strategy9 = (
-    Strategy8,
-    (
-        ferries::FerryRegistry,
-        std::collections::BTreeMap<usize, government::GovernmentAdvisorCache>,
-        PairMemory<i32>,
-    ),
-);
-type Extras11 = (
-    [i32; 2],
-    std::collections::BTreeMap<u32, guards::GuardTarget>,
-    std::collections::BTreeMap<u32, guards::GuardState>,
-    std::collections::BTreeMap<u32, i32>,
-    std::collections::BTreeMap<u32, (i32, i32)>,
-);
-type Extras13 = (
-    Option<FreecivRng>,
-    std::collections::BTreeMap<u32, Vec<u32>>,
-);
-type CampaignPayload<A> = (
-    Simulation,
-    Vec<Option<movement::RouteTile>>,
-    std::collections::BTreeMap<usize, i32>,
-    std::collections::BTreeMap<u32, usize>,
-    AiMapMemory,
-    A,
-);
+const HEADER: &[u8] = b"CIVCRAFT\0\x28";
+const PACKED_LEGACY_HEADER: &[u8] = b"CIVCRAFT\0\x27";
+const LEGACY_HEADER: &[u8] = b"CIVCRAFT\0\x26";
+const LEGACY_MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
+// Allow space for terrain and a remembered tile for each active civilization,
+// in addition to the campaign-wide state budget.
+const MAX_PAYLOAD: u64 =
+    LEGACY_MAX_PAYLOAD + MapWrap::MAX_TILES * (256 + MAX_CIVILIZATIONS as u64 * 128);
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 impl Simulation {
     pub(crate) fn save_campaign(&self, path: &Path) -> io::Result<()> {
-        let mut list_order = self.list_order.clone();
-        list_order.synchronize(&self.units, &self.cities);
-        let cargo_order = self.cargo_order_snapshot();
-        let payload = codec()
-            .serialize(&(
-                (
-                    self,
-                    &self.route_memory,
-                    &self.ai_purchase_reserve,
-                    &self.city_founders,
-                    &self.ai_map_memory,
-                    (
-                        (
-                            &self.ai_war_plans,
-                            &self.ai_space_warnings,
-                            &self.ai_free_bulbs,
-                            &self.ai_ground_targets,
-                            &self.ai_settlement_targets,
-                            &self.ai_diplomatic_memory,
-                        ),
-                        (
-                            &self.ai_ferries,
-                            &self.ai_government_cache,
-                            &self.diplomatic_contact_until,
-                        ),
-                    ),
-                ),
-                (
-                    &self.climate_current,
-                    &self.ai_guard_targets,
-                    &self.ai_unit_guards,
-                    &self.city_rapture,
-                    &self.unit_goto_tiles,
-                ),
-                &list_order,
-                (&self.native_random, &cargo_order),
-                &self.observed_map,
-                self.map_wrap,
-            ))
-            .map_err(io::Error::other)?;
+        let payload = self.encode_campaign()?;
         let filename = path
             .file_name()
             .ok_or_else(|| invalid("Missing save filename"))?;
@@ -150,60 +60,76 @@ impl Simulation {
         result
     }
 
+    pub(in crate::sim) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
+        codec(MAX_PAYLOAD)
+            .serialize(&SavedCampaign::from_game(self))
+            .map_err(io::Error::other)
+    }
+
     pub(crate) fn load_campaign(path: &Path) -> io::Result<Self> {
         let mut file = fs::File::open(path)?;
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
-        if header != HEADER {
-            return Err(invalid("Unsupported CivCraft save format"));
-        }
+        let max_payload = match header.as_slice() {
+            HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
+            LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
+            _ => return Err(invalid("Unsupported CivCraft save format")),
+        };
         let mut payload = Vec::new();
-        file.take(MAX_PAYLOAD + 1).read_to_end(&mut payload)?;
-        if payload.len() as u64 > MAX_PAYLOAD {
+        file.take(max_payload + 1).read_to_end(&mut payload)?;
+        if payload.len() as u64 > max_payload {
             return Err(invalid("CivCraft save exceeds the size limit"));
         }
-        let (loaded, memory, reserves, founders, observations, ai_strategy) =
-            decode_current(&payload).map_err(|error| invalid(error.to_string()))?;
-        let mut game = loaded;
-        let (
-            (
-                war_plans,
-                space_warnings,
-                free_bulbs,
-                ground_targets,
-                settlement_targets,
-                diplomatic_memory,
-            ),
-            (ferries, government_cache, contact_until),
-        ): Strategy9 = ai_strategy;
-        let observations: AiMapMemory = observations;
-        let founders: std::collections::BTreeMap<u32, usize> = founders;
-        let reserves: std::collections::BTreeMap<usize, i32> = reserves;
-        let memory: Vec<Option<movement::RouteTile>> = memory;
+        let (mut game, routes) = match header.as_slice() {
+            LEGACY_HEADER => {
+                let (legacy, duplicate_wrap): (LegacyCampaign<'_>, MapWrap) = codec(max_payload)
+                    .deserialize(&payload)
+                    .map_err(|error| invalid(error.to_string()))?;
+                if legacy.topology() != duplicate_wrap {
+                    return Err(invalid("Conflicting legacy map dimensions"));
+                }
+                let (game, routes) = legacy.into_game();
+                (game, Some(routes))
+            }
+            PACKED_LEGACY_HEADER => {
+                let legacy: LegacyCampaign<'_> = codec(max_payload)
+                    .deserialize(&payload)
+                    .map_err(|error| invalid(error.to_string()))?;
+                let (game, routes) = legacy.into_game();
+                (game, Some(routes))
+            }
+            _ => {
+                let saved: SavedCampaign<'_> = codec(max_payload)
+                    .deserialize(&payload)
+                    .map_err(|error| invalid(error.to_string()))?;
+                (saved.into_game(), None)
+            }
+        };
         game.validate_campaign()?;
-        if memory.len() != game.tiles.len()
-            || memory.iter().flatten().any(|tile| {
-                tile.city_owner
-                    .is_some_and(|owner| owner >= game.players.len())
-            })
-        {
-            return Err(invalid("Invalid remembered map"));
+        if let Some(routes) = routes {
+            if routes.len() != game.tiles.len()
+                || routes.iter().flatten().any(|tile| {
+                    tile.city_owner
+                        .is_some_and(|owner| owner >= game.players.len())
+                })
+            {
+                return Err(invalid("Invalid remembered map"));
+            }
+            game.import_legacy_routes(routes);
         }
-        if reserves
+        if game
+            .ai_purchase_reserve
             .iter()
             .any(|(&owner, &price)| owner >= game.players.len() || price <= 0)
         {
             return Err(invalid("Invalid AI purchase reserve"));
         }
-        game.route_memory = memory;
-        game.ai_purchase_reserve = reserves;
-        if founders.iter().any(|(&city, &owner)| {
+        if game.city_founders.iter().any(|(&city, &owner)| {
             city == 0 || city >= game.next_city_id || owner >= game.players.len()
         }) {
             return Err(invalid("Invalid city founder"));
         }
-        game.city_founders = founders;
-        if observations.iter().any(|(&(owner, index), tile)| {
+        if game.ai_map_memory.iter().any(|(&(owner, index), tile)| {
             owner == HUMAN
                 || owner == BARBARIANS
                 || owner >= game.players.len()
@@ -216,8 +142,7 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI map observation"));
         }
-        game.ai_map_memory = observations;
-        if war_plans.keys().any(|&(owner, rival)| {
+        if game.ai_war_plans.keys().any(|&(owner, rival)| {
             owner >= game.players.len()
                 || rival >= game.players.len()
                 || owner == rival
@@ -226,49 +151,53 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI war plan"));
         }
-        game.ai_war_plans = war_plans;
-        if space_warnings.iter().any(|(&(owner, rival), &timer)| {
-            owner >= game.players.len()
-                || rival >= game.players.len()
-                || owner == rival
-                || owner == BARBARIANS
-                || rival == BARBARIANS
-                || timer < 0
-        }) {
+        if game
+            .ai_space_warnings
+            .iter()
+            .any(|(&(owner, rival), &timer)| {
+                owner >= game.players.len()
+                    || rival >= game.players.len()
+                    || owner == rival
+                    || owner == BARBARIANS
+                    || rival == BARBARIANS
+                    || timer < 0
+            })
+        {
             return Err(invalid("Invalid AI space warning"));
         }
-        game.ai_space_warnings = space_warnings;
-        if free_bulbs
+        if game
+            .ai_free_bulbs
             .keys()
             .any(|&owner| owner >= game.players.len() || owner == BARBARIANS)
         {
             return Err(invalid("Invalid AI free research bulbs"));
         }
-        game.ai_free_bulbs = free_bulbs;
-        if ground_targets.iter().any(|(&unit, &city)| {
+        if game.ai_ground_targets.iter().any(|(&unit, &city)| {
             !game.units.iter().any(|actor| actor.id == unit)
                 || !game.cities.iter().any(|target| target.id == city)
         }) {
             return Err(invalid("Invalid AI ground mission"));
         }
-        game.ai_ground_targets = ground_targets;
-        if settlement_targets.iter().any(|(&unit, reservation)| {
-            let (x, y) = reservation.destination;
-            !game.units.iter().any(|actor| {
-                actor.id == unit
-                    && actor.kind == UnitKind::Settler
-                    && actor.owner == reservation.owner
-            }) || !(0..game.map_wrap.width()).contains(&x)
-                || !(0..game.map_wrap.height()).contains(&y)
-                || reservation.worker.is_some_and(|(x, y)| {
-                    !(0..game.map_wrap.width()).contains(&x)
-                        || !(0..game.map_wrap.height()).contains(&y)
-                })
-        }) {
+        if game
+            .ai_settlement_targets
+            .iter()
+            .any(|(&unit, reservation)| {
+                let (x, y) = reservation.destination;
+                !game.units.iter().any(|actor| {
+                    actor.id == unit
+                        && actor.kind == UnitKind::Settler
+                        && actor.owner == reservation.owner
+                }) || !(0..game.map_wrap.width()).contains(&x)
+                    || !(0..game.map_wrap.height()).contains(&y)
+                    || reservation.worker.is_some_and(|(x, y)| {
+                        !(0..game.map_wrap.width()).contains(&x)
+                            || !(0..game.map_wrap.height()).contains(&y)
+                    })
+            })
+        {
             return Err(invalid("Invalid AI settlement reservation"));
         }
-        game.ai_settlement_targets = settlement_targets;
-        if diplomatic_memory.keys().any(|&(owner, rival)| {
+        if game.ai_diplomatic_memory.keys().any(|&(owner, rival)| {
             owner >= game.players.len()
                 || rival >= game.players.len()
                 || owner == rival
@@ -277,7 +206,7 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI diplomatic memory"));
         }
-        if diplomatic_memory.values().any(|memory| {
+        if game.ai_diplomatic_memory.values().any(|memory| {
             memory.spam < 0
                 || memory.asked_peace < 0
                 || memory.asked_alliance < 0
@@ -285,11 +214,10 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI diplomatic timers"));
         }
-        game.ai_diplomatic_memory = diplomatic_memory;
-        if !ferries.valid(&game.units) {
+        if !game.ai_ferries.valid(&game.units) {
             return Err(invalid("Invalid AI ferry registry"));
         }
-        if government_cache.iter().any(|(&owner, cache)| {
+        if game.ai_government_cache.iter().any(|(&owner, cache)| {
             owner >= game.players.len()
                 || cache.evaluated_turn > game.turn
                 || cache.next_evaluation < cache.evaluated_turn
@@ -297,15 +225,13 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid AI government cache"));
         }
-        if contact_until
+        if game
+            .diplomatic_contact_until
             .keys()
             .any(|&(a, b)| a >= b || b >= game.players.len() || a == BARBARIANS || b == BARBARIANS)
         {
             return Err(invalid("Invalid diplomatic contact"));
         }
-        game.ai_ferries = ferries;
-        game.ai_government_cache = government_cache;
-        game.diplomatic_contact_until = contact_until;
         if !game.list_order.valid(&game.units, &game.cities) {
             return Err(invalid("Invalid native entity list order"));
         }
@@ -339,13 +265,16 @@ impl Simulation {
         if !game.valid_render_memory() {
             return Err(invalid("Invalid observed rendering map"));
         }
+        game.rebuild_observed_city_index();
         game.refresh_diplomatic_intelligence();
         Ok(game)
     }
 
     fn validate_campaign(&self) -> io::Result<()> {
         let players = self.players.len();
-        let trade_route_settings = crate::rules::freeciv::RulesetData::campaign_default()
+        let topology = MapWrap::with_dimensions(self.map_wrap.width(), self.map_wrap.height())
+            .map_err(invalid)?;
+        let trade_route_settings = crate::rules::engine_rules::RulesetData::campaign_default()
             .trade_route_settings()
             .map_err(|error| invalid(format!("Invalid C2C3 trade-route rules: {error}")))?;
         let position = |x, y| {
@@ -359,7 +288,7 @@ impl Simulation {
             Production::Unit(_) => true,
         };
         if !(PLAYER_COUNT + 1..=PLAYER_SLOTS).contains(&players)
-            || self.tiles.len() != (self.map_wrap.width() * self.map_wrap.height()) as usize
+            || self.tiles.len() != topology.tile_count()
             || self.nation_scores.len() != players
             || self.spaceships.len() != players
             || self.turn < 1
@@ -439,38 +368,9 @@ impl Simulation {
     }
 }
 
-fn decode_current(payload: &[u8]) -> Result<CampaignPayload<Strategy9>, bincode::Error> {
-    let (
-        mut campaign,
-        (current, guard_targets, unit_guards, city_rapture, goto_tiles),
-        order,
-        (random, cargo),
-        observed,
-        wrap,
-    ): (
-        CampaignPayload<Strategy9>,
-        Extras11,
-        list_order::ListOrder,
-        Extras13,
-        observed_map::ObservedMap,
-        MapWrap,
-    ) = codec().deserialize(payload)?;
-    campaign.0.climate_current = current;
-    campaign.0.ai_guard_targets = guard_targets;
-    campaign.0.ai_unit_guards = unit_guards;
-    campaign.0.city_rapture = city_rapture;
-    campaign.0.unit_goto_tiles = goto_tiles;
-    campaign.0.list_order = order;
-    campaign.0.native_random = random;
-    campaign.0.cargo_order = cargo;
-    campaign.0.observed_map = observed;
-    campaign.0.map_wrap = wrap;
-    Ok(campaign)
-}
-
-fn codec() -> impl Options {
+fn codec(max_payload: u64) -> impl Options {
     bincode::DefaultOptions::new()
-        .with_limit(MAX_PAYLOAD)
+        .with_limit(max_payload)
         .reject_trailing_bytes()
 }
 
@@ -480,26 +380,54 @@ fn invalid(message: impl Into<String>) -> io::Error {
 
 pub(super) mod known_by {
     use super::PLAYER_SLOTS;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+    use serde::{Deserializer, Serializer, de};
+    use std::fmt;
+
+    const PACKED_BYTES: usize = PLAYER_SLOTS.div_ceil(8);
 
     pub fn serialize<S: Serializer>(
         known: &[bool; PLAYER_SLOTS],
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        known.as_slice().serialize(serializer)
+        let mut packed = [0_u8; PACKED_BYTES];
+        for (index, &visible) in known.iter().enumerate() {
+            packed[index / 8] |= u8::from(visible) << (index % 8);
+        }
+        serializer.serialize_bytes(&packed)
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<[bool; PLAYER_SLOTS], D::Error> {
-        Vec::<bool>::deserialize(deserializer)?
-            .try_into()
-            .map_err(|known: Vec<bool>| {
-                de::Error::invalid_length(known.len(), &"the campaign player slot count")
-            })
+        struct Visibility;
+
+        impl de::Visitor<'_> for Visibility {
+            type Value = [bool; PLAYER_SLOTS];
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("packed campaign visibility or the legacy boolean array")
+            }
+
+            fn visit_bytes<E: de::Error>(self, bytes: &[u8]) -> Result<Self::Value, E> {
+                match bytes.len() {
+                    PACKED_BYTES => Ok(std::array::from_fn(|index| {
+                        bytes[index / 8] & (1 << (index % 8)) != 0
+                    })),
+                    // Bincode encoded the old sequence with the same length
+                    // prefix and a single 0 or 1 for each player slot.
+                    PLAYER_SLOTS if bytes.iter().all(|&byte| byte <= 1) => {
+                        Ok(std::array::from_fn(|index| bytes[index] == 1))
+                    }
+                    PLAYER_SLOTS => Err(E::custom("invalid legacy visibility value")),
+                    length => Err(E::invalid_length(length, &self)),
+                }
+            }
+        }
+
+        deserializer.deserialize_bytes(Visibility)
     }
 }
 
 #[cfg(test)]
 #[path = "save/tests.rs"]
-mod tests;
+pub(in crate::sim) mod tests;

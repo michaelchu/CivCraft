@@ -84,9 +84,9 @@ fn projected_wonder_counts_other_cities_and_restores_scratch_state() {
     game.cities[0].buildings.push(Building::LIBRARY);
     let city = game.cities[0].clone();
     let mut scratch = game.clone();
-    let before = bincode::serialize(&scratch).unwrap();
+    let before = scratch.encode_campaign().unwrap();
     let single = game.projected_wonder_want(&mut scratch, &city, Building::GREAT_LIBRARY);
-    assert_eq!(bincode::serialize(&scratch).unwrap(), before);
+    assert_eq!(scratch.encode_campaign().unwrap(), before);
     game.create_city(1, 20, 24);
     game.cities[1].size = 5;
     game.cities[1].buildings.push(Building::LIBRARY);

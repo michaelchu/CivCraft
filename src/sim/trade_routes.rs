@@ -4,11 +4,11 @@
 //! the city pair and selected Freeciv good; eligibility, route income, and
 //! lifecycle rules are resolved by this subsystem from the active ruleset.
 
-use crate::rules::freeciv::EffectKind;
+use crate::rules::engine_rules::EffectKind;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::{
     TradeGoodFlag, TradeGoodRulesetRecord, TradeRevenueStyle, TradeRouteCancellation,
     TradeRouteRulesetSettings, TradeRouteType, TradeRouteTypeSettings, requirements_met,
 };
@@ -21,7 +21,7 @@ const FREECIV_MAX_TRADE_ROUTES: i32 = 20;
 fn campaign_settings() -> &'static TradeRouteRulesetSettings {
     static SETTINGS: OnceLock<TradeRouteRulesetSettings> = OnceLock::new();
     SETTINGS.get_or_init(|| {
-        crate::rules::freeciv::RulesetData::campaign_default()
+        crate::rules::engine_rules::RulesetData::campaign_default()
             .trade_route_settings()
             .unwrap_or_else(|error| panic!("invalid C2C3 trade-route rules: {error}"))
     })
@@ -812,21 +812,22 @@ mod tests {
             .known
             .retain(|&tech| tech != Tech::ECONOMICS);
         let mut good = campaign_settings().goods.first().unwrap().clone();
-        good.requirements.push(crate::rules::freeciv::Requirement {
-            kind: crate::rules::freeciv::RequirementKind::Tech,
-            name: crate::rules::freeciv::RequirementValue::String("Trade".to_owned()),
-            resolved: None,
-            range: crate::rules::freeciv::RequirementRange::Player,
-            present: true,
-            survives: false,
-            quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
-                file: "test.ruleset".into(),
-                section: "goods_good".to_owned(),
-                key: "reqs".to_owned(),
-                line: 1,
-            },
-        });
+        good.requirements
+            .push(crate::rules::engine_rules::Requirement {
+                kind: crate::rules::engine_rules::RequirementKind::Tech,
+                name: crate::rules::engine_rules::RequirementValue::String("Trade".to_owned()),
+                resolved: None,
+                range: crate::rules::engine_rules::RequirementRange::Player,
+                present: true,
+                survives: false,
+                quiet: false,
+                source: crate::rules::engine_rules::RuleSourceLocation {
+                    file: "test.ruleset".into(),
+                    section: "goods_good".to_owned(),
+                    key: "reqs".to_owned(),
+                    line: 1,
+                },
+            });
         assert!(!game.city_provides_good(&game.cities[0], &good));
         game.players[0].known.push(Tech::ECONOMICS);
         assert!(game.city_provides_good(&game.cities[0], &good));

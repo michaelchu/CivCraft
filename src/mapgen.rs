@@ -14,7 +14,7 @@
 //! seeded output.
 
 use crate::random::FreecivRng;
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::{
     HutPlacementSettings, MapGenerationSettings, OceanDepthSettings, RulesetData,
     StartPositionScoringSettings, TerrainMapgenProperties,
 };
@@ -171,6 +171,14 @@ pub(crate) enum WorldAge {
 }
 
 impl WorldAge {
+    pub(crate) const fn billions(self) -> u8 {
+        match self {
+            Self::Billion3 => 3,
+            Self::Billion4 => 4,
+            Self::Billion5 => 5,
+        }
+    }
+
     fn relief_bands(self) -> (i32, i32, i32, i32, i32) {
         match self {
             Self::Billion3 => (150, 300, 600, 750, 5),
@@ -1189,16 +1197,19 @@ fn map_generation_request(
     settings: Civ3WorldSettings,
     civilization_count: usize,
 ) -> MapGenerationRequest {
-    let map_generation_settings = RulesetData::campaign_default()
-        .map_generation_settings()
-        .expect("campaign ruleset map-generation settings must be valid");
     map_generation_request_with_map_settings(
         seed,
         wrap,
         settings,
         civilization_count,
-        map_generation_settings,
+        campaign_map_generation_settings(),
     )
+}
+
+pub(crate) fn campaign_map_generation_settings() -> MapGenerationSettings {
+    RulesetData::campaign_default()
+        .map_generation_settings()
+        .expect("campaign ruleset map-generation settings must be valid")
 }
 
 fn map_generation_request_with_map_settings(
@@ -1253,32 +1264,31 @@ pub(crate) fn generate(seed: u64) -> GeneratedMap {
 }
 /// Generates a reproducible world using `wrap` from the start of generation.
 pub(crate) fn generate_with_wrap(seed: u64, wrap: MapWrap) -> GeneratedMap {
-    generate_with_settings(seed, wrap, Civ3WorldSettings::default())
-}
-
-pub(crate) fn generate_with_settings(
-    seed: u64,
-    wrap: MapWrap,
-    settings: Civ3WorldSettings,
-) -> GeneratedMap {
-    generate_with_civilization_count(
-        seed,
-        wrap,
-        settings,
-        crate::world::DEFAULT_CIVILIZATION_COUNT,
+    generate_with_map_generator(
+        default_map_generator(),
+        map_generation_request(
+            seed,
+            wrap,
+            Civ3WorldSettings::default(),
+            crate::world::DEFAULT_CIVILIZATION_COUNT,
+        ),
     )
 }
 
-pub(crate) fn generate_for_civ3_size(
+pub(crate) fn generate_for_civ3_size(seed: u64, map_size: Civ3MapSize) -> GeneratedMap {
+    generate_for_civ3_size_with(default_map_generator(), seed, map_size, Default::default())
+}
+
+pub(crate) fn generate_opensimplex_for_civ3_size(
     seed: u64,
     map_size: Civ3MapSize,
     settings: Civ3WorldSettings,
 ) -> GeneratedMap {
-    generate_for_civ3_size_with(default_map_generator(), seed, map_size, settings)
+    generate_for_civ3_size_with(&OpenSimplexMapGenerator, seed, map_size, settings)
 }
 
 /// Generates a map through the selected implementation for a named Civ III size.
-pub(crate) fn generate_for_civ3_size_with(
+fn generate_for_civ3_size_with(
     map_generator: &dyn MapGenerator,
     seed: u64,
     map_size: Civ3MapSize,
@@ -1290,18 +1300,6 @@ pub(crate) fn generate_for_civ3_size_with(
     generate_with_map_generator(
         map_generator,
         map_generation_request(seed, wrap, settings, map_size.civilization_count()),
-    )
-}
-
-fn generate_with_civilization_count(
-    seed: u64,
-    wrap: MapWrap,
-    settings: Civ3WorldSettings,
-    civilization_count: usize,
-) -> GeneratedMap {
-    generate_with_map_generator(
-        default_map_generator(),
-        map_generation_request(seed, wrap, settings, civilization_count),
     )
 }
 

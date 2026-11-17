@@ -1,20 +1,38 @@
 //! Filesystem loading and typed decoding for native Freeciv rulesets.
 
-use crate::rules::freeciv::RequirementKind;
+use crate::rules::engine_rules::RequirementKind;
 use crate::rules::{Building, Tech};
 use crate::world::Terrain;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::super::freeciv_ini::{self, Entry, Section, SectionFile, Value};
+use super::super::section_file::{self, Entry, Section, SectionFile, Value};
 use super::{
     ActionEnabler, ActionRecord, ContentKind, ContentRecord, EffectRecord, LoadError,
     LoadedRuleFile, Requirement, RequirementRange, RequirementValue, ResolvedRequirementValue,
     RuleFileSource, RuleParameter, RuleRecord, RuleSourceLocation, RulesetData, SettingRecord,
 };
 
-pub(crate) const RULESET_FILES: &[&str] = &[
+// The bundle and the filesystem loader use the same file list and order.
+macro_rules! campaign_files {
+    ($($name:literal),+ $(,)?) => {
+        pub(crate) const RULESET_FILES: &[&str] = &[$($name),+];
+        fn embedded_ruleset_source(path: &Path) -> Option<&'static str> {
+            match path.strip_prefix("civcraft/engine").ok().and_then(Path::to_str) {
+                $(Some($name) => Some(include_str!(
+                    concat!("../../../data/rulesets/civcraft/engine/", $name)
+                )),)+
+                _ if path == Path::new("override/nation.ruleset") => Some(include_str!(
+                    "../../../data/rulesets/override/nation.ruleset"
+                )),
+                _ => None,
+            }
+        }
+    };
+}
+
+campaign_files!(
     "game.ruleset",
     "actions.ruleset",
     "techs.ruleset",
@@ -26,7 +44,7 @@ pub(crate) const RULESET_FILES: &[&str] = &[
     "cities.ruleset",
     "nations.ruleset",
     "effects.ruleset",
-];
+);
 
 impl RulesetData {
     /// Load one named ruleset. Missing files use Freeciv's whole-file
@@ -54,6 +72,21 @@ impl RulesetData {
             });
         }
         Self::from_files(name, files)
+    }
+
+    pub(super) fn load_bundled_campaign() -> Result<Self, LoadError> {
+        let mut files = Vec::new();
+        for &name in RULESET_FILES {
+            let path = Path::new("civcraft/engine").join(name);
+            let parsed = load_embedded_section_file(&path, &mut Vec::new())?;
+            files.push(LoadedRuleFile {
+                name: name.to_owned(),
+                path,
+                source: RuleFileSource::SelectedRuleset,
+                parsed,
+            });
+        }
+        Self::from_files("civcraft", files)
     }
 
     pub(crate) fn from_files(name: &str, files: Vec<LoadedRuleFile>) -> Result<Self, LoadError> {
@@ -124,7 +157,6 @@ impl RulesetData {
             actions,
             action_enablers,
             content,
-            source_content: Vec::new(),
             rule_records,
         };
         validate_requirement_values(&rules)?;
@@ -303,19 +335,41 @@ fn load_section_file(
     if !canonical_path.starts_with(&canonical_root) {
         return Err(LoadError::at(path, "ruleset include escapes the data root"));
     }
-    if include_stack.contains(&canonical_path) {
-        return Err(LoadError::at(path, "recursive ruleset include"));
-    }
-    include_stack.push(canonical_path.clone());
     let source = fs::read_to_string(&canonical_path).map_err(|error| {
         LoadError::at(
             &canonical_path,
             format!("cannot read ruleset file: {error}"),
         )
     })?;
-    let parsed = freeciv_ini::parse(&source).map_err(|error| LoadError {
-        file: Some(canonical_path.clone()),
-        section: (!error.context.is_empty()).then_some(error.context.clone()),
+    parse_with_includes(&canonical_path, &source, include_stack, |name, stack| {
+        load_section_file(data_root, &data_root.join(name), stack)
+    })
+}
+
+fn load_embedded_section_file(
+    path: &Path,
+    include_stack: &mut Vec<PathBuf>,
+) -> Result<SectionFile, LoadError> {
+    let source = embedded_ruleset_source(path)
+        .ok_or_else(|| LoadError::at(path, "file is absent from the embedded campaign ruleset"))?;
+    parse_with_includes(path, source, include_stack, |name, stack| {
+        load_embedded_section_file(Path::new(name), stack)
+    })
+}
+
+fn parse_with_includes(
+    path: &Path,
+    source: &str,
+    include_stack: &mut Vec<PathBuf>,
+    load_include: impl Fn(&str, &mut Vec<PathBuf>) -> Result<SectionFile, LoadError>,
+) -> Result<SectionFile, LoadError> {
+    if include_stack.iter().any(|ancestor| ancestor == path) {
+        return Err(LoadError::at(path, "recursive ruleset include"));
+    }
+    include_stack.push(path.to_owned());
+    let parsed = section_file::parse(source).map_err(|error| LoadError {
+        file: Some(path.to_owned()),
+        section: (!error.context.is_empty()).then_some(error.context),
         key: None,
         line: Some(error.line),
         message: error.message,
@@ -331,7 +385,7 @@ fn load_section_file(
             if entry.key == "*include" {
                 let Value::String(include_name) = entry.value else {
                     return Err(LoadError::at_line(
-                        &canonical_path,
+                        path,
                         &section.name,
                         &entry.key,
                         entry.line,
@@ -345,8 +399,7 @@ fn load_section_file(
                         entries: Vec::new(),
                     };
                 }
-                let include_path = data_root.join(include_name);
-                let included = load_section_file(data_root, &include_path, include_stack)?;
+                let included = load_include(&include_name, include_stack)?;
                 expanded.sections.extend(included.sections);
             } else {
                 current.entries.push(entry);
@@ -356,7 +409,7 @@ fn load_section_file(
     }
 
     include_stack.pop();
-    merge_repeated_sections(expanded, &canonical_path)
+    merge_repeated_sections(expanded, path)
 }
 
 fn merge_repeated_sections(
@@ -1202,4 +1255,21 @@ fn content_kind(file: &str, section: &str) -> Option<ContentKind> {
         return None;
     };
     (expected_file == file && section.starts_with(prefix)).then_some(kind)
+}
+
+#[cfg(test)]
+mod bundle_tests {
+    use super::*;
+
+    #[test]
+    fn embedded_campaign_matches_the_filesystem_ruleset() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
+        let disk = RulesetData::load_civcraft(&root).unwrap();
+        let bundled = RulesetData::campaign_default();
+        assert_eq!(disk.files.len(), bundled.files.len());
+        for (disk, bundled) in disk.files.iter().zip(&bundled.files) {
+            assert_eq!(disk.name, bundled.name);
+            assert_eq!(disk.parsed, bundled.parsed);
+        }
+    }
 }

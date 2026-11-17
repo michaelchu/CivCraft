@@ -186,8 +186,8 @@ mod tests {
                 unobserved.apply(Command::move_civ3_by_offset(&unobserved, id, 1, 0))
             );
             assert_eq!(
-                bincode::serialize(&observed).unwrap(),
-                bincode::serialize(&unobserved).unwrap()
+                observed.encode_campaign().unwrap(),
+                unobserved.encode_campaign().unwrap()
             );
             assert_eq!(observed.native_random, unobserved.native_random);
             let root = std::env::temp_dir()

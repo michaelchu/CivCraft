@@ -1,7 +1,7 @@
 //! City production selection, progress, and completion rules.
 
 use super::*;
-use crate::rules::freeciv::UnitUpkeepOutput;
+use crate::rules::engine_rules::UnitUpkeepOutput;
 use crate::sim::economy::{
     CityForecast,
     ruleset::{CityEconomySettings, GoldUpkeepStyle},
@@ -187,6 +187,7 @@ impl Simulation {
         Production::Unit(UnitKind::Warrior)
     }
 
+    #[cfg(any(test, feature = "scenarios"))]
     pub(in crate::sim) fn process_cities(&mut self) {
         self.reconcile_trade_routes();
         self.establish_connected_trade_routes();

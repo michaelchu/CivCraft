@@ -127,7 +127,7 @@ fn city_object_bombard_defense(sim: &Simulation, city: &City, attacker: &Unit) -
 }
 
 fn selected_bombard_blocking_actions() -> Option<Vec<String>> {
-    let rules = crate::rules::freeciv::RulesetData::campaign_default();
+    let rules = crate::rules::engine_rules::RulesetData::campaign_default();
     let mut parameters = rules.parameters.iter().filter(|parameter| {
         parameter.file.eq_ignore_ascii_case("actions.ruleset")
             && parameter.section.eq_ignore_ascii_case("actions")

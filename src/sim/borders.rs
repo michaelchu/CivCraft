@@ -2,9 +2,9 @@
 
 use super::action_rules::SimulationRequirementContext;
 use super::*;
-use crate::rules::freeciv::RequirementKind;
-use crate::rules::freeciv::campaign_effect;
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::RequirementKind;
+use crate::rules::engine_rules::campaign_effect;
+use crate::rules::engine_rules::{
     EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
     RequirementValue, RulesetData,
 };

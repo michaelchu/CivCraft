@@ -93,7 +93,7 @@ mod tests {
             tile.seen = true;
         }
         let id = sim.spawn_unit(HUMAN, kind, 10, 24);
-        sim.remember_route_tiles(false);
+        sim.remember_visible_human_tiles();
         (sim, id)
     }
 
@@ -169,6 +169,28 @@ mod tests {
         assert!(sim.preview_goto(id, 0, MAP_H).is_none());
         sim.units[0].owner = 1;
         assert!(sim.preview_goto(id, 10, 24).is_none());
+    }
+
+    #[test]
+    fn unreachable_goto_preserves_active_work_and_valid_goto_can_queue_with_no_moves() {
+        let (mut sim, id) = fixture(UnitKind::Worker);
+        let (x, y) = offset_native_by_map(10, 24, 1, 0);
+        sim.tile_mut(x, y).terrain = Terrain::Ocean;
+        assert!(sim.apply(Command::Work(id, WorkKind::Road)));
+        let progress = sim.units[0].work_left;
+        assert!(progress > 0);
+        assert!(sim.preview_goto(id, x, y).is_none());
+
+        assert!(!sim.apply(Command::GoTo(id, x, y)));
+        assert_eq!(sim.units[0].work_kind, Some(WorkKind::Road));
+        assert_eq!(sim.units[0].work_left, progress);
+        assert!(!sim.unit_goto_tiles.contains_key(&id));
+
+        sim.tile_mut(x, y).terrain = Terrain::Grassland;
+        sim.units[0].moves_left = 0;
+        assert!(sim.apply(Command::GoTo(id, x, y)));
+        assert_eq!(sim.unit_goto_tiles.get(&id), Some(&(x, y)));
+        assert_eq!(sim.units[0].work_kind, None);
     }
 
     #[test]
@@ -261,7 +283,7 @@ mod tests {
                 tile.road = true;
                 tile.railroad = true;
             }
-            sim.remember_route_tiles(false);
+            sim.remember_visible_human_tiles();
             sim.remember_render_map(&[vec![true; sim.tiles.len()]]);
             let before = sim.preview_goto(id, target.0, target.1).unwrap();
             for tile in &mut sim.tiles {

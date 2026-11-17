@@ -1,7 +1,7 @@
 //! Unit veteran levels and combat experience.
 
 use super::*;
-use crate::rules::freeciv::{VeteranLevel, VeteranSystem};
+use crate::rules::engine_rules::{VeteranLevel, VeteranSystem};
 use std::sync::OnceLock;
 
 fn selected_veteran_systems() -> &'static [(UnitKind, VeteranSystem)] {

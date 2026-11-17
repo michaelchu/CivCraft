@@ -1,4 +1,4 @@
-//! Typed Freeciv ruleset data layered over the native section-file syntax.
+//! Typed engine ruleset data layered over the native section-file syntax.
 //!
 //! This module owns data shapes and shared conditional evaluation. It does not
 //! own gameplay transitions; simulation subsystems provide a context that
@@ -11,29 +11,26 @@ const FREECIV_OCEAN_DEPTH_MINIMUM: i32 = 1;
 const FREECIV_OCEAN_DEPTH_MAXIMUM: i32 = 100;
 
 #[cfg(test)]
-use super::freeciv_ini;
-use super::freeciv_ini::{Entry, Section, SectionFile, Value};
+use super::section_file;
+use super::section_file::{Entry, Section, SectionFile, Value};
 
-#[path = "freeciv/civ3_content.rs"]
-mod civ3_content;
-#[path = "freeciv/civil_war.rs"]
+#[path = "engine_rules/civil_war.rs"]
 mod civil_war;
-#[path = "freeciv/combat.rs"]
+#[path = "engine_rules/combat.rs"]
 mod combat;
-#[path = "freeciv/identifiers.rs"]
+#[path = "engine_rules/identifiers.rs"]
 mod identifiers;
-#[path = "freeciv/loader.rs"]
+#[path = "engine_rules/loader.rs"]
 mod loader;
-#[path = "freeciv/settlement_ai.rs"]
+#[path = "engine_rules/settlement_ai.rs"]
 mod settlement_ai;
-#[path = "freeciv/trade_routes.rs"]
+#[path = "engine_rules/terrain.rs"]
+mod terrain;
+pub(crate) use terrain::{RoadYields, TerrainYields};
+#[path = "engine_rules/trade_routes.rs"]
 mod trade_routes;
-#[path = "freeciv/veterancy.rs"]
+#[path = "engine_rules/veterancy.rs"]
 mod veterancy;
-#[allow(unused_imports)]
-pub(crate) use civ3_content::{
-    Civ3ContentCatalog, SourceContentRecord, SourceField, SourceRecordIdentity,
-};
 pub(crate) use civil_war::CivilWarRulesetSettings;
 pub(crate) use combat::{
     CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
@@ -76,10 +73,6 @@ pub(crate) struct RulesetData {
     pub(crate) actions: Vec<ActionRecord>,
     pub(crate) action_enablers: Vec<ActionEnabler>,
     pub(crate) content: Vec<ContentRecord>,
-    /// Source-authoritative Civ III records supplied to the explicit campaign
-    /// adapter. These remain separate from Freeciv's native records until a
-    /// runtime crosswalk binds their identities to stable CivCraft IDs.
-    pub(crate) source_content: Vec<SourceContentRecord>,
     /// Ordered records from Freeciv namespaces that do not have a dedicated
     /// CivCraft adapter yet (extras, resources, roads, disasters, and others).
     pub(crate) rule_records: Vec<RuleRecord>,
@@ -183,7 +176,8 @@ pub(crate) struct CalendarSettings {
     pub(crate) negative_label: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub(crate) enum StartPositionSetting {
     Default,
     Single,
@@ -217,7 +211,7 @@ impl StartPositionSetting {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct OceanDepthSettings {
     pub(crate) lake: i32,
     pub(crate) lake_unsafe_coast: bool,
@@ -227,14 +221,14 @@ pub(crate) struct OceanDepthSettings {
     pub(crate) deep_ocean_unsafe_coast: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct HutPlacementSettings {
     pub(crate) land_only: bool,
     pub(crate) minimum_latitude: i32,
     pub(crate) maximum_latitude: i32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub(crate) struct MapGenerationSettings {
     pub(crate) landmass_percent: i32,
     pub(crate) startpos: StartPositionSetting,
@@ -909,28 +903,19 @@ impl std::fmt::Display for LoadError {
 impl std::error::Error for LoadError {}
 
 impl RulesetData {
-    /// Load the single CivCraft campaign package: generic Freeciv engine
-    /// inputs from `engine/`, overlaid with CivCraft-owned TOML catalogs from
-    /// `content/`.
+    /// Load the generic engine layer from the CivCraft campaign package.
+    /// Native content catalogs construct independently, without import bindings.
+    #[cfg(test)]
     pub(crate) fn load_civcraft(data_root: &Path) -> Result<Self, LoadError> {
         let engine_dir = data_root.join("civcraft/engine");
-        let mut rules = Self::load_from_directory(data_root, &engine_dir, "civcraft")?;
-        rules.effects = native_effect_records()?.into();
-        rules.actions = native_action_records();
-        rules.action_enablers = native_action_enablers()?;
-        let source_catalog =
-            Civ3ContentCatalog::load().map_err(|error| LoadError::new(error.to_string()))?;
-        rules.source_content = source_catalog.records;
-        loader::resolve_requirement_values(&mut rules);
-        Ok(rules)
+        Self::load_from_directory(data_root, &engine_dir, "civcraft")
     }
 
     /// Cache the single CivCraft campaign package once.
     pub(crate) fn campaign_default() -> &'static Self {
         static RULESET: OnceLock<RulesetData> = OnceLock::new();
         RULESET.get_or_init(|| {
-            let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-            Self::load_civcraft(&data_root)
+            Self::load_bundled_campaign()
                 .unwrap_or_else(|error| panic!("failed to load campaign ruleset: {error}"))
         })
     }
@@ -1676,132 +1661,6 @@ impl RulesetData {
     }
 }
 
-fn native_effect_records() -> Result<Vec<EffectRecord>, LoadError> {
-    crate::rules::native::effects()
-        .effects
-        .iter()
-        .map(|effect| {
-            let requirements = effect
-                .requirements
-                .iter()
-                .map(|requirement| {
-                    native_requirement("effects.toml", &effect.id, "requirements", requirement)
-                })
-                .collect::<Result<Vec<_>, LoadError>>()?;
-            let kind = EffectKind::parse(&effect.kind).ok_or_else(|| {
-                LoadError::new(format!(
-                    "native effect {} has unknown effect type {:?}",
-                    effect.id, effect.kind
-                ))
-            })?;
-            Ok(EffectRecord {
-                rule_name: effect.id.clone(),
-                kind,
-                value: effect.value,
-                multiplier: effect.multiplier.clone(),
-                requirements,
-            })
-        })
-        .collect()
-}
-
-fn native_requirement(
-    file: &str,
-    id: &str,
-    key: &str,
-    requirement: &crate::rules::native::NativeEffectRequirement,
-) -> Result<Requirement, LoadError> {
-    let range = match requirement.range.to_ascii_lowercase().as_str() {
-        "local" => RequirementRange::Local,
-        "tile" => RequirementRange::Tile,
-        "cadjacent" => RequirementRange::CAdjacent,
-        "adjacent" => RequirementRange::Adjacent,
-        "city" => RequirementRange::City,
-        "traderoute" => RequirementRange::Traderoute,
-        "continent" => RequirementRange::Continent,
-        "player" => RequirementRange::Player,
-        "team" => RequirementRange::Team,
-        "alliance" => RequirementRange::Alliance,
-        "world" => RequirementRange::World,
-        other => {
-            return Err(LoadError::new(format!(
-                "native record {id} has unknown requirement range {other:?}"
-            )));
-        }
-    };
-    let kind = RequirementKind::parse(&requirement.kind).ok_or_else(|| {
-        LoadError::new(format!(
-            "native record {id} has unknown requirement type {:?}",
-            requirement.kind
-        ))
-    })?;
-    Ok(Requirement {
-        kind,
-        name: RequirementValue::String(requirement.name.clone()),
-        resolved: None,
-        range,
-        present: requirement.present,
-        survives: requirement.survives,
-        quiet: requirement.quiet,
-        source: RuleSourceLocation {
-            file: PathBuf::from(format!("data/rulesets/civcraft/content/{file}")),
-            section: id.to_owned(),
-            key: key.to_owned(),
-            line: 0,
-        },
-    })
-}
-
-fn native_action_records() -> Vec<ActionRecord> {
-    crate::rules::native::actions()
-        .actions
-        .iter()
-        .map(|action| ActionRecord {
-            rule_name: action.id.clone(),
-            action: action.action.clone(),
-            fields: Vec::new(),
-        })
-        .collect()
-}
-
-fn native_action_enablers() -> Result<Vec<ActionEnabler>, LoadError> {
-    crate::rules::native::actions()
-        .enablers
-        .iter()
-        .map(|enabler| {
-            Ok(ActionEnabler {
-                rule_name: enabler.id.clone(),
-                action: enabler.action.clone(),
-                actor_requirements: enabler
-                    .actor_requirements
-                    .iter()
-                    .map(|requirement| {
-                        native_requirement(
-                            "actions.toml",
-                            &enabler.id,
-                            "actor_requirements",
-                            requirement,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-                target_requirements: enabler
-                    .target_requirements
-                    .iter()
-                    .map(|requirement| {
-                        native_requirement(
-                            "actions.toml",
-                            &enabler.id,
-                            "target_requirements",
-                            requirement,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-                fields: Vec::new(),
-            })
-        })
-        .collect()
-}
-
 fn required_parameter<'a>(
     rules: &'a RulesetData,
     file: &str,
@@ -1983,11 +1842,11 @@ impl RulesetData {
                     )));
                 }
 
-                let requirements = (!source.required_technology.trim().is_empty())
-                    .then(|| Requirement {
+                let requirements = source.technology
+                    .map(|tech| Requirement {
                         kind: RequirementKind::Tech,
                         name: RequirementValue::String(source.required_technology.clone()),
-                        resolved: None,
+                        resolved: Some(ResolvedRequirementValue::Tech(tech)),
                         range: RequirementRange::Player,
                         present: true,
                         survives: false,
@@ -2338,7 +2197,7 @@ impl LoadError {
 
 #[cfg(test)]
 mod tests {
-    use super::freeciv_ini::{Entry, Value};
+    use super::section_file::{Entry, Value};
     use super::{
         ActionEnabler, ActionRecord, ContentKind, EffectContext, EffectKind, EffectRecord,
         EffectSet, FreeTechnologyStyle, HappyBorders, LoadedRuleFile,
@@ -2751,7 +2610,7 @@ mod tests {
             name: name.to_owned(),
             path: PathBuf::from(name),
             source: RuleFileSource::SelectedRuleset,
-            parsed: super::freeciv_ini::parse(source).unwrap(),
+            parsed: super::section_file::parse(source).unwrap(),
         }
     }
 
@@ -3288,14 +3147,10 @@ mod tests {
     }
 
     #[test]
-    fn campaign_ruleset_keeps_civ3_source_catalog_separate_and_identifiable() {
+    fn campaign_ruleset_keeps_native_catalogs_separate_from_engine_records() {
         let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
         let rules = RulesetData::load_civcraft(&data_root).unwrap();
 
-        assert_eq!(
-            rules.effects.len(),
-            crate::rules::native::effects().effects.len()
-        );
         assert_eq!(rules.effects.len(), 508);
         assert_eq!(
             rules
@@ -3321,65 +3176,13 @@ mod tests {
                 .count(),
             87
         );
-        for (kind, expected) in [
-            (ContentKind::Unit, 92),
-            (ContentKind::Building, 83),
-            (ContentKind::Technology, 83),
-            (ContentKind::Nation, 31),
-        ] {
-            assert_eq!(
-                rules
-                    .source_content
-                    .iter()
-                    .filter(|record| record.kind == kind)
-                    .count(),
-                expected
-            );
-        }
-
-        let find_source = |kind, id: &str| {
-            rules
-                .source_content
-                .iter()
-                .find(|record| record.kind == kind && record.catalog_id == id)
-                .unwrap()
-        };
-        let warrior = find_source(ContentKind::Unit, "warrior");
-        assert_eq!(warrior.source.section, "PRTO");
-        assert_eq!(warrior.source.record_indices, [6]);
+        assert_eq!(crate::rules::native::units().units.len(), 92);
+        assert_eq!(crate::rules::native::buildings().rules.len(), 91);
+        assert_eq!(crate::rules::native::technologies().technologies.len(), 83);
         assert_eq!(
-            warrior.source.sha256,
-            "1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
+            crate::rules::native::civilizations().civilizations.len(),
+            31
         );
-        assert!(
-            warrior
-                .fields
-                .iter()
-                .any(|field| field.name == "attack" && field.value == "1")
-        );
-
-        let palace = find_source(ContentKind::Building, "BLDG_Palace");
-        assert_eq!(palace.source.key, "BLDG[0]");
-        assert!(
-            palace
-                .fields
-                .iter()
-                .any(|field| field.name == "cost" && field.value == "10")
-        );
-        assert!(palace.fields.iter().any(|field| field.name == "flags_hex"));
-
-        let fascism = find_source(ContentKind::Technology, "TECH_Fascism");
-        assert_eq!(fascism.source.record_indices, [82]);
-        assert!(
-            fascism
-                .fields
-                .iter()
-                .any(|field| field.name == "prerequisite_4_index")
-        );
-
-        let rome = find_source(ContentKind::Nation, "rome");
-        assert_eq!(rome.source.section, "RACE");
-        assert_eq!(rome.source.record_indices, [1]);
     }
 }
 
@@ -3457,7 +3260,7 @@ mod government_catalog_tests {
         assert_eq!(monarchy.requirements[0].kind, RequirementKind::Tech);
         assert_eq!(
             monarchy.requirements[0].name,
-            RequirementValue::String("Monarchy".to_owned())
+            RequirementValue::String("TECH_Monarchy".to_owned())
         );
         assert_eq!(monarchy.requirements[0].range, RequirementRange::Player);
         assert_eq!(

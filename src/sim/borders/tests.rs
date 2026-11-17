@@ -1,5 +1,5 @@
 use super::*;
-use crate::rules::freeciv::{EffectSet, RulesetData, effect_value};
+use crate::rules::engine_rules::{EffectSet, RulesetData, effect_value};
 use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -971,14 +971,8 @@ impl Simulation {
                 .filter(|&(_, _, x, y)| !occupied.contains(&(x, y)))
                 .filter(|&(_, _, x, y)| self.tile_can_support_worker(city, x, y))
                 .map(|(_, _, x, y)| {
-                    let tile = self.tile(x, y);
-                    let (food, shields, trade) = tile.yields();
-                    (
-                        tile.contamination_output(food) * 4
-                            + tile.contamination_output(shields) * 3
-                            + tile.contamination_output(trade) * 2,
-                        (x, y),
-                    )
+                    let (food, shields, trade) = self.city_tile_yields(city, x, y, false, None);
+                    (food * 4 + shields * 3 + trade * 2, (x, y))
                 })
                 .collect();
             candidates.sort_by_key(|&(score, _)| std::cmp::Reverse(score));

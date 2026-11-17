@@ -9,7 +9,7 @@
 //! Keep mode validation and shared initialization here. Gameplay rules belong
 //! in `sim`, while rendering and user interaction belong in `client`.
 
-use crate::{client, ensure_parent, mapgen, sim, visual_test};
+use crate::{client, ensure_parent, mapgen, sim, visual_test, world_setup::WorldSetup};
 
 use crate::client::{Assets, Game, MusicPlayer, Tileset, UiAction, UnitSoundPlayer};
 use macroquad::prelude::*;
@@ -37,10 +37,6 @@ fn argument_value(flag: &str) -> Option<String> {
     }
 }
 
-fn parse_map_size(value: &str) -> Result<mapgen::Civ3MapSize, String> {
-    value.parse()
-}
-
 /// Starts the game or one of its automated capture modes.
 pub async fn run_desktop() {
     if env::args().any(|arg| arg == "--wrap") {
@@ -51,64 +47,19 @@ pub async fn run_desktop() {
         eprintln!("--tileset-theme has been removed; choose a built-in tileset with --tileset.");
         std::process::exit(2);
     }
-    // Civ III campaigns use a horizontally wrapped map with bounded poles.
-    // Dimensions can be selected independently of wrapping so generation,
-    // simulation storage, and rendering all receive one consistent topology.
-    let map_size = argument_value("--map-size")
-        .as_deref()
-        .map(parse_map_size)
-        .transpose()
-        .unwrap_or_else(|error| {
-            eprintln!("Invalid --map-size value: {error}");
-            std::process::exit(2);
-        })
-        .unwrap_or(mapgen::Civ3MapSize::Small);
-    map_size.topology().unwrap_or_else(|error| {
-        eprintln!("Invalid --map-size value: {error}");
+    let args: Vec<_> = env::args().collect();
+    let world = WorldSetup::parse(mapgen::Civ3MapSize::Small, |flag| {
+        parsed_argument(&args, flag)
+    })
+    .unwrap_or_else(|error| {
+        eprintln!("{error}");
         std::process::exit(2);
     });
-    let ocean_coverage = argument_value("--ocean-coverage")
-        .unwrap_or_else(|| "70".to_owned())
-        .parse::<mapgen::OceanCoverage>()
-        .unwrap_or_else(|error| {
-            eprintln!("Invalid --ocean-coverage value: {error}");
-            std::process::exit(2);
-        });
-    let climate = argument_value("--climate")
-        .unwrap_or_else(|| "normal".to_owned())
-        .parse::<mapgen::Climate>()
-        .unwrap_or_else(|error| {
-            eprintln!("Invalid --climate value: {error}");
-            std::process::exit(2);
-        });
-    let age = argument_value("--world-age")
-        .unwrap_or_else(|| "4".to_owned())
-        .parse::<mapgen::WorldAge>()
-        .unwrap_or_else(|error| {
-            eprintln!("Invalid --world-age value: {error}");
-            std::process::exit(2);
-        });
-    let landform = argument_value("--landform")
-        .unwrap_or_else(|| "continents".to_owned())
-        .parse::<mapgen::Landform>()
-        .unwrap_or_else(|error| {
-            eprintln!("Invalid --landform value: {error}");
-            std::process::exit(2);
-        });
-    let temperature = argument_value("--temperature")
-        .unwrap_or_else(|| "temperate".to_owned())
-        .parse::<mapgen::Temperature>()
-        .unwrap_or_else(|error| {
-            eprintln!("Invalid --temperature value: {error}");
-            std::process::exit(2);
-        });
-    let world_settings = mapgen::Civ3WorldSettings {
-        ocean_coverage,
-        climate,
-        age,
-        landform,
-        temperature,
-    };
+    let load = argument_value("--load");
+    if load.is_some() && world.specified {
+        eprintln!("world setup options require a newly generated world");
+        std::process::exit(2);
+    }
     let tileset_name = argument_value("--tileset").unwrap_or_else(|| "civ3".to_owned());
     let tileset = Tileset::select(&tileset_name).unwrap_or_else(|error| {
         eprintln!("{error}");
@@ -177,7 +128,6 @@ pub async fn run_desktop() {
         (0..client::UI_REVIEW_SCENES.len()).collect()
     };
     let automated = smoke_test || screenshot_path.is_some() || ui_review.is_some();
-    let args: Vec<_> = env::args().collect();
     let seed = if let Some(index) = args.iter().position(|arg| arg == "--seed") {
         args.get(index + 1)
             .and_then(|arg| arg.parse::<u64>().ok())
@@ -188,54 +138,31 @@ pub async fn run_desktop() {
     } else {
         mapgen::random_seed()
     };
-    let mut game = if let Some(index) = args.iter().position(|arg| arg == "--load") {
-        let result = args
-            .get(index + 1)
-            .ok_or_else(|| "--load requires a save path".to_owned())
-            .and_then(|path| {
-                sim::Simulation::load_campaign(Path::new(path)).map_err(|error| error.to_string())
-            });
-        match result {
-            Ok(simulation) => Game::from_simulation(simulation),
-            Err(error) => {
-                eprintln!("Could not load campaign. {error}");
-                std::process::exit(1);
-            }
-        }
+    let mut game = if let Some(path) = load.as_deref() {
+        let simulation = sim::Simulation::load_campaign(Path::new(path)).unwrap_or_else(|error| {
+            eprintln!("Could not load campaign. {error}");
+            std::process::exit(1);
+        });
+        Game::from_simulation(simulation)
     } else {
-        let generated = match argument_value("--map-generator").as_deref() {
-            None | Some("fractal") => {
-                mapgen::generate_for_civ3_size(seed, map_size, world_settings)
-            }
-            Some("opensimplex") => mapgen::generate_for_civ3_size_with(
-                &mapgen::OpenSimplexMapGenerator,
-                seed,
-                map_size,
-                world_settings,
-            ),
-            Some(value) => {
-                eprintln!(
-                    "Invalid --map-generator value '{value}'; expected fractal or opensimplex"
-                );
-                std::process::exit(2);
-            }
-        };
-        Game::from_simulation(sim::Simulation::new(generated))
+        Game::from_simulation(sim::Simulation::new(world.generate(seed)))
     };
     let assets = Assets::new(&tileset).unwrap_or_else(|error| {
         eprintln!("Could not load {} tileset. {error}", tileset.name());
         std::process::exit(2);
     });
     println!(
-        "World seed: {} · map size: {} ({}×{}) · wrap: {} · renderer: Civ III · tileset: {}",
+        "World seed: {} · map size: {} ({}×{}) · generator: {} · wrap: {} · renderer: Civ III · tileset: {}",
         game.world_seed(),
-        if args.iter().any(|arg| arg == "--load") {
+        if load.is_some() {
             format!("{}x{}", game.map_wrap().width(), game.map_wrap().height())
         } else {
-            map_size.to_string()
+            world.size.to_string()
         },
         game.map_wrap().width(),
         game.map_wrap().height(),
+        load.as_ref()
+            .map_or(world.generator.name(), |_| "saved campaign"),
         game.map_wrap(),
         tileset.name()
     );
@@ -537,11 +464,16 @@ mod argument_tests {
             ("large", (130, 130)),
             ("huge", (160, 160)),
         ] {
-            let wrap = parse_map_size(name).unwrap().topology().unwrap();
+            let wrap = name
+                .parse::<mapgen::Civ3MapSize>()
+                .unwrap()
+                .topology()
+                .unwrap();
             assert_eq!((wrap.width(), wrap.height()), dimensions);
         }
         assert_eq!(
-            parse_map_size("80x60")
+            "80x60"
+                .parse::<mapgen::Civ3MapSize>()
                 .unwrap()
                 .topology()
                 .unwrap()
@@ -549,7 +481,10 @@ mod argument_tests {
             4800
         );
         for invalid in ["80", "81x60", "8x60", "513x60", "80xno", "giant"] {
-            assert!(parse_map_size(invalid).is_err(), "accepted {invalid}");
+            assert!(
+                invalid.parse::<mapgen::Civ3MapSize>().is_err(),
+                "accepted {invalid}"
+            );
         }
     }
 

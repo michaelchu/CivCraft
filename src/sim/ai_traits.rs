@@ -1,6 +1,6 @@
 //! Selected Freeciv AI trait defaults.
 
-use crate::rules::freeciv::RulesetData;
+use crate::rules::engine_rules::RulesetData;
 
 /// Freeciv's default `traitdistribution` is fixed, so omitted nation-specific
 /// values use the selected ruleset's `*_default` (or its default midpoint).
