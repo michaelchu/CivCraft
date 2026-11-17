@@ -18,6 +18,8 @@ use super::section_file::{Entry, Section, SectionFile, Value};
 mod civil_war;
 #[path = "engine_rules/combat.rs"]
 mod combat;
+#[path = "engine_rules/great_leader.rs"]
+mod great_leader;
 #[path = "engine_rules/identifiers.rs"]
 mod identifiers;
 #[path = "engine_rules/loader.rs"]
@@ -35,6 +37,8 @@ pub(crate) use civil_war::CivilWarRulesetSettings;
 pub(crate) use combat::{
     CombatBonusKind, CombatRulesetSettings, TransportDefense, UnitCombatBonus,
 };
+#[allow(unused_imports)] // Consumed by Great Leader creation (plan Task 4).
+pub(crate) use great_leader::GreatLeaderSettings;
 pub(crate) use identifiers::{EffectKind, RequirementKind};
 #[cfg(test)]
 pub(crate) use loader::RULESET_FILES;
