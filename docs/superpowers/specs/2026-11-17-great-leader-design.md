@@ -158,6 +158,17 @@ of it is removed by this work.
   adjustment go in a small table in the native content TOML next to the
   other AI/settlement tuning, so they can be tuned without code changes.
 
+## Calls settled in the final review (my calls)
+
+- **Eligibility is judged before the fight.** A unit promoted to elite during
+  the fight does not create a Leader from that kill.
+- **No Leaders from winners at sea.** A marine attacking from a ship would
+  spawn a Leader on an ocean tile, so a winner standing on water never creates
+  one. This narrows the earlier "marines attacking from a ship count".
+- **A Leader is lost, never handed over,** when a city trade, incitement or
+  civil war would change its owner.
+- **The human player is told** when a Leader appears.
+
 ## What changes and what does not
 
 Changes:

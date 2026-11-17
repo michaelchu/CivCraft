@@ -184,6 +184,19 @@ mod tests {
     }
 
     #[test]
+    fn great_leader_is_dispatched_by_the_ai_turn() {
+        let mut game = game();
+        let city = city_with(&mut game, 10, 24, Production::Building(Building::TEMPLE));
+        let leader = leader_at(&mut game, 10, 24);
+        game.run_ai_player_planning(1);
+        assert!(
+            game.unit_by_id(leader.id).is_none(),
+            "the AI turn must hand its Leader to the Leader behavior"
+        );
+        assert!(game.city_by_id(city).unwrap().bought_production);
+    }
+
+    #[test]
     fn great_leader_walks_toward_its_target() {
         let mut game = game();
         let city = city_with(&mut game, 10, 24, Production::Building(Building::TEMPLE));

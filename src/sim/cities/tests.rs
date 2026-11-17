@@ -1113,3 +1113,52 @@ fn completed_item_finishes_at_turn_end() {
     game.process_player_cities(HUMAN);
     assert!(game.cities[0].has_building(Building::TEMPLE));
 }
+
+#[test]
+fn leader_in_a_traded_city_is_lost_not_handed_over() {
+    let (mut game, _) = leader_test_game();
+    let inside = game.spawn_unit(HUMAN, UnitKind::Leader, 20, 24);
+    game.units
+        .iter_mut()
+        .find(|u| u.id == inside)
+        .unwrap()
+        .moves_left = 3;
+    game.transfer_city_because(0, 1, lifecycle::TransferReason::Trade);
+    assert!(
+        game.units
+            .iter()
+            .all(|unit| unit.kind != UnitKind::Leader || unit.owner == HUMAN),
+        "a Leader never changes owner"
+    );
+    assert!(
+        game.unit_by_id(inside).is_none(),
+        "the Leader in the city is lost"
+    );
+
+    let (mut game, _) = leader_test_game();
+    let outside = game.spawn_unit(HUMAN, UnitKind::Leader, 40, 24);
+    game.transfer_city_because(0, 1, lifecycle::TransferReason::Trade);
+    assert_eq!(
+        game.unit_by_id(outside).map(|unit| unit.owner),
+        Some(HUMAN),
+        "a Leader outside the city is unaffected"
+    );
+}
+
+#[test]
+fn civil_war_never_hands_a_leader_to_the_rebels() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    for (x, y) in [(10, 24), (20, 24), (30, 24)] {
+        game.create_city(1, x, y);
+        game.spawn_unit(1, UnitKind::Leader, x, y);
+    }
+    game.split_civil_war(1);
+    assert!(
+        game.units
+            .iter()
+            .all(|unit| unit.kind != UnitKind::Leader || unit.owner == 1),
+        "a rebel civilization must not own a Leader"
+    );
+}

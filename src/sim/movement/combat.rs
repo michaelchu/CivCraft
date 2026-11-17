@@ -939,6 +939,10 @@ impl Simulation {
             d.moves_left = defender_moves_left;
         }
 
+        // Judged on the units as they entered the fight, so a promotion earned
+        // in this fight does not make the winner eligible.
+        let attacker_can_lead = self.great_leader_eligible(&attacker, &defender);
+        let defender_can_lead = self.great_leader_eligible(&defender, &attacker);
         self.promote_combat_veterans(
             attacker_id,
             defender_id,
@@ -948,10 +952,10 @@ impl Simulation {
         );
         // Only a real kill can create a Great Leader, never a powerless attack.
         if attack_power > 0 && defense_power > 0 {
-            if def_hp <= 0 {
-                self.roll_great_leader(attacker_id, &defender, true);
-            } else if att_hp <= 0 {
-                self.roll_great_leader(defender_id, &attacker, false);
+            if def_hp <= 0 && attacker_can_lead {
+                self.draw_great_leader(attacker_id, true);
+            } else if att_hp <= 0 && defender_can_lead {
+                self.draw_great_leader(defender_id, false);
             }
         }
 

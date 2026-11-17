@@ -29,6 +29,8 @@ impl Simulation {
             || winner.kind.is_aircraft()
             || winner.kind.is_missile()
             || !self.unit_is_elite(winner)
+            // A Leader appears on the winner's tile; never create one at sea.
+            || self.tile(winner.x, winner.y).terrain.is_water()
         {
             return false;
         }
@@ -60,6 +62,7 @@ impl Simulation {
 
     /// Rolls for a Great Leader after `winner_id` killed `loser`. Returns the
     /// new Leader's id. An ineligible kill consumes no random numbers.
+    #[cfg(test)]
     pub(in crate::sim) fn roll_great_leader(
         &mut self,
         winner_id: u32,
@@ -70,12 +73,30 @@ impl Simulation {
         if !self.great_leader_eligible(&winner, loser) {
             return None;
         }
+        self.draw_great_leader(winner_id, winner_attacked)
+    }
+
+    /// Draws the odds for a winner already judged eligible. Combat decides
+    /// eligibility from the units as they were before the fight, so a
+    /// promotion earned in the same fight does not count.
+    pub(in crate::sim) fn draw_great_leader(
+        &mut self,
+        winner_id: u32,
+        winner_attacked: bool,
+    ) -> Option<u32> {
+        let winner = self.unit_by_id(winner_id)?.clone();
         let denominator = self.great_leader_denominator(winner.owner, winner_attacked);
         if self.rand_below(denominator) != 0 {
             return None;
         }
         if let Some(unit) = self.units.iter_mut().find(|unit| unit.id == winner_id) {
             unit.created_leader = true;
+        }
+        if winner.owner == HUMAN {
+            self.add_event(format!(
+                "A Great Leader has emerged from your victorious {}.",
+                winner.kind.name()
+            ));
         }
         Some(self.spawn_unit_with_origin(
             winner.owner,
@@ -84,6 +105,29 @@ impl Simulation {
             winner.y,
             lifecycle::UnitOrigin::GreatLeader { winner_id },
         ))
+    }
+
+    /// Ids and owners of an owner's Leaders, taken before an operation that
+    /// may reassign units.
+    pub(in crate::sim) fn leaders_of(&self, owner: usize) -> Vec<(u32, usize)> {
+        self.units
+            .iter()
+            .filter(|unit| unit.owner == owner && unit.kind == UnitKind::Leader)
+            .map(|unit| (unit.id, unit.owner))
+            .collect()
+    }
+
+    /// A Leader never changes owner. When a city trade, incitement or civil
+    /// war reassigns one, it is lost instead.
+    pub(in crate::sim) fn remove_leaders_that_changed_owner(&mut self, before: &[(u32, usize)]) {
+        let lost: Vec<u32> = before
+            .iter()
+            .filter(|&&(id, owner)| self.unit_by_id(id).is_some_and(|unit| unit.owner != owner))
+            .map(|&(id, _)| id)
+            .collect();
+        if !lost.is_empty() {
+            self.remove_units_with_cargo_because(lost, lifecycle::UnitRemoval::CityLost);
+        }
     }
 }
 
@@ -289,6 +333,68 @@ mod tests {
         assert!(game.owner_has_elite_unit(1));
         spawn_elite(&mut game, HUMAN, UnitKind::Knight, 16, 24);
         assert!(game.owner_has_elite_unit(HUMAN));
+    }
+
+    #[test]
+    fn a_winner_at_sea_creates_no_leader() {
+        let mut game = game();
+        let loser = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+        let loser = unit(&game, loser);
+        game.tile_mut(10, 24).terrain = Terrain::Ocean;
+        let marine = spawn_elite(&mut game, HUMAN, UnitKind::Marine, 10, 24);
+        assert!(
+            !game.great_leader_eligible(&unit(&game, marine), &loser),
+            "a Leader would appear on an ocean tile"
+        );
+        game.tile_mut(10, 24).terrain = Terrain::Grassland;
+        assert!(game.great_leader_eligible(&unit(&game, marine), &loser));
+    }
+
+    #[test]
+    fn creating_a_leader_tells_the_human_player() {
+        let mut game = game();
+        let loser = game.spawn_unit(1, UnitKind::Warrior, 11, 24);
+        let loser = unit(&game, loser);
+        let winner = spawn_elite(&mut game, HUMAN, UnitKind::Knight, 10, 24);
+        while game.roll_great_leader(winner, &loser, true).is_none() {}
+        assert!(
+            game.events
+                .iter()
+                .any(|event| event.contains("Great Leader")),
+            "{:?}",
+            game.events
+        );
+    }
+
+    #[test]
+    fn promotion_in_the_same_fight_does_not_make_the_winner_eligible() {
+        for seed in 0..4000u32 {
+            let mut game = game();
+            game.set_random_seed(seed);
+            let (nx, ny) = game.map_wrap.offset(10, 24, 1, 0).unwrap();
+            for (x, y) in [(10, 24), (nx, ny)] {
+                game.tile_mut(x, y).terrain = Terrain::Grassland;
+            }
+            game.sign_pact(HUMAN, 1, Pact::War);
+            let attacker = game.spawn_unit(HUMAN, UnitKind::Knight, 10, 24);
+            let top = elite_level(UnitKind::Knight);
+            game.units
+                .iter_mut()
+                .find(|u| u.id == attacker)
+                .unwrap()
+                .c2c3_veteran = top - 1;
+            game.spawn_unit(1, UnitKind::Warrior, nx, ny);
+            let direction = game.civ3_direction_for_unit_offset(attacker, 1, 0).unwrap();
+            game.apply(Command::MoveCiv3(attacker, direction));
+            let promoted = game
+                .unit_by_id(attacker)
+                .is_some_and(|unit| unit.c2c3_veteran == top);
+            let leader = game.units.iter().any(|u| u.kind == UnitKind::Leader);
+            assert!(
+                !(promoted && leader),
+                "seed {seed}: a unit promoted to elite in this fight created a Leader"
+            );
+        }
     }
 
     fn attack_until_leader(attacker_is_elite: bool) -> bool {
