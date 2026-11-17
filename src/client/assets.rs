@@ -11,7 +11,7 @@ pub(crate) fn window_conf() -> Conf {
         .and_then(|(w, h)| Some((w.parse::<i32>().ok()?, h.parse::<i32>().ok()?)))
         .filter(|&(w, h)| w >= 800 && h >= 600)
         .unwrap_or((1280, 720));
-    let mut conf = Conf {
+    let conf = Conf {
         window_title: "CivCraft".to_owned(),
         window_width: size.0,
         window_height: size.1,
@@ -26,9 +26,14 @@ pub(crate) fn window_conf() -> Conf {
     // that context-creation path.
     #[cfg(target_os = "macos")]
     {
+        let mut conf = conf;
         conf.platform.apple_gfx_api = macroquad::miniquad::conf::AppleGfxApi::Metal;
+        conf
     }
-    conf
+    #[cfg(not(target_os = "macos"))]
+    {
+        conf
+    }
 }
 
 pub(crate) struct Assets {
