@@ -233,7 +233,7 @@ impl Game {
     pub(super) fn context_rect(&self) -> Rect {
         let width = Self::corner_width();
         let height = if self.selected_unit_index().is_some() {
-            160.0
+            140.0
         } else if self.selected_city_index().is_some() {
             174.0 + hud::INFO_BLOCK_H + 4.0
         } else {

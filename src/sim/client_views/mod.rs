@@ -50,7 +50,6 @@ pub(crate) struct TechnologyResearchView {
 
 /// Display-ready turn, economy and control state for the HUD.
 pub(crate) struct TopBarView {
-    pub(crate) turn: i32,
     pub(crate) year: i32,
     pub(crate) gold: i32,
     pub(crate) government_name: &'static str,
@@ -577,7 +576,6 @@ mod tests {
         let sim = Simulation::new(crate::mapgen::generate(42));
         let player = &sim.players[HUMAN];
         let view = sim.top_bar_view(HUMAN).unwrap();
-        assert_eq!(view.turn, sim.turn);
         assert_eq!(view.year, sim.year);
         assert_eq!(view.gold, player.gold);
         assert_eq!(view.government_name, player.government.name());

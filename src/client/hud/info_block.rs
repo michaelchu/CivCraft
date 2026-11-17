@@ -4,20 +4,17 @@ use super::*;
 use crate::sim::TopBarView;
 
 /// Vertical space the block reserves, including its bottom margin.
-pub(in crate::client) const INFO_BLOCK_H: f32 = 64.0;
+pub(in crate::client) const INFO_BLOCK_H: f32 = 44.0;
 const CELL_H: f32 = 18.0;
 const CELL_GAP: f32 = 3.0;
 
-/// Label and value text for the four status cells, in grid order. The turn
-/// cell has no label.
+/// Label and value text for the four status cells, row by row: year and
+/// government, then gold and research. The year cell has no label.
 fn info_cells(view: &TopBarView) -> [(String, String); 4] {
     [
-        (
-            String::new(),
-            format!("{} · {}", view.turn, year_label(view.year)),
-        ),
-        ("Gold".to_owned(), view.gold.to_string()),
+        (String::new(), year_label(view.year)),
         ("Gov".to_owned(), view.government_name.to_owned()),
+        ("Gold".to_owned(), view.gold.to_string()),
         (
             view.research_name.to_owned(),
             format!("{}/{}", view.research_points, view.research_cost),
@@ -26,22 +23,19 @@ fn info_cells(view: &TopBarView) -> [(String, String); 4] {
 }
 
 impl Game {
-    /// Draws the three-row status grid at `top` inside `card`.
+    /// Draws the 2x2 status grid at `top` inside `card`.
     pub(super) fn draw_info_block(&self, card: Rect, top: f32) {
         let Some(view) = self.sim.top_bar_view(HUMAN) else {
             return;
         };
         let muted = Color::from_rgba(181, 190, 174, 255);
         let width = card.w - 20.0;
-        let half = (width - 4.0) * 0.5;
-        // (column, full width?, row): Turn and Research span the card, Gold and
-        // Gov share the middle row so long names keep room.
-        let layout = [(0, true, 0), (0, false, 1), (1, false, 1), (0, true, 2)];
-        for ((label, value), (column, full, row)) in info_cells(&view).iter().zip(layout) {
+        let cell_width = (width - 4.0) * 0.5;
+        for (index, (label, value)) in info_cells(&view).iter().enumerate() {
             let cell = Rect::new(
-                card.x + 10.0 + column as f32 * (half + 4.0),
-                top + row as f32 * (CELL_H + CELL_GAP),
-                if full { width } else { half },
+                card.x + 10.0 + (index % 2) as f32 * (cell_width + 4.0),
+                top + (index / 2) as f32 * (CELL_H + CELL_GAP),
+                cell_width,
                 CELL_H,
             );
             draw_rectangle(
@@ -80,9 +74,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn info_cells_formats_turn_year_gold_government_research() {
+    fn info_cells_formats_year_government_gold_research() {
         let view = TopBarView {
-            turn: 42,
             year: -1250,
             gold: 310,
             government_name: "Monarchy",
@@ -98,9 +91,9 @@ mod tests {
         assert_eq!(
             info_cells(&view),
             [
-                (String::new(), format!("42 · {}", year_label(-1250))),
-                ("Gold".to_owned(), "310".to_owned()),
+                (String::new(), year_label(-1250)),
                 ("Gov".to_owned(), "Monarchy".to_owned()),
+                ("Gold".to_owned(), "310".to_owned()),
                 ("Bronze Working".to_owned(), "12/30".to_owned()),
             ]
         );

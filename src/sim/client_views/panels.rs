@@ -138,7 +138,6 @@ impl Simulation {
         let player = self.players.get(owner)?;
         let research = player.researching;
         Some(TopBarView {
-            turn: self.turn,
             year: self.year,
             gold: player.gold,
             government_name: player.government.name(),
