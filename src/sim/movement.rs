@@ -13,6 +13,9 @@
 use super::movement_rules::{MovementRules, MovementTile};
 use super::*;
 use crate::rules::engine_rules::RulesetData;
+use std::collections::BTreeMap;
+
+type PlayerGotoGroupKey = ((i32, i32), (i32, i32));
 
 mod activities;
 mod combat;
@@ -1282,6 +1285,49 @@ impl Simulation {
         true
     }
 
+    pub(super) fn issue_player_goto_group(&mut self, ids: Vec<u32>, x: i32, y: i32) -> bool {
+        if !(0..self.map_wrap.width()).contains(&x) || !(0..self.map_wrap.height()).contains(&y) {
+            return false;
+        }
+        let mut valid = Vec::new();
+        for id in ids {
+            if valid.contains(&id) {
+                continue;
+            }
+            let Some(unit) = self.unit_by_id(id).filter(|unit| unit.owner == HUMAN) else {
+                continue;
+            };
+            if (unit.x, unit.y) == (x, y) || !self.plan_route(unit, x, y, true).is_empty() {
+                valid.push(id);
+            }
+        }
+        let Some(shared_moves) = valid
+            .iter()
+            .filter_map(|id| self.unit_by_id(*id).map(|unit| unit.moves_left))
+            .min()
+        else {
+            return false;
+        };
+        let mut succeeded = false;
+        for id in valid {
+            let Some(index) = self.unit_index_by_id(id) else {
+                continue;
+            };
+            let original_moves = self.units[index].moves_left;
+            self.units[index].moves_left = shared_moves;
+            if self.issue_player_goto(id, x, y) {
+                succeeded = true;
+                if let Some(index) = self.unit_index_by_id(id) {
+                    let spent = (shared_moves - self.units[index].moves_left).max(0);
+                    self.units[index].moves_left = (original_moves - spent).max(0);
+                }
+            } else if let Some(index) = self.unit_index_by_id(id) {
+                self.units[index].moves_left = original_moves;
+            }
+        }
+        succeeded
+    }
+
     pub(super) fn player_goto(&mut self, id: u32, x: i32, y: i32) -> bool {
         let Some(unit) = self.unit_by_id(id) else {
             return false;
@@ -1534,34 +1580,61 @@ impl Simulation {
     }
 
     pub(super) fn continue_player_gotos(&mut self) {
-        let orders: Vec<_> = self
-            .unit_goto_tiles
-            .iter()
-            .filter_map(|(&id, &goal)| {
-                self.unit_by_id(id)
-                    .filter(|unit| unit.owner == HUMAN)
-                    .map(|_| (id, goal))
-            })
-            .collect();
-        for (id, (x, y)) in orders {
-            let Some(unit) = self.unit_by_id(id) else {
+        let mut groups: BTreeMap<PlayerGotoGroupKey, Vec<u32>> = BTreeMap::new();
+        for (&id, &goal) in &self.unit_goto_tiles {
+            let Some(unit) = self.unit_by_id(id).filter(|unit| unit.owner == HUMAN) else {
                 continue;
             };
-            if (unit.x, unit.y) == (x, y) {
-                self.unit_goto_tiles.remove(&id);
+            let position = (unit.x, unit.y);
+            if position == goal {
                 continue;
             }
-            let path = self.plan_route(unit, x, y, true);
-            if path.is_empty() {
-                continue;
+            groups.entry((position, goal)).or_default().push(id);
+        }
+        for ((_, (x, y)), ids) in groups {
+            let shared_moves = ids
+                .iter()
+                .filter_map(|id| self.unit_by_id(*id).map(|unit| unit.moves_left))
+                .min()
+                .unwrap_or(0);
+            for id in ids {
+                let Some(index) = self.unit_index_by_id(id) else {
+                    continue;
+                };
+                let original_moves = self.units[index].moves_left;
+                let original_position = (self.units[index].x, self.units[index].y);
+                self.units[index].moves_left = shared_moves;
+                if let Some(unit) = self.unit_by_id(id) {
+                    let path = self.plan_route(unit, x, y, true);
+                    if !path.is_empty() {
+                        self.follow_civ3_path(id, path);
+                    }
+                }
+                if let Some(index) = self.unit_index_by_id(id) {
+                    let current_position = (self.units[index].x, self.units[index].y);
+                    if current_position == (x, y) {
+                        self.unit_goto_tiles.remove(&id);
+                    }
+                    if current_position != original_position {
+                        let spent = (shared_moves - self.units[index].moves_left).max(0);
+                        self.units[index].moves_left = (original_moves - spent).max(0);
+                    } else {
+                        self.units[index].moves_left = original_moves;
+                    }
+                }
             }
-            self.follow_civ3_path(id, path);
-            if self
-                .unit_by_id(id)
-                .is_some_and(|unit| (unit.x, unit.y) == (x, y))
-            {
-                self.unit_goto_tiles.remove(&id);
-            }
+        }
+        let finished: Vec<_> = self
+            .unit_goto_tiles
+            .iter()
+            .filter_map(|(&id, &(x, y))| {
+                self.unit_by_id(id)
+                    .is_some_and(|unit| (unit.x, unit.y) == (x, y))
+                    .then_some(id)
+            })
+            .collect();
+        for id in finished {
+            self.unit_goto_tiles.remove(&id);
         }
         self.continue_unit_orders();
     }

@@ -408,8 +408,19 @@ impl Game {
         let unit_w = 58.0 * unit_zoom;
         let unit_h = 44.0 * unit_zoom;
         let is_selected = self.selected_unit == Some(unit.id);
+        let is_group_selected = self.selected_units.contains(&unit.id);
         if is_selected {
             assets.civ3.draw_unit_cursor(center, self.zoom);
+        } else if is_group_selected {
+            draw_ellipse_lines(
+                center.x,
+                center.y - 9.0 * self.zoom,
+                unit_w * 0.47,
+                unit_h * 0.57,
+                0.0,
+                (2.0 * self.zoom).max(1.5),
+                Color::from_rgba(255, 220, 112, 230),
+            );
         }
         let native_unit_drawn = assets.civ3.draw_unit(
             unit.kind,

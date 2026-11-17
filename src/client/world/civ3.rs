@@ -477,6 +477,7 @@ impl<'a> Civ3WorldPainter<'a> {
                 (
                     u8::from(city_tile && Some(u.id) != game.selected_unit),
                     u8::from(!game.playback.is_active(u.id)),
+                    u8::from(!game.selected_units.contains(&u.id)),
                     u8::from(
                         city_tile
                             && !matches!(u.state, UnitState::Fortifying | UnitState::Fortified),

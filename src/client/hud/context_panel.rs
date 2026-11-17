@@ -80,8 +80,21 @@ impl Game {
             let muted = Color::from_rgba(181, 190, 174, 255);
             let status_color = Color::from_rgba(188, 219, 175, 255);
             let inline_status = unit_status_inline(&view, card.w);
-            let state = view.status;
+            let state = if self.selected_units.len() > 1 {
+                format!(
+                    "{} selected · actions for active",
+                    self.selected_units.len()
+                )
+            } else {
+                view.status.clone()
+            };
             let state_width = measure_text(&state, None, 12, 1.0).width;
+            let inline_status = if self.selected_units.len() > 1 {
+                let name_width = measure_text(view.kind.name(), None, 14, 1.0).width;
+                identity_x + name_width + state_width + 8.0 <= right
+            } else {
+                inline_status
+            };
             let title_y = card.y + 20.0;
             text_in(
                 view.kind.name(),

@@ -56,6 +56,7 @@ mod research_view;
 mod rivers;
 mod routes;
 mod spaceship_view;
+mod stack_menu;
 mod tileset;
 pub(crate) use tileset::Tileset;
 mod ui;
@@ -217,6 +218,9 @@ pub(crate) enum UiAction {
     ResearchAge(usize),
     InspectResearch(Tech),
     ResearchGoal(Tech),
+    SelectUnitStack(Vec<u32>),
+    SelectSameUnitType(Vec<u32>),
+    ShowCityInfo(u32),
 }
 
 pub(crate) struct Game {
@@ -230,6 +234,7 @@ pub(crate) struct Game {
     pub(crate) sfx_muted: bool,
     pub(crate) sfx_volume: u8,
     pub(crate) selected_unit: Option<u32>,
+    pub(crate) selected_units: Vec<u32>,
     selected_city: Option<u32>,
     waiting_units: std::collections::BTreeSet<u32>,
     pending_city_view: Option<u32>,
@@ -270,6 +275,22 @@ pub(crate) struct Game {
     fortify_animation_started_at: std::collections::HashMap<u32, f64>,
     dragging: bool,
     drag_last: Vec2,
+    left_map_press: Option<LeftMapPress>,
+    goto_drag_unit: Option<u32>,
+    stack_menu: Option<StackMenu>,
+}
+
+struct LeftMapPress {
+    screen: Vec2,
+    tile: (i32, i32),
+    unit_id: Option<u32>,
+}
+
+struct StackMenu {
+    position: Vec2,
+    units: Vec<u32>,
+    city_id: Option<u32>,
+    scroll_offset: usize,
 }
 
 impl Game {
@@ -300,6 +321,7 @@ impl Game {
             sfx_muted: false,
             sfx_volume: 50,
             selected_unit,
+            selected_units: selected_unit.into_iter().collect(),
             selected_city: None,
             waiting_units: Default::default(),
             pending_city_view: None,
@@ -340,6 +362,9 @@ impl Game {
             fortify_animation_started_at: Default::default(),
             dragging: false,
             drag_last: vec2(0.0, 0.0),
+            left_map_press: None,
+            goto_drag_unit: None,
+            stack_menu: None,
         }
     }
 
@@ -375,7 +400,7 @@ impl Game {
             if self.selected_unit == Some(id) {
                 self.pending_sound_unit = Some(id);
             }
-            self.selected_unit = None;
+            self.set_unit_selection(Vec::new(), None);
             self.production_page = 0;
             self.unit_production_page = 0;
             self.worklist_page = None;
@@ -398,9 +423,81 @@ impl Game {
                 self.focus_camera_on(x, y);
             }
         } else if self.selected_unit == Some(id) {
-            self.selected_unit = None;
+            let active = self.selected_unit;
+            let remaining = self
+                .selected_units
+                .iter()
+                .copied()
+                .filter(|selected| *selected != id)
+                .collect();
+            self.set_unit_selection(remaining, active.filter(|selected| *selected != id));
         }
         true
+    }
+
+    pub(super) fn set_unit_selection(&mut self, ids: Vec<u32>, active: Option<u32>) {
+        let mut unique = Vec::new();
+        for id in ids {
+            if !unique.contains(&id)
+                && self
+                    .sim
+                    .unit_action_view(id)
+                    .is_some_and(|unit| unit.owner == HUMAN)
+            {
+                unique.push(id);
+            }
+        }
+        self.selected_unit = active
+            .filter(|id| unique.contains(id))
+            .or_else(|| unique.first().copied());
+        self.selected_units = unique;
+    }
+
+    pub(super) fn select_unit_group(&mut self, ids: Vec<u32>, active: Option<u32>) {
+        self.set_unit_selection(ids, active);
+        for id in &self.selected_units {
+            self.waiting_units.remove(id);
+        }
+        self.action_page = 0;
+        self.selected_city = None;
+        self.stack_menu = None;
+    }
+
+    pub(super) fn show_city_info(&mut self, city_id: u32) {
+        if let Some(unit_id) = self.selected_unit.take() {
+            self.waiting_units.insert(unit_id);
+        }
+        self.production_page = 0;
+        self.unit_production_page = 0;
+        self.worklist_page = None;
+        self.city_tiles = false;
+        self.action_page = 0;
+        self.selected_city = Some(city_id);
+        self.set_unit_selection(Vec::new(), None);
+        self.stack_menu = None;
+    }
+
+    fn sync_unit_selection(&mut self) {
+        self.selected_units.retain(|id| {
+            self.sim
+                .unit_action_view(*id)
+                .is_some_and(|unit| unit.owner == HUMAN)
+        });
+        if let Some(active) = self.selected_unit {
+            if !self.selected_units.contains(&active) {
+                if self
+                    .sim
+                    .unit_action_view(active)
+                    .is_some_and(|unit| unit.owner == HUMAN)
+                {
+                    self.selected_units = vec![active];
+                } else {
+                    self.selected_unit = self.selected_units.first().copied();
+                }
+            }
+        } else {
+            self.selected_unit = self.selected_units.first().copied();
+        }
     }
 
     fn selected_unit_index(&self) -> Option<usize> {
@@ -441,7 +538,7 @@ impl Game {
                     .or_else(|| candidates.first().copied())
             });
         self.action_page = 0;
-        self.selected_unit = next;
+        self.set_unit_selection(next.into_iter().collect(), next);
         self.selected_city = None;
         if let Some(id) = next
             && let Some((x, y)) = self.sim.unit_position_view(id)
@@ -461,6 +558,7 @@ impl Game {
 impl Game {
     /// Draws the current frame and returns the interactive control hit boxes.
     pub(crate) fn draw(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
+        self.sync_unit_selection();
         self.normalize_camera();
         let sound_unit = self.pending_sound_unit.take().or(self.selected_unit);
         let events = self.sim.take_presentation_event_views();
@@ -516,6 +614,7 @@ impl Game {
             actions.clear();
             self.draw_city_manager(assets, &mut actions);
         }
+        actions.extend(self.draw_stack_menu());
         if let Some(text) = self.targeting.banner() {
             let viewport = Self::viewport_rect();
             let width = measure_text(text, None, 22, 1.0).width;
@@ -767,7 +866,7 @@ mod tests {
     }
 
     #[test]
-    fn clicking_a_garrisoned_city_opens_city_management() {
+    fn clicking_a_garrisoned_city_selects_its_unit() {
         let mut game = Game::new(crate::sim::Simulation::new(crate::mapgen::generate(42)));
         let settler = game
             .sim
@@ -809,8 +908,8 @@ mod tests {
         );
         game.select_at(city.x, city.y);
 
-        assert_eq!(game.selected_city, Some(city.id));
-        assert_eq!(game.selected_unit, None);
+        assert_eq!(game.selected_city, None);
+        assert_eq!(game.selected_unit, Some(garrison));
         let waited = game
             .sim
             .review_simulation()

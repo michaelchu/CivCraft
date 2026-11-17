@@ -3,7 +3,7 @@ use super::*;
 
 impl Game {
     pub(super) fn goto_preview(&self) -> Option<GotoPreview> {
-        if self.targeting != TargetingMode::Goto
+        if (self.targeting != TargetingMode::Goto && self.goto_drag_unit.is_none())
             || self.playback.pending()
             || self.selected_city.is_some()
         {
@@ -14,7 +14,8 @@ impl Game {
             return None;
         }
         let (x, y) = self.screen_to_world(pointer)?;
-        self.sim.goto_preview_view(self.selected_unit?, x, y)
+        self.sim
+            .goto_preview_view(self.goto_drag_unit.or(self.selected_unit)?, x, y)
     }
 
     pub(super) fn draw_goto_preview(&self, _assets: &Assets) {

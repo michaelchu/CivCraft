@@ -273,11 +273,18 @@ impl Game {
                     .unit_action_view(id)
                     .is_some_and(|unit| unit.owner == HUMAN)
                 {
-                    self.waiting_units.remove(&id);
-                    self.action_page = 0;
-                    self.selected_unit = Some(id);
-                    self.selected_city = None;
+                    self.select_unit_group(vec![id], Some(id));
                 }
+            }
+            UiAction::ShowCityInfo(city_id) => {
+                self.show_city_info(city_id);
+            }
+            UiAction::SelectUnitStack(ids) => {
+                self.select_unit_group(ids, None);
+            }
+            UiAction::SelectSameUnitType(ids) => {
+                let active = self.selected_unit.filter(|id| ids.contains(id));
+                self.select_unit_group(ids, active);
             }
             UiAction::FoundCity => {
                 if let Some(id) = self.selected_unit {

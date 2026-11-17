@@ -139,6 +139,7 @@ impl Simulation {
             .map(|city| (city.id, city.name.clone()))
             .collect();
         Some(UnitActionView {
+            kind: unit.kind,
             unit_name: unit.kind.name(),
             owner: unit.owner,
             worker: unit.kind.stats().can_work,

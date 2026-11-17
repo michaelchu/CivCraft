@@ -60,6 +60,12 @@ impl Game {
             }
             return;
         }
+        if self.stack_menu.is_some() {
+            if is_key_pressed(KeyCode::Escape) {
+                self.stack_menu = None;
+            }
+            return;
+        }
         if self.pending_city_view.is_some() {
             return;
         }
@@ -335,6 +341,7 @@ impl Game {
     pub(crate) fn ui_action_at(point: Vec2, buttons: &[(Rect, UiAction)]) -> Option<UiAction> {
         buttons
             .iter()
+            .rev()
             .find(|(rect, action)| {
                 rect.contains(point)
                     && (!matches!(action, UiAction::WorkCityTile(..))
@@ -347,37 +354,107 @@ impl Game {
         if self.pending_city_view.is_some() {
             return;
         }
-        if !matches!(self.overlay, Overlay::None | Overlay::Research)
-            || self.selected_city.is_some()
-        {
-            let (x, y) = mouse_position();
+        if self.overlay == Overlay::Research {
+            self.handle_research_mouse(buttons);
+            return;
+        }
+        let mouse = vec2(mouse_position().0, mouse_position().1);
+
+        if let Some(menu) = &mut self.stack_menu {
+            let (_, wheel) = mouse_wheel();
+            if wheel < 0.0 {
+                menu.scroll_offset = menu.scroll_offset.saturating_add(1);
+            } else if wheel > 0.0 {
+                menu.scroll_offset = menu.scroll_offset.saturating_sub(1);
+            }
+        }
+
+        if self.overlay != Overlay::None {
             let pressed = is_mouse_button_pressed(MouseButton::Left);
             // Holding the button down on a rate slider keeps following the pointer.
             let dragging_slider =
                 self.overlay == Overlay::Government && is_mouse_button_down(MouseButton::Left);
             if (pressed || dragging_slider)
-                && let Some(action) = Self::ui_action_at(vec2(x, y), buttons)
+                && let Some(action) = Self::ui_action_at(mouse, buttons)
                 && (pressed || matches!(action, UiAction::SetRates(_)))
             {
                 self.perform_action(action);
             }
             return;
         }
-        if self.overlay == Overlay::Research {
-            self.handle_research_mouse(buttons);
+
+        if self.stack_menu.is_some() && is_mouse_button_pressed(MouseButton::Left) {
+            if let Some(action) = Self::ui_action_at(mouse, buttons) {
+                if matches!(
+                    &action,
+                    UiAction::SelectUnit(_)
+                        | UiAction::SelectUnitStack(_)
+                        | UiAction::SelectSameUnitType(_)
+                        | UiAction::ShowCityInfo(_)
+                ) {
+                    self.perform_action(action);
+                } else {
+                    self.stack_menu = None;
+                }
+            } else {
+                self.stack_menu = None;
+            }
             return;
         }
-        let mouse = vec2(mouse_position().0, mouse_position().1);
-        if is_mouse_button_pressed(MouseButton::Middle)
-            || is_mouse_button_pressed(MouseButton::Right)
-        {
+
+        if self.stack_menu.is_some() && is_mouse_button_pressed(MouseButton::Middle) {
+            self.stack_menu = None;
+        }
+
+        if is_mouse_button_pressed(MouseButton::Right) {
+            self.left_map_press = None;
+            self.goto_drag_unit = None;
+            self.dragging = false;
+            self.stack_menu = None;
+            if self.targeting == TargetingMode::None
+                && Self::viewport_rect().contains(mouse)
+                && !self.minimap_rect().contains(mouse)
+                && !self.context_rect().contains(mouse)
+                && Self::ui_action_at(mouse, buttons).is_none()
+                && let Some((x, y)) = self.screen_to_world(mouse)
+            {
+                if let Some(city_id) = self.sim.human_city_at_view(x, y) {
+                    self.stack_menu = Some(StackMenu {
+                        position: mouse,
+                        units: self.garrison_unit_ids_at(x, y),
+                        city_id: Some(city_id),
+                        scroll_offset: 0,
+                    });
+                    return;
+                }
+                let units = self.sim.human_units_at_view(x, y);
+                if units.len() > 1 {
+                    self.stack_menu = Some(StackMenu {
+                        position: mouse,
+                        units: units.into_iter().map(|unit| unit.id).collect(),
+                        city_id: None,
+                        scroll_offset: 0,
+                    });
+                    return;
+                }
+            }
+        }
+
+        if self.selected_city.is_some() {
+            if is_mouse_button_pressed(MouseButton::Left)
+                && let Some(action) = Self::ui_action_at(mouse, buttons)
+            {
+                self.perform_action(action);
+            }
+            return;
+        }
+
+        self.update_edge_scroll(mouse, buttons);
+        if is_mouse_button_pressed(MouseButton::Middle) {
             self.dragging = true;
             self.drag_last = mouse;
         }
-        if self.dragging
-            && (is_mouse_button_down(MouseButton::Middle)
-                || is_mouse_button_down(MouseButton::Right))
-        {
+        if self.dragging && is_mouse_button_down(MouseButton::Middle) {
             let delta = mouse - self.drag_last;
             let a = delta.x / (TILE_W * 0.5 * self.zoom);
             let b = delta.y / (TILE_H * 0.5 * self.zoom);
@@ -386,10 +463,39 @@ impl Game {
             self.normalize_camera();
             self.drag_last = mouse;
         }
-        if is_mouse_button_released(MouseButton::Middle)
-            || is_mouse_button_released(MouseButton::Right)
-        {
+        if is_mouse_button_released(MouseButton::Middle) {
             self.dragging = false;
+        }
+
+        if let Some(press) = self.left_map_press.as_ref() {
+            if is_mouse_button_down(MouseButton::Left)
+                && press.unit_id.is_some()
+                && (mouse - press.screen).length() > 8.0
+            {
+                self.goto_drag_unit = press.unit_id;
+            }
+            if is_mouse_button_released(MouseButton::Left) {
+                let press = self.left_map_press.take().unwrap();
+                if let Some(unit_id) = self.goto_drag_unit.take() {
+                    if Self::viewport_rect().contains(mouse)
+                        && !self.minimap_rect().contains(mouse)
+                        && !self.context_rect().contains(mouse)
+                        && Self::ui_action_at(mouse, buttons).is_none()
+                        && let Some((x, y)) = self.screen_to_world(mouse)
+                    {
+                        if !self.selected_units.contains(&unit_id) {
+                            self.set_unit_selection(vec![unit_id], Some(unit_id));
+                        }
+                        let group_order = self.selected_units.len() > 1;
+                        if self.move_selected_to(x, y, unit_id) && !group_order {
+                            self.select_next_unit();
+                        }
+                    }
+                } else {
+                    self.select_at(press.tile.0, press.tile.1);
+                }
+                return;
+            }
         }
 
         if !is_mouse_button_pressed(MouseButton::Left) {
@@ -419,7 +525,23 @@ impl Game {
             return;
         };
         match self.targeting {
-            TargetingMode::None => self.select_at(x, y),
+            TargetingMode::None => {
+                let stack = self.sim.human_units_at_view(x, y);
+                let unit_id = stack
+                    .iter()
+                    .find(|unit| Some(unit.id) == self.selected_unit)
+                    .or_else(|| {
+                        (self.sim.human_city_at_view(x, y).is_none())
+                            .then(|| stack.first())
+                            .flatten()
+                    })
+                    .map(|unit| unit.id);
+                self.left_map_press = Some(LeftMapPress {
+                    screen: mouse,
+                    tile: (x, y),
+                    unit_id,
+                });
+            }
             TargetingMode::Paradrop => self.perform_action(UiAction::ParadropTo(x, y)),
             TargetingMode::NuclearStrike => self.perform_action(UiAction::NuclearStrikeTo(x, y)),
             TargetingMode::Connect => self.perform_action(UiAction::ConnectTo(x, y)),
@@ -427,14 +549,59 @@ impl Game {
             TargetingMode::CaptureUnits => self.perform_action(UiAction::CaptureUnitsTo(x, y)),
             TargetingMode::Bombard { .. } => self.perform_action(UiAction::BombardTo(x, y)),
             TargetingMode::Goto => {
+                let group_order = self.selected_units.len() > 1;
                 if let Some(id) = self.selected_unit
-                    && self.move_selected(Command::GoTo(id, x, y), id)
+                    && self.move_selected_to(x, y, id)
+                    && !group_order
                 {
                     self.select_next_unit();
                 }
                 self.targeting = TargetingMode::None;
             }
         }
+    }
+
+    fn move_selected_to(&mut self, x: i32, y: i32, active_id: u32) -> bool {
+        let command = if self.selected_units.len() > 1 {
+            Command::GoToGroup(self.selected_units.clone(), x, y)
+        } else {
+            Command::GoTo(active_id, x, y)
+        };
+        self.move_selected(command, active_id)
+    }
+
+    fn update_edge_scroll(&mut self, mouse: Vec2, buttons: &[(Rect, UiAction)]) {
+        let viewport = Self::viewport_rect();
+        if !viewport.contains(mouse)
+            || self.stack_menu.is_some()
+            || self.dragging
+            || self.minimap_rect().contains(mouse)
+            || self.context_rect().contains(mouse)
+            || Self::ui_action_at(mouse, buttons).is_some()
+        {
+            return;
+        }
+        let edge = 18.0;
+        let mut direction = vec2(0.0, 0.0);
+        if mouse.x < viewport.x + edge {
+            direction.x = -1.0;
+        } else if mouse.x > viewport.right() - edge {
+            direction.x = 1.0;
+        }
+        if mouse.y < viewport.y + edge {
+            direction.y = -1.0;
+        } else if mouse.y > viewport.bottom() - edge {
+            direction.y = 1.0;
+        }
+        if direction == Vec2::ZERO {
+            return;
+        }
+        let pixels = direction * (520.0 * get_frame_time().min(0.05));
+        let a = pixels.x / (TILE_W * 0.5 * self.zoom);
+        let b = pixels.y / (TILE_H * 0.5 * self.zoom);
+        self.camera.x += (a + b) * 0.5;
+        self.camera.y += (b - a) * 0.5;
+        self.normalize_camera();
     }
 
     pub(crate) fn select_at(&mut self, x: i32, y: i32) {
@@ -446,35 +613,43 @@ impl Game {
             self.waiting_units.insert(unit_id);
         }
 
-        // Cities take click priority over their garrisons. Units stationed in
-        // a city remain selectable from the city manager.
-        if let Some(city_id) = self.sim.human_city_at_view(x, y) {
-            if let Some(unit_id) = self.selected_unit.take() {
-                self.waiting_units.insert(unit_id);
-            }
-            self.production_page = 0;
-            self.unit_production_page = 0;
-            self.worklist_page = None;
-            self.city_tiles = false;
-            self.action_page = 0;
-            self.selected_city = Some(city_id);
-            self.selected_unit = None;
-            return;
-        }
-        let stack = self.sim.human_units_at_view(x, y);
-        let current = stack
-            .iter()
-            .position(|unit| Some(unit.id) == self.selected_unit);
+        let city_id = self.sim.human_city_at_view(x, y);
+        let stack = if city_id.is_some() {
+            self.garrison_unit_ids_at(x, y)
+        } else {
+            self.sim
+                .human_units_at_view(x, y)
+                .into_iter()
+                .map(|unit| unit.id)
+                .collect()
+        };
+        let current = stack.iter().position(|id| Some(*id) == self.selected_unit);
         let next = current
             .and_then(|index| stack.get(index + 1))
             .or_else(|| stack.first());
-        if let Some(unit) = next {
-            self.waiting_units.remove(&unit.id);
+        if let Some(unit_id) = next {
+            self.waiting_units.remove(unit_id);
             self.action_page = 0;
-            self.selected_unit = Some(unit.id);
+            self.set_unit_selection(vec![*unit_id], Some(*unit_id));
             self.selected_city = None;
-        } else if let Some(unit_id) = self.selected_unit.take() {
-            self.waiting_units.insert(unit_id);
+            return;
         }
+        if let Some(city_id) = city_id {
+            self.show_city_info(city_id);
+            return;
+        }
+        if let Some(unit_id) = self.selected_unit.take() {
+            self.waiting_units.insert(unit_id);
+            self.set_unit_selection(Vec::new(), None);
+        }
+    }
+
+    fn garrison_unit_ids_at(&self, x: i32, y: i32) -> Vec<u32> {
+        self.sim
+            .human_units_at_view(x, y)
+            .into_iter()
+            .filter(|unit| !unit.transported)
+            .map(|unit| unit.id)
+            .collect()
     }
 }
