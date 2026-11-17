@@ -47,6 +47,7 @@ pub(crate) struct Event {
 #[derive(Default)]
 pub(crate) struct Collector {
     lifecycle: Option<super::lifecycle::Ledger>,
+    pub(super) research: Option<super::research_observation::ResearchLedger>,
     enabled: bool,
     kinds: BTreeSet<String>,
     capacity: usize,
@@ -132,6 +133,9 @@ impl Clone for Collector {
     }
 }
 impl Collector {
+    pub(super) fn current_phase(&self) -> Phase {
+        self.phase
+    }
     pub(super) fn enable_lifecycle(
         &mut self,
         turn: i32,
@@ -454,6 +458,7 @@ mod integration_tests {
         let mut traced = plain.clone();
         traced.trace = Collector::enabled(BTreeSet::from(["*".into()]), 10000);
         traced.start_lifecycle_observation();
+        traced.start_research_observation();
         let mut profiled = plain.clone();
         profiled.trace.enable_profiling();
         let mut event_count = 0;
@@ -462,12 +467,15 @@ mod integration_tests {
             plain.simulate_turn();
             traced.simulate_turn();
             traced.reconcile_lifecycle_observation();
+            traced.reconcile_research_observation();
             profiled.simulate_turn();
             let _ = traced.observe_cities();
             let _ = traced.observe_units();
             let _ = traced.observe_civilizations();
             let _ = traced.observe_minimap();
             assert!(traced.observe_lifecycle().complete_since_start);
+            assert!(traced.observe_research().complete_since_start);
+            traced.trace.clear_research_changes();
             traced.trace.clear_lifecycle_changes();
             assert_eq!(
                 plain.encode_campaign().unwrap(),
@@ -500,6 +508,7 @@ mod integration_tests {
         assert!(!loaded.trace.wants::<Example>());
         assert!(loaded.trace.drain().is_empty());
         assert!(!loaded.observe_lifecycle().history_available);
+        assert!(!loaded.observe_research().history_available);
         let mut cloned = traced.clone();
         assert!(!cloned.trace.wants::<Example>());
         assert!(cloned.trace.drain().is_empty());

@@ -286,8 +286,8 @@ cargo run --offline --release --bin headless_sim -- \
   listed participant matches. Filters apply to persisted events, not snapshots
   or analyzer inputs. Arbitrary domain names allow newly instrumented modules;
   an unmatched name produces no events from that domain.
-- `--snapshot-providers cities,civilizations,units,lifecycle,minimap` selects output providers
-  (these five are the default; `territory` is also available);
+- `--snapshot-providers cities,civilizations,units,lifecycle,research,minimap` selects output providers
+  (these six are the default; `territory` is also available);
   `none` records just the envelope plus analyzer-required data.
 - The `territory` provider records map dimensions, row-major tile ownership,
   and a land mask so unowned land can be distinguished from water. City
@@ -336,23 +336,17 @@ I/O errors fail the runner rather than silently continuing without evidence.
 Sidecars:
 
 - `report.json.snapshots.jsonl`: initial snapshot plus one per completed step.
-  `cities`, `civilizations`, `units`, `lifecycle`, and `minimap` are independent provider sections.
-- `report.json.minimap.png`: the latest captured minimap, final when the run completes.
-- `report.json.minimap.html` and `report.json.minimaps/`: local viewer and PNG frames
-  for every snapshot, including initial state and scenario-action boundaries.
-  Open the HTML file locally; use the slider or Play to compare development over time.
-  Keep the image folder next to the viewer when sharing it. No server is required.
-
-The default `minimap` provider records row-major terrain RGB, ownership, map size,
-city IDs/names/locations/populations, and civilization names/colors. Images show
-the full map without fog of war, using the in-game terrain/civilization palette
-and staggered, horizontally wrapped minimap projection. Territory tints the terrain;
-white outlined markers show current cities. The viewer lists city populations and
-owned tile counts (including water) per civilization at the selected snapshot.
-Images and the viewer are linked under `evidence.minimap`; checkpoint images show
-the latest completed snapshot, not a prediction of the final run. Excluding
-`minimap` from `--snapshot-providers` disables image generation; `none` does so too.
-This is an asset-free simulation overview, not a screenshot of the desktop UI.
+  `cities`, `civilizations`, `units`, `lifecycle`, and `research` are independent provider sections.
+- `report.json.minimap.png`: one final minimap, written when the run stops.
+  It shows terrain, current territory and city markers without fog of war, using
+  the in-game terrain/civilization palette and staggered, horizontally wrapped
+  projection. `evidence.minimap` links the PNG and records its turn, phase,
+  map dimensions and civilization color legend. This is an asset-free simulation
+  overview, not a screenshot of the desktop UI.
+  The default `minimap` output selection is final-only: no map arrays are written
+  to per-turn snapshots, no intermediate PNGs or HTML viewer are generated, and
+  running checkpoints have `evidence.minimap:null`. Excluding `minimap` from
+  `--snapshot-providers` disables the export; `none` does so too.
 - `report.json.events.jsonl`: events selected for persistence. Sequences are
   stable within the run but may have gaps after filtering or overflow.
 
@@ -386,6 +380,49 @@ but represents only that saved state's population, unit rosters, and AI
 decisions. Prefer a naturally advanced save over a hand-built turn-80 scenario
 when diagnosing the observed slowdown. Use a named scenario for a compact,
 controlled workload that exercises one specific path.
+
+### Research analytics
+
+The default `research` provider records each civilization's sorted
+`known_technology_ids`, `known_count`, `future_techs`, `current_technology_id`,
+`goal_technology_id`, current `progress`/`cost`, and `science_rate_percent`.
+Resolve technology IDs using the report's single `technology_catalog` (ID, name,
+era and prerequisites). Names and prerequisites are not repeated in every snapshot.
+Unset targets/goals have null IDs; progress can be negative during a science deficit.
+Barbarians and unused civilization slots are excluded from the civilization rows.
+
+`science_output` records the last actual accounting phase: its turn, gross science,
+technology upkeep and net output. It is null before the first observed accounting
+phase. An inactive civilization can retain an older output record; inspect its turn.
+This records the upkeep actually charged, rather than recalculating it after new
+technologies have changed maintenance costs.
+
+`changes` contains acquisitions and losses since the previous snapshot, with turn,
+phase, technology ID, owner, source and other owner where applicable. Sources
+include `research`, `trade` (including treaty gifts), `espionage`, `conquest`,
+`village`, `free_advance`, `first_discovery_bonus`, `civil_war`, `upkeep` and
+`transfer_loss`. Test-fixture grants without a more specific source use `unspecified`.
+A technology gained and lost within one turn retains both records. Future Tech
+completions and losses count individually and also update `future_techs`.
+
+Each civilization's `totals` records initial knowledge, cumulative acquisitions
+and losses, and counts by source. The latest state, totals and last interval are
+also under `summary.research`; read the snapshot stream for earlier intervals.
+History begins at `since_turn`, so starting or loaded technologies are baseline
+knowledge, not new discoveries. Saves and speculative clones do not carry this
+run-local history. Disabled analyzers, trace filters and event-buffer/output limits
+do not truncate research snapshots. Direct uninstrumented knowledge edits are
+marked `unobserved` and set `complete_since_start:false` rather than guessing a source.
+
+```sh
+jq '.summary.research.civilizations[] | {name, known_count, science_rate_percent, science_output, totals}' report.json
+jq -c '.research.changes[]' report.json.snapshots.jsonl
+```
+
+Run `--scenario research-history --turns 1` to exercise actual research completion,
+treaty transfer and upkeep-driven loss with four regression checks. Select
+`--snapshot-providers research` for research-only data, or exclude `research` to
+omit it and the shared catalog. The final-only `minimap` export is independent.
 
 ### Unit and city lifecycle history
 

@@ -891,6 +891,14 @@ impl Simulation {
                     .all(|&known| !known.civ3_prerequisites().unwrap_or(&[]).contains(&tech)))
             && self.rand_below(100) < settings.tech_lost_donor_percent
         {
+            self.trace.technology_changed(
+                self.turn,
+                victim,
+                tech,
+                research_observation::TechnologyAction::Lost,
+                research_observation::TechnologySource::TransferLoss,
+                Some(taker),
+            );
             if tech == Tech::FUTURE {
                 self.players[victim].future_techs -= 1;
             } else {
@@ -908,7 +916,12 @@ impl Simulation {
         // Freeciv's engine default GAME_DEFAULT_CONQUERCOST is 0 for this
         // pinned ruleset; it is not a C2C3 ruleset field.
         self.apply_research_penalty(taker, tech, 0);
-        self.discover(taker, tech);
+        self.discover_with_source(
+            taker,
+            tech,
+            research_observation::TechnologySource::Conquest,
+            Some(victim),
+        );
         if was_researching {
             let next = self.choose_research_target(taker);
             self.choose_research_tech(taker, next, free_bulbs);

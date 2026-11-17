@@ -114,12 +114,13 @@ Report schema 8 provides a compact summary and two streamed evidence sidecars:
   metrics, coverage, findings, final totals, and a compact timeline.
 - `/tmp/civcraft-simulation.json.snapshots.jsonl`: initial state and one typed
   snapshot per completed step, including selected/required city, civilization,
-  unit, and lifecycle providers. Lifecycle snapshots track units built, existing,
+  unit, lifecycle, and research providers. Research records known technologies,
+  current targets/progress/costs, science output/rates, and acquisitions/losses
+  by source. Technology IDs resolve through the report’s shared `technology_catalog`.
+  Lifecycle snapshots track units built, existing,
   destroyed, consumed or disbanded, and cities conquered, transferred or destroyed.
-- `/tmp/civcraft-simulation.json.minimap.png`: final terrain and territory minimap.
-- `/tmp/civcraft-simulation.json.minimap.html`: open locally to compare every turn
-  with a slider or playback, civilization legend and city names/populations. Keep
-  its neighboring `.minimaps/` image folder with it.
+- `/tmp/civcraft-simulation.json.minimap.png`: one final terrain and territory minimap.
+  Map arrays and intermediate images are not stored in turn history.
 - `/tmp/civcraft-simulation.json.events.jsonl`: structured events carrying turn,
   phase, sequence, participants, and domain-owned payloads.
 

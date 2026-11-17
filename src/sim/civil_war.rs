@@ -156,6 +156,25 @@ impl Simulation {
             ai: true,
         };
         self.players.push(rebel_player);
+        for tech in self.players[rebel]
+            .known
+            .iter()
+            .copied()
+            .filter(|t| t.is_civ3_advance())
+            .chain(std::iter::repeat_n(
+                Tech::FUTURE,
+                self.players[rebel].future_techs.max(0) as usize,
+            ))
+        {
+            self.trace.technology_changed(
+                self.turn,
+                rebel,
+                tech,
+                research_observation::TechnologyAction::Acquired,
+                research_observation::TechnologySource::CivilWar,
+                Some(owner),
+            );
+        }
         // daiplayer.c:dai_player_copy copies retained advisor wants during
         // player splits; they are nevertheless transient across save/load.
         let wants = self

@@ -48,6 +48,14 @@ impl Simulation {
             && self.rand_below(100) < settings.tech_lost_donor_percent
         {
             self.players[donor].known.retain(|&known| known != tech);
+            self.trace.technology_changed(
+                self.turn,
+                donor,
+                tech,
+                research_observation::TechnologyAction::Lost,
+                research_observation::TechnologySource::TransferLoss,
+                Some(receiver),
+            );
             // The treaty-transfer path calls research_tech_lost() directly;
             // only the upkeep-driven loss path clears suspended research.
             self.handle_government_tech_loss(donor, tech);
@@ -65,7 +73,12 @@ impl Simulation {
 
         let was_researching = self.players[receiver].researching == tech;
         self.apply_research_penalty(receiver, tech, settings.diplomatic_bulb_cost_percent);
-        self.discover(receiver, tech);
+        self.discover_with_source(
+            receiver,
+            tech,
+            research_observation::TechnologySource::Trade,
+            Some(donor),
+        );
         if was_researching {
             let free_bulbs = self.players[receiver].research;
             let next = self.choose_research_target(receiver);

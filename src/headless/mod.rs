@@ -23,6 +23,8 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         .map(str::to_owned)
         .collect::<std::collections::BTreeSet<_>>();
     provider_ids.extend(config.providers.iter().cloned());
+    // Minimap is a final-only export; never capture its map arrays in turn history.
+    let final_minimap = provider_ids.remove("minimap");
     let providers = analytics::providers::build(&provider_ids)?;
     let mut kinds = registry.event_kinds();
     for domain in &config.trace_domains {
@@ -43,6 +45,9 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
     if provider_ids.contains("lifecycle") {
         scenario.game.start_lifecycle_observation();
     }
+    if provider_ids.contains("research") {
+        scenario.game.start_research_observation();
+    }
     if config.profile_turns {
         scenario.game.trace.enable_profiling();
     }
@@ -50,12 +55,14 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
     let mut snapshot = analytics::providers::capture(&scenario.game, &providers, Phase::Initial);
     report.snapshot(&snapshot)?;
     scenario.game.trace.clear_lifecycle_changes();
+    scenario.game.trace.clear_research_changes();
     registry.start(&snapshot);
     let mut previous_dropped = 0;
     if scenario.has_actions() {
         scenario.game.trace.phase(Phase::ScenarioActions);
         scenario.execute_actions();
         scenario.game.reconcile_lifecycle_observation();
+        scenario.game.reconcile_research_observation();
         report.scenario(scenario.provenance.clone());
         let dropped = scenario.game.trace.dropped();
         registry.gap(dropped - previous_dropped);
@@ -68,6 +75,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
             analytics::providers::capture(&scenario.game, &providers, Phase::ScenarioActions);
         report.snapshot(&snapshot)?;
         scenario.game.trace.clear_lifecycle_changes();
+        scenario.game.trace.clear_research_changes();
         registry.boundary(&snapshot);
     }
     report.checkpoint(
@@ -96,6 +104,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         }
         game.simulate_turn();
         game.reconcile_lifecycle_observation();
+        game.reconcile_research_observation();
         report.turn_profiles(game.trace.drain_profiles());
         turns += 1;
         let dropped = game.trace.dropped();
@@ -108,6 +117,7 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         snapshot = analytics::providers::capture(game, &providers, Phase::TurnEnd);
         report.snapshot(&snapshot)?;
         game.trace.clear_lifecycle_changes();
+        game.trace.clear_research_changes();
         registry.boundary(&snapshot);
         if config.stop_on_finding != "none"
             && registry.output.findings.iter().any(|f| {
@@ -144,6 +154,9 @@ pub(crate) fn run(config: Config) -> Result<(), String> {
         reason = "game_over";
     }
     registry.finish();
+    if final_minimap {
+        report.final_minimap(snapshot.turn, snapshot.phase, &game.observe_minimap())?;
+    }
     report.checkpoint(
         &config,
         &registry,

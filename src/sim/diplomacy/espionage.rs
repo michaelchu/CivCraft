@@ -611,7 +611,12 @@ impl Simulation {
                     return true;
                 }
                 let tech = eligible[self.rand_below(eligible.len() as i32) as usize];
-                self.discover(actor, tech);
+                self.discover_with_source(
+                    actor,
+                    tech,
+                    research_observation::TechnologySource::Espionage,
+                    Some(opponent),
+                );
                 self.add_espionage_event(
                     actor,
                     opponent,

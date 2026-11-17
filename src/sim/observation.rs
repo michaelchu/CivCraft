@@ -54,11 +54,11 @@ impl Snapshot {
     pub fn units(&self) -> Option<&Vec<UnitSnapshot>> {
         self.get("units")
     }
+    pub fn research(&self) -> Option<&research_observation::ResearchSnapshot> {
+        self.get("research")
+    }
     pub fn lifecycle(&self) -> Option<&lifecycle::LifecycleSnapshot> {
         self.get("lifecycle")
-    }
-    pub fn minimap(&self) -> Option<&MinimapSnapshot> {
-        self.get("minimap")
     }
 }
 impl Serialize for Snapshot {

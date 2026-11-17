@@ -58,6 +58,7 @@ mod government;
 mod guards;
 mod headless;
 pub(crate) mod observation;
+pub(crate) mod research_observation;
 pub(crate) mod trace;
 pub(crate) use government::Government;
 mod achievements;

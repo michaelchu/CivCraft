@@ -105,7 +105,12 @@ impl Simulation {
             }
         }
         let was_researching = self.players[owner].researching == tech;
-        self.discover(owner, tech);
+        self.discover_with_source(
+            owner,
+            tech,
+            research_observation::TechnologySource::Village,
+            None,
+        );
         if was_researching && !self.players[owner].ai {
             let free = self.players[owner].research;
             let next = self.choose_research_target(owner);

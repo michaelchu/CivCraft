@@ -1,106 +1,27 @@
-//! Asset-free minimap evidence, using the desktop's staggered, horizontally wrapped projection.
-use crate::sim::{
-    observation::{MinimapCity, MinimapCivilization, MinimapSnapshot},
-    trace::Phase,
-};
+//! Asset-free final minimap, using the desktop's staggered, horizontally wrapped projection.
+use crate::sim::{observation::MinimapSnapshot, trace::Phase};
 use image::{Rgb, RgbImage};
-use serde::Serialize;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 
-#[derive(Serialize)]
-struct Frame {
+pub(super) fn write_final(
+    report: &Path,
     turn: i32,
     phase: Phase,
-    path: String,
-    cities: Vec<MinimapCity>,
-    civilizations: Vec<MinimapCivilization>,
-    owned_tiles: std::collections::BTreeMap<usize, usize>,
-}
-
-pub(super) struct MinimapReport {
-    directory: PathBuf,
-    final_path: PathBuf,
-    viewer_path: PathBuf,
-    frames: Vec<Frame>,
-}
-impl MinimapReport {
-    pub fn new(report: &Path) -> Self {
-        let filename = report.file_name().unwrap().to_string_lossy();
-        Self {
-            directory: report.with_file_name(format!("{filename}.minimaps")),
-            final_path: report.with_file_name(format!("{filename}.minimap.png")),
-            viewer_path: report.with_file_name(format!("{filename}.minimap.html")),
-            frames: Vec::new(),
-        }
-    }
-    pub fn capture(
-        &mut self,
-        turn: i32,
-        phase: Phase,
-        map: &MinimapSnapshot,
-    ) -> Result<(), String> {
-        fs::create_dir_all(&self.directory).map_err(|e| e.to_string())?;
-        let filename = format!("{:06}.png", self.frames.len());
-        render(map)?
-            .save(self.directory.join(&filename))
-            .map_err(|e| e.to_string())?;
-        let mut owned_tiles = std::collections::BTreeMap::new();
-        for owner in map.owners.iter().flatten() {
-            *owned_tiles.entry(*owner).or_default() += 1;
-        }
-        self.frames.push(Frame {
-            turn,
-            phase,
-            path: url_path(&format!(
-                "{}/{}",
-                self.directory.file_name().unwrap().to_string_lossy(),
-                filename
-            )),
-            cities: map.cities.clone(),
-            civilizations: map.civilizations.clone(),
-            owned_tiles,
-        });
-        Ok(())
-    }
-    pub fn publish(&self) -> Result<serde_json::Value, String> {
-        if self.frames.is_empty() {
-            return Ok(serde_json::Value::Null);
-        }
-        let last = self
-            .directory
-            .join(format!("{:06}.png", self.frames.len() - 1));
-        let temporary = self.final_path.with_extension("png.tmp");
-        fs::copy(last, &temporary).map_err(|e| e.to_string())?;
-        fs::rename(temporary, &self.final_path).map_err(|e| e.to_string())?;
-        let data = serde_json::to_string(&self.frames)
-            .map_err(|e| e.to_string())?
-            .replace('<', "\\u003c");
-        let html = include_str!("minimap.html").replace("__FRAMES__", &data);
-        let temporary = self.viewer_path.with_extension("html.tmp");
-        fs::write(&temporary, html).map_err(|e| e.to_string())?;
-        fs::rename(temporary, &self.viewer_path).map_err(|e| e.to_string())?;
-        Ok(serde_json::json!({
-            "format":"png", "path":self.final_path.file_name().unwrap().to_string_lossy(),
-            "viewer":self.viewer_path.file_name().unwrap().to_string_lossy(),
-            "frames":self.frames.len(), "turn":self.frames.last().unwrap().turn,
-            "lookup":"Open viewer locally to scrub every snapshot. Full map without fog of war; terrain tinted by current owner, outlined city markers. PNG is the latest captured state; a running checkpoint is not the final turn."
-        }))
-    }
-}
-
-fn url_path(path: &str) -> String {
-    path.bytes()
-        .map(|b| {
-            if b.is_ascii_alphanumeric() || b"-._/".contains(&b) {
-                (b as char).to_string()
-            } else {
-                format!("%{b:02X}")
-            }
-        })
-        .collect()
+    map: &MinimapSnapshot,
+) -> Result<serde_json::Value, String> {
+    let filename = report.file_name().unwrap().to_string_lossy();
+    let path = report.with_file_name(format!("{filename}.minimap.png"));
+    let temporary = path.with_extension("png.tmp");
+    render(map)?
+        .save_with_format(&temporary, image::ImageFormat::Png)
+        .map_err(|e| e.to_string())?;
+    fs::rename(temporary, &path).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "format":"png", "path":path.file_name().unwrap().to_string_lossy(),
+        "turn":turn, "phase":phase, "width":map.width, "height":map.height,
+        "civilizations":map.civilizations,
+        "lookup":"Final state only. Full map without fog of war; terrain tinted by current owner, outlined city markers. Colors are listed in civilizations. No per-turn minimap history is recorded."
+    }))
 }
 
 fn render(map: &MinimapSnapshot) -> Result<RgbImage, String> {
@@ -176,6 +97,7 @@ fn render(map: &MinimapSnapshot) -> Result<RgbImage, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sim::observation::MinimapCity;
     #[test]
     fn staggered_rows_wrap_and_city_markers_wrap_without_changing_snapshot() {
         let mut map = MinimapSnapshot {

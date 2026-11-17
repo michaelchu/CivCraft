@@ -33,6 +33,15 @@ impl SnapshotProvider for Units {
         snapshot.insert(self.id(), game.observe_units());
     }
 }
+struct Research;
+impl SnapshotProvider for Research {
+    fn id(&self) -> &'static str {
+        "research"
+    }
+    fn capture(&self, game: &Simulation, snapshot: &mut Snapshot) {
+        snapshot.insert(self.id(), game.observe_research());
+    }
+}
 struct Territory;
 struct Minimap;
 impl SnapshotProvider for Minimap {
@@ -66,6 +75,7 @@ pub(crate) const IDS: &[&str] = &[
     "territory",
     "units",
     "lifecycle",
+    "research",
     "minimap",
 ];
 pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvider>>, String> {
@@ -77,6 +87,7 @@ pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvid
                 "units" => Box::new(Units),
                 "territory" => Box::new(Territory),
                 "lifecycle" => Box::new(Lifecycle),
+                "research" => Box::new(Research),
                 "minimap" => Box::new(Minimap),
                 _ => return Err(format!("unknown snapshot provider {id}")),
             })
