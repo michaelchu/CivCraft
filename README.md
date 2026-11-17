@@ -116,6 +116,10 @@ Report schema 8 provides a compact summary and two streamed evidence sidecars:
   snapshot per completed step, including selected/required city, civilization,
   unit, and lifecycle providers. Lifecycle snapshots track units built, existing,
   destroyed, consumed or disbanded, and cities conquered, transferred or destroyed.
+- `/tmp/civcraft-simulation.json.minimap.png`: final terrain and territory minimap.
+- `/tmp/civcraft-simulation.json.minimap.html`: open locally to compare every turn
+  with a slider or playback, civilization legend and city names/populations. Keep
+  its neighboring `.minimaps/` image folder with it.
 - `/tmp/civcraft-simulation.json.events.jsonl`: structured events carrying turn,
   phase, sequence, participants, and domain-owned payloads.
 

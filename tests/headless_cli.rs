@@ -178,6 +178,80 @@ fn lifecycle_snapshots_survive_disabled_event_output() {
 }
 
 #[test]
+fn minimap_images_and_local_history_viewer_follow_snapshot_boundaries() {
+    let directory = report_directory("minimap with spaces");
+    let report = directory.join("review #1.json");
+    headless()
+        .args([
+            "--turns",
+            "2",
+            "--analytics",
+            "none",
+            "--trace-domains",
+            "none",
+            "--snapshot-providers",
+            "minimap",
+            "--report",
+        ])
+        .arg(&report)
+        .assert()
+        .success();
+    let output = read_report(&report);
+    let evidence = &output["evidence"]["minimap"];
+    assert_eq!(evidence["frames"], 3);
+    assert_eq!(evidence["turn"], output["run"]["final_turn"]);
+    let image = image::open(directory.join(evidence["path"].as_str().unwrap())).unwrap();
+    let snapshots = std::fs::read_to_string(
+        directory.join(output["evidence"]["snapshots"]["path"].as_str().unwrap()),
+    )
+    .unwrap();
+    let snapshots: Vec<serde_json::Value> = snapshots
+        .lines()
+        .map(|s| serde_json::from_str(s).unwrap())
+        .collect();
+    let map = &snapshots.last().unwrap()["minimap"];
+    let width = map["width"].as_u64().unwrap();
+    let height = map["height"].as_u64().unwrap();
+    assert_eq!(
+        image.width() as u64 * height,
+        image.height() as u64 * width * 2
+    );
+    assert_eq!(
+        map["terrain"].as_array().unwrap().len() as u64,
+        width * height
+    );
+    let viewer =
+        std::fs::read_to_string(directory.join(evidence["viewer"].as_str().unwrap())).unwrap();
+    assert!(viewer.contains("review%20%231.json.minimaps/000002.png"));
+    assert!(!viewer.contains("__FRAMES__"));
+    let frames = directory.join("review #1.json.minimaps");
+    assert_eq!(std::fs::read_dir(&frames).unwrap().count(), 3);
+    assert_eq!(
+        std::fs::read(directory.join(evidence["path"].as_str().unwrap())).unwrap(),
+        std::fs::read(frames.join("000002.png")).unwrap()
+    );
+    let disabled = directory.join("disabled.json");
+    headless()
+        .args([
+            "--turns",
+            "1",
+            "--analytics",
+            "none",
+            "--trace-domains",
+            "none",
+            "--snapshot-providers",
+            "none",
+            "--report",
+        ])
+        .arg(&disabled)
+        .assert()
+        .success();
+    assert!(read_report(&disabled)["evidence"]["minimap"].is_null());
+    assert!(!directory.join("disabled.json.minimaps").exists());
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn world_options_validate_against_the_generator_and_report_the_effective_inputs() {
     let message = headless()
         .args(["--ocean-coverage", "60"])

@@ -34,6 +34,15 @@ impl SnapshotProvider for Units {
     }
 }
 struct Territory;
+struct Minimap;
+impl SnapshotProvider for Minimap {
+    fn id(&self) -> &'static str {
+        "minimap"
+    }
+    fn capture(&self, game: &Simulation, snapshot: &mut Snapshot) {
+        snapshot.insert(self.id(), game.observe_minimap());
+    }
+}
 struct Lifecycle;
 impl SnapshotProvider for Lifecycle {
     fn id(&self) -> &'static str {
@@ -51,7 +60,14 @@ impl SnapshotProvider for Territory {
         snapshot.insert(self.id(), game.observe_territory());
     }
 }
-pub(crate) const IDS: &[&str] = &["cities", "civilizations", "territory", "units", "lifecycle"];
+pub(crate) const IDS: &[&str] = &[
+    "cities",
+    "civilizations",
+    "territory",
+    "units",
+    "lifecycle",
+    "minimap",
+];
 pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvider>>, String> {
     ids.iter()
         .map(|id| -> Result<Box<dyn SnapshotProvider>, String> {
@@ -61,6 +77,7 @@ pub(crate) fn build(ids: &BTreeSet<String>) -> Result<Vec<Box<dyn SnapshotProvid
                 "units" => Box::new(Units),
                 "territory" => Box::new(Territory),
                 "lifecycle" => Box::new(Lifecycle),
+                "minimap" => Box::new(Minimap),
                 _ => return Err(format!("unknown snapshot provider {id}")),
             })
         })

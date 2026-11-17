@@ -32,6 +32,7 @@ pub(crate) struct Report {
     timeline: Vec<Value>,
     scenario: Provenance,
     turn_profiles: Vec<TurnProfile>,
+    minimaps: super::minimap::MinimapReport,
 }
 impl Report {
     pub fn new(path: &str, scenario: Provenance) -> Result<Self, String> {
@@ -57,6 +58,7 @@ impl Report {
         Ok(Self {
             snapshots: BufWriter::new(File::create(&snapshot_path).map_err(|e| e.to_string())?),
             events: BufWriter::new(File::create(&event_path).map_err(|e| e.to_string())?),
+            minimaps: super::minimap::MinimapReport::new(&path),
             path,
             snapshot_path,
             event_path,
@@ -73,6 +75,9 @@ impl Report {
         })
     }
     pub fn snapshot(&mut self, snapshot: &Snapshot) -> Result<(), String> {
+        if let Some(map) = snapshot.minimap() {
+            self.minimaps.capture(snapshot.turn, snapshot.phase, map)?;
+        }
         serde_json::to_writer(&mut self.snapshots, snapshot).map_err(|e| e.to_string())?;
         self.snapshots.write_all(b"\n").map_err(|e| e.to_string())?;
         self.snapshot_records += 1;
@@ -119,6 +124,7 @@ impl Report {
     ) -> Result<(), String> {
         self.snapshots.flush().map_err(|e| e.to_string())?;
         self.events.flush().map_err(|e| e.to_string())?;
+        let minimap = self.minimaps.publish()?;
         let mut civilizations =
             serde_json::to_value(last.civilizations()).map_err(|e| e.to_string())?;
         if let Some(players) = civilizations.as_array_mut() {
@@ -175,6 +181,7 @@ impl Report {
                 "snapshots":{"format":"jsonl","path":self.snapshot_path.file_name().unwrap().to_string_lossy(),"records":self.snapshot_records,"lookup":"Select by turn; initial snapshot is before the first step. Entity IDs identify cities, civilizations, and units."},
                 "events":{"format":"jsonl","path":self.event_path.file_name().unwrap().to_string_lossy(),"records":self.event_records,"bytes":self.event_bytes,"lookup":"Select by sequence. Event turn and phase identify when the action occurred, not the next turn's snapshot."},
                 "lifecycle":{"enabled":last.lifecycle().is_some(),"lookup":"Read lifecycle.changes across snapshot records for unit and city histories. Totals start at lifecycle.since_turn; they do not reconstruct earlier campaign history."},
+                "minimap":minimap,
                 "finding_semantics":"First/last observed turns do not imply continuous failure. Explicit recovery closes an episode; recurrence creates a new ID. Unavailable references are marked available:false."
             }
         });

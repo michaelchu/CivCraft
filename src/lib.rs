@@ -4,6 +4,7 @@ mod analytics;
 mod client;
 mod desktop;
 mod headless;
+mod map_palette;
 mod mapgen;
 mod random;
 mod rules;

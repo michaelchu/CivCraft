@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CivCraft minimap history</title>
+<style>
+body{background:#101923;color:#e4edf4;font:16px system-ui;margin:0;padding:28px;max-width:1200px;margin:auto}h1{font-size:24px;margin:0 0 8px}p{color:#aebdcc}img{width:100%;image-rendering:pixelated;background:#0c3166;border:1px solid #536579}nav{display:flex;align-items:center;gap:16px;margin:20px 0}input{flex:1;min-width:80px}button,a{color:#d9ecff}button{background:#263b50;border:1px solid #7890a8;border-radius:4px;padding:8px 12px}#legend{display:flex;flex-wrap:wrap;gap:12px;margin:18px 0}.civ{background:#1b2a38;padding:10px;border-radius:5px}.swatch{display:inline-block;width:12px;height:12px;margin-right:8px;border:1px solid #fff8}#cities{white-space:pre-wrap;line-height:1.8}output{min-width:210px}a{white-space:nowrap}
+</style>
+<h1>CivCraft minimap history</h1>
+<p>Full map without fog of war. Terrain is tinted by current territory owner; outlined squares mark cities. The map wraps horizontally. Choose a snapshot to compare settlement, expansion and conquest.</p>
+<nav><button id="play" type="button">Play</button><input id="turn" aria-label="Snapshot" type="range" min="0" value="0"><output id="label"></output></nav>
+<img id="map" alt="Terrain, civilization territory and cities for the selected snapshot">
+<p><a id="download">Open selected PNG</a></p><div id="legend"></div>
+<details><summary>City names and populations</summary><div id="cities"></div></details>
+<script>
+'use strict';
+const frames=__FRAMES__;
+const slider=document.getElementById('turn'), image=document.getElementById('map'), label=document.getElementById('label'), legend=document.getElementById('legend'), cities=document.getElementById('cities'), play=document.getElementById('play'), download=document.getElementById('download');
+slider.max=frames.length-1; slider.value=slider.max;
+function show(){const frame=frames[Number(slider.value)];image.src=frame.path;download.href=frame.path;label.textContent=`Turn ${frame.turn} · ${frame.phase} · ${frame.cities.length} cities`;legend.replaceChildren();for(const civ of frame.civilizations){const count=frame.cities.filter(c=>c.owner===civ.id).length, tiles=frame.owned_tiles[civ.id]||0;if(!civ.alive&&!count&&!tiles)continue;const box=document.createElement('div'),swatch=document.createElement('span');box.className='civ';swatch.className='swatch';swatch.style.backgroundColor=`rgb(${civ.color.join(',')})`;box.append(swatch,document.createTextNode(`${civ.name} · ${count} cities · ${tiles} tiles`));legend.append(box);}cities.textContent=frame.cities.map(c=>`${c.name} · size ${c.population} · ${frame.civilizations.find(p=>p.id===c.owner)?.name||c.owner} · (${c.x}, ${c.y})`).join('\n');}
+let timer=null;function stop(){clearInterval(timer);timer=null;play.textContent='Play';}slider.addEventListener('input',()=>{stop();show();});play.addEventListener('click',()=>{if(timer){stop();return;}if(Number(slider.value)===frames.length-1)slider.value=0;show();play.textContent='Pause';timer=setInterval(()=>{if(Number(slider.value)>=frames.length-1){stop();return;}slider.value=Number(slider.value)+1;show();},350);});show();
+</script></html>

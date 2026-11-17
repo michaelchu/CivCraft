@@ -286,8 +286,8 @@ cargo run --offline --release --bin headless_sim -- \
   listed participant matches. Filters apply to persisted events, not snapshots
   or analyzer inputs. Arbitrary domain names allow newly instrumented modules;
   an unmatched name produces no events from that domain.
-- `--snapshot-providers cities,civilizations,units,lifecycle` selects output providers
-  (these four are the default; `territory` is also available);
+- `--snapshot-providers cities,civilizations,units,lifecycle,minimap` selects output providers
+  (these five are the default; `territory` is also available);
   `none` records just the envelope plus analyzer-required data.
 - The `territory` provider records map dimensions, row-major tile ownership,
   and a land mask so unowned land can be distinguished from water. City
@@ -336,7 +336,23 @@ I/O errors fail the runner rather than silently continuing without evidence.
 Sidecars:
 
 - `report.json.snapshots.jsonl`: initial snapshot plus one per completed step.
-  `cities`, `civilizations`, `units`, and `lifecycle` are independent provider sections.
+  `cities`, `civilizations`, `units`, `lifecycle`, and `minimap` are independent provider sections.
+- `report.json.minimap.png`: the latest captured minimap, final when the run completes.
+- `report.json.minimap.html` and `report.json.minimaps/`: local viewer and PNG frames
+  for every snapshot, including initial state and scenario-action boundaries.
+  Open the HTML file locally; use the slider or Play to compare development over time.
+  Keep the image folder next to the viewer when sharing it. No server is required.
+
+The default `minimap` provider records row-major terrain RGB, ownership, map size,
+city IDs/names/locations/populations, and civilization names/colors. Images show
+the full map without fog of war, using the in-game terrain/civilization palette
+and staggered, horizontally wrapped minimap projection. Territory tints the terrain;
+white outlined markers show current cities. The viewer lists city populations and
+owned tile counts (including water) per civilization at the selected snapshot.
+Images and the viewer are linked under `evidence.minimap`; checkpoint images show
+the latest completed snapshot, not a prediction of the final run. Excluding
+`minimap` from `--snapshot-providers` disables image generation; `none` does so too.
+This is an asset-free simulation overview, not a screenshot of the desktop UI.
 - `report.json.events.jsonl`: events selected for persistence. Sequences are
   stable within the run but may have gaps after filtering or overflow.
 
