@@ -2695,7 +2695,9 @@ mod tests {
         assert!(
             by_role["unit-berserk-attack-2"]
                 .path
-                .starts_with(&shared_directory)
+                // The resolver returns canonical paths; macOS temp directories
+                // may be reached through symlinks such as /var -> /private/var.
+                .starts_with(shared_directory.canonicalize().unwrap())
         );
         assert!(by_role["unit-berserk-attack-2"].path.is_file());
         assert!(sounds["ATTACK1"].path.ends_with("Attack.wav"));
