@@ -976,3 +976,45 @@ fn ai_fallback_is_coinage_when_nothing_else_is_buildable() {
     );
     assert!(game.can_produce(&city, Production::Building(Building::COINAGE)));
 }
+
+#[test]
+fn leader_can_never_be_produced_or_queued() {
+    for civilization in crate::rules::civilizations::all() {
+        let mut game = Simulation::new(crate::test_support::seeded_map());
+        game.units.clear();
+        game.cities.clear();
+        game.players[1].name = civilization.name.clone();
+        game.players[1].known = Tech::all().collect();
+        game.create_city(1, 20, 24);
+        let city = game.cities[0].clone();
+        assert!(
+            !game.can_produce(&city, Production::Unit(UnitKind::Leader)),
+            "{} must not be able to build a Leader",
+            civilization.name
+        );
+        let view = game.city_manager_view(city.id).unwrap();
+        let leader = view
+            .units
+            .iter()
+            .find(|unit| unit.kind == UnitKind::Leader)
+            .expect("the city screen lists every native unit");
+        assert!(
+            !leader.available,
+            "{} sees a buildable Leader",
+            civilization.name
+        );
+        assert!(
+            !leader.can_queue,
+            "{} can queue a Leader",
+            civilization.name
+        );
+    }
+}
+
+#[test]
+fn leader_is_not_capturable() {
+    assert_eq!(
+        crate::sim::action_rules::freeciv_unit_type_flag(UnitKind::Leader, "Capturable"),
+        Some(false)
+    );
+}

@@ -172,7 +172,10 @@ impl UnitRule {
         );
         set_flag(
             F::NoBuild,
-            self.available_to.is_empty() || self.category == "wonder_created",
+            // A Leader is a Great Leader: it only ever comes from combat.
+            self.available_to.is_empty()
+                || self.category == "wonder_created"
+                || self.id == "leader",
         );
         set_flag(F::Unique, self.category == "unique");
         set_flag(F::Cities, self.has_capability("FoundCity"));
@@ -197,7 +200,7 @@ impl UnitRule {
         set_flag(F::Capturer, self.attack > 0);
         set_flag(
             F::Capturable,
-            self.attack == 0 && self.defense == 0 && class != C::Missile,
+            self.attack == 0 && self.defense == 0 && class != C::Missile && self.id != "leader",
         );
         set_flag(F::GameLoss, self.has_capability("GameLoss"));
         set_flag(F::AirAttacker, self.has_capability("AttackAir"));

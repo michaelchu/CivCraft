@@ -1886,3 +1886,37 @@ mod transport_tests {
         assert!(!game.apply(Command::move_civ3_by_offset(&game, cargo, 1, 0)));
     }
 }
+
+#[test]
+fn enemy_entering_a_lone_leader_destroys_it() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    prepare_zoc_test_map(&mut game);
+    let start = (10, 20);
+    let target = game.map_wrap.civ3_neighbor(start.0, start.1, 2).unwrap();
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Cavalry, start.0, start.1);
+    game.spawn_unit(1, UnitKind::Leader, target.0, target.1);
+    game.sign_pact(HUMAN, 1, Pact::War);
+
+    assert!(game.apply(Command::MoveCiv3(attacker, 2)));
+
+    assert!(
+        game.units.iter().all(|unit| unit.kind != UnitKind::Leader),
+        "a Leader is destroyed, never captured"
+    );
+}
+
+#[test]
+fn leader_cannot_be_captured_by_enemy_units() {
+    let mut game = Simulation::new(crate::test_support::seeded_map());
+    game.units.clear();
+    game.cities.clear();
+    let (nx, ny) = game.map_wrap.offset(10, 24, 1, 0).unwrap();
+    game.tile_mut(10, 24).terrain = Terrain::Grassland;
+    game.tile_mut(nx, ny).terrain = Terrain::Grassland;
+    game.sign_pact(HUMAN, 1, Pact::War);
+    let attacker = game.spawn_unit(HUMAN, UnitKind::Warrior, 10, 24);
+    let leader = game.spawn_unit(1, UnitKind::Leader, nx, ny);
+
+    assert!(!game.apply(Command::CaptureUnits(attacker, nx, ny)));
+    assert_eq!(game.unit_by_id(leader).unwrap().owner, 1);
+}
