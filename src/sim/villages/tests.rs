@@ -65,6 +65,12 @@ fn entering_a_village_resolves_every_reference_roll_once() {
                 let (nx, ny) = offset_native_by_map(x, y, 5, 0);
                 let tile = game.tile(nx, ny);
                 assert!(tile.seen && tile.known_by[HUMAN] && !tile.visible);
+                let rendered = game.render_tile_view(nx, ny);
+                assert!(rendered.seen && !rendered.visible);
+                assert_eq!(
+                    game.observed_route_tile(nx, ny).unwrap().terrain,
+                    rendered.terrain
+                );
             }
         }
         let events = game.events.clone();

@@ -2,15 +2,12 @@
 
 use super::*;
 
-pub(super) fn cache_known_ai_tiles(sim: &mut Simulation, owner: usize) {
-    let observations: Vec<_> = sim
-        .tiles
-        .iter()
-        .enumerate()
-        .filter(|(_, tile)| tile.known_by[owner])
-        .map(|(index, _)| ((owner, index), sim.live_map_observation(index)))
-        .collect();
-    sim.ai_map_memory.extend(observations);
+pub(super) fn capture_known_tiles(sim: &mut Simulation, owner: usize) {
+    let mut observed = vec![vec![false; sim.tiles.len()]; owner + 1];
+    for (index, tile) in sim.tiles.iter().enumerate() {
+        observed[owner][index] = tile.known_by[owner];
+    }
+    sim.remember_render_map(&observed);
 }
 
 pub(super) fn give_unit_full_movement(sim: &mut Simulation, id: u32, kind: UnitKind) {
@@ -47,7 +44,7 @@ impl Simulation {
         let para = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
         give_unit_full_movement(self, para, UnitKind::Paratrooper);
         self.refresh_visibility();
-        cache_known_ai_tiles(self, 1);
+        capture_known_tiles(self, 1);
         self.run_ai_player(1);
         // Freeciv first lands in the threatened empty city, then ramps again
         // after the drop; the paratrooper may leave the city to kill the
@@ -73,7 +70,7 @@ impl Simulation {
         let raider = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
         give_unit_full_movement(self, raider, UnitKind::Paratrooper);
         self.refresh_visibility();
-        cache_known_ai_tiles(self, 1);
+        capture_known_tiles(self, 1);
         let raider_unit = self.units.last().unwrap().clone();
         self.run_ai_paratrooper(&raider_unit);
         let refused = self
@@ -86,7 +83,7 @@ impl Simulation {
         let raider = self.spawn_unit(1, UnitKind::Paratrooper, home.0, home.1);
         give_unit_full_movement(self, raider, UnitKind::Paratrooper);
         self.refresh_visibility();
-        cache_known_ai_tiles(self, 1);
+        capture_known_tiles(self, 1);
         let raider_unit = self.unit_by_id(raider).unwrap().clone();
         let captured = self.run_ai_paratrooper(&raider_unit)
             && self

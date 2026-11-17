@@ -1,7 +1,7 @@
 //! Current campaign persistence, input validation, and runtime restoration.
 //!
 //! Saves encode the durable part of [`Simulation`] with the current versioned
-//! binary format. The previous 0x26 and 0x27 formats are read and upgraded on save.
+//! binary format. Formats 0x26 through 0x28 are read and upgraded on save.
 //!
 //! When adding persistent fields, decide whether they belong in the save,
 //! update the round-trip and corruption checks. Runtime caches should remain excluded when
@@ -10,6 +10,7 @@
 use super::*;
 use bincode::Options;
 use std::{
+    borrow::Cow,
     fs::{self, OpenOptions},
     io::{self, Read, Write},
     path::Path,
@@ -17,9 +18,10 @@ use std::{
 };
 
 mod schema;
-use schema::{LegacyCampaign, SavedCampaign};
+use schema::{LegacyAiMap, LegacyCampaign, SavedCampaign};
 
-const HEADER: &[u8] = b"CIVCRAFT\0\x28";
+const HEADER: &[u8] = b"CIVCRAFT\0\x29";
+const V28_HEADER: &[u8] = b"CIVCRAFT\0\x28";
 const PACKED_LEGACY_HEADER: &[u8] = b"CIVCRAFT\0\x27";
 const LEGACY_HEADER: &[u8] = b"CIVCRAFT\0\x26";
 const LEGACY_MAX_PAYLOAD: u64 = 16 * 1024 * 1024;
@@ -62,7 +64,11 @@ impl Simulation {
 
     pub(in crate::sim) fn encode_campaign(&self) -> io::Result<Vec<u8>> {
         codec(MAX_PAYLOAD)
-            .serialize(&SavedCampaign::from_game(self))
+            .serialize(&SavedCampaign::from_game(
+                self,
+                (),
+                Cow::Borrowed(&self.observed_map.partial_sites),
+            ))
             .map_err(io::Error::other)
     }
 
@@ -71,7 +77,7 @@ impl Simulation {
         let mut header = [0; HEADER.len()];
         file.read_exact(&mut header)?;
         let max_payload = match header.as_slice() {
-            HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
+            HEADER | V28_HEADER | PACKED_LEGACY_HEADER => MAX_PAYLOAD,
             LEGACY_HEADER => LEGACY_MAX_PAYLOAD,
             _ => return Err(invalid("Unsupported CivCraft save format")),
         };
@@ -80,7 +86,7 @@ impl Simulation {
         if payload.len() as u64 > max_payload {
             return Err(invalid("CivCraft save exceeds the size limit"));
         }
-        let (mut game, routes) = match header.as_slice() {
+        let (mut game, routes, legacy_ai_map, partial_sites) = match header.as_slice() {
             LEGACY_HEADER => {
                 let (legacy, duplicate_wrap): (LegacyCampaign<'_>, MapWrap) = codec(max_payload)
                     .deserialize(&payload)
@@ -88,24 +94,43 @@ impl Simulation {
                 if legacy.topology() != duplicate_wrap {
                     return Err(invalid("Conflicting legacy map dimensions"));
                 }
-                let (game, routes) = legacy.into_game();
-                (game, Some(routes))
+                let (game, routes, legacy_ai_map) = legacy.into_game();
+                (game, Some(routes), legacy_ai_map, Default::default())
             }
             PACKED_LEGACY_HEADER => {
                 let legacy: LegacyCampaign<'_> = codec(max_payload)
                     .deserialize(&payload)
                     .map_err(|error| invalid(error.to_string()))?;
-                let (game, routes) = legacy.into_game();
-                (game, Some(routes))
+                let (game, routes, legacy_ai_map) = legacy.into_game();
+                (game, Some(routes), legacy_ai_map, Default::default())
             }
-            _ => {
-                let saved: SavedCampaign<'_> = codec(max_payload)
+            V28_HEADER => {
+                let saved: SavedCampaign<'_, LegacyAiMap, ()> = codec(max_payload)
                     .deserialize(&payload)
                     .map_err(|error| invalid(error.to_string()))?;
-                (saved.into_game(), None)
+                let (game, legacy_ai_map, ()) = saved.into_game();
+                (game, None, legacy_ai_map, Default::default())
+            }
+            _ => {
+                let saved: SavedCampaign<'_, (), observed_map::PartialCitySites> =
+                    codec(max_payload)
+                        .deserialize(&payload)
+                        .map_err(|error| invalid(error.to_string()))?;
+                let (game, (), partial_sites) = saved.into_game();
+                (game, None, LegacyAiMap::default(), partial_sites)
             }
         };
         game.validate_campaign()?;
+        if !game.valid_render_memory() {
+            return Err(invalid("Invalid observed rendering map"));
+        }
+        game.rebuild_observed_city_index();
+        if partial_sites.iter().any(|(&(observer, index), &owner)| {
+            owner >= game.players.len() || !game.observed_map.tiles.contains_key(&(observer, index))
+        }) {
+            return Err(invalid("Invalid remembered city site"));
+        }
+        game.observed_map.partial_sites = partial_sites;
         if let Some(routes) = routes {
             if routes.len() != game.tiles.len()
                 || routes.iter().flatten().any(|tile| {
@@ -129,7 +154,7 @@ impl Simulation {
         }) {
             return Err(invalid("Invalid city founder"));
         }
-        if game.ai_map_memory.iter().any(|(&(owner, index), tile)| {
+        if legacy_ai_map.0.iter().any(|(&(owner, index), tile)| {
             owner == HUMAN
                 || owner == BARBARIANS
                 || owner >= game.players.len()
@@ -141,6 +166,11 @@ impl Simulation {
                     .is_some_and(|owner| owner >= game.players.len())
         }) {
             return Err(invalid("Invalid AI map observation"));
+        }
+        for ((observer, index), tile) in legacy_ai_map.0 {
+            if game.tiles[index].known_by[observer] {
+                game.import_partial_tile(observer, index, tile.route, tile.owner);
+            }
         }
         if game.ai_war_plans.keys().any(|&(owner, rival)| {
             owner >= game.players.len()
@@ -262,9 +292,6 @@ impl Simulation {
         // unless activity is ACTIVITY_GOTO. This engine has no queued native
         // GOTO activity; task destinations are reconstructed by the advisors.
         game.unit_goto_tiles.clear();
-        if !game.valid_render_memory() {
-            return Err(invalid("Invalid observed rendering map"));
-        }
         game.rebuild_observed_city_index();
         game.refresh_diplomatic_intelligence();
         Ok(game)

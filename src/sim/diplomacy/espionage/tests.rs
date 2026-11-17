@@ -210,3 +210,43 @@ fn failed_plant_lockout_decays_once_per_turn_and_embassies_reopen_after_peace() 
         "the retry marker should have a one-third chance to clear each turn"
     );
 }
+
+#[test]
+fn stolen_world_map_provides_the_rivals_last_seen_tile() {
+    let mut game = espionage_game();
+    set_embassy(&mut game, HUMAN, 1);
+    let (x, y) = (28, 32);
+    let scout = game.spawn_unit(1, UnitKind::Explorer, x, y);
+    game.tile_mut(x, y).terrain = Terrain::Grassland;
+    game.refresh_visibility();
+    game.units.retain(|unit| unit.id != scout);
+    game.tile_mut(x, y).terrain = Terrain::Ocean;
+    game.refresh_visibility();
+    assert!(!game.tile(x, y).known_by[HUMAN]);
+    assert_eq!(
+        game.remembered_tile(1, x, y).unwrap().terrain,
+        Terrain::Grassland
+    );
+    let outcome = (1..=256)
+        .find_map(|seed| {
+            let mut candidate = game.clone();
+            candidate.set_random_seed(seed);
+            candidate.perform_espionage(
+                1,
+                EspionageMission::StealWorldMap,
+                None,
+                EspionageRisk::Safely,
+            );
+            candidate
+                .events
+                .iter()
+                .any(|msg| msg.contains("stole") && msg.contains("world map"))
+                .then_some(candidate)
+        })
+        .expect("at least one mission succeeded");
+    assert!(outcome.tile(x, y).known_by[HUMAN]);
+    assert_eq!(
+        outcome.human_known_tile(x, y).map(|tile| tile.terrain),
+        Some(Terrain::Grassland)
+    );
+}

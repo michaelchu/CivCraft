@@ -103,23 +103,23 @@ impl Government {
     }
 
     pub(crate) fn max_rate(self) -> i32 {
-        self.ruleset_effect_value(EffectKind::MaxRates)
-            .expect("selected government has a native Max_Rates value") as i32
+        self.base_effect(EffectKind::MaxRates)
     }
 
     pub(super) fn empire_size(self) -> i32 {
-        self.ruleset_effect_value(EffectKind::EmpireSizeBase)
-            .expect("selected government has a native Empire_Size_Base value") as i32
+        self.base_effect(EffectKind::EmpireSizeBase)
     }
 
-    pub(crate) fn ruleset_effect_value(self, kind: EffectKind) -> Option<i64> {
-        let record = self.native_record()?;
-        Some(match kind {
-            EffectKind::CivilWarChance => record.civil_war_chance.into(),
-            EffectKind::EmpireSizeBase => record.empire_size_base.into(),
-            EffectKind::MaxRates => record.max_rates.into(),
-            _ => return None,
-        })
+    pub(super) fn civil_war_chance(self) -> i32 {
+        self.base_effect(EffectKind::CivilWarChance)
+    }
+
+    fn base_effect(self, kind: EffectKind) -> i32 {
+        let name = self
+            .rule_name()
+            .expect("campaign government has a ruleset identity");
+        i32::try_from(RulesetData::campaign_default().government_base_effect(name, kind))
+            .expect("government base effect fits i32")
     }
 
     pub(crate) fn has_flag(self, flag: &str) -> bool {

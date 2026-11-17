@@ -1,7 +1,6 @@
 //! Engine technology names mapped to native, compiled technology identities.
 
 use crate::rules::Tech;
-use crate::rules::engine_rules::RulesetData;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum FreecivTechBinding {
@@ -20,18 +19,11 @@ impl std::fmt::Display for ContentBindingError {
 
 impl std::error::Error for ContentBindingError {}
 
-/// Resolve a Freeciv technology universal through the selected ruleset and
-/// the explicit Civ III source catalog. Missing source counterparts are only
-/// accepted for the documented Freeciv-only `Plastics` advance and for the
-/// derived C2C3 Radio-to-Flight airfield mapping.
+/// Resolve a Freeciv technology universal to a native campaign identity.
+/// Plastics has no counterpart. Radio maps to Flight for the C2C3 airfield rules.
 pub(crate) fn bind_freeciv_technology(
-    _ruleset: &RulesetData,
     freeciv_name: &str,
 ) -> Result<FreecivTechBinding, ContentBindingError> {
-    // Requirements are resolved against the Civ III catalog directly.  The
-    // selected Freeciv tech record used to be the lookup table here, which
-    // made a ruleset content record authoritative even after the native
-    // catalog had become the campaign source of truth.
     let display_name = freeciv_name;
     if display_name.eq_ignore_ascii_case("Plastics") {
         return Ok(FreecivTechBinding::MissingFromCiv3Catalog);
@@ -104,48 +96,44 @@ pub(crate) fn bind_freeciv_technology(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn calendar_technology_effects_use_explicit_civ3_bindings() {
-        let data_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/rulesets");
-        let rules = RulesetData::load_civcraft(&data_root).unwrap();
-
         assert_eq!(
-            bind_freeciv_technology(&rules, "Space Flight"),
+            bind_freeciv_technology("Space Flight"),
             Ok(FreecivTechBinding::Bound(Tech::SPACE_FLIGHT))
         );
         assert_eq!(
-            bind_freeciv_technology(&rules, "Superconductors"),
+            bind_freeciv_technology("Superconductors"),
             Ok(FreecivTechBinding::Bound(Tech::SUPERCONDUCTORS))
         );
         assert_eq!(
-            bind_freeciv_technology(&rules, "Nuclear Fission"),
+            bind_freeciv_technology("Nuclear Fission"),
             Ok(FreecivTechBinding::Bound(Tech::FISSION))
         );
         assert_eq!(
-            bind_freeciv_technology(&rules, "Conscription"),
+            bind_freeciv_technology("Conscription"),
             Ok(FreecivTechBinding::Bound(Tech::NATIONALISM))
         );
         assert_eq!(
-            bind_freeciv_technology(&rules, "Radio"),
+            bind_freeciv_technology("Radio"),
             Ok(FreecivTechBinding::Bound(Tech::FLIGHT))
         );
         assert!(!Tech::RADIO.is_civ3_advance());
         assert_eq!(
-            bind_freeciv_technology(&rules, "Environmentalism"),
+            bind_freeciv_technology("Environmentalism"),
             Ok(FreecivTechBinding::Bound(Tech::ECOLOGY))
         );
         assert_eq!(
-            bind_freeciv_technology(&rules, "Laser"),
+            bind_freeciv_technology("Laser"),
             Ok(FreecivTechBinding::Bound(Tech::THE_LASER))
         );
         assert_eq!(
-            bind_freeciv_technology(&rules, "Mobile Warfare"),
+            bind_freeciv_technology("Mobile Warfare"),
             Ok(FreecivTechBinding::Bound(Tech::MOTORIZED_TRANSPORTATION))
         );
         assert_eq!(
-            bind_freeciv_technology(&rules, "Plastics"),
+            bind_freeciv_technology("Plastics"),
             Ok(FreecivTechBinding::MissingFromCiv3Catalog)
         );
     }

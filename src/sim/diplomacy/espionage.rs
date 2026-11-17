@@ -623,11 +623,7 @@ impl Simulation {
                 );
             }
             EspionageMission::StealWorldMap => {
-                for tile in &mut self.tiles {
-                    if tile.known_by[opponent] {
-                        tile.known_by[actor] = true;
-                    }
-                }
+                self.transfer_treaty_map(opponent, actor, TreatyMap::World);
                 self.refresh_visibility();
                 self.add_espionage_event(
                     actor,

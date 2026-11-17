@@ -82,7 +82,8 @@ catalog retains campaign resource yield overrides.
 
 Government prerequisites in `content/governments.toml` use stable technology IDs.
 An empty prerequisite allows availability without research. An unknown ID
-fails catalog loading.
+fails catalog loading. `engine/effects.ruleset` supplies the rate cap, empire
+size and civil-war chance for every campaign government.
 
 ## Supported states
 
