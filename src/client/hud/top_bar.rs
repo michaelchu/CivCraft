@@ -118,17 +118,12 @@ impl Game {
         draw_ui_button(music_rect, "", true, self.music_open);
         let music_color = Color::from_rgba(241, 238, 218, 255);
         let music_center = vec2(music_rect.x + music_rect.w * 0.5, music_rect.y + 16.5);
-        draw_hud_icon(HudIcon::Music, music_center, 21.0, music_color);
-        if self.music_muted {
-            draw_line(
-                music_center.x - 7.0,
-                music_center.y + 7.0,
-                music_center.x + 7.0,
-                music_center.y - 7.0,
-                2.0,
-                music_color,
-            );
-        }
+        let music_icon = if self.music_muted {
+            HudIcon::MusicMuted
+        } else {
+            HudIcon::Music
+        };
+        draw_hud_icon(music_icon, music_center, 21.0, music_color);
         actions.push((music_rect, UiAction::ToggleMusicPanel));
         // Listed after the buttons so they win; this only catches the gaps and margins.
         actions.push((
