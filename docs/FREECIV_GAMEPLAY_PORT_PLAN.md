@@ -31,6 +31,18 @@ mechanic value is absent from Civ III content, take it from the pinned
 `civ2civ3` ruleset as an explicit Freeciv-derived setting, not as a claimed
 Civ III value.
 
+### Recorded exception: Great Leaders
+
+Great Leader creation and use deliberately follow Civ III rather than Freeciv
+(owner decision, 2026-11-17): the Leader unit comes only from an elite land
+unit's kill (1 in 16 attacking, 1 in 32 defending; Heroic Epic improves both),
+is never buildable or capturable, and completes the current improvement, small
+wonder or Great Wonder of a city of its owner, locking that production for the
+turn. Heroic Epic requires an owner with an elite unit as a stand-in for Civ
+III's "a victorious army". See
+`docs/superpowers/specs/2026-11-17-great-leader-design.md`. The Leader has never
+carried Freeciv's `GameLoss` flag.
+
 ## Pinned reference
 
 - Freeciv checkout: `../reference/freeciv`

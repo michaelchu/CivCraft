@@ -8,6 +8,7 @@ pub(super) const SCENARIOS: &[Scenario] = &[
     Scenario::all_ai("settlement-ferry", settlement_ferry),
     Scenario::all_ai("expansion-balance", expansion_balance),
     Scenario::all_ai("lifecycle-history", lifecycle_history),
+    Scenario::all_ai("great-leader", great_leader),
     Scenario::all_ai("research-history", research_history),
     Scenario::all_ai("combat-matrix", combat_matrix),
     Scenario::new("ai-paradrops", ai_paradrops),
@@ -19,6 +20,27 @@ fn city_healing(sim: &mut Simulation, checks: &mut Checks) {
         sim.city_healing_playtest(),
         "Barracks and ordinary city recovery used their expected rules".into(),
     ));
+}
+
+fn great_leader(sim: &mut Simulation, checks: &mut Checks) {
+    let (unbuildable, completes, consumed) = sim.great_leader_playtest();
+    checks.extend([
+        (
+            "leader_unbuildable",
+            unbuildable,
+            "No city can build a Leader even with every technology".into(),
+        ),
+        (
+            "leader_completes_wonder",
+            completes,
+            "An AI Leader completes its wonder city's wonder in one turn".into(),
+        ),
+        (
+            "leader_consumed",
+            consumed,
+            "Completing production consumes the Leader".into(),
+        ),
+    ]);
 }
 
 fn settlement_ferry(sim: &mut Simulation, checks: &mut Checks) {
