@@ -396,3 +396,36 @@ fn virtual_evaluation_restores_tiles_and_shelter_does_not_randomly_wander() {
     );
     assert_eq!(actor.id, id);
 }
+
+#[test]
+fn virtual_worker_scores_match_independent_plans_without_reconstructing_walks() {
+    let mut game = game();
+    let sites = [(10, 20), (14, 22)];
+    for (x, y) in sites {
+        game.create_city(1, x, y);
+    }
+    let actors = sites.map(|(x, y)| game.make_unit(0, 1, UnitKind::Worker, x, y));
+    let expected = actors.each_ref().map(|actor| {
+        let plan = game
+            .worker_plan(actor, &mut WorkMap::default(), &[])
+            .unwrap();
+        amortize(
+            (plan.new - plan.old + plan.extra) * WORKER_FACTOR,
+            plan.delay,
+        ) / WORKER_FACTOR
+    });
+    game.trace.enable_profiling();
+    game.trace.begin_turn_profile(1, 2, 0);
+    let mut cache = WorkMap::default();
+    for (actor, score) in actors.iter().zip(expected) {
+        assert_eq!(
+            game.worker_improvement_want_with_cache(actor, &mut cache),
+            score
+        );
+    }
+    game.trace.finish_turn_profile();
+    let profiles = game.trace.drain_profiles();
+    let operations = &profiles[0].operations;
+    assert!(operations["worker.value_cache_hits"] > 0);
+    assert!(!operations.contains_key("worker.paths_reconstructed"));
+}

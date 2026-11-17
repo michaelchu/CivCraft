@@ -1,6 +1,7 @@
 //! Advisor scoring of city production choices.
 
 use super::*;
+use crate::sim::workers::WorkMap;
 
 impl Simulation {
     const STABLE_ADVICE_RECALC_SPEED: i32 = 5;
@@ -140,7 +141,11 @@ impl Simulation {
     /// Freeciv's `contemplate_terrain_improvements` values the best task a
     /// virtual worker could perform, then scales that want by upkeep,
     /// population cost, and the owner's worker-to-city ratio.
-    fn worker_production_choice_in_place(&mut self, city: &City) -> Option<(UnitKind, f64)> {
+    fn worker_production_choice_in_place(
+        &mut self,
+        city: &City,
+        cache: &mut WorkMap,
+    ) -> Option<(UnitKind, f64)> {
         // `dai_role_utype_for_terrain_class(..., UTYF_WORKERS, TC_LAND)` walks
         // role units backwards and returns the first buildable type. CivCraft
         // maps the source worker flag from the Civ III catalog and uses its
@@ -168,7 +173,7 @@ impl Simulation {
         // autoworker advisor. A virtual unit starts at this city, like the
         // unit created by contemplate_terrain_improvements.
         let worker = self.make_unit(0, city.owner, kind, city.x, city.y);
-        let raw_want = self.worker_improvement_want(&worker) as i32;
+        let raw_want = self.worker_improvement_want_with_cache(&worker, cache) as i32;
         if raw_want <= 0 {
             return None;
         }
@@ -208,7 +213,7 @@ impl Simulation {
     #[cfg(test)]
     pub(super) fn worker_production_choice(&self, city: &City) -> Option<(UnitKind, f64)> {
         let mut preview = self.clone();
-        preview.worker_production_choice_in_place(city)
+        preview.worker_production_choice_in_place(city, &mut WorkMap::default())
     }
 
     /// Return the selected ruleset's raw food upkeep for a prospective worker.
@@ -673,6 +678,7 @@ impl Simulation {
         &mut self,
         city: &City,
         wonder_city: Option<u32>,
+        cache: &mut WorkMap,
     ) -> Option<AiBuildChoice> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("advisor.build.military");
@@ -692,7 +698,7 @@ impl Simulation {
             }
         };
         let _profile = profiler.scope("advisor.build.worker");
-        if let Some((kind, want)) = self.worker_production_choice_in_place(city) {
+        if let Some((kind, want)) = self.worker_production_choice_in_place(city, cache) {
             consider(Production::Unit(kind), want);
         }
         drop(_profile);
@@ -716,7 +722,7 @@ impl Simulation {
         // same read-only spatial indexes used by the regular advisor pass.
         preview.begin_ai_advisor_cache();
         let wonder_city = preview.ai_wonder_city(city.owner);
-        let choice = preview.ai_build_choice_in_place(city, wonder_city);
+        let choice = preview.ai_build_choice_in_place(city, wonder_city, &mut WorkMap::default());
         preview.end_ai_advisor_cache();
         choice
     }
@@ -732,6 +738,9 @@ impl Simulation {
             .map(|city| city.id)
             .collect();
         let wonder_city = self.ai_wonder_city(owner);
+        // Freeciv's dai_manage_cities shares infrastructure values across its
+        // virtual workers. Production switches only alter targets and shields.
+        let mut worker_cache = WorkMap::default();
         for id in ids {
             let Some(city) = self.city_by_id(id).cloned() else {
                 continue;
@@ -739,7 +748,9 @@ impl Simulation {
             let _profile = profiler.scope("advisor.build.military_tech_wants");
             self.record_ai_military_tech_wants(&city);
             drop(_profile);
-            if let Some(choice) = self.ai_build_choice_in_place(&city, wonder_city) {
+            if let Some(choice) =
+                self.ai_build_choice_in_place(&city, wonder_city, &mut worker_cache)
+            {
                 choices.insert(id, choice);
                 if city.production != choice.production {
                     self.change_production(id, choice.production);

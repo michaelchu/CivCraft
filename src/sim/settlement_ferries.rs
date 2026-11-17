@@ -16,7 +16,25 @@ const SETTLEMENT_FERRY_ROLE: &str = "Ferryboat";
 struct Rendezvous {
     tile: (i32, i32),
     turns: i32,
-    walk: Vec<(i32, i32)>,
+    land_endpoint: Option<usize>,
+}
+
+struct RendezvousSearch {
+    points: Vec<Rendezvous>,
+    previous: Vec<Option<(usize, (i32, i32))>>,
+}
+
+impl RendezvousSearch {
+    fn at(tile: (i32, i32)) -> Self {
+        Self {
+            points: vec![Rendezvous {
+                tile,
+                turns: 0,
+                land_endpoint: None,
+            }],
+            previous: Vec::new(),
+        }
+    }
 }
 
 pub(super) struct SettlementFerry {
@@ -156,11 +174,7 @@ impl Simulation {
                         &ship,
                         &labels,
                         origin,
-                        &[Rendezvous {
-                            tile: (city.x, city.y),
-                            turns: 0,
-                            walk: Vec::new(),
-                        }],
+                        &RendezvousSearch::at((city.x, city.y)),
                     )
                     .map(|plan| (kind, plan.value))
                 })
@@ -174,7 +188,7 @@ impl Simulation {
         (land > 0.0).then_some((UnitKind::Settler, land))
     }
 
-    fn settler_rendezvous_points(&self, founder: &Unit, ship: &Unit) -> Vec<Rendezvous> {
+    fn settler_rendezvous_points(&self, founder: &Unit, ship: &Unit) -> RendezvousSearch {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("settlement.ferry.rendezvous");
         self.trace
@@ -310,19 +324,19 @@ impl Simulation {
             let turns = land_ready.max(sea_turns);
             rendezvous[goal] = Some((turns, cost, index));
         }
-        rendezvous
+        let points = rendezvous
             .into_iter()
             .enumerate()
             .filter_map(|(tile, meeting)| {
                 let (turns, _, cursor) = meeting?;
-                let (_, walk) = super::pathfinding::reconstruct_path_to_root(&previous, cursor)?;
                 Some(Rendezvous {
                     tile: self.map_wrap.position(tile),
                     turns,
-                    walk,
+                    land_endpoint: Some(cursor),
                 })
             })
-            .collect()
+            .collect();
+        RendezvousSearch { points, previous }
     }
 
     fn best_settlement_ferry(
@@ -368,11 +382,7 @@ impl Simulation {
         }) {
             eligible_ships += 1;
             let rendezvous = if founder.transport.is_some() {
-                vec![Rendezvous {
-                    tile: (founder.x, founder.y),
-                    turns: 0,
-                    walk: Vec::new(),
-                }]
+                RendezvousSearch::at((founder.x, founder.y))
             } else {
                 self.settler_rendezvous_points(founder, ship)
             };
@@ -396,7 +406,7 @@ impl Simulation {
         ship: &Unit,
         labels: &[usize],
         origin: usize,
-        rendezvous: &[Rendezvous],
+        rendezvous: &RendezvousSearch,
     ) -> Option<SettlementFerry> {
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("settlement.ferry.route");
@@ -429,7 +439,7 @@ impl Simulation {
         let mut beaches = vec![None; self.tiles.len()];
         let mut previous = vec![None; self.tiles.len()];
         let mut land_queue = BinaryHeap::new();
-        for (meeting, rendezvous) in rendezvous.iter().enumerate() {
+        for (meeting, rendezvous) in rendezvous.points.iter().enumerate() {
             let index = self.map_wrap.index(rendezvous.tile.0, rendezvous.tile.1);
             let cost = rendezvous.turns * turn_cost;
             sea_costs[index] = cost;
@@ -543,8 +553,13 @@ impl Simulation {
         let (approach, meeting) = beaches[cursor]?;
         Some(SettlementFerry {
             founder: founder.id,
-            pickup: rendezvous[meeting].tile,
-            pickup_walk: rendezvous[meeting].walk.clone(),
+            pickup: rendezvous.points[meeting].tile,
+            pickup_walk: match rendezvous.points[meeting].land_endpoint {
+                Some(endpoint) => {
+                    super::pathfinding::reconstruct_path_to_root(&rendezvous.previous, endpoint)?.1
+                }
+                None => Vec::new(),
+            },
             approach,
             landing: self.map_wrap.position(cursor),
             destination: self.map_wrap.position(destination),

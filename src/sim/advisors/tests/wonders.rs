@@ -61,8 +61,9 @@ fn city_advisor_pass_selects_the_wonder_city_once_for_the_owner() {
         .begin_turn_profile(game.turn, game.cities.len(), game.units.len());
     let wonder_city = game.ai_wonder_city(1);
     let cities = game.cities.clone();
+    let mut cache = Default::default();
     for city in &cities {
-        game.ai_build_choice_in_place(city, wonder_city);
+        game.ai_build_choice_in_place(city, wonder_city, &mut cache);
     }
     game.trace.finish_turn_profile();
 
