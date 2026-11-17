@@ -303,7 +303,7 @@ fn civ3_tech_catalog() -> &'static Civ3TechCatalog {
 fn build_civ3_tech_catalog() -> Civ3TechCatalog {
     let mut raw_advances = Vec::new();
     let native_catalog = crate::rules::native::technologies();
-    let mut seen_runtime_ids = vec![false; STABLE_TECH_COUNT];
+    let mut seen_runtime_ids = [false; STABLE_TECH_COUNT];
     for (line_number, native) in native_catalog.technologies.iter().enumerate() {
         let tech = Tech(native.runtime_index);
         assert!(
