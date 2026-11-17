@@ -44,7 +44,7 @@ scope, status, and subsystem-difference ledger.
    checkout roots and compare the output with the manifest row.
 5. Check that `RulesetData` still loads the selected baseline and its required
    include closure. The `packaged_baseline_loads_only_selected_civcraft_ruleset_files`
-   check in `src/rules/freeciv.rs` records the current selected-file and record
+   check in `src/rules/engine_rules.rs` records the current selected-file and record
    counts.
 
 When advancing Freeciv, use a clean checkout or detached worktree for the new
@@ -55,7 +55,7 @@ overrides; copy only the selected C2C3 files and required include dependencies.
 Update the revision in this guide, the port plan, the baseline README and
 manifest, plus any fixture metadata affected by the change. If generated engine
 identifiers or ruleset enums change, update their source-derived tables in
-`src/rules/freeciv/identifiers.rs` and the adapters that consume them.
+`src/rules/engine_rules/identifiers.rs` and the adapters that consume them.
 
 For example, from `app/`, check the source revision and review the selected
 ruleset diff before importing it:

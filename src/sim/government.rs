@@ -1,7 +1,7 @@
 //! Government selection and government-dependent rules.
 
 use super::*;
-use crate::rules::freeciv::RulesetData;
+use crate::rules::engine_rules::RulesetData;
 use crate::sim::action_rules::SimulationRequirementContext;
 use std::sync::OnceLock;
 
@@ -318,7 +318,7 @@ impl Simulation {
         if anarchy
             && turns <= 0
             && self.players[owner].government != Government::during_revolution()
-            && settings.revolution_type == crate::rules::freeciv::RevolutionType::RandomQuick
+            && settings.revolution_type == crate::rules::engine_rules::RevolutionType::RandomQuick
         {
             return false;
         }

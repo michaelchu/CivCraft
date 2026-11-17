@@ -3,9 +3,9 @@
 //! server/citytools.c::update_dumb_city retains public city graphics until seen again.
 use super::*;
 use crate::rules::TechEra;
-use crate::rules::freeciv::RequirementKind;
-use crate::rules::freeciv::campaign_effect;
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::RequirementKind;
+use crate::rules::engine_rules::campaign_effect;
+use crate::rules::engine_rules::{
     EffectContext, Requirement, RequirementContext, RequirementEvaluationError, RequirementRange,
     RequirementValue, ResolvedRequirementValue,
 };
@@ -888,7 +888,7 @@ fn native_unit_vision_layer(kind: UnitKind) -> UnitVisionLayer {
 
 #[cfg(test)]
 fn ruleset_unit_vision_radius_sq(
-    _ruleset: &crate::rules::freeciv::RulesetData,
+    _ruleset: &crate::rules::engine_rules::RulesetData,
     kind: UnitKind,
 ) -> i32 {
     native_unit_vision_radius_sq(kind)

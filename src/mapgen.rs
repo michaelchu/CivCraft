@@ -14,7 +14,7 @@
 //! seeded output.
 
 use crate::random::FreecivRng;
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::{
     HutPlacementSettings, MapGenerationSettings, OceanDepthSettings, RulesetData,
     StartPositionScoringSettings, TerrainMapgenProperties,
 };

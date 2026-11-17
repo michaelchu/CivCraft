@@ -1,7 +1,7 @@
 //! City production selection, progress, and completion rules.
 
 use super::*;
-use crate::rules::freeciv::UnitUpkeepOutput;
+use crate::rules::engine_rules::UnitUpkeepOutput;
 use crate::sim::economy::{
     CityForecast,
     ruleset::{CityEconomySettings, GoldUpkeepStyle},

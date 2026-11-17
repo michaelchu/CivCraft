@@ -1,4 +1,4 @@
-//! Typed Freeciv ruleset data layered over the native section-file syntax.
+//! Typed engine ruleset data layered over the native section-file syntax.
 //!
 //! This module owns data shapes and shared conditional evaluation. It does not
 //! own gameplay transitions; simulation subsystems provide a context that
@@ -11,24 +11,24 @@ const FREECIV_OCEAN_DEPTH_MINIMUM: i32 = 1;
 const FREECIV_OCEAN_DEPTH_MAXIMUM: i32 = 100;
 
 #[cfg(test)]
-use super::freeciv_ini;
-use super::freeciv_ini::{Entry, Section, SectionFile, Value};
+use super::section_file;
+use super::section_file::{Entry, Section, SectionFile, Value};
 
-#[path = "freeciv/civ3_content.rs"]
+#[path = "engine_rules/civ3_content.rs"]
 mod civ3_content;
-#[path = "freeciv/civil_war.rs"]
+#[path = "engine_rules/civil_war.rs"]
 mod civil_war;
-#[path = "freeciv/combat.rs"]
+#[path = "engine_rules/combat.rs"]
 mod combat;
-#[path = "freeciv/identifiers.rs"]
+#[path = "engine_rules/identifiers.rs"]
 mod identifiers;
-#[path = "freeciv/loader.rs"]
+#[path = "engine_rules/loader.rs"]
 mod loader;
-#[path = "freeciv/settlement_ai.rs"]
+#[path = "engine_rules/settlement_ai.rs"]
 mod settlement_ai;
-#[path = "freeciv/trade_routes.rs"]
+#[path = "engine_rules/trade_routes.rs"]
 mod trade_routes;
-#[path = "freeciv/veterancy.rs"]
+#[path = "engine_rules/veterancy.rs"]
 mod veterancy;
 #[allow(unused_imports)]
 pub(crate) use civ3_content::{
@@ -2338,7 +2338,7 @@ impl LoadError {
 
 #[cfg(test)]
 mod tests {
-    use super::freeciv_ini::{Entry, Value};
+    use super::section_file::{Entry, Value};
     use super::{
         ActionEnabler, ActionRecord, ContentKind, EffectContext, EffectKind, EffectRecord,
         EffectSet, FreeTechnologyStyle, HappyBorders, LoadedRuleFile,
@@ -2751,7 +2751,7 @@ mod tests {
             name: name.to_owned(),
             path: PathBuf::from(name),
             source: RuleFileSource::SelectedRuleset,
-            parsed: super::freeciv_ini::parse(source).unwrap(),
+            parsed: super::section_file::parse(source).unwrap(),
         }
     }
 

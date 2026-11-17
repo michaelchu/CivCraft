@@ -129,7 +129,7 @@ mod workers;
 mod worklist;
 pub(crate) use worklist::{WORKLIST_LIMIT, WorklistEdit};
 
-use crate::rules::freeciv::EffectKind;
+use crate::rules::engine_rules::EffectKind;
 use crate::rules::{Building, Tech};
 pub(crate) use model::*;
 use topology::*;
@@ -590,7 +590,7 @@ impl Simulation {
             }
         }
 
-        let calendar = crate::rules::freeciv::RulesetData::campaign_default()
+        let calendar = crate::rules::engine_rules::RulesetData::campaign_default()
             .calendar_settings()
             .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
         let start_year = calendar.start_year;
@@ -889,7 +889,7 @@ impl Simulation {
 
 /// Formats an in-game year using the selected ruleset's calendar labels.
 pub(crate) fn year_label(year: i32) -> String {
-    let calendar = crate::rules::freeciv::RulesetData::campaign_default()
+    let calendar = crate::rules::engine_rules::RulesetData::campaign_default()
         .calendar_settings()
         .unwrap_or_else(|error| panic!("invalid campaign calendar: {error}"));
     if year < 0 {

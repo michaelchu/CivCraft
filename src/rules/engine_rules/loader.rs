@@ -1,13 +1,13 @@
 //! Filesystem loading and typed decoding for native Freeciv rulesets.
 
-use crate::rules::freeciv::RequirementKind;
+use crate::rules::engine_rules::RequirementKind;
 use crate::rules::{Building, Tech};
 use crate::world::Terrain;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::super::freeciv_ini::{self, Entry, Section, SectionFile, Value};
+use super::super::section_file::{self, Entry, Section, SectionFile, Value};
 use super::{
     ActionEnabler, ActionRecord, ContentKind, ContentRecord, EffectRecord, LoadError,
     LoadedRuleFile, Requirement, RequirementRange, RequirementValue, ResolvedRequirementValue,
@@ -313,7 +313,7 @@ fn load_section_file(
             format!("cannot read ruleset file: {error}"),
         )
     })?;
-    let parsed = freeciv_ini::parse(&source).map_err(|error| LoadError {
+    let parsed = section_file::parse(&source).map_err(|error| LoadError {
         file: Some(canonical_path.clone()),
         section: (!error.context.is_empty()).then_some(error.context.clone()),
         key: None,

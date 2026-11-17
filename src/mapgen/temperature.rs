@@ -200,7 +200,7 @@ mod tests {
     }
 
     fn ruleset_settings() -> MapGenerationSettings {
-        crate::rules::freeciv::RulesetData::campaign_default()
+        crate::rules::engine_rules::RulesetData::campaign_default()
             .map_generation_settings()
             .unwrap()
     }

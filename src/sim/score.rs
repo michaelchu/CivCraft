@@ -125,7 +125,7 @@ impl Simulation {
             .filter(|&owner| owner != BARBARIANS && self.player_alive(owner))
             .collect();
         if living.len() > 1
-            && self.victory_enabled(crate::rules::freeciv::VictoryCondition::Allied)
+            && self.victory_enabled(crate::rules::engine_rules::VictoryCondition::Allied)
             && living
                 .iter()
                 .enumerate()

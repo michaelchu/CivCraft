@@ -12,7 +12,7 @@
 
 use super::*;
 use crate::rules::Genus;
-use crate::rules::freeciv::{RuleParameter, RulesetData};
+use crate::rules::engine_rules::{RuleParameter, RulesetData};
 use std::collections::HashMap;
 
 /// Freeciv server settings that control the city migration pass.

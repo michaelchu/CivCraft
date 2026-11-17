@@ -9,10 +9,10 @@ use super::{
     Base, City, Contamination, Pact, PillageTarget, Simulation, Tile, Unit, UnitKind, UnitState,
     WorkKind,
 };
-use crate::rules::freeciv::RequirementKind;
+use crate::rules::engine_rules::RequirementKind;
 #[cfg(test)]
-use crate::rules::freeciv::effect_value;
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::effect_value;
+use crate::rules::engine_rules::{
     ActionEvaluationError, EffectContext, EffectKind, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, ResolvedRequirementValue,
     RuleRecord, RulesetData, action_enabled, campaign_effect, requirements_met,
@@ -42,7 +42,7 @@ pub(crate) struct SimulationRequirementContext<'a> {
     granted_tech: Option<Tech>,
     celebrating: Option<bool>,
     disordered: Option<bool>,
-    unit_type_flag_record: Option<&'static crate::rules::freeciv::ContentRecord>,
+    unit_type_flag_record: Option<&'static crate::rules::engine_rules::ContentRecord>,
     native_unit_capabilities: Option<&'static super::native_unit_rules::UnitCapabilities>,
     unbound_content_is_absent: bool,
 }
@@ -160,7 +160,7 @@ impl<'a> SimulationRequirementContext<'a> {
 
     pub(crate) fn with_unit_type_flag_record(
         mut self,
-        record: &'static crate::rules::freeciv::ContentRecord,
+        record: &'static crate::rules::engine_rules::ContentRecord,
     ) -> Self {
         self.unit_type_flag_record = Some(record);
         // Upkeep and production callers intentionally supply the selected
@@ -278,7 +278,7 @@ impl<'a> SimulationRequirementContext<'a> {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "terrain.ruleset".into(),
                 section: format!("extra_{name}"),
                 key: "reqs".to_owned(),
@@ -1487,7 +1487,7 @@ impl Simulation {
         actor: &Unit,
         action: &str,
         target_xy: (i32, i32),
-        unit_record: &'static crate::rules::freeciv::ContentRecord,
+        unit_record: &'static crate::rules::engine_rules::ContentRecord,
         target_city: Option<&super::City>,
     ) -> Result<bool, ActionEvaluationError> {
         self.action_available_for_unit_with_context(
@@ -1551,7 +1551,7 @@ impl Simulation {
         target_xy: (i32, i32),
         actor_tile_xy: (i32, i32),
         target_state: Option<&Tile>,
-        unit_record: Option<&'static crate::rules::freeciv::ContentRecord>,
+        unit_record: Option<&'static crate::rules::engine_rules::ContentRecord>,
         target_unit_override: Option<&Unit>,
         target_city: Option<&super::City>,
         city_tile_center_override: Option<((i32, i32), bool)>,
@@ -2233,7 +2233,7 @@ pub(crate) fn freeciv_unit_class_rule_name(unit: UnitKind) -> Option<String> {
 /// Civ III PRTO supplies no per-target Freeciv combat-bonus table.
 pub(crate) fn freeciv_unit_combat_bonuses(
     _unit: UnitKind,
-) -> Option<Vec<crate::rules::freeciv::UnitCombatBonus>> {
+) -> Option<Vec<crate::rules::engine_rules::UnitCombatBonus>> {
     Some(Vec::new())
 }
 
@@ -2247,8 +2247,8 @@ pub(crate) fn freeciv_unit_type_fuel_capacity(unit: UnitKind) -> Option<u8> {
 
 pub(crate) fn freeciv_unit_transport_defense(
     _unit: UnitKind,
-) -> Option<crate::rules::freeciv::TransportDefense> {
-    Some(crate::rules::freeciv::TransportDefense::Alight)
+) -> Option<crate::rules::engine_rules::TransportDefense> {
+    Some(crate::rules::engine_rules::TransportDefense::Alight)
 }
 
 pub(crate) fn freeciv_unit_paratroopers_range(unit: UnitKind) -> Option<i32> {
@@ -2302,7 +2302,7 @@ pub(crate) fn freeciv_unit_class_flag(unit: UnitKind, flag: &str) -> Option<bool
 mod tests {
     use super::*;
     use crate::mapgen;
-    use crate::rules::freeciv::ActionEvaluationError;
+    use crate::rules::engine_rules::ActionEvaluationError;
     use crate::world::Terrain;
 
     #[test]
@@ -2361,7 +2361,7 @@ mod tests {
             present,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: std::path::PathBuf::new(),
                 section: "fixture".to_owned(),
                 key: "target_reqs".to_owned(),
@@ -2395,7 +2395,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: std::path::PathBuf::new(),
                 section: "fixture".to_owned(),
                 key: "reqs".to_owned(),
@@ -2696,7 +2696,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "effects.ruleset".into(),
                 section: "test".to_owned(),
                 key: "reqs".to_owned(),
@@ -2753,7 +2753,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "buildings.ruleset".into(),
                 section: "building_great_wall".to_owned(),
                 key: "obsolete_by".to_owned(),
@@ -2795,7 +2795,7 @@ mod tests {
             present,
             survives,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "effects.ruleset".into(),
                 section: "test".to_owned(),
                 key: "reqs".to_owned(),
@@ -2816,7 +2816,7 @@ mod tests {
                 .unwrap()
         );
         assert!(
-            crate::rules::freeciv::requirements_met(
+            crate::rules::engine_rules::requirements_met(
                 &[requirement("Apollo Program", false, true)],
                 &context,
             )
@@ -2835,7 +2835,7 @@ mod tests {
                 .unwrap()
         );
         assert!(
-            crate::rules::freeciv::requirements_met(
+            crate::rules::engine_rules::requirements_met(
                 &[requirement("United Nations", false, false)],
                 &context,
             )
@@ -2856,7 +2856,7 @@ mod tests {
                 .unwrap()
         );
         assert!(
-            !crate::rules::freeciv::requirements_met(
+            !crate::rules::engine_rules::requirements_met(
                 &[requirement("Apollo Program", false, true)],
                 &context,
             )
@@ -2878,7 +2878,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "effects.ruleset".into(),
                 section: "test_team_relation".to_owned(),
                 key: "reqs".to_owned(),
@@ -3035,7 +3035,7 @@ mod tests {
             present: true,
             survives,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "effects.ruleset".into(),
                 section: "test_world_tech".to_owned(),
                 key: "reqs".to_owned(),
@@ -3100,7 +3100,7 @@ mod tests {
             present: true,
             survives: false,
             quiet: false,
-            source: crate::rules::freeciv::RuleSourceLocation {
+            source: crate::rules::engine_rules::RuleSourceLocation {
                 file: "actions.ruleset".into(),
                 section: "test".to_owned(),
                 key: "actor_reqs".to_owned(),
@@ -3276,7 +3276,7 @@ mod tests {
             .content
             .iter()
             .find(|record| {
-                record.kind == crate::rules::freeciv::ContentKind::Unit
+                record.kind == crate::rules::engine_rules::ContentKind::Unit
                     && record.section.eq_ignore_ascii_case("unit_caravan")
             })
             .unwrap();
@@ -3336,7 +3336,7 @@ mod tests {
         let context =
             SimulationRequirementContext::for_unit(&game, unit).with_action("Disband Unit Recover");
         assert_eq!(
-            crate::rules::freeciv::effect_value(
+            crate::rules::engine_rules::effect_value(
                 &RulesetData::campaign_default().effects,
                 EffectKind::UnitShieldValuePct,
                 &context,
@@ -3377,7 +3377,7 @@ mod tests {
         assert!(matches!(
             game.work_activity_time(WorkKind::Clean(Contamination::Craters), Terrain::Grassland),
             Err(ActionEvaluationError::Requirement(
-                crate::rules::freeciv::RequirementEvaluationError::Unsupported { .. }
+                crate::rules::engine_rules::RequirementEvaluationError::Unsupported { .. }
             ))
         ));
     }

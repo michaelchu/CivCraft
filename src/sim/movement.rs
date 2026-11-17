@@ -12,7 +12,7 @@
 
 use super::movement_rules::{MovementRules, MovementTile};
 use super::*;
-use crate::rules::freeciv::RulesetData;
+use crate::rules::engine_rules::RulesetData;
 
 mod activities;
 mod combat;

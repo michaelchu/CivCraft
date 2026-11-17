@@ -3,8 +3,8 @@
 use super::super::action_rules::SimulationRequirementContext;
 use super::super::content_adapter::{FreecivTechBinding, bind_freeciv_technology};
 use super::*;
-use crate::rules::freeciv::RequirementKind;
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::RequirementKind;
+use crate::rules::engine_rules::{
     EffectRecord, Requirement as FreecivRequirement, RequirementContext, RequirementRange,
     RequirementValue, RulesetData,
 };
@@ -594,7 +594,7 @@ fn bound_player_tech(
         return None;
     }
     let tech = match requirement.resolved {
-        Some(crate::rules::freeciv::ResolvedRequirementValue::Tech(tech)) => tech,
+        Some(crate::rules::engine_rules::ResolvedRequirementValue::Tech(tech)) => tech,
         _ => match &requirement.name {
             RequirementValue::String(name) => match bind_freeciv_technology(ruleset, name).ok()? {
                 FreecivTechBinding::Bound(tech) => tech,

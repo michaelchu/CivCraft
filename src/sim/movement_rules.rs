@@ -5,7 +5,7 @@
 //! ruleset records. It only reads data; movement callers can migrate to these
 //! validated accessors independently.
 
-use crate::rules::freeciv::{ContentKind, ContentRecord, RuleRecord, RulesetData};
+use crate::rules::engine_rules::{ContentKind, ContentRecord, RuleRecord, RulesetData};
 
 use super::unit_catalog::UnitClass;
 use super::{Base, Terrain, UnitKind};

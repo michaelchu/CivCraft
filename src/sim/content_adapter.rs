@@ -2,7 +2,7 @@
 //! catalogs. These bindings keep existing serialized wrappers stable while
 //! the Freeciv ruleset model is connected to gameplay one subsystem at a time.
 
-use crate::rules::freeciv::{ContentKind, RulesetData, SourceContentRecord};
+use crate::rules::engine_rules::{ContentKind, RulesetData, SourceContentRecord};
 use crate::rules::{Building, Tech};
 use crate::sim::UnitKind;
 

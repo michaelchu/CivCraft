@@ -155,12 +155,12 @@ impl Simulation {
                 100 + self.unit_combat_bonus_total(
                     unit.kind,
                     attacker,
-                    crate::rules::freeciv::CombatBonusKind::DefenseMultiplierPct,
+                    crate::rules::engine_rules::CombatBonusKind::DefenseMultiplierPct,
                 ) + 100
                     * self.unit_combat_bonus_total(
                         unit.kind,
                         attacker,
-                        crate::rules::freeciv::CombatBonusKind::DefenseMultiplier,
+                        crate::rules::engine_rules::CombatBonusKind::DefenseMultiplier,
                     );
             power = (power * defense_multiplier / 100).max(0);
             let defend_bonus = self.defend_bonus_against(unit.owner, attacker, x, y, building);
@@ -169,12 +169,12 @@ impl Simulation {
                 100 + self.unit_combat_bonus_total(
                     attacker,
                     unit.kind,
-                    crate::rules::freeciv::CombatBonusKind::DefenseDividerPct,
+                    crate::rules::engine_rules::CombatBonusKind::DefenseDividerPct,
                 ) + 100
                     * self.unit_combat_bonus_total(
                         attacker,
                         unit.kind,
-                        crate::rules::freeciv::CombatBonusKind::DefenseDivider,
+                        crate::rules::engine_rules::CombatBonusKind::DefenseDivider,
                     );
             assert!(
                 defense_divider > 0,
@@ -225,7 +225,7 @@ impl Simulation {
         &self,
         unit: UnitKind,
         target: UnitKind,
-        kind: crate::rules::freeciv::CombatBonusKind,
+        kind: crate::rules::engine_rules::CombatBonusKind,
     ) -> i32 {
         let Some(bonuses) = crate::sim::action_rules::freeciv_unit_combat_bonuses(unit) else {
             return 0;
@@ -284,7 +284,7 @@ impl Simulation {
         if self.unit_combat_bonus_total(
             attacker.kind,
             defender.kind,
-            crate::rules::freeciv::CombatBonusKind::LowFirepower,
+            crate::rules::engine_rules::CombatBonusKind::LowFirepower,
         ) != 0
         {
             defense =
@@ -636,14 +636,14 @@ impl Simulation {
                 {
                     // Unmapped Civ III identities use Freeciv's selected engine
                     // default from ruleload.c: TDT_ALIGHT.
-                    crate::rules::freeciv::TransportDefense::Alight
+                    crate::rules::engine_rules::TransportDefense::Alight
                 }
                 None => return false,
             };
         match transport_defense {
-            crate::rules::freeciv::TransportDefense::Blocked => false,
-            crate::rules::freeciv::TransportDefense::Always => true,
-            crate::rules::freeciv::TransportDefense::Alight => {
+            crate::rules::engine_rules::TransportDefense::Blocked => false,
+            crate::rules::engine_rules::TransportDefense::Always => true,
+            crate::rules::engine_rules::TransportDefense::Alight => {
                 self.combat_unit_can_exist_at_tile(unit, unit.x, unit.y)
                     && (self.action_available_for_unit_fail_closed(
                         unit,

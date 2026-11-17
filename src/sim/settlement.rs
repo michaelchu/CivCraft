@@ -356,7 +356,7 @@ impl Simulation {
 
     fn best_city_site_with_stats(&self, founder: &Unit) -> (Option<ScoredCitySite>, u64, u64) {
         use std::{cmp::Reverse, collections::BinaryHeap};
-        let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
+        let settings = crate::rules::engine_rules::SettlementAiSettings::campaign();
         let profiler = self.trace.profiler();
         let _profile = profiler.scope("settlement.best_city_site");
         self.trace.count_operation("settlement.site_searches", 1);
@@ -586,7 +586,7 @@ impl Simulation {
         y: i32,
         context: &CitySiteSearchContext<'_>,
     ) -> Option<CitySite> {
-        let settings = crate::rules::freeciv::SettlementAiSettings::campaign();
+        let settings = crate::rules::engine_rules::SettlementAiSettings::campaign();
         self.trace
             .count_operation("settlement.site_candidate_evaluations", 1);
         let tile = self.tile(x, y);

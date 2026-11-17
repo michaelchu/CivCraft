@@ -60,8 +60,8 @@ impl Simulation {
             return false;
         }
         self.players[owner].gold -= quoted_price;
-        let settings: crate::rules::freeciv::VeterancySettings =
-            crate::rules::freeciv::RulesetData::campaign_default()
+        let settings: crate::rules::engine_rules::VeterancySettings =
+            crate::rules::engine_rules::RulesetData::campaign_default()
                 .veterancy_settings()
                 .expect("campaign C2C3 veterancy settings are valid");
         let veteran_loss = settings.upgrade_veteran_loss;
@@ -88,8 +88,8 @@ impl Simulation {
         if !candidates.is_empty() {
             let (id, target) = candidates[self.rand_below(candidates.len() as i32) as usize];
             let index = self.unit_index_by_id(id).unwrap();
-            let settings: crate::rules::freeciv::VeterancySettings =
-                crate::rules::freeciv::RulesetData::campaign_default()
+            let settings: crate::rules::engine_rules::VeterancySettings =
+                crate::rules::engine_rules::RulesetData::campaign_default()
                     .veterancy_settings()
                     .expect("campaign C2C3 veterancy settings are valid");
             let veteran_loss = settings.autoupgrade_veteran_loss;

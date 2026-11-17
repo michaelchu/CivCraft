@@ -1,8 +1,8 @@
 //! Advisor evaluation of spending, reserves, and gold priorities.
 
 use super::*;
-use crate::rules::freeciv::RequirementKind;
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::RequirementKind;
+use crate::rules::engine_rules::{
     EffectRecord, Requirement, RequirementContext, RequirementValue, RulesetData,
 };
 

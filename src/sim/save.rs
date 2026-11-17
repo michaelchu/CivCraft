@@ -345,7 +345,7 @@ impl Simulation {
 
     fn validate_campaign(&self) -> io::Result<()> {
         let players = self.players.len();
-        let trade_route_settings = crate::rules::freeciv::RulesetData::campaign_default()
+        let trade_route_settings = crate::rules::engine_rules::RulesetData::campaign_default()
             .trade_route_settings()
             .map_err(|error| invalid(format!("Invalid C2C3 trade-route rules: {error}")))?;
         let position = |x, y| {

@@ -12,8 +12,8 @@
 //! depends on this ordering.
 
 use super::*;
-use crate::rules::freeciv::RequirementKind;
-use crate::rules::freeciv::{
+use crate::rules::engine_rules::RequirementKind;
+use crate::rules::engine_rules::{
     EffectContext, EffectEvaluationError, Requirement, RequirementContext,
     RequirementEvaluationError, RequirementRange, RequirementValue, ResolvedRequirementValue,
     RulesetData, VictoryCondition, effect_value,

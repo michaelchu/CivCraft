@@ -2,8 +2,8 @@
 
 use super::action_rules::SimulationRequirementContext;
 use super::{BARBARIANS, City, Simulation};
-use crate::rules::freeciv::EffectKind;
-use crate::rules::freeciv::{RulesetData, VictoryCondition};
+use crate::rules::engine_rules::EffectKind;
+use crate::rules::engine_rules::{RulesetData, VictoryCondition};
 
 fn culture_parameter(key: &str) -> i64 {
     let rules = RulesetData::campaign_default();

@@ -1,7 +1,7 @@
 //! Civil war and civilization split resolution.
 
 use super::*;
-use crate::rules::freeciv::{RulesetData, action_enabled};
+use crate::rules::engine_rules::{RulesetData, action_enabled};
 
 // Retained for the existing Civ III uprising path, which is scheduled for
 // the P12 world-events migration. The capital-capture path below uses C2C3
@@ -85,7 +85,7 @@ impl Simulation {
         if !honour_server_option {
             return true;
         }
-        let settings: crate::rules::freeciv::CivilWarRulesetSettings = rules
+        let settings: crate::rules::engine_rules::CivilWarRulesetSettings = rules
             .civil_war_settings()
             .expect("selected C2C3 civil-war settings are valid");
         settings.city_threshold < 1000 && city_count >= settings.city_threshold
@@ -100,7 +100,7 @@ impl Simulation {
         let playable_nations = rules
             .source_content
             .iter()
-            .filter(|record| record.kind == crate::rules::freeciv::ContentKind::Nation)
+            .filter(|record| record.kind == crate::rules::engine_rules::ContentKind::Nation)
             .count();
         if normal_player_count >= settings.max_players
             || normal_player_count >= playable_nations
