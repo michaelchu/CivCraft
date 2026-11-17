@@ -479,9 +479,14 @@ pub(crate) struct NativeExperienceLevel {
 #[derive(Debug, Deserialize)]
 pub(crate) struct NativeTechnology {
     pub(crate) id: String,
+    /// Stable serialized `Tech` index. This is an identity bridge, not a
+    /// second technology definition.
+    pub(crate) runtime_index: usize,
     pub(crate) source_record_index: usize,
     pub(crate) source_biq: String,
     pub(crate) name: String,
+    #[serde(default)]
+    pub(crate) display_name: Option<String>,
     pub(crate) civilopedia_entry: String,
     pub(crate) cost: i32,
     pub(crate) era: i32,
@@ -502,6 +507,14 @@ pub(crate) struct NativeTechnology {
     pub(crate) prerequisites: Vec<String>,
     #[serde(default)]
     pub(crate) flags: Vec<String>,
+    #[serde(default = "native_required_for_era")]
+    pub(crate) required_for_era: bool,
+    #[serde(default)]
+    pub(crate) era_gate: Option<i32>,
+}
+
+fn native_required_for_era() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize)]

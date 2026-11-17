@@ -3,6 +3,7 @@ source = "Civilization III: Conquests"
 
 [[technologies]]
 id = "TECH_Bronze_Working"
+runtime_index = 8
 source_biq = "Conquests/conquests.biq#TECH[0]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Bronze Working"
 civilopedia_entry = "TECH_Bronze_Working"
@@ -28,6 +29,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Masonry"
+runtime_index = 45
 source_biq = "Conquests/conquests.biq#TECH[1]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Masonry"
 civilopedia_entry = "TECH_Masonry"
@@ -53,6 +55,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Alphabet"
+runtime_index = 1
 source_biq = "Conquests/conquests.biq#TECH[2]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Alphabet"
 civilopedia_entry = "TECH_Alphabet"
@@ -78,6 +81,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Pottery"
+runtime_index = 62
 source_biq = "Conquests/conquests.biq#TECH[3]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Pottery"
 civilopedia_entry = "TECH_Pottery"
@@ -103,6 +107,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_The_Wheel"
+runtime_index = 80
 source_biq = "Conquests/conquests.biq#TECH[4]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "The Wheel"
 civilopedia_entry = "TECH_The_Wheel"
@@ -128,6 +133,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Warrior_Code"
+runtime_index = 85
 source_biq = "Conquests/conquests.biq#TECH[5]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Warrior Code"
 civilopedia_entry = "TECH_Warrior_Code"
@@ -153,6 +159,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Ceremonial_Burial"
+runtime_index = 9
 source_biq = "Conquests/conquests.biq#TECH[6]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Ceremonial Burial"
 civilopedia_entry = "TECH_Ceremonial_Burial"
@@ -178,6 +185,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Iron_Working"
+runtime_index = 37
 source_biq = "Conquests/conquests.biq#TECH[7]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Iron Working"
 civilopedia_entry = "TECH_Iron_Working"
@@ -203,6 +211,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Writing"
+runtime_index = 86
 source_biq = "Conquests/conquests.biq#TECH[8]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Writing"
 civilopedia_entry = "TECH_Writing"
@@ -228,6 +237,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Mysticism"
+runtime_index = 54
 source_biq = "Conquests/conquests.biq#TECH[9]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Mysticism"
 civilopedia_entry = "TECH_Mysticism"
@@ -253,6 +263,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Mathematics"
+runtime_index = 47
 source_biq = "Conquests/conquests.biq#TECH[10]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Mathematics"
 civilopedia_entry = "TECH_Mathematics"
@@ -278,6 +289,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Philosophy"
+runtime_index = 58
 source_biq = "Conquests/conquests.biq#TECH[11]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Philosophy"
 civilopedia_entry = "TECH_Philosophy"
@@ -303,6 +315,7 @@ flags = ["Bonus_Tech"]
 
 [[technologies]]
 id = "TECH_Code_of_Laws"
+runtime_index = 12
 source_biq = "Conquests/conquests.biq#TECH[12]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Code of Laws"
 civilopedia_entry = "TECH_Code_of_Laws"
@@ -328,8 +341,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Literature"
+runtime_index = 90
 source_biq = "Conquests/conquests.biq#TECH[13]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Literature"
+required_for_era = false
 civilopedia_entry = "TECH_Literature"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -353,6 +368,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Map_Making"
+runtime_index = 44
 source_biq = "Conquests/conquests.biq#TECH[14]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Map Making"
 civilopedia_entry = "TECH_Map_Making"
@@ -378,8 +394,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Horseback_Riding"
+runtime_index = 34
 source_biq = "Conquests/conquests.biq#TECH[15]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Horseback Riding"
+required_for_era = false
 civilopedia_entry = "TECH_Horseback_Riding"
 flags_hex = "00000000"
 unknown_tail_hex = "01000000"
@@ -403,6 +421,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Polytheism"
+runtime_index = 61
 source_biq = "Conquests/conquests.biq#TECH[16]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Polytheism"
 civilopedia_entry = "TECH_Polytheism"
@@ -428,6 +447,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Currency"
+runtime_index = 19
 source_biq = "Conquests/conquests.biq#TECH[17]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Currency"
 civilopedia_entry = "TECH_Currency"
@@ -453,8 +473,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_The_Republic"
+runtime_index = 79
 source_biq = "Conquests/conquests.biq#TECH[18]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "The Republic"
+required_for_era = false
 civilopedia_entry = "TECH_The_Republic"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -478,8 +500,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Monarchy"
+runtime_index = 52
 source_biq = "Conquests/conquests.biq#TECH[19]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Monarchy"
+required_for_era = false
 civilopedia_entry = "TECH_Monarchy"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -503,6 +527,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Construction"
+runtime_index = 18
 source_biq = "Conquests/conquests.biq#TECH[20]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Construction"
 civilopedia_entry = "TECH_Construction"
@@ -528,8 +553,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Monotheism"
+runtime_index = 53
 source_biq = "Conquests/conquests.biq#TECH[21]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Monotheism"
+era_gate = 0
 civilopedia_entry = "TECH_Monotheism"
 flags_hex = "00000000"
 unknown_tail_hex = "01000000"
@@ -553,8 +580,11 @@ flags = []
 
 [[technologies]]
 id = "TECH_Feudalism"
+runtime_index = 28
 source_biq = "Conquests/conquests.biq#TECH[22]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Feudalism"
+required_for_era = false
+era_gate = 0
 civilopedia_entry = "TECH_Feudalism"
 flags_hex = "00000000"
 unknown_tail_hex = "01000000"
@@ -578,8 +608,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Engineering"
+runtime_index = 24
 source_biq = "Conquests/conquests.biq#TECH[23]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Engineering"
+era_gate = 0
 civilopedia_entry = "TECH_Engineering"
 flags_hex = "04000000"
 unknown_tail_hex = "01000000"
@@ -603,6 +635,7 @@ flags = ["Bridge"]
 
 [[technologies]]
 id = "TECH_Theology"
+runtime_index = 81
 source_biq = "Conquests/conquests.biq#TECH[24]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Theology"
 civilopedia_entry = "TECH_Theology"
@@ -628,8 +661,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Chivalry"
+runtime_index = 11
 source_biq = "Conquests/conquests.biq#TECH[25]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Chivalry"
+required_for_era = false
 civilopedia_entry = "TECH_Chivalry"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -653,6 +688,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Invention"
+runtime_index = 36
 source_biq = "Conquests/conquests.biq#TECH[26]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Invention"
 civilopedia_entry = "TECH_Invention"
@@ -678,8 +714,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Printing_Press"
+runtime_index = 93
 source_biq = "Conquests/conquests.biq#TECH[27]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Printing Press"
+required_for_era = false
 civilopedia_entry = "TECH_Printing_Press"
 flags_hex = "00000300"
 unknown_tail_hex = "01000000"
@@ -703,8 +741,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Music_Theory"
+runtime_index = 92
 source_biq = "Conquests/conquests.biq#TECH[28]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Music Theory"
+required_for_era = false
 civilopedia_entry = "TECH_Music_Theory"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -728,6 +768,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Education"
+runtime_index = 84
 source_biq = "Conquests/conquests.biq#TECH[29]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Education"
 civilopedia_entry = "TECH_Education"
@@ -753,6 +794,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Gunpowder"
+runtime_index = 33
 source_biq = "Conquests/conquests.biq#TECH[30]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Gunpowder"
 civilopedia_entry = "TECH_Gunpowder"
@@ -778,6 +820,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Banking"
+runtime_index = 6
 source_biq = "Conquests/conquests.biq#TECH[31]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Banking"
 civilopedia_entry = "TECH_Banking"
@@ -803,6 +846,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Astronomy"
+runtime_index = 3
 source_biq = "Conquests/conquests.biq#TECH[32]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Astronomy"
 civilopedia_entry = "TECH_Astronomy"
@@ -828,6 +872,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Chemistry"
+runtime_index = 10
 source_biq = "Conquests/conquests.biq#TECH[33]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Chemistry"
 civilopedia_entry = "TECH_Chemistry"
@@ -853,8 +898,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Democracy"
+runtime_index = 20
 source_biq = "Conquests/conquests.biq#TECH[34]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Democracy"
+required_for_era = false
 civilopedia_entry = "TECH_Democracy"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -878,8 +925,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Economics"
+runtime_index = 21
 source_biq = "Conquests/conquests.biq#TECH[35]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Economics"
+required_for_era = false
 civilopedia_entry = "TECH_Economics"
 flags_hex = "00100200"
 unknown_tail_hex = "01000000"
@@ -903,8 +952,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Navigation"
+runtime_index = 55
 source_biq = "Conquests/conquests.biq#TECH[36]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Navigation"
+required_for_era = false
 civilopedia_entry = "TECH_Navigation"
 flags_hex = "00c00200"
 unknown_tail_hex = "01000000"
@@ -928,6 +979,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Physics"
+runtime_index = 59
 source_biq = "Conquests/conquests.biq#TECH[37]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Physics"
 civilopedia_entry = "TECH_Physics"
@@ -953,6 +1005,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Metallurgy"
+runtime_index = 49
 source_biq = "Conquests/conquests.biq#TECH[38]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Metallurgy"
 civilopedia_entry = "TECH_Metallurgy"
@@ -978,8 +1031,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Free_Artistry"
+runtime_index = 87
 source_biq = "Conquests/conquests.biq#TECH[39]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Free Artistry"
+required_for_era = false
 civilopedia_entry = "TECH_Free_Artistry"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -1003,6 +1058,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Theory_of_Gravity"
+runtime_index = 82
 source_biq = "Conquests/conquests.biq#TECH[40]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Theory of Gravity"
 civilopedia_entry = "TECH_Theory_of_Gravity"
@@ -1028,6 +1084,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Magnetism"
+runtime_index = 43
 source_biq = "Conquests/conquests.biq#TECH[41]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Magnetism"
 civilopedia_entry = "TECH_Magnetism"
@@ -1053,8 +1110,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Military_Tradition"
+runtime_index = 91
 source_biq = "Conquests/conquests.biq#TECH[42]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Military Tradition"
+required_for_era = false
 civilopedia_entry = "TECH_Military_Tradition"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -1078,8 +1137,11 @@ flags = []
 
 [[technologies]]
 id = "TECH_Nationalism"
+runtime_index = 17
 source_biq = "Conquests/conquests.biq#TECH[43]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Nationalism"
+required_for_era = false
+era_gate = 1
 civilopedia_entry = "TECH_Nationalism"
 flags_hex = "30090200"
 unknown_tail_hex = "01000000"
@@ -1103,8 +1165,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Steam_Power"
+runtime_index = 97
 source_biq = "Conquests/conquests.biq#TECH[44]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Steam Power"
+era_gate = 1
 civilopedia_entry = "TECH_Steam_Power"
 flags_hex = "00000000"
 unknown_tail_hex = "01000000"
@@ -1128,8 +1192,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Medicine"
+runtime_index = 48
 source_biq = "Conquests/conquests.biq#TECH[45]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Medicine"
+era_gate = 1
 civilopedia_entry = "TECH_Medicine"
 flags_hex = "00000000"
 unknown_tail_hex = "01000000"
@@ -1153,8 +1219,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Communism"
+runtime_index = 15
 source_biq = "Conquests/conquests.biq#TECH[46]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Communism"
+required_for_era = false
 civilopedia_entry = "TECH_Communism"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -1178,6 +1246,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Industrialization"
+runtime_index = 35
 source_biq = "Conquests/conquests.biq#TECH[47]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Industrialization"
 civilopedia_entry = "TECH_Industrialization"
@@ -1203,6 +1272,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Electricity"
+runtime_index = 22
 source_biq = "Conquests/conquests.biq#TECH[48]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Electricity"
 civilopedia_entry = "TECH_Electricity"
@@ -1228,6 +1298,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Scientific_Method"
+runtime_index = 96
 source_biq = "Conquests/conquests.biq#TECH[49]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Scientific Method"
 civilopedia_entry = "TECH_Scientific_Method"
@@ -1253,8 +1324,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Sanitation"
+runtime_index = 70
 source_biq = "Conquests/conquests.biq#TECH[50]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Sanitation"
+required_for_era = false
 civilopedia_entry = "TECH_Sanitation"
 flags_hex = "08000200"
 unknown_tail_hex = "01000000"
@@ -1278,8 +1351,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Espionage"
+runtime_index = 26
 source_biq = "Conquests/conquests.biq#TECH[51]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Espionage"
+required_for_era = false
 civilopedia_entry = "TECH_Espionage"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -1303,6 +1378,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_The_Corporation"
+runtime_index = 78
 source_biq = "Conquests/conquests.biq#TECH[52]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "The Corporation"
 civilopedia_entry = "TECH_The_Corporation"
@@ -1328,6 +1404,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Refining"
+runtime_index = 66
 source_biq = "Conquests/conquests.biq#TECH[53]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Refining"
 civilopedia_entry = "TECH_Refining"
@@ -1353,6 +1430,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Steel"
+runtime_index = 75
 source_biq = "Conquests/conquests.biq#TECH[54]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Steel"
 civilopedia_entry = "TECH_Steel"
@@ -1378,6 +1456,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Atomic_Theory"
+runtime_index = 4
 source_biq = "Conquests/conquests.biq#TECH[55]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Atomic Theory"
 civilopedia_entry = "TECH_Atomic_Theory"
@@ -1403,6 +1482,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Combustion"
+runtime_index = 14
 source_biq = "Conquests/conquests.biq#TECH[56]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Combustion"
 civilopedia_entry = "TECH_Combustion"
@@ -1428,6 +1508,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Replaceable_Parts"
+runtime_index = 94
 source_biq = "Conquests/conquests.biq#TECH[57]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Replaceable Parts"
 civilopedia_entry = "TECH_Replaceable_Parts"
@@ -1453,6 +1534,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Flight"
+runtime_index = 29
 source_biq = "Conquests/conquests.biq#TECH[58]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Flight"
 civilopedia_entry = "TECH_Flight"
@@ -1478,8 +1560,11 @@ flags = ["Build_Airborne"]
 
 [[technologies]]
 id = "TECH_Amphibious_Warfare"
+runtime_index = 2
 source_biq = "Conquests/conquests.biq#TECH[59]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Amphibious War"
+display_name = "Amphibious Warfare"
+required_for_era = false
 civilopedia_entry = "TECH_Amphibious_Warfare"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -1503,6 +1588,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Mass_Production"
+runtime_index = 46
 source_biq = "Conquests/conquests.biq#TECH[60]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Mass Production"
 civilopedia_entry = "TECH_Mass_Production"
@@ -1528,6 +1614,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Electronics"
+runtime_index = 23
 source_biq = "Conquests/conquests.biq#TECH[61]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Electronics"
 civilopedia_entry = "TECH_Electronics"
@@ -1553,6 +1640,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Motorized_Transportation"
+runtime_index = 51
 source_biq = "Conquests/conquests.biq#TECH[62]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Motorized Transportation"
 civilopedia_entry = "TECH_Motorized_Transportation"
@@ -1578,8 +1666,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Advanced_Flight"
+runtime_index = 0
 source_biq = "Conquests/conquests.biq#TECH[63]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Advanced Flight"
+required_for_era = false
 civilopedia_entry = "TECH_Advanced_Flight"
 flags_hex = "00000200"
 unknown_tail_hex = "01000000"
@@ -1603,8 +1693,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Rocketry"
+runtime_index = 69
 source_biq = "Conquests/conquests.biq#TECH[64]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Rocketry"
+era_gate = 2
 civilopedia_entry = "TECH_Rocketry"
 flags_hex = "00000000"
 unknown_tail_hex = "01000000"
@@ -1628,8 +1720,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Fission"
+runtime_index = 56
 source_biq = "Conquests/conquests.biq#TECH[65]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Fission"
+era_gate = 2
 civilopedia_entry = "TECH_Fission"
 flags_hex = "00000000"
 unknown_tail_hex = "01000000"
@@ -1653,8 +1747,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Computers"
+runtime_index = 16
 source_biq = "Conquests/conquests.biq#TECH[66]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Computers"
+era_gate = 2
 civilopedia_entry = "TECH_Computers"
 flags_hex = "00000000"
 unknown_tail_hex = "01000000"
@@ -1678,6 +1774,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Recycling"
+runtime_index = 65
 source_biq = "Conquests/conquests.biq#TECH[67]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Recycling"
 civilopedia_entry = "TECH_Recycling"
@@ -1703,6 +1800,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Space_Flight"
+runtime_index = 72
 source_biq = "Conquests/conquests.biq#TECH[68]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Space Flight"
 civilopedia_entry = "TECH_Space_Flight"
@@ -1728,6 +1826,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Nuclear_Power"
+runtime_index = 57
 source_biq = "Conquests/conquests.biq#TECH[69]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Nuclear Power"
 civilopedia_entry = "TECH_Nuclear_Power"
@@ -1753,6 +1852,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Superconductor"
+runtime_index = 76
 source_biq = "Conquests/conquests.biq#TECH[70]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Superconductor"
 civilopedia_entry = "TECH_Superconductor"
@@ -1778,6 +1878,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Miniaturization"
+runtime_index = 50
 source_biq = "Conquests/conquests.biq#TECH[71]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Miniaturization"
 civilopedia_entry = "TECH_Miniaturization"
@@ -1803,8 +1904,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Ecology"
+runtime_index = 25
 source_biq = "Conquests/conquests.biq#TECH[72]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Ecology"
+era_gate = 2
 civilopedia_entry = "TECH_Ecology"
 flags_hex = "00000000"
 unknown_tail_hex = "01000000"
@@ -1828,6 +1931,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Synthetic_Fibers"
+runtime_index = 60
 source_biq = "Conquests/conquests.biq#TECH[73]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Synthetic Fibers"
 civilopedia_entry = "TECH_Synthetic_Fibers"
@@ -1853,6 +1957,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Satellites"
+runtime_index = 95
 source_biq = "Conquests/conquests.biq#TECH[74]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Satellites"
 civilopedia_entry = "TECH_Satellites"
@@ -1878,6 +1983,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_The_Laser"
+runtime_index = 39
 source_biq = "Conquests/conquests.biq#TECH[75]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "The Laser"
 civilopedia_entry = "TECH_The_Laser"
@@ -1903,6 +2009,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Genetics"
+runtime_index = 88
 source_biq = "Conquests/conquests.biq#TECH[76]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Genetics"
 civilopedia_entry = "TECH_Genetics"
@@ -1928,6 +2035,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Stealth"
+runtime_index = 73
 source_biq = "Conquests/conquests.biq#TECH[77]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Stealth"
 civilopedia_entry = "TECH_Stealth"
@@ -1953,6 +2061,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Smart_Weapons"
+runtime_index = 98
 source_biq = "Conquests/conquests.biq#TECH[78]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Smart Weapons"
 civilopedia_entry = "TECH_Smart_Weapons"
@@ -1978,6 +2087,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Robotics"
+runtime_index = 68
 source_biq = "Conquests/conquests.biq#TECH[79]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Robotics"
 civilopedia_entry = "TECH_Robotics"
@@ -2003,6 +2113,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Integrated_Defense"
+runtime_index = 89
 source_biq = "Conquests/conquests.biq#TECH[80]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Integrated Defense"
 civilopedia_entry = "TECH_Integrated_Defense"
@@ -2028,6 +2139,7 @@ flags = []
 
 [[technologies]]
 id = "TECH_Ironclads"
+runtime_index = 100
 source_biq = "Conquests/conquests.biq#TECH[81]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Ironclads"
 civilopedia_entry = "TECH_Ironclads"
@@ -2053,8 +2165,10 @@ flags = []
 
 [[technologies]]
 id = "TECH_Fascism"
+runtime_index = 99
 source_biq = "Conquests/conquests.biq#TECH[82]@1bd610ab1420217f7d64a9214b60c0bc7686e4781a0d6e66590171535495609c"
 name = "Fascism"
+required_for_era = false
 civilopedia_entry = "TECH_Fascism"
 flags_hex = "00000200"
 unknown_tail_hex = "cccccccc"
