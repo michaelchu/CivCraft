@@ -6,6 +6,7 @@ mod info_block;
 mod minimap;
 mod top_bar;
 
+pub(super) use context_panel::{EMPTY_CARD_H, unit_card_height, unit_status_inline};
 pub(super) use info_block::INFO_BLOCK_H;
 
 impl Game {

@@ -7,6 +7,8 @@ use crate::sim::TopBarView;
 pub(in crate::client) const INFO_BLOCK_H: f32 = 44.0;
 const CELL_H: f32 = 18.0;
 const CELL_GAP: f32 = 3.0;
+/// Height of the 2x2 grid itself, without margins.
+pub(super) const INFO_GRID_H: f32 = 2.0 * CELL_H + CELL_GAP;
 
 /// Label and value text for the four status cells, row by row: year and
 /// government, then gold and research. The year cell has no label.

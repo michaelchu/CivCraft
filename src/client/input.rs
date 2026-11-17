@@ -233,11 +233,15 @@ impl Game {
     pub(super) fn context_rect(&self) -> Rect {
         let width = Self::corner_width();
         let height = if self.selected_unit_index().is_some() {
-            140.0
+            let inline = self
+                .selected_unit
+                .and_then(|id| self.sim.unit_context_view_by_id(id))
+                .is_none_or(|view| hud::unit_status_inline(&view, width));
+            hud::unit_card_height(inline)
         } else if self.selected_city_index().is_some() {
             174.0 + hud::INFO_BLOCK_H + 4.0
         } else {
-            54.0 + hud::INFO_BLOCK_H + 4.0
+            hud::EMPTY_CARD_H
         };
         Rect::new(
             screen_width() - HUD_MARGIN - width,
