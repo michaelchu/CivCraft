@@ -6,7 +6,8 @@ impl Game {
     pub(super) fn draw_context_panel(&self, assets: &Assets, card: Rect, button_y: f32) {
         let x = card.x + 10.0;
         let y = card.y + 4.0;
-        let spacing = ((button_y - y - 6.0) / 156.0).clamp(0.0, 1.0);
+        let city_offset = INFO_BLOCK_H + 4.0;
+        let spacing = ((button_y - y - 6.0) / (156.0 + city_offset)).clamp(0.0, 1.0);
         let context_text = |text: &str, tx: f32, ty: f32, size: f32, color: Color| {
             text_in(
                 text,
@@ -73,49 +74,16 @@ impl Game {
                 text_in(&state, x, title_y + 29.0, 12.0, width, status_color);
             }
 
-            let gap = 4.0;
-            let cell_width = (width - gap) * 0.5;
-            let moves = view.moves_allowance;
-            let metrics = [
-                ("Health", format!("{}/{}", view.hp, view.max_hp)),
-                ("Moves", format!("{}/{moves}", view.moves_left)),
-                ("Attack", view.attack.to_string()),
-                ("Defense", view.defense.to_string()),
-            ];
-            for (index, (label, value)) in metrics.iter().enumerate() {
-                let cell_x = x + (index % 2) as f32 * (cell_width + gap);
-                let grid_y = if inline_status {
-                    card.y + 44.0
-                } else {
-                    card.y + 56.0
-                };
-                let cell_y = grid_y + (index / 2) as f32 * 21.0;
-                let cell = Rect::new(cell_x, cell_y, cell_width, 18.0);
-                draw_rectangle(
-                    cell.x,
-                    cell.y,
-                    cell.w,
-                    cell.h,
-                    Color::from_rgba(41, 48, 42, 255),
-                );
-
-                let value_size = measure_text(value, None, 12, 1.0);
-                let label = fit_text(label, 12.0, cell.w - value_size.width - 13.0);
-                let label_size = measure_text(&label, None, 12, 1.0);
-                let baseline =
-                    |size: TextDimensions| cell.y + (cell.h - size.height) * 0.5 + size.offset_y;
-                draw_text(&label, cell.x + 5.0, baseline(label_size), 12.0, muted);
-                draw_text(
-                    value,
-                    cell.right() - value_size.width - 5.0,
-                    baseline(value_size),
-                    12.0,
-                    WHITE,
-                );
-            }
+            let top = if inline_status {
+                card.y + 44.0
+            } else {
+                card.y + 56.0
+            };
+            self.draw_info_block(card, top);
         } else if let Some(city_id) = self.selected_city
             && let Some(city) = self.sim.city_context_view(city_id)
         {
+            self.draw_info_block(card, y + 54.0 * spacing);
             context_text(
                 &city.name,
                 x,
@@ -141,21 +109,21 @@ impl Game {
                     city.food, city.shields, city.trade
                 ),
                 x,
-                y + 76.0,
+                y + city_offset + 76.0,
                 17.0,
                 Color::from_rgba(177, 213, 159, 255),
             );
             context_text(
                 &format!("Food store {}/{}", city.food_store, city.growth_box),
                 x,
-                y + 102.0,
+                y + city_offset + 102.0,
                 17.0,
                 Color::from_rgba(229, 226, 209, 255),
             );
             context_text(
                 &format!("Producing: {}", city.production_name),
                 x,
-                y + 132.0,
+                y + city_offset + 132.0,
                 18.0,
                 Color::from_rgba(145, 204, 224, 255),
             );
@@ -165,10 +133,12 @@ impl Game {
                     city.production_stock, city.production_cost
                 ),
                 x,
-                y + 156.0,
+                y + city_offset + 156.0,
                 17.0,
                 Color::from_rgba(229, 226, 209, 255),
             );
+        } else {
+            self.draw_info_block(card, card.y + 6.0);
         }
     }
 }

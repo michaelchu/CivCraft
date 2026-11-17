@@ -5,14 +5,6 @@ use super::*;
 impl Game {
     pub(super) fn draw_top_bar(&self, actions: &mut Vec<(Rect, UiAction)>) {
         let width = screen_width();
-        draw_rectangle(0.0, 0.0, width, TOP_H, Color::from_rgba(29, 31, 28, 255));
-        draw_rectangle(
-            0.0,
-            TOP_H - 3.0,
-            width,
-            3.0,
-            Color::from_rgba(171, 133, 55, 255),
-        );
 
         let Some(view) = self.sim.top_bar_view(HUMAN) else {
             return;
@@ -22,36 +14,6 @@ impl Game {
         let button_width = 38.0;
         let step = button_width + 4.0;
         let button_start = width - HUD_MARGIN - button_count as f32 * step + 4.0;
-        let displays = [
-            (
-                format!("Turn {} · {}", view.turn, year_label(view.year)),
-                WHITE,
-            ),
-            (format!("Gold {}", view.gold), GOLD),
-            (view.government_name.to_owned(), LIGHTGRAY),
-            (
-                format!(
-                    "{} {}/{}",
-                    view.research_name, view.research_points, view.research_cost
-                ),
-                Color::from_rgba(151, 210, 231, 255),
-            ),
-        ];
-        let mut x = HUD_MARGIN;
-        if width >= 950.0 {
-            text_in("CivCraft", x, 29.0, 24.0, 100.0, GOLD);
-            x += 112.0;
-        }
-        let available = (button_start - x - HUD_MARGIN).max(0.0);
-        let measured = displays
-            .each_ref()
-            .map(|(label, _)| measure_text(label, None, 16, 1.0).width);
-        let scale = ((available - 36.0) / measured.iter().sum::<f32>()).clamp(0.0, 1.0);
-        for ((label, color), measured) in displays.iter().zip(measured) {
-            let slot = (measured * scale).ceil();
-            text_in(label, x, 27.0, 16.0, slot, *color);
-            x += slot + 11.0;
-        }
 
         let in_anarchy = view.anarchy;
         let rates = if in_anarchy { [0, 0, 100] } else { view.rates };
@@ -179,7 +141,7 @@ impl Game {
         }
 
         if self.music_open {
-            let panel = Rect::new(width - HUD_MARGIN - 190.0, TOP_H + 4.0, 190.0, 132.0);
+            let panel = Rect::new(width - HUD_MARGIN - 190.0, CONTROLS_H + 4.0, 190.0, 132.0);
             draw_hud_card(panel);
             draw_text("Music", panel.x + 10.0, panel.y + 19.0, 14.0, GOLD);
 
@@ -246,7 +208,7 @@ impl Game {
             let width = measure_text(&label, None, 15, 1.0).width + 16.0;
             let rect = Rect::new(
                 (button.right() - width).max(HUD_MARGIN),
-                TOP_H + 3.0,
+                button.bottom() + 3.0,
                 width,
                 24.0,
             );

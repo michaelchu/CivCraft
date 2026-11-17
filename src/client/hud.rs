@@ -2,8 +2,11 @@
 
 use super::*;
 mod context_panel;
+mod info_block;
 mod minimap;
 mod top_bar;
+
+pub(super) use info_block::INFO_BLOCK_H;
 
 impl Game {
     pub(super) fn draw_hud(&mut self, assets: &Assets) -> Vec<(Rect, UiAction)> {
@@ -115,7 +118,7 @@ impl Game {
             let clipped = fit_text(message, 15.0, width - 16.0);
             let rect = Rect::new(
                 HUD_MARGIN,
-                TOP_H + 10.0 + (1 - i) as f32 * 21.0,
+                CONTROLS_H + 10.0 + (1 - i) as f32 * 21.0,
                 measure_text(&clipped, None, 15, 1.0).width + 16.0,
                 21.0,
             );

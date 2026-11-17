@@ -14,12 +14,7 @@ pub(crate) struct UnitContextView {
     pub(crate) owner_name: String,
     pub(crate) terrain_name: &'static str,
     pub(crate) status: String,
-    pub(crate) hp: i32,
-    pub(crate) max_hp: i32,
     pub(crate) moves_left: i32,
-    pub(crate) moves_allowance: i32,
-    pub(crate) attack: i32,
-    pub(crate) defense: i32,
 }
 
 /// The computed values needed by the selected city's compact context card.
@@ -53,7 +48,7 @@ pub(crate) struct TechnologyResearchView {
     pub(crate) target_cost: i32,
 }
 
-/// Display-ready status and controls for the top bar.
+/// Display-ready turn, economy and control state for the HUD.
 pub(crate) struct TopBarView {
     pub(crate) turn: i32,
     pub(crate) year: i32,
@@ -462,11 +457,7 @@ mod tests {
         let view = sim.unit_context_view(unit);
         assert_eq!(view.kind, unit.kind);
         assert_eq!(view.owner, unit.owner);
-        assert_eq!(view.hp, unit.hp);
-        assert_eq!(view.max_hp, unit.max_hit_points());
         assert_eq!(view.moves_left, unit.moves_left);
-        assert_eq!(view.attack, unit.kind.stats().attack);
-        assert_eq!(view.defense, unit.kind.stats().defense);
         assert_eq!(view.terrain_name, sim.tile(unit.x, unit.y).terrain.name());
     }
 
